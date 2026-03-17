@@ -557,8 +557,9 @@ BOOL SBSendTap(SBDevice *device, double x, double y,
     id client = _createHIDClient(device.simDevice, error);
     if (!client) return NO;
 
-    CGPoint point = CGPointMake(x, y);
-    // Target 0 = default device target (IndigoHIDTargetForScreen is for Simulator.app context only)
+    // IndigoHIDMessageForMouseNSEvent uses AppKit coordinate space (origin at bottom-left).
+    // iOS uses top-left origin. Flip Y: appKitY = displayHeight - iOSy
+    CGPoint point = CGPointMake(x, displayHeight - y);
     uint32_t target = 0;
     NSSize displaySize = NSMakeSize(displayWidth, displayHeight);
 
