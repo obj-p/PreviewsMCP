@@ -15,8 +15,12 @@ let package = Package(
     ],
     targets: [
         .target(
+            name: "SimulatorBridge"
+        ),
+        .target(
             name: "PreviewsCore",
             dependencies: [
+                "SimulatorBridge",
                 .product(name: "SwiftParser", package: "swift-syntax"),
                 .product(name: "SwiftSyntax", package: "swift-syntax"),
             ]
