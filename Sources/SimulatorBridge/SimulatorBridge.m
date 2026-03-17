@@ -481,33 +481,42 @@ static BOOL _loadSimulatorKit(NSError **error) {
 }
 
 static id _createHIDClient(id simDevice, NSError **error) {
-    // initWithDevice:error: — the ObjC-exported init on SimDeviceLegacyHIDClient
+    // initWithDevice:error: is a Swift throwing init exposed to ObjC.
+    // Swift throws maps to: returns nil + sets error on failure.
+    // Use performSelector for the 2-arg form (device + error pointer treated as nil/ignored).
     SEL initSel = NSSelectorFromString(@"initWithDevice:error:");
-    if ([_hidClientClass instancesRespondToSelector:initSel]) {
-        id client = [_hidClientClass alloc];
-        NSMethodSignature *sig = [client methodSignatureForSelector:initSel];
-        if (sig) {
-            NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
-            [inv setTarget:client];
-            [inv setSelector:initSel];
-            [inv setArgument:&simDevice atIndex:2];
-            __autoreleasing NSError *initError = nil;
-            __autoreleasing NSError **errorPtr = &initError;
-            [inv setArgument:&errorPtr atIndex:3];
 
-            @try {
-                [inv invoke];
-                id result = nil;
-                [inv getReturnValue:&result];
-                if (result) return result;
-                if (error && initError) *error = initError;
-            } @catch (NSException *e) {
-                NSLog(@"SimulatorBridge: HID client init exception: %@", e.reason);
-            }
-        }
+    if (![_hidClientClass instancesRespondToSelector:initSel]) {
+        if (error) *error = _makeError(23, @"initWithDevice:error: not found on HID client class");
+        return nil;
     }
 
-    if (error && !*error) *error = _makeError(23, @"Failed to create SimDeviceLegacyHIDClient");
+    id client = [_hidClientClass alloc];
+    NSMethodSignature *sig = [client methodSignatureForSelector:initSel];
+
+    NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
+    [inv setTarget:client];
+    [inv setSelector:initSel];
+    [inv setArgument:&simDevice atIndex:2];
+
+    // For Swift throws -> ObjC error:, the error parameter is an NSError** at index 3
+    // Pass NULL to indicate we don't care about the error through this path
+    NSError *__autoreleasing *nullErrorPtr = NULL;
+    [inv setArgument:&nullErrorPtr atIndex:3];
+
+    @try {
+        [inv invoke];
+        // NSInvocation getReturnValue: returns unretained — use __unsafe_unretained
+        // to avoid ARC double-release, then retain explicitly.
+        __unsafe_unretained id unsafeResult = nil;
+        [inv getReturnValue:&unsafeResult];
+        id result = unsafeResult; // ARC retains here
+        if (result) return result;
+    } @catch (NSException *e) {
+        NSLog(@"SimulatorBridge: HID client init exception: %@", e.reason);
+    }
+
+    if (error) *error = _makeError(23, @"Failed to create SimDeviceLegacyHIDClient");
     return nil;
 }
 
