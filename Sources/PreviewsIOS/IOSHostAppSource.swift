@@ -11,6 +11,9 @@ enum IOSHostAppSource {
         private var retainedControllers: [UIViewController] = []
         private var signalTimer: Timer?
         private var lastSignalModDate: Date?
+        private var literalsTimer: Timer?
+        private var lastLiteralsModDate: Date?
+        private var currentDylibHandle: UnsafeMutableRawPointer?
 
         func application(
             _ application: UIApplication,
@@ -45,6 +48,11 @@ enum IOSHostAppSource {
                 watchSignalFile(at: args[signalIndex + 1])
             }
 
+            if let literalsIndex = args.firstIndex(of: "--literals-file"),
+               literalsIndex + 1 < args.count {
+                watchLiteralsFile(at: args[literalsIndex + 1])
+            }
+
             window.makeKeyAndVisible()
             return true
         }
@@ -55,6 +63,7 @@ enum IOSHostAppSource {
                 showError("dlopen failed: \\(error)")
                 return
             }
+            currentDylibHandle = handle
 
             guard let sym = dlsym(handle, "createPreviewView") else {
                 let error = String(cString: dlerror())
@@ -109,6 +118,64 @@ enum IOSHostAppSource {
         private func modDate(of path: String) -> Date? {
             let attrs = try? FileManager.default.attributesOfItem(atPath: path)
             return attrs?[.modificationDate] as? Date
+        }
+
+        // MARK: - Literals File Watching (fast path)
+
+        private func watchLiteralsFile(at path: String) {
+            lastLiteralsModDate = modDate(of: path)
+            literalsTimer = Timer.scheduledTimer(withTimeInterval: 0.15, repeats: true) { [weak self] _ in
+                guard let self else { return }
+                guard let newDate = self.modDate(of: path) else { return }
+                guard newDate != self.lastLiteralsModDate else { return }
+                self.lastLiteralsModDate = newDate
+
+                guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)) else { return }
+                self.applyLiterals(data)
+            }
+        }
+
+        private func applyLiterals(_ data: Data) {
+            guard let handle = currentDylibHandle else { return }
+            guard let entries = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return }
+
+            for entry in entries {
+                guard let id = entry["id"] as? String,
+                      let type = entry["type"] as? String else { continue }
+
+                switch type {
+                case "string":
+                    guard let value = entry["value"] as? String else { continue }
+                    guard let sym = dlsym(handle, "designTimeSetString") else { continue }
+                    typealias Setter = @convention(c) (UnsafePointer<CChar>, UnsafePointer<CChar>) -> Void
+                    let fn = unsafeBitCast(sym, to: Setter.self)
+                    id.withCString { idPtr in value.withCString { valPtr in fn(idPtr, valPtr) } }
+
+                case "integer":
+                    guard let value = entry["value"] as? Int else { continue }
+                    guard let sym = dlsym(handle, "designTimeSetInteger") else { continue }
+                    typealias Setter = @convention(c) (UnsafePointer<CChar>, Int) -> Void
+                    let fn = unsafeBitCast(sym, to: Setter.self)
+                    id.withCString { idPtr in fn(idPtr, value) }
+
+                case "float":
+                    guard let value = entry["value"] as? Double else { continue }
+                    guard let sym = dlsym(handle, "designTimeSetFloat") else { continue }
+                    typealias Setter = @convention(c) (UnsafePointer<CChar>, Double) -> Void
+                    let fn = unsafeBitCast(sym, to: Setter.self)
+                    id.withCString { idPtr in fn(idPtr, value) }
+
+                case "boolean":
+                    guard let value = entry["value"] as? Bool else { continue }
+                    guard let sym = dlsym(handle, "designTimeSetBoolean") else { continue }
+                    typealias Setter = @convention(c) (UnsafePointer<CChar>, Bool) -> Void
+                    let fn = unsafeBitCast(sym, to: Setter.self)
+                    id.withCString { idPtr in fn(idPtr, value) }
+
+                default:
+                    break
+                }
+            }
         }
     }
     """

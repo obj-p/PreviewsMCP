@@ -14,6 +14,7 @@ public actor IOSPreviewSession {
     private let simulatorManager: SimulatorManager
 
     private var signalFilePath: URL?
+    private var literalsFilePath: URL?
     private var session: PreviewSession?
 
     public static let hostBundleID = "com.previews-mcp.ios-host"
@@ -73,11 +74,14 @@ public actor IOSPreviewSession {
         }
         if let lastError { throw lastError }
 
-        // 4. Create signal file for hot-reload
-        let signalFile = compileResult.dylibPath.deletingLastPathComponent()
-            .appendingPathComponent("reload-signal.txt")
+        // 4. Create signal files for hot-reload
+        let workDir = compileResult.dylibPath.deletingLastPathComponent()
+        let signalFile = workDir.appendingPathComponent("reload-signal.txt")
+        let literalsFile = workDir.appendingPathComponent("literals-signal.json")
         try compileResult.dylibPath.path.write(to: signalFile, atomically: true, encoding: .utf8)
+        try "[]".write(to: literalsFile, atomically: true, encoding: .utf8)
         signalFilePath = signalFile
+        literalsFilePath = literalsFile
 
         // 5. Launch host app with dylib path
         let pid = try await simulatorManager.launchApp(
@@ -86,10 +90,55 @@ public actor IOSPreviewSession {
             arguments: [
                 "--dylib", compileResult.dylibPath.path,
                 "--signal-file", signalFile.path,
+                "--literals-file", literalsFile.path,
             ]
         )
 
         return pid
+    }
+
+    /// Handle a source file change. Tries the literal fast path first;
+    /// falls back to full recompile if structural changes are detected.
+    /// Returns true if the fast path was used.
+    @discardableResult
+    public func handleSourceChange() async throws -> Bool {
+        guard signalFilePath != nil else {
+            throw IOSPreviewSessionError.notStarted
+        }
+
+        let newSource = try String(contentsOf: sourceFile, encoding: .utf8)
+
+        // Fast path: literal-only change
+        if let currentSession = session,
+           let changes = await currentSession.tryLiteralUpdate(newSource: newSource),
+           !changes.isEmpty,
+           let literalsFile = literalsFilePath {
+            let json = changes.map { change -> [String: Any] in
+                var entry: [String: Any] = ["id": change.id]
+                switch change.newValue {
+                case .string(let s):
+                    entry["type"] = "string"
+                    entry["value"] = s
+                case .integer(let n):
+                    entry["type"] = "integer"
+                    entry["value"] = n
+                case .float(let d):
+                    entry["type"] = "float"
+                    entry["value"] = d
+                case .boolean(let b):
+                    entry["type"] = "boolean"
+                    entry["value"] = b
+                }
+                return entry
+            }
+            let data = try JSONSerialization.data(withJSONObject: json)
+            try data.write(to: literalsFile, options: .atomic)
+            return true
+        }
+
+        // Slow path: structural change, full recompile
+        try await reload()
+        return false
     }
 
     /// Recompile the preview and signal the running host app to reload.

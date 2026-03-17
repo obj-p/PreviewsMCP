@@ -322,8 +322,12 @@ private func handleIOSPreviewStart(
     let watcher = try? FileWatcher(path: fileURL.path) {
         Task {
             do {
-                try await session.reload()
-                fputs("MCP: iOS preview reloaded\n", stderr)
+                let wasLiteralOnly = try await session.handleSourceChange()
+                if wasLiteralOnly {
+                    fputs("MCP: iOS literal-only change applied (state preserved)\n", stderr)
+                } else {
+                    fputs("MCP: iOS structural change — recompiled\n", stderr)
+                }
             } catch {
                 fputs("MCP: iOS reload failed: \(error)\n", stderr)
             }
