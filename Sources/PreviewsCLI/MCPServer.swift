@@ -140,6 +140,32 @@ func configureMCPServer() async throws -> (Server, Compiler) {
                 ])
             ),
             Tool(
+                name: "preview_touch",
+                description: "Send a touch event to an iOS simulator preview. Coordinates are in points.",
+                inputSchema: .object([
+                    "type": .string("object"),
+                    "properties": .object([
+                        "sessionID": .object([
+                            "type": .string("string"),
+                            "description": .string("Session ID from preview_start (iOS simulator only)"),
+                        ]),
+                        "x": .object([
+                            "type": .string("number"),
+                            "description": .string("X coordinate in points"),
+                        ]),
+                        "y": .object([
+                            "type": .string("number"),
+                            "description": .string("Y coordinate in points"),
+                        ]),
+                        "action": .object([
+                            "type": .string("string"),
+                            "description": .string("Touch action: 'tap' (default), 'touchDown', 'touchMove', 'touchUp'"),
+                        ]),
+                    ]),
+                    "required": .array([.string("sessionID"), .string("x"), .string("y")]),
+                ])
+            ),
+            Tool(
                 name: "simulator_list",
                 description: "List available iOS simulator devices with their UDIDs and states.",
                 inputSchema: .object([
@@ -160,6 +186,8 @@ func configureMCPServer() async throws -> (Server, Compiler) {
             return try await handlePreviewSnapshot(params: params)
         case "preview_stop":
             return try await handlePreviewStop(params: params)
+        case "preview_touch":
+            return try await handlePreviewTouch(params: params)
         case "simulator_list":
             return try await handleSimulatorList()
         default:
@@ -391,6 +419,48 @@ private func handlePreviewStop(params: CallTool.Parameters) async throws -> Call
     }
 
     return CallTool.Result(content: [.text("Preview session \(sessionID) closed.")])
+}
+
+private func handlePreviewTouch(params: CallTool.Parameters) async throws -> CallTool.Result {
+    guard case .string(let sessionID) = params.arguments?["sessionID"] else {
+        return CallTool.Result(content: [.text("Missing sessionID parameter")], isError: true)
+    }
+
+    guard let iosSession = await iosState.getSession(sessionID) else {
+        return CallTool.Result(content: [.text("No iOS session found for \(sessionID). Touch is only supported for iOS simulator previews.")], isError: true)
+    }
+
+    let x: Double
+    if case .double(let n) = params.arguments?["x"] {
+        x = n
+    } else if case .int(let n) = params.arguments?["x"] {
+        x = Double(n)
+    } else {
+        return CallTool.Result(content: [.text("Missing x coordinate")], isError: true)
+    }
+
+    let y: Double
+    if case .double(let n) = params.arguments?["y"] {
+        y = n
+    } else if case .int(let n) = params.arguments?["y"] {
+        y = Double(n)
+    } else {
+        return CallTool.Result(content: [.text("Missing y coordinate")], isError: true)
+    }
+
+    let action: String
+    if case .string(let a) = params.arguments?["action"] {
+        action = a
+    } else {
+        action = "tap"
+    }
+
+    try await iosSession.sendTouch(x: x, y: y, action: action)
+
+    // Wait briefly for the touch to register and UI to update
+    try await Task.sleep(for: .milliseconds(200))
+
+    return CallTool.Result(content: [.text("Touch \(action) sent at (\(Int(x)), \(Int(y)))")])
 }
 
 private func handleSimulatorList() async throws -> CallTool.Result {

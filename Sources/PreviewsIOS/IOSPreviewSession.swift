@@ -15,6 +15,7 @@ public actor IOSPreviewSession {
 
     private var signalFilePath: URL?
     private var literalsFilePath: URL?
+    private var touchFilePath: URL?
     private var session: PreviewSession?
 
     public static let hostBundleID = "com.previews-mcp.ios-host"
@@ -78,10 +79,13 @@ public actor IOSPreviewSession {
         let workDir = compileResult.dylibPath.deletingLastPathComponent()
         let signalFile = workDir.appendingPathComponent("reload-signal.txt")
         let literalsFile = workDir.appendingPathComponent("literals-signal.json")
+        let touchFile = workDir.appendingPathComponent("touch-signal.json")
         try compileResult.dylibPath.path.write(to: signalFile, atomically: true, encoding: .utf8)
         try "[]".write(to: literalsFile, atomically: true, encoding: .utf8)
+        try "{}".write(to: touchFile, atomically: true, encoding: .utf8)
         signalFilePath = signalFile
         literalsFilePath = literalsFile
+        touchFilePath = touchFile
 
         // 5. Launch host app with dylib path
         let pid = try await simulatorManager.launchApp(
@@ -91,6 +95,7 @@ public actor IOSPreviewSession {
                 "--dylib", compileResult.dylibPath.path,
                 "--signal-file", signalFile.path,
                 "--literals-file", literalsFile.path,
+                "--touch-file", touchFile.path,
             ]
         )
 
@@ -156,6 +161,20 @@ public actor IOSPreviewSession {
             throw IOSPreviewSessionError.notStarted
         }
         try compileResult.dylibPath.path.write(to: signalFile, atomically: true, encoding: .utf8)
+    }
+
+    /// Send a touch event to the preview.
+    /// - Parameters:
+    ///   - x: X coordinate in points
+    ///   - y: Y coordinate in points
+    ///   - action: "tap", "touchDown", "touchMove", or "touchUp"
+    public func sendTouch(x: Double, y: Double, action: String = "tap") throws {
+        guard let touchFile = touchFilePath else {
+            throw IOSPreviewSessionError.notStarted
+        }
+        let command: [String: Any] = ["action": action, "x": x, "y": y]
+        let data = try JSONSerialization.data(withJSONObject: command)
+        try data.write(to: touchFile, options: .atomic)
     }
 
     /// Capture a screenshot of the simulator.
