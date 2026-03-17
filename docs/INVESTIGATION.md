@@ -683,7 +683,25 @@ previews-mcp (macOS host)
   └─ Hot-reload: file watcher → recompile → signal host app to reload
 ```
 
-**Recommended:** Approach C. It provides interactivity without the complexity of the full XPC chain, and `simctl` + `CoreSimulator.framework` are stable, documented APIs.
+**Recommended:** Approach C using `CoreSimulator.framework` directly — no `xcrun simctl` subprocess spawning. The framework provides typed Swift/ObjC APIs for everything `simctl` does:
+
+| `simctl` command | `CoreSimulator.framework` equivalent |
+|------------------|--------------------------------------|
+| `simctl list` | `SimDeviceSet.defaultSet.devices` |
+| `simctl boot` | `SimDevice.boot()` |
+| `simctl install` | `SimDevice.installApplication(at:)` |
+| `simctl launch` | `SimDevice.launchApplication(bundleID:)` |
+| `simctl io screenshot` | `SimDevice.io.screenshot()` |
+| `simctl shutdown` | `SimDevice.shutdown()` |
+| N/A (no simctl equivalent) | `SimDevice.sendTouchEvent(x:y:)` |
+
+`CoreSimulator.framework` is a private framework located at `/Library/Developer/PrivateFrameworks/CoreSimulator.framework`. Facebook's `idb_companion` uses it without Xcode entitlements. This gives us typed APIs, no subprocess overhead, and access to touch event injection that `simctl` doesn't expose.
+
+**Next steps to investigate:**
+1. Link against `CoreSimulator.framework` and verify we can create `SimDeviceSet` / `SimDevice` instances
+2. Test `SimDevice.sendTouchEvent` for HID input synthesis
+3. Determine if the Previews simulator device set can be accessed via `SimDeviceSet(setPath:)`
+4. Check if `SimDevice.io.screenshot()` returns content-only (no chrome) or the full simulated display
 
 ---
 
