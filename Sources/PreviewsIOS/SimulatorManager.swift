@@ -195,6 +195,29 @@ public actor SimulatorManager {
         return try Data(contentsOf: tempPath)
     }
 
+    // MARK: - Touch Events
+
+    /// Send a tap at the given point coordinates (in points).
+    /// displayWidth/displayHeight should match the device screen size.
+    public func sendTap(
+        udid: String,
+        x: Double, y: Double,
+        displayWidth: Double, displayHeight: Double
+    ) throws {
+        try ensureLoaded()
+        let sbDevice = try findSBDevice(udid: udid)
+        var downError: NSError?
+        guard SBSendTouchDown(sbDevice, x, y, displayWidth, displayHeight, &downError) else {
+            throw SimulatorError.touchFailed(downError?.localizedDescription ?? "touch down failed")
+        }
+        // Brief delay between down and up
+        usleep(50_000) // 50ms
+        var upError: NSError?
+        guard SBSendTouchUp(sbDevice, x, y, displayWidth, displayHeight, &upError) else {
+            throw SimulatorError.touchFailed(upError?.localizedDescription ?? "touch up failed")
+        }
+    }
+
     // MARK: - Private
 
     private func findSBDevice(udid: String) throws -> SBDevice {
@@ -239,6 +262,7 @@ public enum SimulatorError: Error, LocalizedError, CustomStringConvertible {
     case installFailed(String)
     case launchFailed(String)
     case screenshotFailed(String)
+    case touchFailed(String)
 
     public var description: String {
         switch self {
@@ -250,6 +274,7 @@ public enum SimulatorError: Error, LocalizedError, CustomStringConvertible {
         case .installFailed(let msg): return "Install failed: \(msg)"
         case .launchFailed(let msg): return "Launch failed: \(msg)"
         case .screenshotFailed(let msg): return "Screenshot failed: \(msg)"
+        case .touchFailed(let msg): return "Touch failed: \(msg)"
         }
     }
 

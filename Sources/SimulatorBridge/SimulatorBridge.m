@@ -396,3 +396,208 @@ SBDevice *SBFindBootedDevice(NSError **error) {
     if (error) *error = _makeError(5, @"No booted simulator device found");
     return nil;
 }
+
+#pragma mark - Touch Events via SimulatorKit
+
+#import <AppKit/AppKit.h>
+#import <dlfcn.h>
+
+// Opaque struct — layout managed by SimulatorKit
+typedef struct IndigoHIDMessageStruct IndigoHIDMessageStruct;
+
+// Function pointer types for SimulatorKit C functions
+typedef IndigoHIDMessageStruct *(*IndigoHIDMessageForMouseNSEventFn)(
+    CGPoint *point1, CGPoint *point2, uint32_t target,
+    NSEventType type, NSSize displaySize, uint32_t edge);
+
+typedef uint32_t (*IndigoHIDTargetForScreenFn)(void);
+
+// SimDeviceLegacyHIDClient protocol (Swift class, but send may be @objc)
+@protocol _SimDeviceLegacyHIDClient
+- (BOOL)sendWithMessage:(void *)message
+           freeWhenDone:(BOOL)freeWhenDone
+        completionQueue:(dispatch_queue_t _Nullable)queue
+             completion:(void (^ _Nullable)(NSError * _Nullable))completion
+                  error:(NSError **)error;
+@end
+
+static BOOL _simKitLoaded = NO;
+static dispatch_once_t _simKitOnce;
+static IndigoHIDMessageForMouseNSEventFn _indigoMouseEvent = NULL;
+static IndigoHIDTargetForScreenFn _indigoTarget = NULL;
+static Class _hidClientClass = Nil;
+
+static BOOL _loadSimulatorKit(NSError **error) {
+    __block NSError *loadError = nil;
+    dispatch_once(&_simKitOnce, ^{
+        // Find SimulatorKit in Xcode
+        NSString *devDir = _developerDir();
+        NSString *simKitPath = [devDir stringByAppendingPathComponent:
+            @"../SharedFrameworks/SimulatorKit.framework"];
+        // Normalize path
+        simKitPath = [simKitPath stringByStandardizingPath];
+
+        NSBundle *bundle = [NSBundle bundleWithPath:simKitPath];
+        if (!bundle) {
+            // Try alternate location
+            simKitPath = [devDir stringByAppendingPathComponent:
+                @"Library/PrivateFrameworks/SimulatorKit.framework"];
+            bundle = [NSBundle bundleWithPath:simKitPath];
+        }
+        if (!bundle) {
+            loadError = _makeError(20, [NSString stringWithFormat:
+                @"SimulatorKit.framework not found near %@", devDir]);
+            return;
+        }
+
+        NSError *bundleError = nil;
+        if (![bundle loadAndReturnError:&bundleError]) {
+            loadError = bundleError;
+            return;
+        }
+
+        void *handle = dlopen(simKitPath.UTF8String, RTLD_NOW);
+        if (!handle) handle = dlopen(bundle.executablePath.UTF8String, RTLD_NOW);
+
+        if (handle) {
+            _indigoMouseEvent = (IndigoHIDMessageForMouseNSEventFn)dlsym(handle, "IndigoHIDMessageForMouseNSEvent");
+            _indigoTarget = (IndigoHIDTargetForScreenFn)dlsym(handle, "IndigoHIDTargetForScreen");
+        }
+
+        _hidClientClass = objc_lookUpClass("_TtC12SimulatorKit24SimDeviceLegacyHIDClient");
+
+        if (!_indigoMouseEvent) {
+            loadError = _makeError(21, @"IndigoHIDMessageForMouseNSEvent not found in SimulatorKit");
+            return;
+        }
+        if (!_hidClientClass) {
+            loadError = _makeError(22, @"SimDeviceLegacyHIDClient class not found in SimulatorKit");
+            return;
+        }
+
+        _simKitLoaded = YES;
+    });
+
+    if (!_simKitLoaded && error && loadError) *error = loadError;
+    return _simKitLoaded;
+}
+
+static id _createHIDClient(id simDevice, NSError **error) {
+    // Try ObjC-style alloc/init patterns the Swift class might expose
+    SEL initSel = NSSelectorFromString(@"initWithDevice:sessionResetQueue:sessionResetHandler:");
+    if ([_hidClientClass instancesRespondToSelector:initSel]) {
+        id client = [_hidClientClass alloc];
+        NSMethodSignature *sig = [client methodSignatureForSelector:initSel];
+        if (sig) {
+            NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
+            [inv setTarget:client];
+            [inv setSelector:initSel];
+            [inv setArgument:&simDevice atIndex:2];
+            dispatch_queue_t nilQueue = nil;
+            [inv setArgument:&nilQueue atIndex:3];
+            id nilHandler = nil;
+            [inv setArgument:&nilHandler atIndex:4];
+            @try {
+                [inv invoke];
+                id result = nil;
+                [inv getReturnValue:&result];
+                return result;
+            } @catch (NSException *e) {
+                NSLog(@"SimulatorBridge: HID client init exception: %@", e.reason);
+            }
+        }
+    }
+
+    // Fallback: try simpler init
+    SEL simpleSel = NSSelectorFromString(@"initWithDevice:error:");
+    if ([_hidClientClass instancesRespondToSelector:simpleSel]) {
+        id client = [_hidClientClass alloc];
+        @try {
+            return [client performSelector:simpleSel withObject:simDevice withObject:nil];
+        } @catch (NSException *e) {
+            NSLog(@"SimulatorBridge: HID client simple init exception: %@", e.reason);
+        }
+    }
+
+    if (error) *error = _makeError(23, @"Failed to create SimDeviceLegacyHIDClient — no compatible init found");
+    return nil;
+}
+
+static BOOL _sendMouseEvent(SBDevice *device, NSEventType eventType,
+                            double x, double y, double displayWidth, double displayHeight,
+                            NSError **error) {
+    if (!_simKitLoaded && !_loadSimulatorKit(error)) return NO;
+
+    id client = _createHIDClient(device.simDevice, error);
+    if (!client) return NO;
+
+    CGPoint point = CGPointMake(x, y);
+    uint32_t target = _indigoTarget ? _indigoTarget() : 0;
+    NSSize displaySize = NSMakeSize(displayWidth, displayHeight);
+
+    IndigoHIDMessageStruct *msg = _indigoMouseEvent(&point, &point, target, eventType, displaySize, 0);
+    if (!msg) {
+        if (error) *error = _makeError(24, @"IndigoHIDMessageForMouseNSEvent returned nil");
+        return NO;
+    }
+
+    // Try sending via the client
+    SEL sendSel = NSSelectorFromString(@"sendWithMessage:freeWhenDone:completionQueue:completion:error:");
+    if ([client respondsToSelector:sendSel]) {
+        BOOL freeWhenDone = YES;
+        dispatch_queue_t nilQueue = nil;
+        id nilCompletion = nil;
+        NSError *sendError = nil;
+
+        NSMethodSignature *sig = [client methodSignatureForSelector:sendSel];
+        NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
+        [inv setTarget:client];
+        [inv setSelector:sendSel];
+        [inv setArgument:&msg atIndex:2];
+        [inv setArgument:&freeWhenDone atIndex:3];
+        [inv setArgument:&nilQueue atIndex:4];
+        [inv setArgument:&nilCompletion atIndex:5];
+        [inv setArgument:&sendError atIndex:6];
+
+        @try {
+            [inv invoke];
+            BOOL success = NO;
+            [inv getReturnValue:&success];
+            if (!success && error) *error = sendError ?: _makeError(25, @"send returned NO");
+            return success;
+        } @catch (NSException *e) {
+            if (error) *error = _makeError(25, [NSString stringWithFormat:@"send exception: %@", e.reason]);
+            return NO;
+        }
+    }
+
+    // Fallback: try simple send
+    SEL simpleSend = NSSelectorFromString(@"sendWithMessage:");
+    if ([client respondsToSelector:simpleSend]) {
+        @try {
+            NSMethodSignature *sig = [client methodSignatureForSelector:simpleSend];
+            NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
+            [inv setTarget:client];
+            [inv setSelector:simpleSend];
+            [inv setArgument:&msg atIndex:2];
+            [inv invoke];
+            return YES;
+        } @catch (NSException *e) {
+            if (error) *error = _makeError(25, [NSString stringWithFormat:@"sendWithMessage exception: %@", e.reason]);
+            return NO;
+        }
+    }
+
+    if (error) *error = _makeError(26, @"No compatible send method found on HID client");
+    return NO;
+}
+
+BOOL SBSendTouchDown(SBDevice *device, double x, double y,
+                     double displayWidth, double displayHeight, NSError **error) {
+    return _sendMouseEvent(device, NSEventTypeLeftMouseDown, x, y, displayWidth, displayHeight, error);
+}
+
+BOOL SBSendTouchUp(SBDevice *device, double x, double y,
+                   double displayWidth, double displayHeight, NSError **error) {
+    return _sendMouseEvent(device, NSEventTypeLeftMouseUp, x, y, displayWidth, displayHeight, error);
+}

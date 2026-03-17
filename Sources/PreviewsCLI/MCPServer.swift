@@ -496,12 +496,12 @@ private func handlePreviewTouch(params: CallTool.Parameters) async throws -> Cal
         action = "tap"
     }
 
-    try await iosSession.sendTouch(x: x, y: y, action: action)
+    try await iosSession.sendTap(x: x, y: y)
 
     // Wait briefly for the touch to register and UI to update
-    try await Task.sleep(for: .milliseconds(200))
+    try await Task.sleep(for: .milliseconds(300))
 
-    return CallTool.Result(content: [.text("Touch \(action) sent at (\(Int(x)), \(Int(y)))")])
+    return CallTool.Result(content: [.text("Tap sent at (\(Int(x)), \(Int(y)))")])
 }
 
 private func handleSimulatorList() async throws -> CallTool.Result {

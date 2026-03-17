@@ -180,18 +180,15 @@ public actor IOSPreviewSession {
         try compileResult.dylibPath.path.write(to: signalFile, atomically: true, encoding: .utf8)
     }
 
-    /// Send a touch event to the preview.
-    /// - Parameters:
-    ///   - x: X coordinate in points
-    ///   - y: Y coordinate in points
-    ///   - action: "tap", "touchDown", "touchMove", or "touchUp"
-    public func sendTouch(x: Double, y: Double, action: String = "tap") throws {
-        guard let touchFile = touchFilePath else {
-            throw IOSPreviewSessionError.notStarted
-        }
-        let command: [String: Any] = ["action": action, "x": x, "y": y]
-        let data = try JSONSerialization.data(withJSONObject: command)
-        try data.write(to: touchFile, options: .atomic)
+    /// Send a tap at the given point coordinates (in points).
+    /// Uses SimulatorKit's IndigoHID from the host Mac — no in-app injection needed.
+    public func sendTap(x: Double, y: Double,
+                        displayWidth: Double = 393, displayHeight: Double = 852) async throws {
+        try await simulatorManager.sendTap(
+            udid: deviceUDID,
+            x: x, y: y,
+            displayWidth: displayWidth, displayHeight: displayHeight
+        )
     }
 
     /// Fetch the accessibility tree from the running preview.
