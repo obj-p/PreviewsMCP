@@ -399,10 +399,19 @@ SBDevice *SBFindBootedDevice(NSError **error) {
 
 #pragma mark - Touch Events via CGEvent on Simulator.app Window
 
+// Touch injection by posting CGEvent clicks to the Simulator.app window.
+// Simulator.app converts mouse clicks to touch events internally —
+// the same path as a user physically clicking in the simulator window.
+// Requires Simulator.app to be visible (headless=false).
+//
+// IndigoHID direct injection was investigated but IndigoHIDMessageForMouseNSEvent
+// creates pointer events (eventType=3) that the iOS runtime receives as mouse
+// input rather than touch input. The Simulator.app's SimDigitizerInputView layer
+// handles the mouse→touch conversion, which is why CGEvent through the window works.
+
 #import <AppKit/AppKit.h>
 #import <ApplicationServices/ApplicationServices.h>
 
-/// Find the Simulator.app window bounds on screen.
 static BOOL _findSimulatorWindow(CGRect *outBounds, NSError **error) {
     CFArrayRef windowList = CGWindowListCopyWindowInfo(kCGWindowListOptionOnScreenOnly, kCGNullWindowID);
     if (!windowList) {
@@ -425,7 +434,7 @@ static BOOL _findSimulatorWindow(CGRect *outBounds, NSError **error) {
 
     CFRelease(windowList);
     if (!found && error) {
-        *error = _makeError(21, @"Simulator.app window not found — set headless to false");
+        *error = _makeError(21, @"Simulator.app window not found — touch requires headless=false");
     }
     return found;
 }
@@ -436,8 +445,7 @@ BOOL SBSendTap(SBDevice *device, double x, double y,
     if (!_findSimulatorWindow(&simBounds, error)) return NO;
 
     // Map iOS device coordinates to macOS screen coordinates.
-    // Simulator.app window content maps device points to window area.
-    // macOS title bar is ~28pt.
+    // Account for title bar (~28pt) and compute scale factor.
     double titleBarHeight = 28.0;
     double contentHeight = simBounds.size.height - titleBarHeight;
     double scaleX = simBounds.size.width / displayWidth;
@@ -449,7 +457,6 @@ BOOL SBSendTap(SBDevice *device, double x, double y,
 
     CGPoint clickPoint = CGPointMake(screenX, screenY);
 
-    // Post mouse down + up. Simulator.app converts this to a touch event.
     CGEventRef mouseDown = CGEventCreateMouseEvent(
         NULL, kCGEventLeftMouseDown, clickPoint, kCGMouseButtonLeft);
     CGEventRef mouseUp = CGEventCreateMouseEvent(
@@ -463,7 +470,7 @@ BOOL SBSendTap(SBDevice *device, double x, double y,
     }
 
     CGEventPost(kCGHIDEventTap, mouseDown);
-    usleep(80000); // 80ms between down and up
+    usleep(80000);
     CGEventPost(kCGHIDEventTap, mouseUp);
 
     CFRelease(mouseDown);
