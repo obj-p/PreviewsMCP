@@ -16,7 +16,9 @@ public actor IOSPreviewSession {
     private var signalFilePath: URL?
     private var literalsFilePath: URL?
     private var touchFilePath: URL?
+    private var elementsFilePath: URL?
     private var session: PreviewSession?
+    public nonisolated let headless: Bool
 
     public static let hostBundleID = "com.previews-mcp.ios-host"
 
@@ -26,7 +28,8 @@ public actor IOSPreviewSession {
         deviceUDID: String,
         compiler: Compiler,
         hostBuilder: IOSHostBuilder,
-        simulatorManager: SimulatorManager
+        simulatorManager: SimulatorManager,
+        headless: Bool = true
     ) {
         self.id = UUID().uuidString
         self.sourceFile = sourceFile
@@ -35,6 +38,7 @@ public actor IOSPreviewSession {
         self.compiler = compiler
         self.hostBuilder = hostBuilder
         self.simulatorManager = simulatorManager
+        self.headless = headless
     }
 
     /// Start the iOS preview: compile, boot sim, install host, launch.
@@ -75,17 +79,29 @@ public actor IOSPreviewSession {
         }
         if let lastError { throw lastError }
 
-        // 4. Create signal files for hot-reload
+        // 3b. Open Simulator.app GUI if not headless
+        if !headless {
+            let openProcess = Process()
+            openProcess.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+            openProcess.arguments = ["-a", "Simulator", "--args", "-CurrentDeviceUDID", deviceUDID]
+            try? openProcess.run()
+            openProcess.waitUntilExit()
+        }
+
+        // 4. Create signal files for hot-reload and interaction
         let workDir = compileResult.dylibPath.deletingLastPathComponent()
         let signalFile = workDir.appendingPathComponent("reload-signal.txt")
         let literalsFile = workDir.appendingPathComponent("literals-signal.json")
         let touchFile = workDir.appendingPathComponent("touch-signal.json")
+        let elementsFile = workDir.appendingPathComponent("elements-request.json")
         try compileResult.dylibPath.path.write(to: signalFile, atomically: true, encoding: .utf8)
         try "[]".write(to: literalsFile, atomically: true, encoding: .utf8)
         try "{}".write(to: touchFile, atomically: true, encoding: .utf8)
+        try "{}".write(to: elementsFile, atomically: true, encoding: .utf8)
         signalFilePath = signalFile
         literalsFilePath = literalsFile
         touchFilePath = touchFile
+        elementsFilePath = elementsFile
 
         // 5. Launch host app with dylib path
         let pid = try await simulatorManager.launchApp(
@@ -96,6 +112,7 @@ public actor IOSPreviewSession {
                 "--signal-file", signalFile.path,
                 "--literals-file", literalsFile.path,
                 "--touch-file", touchFile.path,
+                "--elements-file", elementsFile.path,
             ]
         )
 
@@ -177,6 +194,35 @@ public actor IOSPreviewSession {
         try data.write(to: touchFile, options: .atomic)
     }
 
+    /// Fetch the accessibility tree from the running preview.
+    /// Returns JSON describing all accessible elements with their frames and labels.
+    public func fetchElements() async throws -> String {
+        guard let elementsFile = elementsFilePath else {
+            throw IOSPreviewSessionError.notStarted
+        }
+
+        let responseFile = elementsFile.deletingLastPathComponent()
+            .appendingPathComponent("elements-response.json")
+
+        // Remove stale response
+        try? FileManager.default.removeItem(at: responseFile)
+
+        // Write request — host app watches this file and writes response
+        let request: [String: Any] = ["action": "dump", "responsePath": responseFile.path]
+        let data = try JSONSerialization.data(withJSONObject: request)
+        try data.write(to: elementsFile, options: .atomic)
+
+        // Poll for response (up to 2 seconds)
+        for _ in 0..<20 {
+            try await Task.sleep(for: .milliseconds(100))
+            if FileManager.default.fileExists(atPath: responseFile.path) {
+                return try String(contentsOf: responseFile, encoding: .utf8)
+            }
+        }
+
+        throw IOSPreviewSessionError.elementsTimeout
+    }
+
     /// Capture a screenshot of the simulator.
     public func screenshot() async throws -> Data {
         return try await simulatorManager.screenshotData(udid: deviceUDID)
@@ -185,10 +231,12 @@ public actor IOSPreviewSession {
 
 public enum IOSPreviewSessionError: Error, LocalizedError, CustomStringConvertible {
     case notStarted
+    case elementsTimeout
 
     public var description: String {
         switch self {
         case .notStarted: return "iOS preview session has not been started"
+        case .elementsTimeout: return "Timed out waiting for accessibility tree response"
         }
     }
 

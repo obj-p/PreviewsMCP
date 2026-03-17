@@ -99,6 +99,10 @@ func configureMCPServer() async throws -> (Server, Compiler) {
                             "type": .string("string"),
                             "description": .string("Simulator device UDID (for ios-simulator; auto-selects if omitted)"),
                         ]),
+                        "headless": .object([
+                            "type": .string("boolean"),
+                            "description": .string("If false, opens Simulator.app GUI (iOS only, default: true)"),
+                        ]),
                         "width": .object([
                             "type": .string("integer"),
                             "description": .string("Window width in points (macOS only, default: 400)"),
@@ -134,6 +138,20 @@ func configureMCPServer() async throws -> (Server, Compiler) {
                         "sessionID": .object([
                             "type": .string("string"),
                             "description": .string("Session ID from preview_start"),
+                        ]),
+                    ]),
+                    "required": .array([.string("sessionID")]),
+                ])
+            ),
+            Tool(
+                name: "preview_elements",
+                description: "Get the accessibility tree of an iOS simulator preview. Returns elements with labels, frames, and traits for targeted interaction.",
+                inputSchema: .object([
+                    "type": .string("object"),
+                    "properties": .object([
+                        "sessionID": .object([
+                            "type": .string("string"),
+                            "description": .string("Session ID from preview_start (iOS simulator only)"),
                         ]),
                     ]),
                     "required": .array([.string("sessionID")]),
@@ -186,6 +204,8 @@ func configureMCPServer() async throws -> (Server, Compiler) {
             return try await handlePreviewSnapshot(params: params)
         case "preview_stop":
             return try await handlePreviewStop(params: params)
+        case "preview_elements":
+            return try await handlePreviewElements(params: params)
         case "preview_touch":
             return try await handlePreviewTouch(params: params)
         case "simulator_list":
@@ -333,13 +353,21 @@ private func handleIOSPreviewStart(
     let hostBuilder = try await iosState.getHostBuilder()
     let simulatorManager = iosState.simulatorManager
 
+    let headless: Bool
+    if case .bool(let h) = params.arguments?["headless"] {
+        headless = h
+    } else {
+        headless = true
+    }
+
     let session = IOSPreviewSession(
         sourceFile: fileURL,
         previewIndex: previewIndex,
         deviceUDID: deviceUDID,
         compiler: iosCompiler,
         hostBuilder: hostBuilder,
-        simulatorManager: simulatorManager
+        simulatorManager: simulatorManager,
+        headless: headless
     )
 
     let pid = try await session.start()
@@ -419,6 +447,19 @@ private func handlePreviewStop(params: CallTool.Parameters) async throws -> Call
     }
 
     return CallTool.Result(content: [.text("Preview session \(sessionID) closed.")])
+}
+
+private func handlePreviewElements(params: CallTool.Parameters) async throws -> CallTool.Result {
+    guard case .string(let sessionID) = params.arguments?["sessionID"] else {
+        return CallTool.Result(content: [.text("Missing sessionID parameter")], isError: true)
+    }
+
+    guard let iosSession = await iosState.getSession(sessionID) else {
+        return CallTool.Result(content: [.text("No iOS session found for \(sessionID). Elements are only available for iOS simulator previews.")], isError: true)
+    }
+
+    let elementsJSON = try await iosSession.fetchElements()
+    return CallTool.Result(content: [.text(elementsJSON)])
 }
 
 private func handlePreviewTouch(params: CallTool.Parameters) async throws -> CallTool.Result {

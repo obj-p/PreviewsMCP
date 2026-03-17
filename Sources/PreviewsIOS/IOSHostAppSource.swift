@@ -62,6 +62,11 @@ enum IOSHostAppSource {
                 watchTouchFile(at: args[touchIndex + 1])
             }
 
+            if let elementsIndex = args.firstIndex(of: "--elements-file"),
+               elementsIndex + 1 < args.count {
+                watchElementsFile(at: args[elementsIndex + 1])
+            }
+
             window.makeKeyAndVisible()
             return true
         }
@@ -315,6 +320,109 @@ enum IOSHostAppSource {
             }
             cfRelease(parent)
             cfRelease(finger)
+        }
+
+        // MARK: - Accessibility Tree Dump
+
+        private var elementsTimer: Timer?
+        private var lastElementsModDate: Date?
+
+        private func watchElementsFile(at path: String) {
+            lastElementsModDate = modDate(of: path)
+            elementsTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+                guard let self else { return }
+                guard let newDate = self.modDate(of: path) else { return }
+                guard newDate != self.lastElementsModDate else { return }
+                self.lastElementsModDate = newDate
+
+                guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
+                      let request = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                      let responsePath = request["responsePath"] as? String else { return }
+
+                self.dumpAccessibilityTree(to: responsePath)
+            }
+        }
+
+        private func dumpAccessibilityTree(to responsePath: String) {
+            guard let window = self.window else { return }
+
+            let tree = snapshotElement(window)
+            guard let data = try? JSONSerialization.data(withJSONObject: tree, options: .prettyPrinted) else { return }
+            try? data.write(to: URL(fileURLWithPath: responsePath), options: .atomic)
+        }
+
+        private func snapshotElement(_ element: Any) -> [String: Any] {
+            var node: [String: Any] = [:]
+
+            if let view = element as? UIView {
+                let frame = view.convert(view.bounds, to: nil) // in window coordinates
+                node["frame"] = [
+                    "x": Int(frame.origin.x),
+                    "y": Int(frame.origin.y),
+                    "width": Int(frame.size.width),
+                    "height": Int(frame.size.height)
+                ]
+                node["className"] = String(describing: type(of: view))
+
+                if let label = view.accessibilityLabel, !label.isEmpty {
+                    node["label"] = label
+                }
+                if let identifier = view.accessibilityIdentifier, !identifier.isEmpty {
+                    node["identifier"] = identifier
+                }
+                if let value = view.accessibilityValue, !value.isEmpty {
+                    node["value"] = value
+                }
+
+                let traits = view.accessibilityTraits
+                var traitNames: [String] = []
+                if traits.contains(.button) { traitNames.append("button") }
+                if traits.contains(.staticText) { traitNames.append("staticText") }
+                if traits.contains(.image) { traitNames.append("image") }
+                if traits.contains(.header) { traitNames.append("header") }
+                if traits.contains(.link) { traitNames.append("link") }
+                if traits.contains(.adjustable) { traitNames.append("adjustable") }
+                if traits.contains(.selected) { traitNames.append("selected") }
+                if traits.contains(.notEnabled) { traitNames.append("notEnabled") }
+                if !traitNames.isEmpty {
+                    node["traits"] = traitNames
+                }
+
+                // Recurse into subviews
+                var children: [[String: Any]] = []
+                for subview in view.subviews {
+                    let child = snapshotElement(subview)
+                    children.append(child)
+                }
+
+                // Also check accessibility elements
+                if let accessibilityElements = view.accessibilityElements {
+                    for element in accessibilityElements {
+                        if let accElement = element as? UIAccessibilityElement {
+                            var accNode: [String: Any] = [:]
+                            if let label = accElement.accessibilityLabel, !label.isEmpty {
+                                accNode["label"] = label
+                            }
+                            let frame = accElement.accessibilityFrame
+                            accNode["frame"] = [
+                                "x": Int(frame.origin.x),
+                                "y": Int(frame.origin.y),
+                                "width": Int(frame.size.width),
+                                "height": Int(frame.size.height)
+                            ]
+                            if !accNode.isEmpty {
+                                children.append(accNode)
+                            }
+                        }
+                    }
+                }
+
+                if !children.isEmpty {
+                    node["children"] = children
+                }
+            }
+
+            return node
         }
 
         // MARK: - Literals
