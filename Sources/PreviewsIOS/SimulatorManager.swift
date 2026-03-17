@@ -206,15 +206,9 @@ public actor SimulatorManager {
     ) throws {
         try ensureLoaded()
         let sbDevice = try findSBDevice(udid: udid)
-        var downError: NSError?
-        guard SBSendTouchDown(sbDevice, x, y, displayWidth, displayHeight, &downError) else {
-            throw SimulatorError.touchFailed(downError?.localizedDescription ?? "touch down failed")
-        }
-        // Brief delay between down and up
-        usleep(50_000) // 50ms
-        var upError: NSError?
-        guard SBSendTouchUp(sbDevice, x, y, displayWidth, displayHeight, &upError) else {
-            throw SimulatorError.touchFailed(upError?.localizedDescription ?? "touch up failed")
+        var error: NSError?
+        guard SBSendTap(sbDevice, x, y, displayWidth, displayHeight, &error) else {
+            throw SimulatorError.touchFailed(error?.localizedDescription ?? "tap failed")
         }
     }
 

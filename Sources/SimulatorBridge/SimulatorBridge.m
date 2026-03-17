@@ -520,59 +520,68 @@ static id _createHIDClient(id simDevice, NSError **error) {
     return nil;
 }
 
-static BOOL _sendMouseEvent(SBDevice *device, NSEventType eventType,
-                            double x, double y, double displayWidth, double displayHeight,
-                            NSError **error) {
+static BOOL _sendHIDMessage(id client, IndigoHIDMessageStruct *msg, NSError **error) {
+    SEL sendSel = NSSelectorFromString(@"sendWithMessage:freeWhenDone:completionQueue:completion:");
+    if (![client respondsToSelector:sendSel]) {
+        if (error) *error = _makeError(26, @"No compatible send method on HID client");
+        return NO;
+    }
+
+    BOOL freeWhenDone = NO; // we manage memory ourselves
+    dispatch_queue_t nilQueue = nil;
+    id nilCompletion = nil;
+
+    NSMethodSignature *sig = [client methodSignatureForSelector:sendSel];
+    NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
+    [inv setTarget:client];
+    [inv setSelector:sendSel];
+    [inv setArgument:&msg atIndex:2];
+    [inv setArgument:&freeWhenDone atIndex:3];
+    [inv setArgument:&nilQueue atIndex:4];
+    [inv setArgument:&nilCompletion atIndex:5];
+
+    @try {
+        [inv invoke];
+        return YES;
+    } @catch (NSException *e) {
+        if (error) *error = _makeError(25, [NSString stringWithFormat:@"send exception: %@", e.reason]);
+        return NO;
+    }
+}
+
+BOOL SBSendTap(SBDevice *device, double x, double y,
+               double displayWidth, double displayHeight, NSError **error) {
     if (!_simKitLoaded && !_loadSimulatorKit(error)) return NO;
 
+    // Create one client for both down+up so the device correlates them
     id client = _createHIDClient(device.simDevice, error);
     if (!client) return NO;
 
     CGPoint point = CGPointMake(x, y);
-    uint32_t target = _indigoTarget ? _indigoTarget() : 0;
+    // Target 0 = default device target (IndigoHIDTargetForScreen is for Simulator.app context only)
+    uint32_t target = 0;
     NSSize displaySize = NSMakeSize(displayWidth, displayHeight);
 
-    IndigoHIDMessageStruct *msg = _indigoMouseEvent(&point, &point, target, eventType, displaySize, 0);
-    if (!msg) {
-        if (error) *error = _makeError(24, @"IndigoHIDMessageForMouseNSEvent returned nil");
+    // Mouse down
+    IndigoHIDMessageStruct *downMsg = _indigoMouseEvent(
+        &point, &point, target, NSEventTypeLeftMouseDown, displaySize, 0);
+    if (!downMsg) {
+        if (error) *error = _makeError(24, @"Failed to create mouse down message");
         return NO;
     }
 
-    // sendWithMessage:freeWhenDone:completionQueue:completion: (4 args, void return)
-    SEL sendSel = NSSelectorFromString(@"sendWithMessage:freeWhenDone:completionQueue:completion:");
-    if ([client respondsToSelector:sendSel]) {
-        BOOL freeWhenDone = YES;
-        dispatch_queue_t nilQueue = nil;
-        id nilCompletion = nil;
+    if (!_sendHIDMessage(client, downMsg, error)) return NO;
 
-        NSMethodSignature *sig = [client methodSignatureForSelector:sendSel];
-        NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
-        [inv setTarget:client];
-        [inv setSelector:sendSel];
-        [inv setArgument:&msg atIndex:2];
-        [inv setArgument:&freeWhenDone atIndex:3];
-        [inv setArgument:&nilQueue atIndex:4];
-        [inv setArgument:&nilCompletion atIndex:5];
+    // Brief pause between down and up (50ms)
+    usleep(50000);
 
-        @try {
-            [inv invoke];
-            return YES;
-        } @catch (NSException *e) {
-            if (error) *error = _makeError(25, [NSString stringWithFormat:@"send exception: %@", e.reason]);
-            return NO;
-        }
+    // Mouse up
+    IndigoHIDMessageStruct *upMsg = _indigoMouseEvent(
+        &point, &point, target, NSEventTypeLeftMouseUp, displaySize, 0);
+    if (!upMsg) {
+        if (error) *error = _makeError(24, @"Failed to create mouse up message");
+        return NO;
     }
 
-    if (error) *error = _makeError(26, @"No compatible send method found on HID client");
-    return NO;
-}
-
-BOOL SBSendTouchDown(SBDevice *device, double x, double y,
-                     double displayWidth, double displayHeight, NSError **error) {
-    return _sendMouseEvent(device, NSEventTypeLeftMouseDown, x, y, displayWidth, displayHeight, error);
-}
-
-BOOL SBSendTouchUp(SBDevice *device, double x, double y,
-                   double displayWidth, double displayHeight, NSError **error) {
-    return _sendMouseEvent(device, NSEventTypeLeftMouseUp, x, y, displayWidth, displayHeight, error);
+    return _sendHIDMessage(client, upMsg, error);
 }
