@@ -194,14 +194,19 @@ Xcode writes to one end (fd=66 on Xcode side), agent reads from the other (fd=3)
 
 ### Incoming Messages (Xcode → Agent)
 
-Captured via `dtrace` on Xcode's `write()` syscall with SIP disabled. Messages are raw data — no framing protocol, sent sequentially.
+Captured via `dtrace` on Xcode's `write()` syscall with SIP disabled. Messages are raw data on the Unix socket — **no framing protocol or length prefix**. (An initial review hypothesized 8-byte framing headers, but these were traced to the agent reading its own `PkgInfo`/saved state files on fd=8, not the pipe on fd=3.)
+
+The fd numbers change per Xcode launch (observed fd=29, 64, 66 on the Xcode side; always fd=3 on the agent side).
 
 | Order | Size | Format | Content |
 |-------|------|--------|---------|
-| 1 | ~357 B | XML plist | Workspace path + timestamp |
-| 2 | ~470 B | JSON | VFS overlay (thunk → source mapping) |
-| 3 | ~646 B | Raw Swift | Thunk source with `__designTime*` substitutions |
-| 4 | 4-18 KB | Binary | Compiled `.o` files for JIT in-memory linking |
+| 1 | ~357 B | XML plist | Workspace path + timestamp (sent twice) |
+| 2 | ~19 KB | Binary plist | `NSKeyedArchiver`-encoded workspace state (editor documents, scheme, run destination) |
+| 3 | ~470 B | JSON | VFS overlay (thunk → source mapping) |
+| 4 | ~646 B | Raw Swift | Thunk source with `__designTime*` substitutions |
+| 5 | ~40 KB | Binary plist | `NSKeyedArchiver`-encoded workspace state (larger, includes build settings) |
+
+> **Note:** Earlier analysis misidentified some binary plist messages as "compiled `.o` files." The large binary messages (18-40KB) starting with `bplist00` are `NSKeyedArchiver` archives containing `IDEWorkspaceDocument` state — not compiled object files. The actual compiled objects appear to be sent via the JIT executor's internal mechanism (`XOJITExecutor`), not as raw pipe messages. On iOS, they're written to the `OOPJit/` filesystem directory instead.
 
 **Message 1: Workspace Info**
 ```xml
@@ -320,22 +325,41 @@ Additionally, compiled objects are written to the **filesystem** instead of sent
 .../tmp/OOPJit/previews/<session-id>/cf.<random>  (16KB each, transient)
 ```
 
+### XPC Service Types
+
+Two distinct XPC services connect `PreviewShell` to `XCPreviewAgent`:
+- **"Agent nonUI preview service"** — for preflight updates, `cancelUpdate`, non-rendering operations
+- **"Agent scene preview service"** — for instance updates involving the rendering scene
+
+Two pipe service systems:
+- **`HostShellSystem`** (`HostEndpoint` / `ShellEndpoint`) — pipe between Xcode host and `PreviewShell`
+- **`HostAgentSystem`** (`HostEndpoint`) — pipe between host and `XCPreviewAgent` (through `PreviewShell`)
+
 ### Message Flow
+
+Updates go through a two-phase protocol:
 
 ```
 Xcode
-  → previewsd: <ServiceMessage N: update>
-    → PreviewShell: receives update, runs PreviewsJITLinker
-      - UpdateTargetDescriptions (5ms)
-      - ApplyPendingUpdates (3ms)
-      - RunNewInitializers (0.5ms)
-    → XCPreviewAgent: performUpdate(...)
-      - Scrapes runtime for PreviewRegistry types
-      - Finds matching registry by source file + line
-      - Sends .updateHandshake(prefs: [portrait], seed: N)
-    ← PreviewShell: receives handshake via FrontBoard scene action
+  → previewsd: <ServiceMessage N: cancelUpdate>  (cancel previous)
+  → previewsd: <ServiceMessage N+1: update>
+    → PreviewShell: receives update via "Daemon preview service" (two-way)
+      - Runs PreviewsJITLinker:
+        - UpdateTargetDescriptions (5ms)
+        - ApplyPendingUpdates (3ms)
+        - RunNewInitializers (0.5ms)
+      - Phase 1 (preflight): entryPointCategory = "uv.previewPreflight"
+        → XCPreviewAgent via "Agent nonUI preview service"
+      - Phase 2 (instance): entryPointCategory = "uv.previewInstance"
+        → XCPreviewAgent via "Agent scene preview service": performUpdate(...)
+          - Scrapes runtime for PreviewRegistry types
+          - Finds matching registry by source file + line
+          - Sends .updateHandshake(prefs: [portrait], seed: N) via FrontBoard scene action
+    ← PreviewShell: receives handshake, replies "Success"
     ← Xcode: receives rendered frame
 ```
+
+The system also supports **kill/relaunch cycles** (`<ServiceMessage: kill>` → `<ServiceMessage: relaunch>`) for crash recovery, which triggers a full `__previews_injection_perform_first_jit_link` and `__previews_injection_run_user_entrypoint` again.
 
 ### Update Payload (same format as macOS)
 ```
@@ -379,13 +403,16 @@ It matches by `sourceFilePath` + `registryIndexInFile` from the `stableID`.
 
 | Aspect | macOS | iOS Simulator |
 |--------|-------|---------------|
-| Transport | Unix domain socket | XPC via `previewsd` daemon |
+| Transport | Unix domain socket (fd=3) | XPC via `previewsd` daemon |
 | Processes | Xcode → XCPreviewAgent | Xcode → previewsd → PreviewShell → XCPreviewAgent |
-| JIT objects | Sent over pipe (binary) | Written to `OOPJit/` filesystem (transient) |
+| JIT objects | Via `XOJITExecutor` internal mechanism | Written to `OOPJit/` filesystem (transient `cf.*` files) |
 | Rendering | Agent has real NSWindow | UIKit scene (`SimDisplayScene`), FrontBoard actions |
-| User events | Direct via window server | Proxied via FrontBoard scene actions |
+| User events | Direct via window server (no proxying) | Proxied via FrontBoard scene actions (`UVPreviewSceneAction`) |
 | Preview payload | `["previewSpecification": ...]` | Same format |
-| Update protocol | Raw data on pipe | `ServiceMessage` numbered messages |
+| Update protocol | Raw data on socket (no framing) | `ServiceMessage` numbered messages, two-phase (preflight + instance) |
+| XPC services | N/A (direct socket) | "Agent nonUI preview service" + "Agent scene preview service" |
+| Pipe systems | `HostAgentSystem` only | `HostShellSystem` + `HostAgentSystem` |
+| Crash recovery | Agent restart | kill/relaunch cycle via `ServiceMessage` |
 
 ---
 
