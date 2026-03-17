@@ -1,0 +1,137 @@
+import Foundation
+
+/// Result of a successful compilation.
+public struct CompilationResult: Sendable {
+    /// Path to the compiled and signed dylib.
+    public let dylibPath: URL
+    /// Any compiler warnings (stderr output that didn't cause failure).
+    public let diagnostics: String
+}
+
+/// Error from a failed compilation.
+public struct CompilationError: Error, CustomStringConvertible {
+    public let message: String
+    public let stderr: String
+    public let exitCode: Int32
+
+    public var description: String {
+        """
+        Compilation failed (exit code \(exitCode)):
+        \(message)
+        \(stderr)
+        """
+    }
+}
+
+/// Compiles Swift source code into signed dynamic libraries.
+public actor Compiler {
+    private let workDir: URL
+    private let sdkPath: String
+    private let swiftcPath: String
+    private let codesignPath: String
+
+    /// Create a compiler with a work directory for build artifacts.
+    /// Resolves SDK and swiftc paths from the active Xcode toolchain.
+    public init(workDir: URL? = nil) async throws {
+        let dir = workDir ?? FileManager.default.temporaryDirectory
+            .appendingPathComponent("previews-mcp", isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        self.workDir = dir
+
+        self.sdkPath = try await Self.resolve("xcrun", "--show-sdk-path")
+        self.swiftcPath = try await Self.resolve("xcrun", "--find", "swiftc")
+        self.codesignPath = try await Self.resolve("xcrun", "--find", "codesign")
+    }
+
+    private var compilationCounter = 0
+
+    /// Compile combined source (original + bridge) into a signed dylib.
+    /// Each compilation produces a uniquely-named dylib so dlopen loads fresh code.
+    public func compileCombined(
+        source: String,
+        moduleName: String
+    ) async throws -> CompilationResult {
+        compilationCounter += 1
+        let uniqueName = "\(moduleName)_\(compilationCounter)"
+        let sourceFile = workDir.appendingPathComponent("\(uniqueName).swift")
+        let dylibFile = workDir.appendingPathComponent("\(uniqueName).dylib")
+
+        try source.write(to: sourceFile, atomically: true, encoding: .utf8)
+
+        // Compile
+        try await run(
+            swiftcPath,
+            "-emit-library",
+            "-parse-as-library",
+            "-target", "arm64-apple-macosx14.0",
+            "-sdk", sdkPath,
+            "-module-name", moduleName,
+            "-Onone",
+            "-o", dylibFile.path,
+            sourceFile.path
+        )
+
+        // Ad-hoc codesign (required on Apple Silicon)
+        try await run(codesignPath, "-s", "-", dylibFile.path)
+
+        return CompilationResult(dylibPath: dylibFile, diagnostics: "")
+    }
+
+    // MARK: - Private
+
+    @discardableResult
+    private func run(_ args: String...) async throws -> String {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: args[0])
+        process.arguments = Array(args.dropFirst())
+
+        let stdoutPipe = Pipe()
+        let stderrPipe = Pipe()
+        process.standardOutput = stdoutPipe
+        process.standardError = stderrPipe
+
+        try process.run()
+        process.waitUntilExit()
+
+        let stdoutData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
+        let stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
+        let stdout = String(data: stdoutData, encoding: .utf8) ?? ""
+        let stderr = String(data: stderrData, encoding: .utf8) ?? ""
+
+        guard process.terminationStatus == 0 else {
+            throw CompilationError(
+                message: "Command failed: \(args.joined(separator: " "))",
+                stderr: stderr,
+                exitCode: process.terminationStatus
+            )
+        }
+
+        return stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func resolve(_ args: String...) async throws -> String {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        process.arguments = args
+
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = FileHandle.nullDevice
+
+        try process.run()
+        process.waitUntilExit()
+
+        guard process.terminationStatus == 0 else {
+            throw CompilationError(
+                message: "Failed to resolve: \(args.joined(separator: " "))",
+                stderr: "",
+                exitCode: process.terminationStatus
+            )
+        }
+
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        return (String(data: data, encoding: .utf8) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
