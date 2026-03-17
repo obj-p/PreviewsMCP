@@ -697,6 +697,10 @@ previews-mcp (macOS host)
 
 `CoreSimulator.framework` is a private framework located at `/Library/Developer/PrivateFrameworks/CoreSimulator.framework`. Facebook's `idb_companion` uses it without Xcode entitlements. This gives us typed APIs, no subprocess overhead, and access to touch event injection that `simctl` doesn't expose.
 
+**References for CoreSimulator.framework usage:**
+- [Facebook IDB / FBSimulatorControl](https://github.com/facebook/idb) — wraps CoreSimulator for simulator management, HID event injection, screenshots
+- [mdump](https://github.com/obj-p/mdump) — reference implementation using CoreSimulator.framework
+
 **Next steps to investigate:**
 1. Link against `CoreSimulator.framework` and verify we can create `SimDeviceSet` / `SimDevice` instances
 2. Test `SimDevice.sendTouchEvent` for HID input synthesis
