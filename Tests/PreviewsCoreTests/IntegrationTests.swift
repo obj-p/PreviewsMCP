@@ -68,6 +68,39 @@ struct IntegrationTests {
         let _: SetInt = try loader.symbol(name: "designTimeSetInteger")
     }
 
+    @Test("BridgeGenerator produces UIKit code for iOS simulator")
+    func bridgeGeneratorIOS() {
+        let (combined, _) = BridgeGenerator.generateCombinedSource(
+            originalSource: Self.testViewSource,
+            closureBody: "TestView()",
+            platform: .iOSSimulator
+        )
+        #expect(combined.contains("import UIKit"))
+        #expect(combined.contains("UIHostingController"))
+        #expect(!combined.contains("NSHostingView"))
+        #expect(!combined.contains("import AppKit"))
+        #expect(combined.contains("@_cdecl"))
+    }
+
+    @Test("Compile preview dylib for iOS simulator")
+    func compileForIOSSimulator() async throws {
+        let (combined, _) = BridgeGenerator.generateCombinedSource(
+            originalSource: Self.testViewSource,
+            closureBody: "TestView()",
+            platform: .iOSSimulator
+        )
+        let compiler = try await Compiler(platform: .iOSSimulator)
+        let result = try await compiler.compileCombined(
+            source: combined,
+            moduleName: "IOSTest_\(Int.random(in: 0...999999))"
+        )
+
+        // Can't dlopen an iOS simulator dylib on macOS, but verify it exists and is non-empty
+        let attrs = try FileManager.default.attributesOfItem(atPath: result.dylibPath.path)
+        let size = attrs[.size] as? Int ?? 0
+        #expect(size > 0)
+    }
+
     // MARK: - PreviewSession
 
     @Test("PreviewSession compiles a source file end-to-end")

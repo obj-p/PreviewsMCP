@@ -1,6 +1,6 @@
 import AppKit
 import ArgumentParser
-import PreviewHost
+import PreviewsMacOS
 
 /// Shared state, accessible from commands.
 @MainActor

@@ -13,6 +13,7 @@ public actor PreviewSession {
     public nonisolated let previewIndex: Int
 
     private let compiler: Compiler
+    private let platform: PreviewPlatform
     private var compilationResult: CompilationResult?
     private var lastOriginalSource: String?
     private var lastLiterals: [LiteralEntry]?
@@ -29,12 +30,14 @@ public actor PreviewSession {
     public init(
         sourceFile: URL,
         previewIndex: Int = 0,
-        compiler: Compiler
+        compiler: Compiler,
+        platform: PreviewPlatform = .macOS
     ) {
         self.id = UUID().uuidString
         self.sourceFile = sourceFile
         self.previewIndex = previewIndex
         self.compiler = compiler
+        self.platform = platform
     }
 
     /// Run the full pipeline and return the compiled dylib path + literal map.
@@ -55,7 +58,8 @@ public actor PreviewSession {
 
             let (combinedSource, literals) = BridgeGenerator.generateCombinedSource(
                 originalSource: source,
-                closureBody: preview.closureBody
+                closureBody: preview.closureBody,
+                platform: platform
             )
 
             let moduleName = Self.moduleName(for: sourceFile)

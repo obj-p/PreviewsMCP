@@ -20,20 +20,24 @@ let package = Package(
         .target(
             name: "PreviewsCore",
             dependencies: [
-                "SimulatorBridge",
                 .product(name: "SwiftParser", package: "swift-syntax"),
                 .product(name: "SwiftSyntax", package: "swift-syntax"),
             ]
         ),
         .target(
-            name: "PreviewHost",
+            name: "PreviewsMacOS",
             dependencies: ["PreviewsCore"]
+        ),
+        .target(
+            name: "PreviewsIOS",
+            dependencies: ["PreviewsCore", "SimulatorBridge"]
         ),
         .executableTarget(
             name: "PreviewsCLI",
             dependencies: [
                 "PreviewsCore",
-                "PreviewHost",
+                "PreviewsMacOS",
+                "PreviewsIOS",
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 .product(name: "MCP", package: "swift-sdk"),
             ]
@@ -41,6 +45,10 @@ let package = Package(
         .testTarget(
             name: "PreviewsCoreTests",
             dependencies: ["PreviewsCore"]
+        ),
+        .testTarget(
+            name: "PreviewsIOSTests",
+            dependencies: ["PreviewsIOS"]
         ),
     ]
 )

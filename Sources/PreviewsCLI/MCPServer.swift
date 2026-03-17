@@ -1,7 +1,7 @@
 import Foundation
 import MCP
 import PreviewsCore
-import PreviewHost
+import PreviewsMacOS
 
 /// Configures and returns an MCP server with preview tools.
 func configureMCPServer() async throws -> (Server, Compiler) {

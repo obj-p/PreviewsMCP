@@ -29,10 +29,14 @@ public actor Compiler {
     private let sdkPath: String
     private let swiftcPath: String
     private let codesignPath: String
+    public nonisolated let platform: PreviewPlatform
+    private let targetTriple: String
 
     /// Create a compiler with a work directory for build artifacts.
     /// Resolves SDK and swiftc paths from the active Xcode toolchain.
-    public init(workDir: URL? = nil) async throws {
+    public init(workDir: URL? = nil, platform: PreviewPlatform = .macOS) async throws {
+        self.platform = platform
+
         let dir = workDir ?? FileManager.default.temporaryDirectory
             .appendingPathComponent("previews-mcp", isDirectory: true)
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -40,7 +44,14 @@ public actor Compiler {
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         self.workDir = dir
 
-        self.sdkPath = try await Self.resolve("xcrun", "--show-sdk-path")
+        switch platform {
+        case .macOS:
+            self.sdkPath = try await Self.resolve("xcrun", "--show-sdk-path")
+            self.targetTriple = "arm64-apple-macosx14.0"
+        case .iOSSimulator:
+            self.sdkPath = try await Self.resolve("xcrun", "--show-sdk-path", "--sdk", "iphonesimulator")
+            self.targetTriple = "arm64-apple-ios17.0-simulator"
+        }
         self.swiftcPath = try await Self.resolve("xcrun", "--find", "swiftc")
         self.codesignPath = try await Self.resolve("xcrun", "--find", "codesign")
     }
@@ -65,7 +76,7 @@ public actor Compiler {
             swiftcPath,
             "-emit-library",
             "-parse-as-library",
-            "-target", "arm64-apple-macosx14.0",
+            "-target", targetTriple,
             "-sdk", sdkPath,
             "-module-name", moduleName,
             "-Onone",

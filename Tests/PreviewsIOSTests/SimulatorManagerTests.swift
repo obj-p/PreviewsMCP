@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import PreviewsCore
+@testable import PreviewsIOS
 
 @Suite("SimulatorManager")
 struct SimulatorManagerTests {
