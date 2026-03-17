@@ -394,8 +394,66 @@ It matches by `sourceFilePath` + `registryIndexInFile` from the `stableID`.
 ### Interactivity (iOS)
 **Fully proxied through Xcode's canvas.** The simulator runs headless (no Simulator.app window). User clicks in Xcode's canvas are translated to iOS touch events and sent via FrontBoard scene actions (`UVPreviewSceneAction`) to `PreviewShell`, which dispatches them to `XCPreviewAgent`.
 
+For standalone tools (without Xcode's canvas), interactivity could be achieved via the **Facebook IDB approach**: using Apple's private frameworks (`SimulatorHID.framework`, `IndigoHID`, or `XCTest` accessibility APIs) to synthesize touch events directly in the simulator. IDB (`idb_companion`) uses `FBSimulatorControl` which wraps `CoreSimulator.framework` and `SimulatorKit` to send HID events without going through FrontBoard.
+
 ### Rendering
 `PreviewShell.app` renders the SwiftUI view inside a `SimDisplayScene`. The rendered output is sent back to Xcode via `previewsd` → `PreviewShellMac` (macOS bridge) for compositing in the preview canvas.
+
+### iOS XPC Service Chain (Full)
+
+```
+Xcode (macOS host)
+  → host previewsd     (XPC: com.apple.previewsd, macOS)
+    → PreviewShellMac  (XPC: com.apple.previewshellmacapp, macOS)
+      → sim previewsd  (XPC: com.apple.previewsd, inside simulator)
+        → PreviewShell  (UIKit app: com.apple.PreviewShell, in simulator)
+          → XCPreviewAgent (UIKit app: previews.com.apple.PreviewAgent.iOS, in simulator)
+```
+
+### iOS Agent Launch Details
+
+The iOS `XCPreviewAgent` is NOT launched directly by Xcode. It's launched by the simulator's `launchd_sim` as a UIKit application. Xcode installs the agent app into the Previews simulator device set first.
+
+**Key environment variables set on the agent:**
+```bash
+XCODE_RUNNING_FOR_PREVIEWS=1
+DYLD_LIBRARY_PATH=<DerivedData>/Build/Products/Debug-iphonesimulator
+PACKAGE_RESOURCE_BUNDLE_PATH=<DerivedData>/Build/Products/Debug-iphonesimulator
+SIMULATOR_UDID=<previews-device-uuid>
+SIMULATOR_DEVICE_NAME=iPhone
+SIMULATOR_MODEL_IDENTIFIER=iPhone18,1
+SIMULATOR_RUNTIME_VERSION=26.2
+SIMULATOR_ARCHS=arm64
+SIMULATOR_MAINSCREEN_SCALE=3.000000
+SIMULATOR_MAINSCREEN_WIDTH=1206
+SIMULATOR_MAINSCREEN_HEIGHT=2622
+```
+
+**Simulator launchd services:**
+```
+UIKitApplication:com.apple.PreviewShell[1c62][rb-legacy]     → PID 7367
+com.apple.previewsd                                           → PID 7347
+UIKitApplication:previews.com.apple.PreviewAgent.iOS[fa5b]   → PID 8244
+```
+
+### OOPJit Files (Compiled Code Pages)
+
+The `cf.*` files in the `OOPJit/previews/<session>/` directories are **raw ARM64 machine code pages**, NOT Mach-O object files. They are mapped directly into the process address space by the XOJIT executor.
+
+```
+.../tmp/OOPJit/previews/<session-id>/
+├── cf.8rmugb   16,384 B   # ARM64 code page (starts with sub sp, sp, ...)
+├── cf.Bnec9q   16,384 B   # ARM64 code page
+├── cf.PFeUA7  114,688 B   # Large code page (main module)
+└── cf.QiD0f6   16,384 B   # ARM64 code page (starts with ret)
+```
+
+**Magic bytes observed:**
+- `ff c3 01 d1` / `ff 43 02 d1` / `ff 83 00 d1` — ARM64 `sub sp, sp, #N` (function prologues)
+- `c0 03 5f d6` — ARM64 `ret` (function returns)
+- `5f 5f 5f` — `___` symbol name segment prefixes
+
+These exist on BOTH the macOS host (`/tmp/OOPJit/...`) and the simulator side (`.../Simulator Devices/<uuid>/.../tmp/OOPJit/...`), suggesting the host compiles and writes them, and the simulator reads them via shared filesystem access.
 
 ---
 
@@ -405,7 +463,7 @@ It matches by `sourceFilePath` + `registryIndexInFile` from the `stableID`.
 |--------|-------|---------------|
 | Transport | Unix domain socket (fd=3) | XPC via `previewsd` daemon |
 | Processes | Xcode → XCPreviewAgent | Xcode → previewsd → PreviewShell → XCPreviewAgent |
-| JIT objects | Via `XOJITExecutor` internal mechanism | Written to `OOPJit/` filesystem (transient `cf.*` files) |
+| JIT objects | Via `XOJITExecutor` internal mechanism | Raw ARM64 code pages written to `OOPJit/` filesystem on both host and simulator (shared filesystem) |
 | Rendering | Agent has real NSWindow | UIKit scene (`SimDisplayScene`), FrontBoard actions |
 | User events | Direct via window server (no proxying) | Proxied via FrontBoard scene actions (`UVPreviewSceneAction`) |
 | Preview payload | `["previewSpecification": ...]` | Same format |
@@ -580,6 +638,52 @@ All events are **proxied through Xcode's canvas**:
 6. Rendered frame sent back to Xcode for display
 
 The simulator runs **headless** — no Simulator.app window appears for previews.
+
+---
+
+## Implementation Approaches for Standalone iOS Previews
+
+### Approach A: Replicate the Full XPC Chain
+Replicate Xcode's 6-process chain: connect to `com.apple.previewsd` via `NSXPCConnection`, send `ServiceMessage` updates with the `previewSpecification` payload. Receive rendered frames back.
+
+**Pros:** Pixel-perfect rendering, full trait support, exact Xcode behavior.
+**Cons:** Extremely complex. Requires understanding the full XPC protocol, `NSKeyedArchiver` workspace state, XOJIT code page format. May require Xcode-specific entitlements.
+
+### Approach B: Custom iOS Host App in Simulator (Pragmatic)
+Compile our own iOS host app (like the macOS spike: `dlopen` + `UIHostingController` + `UIWindow`), install via `simctl install`, launch via `simctl launch`. Use `simctl io screenshot` for snapshots.
+
+**Pros:** Reuses proven `dlopen` + hosting approach. No XPC protocol needed. Simpler.
+**Cons:** Doesn't use Apple's preview infrastructure. May miss device-specific traits. Need to handle compilation for iOS simulator target (`arm64-apple-ios-simulator`).
+
+### Approach C: Hybrid with IDB-Style Interactivity
+Use Approach B for hosting, but add interactivity via the **Facebook IDB approach**: use Apple's private frameworks to synthesize touch events in the simulator.
+
+**Relevant frameworks:**
+- `SimulatorHID.framework` — HID event injection (pointed to by `SIMULATOR_HID_SYSTEM_MANAGER` env var)
+- `IndigoHID` — lower-level HID synthesis
+- `CoreSimulator.framework` — simulator management APIs
+- `XCTest` accessibility APIs — `XCUIElement.tap()`, `XCUIElement.swipeUp()`
+
+**IDB's approach** (`idb_companion` / `FBSimulatorControl`):
+1. Uses `CoreSimulator.framework` to get a `SimDevice` handle
+2. Calls `SimDevice.sendKeyboardEvent` / `SimDevice.sendTouchEvent` for HID input
+3. Uses `SimDevice.io.screenshot` for captures
+4. All from a macOS process — no app installation needed for events
+
+**For PreviewsMCP, the flow would be:**
+```
+previews-mcp (macOS host)
+  ├─ Compile view for iOS simulator target (arm64-apple-ios-simulator)
+  ├─ Boot simulator: xcrun simctl --set <previews-device-set> boot <device>
+  ├─ Install host app: xcrun simctl install <device> PreviewHost.app
+  ├─ Launch: xcrun simctl launch <device> com.previewsmcp.host
+  ├─ Host app: dlopen(preview.dylib) → UIHostingController → UIWindow
+  ├─ Snapshot: xcrun simctl io <device> screenshot
+  ├─ Interact: CoreSimulator.framework → SimDevice.sendTouchEvent(x, y)
+  └─ Hot-reload: file watcher → recompile → signal host app to reload
+```
+
+**Recommended:** Approach C. It provides interactivity without the complexity of the full XPC chain, and `simctl` + `CoreSimulator.framework` are stable, documented APIs.
 
 ---
 
