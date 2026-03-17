@@ -2,6 +2,54 @@ import Foundation
 import MCP
 import PreviewsCore
 import PreviewsMacOS
+import PreviewsIOS
+
+/// Tracks active iOS preview sessions and lazily creates shared iOS resources.
+private actor IOSState {
+    let simulatorManager = SimulatorManager()
+    private var compiler: Compiler?
+    private var hostBuilder: IOSHostBuilder?
+    private var sessions: [String: IOSPreviewSession] = [:]
+    private var fileWatchers: [String: FileWatcher] = [:]
+
+    func getCompiler() async throws -> Compiler {
+        if let c = compiler { return c }
+        let c = try await Compiler(platform: .iOSSimulator)
+        compiler = c
+        return c
+    }
+
+    func getHostBuilder() async throws -> IOSHostBuilder {
+        if let b = hostBuilder { return b }
+        let b = try await IOSHostBuilder()
+        hostBuilder = b
+        return b
+    }
+
+    func addSession(_ session: IOSPreviewSession) {
+        sessions[session.id] = session
+    }
+
+    func getSession(_ id: String) -> IOSPreviewSession? {
+        sessions[id]
+    }
+
+    func removeSession(_ id: String) {
+        sessions.removeValue(forKey: id)
+        fileWatchers[id]?.stop()
+        fileWatchers.removeValue(forKey: id)
+    }
+
+    func setFileWatcher(_ id: String, _ watcher: FileWatcher) {
+        fileWatchers[id] = watcher
+    }
+
+    func allSessionIDs() -> [String] {
+        Array(sessions.keys)
+    }
+}
+
+private let iosState = IOSState()
 
 /// Configures and returns an MCP server with preview tools.
 func configureMCPServer() async throws -> (Server, Compiler) {
@@ -9,7 +57,7 @@ func configureMCPServer() async throws -> (Server, Compiler) {
 
     let server = Server(
         name: "previews-mcp",
-        version: "0.1.0",
+        version: "0.2.0",
         capabilities: .init(tools: .init(listChanged: false))
     )
 
@@ -31,7 +79,7 @@ func configureMCPServer() async throws -> (Server, Compiler) {
             ),
             Tool(
                 name: "preview_start",
-                description: "Compile and launch a live SwiftUI preview window. Returns a session ID.",
+                description: "Compile and launch a live SwiftUI preview. Returns a session ID. Supports macOS (default) and iOS simulator.",
                 inputSchema: .object([
                     "type": .string("object"),
                     "properties": .object([
@@ -43,13 +91,21 @@ func configureMCPServer() async throws -> (Server, Compiler) {
                             "type": .string("integer"),
                             "description": .string("0-based index of which #Preview to show (default: 0)"),
                         ]),
+                        "platform": .object([
+                            "type": .string("string"),
+                            "description": .string("Target platform: 'macos' (default) or 'ios-simulator'"),
+                        ]),
+                        "deviceUDID": .object([
+                            "type": .string("string"),
+                            "description": .string("Simulator device UDID (for ios-simulator; auto-selects if omitted)"),
+                        ]),
                         "width": .object([
                             "type": .string("integer"),
-                            "description": .string("Window width in points (default: 400)"),
+                            "description": .string("Window width in points (macOS only, default: 400)"),
                         ]),
                         "height": .object([
                             "type": .string("integer"),
-                            "description": .string("Window height in points (default: 600)"),
+                            "description": .string("Window height in points (macOS only, default: 600)"),
                         ]),
                     ]),
                     "required": .array([.string("filePath")]),
@@ -57,7 +113,7 @@ func configureMCPServer() async throws -> (Server, Compiler) {
             ),
             Tool(
                 name: "preview_snapshot",
-                description: "Capture a screenshot of a running preview. Returns the image.",
+                description: "Capture a screenshot of a running preview. Returns the image as PNG.",
                 inputSchema: .object([
                     "type": .string("object"),
                     "properties": .object([
@@ -71,7 +127,7 @@ func configureMCPServer() async throws -> (Server, Compiler) {
             ),
             Tool(
                 name: "preview_stop",
-                description: "Close a preview window and clean up the session.",
+                description: "Close a preview and clean up the session.",
                 inputSchema: .object([
                     "type": .string("object"),
                     "properties": .object([
@@ -83,6 +139,14 @@ func configureMCPServer() async throws -> (Server, Compiler) {
                     "required": .array([.string("sessionID")]),
                 ])
             ),
+            Tool(
+                name: "simulator_list",
+                description: "List available iOS simulator devices with their UDIDs and states.",
+                inputSchema: .object([
+                    "type": .string("object"),
+                    "properties": .object([:]),
+                ])
+            ),
         ])
     }
 
@@ -91,11 +155,13 @@ func configureMCPServer() async throws -> (Server, Compiler) {
         case "preview_list":
             return try await handlePreviewList(params: params)
         case "preview_start":
-            return try await handlePreviewStart(params: params, compiler: compiler)
+            return try await handlePreviewStart(params: params, macCompiler: compiler)
         case "preview_snapshot":
             return try await handlePreviewSnapshot(params: params)
         case "preview_stop":
             return try await handlePreviewStop(params: params)
+        case "simulator_list":
+            return try await handleSimulatorList()
         default:
             return CallTool.Result(content: [.text("Unknown tool: \(params.name)")], isError: true)
         }
@@ -131,7 +197,7 @@ private func handlePreviewList(params: CallTool.Parameters) async throws -> Call
     return CallTool.Result(content: [.text(lines.joined(separator: "\n"))])
 }
 
-private func handlePreviewStart(params: CallTool.Parameters, compiler: Compiler) async throws -> CallTool.Result {
+private func handlePreviewStart(params: CallTool.Parameters, macCompiler: Compiler) async throws -> CallTool.Result {
     guard case .string(let filePath) = params.arguments?["filePath"] else {
         return CallTool.Result(content: [.text("Missing filePath parameter")], isError: true)
     }
@@ -148,6 +214,23 @@ private func handlePreviewStart(params: CallTool.Parameters, compiler: Compiler)
         previewIndex = 0
     }
 
+    let platformStr: String
+    if case .string(let p) = params.arguments?["platform"] {
+        platformStr = p
+    } else {
+        platformStr = "macos"
+    }
+
+    // iOS simulator path
+    if platformStr == "ios-simulator" {
+        return try await handleIOSPreviewStart(
+            fileURL: fileURL,
+            previewIndex: previewIndex,
+            params: params
+        )
+    }
+
+    // macOS path (default)
     let width: Int
     if case .int(let n) = params.arguments?["width"] {
         width = n
@@ -165,7 +248,7 @@ private func handlePreviewStart(params: CallTool.Parameters, compiler: Compiler)
     let session = PreviewSession(
         sourceFile: fileURL,
         previewIndex: previewIndex,
-        compiler: compiler
+        compiler: macCompiler
     )
 
     let compileResult = try await session.compile()
@@ -183,7 +266,7 @@ private func handlePreviewStart(params: CallTool.Parameters, compiler: Compiler)
                 sessionID: sessionID,
                 session: session,
                 filePath: fileURL.path,
-                compiler: compiler,
+                compiler: macCompiler,
                 previewIndex: previewIndex
             )
         } catch {
@@ -191,7 +274,69 @@ private func handlePreviewStart(params: CallTool.Parameters, compiler: Compiler)
         }
     }
 
-    return CallTool.Result(content: [.text("Preview started. Session ID: \(sessionID). File is being watched for changes.")])
+    return CallTool.Result(content: [.text("macOS preview started. Session ID: \(sessionID). File is being watched for changes.")])
+}
+
+private func handleIOSPreviewStart(
+    fileURL: URL,
+    previewIndex: Int,
+    params: CallTool.Parameters
+) async throws -> CallTool.Result {
+    // Resolve device UDID — use provided or auto-select
+    let deviceUDID: String
+    if case .string(let udid) = params.arguments?["deviceUDID"] {
+        deviceUDID = udid
+    } else {
+        // Auto-select: prefer booted device, else first available
+        let manager = iosState.simulatorManager
+        do {
+            let booted = try await manager.findBootedDevice()
+            deviceUDID = booted.udid
+        } catch {
+            let devices = try await manager.listDevices()
+            guard let first = devices.first(where: { $0.isAvailable }) else {
+                return CallTool.Result(content: [.text("No available iOS simulator devices found")], isError: true)
+            }
+            deviceUDID = first.udid
+        }
+    }
+
+    let iosCompiler = try await iosState.getCompiler()
+    let hostBuilder = try await iosState.getHostBuilder()
+    let simulatorManager = iosState.simulatorManager
+
+    let session = IOSPreviewSession(
+        sourceFile: fileURL,
+        previewIndex: previewIndex,
+        deviceUDID: deviceUDID,
+        compiler: iosCompiler,
+        hostBuilder: hostBuilder,
+        simulatorManager: simulatorManager
+    )
+
+    let pid = try await session.start()
+    await iosState.addSession(session)
+
+    // Set up file watching for hot-reload
+    let sessionID = session.id
+    let watcher = try? FileWatcher(path: fileURL.path) {
+        Task {
+            do {
+                try await session.reload()
+                fputs("MCP: iOS preview reloaded\n", stderr)
+            } catch {
+                fputs("MCP: iOS reload failed: \(error)\n", stderr)
+            }
+        }
+    }
+    if let watcher {
+        await iosState.setFileWatcher(sessionID, watcher)
+    }
+
+    // Wait briefly for the app to launch and render
+    try await Task.sleep(for: .seconds(2))
+
+    return CallTool.Result(content: [.text("iOS simulator preview started on device \(deviceUDID). Session ID: \(sessionID). PID: \(pid). File is being watched for changes.")])
 }
 
 private func handlePreviewSnapshot(params: CallTool.Parameters) async throws -> CallTool.Result {
@@ -199,7 +344,16 @@ private func handlePreviewSnapshot(params: CallTool.Parameters) async throws -> 
         return CallTool.Result(content: [.text("Missing sessionID parameter")], isError: true)
     }
 
-    // Wait briefly for SwiftUI to finish layout
+    // Check if this is an iOS session
+    if let iosSession = await iosState.getSession(sessionID) {
+        let pngData = try await iosSession.screenshot()
+        let base64 = pngData.base64EncodedString()
+        return CallTool.Result(content: [
+            .image(data: base64, mimeType: "image/png", metadata: nil)
+        ])
+    }
+
+    // macOS path
     try await Task.sleep(for: .milliseconds(300))
 
     let pngData: Data = try await MainActor.run {
@@ -221,9 +375,34 @@ private func handlePreviewStop(params: CallTool.Parameters) async throws -> Call
         return CallTool.Result(content: [.text("Missing sessionID parameter")], isError: true)
     }
 
+    // Check if this is an iOS session
+    if await iosState.getSession(sessionID) != nil {
+        await iosState.removeSession(sessionID)
+        return CallTool.Result(content: [.text("iOS preview session \(sessionID) closed.")])
+    }
+
+    // macOS path
     await MainActor.run {
         App.host.closePreview(sessionID: sessionID)
     }
 
     return CallTool.Result(content: [.text("Preview session \(sessionID) closed.")])
+}
+
+private func handleSimulatorList() async throws -> CallTool.Result {
+    let manager = iosState.simulatorManager
+    let devices = try await manager.listDevices()
+    let available = devices.filter { $0.isAvailable }
+
+    if available.isEmpty {
+        return CallTool.Result(content: [.text("No available simulator devices found.")])
+    }
+
+    var lines: [String] = []
+    for device in available {
+        let state = device.state == .booted ? " [BOOTED]" : ""
+        lines.append("\(device.name) — \(device.udid)\(state) (\(device.runtimeName ?? "unknown runtime"))")
+    }
+
+    return CallTool.Result(content: [.text(lines.joined(separator: "\n"))])
 }
