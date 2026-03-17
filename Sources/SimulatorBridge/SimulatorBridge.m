@@ -433,15 +433,13 @@ static BOOL _loadSimulatorKit(NSError **error) {
         // Find SimulatorKit in Xcode
         NSString *devDir = _developerDir();
         NSString *simKitPath = [devDir stringByAppendingPathComponent:
-            @"../SharedFrameworks/SimulatorKit.framework"];
-        // Normalize path
-        simKitPath = [simKitPath stringByStandardizingPath];
+            @"Library/PrivateFrameworks/SimulatorKit.framework"];
 
         NSBundle *bundle = [NSBundle bundleWithPath:simKitPath];
         if (!bundle) {
             // Try alternate location
-            simKitPath = [devDir stringByAppendingPathComponent:
-                @"Library/PrivateFrameworks/SimulatorKit.framework"];
+            simKitPath = [[devDir stringByAppendingPathComponent:
+                @"../SharedFrameworks/SimulatorKit.framework"] stringByStandardizingPath];
             bundle = [NSBundle bundleWithPath:simKitPath];
         }
         if (!bundle) {
@@ -483,8 +481,8 @@ static BOOL _loadSimulatorKit(NSError **error) {
 }
 
 static id _createHIDClient(id simDevice, NSError **error) {
-    // Try ObjC-style alloc/init patterns the Swift class might expose
-    SEL initSel = NSSelectorFromString(@"initWithDevice:sessionResetQueue:sessionResetHandler:");
+    // initWithDevice:error: — the ObjC-exported init on SimDeviceLegacyHIDClient
+    SEL initSel = NSSelectorFromString(@"initWithDevice:error:");
     if ([_hidClientClass instancesRespondToSelector:initSel]) {
         id client = [_hidClientClass alloc];
         NSMethodSignature *sig = [client methodSignatureForSelector:initSel];
@@ -493,33 +491,23 @@ static id _createHIDClient(id simDevice, NSError **error) {
             [inv setTarget:client];
             [inv setSelector:initSel];
             [inv setArgument:&simDevice atIndex:2];
-            dispatch_queue_t nilQueue = nil;
-            [inv setArgument:&nilQueue atIndex:3];
-            id nilHandler = nil;
-            [inv setArgument:&nilHandler atIndex:4];
+            __autoreleasing NSError *initError = nil;
+            __autoreleasing NSError **errorPtr = &initError;
+            [inv setArgument:&errorPtr atIndex:3];
+
             @try {
                 [inv invoke];
                 id result = nil;
                 [inv getReturnValue:&result];
-                return result;
+                if (result) return result;
+                if (error && initError) *error = initError;
             } @catch (NSException *e) {
                 NSLog(@"SimulatorBridge: HID client init exception: %@", e.reason);
             }
         }
     }
 
-    // Fallback: try simpler init
-    SEL simpleSel = NSSelectorFromString(@"initWithDevice:error:");
-    if ([_hidClientClass instancesRespondToSelector:simpleSel]) {
-        id client = [_hidClientClass alloc];
-        @try {
-            return [client performSelector:simpleSel withObject:simDevice withObject:nil];
-        } @catch (NSException *e) {
-            NSLog(@"SimulatorBridge: HID client simple init exception: %@", e.reason);
-        }
-    }
-
-    if (error) *error = _makeError(23, @"Failed to create SimDeviceLegacyHIDClient — no compatible init found");
+    if (error && !*error) *error = _makeError(23, @"Failed to create SimDeviceLegacyHIDClient");
     return nil;
 }
 
@@ -541,13 +529,12 @@ static BOOL _sendMouseEvent(SBDevice *device, NSEventType eventType,
         return NO;
     }
 
-    // Try sending via the client
-    SEL sendSel = NSSelectorFromString(@"sendWithMessage:freeWhenDone:completionQueue:completion:error:");
+    // sendWithMessage:freeWhenDone:completionQueue:completion: (4 args, void return)
+    SEL sendSel = NSSelectorFromString(@"sendWithMessage:freeWhenDone:completionQueue:completion:");
     if ([client respondsToSelector:sendSel]) {
         BOOL freeWhenDone = YES;
         dispatch_queue_t nilQueue = nil;
         id nilCompletion = nil;
-        NSError *sendError = nil;
 
         NSMethodSignature *sig = [client methodSignatureForSelector:sendSel];
         NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
@@ -557,33 +544,12 @@ static BOOL _sendMouseEvent(SBDevice *device, NSEventType eventType,
         [inv setArgument:&freeWhenDone atIndex:3];
         [inv setArgument:&nilQueue atIndex:4];
         [inv setArgument:&nilCompletion atIndex:5];
-        [inv setArgument:&sendError atIndex:6];
 
         @try {
-            [inv invoke];
-            BOOL success = NO;
-            [inv getReturnValue:&success];
-            if (!success && error) *error = sendError ?: _makeError(25, @"send returned NO");
-            return success;
-        } @catch (NSException *e) {
-            if (error) *error = _makeError(25, [NSString stringWithFormat:@"send exception: %@", e.reason]);
-            return NO;
-        }
-    }
-
-    // Fallback: try simple send
-    SEL simpleSend = NSSelectorFromString(@"sendWithMessage:");
-    if ([client respondsToSelector:simpleSend]) {
-        @try {
-            NSMethodSignature *sig = [client methodSignatureForSelector:simpleSend];
-            NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
-            [inv setTarget:client];
-            [inv setSelector:simpleSend];
-            [inv setArgument:&msg atIndex:2];
             [inv invoke];
             return YES;
         } @catch (NSException *e) {
-            if (error) *error = _makeError(25, [NSString stringWithFormat:@"sendWithMessage exception: %@", e.reason]);
+            if (error) *error = _makeError(25, [NSString stringWithFormat:@"send exception: %@", e.reason]);
             return NO;
         }
     }
