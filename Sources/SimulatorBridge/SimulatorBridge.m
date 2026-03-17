@@ -397,192 +397,76 @@ SBDevice *SBFindBootedDevice(NSError **error) {
     return nil;
 }
 
-#pragma mark - Touch Events via SimulatorKit
+#pragma mark - Touch Events via CGEvent on Simulator.app Window
 
 #import <AppKit/AppKit.h>
-#import <dlfcn.h>
+#import <ApplicationServices/ApplicationServices.h>
 
-// Opaque struct — layout managed by SimulatorKit
-typedef struct IndigoHIDMessageStruct IndigoHIDMessageStruct;
-
-// Function pointer types for SimulatorKit C functions
-typedef IndigoHIDMessageStruct *(*IndigoHIDMessageForMouseNSEventFn)(
-    CGPoint *point1, CGPoint *point2, uint32_t target,
-    NSEventType type, NSSize displaySize, uint32_t edge);
-
-typedef uint32_t (*IndigoHIDTargetForScreenFn)(void);
-
-// SimDeviceLegacyHIDClient protocol (Swift class, but send may be @objc)
-@protocol _SimDeviceLegacyHIDClient
-- (BOOL)sendWithMessage:(void *)message
-           freeWhenDone:(BOOL)freeWhenDone
-        completionQueue:(dispatch_queue_t _Nullable)queue
-             completion:(void (^ _Nullable)(NSError * _Nullable))completion
-                  error:(NSError **)error;
-@end
-
-static BOOL _simKitLoaded = NO;
-static dispatch_once_t _simKitOnce;
-static IndigoHIDMessageForMouseNSEventFn _indigoMouseEvent = NULL;
-static IndigoHIDTargetForScreenFn _indigoTarget = NULL;
-static Class _hidClientClass = Nil;
-
-static BOOL _loadSimulatorKit(NSError **error) {
-    __block NSError *loadError = nil;
-    dispatch_once(&_simKitOnce, ^{
-        // Find SimulatorKit in Xcode
-        NSString *devDir = _developerDir();
-        NSString *simKitPath = [devDir stringByAppendingPathComponent:
-            @"Library/PrivateFrameworks/SimulatorKit.framework"];
-
-        NSBundle *bundle = [NSBundle bundleWithPath:simKitPath];
-        if (!bundle) {
-            // Try alternate location
-            simKitPath = [[devDir stringByAppendingPathComponent:
-                @"../SharedFrameworks/SimulatorKit.framework"] stringByStandardizingPath];
-            bundle = [NSBundle bundleWithPath:simKitPath];
-        }
-        if (!bundle) {
-            loadError = _makeError(20, [NSString stringWithFormat:
-                @"SimulatorKit.framework not found near %@", devDir]);
-            return;
-        }
-
-        NSError *bundleError = nil;
-        if (![bundle loadAndReturnError:&bundleError]) {
-            loadError = bundleError;
-            return;
-        }
-
-        void *handle = dlopen(simKitPath.UTF8String, RTLD_NOW);
-        if (!handle) handle = dlopen(bundle.executablePath.UTF8String, RTLD_NOW);
-
-        if (handle) {
-            _indigoMouseEvent = (IndigoHIDMessageForMouseNSEventFn)dlsym(handle, "IndigoHIDMessageForMouseNSEvent");
-            _indigoTarget = (IndigoHIDTargetForScreenFn)dlsym(handle, "IndigoHIDTargetForScreen");
-        }
-
-        _hidClientClass = objc_lookUpClass("_TtC12SimulatorKit24SimDeviceLegacyHIDClient");
-
-        if (!_indigoMouseEvent) {
-            loadError = _makeError(21, @"IndigoHIDMessageForMouseNSEvent not found in SimulatorKit");
-            return;
-        }
-        if (!_hidClientClass) {
-            loadError = _makeError(22, @"SimDeviceLegacyHIDClient class not found in SimulatorKit");
-            return;
-        }
-
-        _simKitLoaded = YES;
-    });
-
-    if (!_simKitLoaded && error && loadError) *error = loadError;
-    return _simKitLoaded;
-}
-
-static id _createHIDClient(id simDevice, NSError **error) {
-    // initWithDevice:error: is a Swift throwing init exposed to ObjC.
-    // Swift throws maps to: returns nil + sets error on failure.
-    // Use performSelector for the 2-arg form (device + error pointer treated as nil/ignored).
-    SEL initSel = NSSelectorFromString(@"initWithDevice:error:");
-
-    if (![_hidClientClass instancesRespondToSelector:initSel]) {
-        if (error) *error = _makeError(23, @"initWithDevice:error: not found on HID client class");
-        return nil;
-    }
-
-    id client = [_hidClientClass alloc];
-    NSMethodSignature *sig = [client methodSignatureForSelector:initSel];
-
-    NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
-    [inv setTarget:client];
-    [inv setSelector:initSel];
-    [inv setArgument:&simDevice atIndex:2];
-
-    // For Swift throws -> ObjC error:, the error parameter is an NSError** at index 3
-    // Pass NULL to indicate we don't care about the error through this path
-    NSError *__autoreleasing *nullErrorPtr = NULL;
-    [inv setArgument:&nullErrorPtr atIndex:3];
-
-    @try {
-        [inv invoke];
-        // NSInvocation getReturnValue: returns unretained — use __unsafe_unretained
-        // to avoid ARC double-release, then retain explicitly.
-        __unsafe_unretained id unsafeResult = nil;
-        [inv getReturnValue:&unsafeResult];
-        id result = unsafeResult; // ARC retains here
-        if (result) return result;
-    } @catch (NSException *e) {
-        NSLog(@"SimulatorBridge: HID client init exception: %@", e.reason);
-    }
-
-    if (error) *error = _makeError(23, @"Failed to create SimDeviceLegacyHIDClient");
-    return nil;
-}
-
-static BOOL _sendHIDMessage(id client, IndigoHIDMessageStruct *msg, NSError **error) {
-    SEL sendSel = NSSelectorFromString(@"sendWithMessage:freeWhenDone:completionQueue:completion:");
-    if (![client respondsToSelector:sendSel]) {
-        if (error) *error = _makeError(26, @"No compatible send method on HID client");
+/// Find the Simulator.app window bounds on screen.
+static BOOL _findSimulatorWindow(CGRect *outBounds, NSError **error) {
+    CFArrayRef windowList = CGWindowListCopyWindowInfo(kCGWindowListOptionOnScreenOnly, kCGNullWindowID);
+    if (!windowList) {
+        if (error) *error = _makeError(20, @"Failed to get window list");
         return NO;
     }
 
-    BOOL freeWhenDone = NO; // we manage memory ourselves
-    dispatch_queue_t nilQueue = nil;
-    id nilCompletion = nil;
-
-    NSMethodSignature *sig = [client methodSignatureForSelector:sendSel];
-    NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
-    [inv setTarget:client];
-    [inv setSelector:sendSel];
-    [inv setArgument:&msg atIndex:2];
-    [inv setArgument:&freeWhenDone atIndex:3];
-    [inv setArgument:&nilQueue atIndex:4];
-    [inv setArgument:&nilCompletion atIndex:5];
-
-    @try {
-        [inv invoke];
-        return YES;
-    } @catch (NSException *e) {
-        if (error) *error = _makeError(25, [NSString stringWithFormat:@"send exception: %@", e.reason]);
-        return NO;
+    BOOL found = NO;
+    CFIndex count = CFArrayGetCount(windowList);
+    for (CFIndex i = 0; i < count; i++) {
+        NSDictionary *win = (__bridge NSDictionary *)CFArrayGetValueAtIndex(windowList, i);
+        NSString *owner = win[(id)kCGWindowOwnerName];
+        if ([owner isEqualToString:@"Simulator"]) {
+            CGRectMakeWithDictionaryRepresentation(
+                (__bridge CFDictionaryRef)win[(id)kCGWindowBounds], outBounds);
+            found = YES;
+            break;
+        }
     }
+
+    CFRelease(windowList);
+    if (!found && error) {
+        *error = _makeError(21, @"Simulator.app window not found — set headless to false");
+    }
+    return found;
 }
 
 BOOL SBSendTap(SBDevice *device, double x, double y,
                double displayWidth, double displayHeight, NSError **error) {
-    if (!_simKitLoaded && !_loadSimulatorKit(error)) return NO;
+    CGRect simBounds;
+    if (!_findSimulatorWindow(&simBounds, error)) return NO;
 
-    // Create one client for both down+up so the device correlates them
-    id client = _createHIDClient(device.simDevice, error);
-    if (!client) return NO;
+    // Map iOS device coordinates to macOS screen coordinates.
+    // Simulator.app window content maps device points to window area.
+    // macOS title bar is ~28pt.
+    double titleBarHeight = 28.0;
+    double contentHeight = simBounds.size.height - titleBarHeight;
+    double scaleX = simBounds.size.width / displayWidth;
+    double scaleY = contentHeight / displayHeight;
+    double scale = fmin(scaleX, scaleY);
 
-    // IndigoHIDMessageForMouseNSEvent uses AppKit coordinate space (origin at bottom-left).
-    // iOS uses top-left origin. Flip Y: appKitY = displayHeight - iOSy
-    CGPoint point = CGPointMake(x, displayHeight - y);
-    uint32_t target = 0;
-    NSSize displaySize = NSMakeSize(displayWidth, displayHeight);
+    double screenX = simBounds.origin.x + (x * scale);
+    double screenY = simBounds.origin.y + titleBarHeight + (y * scale);
 
-    // Mouse down
-    IndigoHIDMessageStruct *downMsg = _indigoMouseEvent(
-        &point, &point, target, NSEventTypeLeftMouseDown, displaySize, 0);
-    if (!downMsg) {
-        if (error) *error = _makeError(24, @"Failed to create mouse down message");
+    CGPoint clickPoint = CGPointMake(screenX, screenY);
+
+    // Post mouse down + up. Simulator.app converts this to a touch event.
+    CGEventRef mouseDown = CGEventCreateMouseEvent(
+        NULL, kCGEventLeftMouseDown, clickPoint, kCGMouseButtonLeft);
+    CGEventRef mouseUp = CGEventCreateMouseEvent(
+        NULL, kCGEventLeftMouseUp, clickPoint, kCGMouseButtonLeft);
+
+    if (!mouseDown || !mouseUp) {
+        if (mouseDown) CFRelease(mouseDown);
+        if (mouseUp) CFRelease(mouseUp);
+        if (error) *error = _makeError(24, @"Failed to create CGEvent");
         return NO;
     }
 
-    if (!_sendHIDMessage(client, downMsg, error)) return NO;
+    CGEventPost(kCGHIDEventTap, mouseDown);
+    usleep(80000); // 80ms between down and up
+    CGEventPost(kCGHIDEventTap, mouseUp);
 
-    // Brief pause between down and up (50ms)
-    usleep(50000);
-
-    // Mouse up
-    IndigoHIDMessageStruct *upMsg = _indigoMouseEvent(
-        &point, &point, target, NSEventTypeLeftMouseUp, displaySize, 0);
-    if (!upMsg) {
-        if (error) *error = _makeError(24, @"Failed to create mouse up message");
-        return NO;
-    }
-
-    return _sendHIDMessage(client, upMsg, error);
+    CFRelease(mouseDown);
+    CFRelease(mouseUp);
+    return YES;
 }
