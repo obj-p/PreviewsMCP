@@ -48,17 +48,30 @@ public actor IOSPreviewSession {
         self.session = previewSession
         let compileResult = try await previewSession.compile()
 
-        // 2. Ensure simulator is booted
-        let device = try await simulatorManager.findDevice(udid: deviceUDID)
-        if device.state != .booted {
-            try await simulatorManager.bootDevice(udid: deviceUDID)
-            // Wait for boot to complete
-            try await Task.sleep(for: .seconds(3))
-        }
-
-        // 3. Build and install host app (cached after first build)
+        // 2. Boot simulator and install host app.
+        // Retry loop handles transient CoreSimulator daemon issues
+        // (Mach error -308, "Shutdown" state races from concurrent operations).
         let appPath = try await hostBuilder.ensureHostApp()
-        try await simulatorManager.installApp(udid: deviceUDID, appPath: appPath.path)
+        var lastError: Error?
+        for attempt in 1...3 {
+            do {
+                // Check/boot on every attempt — device may have been shut down externally
+                let device = try await simulatorManager.findDevice(udid: deviceUDID)
+                if device.state != .booted {
+                    try await simulatorManager.bootDevice(udid: deviceUDID)
+                    try await Task.sleep(for: .seconds(5))
+                }
+                try await simulatorManager.installApp(udid: deviceUDID, appPath: appPath.path)
+                lastError = nil
+                break
+            } catch {
+                lastError = error
+                if attempt < 3 {
+                    try await Task.sleep(for: .seconds(3))
+                }
+            }
+        }
+        if let lastError { throw lastError }
 
         // 4. Create signal file for hot-reload
         let signalFile = compileResult.dylibPath.deletingLastPathComponent()

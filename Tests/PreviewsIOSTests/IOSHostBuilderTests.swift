@@ -7,7 +7,11 @@ struct IOSHostBuilderTests {
 
     @Test("Build iOS host app produces valid .app bundle")
     func buildHostApp() async throws {
-        let builder = try await IOSHostBuilder()
+        let workDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ios-host-test-\(UUID().uuidString)")
+        let builder = try await IOSHostBuilder(workDir: workDir)
+        defer { try? FileManager.default.removeItem(at: workDir) }
+
         let appPath = try await builder.ensureHostApp()
 
         // Verify .app directory exists
@@ -40,7 +44,11 @@ struct IOSHostBuilderTests {
 
     @Test("ensureHostApp returns cached path on second call")
     func caching() async throws {
-        let builder = try await IOSHostBuilder()
+        let workDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ios-host-test-\(UUID().uuidString)")
+        let builder = try await IOSHostBuilder(workDir: workDir)
+        defer { try? FileManager.default.removeItem(at: workDir) }
+
         let first = try await builder.ensureHostApp()
         let second = try await builder.ensureHostApp()
         #expect(first.path == second.path)
