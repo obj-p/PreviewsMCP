@@ -512,7 +512,9 @@ enum IOSHostAppSource {
         <key>CFBundleExecutable</key>
         <string>PreviewsMCPHost</string>
         <key>CFBundleName</key>
-        <string>PreviewsMCPHost</string>
+        <string>PreviewsMCP</string>
+        <key>CFBundleDisplayName</key>
+        <string>PreviewsMCP</string>
         <key>CFBundleVersion</key>
         <string>1</string>
         <key>CFBundleShortVersionString</key>
