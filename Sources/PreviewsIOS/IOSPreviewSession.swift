@@ -181,18 +181,36 @@ public actor IOSPreviewSession {
     }
 
     /// Send a tap at the given point coordinates (in device points).
-    /// Writes to the touch signal file; the in-app Hammer-style touch injector
-    /// creates IOHIDEvents with BKSHIDEventSetDigitizerInfo and delivers via
-    /// UIApplication._enqueueHIDEvent. Fully headless, no mouse cursor movement.
+    /// Fully headless via in-app IOHIDEvent + BKSHIDEvent injection.
     public func sendTap(x: Double, y: Double) async throws {
+        try sendTouchCommand(["action": "tap", "x": x, "y": y])
+        try await Task.sleep(for: .milliseconds(250))
+    }
+
+    /// Send a swipe gesture from one point to another.
+    /// Duration in seconds, steps controls smoothness.
+    public func sendSwipe(
+        fromX: Double, fromY: Double,
+        toX: Double, toY: Double,
+        duration: Double = 0.3,
+        steps: Int = 10
+    ) async throws {
+        try sendTouchCommand([
+            "action": "swipe",
+            "fromX": fromX, "fromY": fromY,
+            "toX": toX, "toY": toY,
+            "duration": duration, "steps": steps,
+        ])
+        // Wait for swipe to complete + processing
+        try await Task.sleep(for: .milliseconds(Int(duration * 1000) + 200))
+    }
+
+    private func sendTouchCommand(_ command: [String: Any]) throws {
         guard let touchFile = touchFilePath else {
             throw IOSPreviewSessionError.notStarted
         }
-        let command: [String: Any] = ["action": "tap", "x": x, "y": y]
         let data = try JSONSerialization.data(withJSONObject: command)
         try data.write(to: touchFile, options: .atomic)
-        // Wait for the in-app handler to process (100ms poll + 60ms touch delay)
-        try await Task.sleep(for: .milliseconds(250))
     }
 
     /// Fetch the accessibility tree from the running preview.

@@ -232,21 +232,62 @@ enum IOSHostAppSource {
         }
 
         private func handleTouchCommand(_ command: [String: Any]) {
-            guard let x = command["x"] as? Double,
-                  let y = command["y"] as? Double else { return }
-            sendTap(x: x, y: y)
-        }
+            guard let action = command["action"] as? String else { return }
 
-        private func sendTap(x: Double, y: Double) {
-            // Touch began
-            sendTouchEvent(x: x, y: y, isTouching: true)
-            // Touch ended after brief delay
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) {
-                self.sendTouchEvent(x: x, y: y, isTouching: false)
+            switch action {
+            case "tap":
+                guard let x = command["x"] as? Double,
+                      let y = command["y"] as? Double else { return }
+                sendTap(x: x, y: y)
+            case "swipe":
+                guard let fromX = command["fromX"] as? Double,
+                      let fromY = command["fromY"] as? Double,
+                      let toX = command["toX"] as? Double,
+                      let toY = command["toY"] as? Double else { return }
+                let duration = command["duration"] as? Double ?? 0.3
+                let steps = command["steps"] as? Int ?? 10
+                sendSwipe(fromX: fromX, fromY: fromY, toX: toX, toY: toY,
+                          duration: duration, steps: steps)
+            default:
+                break
             }
         }
 
-        private func sendTouchEvent(x: Double, y: Double, isTouching: Bool) {
+        private func sendTap(x: Double, y: Double) {
+            sendTouchEvent(x: x, y: y, phase: .began)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) {
+                self.sendTouchEvent(x: x, y: y, phase: .ended)
+            }
+        }
+
+        private func sendSwipe(fromX: Double, fromY: Double,
+                                toX: Double, toY: Double,
+                                duration: Double, steps: Int) {
+            let stepCount = max(steps, 2)
+            let interval = duration / Double(stepCount)
+
+            // Touch down at start
+            sendTouchEvent(x: fromX, y: fromY, phase: .began)
+
+            // Intermediate moves
+            for i in 1..<stepCount {
+                let t = Double(i) / Double(stepCount)
+                let x = fromX + (toX - fromX) * t
+                let y = fromY + (toY - fromY) * t
+                DispatchQueue.main.asyncAfter(deadline: .now() + interval * Double(i)) {
+                    self.sendTouchEvent(x: x, y: y, phase: .moved)
+                }
+            }
+
+            // Touch up at end
+            DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
+                self.sendTouchEvent(x: toX, y: toY, phase: .ended)
+            }
+        }
+
+        private enum TouchPhase { case began, moved, ended }
+
+        private func sendTouchEvent(x: Double, y: Double, phase: TouchPhase) {
             guard touchReady,
                   let createParent = createDigitizerEvent,
                   let createFinger = createDigitizerFingerEvent,
@@ -255,11 +296,14 @@ enum IOSHostAppSource {
                   let setBKS = bksSetDigitizerInfo else { return }
 
             let timestamp = mach_absolute_time()
+            let isTouching = (phase != .ended)
             let pressure: Double = isTouching ? 1.0 : 0.0
-            // Event mask: touch began/ended = .touch | .range (0x03)
-            let fingerMask: UInt32 = 0x03
-            // Parent mask: only .touch bit (0x02)
-            let parentMask: UInt32 = 0x02
+
+            // Event masks per Hammer:
+            // began/ended: .touch | .range (0x03)
+            // moved: .position (0x04)
+            let fingerMask: UInt32 = (phase == .moved) ? 0x04 : 0x03
+            let parentMask: UInt32 = 0x02 // .touch
 
             // Parent event (hand, transducerType=3)
             guard let parent = createParent(

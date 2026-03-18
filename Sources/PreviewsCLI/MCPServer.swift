@@ -159,7 +159,7 @@ func configureMCPServer() async throws -> (Server, Compiler) {
             ),
             Tool(
                 name: "preview_touch",
-                description: "Send a touch event to an iOS simulator preview. Coordinates are in points.",
+                description: "Send a touch event to an iOS simulator preview. Coordinates are in device points. For swipe, x/y is the start point.",
                 inputSchema: .object([
                     "type": .string("object"),
                     "properties": .object([
@@ -169,15 +169,27 @@ func configureMCPServer() async throws -> (Server, Compiler) {
                         ]),
                         "x": .object([
                             "type": .string("number"),
-                            "description": .string("X coordinate in points"),
+                            "description": .string("X coordinate in points (start point for swipe)"),
                         ]),
                         "y": .object([
                             "type": .string("number"),
-                            "description": .string("Y coordinate in points"),
+                            "description": .string("Y coordinate in points (start point for swipe)"),
                         ]),
                         "action": .object([
                             "type": .string("string"),
-                            "description": .string("Touch action: 'tap' (default), 'touchDown', 'touchMove', 'touchUp'"),
+                            "description": .string("'tap' (default) or 'swipe'"),
+                        ]),
+                        "toX": .object([
+                            "type": .string("number"),
+                            "description": .string("End X for swipe"),
+                        ]),
+                        "toY": .object([
+                            "type": .string("number"),
+                            "description": .string("End Y for swipe"),
+                        ]),
+                        "duration": .object([
+                            "type": .string("number"),
+                            "description": .string("Swipe duration in seconds (default: 0.3)"),
                         ]),
                     ]),
                     "required": .array([.string("sessionID"), .string("x"), .string("y")]),
@@ -494,6 +506,27 @@ private func handlePreviewTouch(params: CallTool.Parameters) async throws -> Cal
         action = a
     } else {
         action = "tap"
+    }
+
+    if action == "swipe" {
+        // Swipe requires fromX/fromY (use x/y) and toX/toY
+        let toX: Double
+        if case .double(let n) = params.arguments?["toX"] { toX = n }
+        else if case .int(let n) = params.arguments?["toX"] { toX = Double(n) }
+        else { return CallTool.Result(content: [.text("Missing toX for swipe")], isError: true) }
+
+        let toY: Double
+        if case .double(let n) = params.arguments?["toY"] { toY = n }
+        else if case .int(let n) = params.arguments?["toY"] { toY = Double(n) }
+        else { return CallTool.Result(content: [.text("Missing toY for swipe")], isError: true) }
+
+        let duration: Double = {
+            if case .double(let n) = params.arguments?["duration"] { return n }
+            return 0.3
+        }()
+
+        try await iosSession.sendSwipe(fromX: x, fromY: y, toX: toX, toY: toY, duration: duration)
+        return CallTool.Result(content: [.text("Swipe from (\(Int(x)),\(Int(y))) to (\(Int(toX)),\(Int(toY)))")])
     }
 
     try await iosSession.sendTap(x: x, y: y)
