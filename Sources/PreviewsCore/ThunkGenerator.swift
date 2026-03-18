@@ -172,6 +172,27 @@ final class LiteralCollector: SyntaxVisitor {
             && !isSwitchCasePattern(node)
             && !isEnumRawValue(node)
             && !isInsideIfConfig(node)
+            && !isTagArgument(node)
+    }
+
+    private func isTagArgument(_ node: some SyntaxProtocol) -> Bool {
+        // .tag(0) — the literal is a direct argument to a function named "tag"
+        // which is an identity marker, not a design-time tweakable value
+        var current: Syntax? = Syntax(node)
+        while let parent = current?.parent {
+            if let call = parent.as(FunctionCallExprSyntax.self) {
+                if let member = call.calledExpression.as(MemberAccessExprSyntax.self),
+                   member.declName.baseName.text == "tag" {
+                    return true
+                }
+                return false
+            }
+            if parent.is(CodeBlockSyntax.self) || parent.is(ClosureExprSyntax.self) {
+                return false
+            }
+            current = parent
+        }
+        return false
     }
 
     private func isInsideCodeBlock(_ node: some SyntaxProtocol) -> Bool {
