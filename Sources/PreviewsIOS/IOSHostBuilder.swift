@@ -70,6 +70,13 @@ public actor IOSHostBuilder {
         // Write Info.plist
         try IOSHostAppSource.infoPlist.write(to: plistPath, atomically: true, encoding: .utf8)
 
+        // Copy app icon if available
+        if let iconSource = Bundle.module.url(forResource: "AppIcon", withExtension: "png") {
+            let iconDest = appDir.appendingPathComponent("AppIcon.png")
+            try? FileManager.default.removeItem(at: iconDest)
+            try? FileManager.default.copyItem(at: iconSource, to: iconDest)
+        }
+
         // Codesign
         try await run(codesignPath, "-s", "-", "--force", appDir.path)
 

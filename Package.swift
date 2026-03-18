@@ -30,7 +30,8 @@ let package = Package(
         ),
         .target(
             name: "PreviewsIOS",
-            dependencies: ["PreviewsCore", "SimulatorBridge"]
+            dependencies: ["PreviewsCore", "SimulatorBridge"],
+            resources: [.copy("AppIcon.png")]
         ),
         .executableTarget(
             name: "PreviewsCLI",

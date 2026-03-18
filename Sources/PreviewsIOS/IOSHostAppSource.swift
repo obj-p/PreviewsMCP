@@ -517,6 +517,18 @@ enum IOSHostAppSource {
         <string>1</string>
         <key>CFBundleShortVersionString</key>
         <string>1.0</string>
+        <key>CFBundleIconFile</key>
+        <string>AppIcon</string>
+        <key>CFBundleIcons</key>
+        <dict>
+            <key>CFBundlePrimaryIcon</key>
+            <dict>
+                <key>CFBundleIconFiles</key>
+                <array>
+                    <string>AppIcon</string>
+                </array>
+            </dict>
+        </dict>
         <key>UILaunchStoryboardName</key>
         <string></string>
         <key>LSRequiresIPhoneOS</key>
