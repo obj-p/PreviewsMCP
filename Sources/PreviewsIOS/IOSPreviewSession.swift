@@ -180,15 +180,19 @@ public actor IOSPreviewSession {
         try compileResult.dylibPath.path.write(to: signalFile, atomically: true, encoding: .utf8)
     }
 
-    /// Send a tap at the given point coordinates (in points).
-    /// Uses SimulatorKit's IndigoHID from the host Mac — no in-app injection needed.
-    public func sendTap(x: Double, y: Double,
-                        displayWidth: Double = 393, displayHeight: Double = 852) async throws {
-        try await simulatorManager.sendTap(
-            udid: deviceUDID,
-            x: x, y: y,
-            displayWidth: displayWidth, displayHeight: displayHeight
-        )
+    /// Send a tap at the given point coordinates (in device points).
+    /// Writes to the touch signal file; the in-app Hammer-style touch injector
+    /// creates IOHIDEvents with BKSHIDEventSetDigitizerInfo and delivers via
+    /// UIApplication._enqueueHIDEvent. Fully headless, no mouse cursor movement.
+    public func sendTap(x: Double, y: Double) async throws {
+        guard let touchFile = touchFilePath else {
+            throw IOSPreviewSessionError.notStarted
+        }
+        let command: [String: Any] = ["action": "tap", "x": x, "y": y]
+        let data = try JSONSerialization.data(withJSONObject: command)
+        try data.write(to: touchFile, options: .atomic)
+        // Wait for the in-app handler to process (100ms poll + 60ms touch delay)
+        try await Task.sleep(for: .milliseconds(250))
     }
 
     /// Fetch the accessibility tree from the running preview.

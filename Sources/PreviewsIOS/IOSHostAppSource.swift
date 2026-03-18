@@ -16,7 +16,6 @@ enum IOSHostAppSource {
         private var touchTimer: Timer?
         private var lastTouchModDate: Date?
         private var currentDylibHandle: UnsafeMutableRawPointer?
-        private var hidClient: UnsafeMutableRawPointer?
 
         func application(
             _ application: UIApplication,
@@ -58,7 +57,7 @@ enum IOSHostAppSource {
 
             if let touchIndex = args.firstIndex(of: "--touch-file"),
                touchIndex + 1 < args.count {
-                initHIDClient()
+                initTouchInjection()
                 watchTouchFile(at: args[touchIndex + 1])
             }
 
@@ -149,9 +148,14 @@ enum IOSHostAppSource {
             }
         }
 
-        // MARK: - Touch Injection via IOKit HID
+        // MARK: - Touch Injection via Hammer approach (BKSHIDEvent + IOKit)
+        //
+        // Creates IOHIDEvent objects and delivers them through UIApplication._enqueueHIDEvent:
+        // with BKSHIDEventSetDigitizerInfo to route to the correct window.
+        // Runs entirely in-process — no Simulator.app needed, no mouse cursor movement.
+        // Based on Lyft's Hammer (github.com/lyft/Hammer).
 
-        // IOKit function types loaded via dlsym
+        // Function pointer types
         private typealias CreateDigitizerEventFn = @convention(c) (
             CFAllocator?, UInt64, UInt32, UInt32, UInt32, UInt32, UInt32,
             Double, Double, Double, Double, Double, Bool, Bool, UInt32
@@ -170,59 +174,47 @@ enum IOSHostAppSource {
             UnsafeMutableRawPointer, UInt32, Int32
         ) -> Void
 
-        private typealias DispatchEventFn = @convention(c) (
-            UnsafeMutableRawPointer, UnsafeMutableRawPointer
+        private typealias SetFloatValueFn = @convention(c) (
+            UnsafeMutableRawPointer, UInt32, Double
         ) -> Void
 
-        private typealias CreateClientFn = @convention(c) (
-            CFAllocator?
-        ) -> UnsafeMutableRawPointer?
+        private typealias SetSenderIDFn = @convention(c) (
+            UnsafeMutableRawPointer, UInt64
+        ) -> Void
+
+        private typealias BKSSetDigitizerInfoFn = @convention(c) (
+            UnsafeMutableRawPointer, UInt32, Bool, Bool, CFString?, Double, Float
+        ) -> Void
 
         private var createDigitizerEvent: CreateDigitizerEventFn?
         private var createDigitizerFingerEvent: CreateDigitizerFingerEventFn?
         private var appendEvent: AppendEventFn?
         private var setIntegerValue: SetIntegerValueFn?
-        private var dispatchEvent: DispatchEventFn?
+        private var setFloatValue: SetFloatValueFn?
+        private var setSenderID: SetSenderIDFn?
+        private var bksSetDigitizerInfo: BKSSetDigitizerInfoFn?
+        private var touchReady = false
 
-        private func initHIDClient() {
+        private func initTouchInjection() {
             guard let iokit = dlopen("/System/Library/Frameworks/IOKit.framework/IOKit", RTLD_NOW) else {
-                NSLog("PreviewHost: Failed to load IOKit")
-                return
+                NSLog("PreviewHost: Failed to load IOKit"); return
+            }
+            guard let bbs = dlopen("/System/Library/PrivateFrameworks/BackBoardServices.framework/BackBoardServices", RTLD_NOW) else {
+                NSLog("PreviewHost: Failed to load BackBoardServices"); return
             }
 
-            createDigitizerEvent = unsafeBitCast(
-                dlsym(iokit, "IOHIDEventCreateDigitizerEvent"),
-                to: CreateDigitizerEventFn?.self
-            )
-            createDigitizerFingerEvent = unsafeBitCast(
-                dlsym(iokit, "IOHIDEventCreateDigitizerFingerEvent"),
-                to: CreateDigitizerFingerEventFn?.self
-            )
-            appendEvent = unsafeBitCast(
-                dlsym(iokit, "IOHIDEventAppendEvent"),
-                to: AppendEventFn?.self
-            )
-            setIntegerValue = unsafeBitCast(
-                dlsym(iokit, "IOHIDEventSetIntegerValue"),
-                to: SetIntegerValueFn?.self
-            )
-            dispatchEvent = unsafeBitCast(
-                dlsym(iokit, "IOHIDEventSystemClientDispatchEvent"),
-                to: DispatchEventFn?.self
-            )
+            createDigitizerEvent = unsafeBitCast(dlsym(iokit, "IOHIDEventCreateDigitizerEvent"), to: CreateDigitizerEventFn?.self)
+            createDigitizerFingerEvent = unsafeBitCast(dlsym(iokit, "IOHIDEventCreateDigitizerFingerEvent"), to: CreateDigitizerFingerEventFn?.self)
+            appendEvent = unsafeBitCast(dlsym(iokit, "IOHIDEventAppendEvent"), to: AppendEventFn?.self)
+            setIntegerValue = unsafeBitCast(dlsym(iokit, "IOHIDEventSetIntegerValue"), to: SetIntegerValueFn?.self)
+            setFloatValue = unsafeBitCast(dlsym(iokit, "IOHIDEventSetFloatValue"), to: SetFloatValueFn?.self)
+            setSenderID = unsafeBitCast(dlsym(iokit, "IOHIDEventSetSenderID"), to: SetSenderIDFn?.self)
+            bksSetDigitizerInfo = unsafeBitCast(dlsym(bbs, "BKSHIDEventSetDigitizerInfo"), to: BKSSetDigitizerInfoFn?.self)
 
-            if let createClient = unsafeBitCast(
-                dlsym(iokit, "IOHIDEventSystemClientCreate"),
-                to: CreateClientFn?.self
-            ) {
-                hidClient = createClient(nil)
-            }
+            touchReady = (createDigitizerEvent != nil && createDigitizerFingerEvent != nil &&
+                          appendEvent != nil && setIntegerValue != nil && bksSetDigitizerInfo != nil)
 
-            if hidClient != nil {
-                NSLog("PreviewHost: HID touch injection ready")
-            } else {
-                NSLog("PreviewHost: HID client creation failed")
-            }
+            NSLog("PreviewHost: Touch injection \\(touchReady ? "ready" : "FAILED")")
         }
 
         private func watchTouchFile(at path: String) {
@@ -240,86 +232,80 @@ enum IOSHostAppSource {
         }
 
         private func handleTouchCommand(_ command: [String: Any]) {
-            guard let action = command["action"] as? String,
-                  let x = command["x"] as? Double,
+            guard let x = command["x"] as? Double,
                   let y = command["y"] as? Double else { return }
+            sendTap(x: x, y: y)
+        }
 
-            let screenBounds = UIScreen.main.bounds
-            let pointX = x / screenBounds.width
-            let pointY = y / screenBounds.height
-
-            switch action {
-            case "tap":
-                sendTouchEvent(x: pointX, y: pointY, phase: 0) // began
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                    self.sendTouchEvent(x: pointX, y: pointY, phase: 3) // ended
-                }
-            case "touchDown":
-                sendTouchEvent(x: pointX, y: pointY, phase: 0)
-            case "touchMove":
-                sendTouchEvent(x: pointX, y: pointY, phase: 1)
-            case "touchUp":
-                sendTouchEvent(x: pointX, y: pointY, phase: 3)
-            default:
-                break
+        private func sendTap(x: Double, y: Double) {
+            // Touch began
+            sendTouchEvent(x: x, y: y, isTouching: true)
+            // Touch ended after brief delay
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) {
+                self.sendTouchEvent(x: x, y: y, isTouching: false)
             }
         }
 
-        /// Send a touch event via IOKit HID.
-        /// x, y are normalized (0.0-1.0). phase: 0=began, 1=moved, 3=ended.
-        private func sendTouchEvent(x: Double, y: Double, phase: Int) {
-            guard let client = hidClient,
+        private func sendTouchEvent(x: Double, y: Double, isTouching: Bool) {
+            guard touchReady,
                   let createParent = createDigitizerEvent,
                   let createFinger = createDigitizerFingerEvent,
                   let append = appendEvent,
-                  let dispatch = dispatchEvent else { return }
+                  let setInt = setIntegerValue,
+                  let setBKS = bksSetDigitizerInfo else { return }
 
             let timestamp = mach_absolute_time()
-            let isTouching = (phase != 3)
-            let pressure = isTouching ? 1.0 : 0.0
-            let eventMask: UInt32 = 0x7 // Range | Touch | Position
+            let pressure: Double = isTouching ? 1.0 : 0.0
+            // Event mask: touch began/ended = .touch | .range (0x03)
+            let fingerMask: UInt32 = 0x03
+            // Parent mask: only .touch bit (0x02)
+            let parentMask: UInt32 = 0x02
 
-            // Parent digitizer event (hand)
+            // Parent event (hand, transducerType=3)
             guard let parent = createParent(
-                nil, timestamp,
-                0,  // transducerType: hand
-                0,  // index
-                0,  // identity
-                eventMask,
-                0,  // buttonMask
-                x, y, 0.0,
-                pressure, 0.0,
-                isTouching, isTouching,
-                0
+                nil, timestamp, 3, 0, 0, parentMask, 0,
+                0, 0, 0, 0, 0, false, isTouching, 0
             ) else { return }
+
+            // Set isDisplayIntegrated
+            setInt(parent, 0xB0019, 1)
+
+            // Set sender ID (any non-zero value)
+            setSenderID?(parent, 0x0000000123456789)
 
             // Child finger event
             guard let finger = createFinger(
-                nil, timestamp,
-                1,  // index (finger 1)
-                1,  // identity
-                eventMask,
-                x, y, 0.0,
-                pressure, 0.0, // pressure, twist
-                isTouching, isTouching,
-                0
+                nil, timestamp, 1, 1, fingerMask,
+                x, y, 0, pressure, 0,
+                isTouching, isTouching, 0
             ) else { return }
+
+            // Set radius on finger
+            setFloatValue?(finger, 0xB0014, 5.0)  // majorRadius
+            setFloatValue?(finger, 0xB0015, 5.0)  // minorRadius
 
             append(parent, finger, 0)
 
-            // Set child count on parent
-            // kIOHIDEventFieldDigitizerCollection = 0xb0007
-            setIntegerValue?(parent, 0xb0007, 1)
-
-            dispatch(client, parent)
-
-            // Release IOHIDEvent objects (they are CFTypes)
-            let cfRelease: (@convention(c) (UnsafeRawPointer) -> Void) = { ptr in
-                let cf = Unmanaged<AnyObject>.fromOpaque(ptr)
-                cf.release()
+            // Get window context ID via private _contextId property
+            var contextId: UInt32 = 0
+            if let w = self.window {
+                let sel = NSSelectorFromString("_contextId")
+                if w.responds(to: sel) {
+                    contextId = UInt32(truncatingIfNeeded:
+                        Int(bitPattern: w.perform(sel)?.toOpaque()))
+                }
             }
-            cfRelease(parent)
-            cfRelease(finger)
+
+            // Stamp with BKS digitizer info
+            setBKS(parent, contextId, false, false, nil, 0, 0)
+
+            // Deliver via UIApplication._enqueueHIDEvent:
+            let enqueueSel = NSSelectorFromString("_enqueueHIDEvent:")
+            let app = UIApplication.shared
+            if app.responds(to: enqueueSel) {
+                let eventObj = Unmanaged<AnyObject>.fromOpaque(parent).takeUnretainedValue()
+                app.perform(enqueueSel, with: eventObj)
+            }
         }
 
         // MARK: - Accessibility Tree Dump

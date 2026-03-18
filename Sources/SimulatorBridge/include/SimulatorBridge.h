@@ -66,11 +66,4 @@ SBDevice *_Nullable SBFindDeviceByUDID(NSString *udidString, NSError *_Nullable 
 /// Find the first booted device.
 SBDevice *_Nullable SBFindBootedDevice(NSError *_Nullable *_Nullable error);
 
-/// Send a tap to a booted device at the given point coordinates.
-/// x, y are in points (device screen coordinate space).
-/// displayWidth, displayHeight are the device's logical screen size in points.
-BOOL SBSendTap(SBDevice *device, double x, double y,
-               double displayWidth, double displayHeight,
-               NSError *_Nullable *_Nullable error);
-
 NS_ASSUME_NONNULL_END

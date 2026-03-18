@@ -61,37 +61,6 @@ struct SimulatorManagerTests {
         }
     }
 
-    @Test("Send tap to booted device")
-    func sendTap() async throws {
-        let manager = SimulatorManager()
-        // Boot a device first
-        let devices = try await manager.listDevices()
-        guard let target = devices.first(where: { $0.isAvailable }) else {
-            print("No available device — skipping")
-            return
-        }
-
-        if target.state != .booted {
-            try await manager.bootDevice(udid: target.udid)
-            try await Task.sleep(for: .seconds(5))
-        }
-
-        print("Sending tap to \(target.name) at (196, 469)...")
-        do {
-            try await manager.sendTap(
-                udid: target.udid,
-                x: 196, y: 469,
-                displayWidth: 393, displayHeight: 852
-            )
-            print("Tap sent successfully!")
-        } catch {
-            print("Tap error: \(error)")
-            throw error
-        }
-
-        try await manager.shutdownDevice(udid: target.udid)
-    }
-
     @Test("Boot and shutdown a device")
     func bootAndShutdown() async throws {
         let manager = SimulatorManager()
