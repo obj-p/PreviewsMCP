@@ -768,6 +768,60 @@ xcrun simctl --set ~/Library/Developer/Xcode/UserData/Previews/Simulator\ Device
 
 ---
 
+## iOS Simulator Touch Injection
+
+### Overview
+
+Touch injection into the iOS simulator requires bypassing the normal macOS mouse → touch conversion that Simulator.app performs internally. Three approaches were investigated.
+
+### Approach 1: IOHIDEventSystemClientDispatchEvent (In-App)
+
+**Result: Failed.** Creating an `IOHIDEventSystemClient` inside the simulator app and dispatching events requires the `com.apple.private.hid.client.event-dispatch` entitlement, which only system processes (backboardd, SpringBoard) possess.
+
+### Approach 2: IndigoHID via SimDeviceLegacyHIDClient (Host-Side)
+
+**Result: Failed.** `IndigoHIDMessageForMouseNSEvent` creates pointer events (eventType=3), not touch events (eventType=2). Sending these directly causes the app to crash or background. Patching eventType 3→2 with seed data is accepted but silently dropped.
+
+Key findings from reverse engineering:
+- IndigoPayload grew from 144→160 bytes since IDB was written
+- IndigoTouch has 19 fields (was 18)
+- Total message: 352 bytes (was 320)
+- IDB's 5-arg call to `IndigoHIDMessageForMouseNSEvent` no longer matches the 6-arg signature
+- `sendWithMessage:` is NOT called by Simulator.app when the user clicks — it's for external API only
+
+### Approach 3: CGEvent on Simulator.app Window
+
+**Result: Works (headless=false only).** Post `CGEventCreateMouseEvent` to the Simulator.app window coordinates. Simulator.app's `SimDigitizerInputView` layer converts the click to a touch event internally.
+
+### Approach 4: Direct simDigitizerInputView:touchEvent: Call (In Progress)
+
+**Result: Most promising for headless.** lldb tracing with SIP disabled revealed the actual touch delivery path:
+
+1. User clicks in Simulator.app window
+2. `SimDigitizerInputView` processes the NSEvent
+3. Calls `simDigitizerInputView(_:touchEvent:)` on `SimDeviceLegacyHIDClient`
+4. The HID client converts the touchEvent to wire format and sends via Mach IPC
+
+The `touchEvent` parameter is a **160-byte struct** (not an IndigoMessage):
+
+```
+Offset  Type      Field              DOWN value     UP value
+0x00    double    xRatio (0.0-1.0)   0.500000       0.500000
+0x08    double    yRatio (0.0-1.0)   0.464531       0.464531
+0x10    double    zero               0.0            0.0
+0x18    double    zero               0.0            0.0
+0x20    uint8[2]  flags              0x01 0x01       0x01 0x01
+0x22    [6 bytes] timestamp/ptr      zeroed          non-zero
+0x28    uint32    direction          1 (DOWN)        2 (UP)
+0x50    double    xRatio (dup)       0.500000       0.500000
+0x58    double    yRatio (dup)       0.464531       0.464531
+0x60    uint8     flag               0x01           0x01
+0x62    [6 bytes] timestamp/ptr      zeroed          non-zero
+0x90    double    zero (pressure?)   0.0            0.0
+```
+
+Implementation plan: construct this 160-byte struct and call the `simDigitizerInputView:touchEvent:` delegate method directly on the `SimDeviceLegacyHIDClient`, bypassing the IndigoHID wire format entirely.
+
 ## External References
 
 - [How SwiftUI Preview Works Under the Hood | onee.me](https://onee.me/en/blog/how-new-xcode-swiftui-preview-works-under-the-hood/) — Best source on Xcode 16+ JIT Executor path
