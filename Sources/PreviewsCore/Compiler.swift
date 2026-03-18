@@ -9,7 +9,7 @@ public struct CompilationResult: Sendable {
 }
 
 /// Error from a failed compilation.
-public struct CompilationError: Error, CustomStringConvertible {
+public struct CompilationError: Error, LocalizedError, CustomStringConvertible {
     public let message: String
     public let stderr: String
     public let exitCode: Int32
@@ -21,6 +21,8 @@ public struct CompilationError: Error, CustomStringConvertible {
         \(stderr)
         """
     }
+
+    public var errorDescription: String? { description }
 }
 
 /// Compiles Swift source code into signed dynamic libraries.

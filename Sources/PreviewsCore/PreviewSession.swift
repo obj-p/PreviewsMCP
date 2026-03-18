@@ -101,7 +101,7 @@ public actor PreviewSession {
     }
 }
 
-public enum PreviewSessionError: Error, CustomStringConvertible {
+public enum PreviewSessionError: Error, LocalizedError, CustomStringConvertible {
     case previewNotFound(index: Int, available: Int)
 
     public var description: String {
@@ -110,4 +110,6 @@ public enum PreviewSessionError: Error, CustomStringConvertible {
             return "Preview index \(index) not found. File has \(available) preview(s)."
         }
     }
+
+    public var errorDescription: String? { description }
 }
