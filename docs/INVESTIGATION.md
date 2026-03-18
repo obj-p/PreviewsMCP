@@ -793,34 +793,40 @@ Key findings from reverse engineering:
 
 **Result: Works (headless=false only).** Post `CGEventCreateMouseEvent` to the Simulator.app window coordinates. Simulator.app's `SimDigitizerInputView` layer converts the click to a touch event internally.
 
-### Approach 4: Direct simDigitizerInputView:touchEvent: Call (In Progress)
+### Approach 4: Direct simDigitizerInputView:touchEvent: Call
 
-**Result: Most promising for headless.** lldb tracing with SIP disabled revealed the actual touch delivery path:
+**Result: Failed.** lldb tracing with SIP disabled revealed the actual touch delivery path inside Simulator.app:
 
 1. User clicks in Simulator.app window
 2. `SimDigitizerInputView` processes the NSEvent
 3. Calls `simDigitizerInputView(_:touchEvent:)` on `SimDeviceLegacyHIDClient`
 4. The HID client converts the touchEvent to wire format and sends via Mach IPC
 
-The `touchEvent` parameter is a **160-byte struct** (not an IndigoMessage):
+The `touchEvent` parameter is a 160-byte Swift struct. However, calling this method from outside with a freshly-created `SimDigitizerInputView` doesn't work — the view needs an established HID session connection that only Simulator.app's own view hierarchy provides. The method is a pure Swift protocol witness (no ObjC selector), making external invocation fragile.
 
-```
-Offset  Type      Field              DOWN value     UP value
-0x00    double    xRatio (0.0-1.0)   0.500000       0.500000
-0x08    double    yRatio (0.0-1.0)   0.464531       0.464531
-0x10    double    zero               0.0            0.0
-0x18    double    zero               0.0            0.0
-0x20    uint8[2]  flags              0x01 0x01       0x01 0x01
-0x22    [6 bytes] timestamp/ptr      zeroed          non-zero
-0x28    uint32    direction          1 (DOWN)        2 (UP)
-0x50    double    xRatio (dup)       0.500000       0.500000
-0x58    double    yRatio (dup)       0.464531       0.464531
-0x60    uint8     flag               0x01           0x01
-0x62    [6 bytes] timestamp/ptr      zeroed          non-zero
-0x90    double    zero (pressure?)   0.0            0.0
-```
+### Approach 5: In-App Hammer Approach (SOLVED)
 
-Implementation plan: construct this 160-byte struct and call the `simDigitizerInputView:touchEvent:` delegate method directly on the `SimDeviceLegacyHIDClient`, bypassing the IndigoHID wire format entirely.
+**Result: Works — fully headless, no mouse movement, no SIP needed.**
+
+Based on Lyft's [Hammer](https://github.com/lyft/Hammer) testing framework. Runs entirely inside the iOS host app process:
+
+1. `dlopen` IOKit + BackBoardServices in the simulator runtime
+2. `IOHIDEventCreateDigitizerFingerEvent()` — create touch event (transducerType=3/hand)
+3. `IOHIDEventSetIntegerValue(event, 0xB0019, 1)` — isDisplayIntegrated flag
+4. `IOHIDEventSetSenderID(event, nonzero)` — required sender ID
+5. `BKSHIDEventSetDigitizerInfo(event, contextId, ...)` — route to window via `UIWindow._contextId`
+6. `UIApplication._enqueueHIDEvent(event)` — deliver to app event loop
+
+Key details:
+- `BKSHIDEventSetDigitizerInfo` is in BackBoardServices.framework (available in simulator runtime)
+- `UIApplication._enqueueHIDEvent:` exists and works without entitlements
+- `UIWindow._contextId` provides the UInt32 context ID for event routing
+- Event masks: began/ended = `.touch | .range` (0x03), moved = `.position` (0x04)
+- Parent event mask: `.touch` (0x02)
+- Finger radius: 5.0 (majorRadius 0xB0014, minorRadius 0xB0015)
+- Swipe = touch began → interpolated touch moves → touch ended
+
+No Simulator.app window needed. No mouse cursor movement. No SIP requirement. No entitlements needed. Verified: Count: 0 → Count: 1 on headless iOS 26.2 simulator.
 
 ## External References
 
