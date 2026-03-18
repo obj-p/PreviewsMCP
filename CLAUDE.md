@@ -1,0 +1,62 @@
+# CLAUDE.md
+
+## Project
+
+PreviewsMCP — standalone SwiftUI preview renderer with MCP server for AI-driven UI development. Renders `#Preview` blocks outside Xcode on both macOS and iOS simulator, with hot-reload, touch interaction, and accessibility tree inspection.
+
+## Build & Test
+
+```bash
+swift build              # Build all targets
+swift test               # Run all tests (~34 tests, 7 suites)
+swift test --filter "PreviewParser"      # Run specific suite
+swift test --filter "IOSHostBuilder"     # Test iOS host app compilation
+swift test --filter "endToEnd"           # Full iOS pipeline (slow, boots simulator)
+```
+
+## Architecture
+
+```
+Sources/
+├── SimulatorBridge/     # ObjC — runtime-loads CoreSimulator.framework (no build-time linking)
+├── PreviewsCore/        # Platform-agnostic: parser, compiler, bridge gen, differ, file watcher
+├── PreviewsMacOS/       # macOS host: NSApplication + NSWindow + Snapshot
+├── PreviewsIOS/         # iOS simulator: SimulatorManager, IOSHostBuilder, IOSPreviewSession
+└── PreviewsCLI/         # CLI (ArgumentParser) + MCP server (swift-sdk)
+```
+
+- **PreviewsCore** has no platform-specific dependencies (no AppKit, no CoreSimulator)
+- **SimulatorBridge** is ObjC because it uses `objc_lookUpClass` / protocol casts for private API access
+- **PreviewsIOS** depends on SimulatorBridge; touch injection runs in-app via Hammer approach (IOHIDEvent + BKSHIDEventSetDigitizerInfo)
+- **IOSHostAppSource.swift** contains the iOS host app as an embedded string, compiled at runtime by IOSHostBuilder
+
+## Key Conventions
+
+- Swift 6.0 strict concurrency — actors for shared state, Sendable structs for cross-isolation data
+- Private framework access: runtime-load via `Bundle(path:).loadAndReturnError()` + `objc_lookUpClass()`, never build-time link
+- iOS host app source is a string constant (like DesignTimeStore) — compiled with swiftc targeting arm64-apple-ios-simulator at runtime
+- Old dylibs/views are retained (never dlclose) to prevent EXC_BAD_ACCESS
+- `.tag()` integer literals are excluded from ThunkGenerator to avoid Int/CGFloat overload ambiguity
+- All custom Error types must conform to `LocalizedError` with `errorDescription` (not just `CustomStringConvertible`) so MCP server reports useful messages
+
+## MCP Server
+
+Binary: `.build/debug/previewsmcp serve`
+Config: `/.mcp.json` (in parent directory)
+
+Tools: `preview_list`, `preview_start`, `preview_snapshot`, `preview_elements`, `preview_touch`, `preview_stop`, `simulator_list`
+
+## iOS Touch Injection
+
+Uses Hammer approach (in-app, headless, no mouse movement):
+1. IOKit: `IOHIDEventCreateDigitizerFingerEvent` (transducerType=3)
+2. BackBoardServices: `BKSHIDEventSetDigitizerInfo` with `UIWindow._contextId`
+3. UIKit: `UIApplication._enqueueHIDEvent:`
+
+All loaded via dlopen/dlsym inside the iOS host app. Does NOT use IndigoHID/SimulatorKit (those create pointer events, not touch events on Xcode 26.2).
+
+## Test Notes
+
+- iOS simulator tests boot/shutdown real devices — can be slow (~10-20s)
+- Tests that use simulators may flake from CoreSimulator daemon state after rapid boot/shutdown cycles — retry logic is built into IOSPreviewSession
+- The `bootAndShutdown` and `endToEnd` tests always clean up (shutdown device) even on failure
