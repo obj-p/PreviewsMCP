@@ -56,7 +56,7 @@ func configureMCPServer() async throws -> (Server, Compiler) {
     let compiler = try await Compiler()
 
     let server = Server(
-        name: "previews-mcp",
+        name: "previewsmcp",
         version: "0.2.0",
         capabilities: .init(tools: .init(listChanged: false))
     )

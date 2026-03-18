@@ -5,7 +5,7 @@ let package = Package(
     name: "PreviewsMCP",
     platforms: [.macOS(.v14)],
     products: [
-        .executable(name: "previews-mcp", targets: ["PreviewsCLI"]),
+        .executable(name: "previewsmcp", targets: ["PreviewsCLI"]),
         .library(name: "PreviewsCore", targets: ["PreviewsCore"]),
     ],
     dependencies: [

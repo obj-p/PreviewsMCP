@@ -7,7 +7,7 @@ public final class FileWatcher: @unchecked Sendable {
     private let callback: @Sendable () -> Void
     private var timer: DispatchSourceTimer?
     private var lastModDate: Date?
-    private let queue = DispatchQueue(label: "com.previews-mcp.filewatcher")
+    private let queue = DispatchQueue(label: "com.previewsmcp.filewatcher")
 
     /// Watch a file and call the callback when it's modified.
     /// Polls every `interval` seconds (default: 0.5s).

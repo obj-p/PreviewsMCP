@@ -20,7 +20,7 @@ public actor IOSPreviewSession {
     private var session: PreviewSession?
     public nonisolated let headless: Bool
 
-    public static let hostBundleID = "com.previews-mcp.ios-host"
+    public static let hostBundleID = "com.previewsmcp.host"
 
     public init(
         sourceFile: URL,

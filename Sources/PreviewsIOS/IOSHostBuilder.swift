@@ -14,7 +14,7 @@ public actor IOSHostBuilder {
 
     public init(workDir: URL? = nil) async throws {
         let dir = workDir ?? FileManager.default.temporaryDirectory
-            .appendingPathComponent("previews-mcp-ios-host", isDirectory: true)
+            .appendingPathComponent("previewsmcp-host", isDirectory: true)
 
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         self.workDir = dir
@@ -36,10 +36,10 @@ public actor IOSHostBuilder {
 
     /// Compile and package the iOS host app.
     private func buildHostApp() async throws -> URL {
-        let sourceFile = workDir.appendingPathComponent("IOSPreviewHost.swift")
-        let binaryPath = workDir.appendingPathComponent("IOSPreviewHost")
-        let appDir = workDir.appendingPathComponent("IOSPreviewHost.app")
-        let appBinary = appDir.appendingPathComponent("IOSPreviewHost")
+        let sourceFile = workDir.appendingPathComponent("PreviewsMCPHost.swift")
+        let binaryPath = workDir.appendingPathComponent("PreviewsMCPHost")
+        let appDir = workDir.appendingPathComponent("PreviewsMCPHost.app")
+        let appBinary = appDir.appendingPathComponent("PreviewsMCPHost")
         let plistPath = appDir.appendingPathComponent("Info.plist")
 
         // Write source
@@ -52,7 +52,7 @@ public actor IOSHostBuilder {
             "-parse-as-library",
             "-target", targetTriple,
             "-sdk", sdkPath,
-            "-module-name", "IOSPreviewHost",
+            "-module-name", "PreviewsMCPHost",
             "-Onone",
             "-o", binaryPath.path,
             sourceFile.path

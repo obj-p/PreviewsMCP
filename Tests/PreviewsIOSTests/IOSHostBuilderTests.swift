@@ -20,7 +20,7 @@ struct IOSHostBuilderTests {
         #expect(isDir.boolValue)
 
         // Verify binary exists inside .app
-        let binaryPath = appPath.appendingPathComponent("IOSPreviewHost")
+        let binaryPath = appPath.appendingPathComponent("PreviewsMCPHost")
         #expect(FileManager.default.fileExists(atPath: binaryPath.path))
 
         // Verify Info.plist exists

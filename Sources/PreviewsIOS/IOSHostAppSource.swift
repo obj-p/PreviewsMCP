@@ -508,11 +508,11 @@ enum IOSHostAppSource {
     <plist version="1.0">
     <dict>
         <key>CFBundleIdentifier</key>
-        <string>com.previews-mcp.ios-host</string>
+        <string>com.previewsmcp.host</string>
         <key>CFBundleExecutable</key>
-        <string>IOSPreviewHost</string>
+        <string>PreviewsMCPHost</string>
         <key>CFBundleName</key>
-        <string>IOSPreviewHost</string>
+        <string>PreviewsMCPHost</string>
         <key>CFBundleVersion</key>
         <string>1</string>
         <key>CFBundleShortVersionString</key>

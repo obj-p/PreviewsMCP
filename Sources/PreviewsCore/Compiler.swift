@@ -40,7 +40,7 @@ public actor Compiler {
         self.platform = platform
 
         let dir = workDir ?? FileManager.default.temporaryDirectory
-            .appendingPathComponent("previews-mcp", isDirectory: true)
+            .appendingPathComponent("previewsmcp", isDirectory: true)
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
 
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
