@@ -18,8 +18,8 @@ struct PreviewsMCPApp {
             PreviewsMCPCommand.exit(withError: error)
         }
 
-        // ListCommand doesn't need NSApplication
-        if command is ListCommand {
+        // Commands that don't need NSApplication (list, help, etc.)
+        if command is ListCommand || !(command is RunCommand || command is ServeCommand || command is SnapshotCommand) {
             do {
                 var mutable = command
                 try mutable.run()
@@ -45,8 +45,7 @@ struct PreviewsMCPApp {
                     var mutable = command
                     try mutable.run()
                 } catch {
-                    print("Error: \(error)")
-                    NSApp.terminate(nil)
+                    PreviewsMCPCommand.exit(withError: error)
                 }
             }
         }
