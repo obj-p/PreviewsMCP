@@ -72,13 +72,13 @@ struct SummaryCard: View {
         VStack(spacing: 6) {
             Text(title)
                 .font(.caption)
-                .foregroundColor(.white.opacity(0.8))
+                .foregroundStyle(.white.opacity(0.8))
             Text(value)
                 .font(.title2.bold())
-                .foregroundColor(.white)
+                .foregroundStyle(.white)
             Text(detail)
                 .font(.caption2)
-                .foregroundColor(.white.opacity(0.7))
+                .foregroundStyle(.white.opacity(0.7))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(color.gradient)

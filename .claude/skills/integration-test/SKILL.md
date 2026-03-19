@@ -2,7 +2,7 @@
 name: integration-test
 description: Run integration tests against example projects in the examples/ directory. Use when the user wants to validate PreviewsMCP's build system support, rendering, interaction, or hot-reload end-to-end.
 argument-hint: [example-name]
-allowed-tools: Bash, Read, Glob, Grep, preview_start, preview_snapshot, preview_elements, preview_touch, preview_stop, simulator_list
+allowed-tools: Bash, Read, Glob, Grep, preview_start, preview_snapshot, preview_elements, preview_touch, preview_stop, preview_list, simulator_list
 ---
 
 Run integration tests for PreviewsMCP example projects.
