@@ -13,6 +13,13 @@ Render and interact with SwiftUI previews outside of Xcode. Works as a CLI tool 
 
 ## Installation
 
+### Homebrew
+
+```bash
+brew tap obj-p/tap
+brew install previewsmcp
+```
+
 ### From source
 
 ```bash
