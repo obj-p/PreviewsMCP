@@ -19,6 +19,7 @@ public actor IOSPreviewSession {
     private var elementsFilePath: URL?
     private var session: PreviewSession?
     public nonisolated let headless: Bool
+    private let buildContext: BuildContext?
 
     public static let hostBundleID = "com.previewsmcp.host"
 
@@ -29,7 +30,8 @@ public actor IOSPreviewSession {
         compiler: Compiler,
         hostBuilder: IOSHostBuilder,
         simulatorManager: SimulatorManager,
-        headless: Bool = true
+        headless: Bool = true,
+        buildContext: BuildContext? = nil
     ) {
         self.id = UUID().uuidString
         self.sourceFile = sourceFile
@@ -39,6 +41,7 @@ public actor IOSPreviewSession {
         self.hostBuilder = hostBuilder
         self.simulatorManager = simulatorManager
         self.headless = headless
+        self.buildContext = buildContext
     }
 
     /// Start the iOS preview: compile, boot sim, install host, launch.
@@ -49,7 +52,8 @@ public actor IOSPreviewSession {
             sourceFile: sourceFile,
             previewIndex: previewIndex,
             compiler: compiler,
-            platform: .iOSSimulator
+            platform: .iOSSimulator,
+            buildContext: buildContext
         )
         self.session = previewSession
         let compileResult = try await previewSession.compile()
@@ -169,7 +173,8 @@ public actor IOSPreviewSession {
             sourceFile: sourceFile,
             previewIndex: previewIndex,
             compiler: compiler,
-            platform: .iOSSimulator
+            platform: .iOSSimulator,
+            buildContext: buildContext
         )
         self.session = previewSession
         let compileResult = try await previewSession.compile()

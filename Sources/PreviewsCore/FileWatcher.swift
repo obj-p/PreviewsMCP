@@ -1,28 +1,43 @@
 import Foundation
 
-/// Watches a file for changes using polling.
-/// Checks the file's modification date at a regular interval.
+/// Watches one or more files for changes using polling.
+/// Checks file modification dates at a regular interval.
 public final class FileWatcher: @unchecked Sendable {
-    private let filePath: String
+    private let filePaths: [String]
     private let callback: @Sendable () -> Void
     private var timer: DispatchSourceTimer?
-    private var lastModDate: Date?
+    private var lastModDates: [String: Date]
     private let queue = DispatchQueue(label: "com.previewsmcp.filewatcher")
 
     /// Watch a file and call the callback when it's modified.
     /// Polls every `interval` seconds (default: 0.5s).
-    public init(
+    public convenience init(
         path: String,
         interval: TimeInterval = 0.5,
         callback: @escaping @Sendable () -> Void
     ) throws {
-        guard FileManager.default.fileExists(atPath: path) else {
-            throw FileWatcherError.cannotOpen(path: path)
+        try self.init(paths: [path], interval: interval, callback: callback)
+    }
+
+    /// Watch multiple files and call the callback when any is modified.
+    /// Polls every `interval` seconds (default: 0.5s).
+    public init(
+        paths: [String],
+        interval: TimeInterval = 0.5,
+        callback: @escaping @Sendable () -> Void
+    ) throws {
+        guard let first = paths.first, FileManager.default.fileExists(atPath: first) else {
+            throw FileWatcherError.cannotOpen(path: paths.first ?? "<empty>")
         }
 
-        self.filePath = path
+        self.filePaths = paths
         self.callback = callback
-        self.lastModDate = Self.modDate(of: path)
+
+        var dates: [String: Date] = [:]
+        for path in paths {
+            dates[path] = Self.modDate(of: path)
+        }
+        self.lastModDates = dates
 
         let timer = DispatchSource.makeTimerSource(queue: queue)
         timer.schedule(
@@ -46,10 +61,14 @@ public final class FileWatcher: @unchecked Sendable {
     }
 
     private func checkForChanges() {
-        guard let newDate = Self.modDate(of: filePath) else { return }
-        guard newDate != lastModDate else { return }
-        lastModDate = newDate
-        callback()
+        for path in filePaths {
+            guard let newDate = Self.modDate(of: path) else { continue }
+            if newDate != lastModDates[path] {
+                lastModDates[path] = newDate
+                callback()
+                return // Fire once per poll cycle
+            }
+        }
     }
 
     private static func modDate(of path: String) -> Date? {

@@ -3,6 +3,7 @@ import ArgumentParser
 import Foundation
 import PreviewsCore
 import PreviewsMacOS
+import PreviewsIOS
 
 struct SnapshotCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
@@ -25,27 +26,60 @@ struct SnapshotCommand: ParsableCommand {
     @Option(name: .long, help: "Window height")
     var height: Int = 600
 
+    @Option(name: .long, help: "Target platform: 'macos' (default) or 'ios-simulator'")
+    var platform: CLIPlatform = .macos
+
+    @Option(name: .long, help: "Project root path (auto-detected if omitted)")
+    var project: String?
+
+    @Option(name: .long, help: "Simulator device UDID (for ios-simulator; auto-selects if omitted)")
+    var device: String?
+
     mutating func run() throws {
         let fileURL = URL(fileURLWithPath: file).standardizedFileURL
         guard FileManager.default.fileExists(atPath: fileURL.path) else {
             throw ValidationError("File not found: \(file)")
         }
 
+        switch platform {
+        case .iosSimulator:
+            runIOSSnapshot(fileURL: fileURL)
+        case .macos:
+            runMacOSSnapshot(fileURL: fileURL)
+        }
+    }
+
+    private func runMacOSSnapshot(fileURL: URL) {
         let previewIndex = preview
         let windowWidth = width
         let windowHeight = height
         let outputURL = URL(fileURLWithPath: output)
+        let projectPath = project
 
         Task {
             do {
                 let compiler = try await Compiler()
+
+                // Detect build system
+                let projectRootURL = projectPath.map { URL(fileURLWithPath: $0) }
+                let buildContext: BuildContext?
+                if let buildSystem = try await BuildSystemDetector.detect(for: fileURL, projectRoot: projectRootURL) {
+                    fputs("Detected project at \(buildSystem.projectRoot.path), building...\n", stderr)
+                    let ctx = try await buildSystem.build(platform: .macOS)
+                    fputs("Built target: \(ctx.targetName) (tier \(ctx.supportsTier2 ? "2" : "1"))\n", stderr)
+                    buildContext = ctx
+                } else {
+                    buildContext = nil
+                }
+
                 let session = PreviewSession(
                     sourceFile: fileURL,
                     previewIndex: previewIndex,
-                    compiler: compiler
+                    compiler: compiler,
+                    buildContext: buildContext
                 )
 
-                print("Compiling \(fileURL.lastPathComponent)...")
+                fputs("Compiling \(fileURL.lastPathComponent)...\n", stderr)
                 let compileResult = try await session.compile()
                 let sessionID = session.id
 
@@ -58,7 +92,7 @@ struct SnapshotCommand: ParsableCommand {
                             size: NSSize(width: windowWidth, height: windowHeight)
                         )
                     } catch {
-                        print("Failed to load preview: \(error)")
+                        fputs("Failed to load preview: \(error)\n", stderr)
                         NSApp.terminate(nil)
                     }
                 }
@@ -69,19 +103,89 @@ struct SnapshotCommand: ParsableCommand {
                 await MainActor.run {
                     do {
                         guard let window = App.host.window(for: sessionID) else {
-                            print("No window found")
+                            fputs("No window found\n", stderr)
                             NSApp.terminate(nil)
                             return
                         }
                         try Snapshot.capture(window: window, to: outputURL)
-                        print("Snapshot saved to: \(outputURL.path)")
+                        print(outputURL.path)
                     } catch {
-                        print("Snapshot failed: \(error)")
+                        fputs("Snapshot failed: \(error)\n", stderr)
                     }
                     NSApp.terminate(nil)
                 }
             } catch {
-                print("Error: \(error)")
+                fputs("Error: \(error)\n", stderr)
+                await MainActor.run { NSApp.terminate(nil) }
+            }
+        }
+    }
+
+    private func runIOSSnapshot(fileURL: URL) {
+        let previewIndex = preview
+        let outputURL = URL(fileURLWithPath: output)
+        let deviceUDID = device
+        let projectPath = project
+
+        Task {
+            do {
+                let compiler = try await Compiler(platform: .iOSSimulator)
+                let hostBuilder = try await IOSHostBuilder()
+                let simulatorManager = SimulatorManager()
+
+                // Resolve device
+                let udid: String
+                if let provided = deviceUDID {
+                    udid = provided
+                } else {
+                    do {
+                        let booted = try await simulatorManager.findBootedDevice()
+                        udid = booted.udid
+                    } catch {
+                        let devices = try await simulatorManager.listDevices()
+                        guard let first = devices.first(where: { $0.isAvailable }) else {
+                            throw ValidationError("No available iOS simulator devices found")
+                        }
+                        udid = first.udid
+                    }
+                }
+
+                // Detect build system
+                let projectRootURL = projectPath.map { URL(fileURLWithPath: $0) }
+                let buildContext: BuildContext?
+                if let buildSystem = try await BuildSystemDetector.detect(for: fileURL, projectRoot: projectRootURL) {
+                    fputs("Detected project at \(buildSystem.projectRoot.path), building for iOS...\n", stderr)
+                    let ctx = try await buildSystem.build(platform: .iOSSimulator)
+                    fputs("Built target: \(ctx.targetName) (tier \(ctx.supportsTier2 ? "2" : "1"))\n", stderr)
+                    buildContext = ctx
+                } else {
+                    buildContext = nil
+                }
+
+                let session = IOSPreviewSession(
+                    sourceFile: fileURL,
+                    previewIndex: previewIndex,
+                    deviceUDID: udid,
+                    compiler: compiler,
+                    hostBuilder: hostBuilder,
+                    simulatorManager: simulatorManager,
+                    headless: true,
+                    buildContext: buildContext
+                )
+
+                fputs("Compiling and launching on simulator \(udid)...\n", stderr)
+                _ = try await session.start()
+
+                // Wait for the app to render
+                try await Task.sleep(for: .seconds(2))
+
+                let pngData = try await session.screenshot()
+                try pngData.write(to: outputURL)
+                print(outputURL.path)
+
+                await MainActor.run { NSApp.terminate(nil) }
+            } catch {
+                fputs("Error: \(error)\n", stderr)
                 await MainActor.run { NSApp.terminate(nil) }
             }
         }

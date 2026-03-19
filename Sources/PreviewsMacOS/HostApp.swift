@@ -76,19 +76,23 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// Start watching a source file and reload the preview on changes.
+    /// Start watching source files and reload the preview on changes.
     /// Uses the fast path (literal-only update via DesignTimeStore) when possible.
+    /// When `additionalPaths` is provided, watches all target files for cross-file changes.
     public func watchFile(
         sessionID: String,
         session: PreviewSession,
         filePath: String,
         compiler: Compiler,
-        previewIndex: Int
+        previewIndex: Int,
+        additionalPaths: [String] = [],
+        buildContext: BuildContext? = nil
     ) {
         sessions[sessionID] = session
         let fileURL = URL(fileURLWithPath: filePath)
+        let allPaths = [filePath] + additionalPaths
         fileWatchers[sessionID]?.stop()
-        fileWatchers[sessionID] = try? FileWatcher(path: filePath) { [weak self] in
+        fileWatchers[sessionID] = try? FileWatcher(paths: allPaths) { [weak self] in
             Task {
                 guard let self else { return }
 
@@ -117,7 +121,8 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
                     let newSession = PreviewSession(
                         sourceFile: fileURL,
                         previewIndex: previewIndex,
-                        compiler: compiler
+                        compiler: compiler,
+                        buildContext: buildContext
                     )
                     let compileResult = try await newSession.compile()
                     fputs("Compiled: \(compileResult.dylibPath.lastPathComponent)\n", stderr)
