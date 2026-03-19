@@ -111,6 +111,10 @@ func configureMCPServer() async throws -> (Server, Compiler) {
                             "type": .string("integer"),
                             "description": .string("Window height in points (macOS only, default: 600)"),
                         ]),
+                        "projectPath": .object([
+                            "type": .string("string"),
+                            "description": .string("Project root path (auto-detected if omitted). Enables importing project types from SPM packages."),
+                        ]),
                     ]),
                     "required": .array([.string("filePath")]),
                 ])
@@ -305,10 +309,19 @@ private func handlePreviewStart(params: CallTool.Parameters, macCompiler: Compil
         height = 600
     }
 
+    // Detect build system (auto-detect or explicit projectPath)
+    let buildContext: BuildContext?
+    do {
+        buildContext = try await detectBuildContext(for: fileURL, params: params, platform: .macOS)
+    } catch {
+        return CallTool.Result(content: [.text("Project build failed: \(error.localizedDescription)")], isError: true)
+    }
+
     let session = PreviewSession(
         sourceFile: fileURL,
         previewIndex: previewIndex,
-        compiler: macCompiler
+        compiler: macCompiler,
+        buildContext: buildContext
     )
 
     let compileResult = try await session.compile()
@@ -372,6 +385,14 @@ private func handleIOSPreviewStart(
         headless = true
     }
 
+    // Detect build system
+    let buildContext: BuildContext?
+    do {
+        buildContext = try await detectBuildContext(for: fileURL, params: params, platform: .iOSSimulator)
+    } catch {
+        return CallTool.Result(content: [.text("Project build failed: \(error.localizedDescription)")], isError: true)
+    }
+
     let session = IOSPreviewSession(
         sourceFile: fileURL,
         previewIndex: previewIndex,
@@ -379,7 +400,8 @@ private func handleIOSPreviewStart(
         compiler: iosCompiler,
         hostBuilder: hostBuilder,
         simulatorManager: simulatorManager,
-        headless: headless
+        headless: headless,
+        buildContext: buildContext
     )
 
     let pid = try await session.start()
@@ -535,6 +557,20 @@ private func handlePreviewTouch(params: CallTool.Parameters) async throws -> Cal
     try await Task.sleep(for: .milliseconds(300))
 
     return CallTool.Result(content: [.text("Tap sent at (\(Int(x)), \(Int(y)))")])
+}
+
+private func detectBuildContext(
+    for fileURL: URL,
+    params: CallTool.Parameters,
+    platform: PreviewPlatform
+) async throws -> BuildContext? {
+    if let buildSystem = try await BuildSystemDetector.detect(for: fileURL) {
+        fputs("MCP: Detected build system at \(buildSystem.projectRoot.path)\n", stderr)
+        let context = try await buildSystem.build(platform: platform)
+        fputs("MCP: Built target \(context.targetName) (tier \(context.supportsTier2 ? "2" : "1"))\n", stderr)
+        return context
+    }
+    return nil
 }
 
 private func handleSimulatorList() async throws -> CallTool.Result {

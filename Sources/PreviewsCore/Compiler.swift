@@ -62,9 +62,17 @@ public actor Compiler {
 
     /// Compile combined source (original + bridge) into a signed dylib.
     /// Each compilation produces a uniquely-named dylib so dlopen loads fresh code.
+    ///
+    /// - Parameters:
+    ///   - source: The Swift source code to compile.
+    ///   - moduleName: The module name for the compilation unit.
+    ///   - extraFlags: Additional swiftc flags (e.g., -I, -L from build system).
+    ///   - additionalSourceFiles: Extra .swift files to compile alongside (Tier 2 project mode).
     public func compileCombined(
         source: String,
-        moduleName: String
+        moduleName: String,
+        extraFlags: [String] = [],
+        additionalSourceFiles: [URL] = []
     ) async throws -> CompilationResult {
         compilationCounter += 1
         let uniqueName = "\(moduleName)_\(compilationCounter)"
@@ -73,8 +81,8 @@ public actor Compiler {
 
         try source.write(to: sourceFile, atomically: true, encoding: .utf8)
 
-        // Compile
-        try await run(
+        // Build argument list
+        var args: [String] = [
             swiftcPath,
             "-emit-library",
             "-parse-as-library",
@@ -82,12 +90,15 @@ public actor Compiler {
             "-sdk", sdkPath,
             "-module-name", moduleName,
             "-Onone",
-            "-o", dylibFile.path,
-            sourceFile.path
-        )
+        ]
+        args += extraFlags
+        args += ["-o", dylibFile.path, sourceFile.path]
+        args += additionalSourceFiles.map(\.path)
+
+        try await run(args)
 
         // Ad-hoc codesign (required on Apple Silicon)
-        try await run(codesignPath, "-s", "-", dylibFile.path)
+        try await run([codesignPath, "-s", "-", dylibFile.path])
 
         return CompilationResult(dylibPath: dylibFile, diagnostics: "")
     }
@@ -95,7 +106,7 @@ public actor Compiler {
     // MARK: - Private
 
     @discardableResult
-    private func run(_ args: String...) async throws -> String {
+    private func run(_ args: [String]) async throws -> String {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: args[0])
         process.arguments = Array(args.dropFirst())

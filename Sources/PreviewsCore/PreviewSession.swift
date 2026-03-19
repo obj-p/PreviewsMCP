@@ -14,6 +14,7 @@ public actor PreviewSession {
 
     private let compiler: Compiler
     private let platform: PreviewPlatform
+    private let buildContext: BuildContext?
     private var compilationResult: CompilationResult?
     private var lastOriginalSource: String?
     private var lastLiterals: [LiteralEntry]?
@@ -31,13 +32,15 @@ public actor PreviewSession {
         sourceFile: URL,
         previewIndex: Int = 0,
         compiler: Compiler,
-        platform: PreviewPlatform = .macOS
+        platform: PreviewPlatform = .macOS,
+        buildContext: BuildContext? = nil
     ) {
         self.id = UUID().uuidString
         self.sourceFile = sourceFile
         self.previewIndex = previewIndex
         self.compiler = compiler
         self.platform = platform
+        self.buildContext = buildContext
     }
 
     /// Run the full pipeline and return the compiled dylib path + literal map.
@@ -56,24 +59,62 @@ public actor PreviewSession {
             }
             let preview = previews[previewIndex]
 
-            let (combinedSource, literals) = BridgeGenerator.generateCombinedSource(
-                originalSource: source,
-                closureBody: preview.closureBody,
-                platform: platform
+            let compiledSource: String
+            let literals: [LiteralEntry]
+            let moduleName: String
+            let extraFlags: [String]
+            let additionalSourceFiles: [URL]
+
+            if let ctx = buildContext {
+                if ctx.supportsTier2, let srcFiles = ctx.sourceFiles {
+                    // Tier 2: compile preview file (with thunks) + all other target sources
+                    let result = BridgeGenerator.generateOverlaySource(
+                        originalSource: source,
+                        closureBody: preview.closureBody,
+                        platform: platform
+                    )
+                    compiledSource = result.source
+                    literals = result.literals
+                    additionalSourceFiles = srcFiles
+                } else {
+                    // Tier 1: bridge-only (no literal hot-reload)
+                    compiledSource = BridgeGenerator.generateBridgeOnlySource(
+                        moduleName: ctx.moduleName,
+                        closureBody: preview.closureBody,
+                        platform: platform
+                    )
+                    literals = []
+                    additionalSourceFiles = []
+                }
+                moduleName = ctx.moduleName
+                extraFlags = ctx.compilerFlags
+            } else {
+                // Standalone mode: existing behavior
+                let result = BridgeGenerator.generateCombinedSource(
+                    originalSource: source,
+                    closureBody: preview.closureBody,
+                    platform: platform
+                )
+                compiledSource = result.source
+                literals = result.literals
+                moduleName = Self.moduleName(for: sourceFile)
+                extraFlags = []
+                additionalSourceFiles = []
+            }
+
+            let compileResult = try await compiler.compileCombined(
+                source: compiledSource,
+                moduleName: moduleName,
+                extraFlags: extraFlags,
+                additionalSourceFiles: additionalSourceFiles
             )
 
-            let moduleName = Self.moduleName(for: sourceFile)
-            let result = try await compiler.compileCombined(
-                source: combinedSource,
-                moduleName: moduleName
-            )
-
-            compilationResult = result
+            compilationResult = compileResult
             lastOriginalSource = source
             lastLiterals = literals
-            state = .compiled(result.dylibPath)
+            state = .compiled(compileResult.dylibPath)
 
-            return CompileResult(dylibPath: result.dylibPath, literals: literals)
+            return CompileResult(dylibPath: compileResult.dylibPath, literals: literals)
         } catch {
             state = .error(error.localizedDescription)
             throw error
@@ -82,7 +123,10 @@ public actor PreviewSession {
 
     /// Attempt a fast literal-only update. Returns changed literal IDs and new values,
     /// or nil if a structural recompile is needed.
+    /// Returns nil for Tier 1 project mode (bridge-only, no thunks).
     public func tryLiteralUpdate(newSource: String) -> [(id: String, newValue: LiteralValue)]? {
+        // Tier 1 bridge-only has no DesignTimeStore thunks
+        if let ctx = buildContext, !ctx.supportsTier2 { return nil }
         guard let oldSource = lastOriginalSource else { return nil }
 
         switch LiteralDiffer.diff(old: oldSource, new: newSource) {

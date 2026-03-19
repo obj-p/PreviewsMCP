@@ -72,4 +72,71 @@ public enum BridgeGenerator {
 
         return (source: combined, literals: thunkResult.literals)
     }
+
+    // MARK: - Project Mode: Tier 1 (bridge-only)
+
+    /// Generate bridge-only source for project mode (Tier 1).
+    /// Imports the target module and creates the @_cdecl entry point.
+    /// No DesignTimeStore or original source — no literal hot-reload.
+    public static func generateBridgeOnlySource(
+        moduleName: String,
+        closureBody: String,
+        entryPoint: String = "createPreviewView",
+        platform: PreviewPlatform = .macOS
+    ) -> String {
+        let frameworkImport: String
+        let hostCode: String
+
+        switch platform {
+        case .macOS:
+            frameworkImport = "import AppKit"
+            hostCode = """
+                let hostingView = NSHostingView(rootView: view)
+                return Unmanaged.passRetained(hostingView).toOpaque()
+            """
+        case .iOSSimulator:
+            frameworkImport = "import UIKit"
+            hostCode = """
+                let hostingController = UIHostingController(rootView: view)
+                return Unmanaged.passRetained(hostingController).toOpaque()
+            """
+        }
+
+        return """
+        import SwiftUI
+        \(frameworkImport)
+        import \(moduleName)
+
+        @_cdecl("\(entryPoint)")
+        public func \(entryPoint)() -> UnsafeMutableRawPointer {
+            let view = SwiftUI.AnyView(
+                \(closureBody)
+            )
+            \(hostCode)
+        }
+        """
+    }
+
+    // MARK: - Project Mode: Tier 2 (overlay with .o linking)
+
+    /// Generate overlay source for project mode (Tier 2).
+    /// Includes the preview file with ThunkGenerator transforms + DesignTimeStore + bridge.
+    /// The preview file is compiled as part of the target module (same -module-name),
+    /// while other target files are linked as pre-built .o files.
+    public static func generateOverlaySource(
+        originalSource: String,
+        closureBody: String,
+        entryPoint: String = "createPreviewView",
+        platform: PreviewPlatform = .macOS
+    ) -> (source: String, literals: [LiteralEntry]) {
+        // Same as generateCombinedSource — transform literals, generate bridge
+        // The difference is in how the Compiler uses the result: with -module-name <TargetName>
+        // and linking pre-built .o files for other target sources.
+        return generateCombinedSource(
+            originalSource: originalSource,
+            closureBody: closureBody,
+            entryPoint: entryPoint,
+            platform: platform
+        )
+    }
 }
