@@ -141,6 +141,37 @@ struct BuildSystemTests {
         #expect(FileManager.default.fileExists(atPath: result.dylibPath.path))
     }
 
+    // MARK: - FileWatcher multi-path
+
+    @Test("FileWatcher detects modification of second watched file")
+    func fileWatcherMultiPath() async throws {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        let file1 = tmpDir.appendingPathComponent("first.swift")
+        let file2 = tmpDir.appendingPathComponent("second.swift")
+        try "initial 1".write(to: file1, atomically: true, encoding: .utf8)
+        try "initial 2".write(to: file2, atomically: true, encoding: .utf8)
+
+        let changed = Mutex(false)
+        let watcher = try FileWatcher(paths: [file1.path, file2.path], interval: 0.1) {
+            changed.withLock { $0 = true }
+        }
+        defer { watcher.stop() }
+
+        // Wait a moment, then modify only the SECOND file
+        try await Task.sleep(for: .milliseconds(200))
+        try "modified 2".write(to: file2, atomically: true, encoding: .utf8)
+
+        // Wait for the watcher to detect the change
+        try await Task.sleep(for: .milliseconds(500))
+
+        let didChange = changed.withLock { $0 }
+        #expect(didChange, "FileWatcher should detect modification of the second watched file")
+    }
+
     // MARK: - BuildContext
 
     @Test("BuildContext.supportsTier2 reflects sourceFiles presence")

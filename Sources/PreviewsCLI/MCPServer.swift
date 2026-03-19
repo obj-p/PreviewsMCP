@@ -567,7 +567,14 @@ private func detectBuildContext(
     params: CallTool.Parameters,
     platform: PreviewPlatform
 ) async throws -> BuildContext? {
-    if let buildSystem = try await BuildSystemDetector.detect(for: fileURL) {
+    let projectRootURL: URL?
+    if case .string(let path) = params.arguments?["projectPath"] {
+        projectRootURL = URL(fileURLWithPath: path)
+    } else {
+        projectRootURL = nil
+    }
+
+    if let buildSystem = try await BuildSystemDetector.detect(for: fileURL, projectRoot: projectRootURL) {
         fputs("MCP: Detected build system at \(buildSystem.projectRoot.path)\n", stderr)
         let context = try await buildSystem.build(platform: platform)
         fputs("MCP: Built target \(context.targetName) (tier \(context.supportsTier2 ? "2" : "1"))\n", stderr)

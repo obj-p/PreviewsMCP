@@ -27,7 +27,7 @@ struct SnapshotCommand: ParsableCommand {
     var height: Int = 600
 
     @Option(name: .long, help: "Target platform: 'macos' (default) or 'ios-simulator'")
-    var platform: String = "macos"
+    var platform: CLIPlatform = .macos
 
     @Option(name: .long, help: "Project root path (auto-detected if omitted)")
     var project: String?
@@ -41,9 +41,10 @@ struct SnapshotCommand: ParsableCommand {
             throw ValidationError("File not found: \(file)")
         }
 
-        if platform == "ios-simulator" {
+        switch platform {
+        case .iosSimulator:
             runIOSSnapshot(fileURL: fileURL)
-        } else {
+        case .macos:
             runMacOSSnapshot(fileURL: fileURL)
         }
     }
@@ -53,14 +54,16 @@ struct SnapshotCommand: ParsableCommand {
         let windowWidth = width
         let windowHeight = height
         let outputURL = URL(fileURLWithPath: output)
+        let projectPath = project
 
         Task {
             do {
                 let compiler = try await Compiler()
 
                 // Detect build system
+                let projectRootURL = projectPath.map { URL(fileURLWithPath: $0) }
                 let buildContext: BuildContext?
-                if let buildSystem = try await BuildSystemDetector.detect(for: fileURL) {
+                if let buildSystem = try await BuildSystemDetector.detect(for: fileURL, projectRoot: projectRootURL) {
                     fputs("Detected project at \(buildSystem.projectRoot.path), building...\n", stderr)
                     let ctx = try await buildSystem.build(platform: .macOS)
                     fputs("Built target: \(ctx.targetName) (tier \(ctx.supportsTier2 ? "2" : "1"))\n", stderr)
@@ -122,6 +125,7 @@ struct SnapshotCommand: ParsableCommand {
         let previewIndex = preview
         let outputURL = URL(fileURLWithPath: output)
         let deviceUDID = device
+        let projectPath = project
 
         Task {
             do {
@@ -147,8 +151,9 @@ struct SnapshotCommand: ParsableCommand {
                 }
 
                 // Detect build system
+                let projectRootURL = projectPath.map { URL(fileURLWithPath: $0) }
                 let buildContext: BuildContext?
-                if let buildSystem = try await BuildSystemDetector.detect(for: fileURL) {
+                if let buildSystem = try await BuildSystemDetector.detect(for: fileURL, projectRoot: projectRootURL) {
                     fputs("Detected project at \(buildSystem.projectRoot.path), building for iOS...\n", stderr)
                     let ctx = try await buildSystem.build(platform: .iOSSimulator)
                     fputs("Built target: \(ctx.targetName) (tier \(ctx.supportsTier2 ? "2" : "1"))\n", stderr)

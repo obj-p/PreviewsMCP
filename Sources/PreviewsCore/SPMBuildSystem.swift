@@ -5,7 +5,7 @@ public actor SPMBuildSystem: BuildSystem {
     public nonisolated let projectRoot: URL
     private let sourceFile: URL
 
-    private init(projectRoot: URL, sourceFile: URL) {
+    public init(projectRoot: URL, sourceFile: URL) {
         self.projectRoot = projectRoot
         self.sourceFile = sourceFile
     }
@@ -33,13 +33,23 @@ public actor SPMBuildSystem: BuildSystem {
         let description = try await describePackage()
         let targetName = try findTarget(for: sourceFile, in: description)
 
-        // 2. Build the package
-        try await runSwiftBuild(platform: platform)
+        // 2. Resolve iOS SDK path once (used by both swift build and --show-bin-path)
+        let iosSDKPath: String?
+        if platform == .iOSSimulator {
+            iosSDKPath = try await runProcess(
+                "/usr/bin/xcrun", "--show-sdk-path", "--sdk", "iphonesimulator"
+            )
+        } else {
+            iosSDKPath = nil
+        }
 
-        // 3. Get build products path
-        let binPath = try await showBinPath(platform: platform)
+        // 3. Build the package
+        try await runSwiftBuild(platform: platform, iosSDKPath: iosSDKPath)
 
-        // 4. Verify the module exists
+        // 4. Get build products path
+        let binPath = try await showBinPath(platform: platform, iosSDKPath: iosSDKPath)
+
+        // 5. Verify the module exists
         let modulesDir = binPath.appendingPathComponent("Modules")
         let swiftmodule = modulesDir.appendingPathComponent("\(targetName).swiftmodule")
         guard FileManager.default.fileExists(atPath: swiftmodule.path) else {
@@ -48,7 +58,7 @@ public actor SPMBuildSystem: BuildSystem {
             )
         }
 
-        // 5. Build compiler flags
+        // 6. Build compiler flags
         var flags: [String] = [
             "-I", modulesDir.path,
         ]
@@ -60,7 +70,7 @@ public actor SPMBuildSystem: BuildSystem {
             flags += ["-I", includeDir.path]
         }
 
-        // 6. Collect Tier 2 data: other source files in the target
+        // 7. Collect Tier 2 data: other source files in the target
         let otherSourceFiles = try collectSourceFiles(
             targetName: targetName,
             in: description
@@ -121,26 +131,20 @@ public actor SPMBuildSystem: BuildSystem {
 
     // MARK: - Private: Build
 
-    private func runSwiftBuild(platform: PreviewPlatform) async throws {
+    private func runSwiftBuild(platform: PreviewPlatform, iosSDKPath: String?) async throws {
         var args = ["swift", "build"]
 
-        if platform == .iOSSimulator {
-            let sdkPath = try await runProcess(
-                "/usr/bin/xcrun", "--show-sdk-path", "--sdk", "iphonesimulator"
-            )
+        if platform == .iOSSimulator, let sdkPath = iosSDKPath {
             args += ["--triple", "arm64-apple-ios17.0-simulator", "--sdk", sdkPath]
         }
 
         try await runProcess("/usr/bin/env", args: args, workingDirectory: projectRoot)
     }
 
-    private func showBinPath(platform: PreviewPlatform) async throws -> URL {
+    private func showBinPath(platform: PreviewPlatform, iosSDKPath: String?) async throws -> URL {
         var args = ["swift", "build", "--show-bin-path"]
 
-        if platform == .iOSSimulator {
-            let sdkPath = try await runProcess(
-                "/usr/bin/xcrun", "--show-sdk-path", "--sdk", "iphonesimulator"
-            )
+        if platform == .iOSSimulator, let sdkPath = iosSDKPath {
             args += ["--triple", "arm64-apple-ios17.0-simulator", "--sdk", sdkPath]
         }
 

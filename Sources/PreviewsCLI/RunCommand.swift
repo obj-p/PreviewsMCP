@@ -24,7 +24,7 @@ struct RunCommand: ParsableCommand {
     var height: Int = 600
 
     @Option(name: .long, help: "Target platform: 'macos' (default) or 'ios-simulator'")
-    var platform: String = "macos"
+    var platform: CLIPlatform = .macos
 
     @Option(name: .long, help: "Project root path (auto-detected if omitted)")
     var project: String?
@@ -38,9 +38,10 @@ struct RunCommand: ParsableCommand {
             throw ValidationError("File not found: \(file)")
         }
 
-        if platform == "ios-simulator" {
+        switch platform {
+        case .iosSimulator:
             runIOS(fileURL: fileURL)
-        } else {
+        case .macos:
             runMacOS(fileURL: fileURL)
         }
     }
@@ -49,14 +50,16 @@ struct RunCommand: ParsableCommand {
         let previewIndex = preview
         let windowWidth = width
         let windowHeight = height
+        let projectPath = project
 
         Task {
             do {
                 let compiler = try await Compiler()
 
                 // Detect build system
+                let projectRootURL = projectPath.map { URL(fileURLWithPath: $0) }
                 let buildContext: BuildContext?
-                if let buildSystem = try await BuildSystemDetector.detect(for: fileURL) {
+                if let buildSystem = try await BuildSystemDetector.detect(for: fileURL, projectRoot: projectRootURL) {
                     fputs("Detected project at \(buildSystem.projectRoot.path), building...\n", stderr)
                     let ctx = try await buildSystem.build(platform: .macOS)
                     fputs("Built target: \(ctx.targetName) (tier \(ctx.supportsTier2 ? "2" : "1"))\n", stderr)
@@ -109,6 +112,7 @@ struct RunCommand: ParsableCommand {
     private func runIOS(fileURL: URL) {
         let previewIndex = preview
         let deviceUDID = device
+        let projectPath = project
 
         Task {
             do {
@@ -134,8 +138,9 @@ struct RunCommand: ParsableCommand {
                 }
 
                 // Detect build system
+                let projectRootURL = projectPath.map { URL(fileURLWithPath: $0) }
                 let buildContext: BuildContext?
-                if let buildSystem = try await BuildSystemDetector.detect(for: fileURL) {
+                if let buildSystem = try await BuildSystemDetector.detect(for: fileURL, projectRoot: projectRootURL) {
                     fputs("Detected project at \(buildSystem.projectRoot.path), building for iOS...\n", stderr)
                     let ctx = try await buildSystem.build(platform: .iOSSimulator)
                     fputs("Built target: \(ctx.targetName) (tier \(ctx.supportsTier2 ? "2" : "1"))\n", stderr)
@@ -157,7 +162,26 @@ struct RunCommand: ParsableCommand {
 
                 fputs("Launching preview on simulator \(udid)...\n", stderr)
                 _ = try await session.start()
-                fputs("iOS preview is live!\n", stderr)
+                fputs("iOS preview is live! Watching for changes...\n", stderr)
+
+                // Set up file watching for hot-reload
+                let allPaths = [fileURL.path] + (buildContext?.sourceFiles?.map(\.path) ?? [])
+                let watcher = try? FileWatcher(paths: allPaths) {
+                    Task {
+                        do {
+                            let wasLiteralOnly = try await session.handleSourceChange()
+                            if wasLiteralOnly {
+                                fputs("iOS literal-only change applied (state preserved)\n", stderr)
+                            } else {
+                                fputs("iOS structural change — recompiled\n", stderr)
+                            }
+                        } catch {
+                            fputs("iOS reload failed: \(error)\n", stderr)
+                        }
+                    }
+                }
+                // Keep watcher alive — suppress unused variable warning
+                _ = watcher
 
                 // Keep running (NSApp run loop keeps the process alive)
             } catch {

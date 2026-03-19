@@ -2,6 +2,12 @@ import AppKit
 import ArgumentParser
 import PreviewsMacOS
 
+/// Target platform for CLI commands.
+enum CLIPlatform: String, ExpressibleByArgument, CaseIterable {
+    case macos
+    case iosSimulator = "ios-simulator"
+}
+
 /// Shared state, accessible from commands.
 @MainActor
 enum App {

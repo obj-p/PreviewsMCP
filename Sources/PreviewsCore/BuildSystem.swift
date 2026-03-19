@@ -16,7 +16,15 @@ public protocol BuildSystem: Sendable {
 
 /// Tries registered build systems in order and returns the first match.
 public enum BuildSystemDetector {
-    public static func detect(for sourceFile: URL) async throws -> (any BuildSystem)? {
+    /// Detect the build system for a source file.
+    /// - Parameters:
+    ///   - sourceFile: The Swift source file to detect the build system for.
+    ///   - projectRoot: If provided, use this as the project root instead of auto-detecting.
+    public static func detect(for sourceFile: URL, projectRoot: URL? = nil) async throws -> (any BuildSystem)? {
+        // If an explicit project root is provided, try to create a build system at that root directly
+        if let projectRoot = projectRoot {
+            return SPMBuildSystem(projectRoot: projectRoot, sourceFile: sourceFile)
+        }
         // SPM first (most common for Swift-only projects)
         if let spm = try await SPMBuildSystem.detect(for: sourceFile) {
             return spm
