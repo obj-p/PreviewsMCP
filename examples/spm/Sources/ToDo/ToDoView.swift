@@ -6,14 +6,47 @@ import SwiftUI
 struct ToDoView: View {
     @State var items: [Item]
     @State var showCompleted = true
+    @State var selectedPage = 0
 
     var filteredItems: [Item] {
         showCompleted ? items : items.filter { !$0.isComplete }
     }
 
+    var completedCount: Int { items.filter(\.isComplete).count }
+    var remainingCount: Int { items.filter { !$0.isComplete }.count }
+
     var body: some View {
         NavigationStack {
             List {
+                // Horizontal paged cards — swipe left/right to navigate
+                Section {
+                    TabView(selection: $selectedPage) {
+                        SummaryCard(
+                            title: "Progress",
+                            value: "\(completedCount)/\(items.count)",
+                            detail: "\(remainingCount) remaining",
+                            color: .blue
+                        ).tag(0)
+                        SummaryCard(
+                            title: "Next Up",
+                            value: items.first { !$0.isComplete }?.title ?? "All done!",
+                            detail: "Top priority",
+                            color: .orange
+                        ).tag(1)
+                        SummaryCard(
+                            title: "Completed",
+                            value: "\(completedCount)",
+                            detail: "Keep it up!",
+                            color: .green
+                        ).tag(2)
+                    }
+                    #if os(iOS)
+                    .tabViewStyle(.page(indexDisplayMode: .always))
+                    #endif
+                    .frame(height: 120)
+                    .listRowInsets(EdgeInsets())
+                }
+
                 Toggle("Show Completed", isOn: $showCompleted)
 
                 ForEach(filteredItems) { item in
@@ -26,6 +59,32 @@ struct ToDoView: View {
             }
             .navigationTitle("My Items")
         }
+    }
+}
+
+struct SummaryCard: View {
+    let title: String
+    let value: String
+    let detail: String
+    let color: Color
+
+    var body: some View {
+        VStack(spacing: 6) {
+            Text(title)
+                .font(.caption)
+                .foregroundColor(.white.opacity(0.8))
+            Text(value)
+                .font(.title2.bold())
+                .foregroundColor(.white)
+            Text(detail)
+                .font(.caption2)
+                .foregroundColor(.white.opacity(0.7))
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(color.gradient)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .padding(.horizontal)
+        .padding(.vertical, 8)
     }
 }
 
