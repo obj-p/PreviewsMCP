@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "previewsmcp": {
+      "command": ".build/debug/previewsmcp",
+      "args": ["serve"]
+    }
+  }
+}

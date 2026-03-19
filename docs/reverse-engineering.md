@@ -310,12 +310,12 @@ Message<OneWayContent>(
 
 ### Process Architecture
 
-| Process | PID | Location | Role |
-|---------|-----|----------|------|
-| `previewsd` | — | Inside simulator runtime | Preview daemon, routes messages |
-| `PreviewShell.app` | — | Inside simulator runtime | Hosts rendered view in UIKit scene |
-| `XCPreviewAgent.app` | — | Installed in Previews simulator device set | Does JIT linking, scrapes PreviewRegistry |
-| `PreviewShellMac` | — | macOS host | macOS-side bridge |
+| Process | Location | Role |
+|---------|----------|------|
+| `previewsd` | Inside simulator runtime | Preview daemon, routes messages |
+| `PreviewShell.app` | Inside simulator runtime | Hosts rendered view in UIKit scene |
+| `XCPreviewAgent.app` | Installed in Previews simulator device set | Does JIT linking, scrapes PreviewRegistry |
+| `PreviewShellMac` | macOS host | macOS-side bridge |
 
 ### Transport
 **XPC services via `previewsd` daemon** — NOT a Unix socket pipe like macOS.
