@@ -63,6 +63,7 @@ enum IOSHostAppSource {
 
             if let elementsIndex = args.firstIndex(of: "--elements-file"),
                elementsIndex + 1 < args.count {
+                activateAccessibility()
                 watchElementsFile(at: args[elementsIndex + 1])
             }
 
@@ -373,83 +374,131 @@ enum IOSHostAppSource {
             }
         }
 
+        private var accessibilityActivated = false
+
+        private func activateAccessibility() {
+            guard !accessibilityActivated else { return }
+            accessibilityActivated = true
+            // Enable accessibility automation mode (what XCTest uses)
+            // This makes SwiftUI compute its accessibility tree without VoiceOver
+            if let sym = dlsym(dlopen(nil, RTLD_LAZY), "_AXSSetAutomationEnabled") {
+                typealias Fn = @convention(c) (Bool) -> Void
+                let fn = unsafeBitCast(sym, to: Fn.self)
+                fn(true)
+            }
+        }
+
         private func dumpAccessibilityTree(to responsePath: String) {
             guard let window = self.window else { return }
 
-            let tree = snapshotElement(window)
-            guard let data = try? JSONSerialization.data(withJSONObject: tree, options: .prettyPrinted) else { return }
+            let tree = snapshotElement(window) ?? ["children": [] as [Any]]
+            guard let data = try? JSONSerialization.data(withJSONObject: tree, options: []) else { return }
             try? data.write(to: URL(fileURLWithPath: responsePath), options: .atomic)
         }
 
-        private func snapshotElement(_ element: Any) -> [String: Any] {
-            var node: [String: Any] = [:]
+        private func snapshotElement(_ element: Any) -> [String: Any]? {
+            guard let obj = element as? NSObject else { return nil }
 
+            // Leaf: this element IS an accessibility element — capture it
+            if obj.isAccessibilityElement {
+                return captureAccessibleNode(element)
+            }
+
+            // Container: walk accessibility children
+            var children: [[String: Any]] = []
+
+            let count = obj.accessibilityElementCount()
+            if count != NSNotFound && count > 0 {
+                for i in 0..<min(count, 500) {
+                    if let child = obj.accessibilityElement(at: i) {
+                        if let childNode = snapshotElement(child) {
+                            children.append(childNode)
+                        }
+                    }
+                }
+            } else if let view = element as? UIView {
+                // Fallback: subviews
+                for subview in view.subviews {
+                    if let childNode = snapshotElement(subview) {
+                        children.append(childNode)
+                    }
+                }
+            }
+
+            guard !children.isEmpty else { return nil }
+
+            // Flatten single-child containers to avoid deep nesting
+            if children.count == 1 { return children[0] }
+
+            var node: [String: Any] = ["role": "group"]
             if let view = element as? UIView {
-                let frame = view.convert(view.bounds, to: nil) // in window coordinates
+                let frame = view.convert(view.bounds, to: nil)
                 node["frame"] = [
                     "x": Int(frame.origin.x),
                     "y": Int(frame.origin.y),
                     "width": Int(frame.size.width),
                     "height": Int(frame.size.height)
                 ]
-                node["className"] = String(describing: type(of: view))
+            }
+            node["children"] = children
+            return node
+        }
 
-                if let label = view.accessibilityLabel, !label.isEmpty {
+        private func captureAccessibleNode(_ element: Any) -> [String: Any] {
+            var node: [String: Any] = [:]
+
+            // Frame
+            if let view = element as? UIView {
+                let frame = view.convert(view.bounds, to: nil)
+                node["frame"] = [
+                    "x": Int(frame.origin.x),
+                    "y": Int(frame.origin.y),
+                    "width": Int(frame.size.width),
+                    "height": Int(frame.size.height)
+                ]
+            } else if let accElement = element as? NSObject {
+                let frame = accElement.accessibilityFrame
+                node["frame"] = [
+                    "x": Int(frame.origin.x),
+                    "y": Int(frame.origin.y),
+                    "width": Int(frame.size.width),
+                    "height": Int(frame.size.height)
+                ]
+            }
+
+            if let obj = element as? NSObject {
+                if let label = obj.accessibilityLabel, !label.isEmpty {
                     node["label"] = label
                 }
-                if let identifier = view.accessibilityIdentifier, !identifier.isEmpty {
-                    node["identifier"] = identifier
-                }
-                if let value = view.accessibilityValue, !value.isEmpty {
+                if let value = obj.accessibilityValue, !value.isEmpty {
                     node["value"] = value
                 }
-
-                let traits = view.accessibilityTraits
-                var traitNames: [String] = []
-                if traits.contains(.button) { traitNames.append("button") }
-                if traits.contains(.staticText) { traitNames.append("staticText") }
-                if traits.contains(.image) { traitNames.append("image") }
-                if traits.contains(.header) { traitNames.append("header") }
-                if traits.contains(.link) { traitNames.append("link") }
-                if traits.contains(.adjustable) { traitNames.append("adjustable") }
-                if traits.contains(.selected) { traitNames.append("selected") }
-                if traits.contains(.notEnabled) { traitNames.append("notEnabled") }
-                if !traitNames.isEmpty {
-                    node["traits"] = traitNames
+                if let hint = obj.accessibilityHint, !hint.isEmpty {
+                    node["hint"] = hint
                 }
+            }
+            if let identifiable = element as? UIView,
+               let identifier = identifiable.accessibilityIdentifier, !identifier.isEmpty {
+                node["identifier"] = identifier
+            }
 
-                // Recurse into subviews
-                var children: [[String: Any]] = []
-                for subview in view.subviews {
-                    let child = snapshotElement(subview)
-                    children.append(child)
-                }
-
-                // Also check accessibility elements
-                if let accessibilityElements = view.accessibilityElements {
-                    for element in accessibilityElements {
-                        if let accElement = element as? UIAccessibilityElement {
-                            var accNode: [String: Any] = [:]
-                            if let label = accElement.accessibilityLabel, !label.isEmpty {
-                                accNode["label"] = label
-                            }
-                            let frame = accElement.accessibilityFrame
-                            accNode["frame"] = [
-                                "x": Int(frame.origin.x),
-                                "y": Int(frame.origin.y),
-                                "width": Int(frame.size.width),
-                                "height": Int(frame.size.height)
-                            ]
-                            if !accNode.isEmpty {
-                                children.append(accNode)
-                            }
-                        }
-                    }
-                }
-
-                if !children.isEmpty {
-                    node["children"] = children
-                }
+            let traits: UIAccessibilityTraits = (element as? NSObject)?.accessibilityTraits ?? []
+            var traitNames: [String] = []
+            if traits.contains(.button) { traitNames.append("button") }
+            if traits.contains(.staticText) { traitNames.append("staticText") }
+            if traits.contains(.image) { traitNames.append("image") }
+            if traits.contains(.header) { traitNames.append("header") }
+            if traits.contains(.link) { traitNames.append("link") }
+            if traits.contains(.adjustable) { traitNames.append("adjustable") }
+            if traits.contains(.selected) { traitNames.append("selected") }
+            if traits.contains(.notEnabled) { traitNames.append("notEnabled") }
+            if traits.contains(.searchField) { traitNames.append("searchField") }
+            if traits.contains(.tabBar) { traitNames.append("tabBar") }
+            if traits.contains(.keyboardKey) { traitNames.append("keyboardKey") }
+            if traits.contains(.summaryElement) { traitNames.append("summaryElement") }
+            if traits.contains(.updatesFrequently) { traitNames.append("updatesFrequently") }
+            if !traitNames.isEmpty {
+                node["traits"] = traitNames
             }
 
             return node
