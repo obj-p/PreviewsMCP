@@ -42,11 +42,10 @@ The example project is at examples/spm/ relative to the PreviewsMCP repo root.
 - Take a snapshot — verify the title now shows "Tasks"
 - Revert the change
 
-### 5. Hot reload — structural edit
+### 5. Hot reload — cross-file edit
 - With a preview session running, add a new item to Item.samples in Item.swift
-- Touch ToDoView.swift to trigger rebuild (file watcher monitors only the preview file)
-- Take a snapshot — verify the new item appears in the list
-- Revert the changes
+- Take a snapshot — verify the new item appears (file watcher monitors all target files)
+- Revert the change
 
 ### 6. Cleanup
 - Stop all preview sessions

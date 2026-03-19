@@ -7,7 +7,7 @@ struct Item: Identifiable {
     var title: String
     let subtitle: String
     var isComplete: Bool
-
+    
     nonisolated(unsafe) static var samples: [Item] = [
         Item(id: UUID(), title: "Design UI", subtitle: "Create mockups", isComplete: true),
         Item(id: UUID(), title: "Write code", subtitle: "Implement features", isComplete: false),

@@ -340,7 +340,9 @@ private func handlePreviewStart(params: CallTool.Parameters, macCompiler: Compil
                 session: session,
                 filePath: fileURL.path,
                 compiler: macCompiler,
-                previewIndex: previewIndex
+                previewIndex: previewIndex,
+                additionalPaths: buildContext?.sourceFiles?.map(\.path) ?? [],
+                buildContext: buildContext
             )
         } catch {
             fputs("MCP: Failed to load preview: \(error)\n", stderr)
@@ -409,7 +411,8 @@ private func handleIOSPreviewStart(
 
     // Set up file watching for hot-reload
     let sessionID = session.id
-    let watcher = try? FileWatcher(path: fileURL.path) {
+    let allPaths = [fileURL.path] + (buildContext?.sourceFiles?.map(\.path) ?? [])
+    let watcher = try? FileWatcher(paths: allPaths) {
         Task {
             do {
                 let wasLiteralOnly = try await session.handleSourceChange()

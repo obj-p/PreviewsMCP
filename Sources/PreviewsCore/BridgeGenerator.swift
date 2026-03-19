@@ -105,7 +105,7 @@ public enum BridgeGenerator {
         return """
         import SwiftUI
         \(frameworkImport)
-        import \(moduleName)
+        @testable import \(moduleName)
 
         @_cdecl("\(entryPoint)")
         public func \(entryPoint)() -> UnsafeMutableRawPointer {

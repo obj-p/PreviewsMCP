@@ -89,7 +89,9 @@ struct RunCommand: ParsableCommand {
                             session: session,
                             filePath: fileURL.path,
                             compiler: compiler,
-                            previewIndex: previewIndex
+                            previewIndex: previewIndex,
+                            additionalPaths: buildContext?.sourceFiles?.map(\.path) ?? [],
+                            buildContext: buildContext
                         )
                         fputs("Preview is live! Watching for changes...\n", stderr)
                     } catch {
