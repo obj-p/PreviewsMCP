@@ -14,6 +14,8 @@ Bootstrap the PreviewsMCP development environment.
 
 3. **Build the project.** Run `swift build` from the repo root. If the build fails, stop and report the error.
 
-4. **Verify setup.** Run `swift-format --version` and `swift --version` to confirm tool availability. Report the installed versions.
+4. **Bazel example (optional).** If the user is working on the Bazel example, also set up bazelisk: run `cd examples/bazel && mise install` (requires mise) or `brew install bazelisk`. Verify with `cd examples/bazel && bazel build //Sources/ToDo`.
 
-5. **Report.** Summarize what was set up and confirm the environment is ready.
+5. **Verify setup.** Run `swift-format --version` and `swift --version` to confirm tool availability. Report the installed versions.
+
+6. **Report.** Summarize what was set up and confirm the environment is ready.
