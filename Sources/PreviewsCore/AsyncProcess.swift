@@ -46,12 +46,41 @@ public func runAsync(
             stderrPipe = pipe
         }
 
+        // Read pipe data eagerly on background threads to avoid deadlock.
+        // If the child writes more than the pipe buffer (~64KB), it blocks
+        // until the parent reads. Reading in terminationHandler would deadlock
+        // because termination waits for the child to exit first.
+        let stdoutData = UnsafeSendableBox<Data>()
+        let stderrData = UnsafeSendableBox<Data>()
+
+        stdoutPipe.fileHandleForReading.readabilityHandler = { handle in
+            let chunk = handle.availableData
+            if chunk.isEmpty {
+                stdoutPipe.fileHandleForReading.readabilityHandler = nil
+            } else {
+                stdoutData.append(chunk)
+            }
+        }
+
+        if let stderrPipe {
+            stderrPipe.fileHandleForReading.readabilityHandler = { handle in
+                let chunk = handle.availableData
+                if chunk.isEmpty {
+                    stderrPipe.fileHandleForReading.readabilityHandler = nil
+                } else {
+                    stderrData.append(chunk)
+                }
+            }
+        }
+
         process.terminationHandler = { proc in
-            let stdoutData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
-            let stderrData = stderrPipe?.fileHandleForReading.readDataToEndOfFile()
-            let stdout = (String(data: stdoutData, encoding: .utf8) ?? "")
+            // Drain any remaining data after process exits
+            stdoutData.append(stdoutPipe.fileHandleForReading.readDataToEndOfFile())
+            stderrData.append(stderrPipe?.fileHandleForReading.readDataToEndOfFile() ?? Data())
+
+            let stdout = (String(data: stdoutData.value, encoding: .utf8) ?? "")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
-            let stderr = stderrData.flatMap { String(data: $0, encoding: .utf8) } ?? ""
+            let stderr = String(data: stderrData.value, encoding: .utf8) ?? ""
 
             continuation.resume(returning: ProcessOutput(
                 stdout: stdout,
@@ -63,7 +92,28 @@ public func runAsync(
         do {
             try process.run()
         } catch {
+            stdoutPipe.fileHandleForReading.readabilityHandler = nil
+            stderrPipe?.fileHandleForReading.readabilityHandler = nil
             continuation.resume(throwing: error)
         }
+    }
+}
+
+/// Thread-safe mutable data buffer for collecting pipe output across callbacks.
+private final class UnsafeSendableBox<T: Sendable>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var _value: Data = Data()
+
+    var value: Data {
+        lock.lock()
+        defer { lock.unlock() }
+        return _value
+    }
+
+    func append(_ data: Data) {
+        guard !data.isEmpty else { return }
+        lock.lock()
+        _value.append(data)
+        lock.unlock()
     }
 }

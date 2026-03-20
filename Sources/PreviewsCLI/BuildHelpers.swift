@@ -1,3 +1,4 @@
+import ArgumentParser
 import Foundation
 import PreviewsCore
 import PreviewsIOS
@@ -39,16 +40,9 @@ func resolveDeviceUDID(
     } catch {
         let devices = try await simulatorManager.listDevices()
         guard let first = devices.first(where: { $0.isAvailable }) else {
-            throw DeviceResolutionError.noDeviceAvailable
+            throw ValidationError("No available iOS simulator devices found")
         }
         return first.udid
     }
 }
 
-enum DeviceResolutionError: Error, LocalizedError {
-    case noDeviceAvailable
-
-    var errorDescription: String? {
-        "No available iOS simulator devices found"
-    }
-}
