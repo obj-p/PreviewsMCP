@@ -85,11 +85,10 @@ public actor IOSPreviewSession {
 
         // 3b. Open Simulator.app GUI if not headless
         if !headless {
-            let openProcess = Process()
-            openProcess.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-            openProcess.arguments = ["-a", "Simulator", "--args", "-CurrentDeviceUDID", deviceUDID]
-            try? openProcess.run()
-            openProcess.waitUntilExit()
+            _ = try? await runAsync(
+                "/usr/bin/open",
+                arguments: ["-a", "Simulator", "--args", "-CurrentDeviceUDID", deviceUDID]
+            )
         }
 
         // 4. Create signal files for hot-reload and interaction

@@ -1,4 +1,5 @@
 import Foundation
+import PreviewsCore
 import SimulatorBridge
 
 /// Manages iOS simulator devices via CoreSimulator.framework (loaded at runtime).
@@ -159,31 +160,12 @@ public actor SimulatorManager {
     /// Capture a screenshot of a booted device using simctl.
     /// Runs the process without blocking the actor's executor.
     public func screenshot(udid: String, outputPath: URL) async throws {
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
-            process.arguments = ["simctl", "io", udid, "screenshot", "--type=png", outputPath.path]
-
-            let stderrPipe = Pipe()
-            process.standardError = stderrPipe
-            process.standardOutput = FileHandle.nullDevice
-
-            process.terminationHandler = { proc in
-                if proc.terminationStatus == 0 {
-                    continuation.resume()
-                } else {
-                    let stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
-                    let stderr = String(data: stderrData, encoding: .utf8) ?? ""
-                    continuation.resume(
-                        throwing: SimulatorError.screenshotFailed("simctl screenshot failed: \(stderr)"))
-                }
-            }
-
-            do {
-                try process.run()
-            } catch {
-                continuation.resume(throwing: SimulatorError.screenshotFailed("Failed to launch simctl: \(error)"))
-            }
+        let result = try await runAsync(
+            "/usr/bin/xcrun",
+            arguments: ["simctl", "io", udid, "screenshot", "--type=png", outputPath.path]
+        )
+        if result.exitCode != 0 {
+            throw SimulatorError.screenshotFailed("simctl screenshot failed: \(result.stderr)")
         }
     }
 

@@ -374,21 +374,11 @@ private func handleIOSPreviewStart(
 ) async throws -> CallTool.Result {
     // Resolve device UDID — use provided or auto-select
     let deviceUDID: String
-    if case .string(let udid) = params.arguments?["deviceUDID"] {
-        deviceUDID = udid
-    } else {
-        // Auto-select: prefer booted device, else first available
-        let manager = iosState.simulatorManager
-        do {
-            let booted = try await manager.findBootedDevice()
-            deviceUDID = booted.udid
-        } catch {
-            let devices = try await manager.listDevices()
-            guard let first = devices.first(where: { $0.isAvailable }) else {
-                return CallTool.Result(content: [.text("No available iOS simulator devices found")], isError: true)
-            }
-            deviceUDID = first.udid
-        }
+    let providedUDID: String? = if case .string(let udid) = params.arguments?["deviceUDID"] { udid } else { nil }
+    do {
+        deviceUDID = try await resolveDeviceUDID(provided: providedUDID, using: iosState.simulatorManager)
+    } catch {
+        return CallTool.Result(content: [.text(error.localizedDescription)], isError: true)
     }
 
     let iosCompiler = try await iosState.getCompiler()
@@ -429,15 +419,16 @@ private func handleIOSPreviewStart(
     let allPaths = [fileURL.path] + (buildContext?.sourceFiles?.map(\.path) ?? [])
     let watcher = try? FileWatcher(paths: allPaths) {
         Task {
+            fputs("MCP: iOS file change detected, reloading session \(sessionID)...\n", stderr)
             do {
                 let wasLiteralOnly = try await session.handleSourceChange()
                 if wasLiteralOnly {
                     fputs("MCP: iOS literal-only change applied (state preserved)\n", stderr)
                 } else {
-                    fputs("MCP: iOS structural change — recompiled\n", stderr)
+                    fputs("MCP: iOS structural change — recompiled and signalled reload\n", stderr)
                 }
             } catch {
-                fputs("MCP: iOS reload failed: \(error)\n", stderr)
+                fputs("MCP: iOS reload failed for session \(sessionID): \(error)\n", stderr)
             }
         }
     }
@@ -618,14 +609,7 @@ private func detectBuildContext(
     } else {
         projectRootURL = nil
     }
-
-    if let buildSystem = try await BuildSystemDetector.detect(for: fileURL, projectRoot: projectRootURL) {
-        fputs("MCP: Detected build system at \(buildSystem.projectRoot.path)\n", stderr)
-        let context = try await buildSystem.build(platform: platform)
-        fputs("MCP: Built target \(context.targetName) (tier \(context.supportsTier2 ? "2" : "1"))\n", stderr)
-        return context
-    }
-    return nil
+    return try await detectAndBuild(for: fileURL, projectRoot: projectRootURL, platform: platform, logPrefix: "MCP:")
 }
 
 private func handleSimulatorList() async throws -> CallTool.Result {

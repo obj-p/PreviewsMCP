@@ -203,34 +203,13 @@ public actor SPMBuildSystem: BuildSystem {
 
     @discardableResult
     private func runProcess(_ executable: String, args: [String], workingDirectory: URL? = nil) async throws -> String {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: executable)
-        process.arguments = args
-
-        if let wd = workingDirectory {
-            process.currentDirectoryURL = wd
-        }
-
-        let stdoutPipe = Pipe()
-        let stderrPipe = Pipe()
-        process.standardOutput = stdoutPipe
-        process.standardError = stderrPipe
-
-        try process.run()
-        process.waitUntilExit()
-
-        let stdoutData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
-        let stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
-        let stdout = String(data: stdoutData, encoding: .utf8) ?? ""
-        let stderr = String(data: stderrData, encoding: .utf8) ?? ""
-
-        guard process.terminationStatus == 0 else {
+        let output = try await runAsync(executable, arguments: args, workingDirectory: workingDirectory)
+        guard output.exitCode == 0 else {
             throw BuildSystemError.buildFailed(
-                stderr: stderr.isEmpty ? stdout : stderr,
-                exitCode: process.terminationStatus
+                stderr: output.stderr.isEmpty ? output.stdout : output.stderr,
+                exitCode: output.exitCode
             )
         }
-
-        return stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+        return output.stdout
     }
 }
