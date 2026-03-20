@@ -1,0 +1,7 @@
+module(
+    name = "todo",
+    version = "0.0.0",
+)
+
+bazel_dep(name = "rules_swift", version = "3.5.0")
+bazel_dep(name = "apple_support", version = "2.3.0")
