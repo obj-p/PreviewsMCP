@@ -20,3 +20,31 @@ Run integration tests for PreviewsMCP example projects.
 3. **For each example**, read its `README.md` and follow the "Integration Test Prompt" section. The README contains the exact steps to execute, including which MCP tools to call and what to verify.
 
 4. **Report results.** For each example, report pass/fail per test step. Summarize at the end.
+
+## Touch interaction guidance
+
+When using `preview_touch` based on `preview_elements` frames:
+
+- **SwiftUI Toggles** only respond to taps on the switch control itself (rightmost ~44pt of the row), not the label. When tapping a Toggle, use the right edge of the reported frame (e.g., `x = frame.x + frame.width - 20`) rather than the center.
+- **Buttons and list rows** are tappable anywhere within their reported frame — center coordinates work fine.
+
+## Hot reload timing
+
+After editing a source file to test hot reload, wait **1 second** (`sleep 1`) before taking a snapshot. This is enough for the file watcher to detect the change and for literal-only reloads. For structural changes that trigger recompilation, wait **3 seconds**.
+
+## Log sanity check
+
+PreviewsMCP logs reload activity to stderr. After running all test steps, check the MCP server logs for errors:
+
+```bash
+# If the MCP server is running via `swift run previewsmcp serve`, its stderr
+# contains lines like:
+#   MCP: iOS file change detected, reloading session <id>...
+#   MCP: iOS literal-only change applied (state preserved)
+#   MCP: iOS structural change — recompiled and signalled reload
+#   MCP: iOS reload failed for session <id>: <error>
+#
+# Grep the process stderr or system log for "MCP:" to verify no reload failures.
+```
+
+If any "reload failed" lines appear, report them as a test failure with the full error message.
