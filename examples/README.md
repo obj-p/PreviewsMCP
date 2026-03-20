@@ -5,7 +5,7 @@ Each directory contains a minimal project for a specific build system, used for 
 | Directory | Build System | Status |
 |-----------|-------------|--------|
 | `spm/` | Swift Package Manager | Implemented |
-| `xcode/` | Xcode (.xcodeproj) | Planned |
+| `xcode/` | Xcode (.xcodeproj via XcodeGen) | Example project |
 | `bazel/` | Bazel | Example project |
 
 See each project's `README.md` for integration test instructions.
