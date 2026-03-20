@@ -18,3 +18,4 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.previewsmcp.examples.todo
         GENERATE_INFOPLIST_FILE: YES
+        DEFINES_MODULE: YES

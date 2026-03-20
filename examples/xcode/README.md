@@ -28,7 +28,7 @@ mint bootstrap   # installs XcodeGen from Mintfile
 
 ```bash
 cd examples/xcode
-xcodegen generate
+mint run xcodegen generate
 ```
 
 This creates `ToDo.xcodeproj` (git-ignored). Regenerate after changing `project.yml` or adding/removing source files.
@@ -47,6 +47,8 @@ Build outputs land in DerivedData — the `.swiftmodule` and object files that P
 
 ## Integration Test Prompt
 
+> **Note:** This test requires `XcodeBuildSystem` (not yet implemented). The prompt below is aspirational — `preview_start` will not detect the `.xcodeproj` until #16 is complete.
+
 Use this prompt to test PreviewsMCP's Xcode integration end-to-end:
 
 ```
@@ -55,7 +57,7 @@ The example project is at examples/xcode/ relative to the PreviewsMCP repo root.
 
 ### 1. Setup
 - Build previewsmcp: `swift build` from the PreviewsMCP root
-- Generate the Xcode project: `cd examples/xcode && xcodegen generate`
+- Generate the Xcode project: `cd examples/xcode && mint run xcodegen generate`
 - Build the Xcode project: `xcodebuild build -project ToDo.xcodeproj -scheme ToDo -destination 'platform=macOS'`
 
 ### 2. Basic rendering (macOS)

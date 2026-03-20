@@ -16,7 +16,7 @@ Bootstrap the PreviewsMCP development environment.
 
 4. **Bazel example (optional).** If the user is working on the Bazel example, also set up bazelisk: run `cd examples/bazel && mise install` (requires mise) or `brew install bazelisk`. Verify with `cd examples/bazel && bazel build //Sources/ToDo`.
 
-5. **Xcode example (optional).** If the user is working on the Xcode example, install Mint and XcodeGen: run `brew install mint && cd examples/xcode && mint bootstrap`. Generate the project with `xcodegen generate`. Verify with `xcodebuild build -project ToDo.xcodeproj -scheme ToDo -destination 'platform=macOS'`.
+5. **Xcode example (optional).** If the user is working on the Xcode example, install Mint and XcodeGen: run `brew install mint && cd examples/xcode && mint bootstrap`. Generate the project with `mint run xcodegen generate`. Verify with `xcodebuild build -project ToDo.xcodeproj -scheme ToDo -destination 'platform=macOS'`.
 
 6. **Verify setup.** Run `swift-format --version` and `swift --version` to confirm tool availability. Report the installed versions.
 
