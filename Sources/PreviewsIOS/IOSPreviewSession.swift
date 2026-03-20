@@ -136,9 +136,10 @@ public actor IOSPreviewSession {
 
         // Fast path: literal-only change
         if let currentSession = session,
-           let changes = await currentSession.tryLiteralUpdate(newSource: newSource),
-           !changes.isEmpty,
-           let literalsFile = literalsFilePath {
+            let changes = await currentSession.tryLiteralUpdate(newSource: newSource),
+            !changes.isEmpty,
+            let literalsFile = literalsFilePath
+        {
             let json = changes.map { change -> [String: Any] in
                 var entry: [String: Any] = ["id": change.id]
                 switch change.newValue {

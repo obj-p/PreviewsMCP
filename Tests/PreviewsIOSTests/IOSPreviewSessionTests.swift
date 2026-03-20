@@ -1,26 +1,27 @@
 import Foundation
 import Testing
-@testable import PreviewsIOS
+
 @testable import PreviewsCore
+@testable import PreviewsIOS
 
 @Suite("IOSPreviewSession")
 struct IOSPreviewSessionTests {
 
     static let testViewSource = """
-    import SwiftUI
+        import SwiftUI
 
-    struct HelloView: View {
-        var body: some View {
-            Text("Hello from iOS Simulator!")
-                .font(.largeTitle)
-                .padding()
+        struct HelloView: View {
+            var body: some View {
+                Text("Hello from iOS Simulator!")
+                    .font(.largeTitle)
+                    .padding()
+            }
         }
-    }
 
-    #Preview {
-        HelloView()
-    }
-    """
+        #Preview {
+            HelloView()
+        }
+        """
 
     @Test("End-to-end: compile, boot, install, launch, screenshot")
     func endToEnd() async throws {
@@ -37,8 +38,10 @@ struct IOSPreviewSessionTests {
         let simulatorManager = SimulatorManager()
         let devices = try await simulatorManager.listDevices()
         let available = devices.filter { $0.isAvailable }
-        guard let target = available.first(where: { $0.state == .booted })
-            ?? available.first else {
+        guard
+            let target = available.first(where: { $0.state == .booted })
+                ?? available.first
+        else {
             print("No available simulator devices — skipping e2e test")
             return
         }

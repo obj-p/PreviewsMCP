@@ -39,7 +39,9 @@ public actor Compiler {
     public init(workDir: URL? = nil, platform: PreviewPlatform = .macOS) async throws {
         self.platform = platform
 
-        let dir = workDir ?? FileManager.default.temporaryDirectory
+        let dir =
+            workDir
+            ?? FileManager.default.temporaryDirectory
             .appendingPathComponent("previewsmcp", isDirectory: true)
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
 

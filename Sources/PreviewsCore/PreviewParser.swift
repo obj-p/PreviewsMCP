@@ -72,10 +72,11 @@ private final class PreviewVisitor: SyntaxVisitor {
         let name = extractName(from: arguments)
         let closureBody = closure.statements.description.trimmed
 
-        let location = node.startLocation(converter: SourceLocationConverter(
-            fileName: "",
-            tree: node.root
-        ))
+        let location = node.startLocation(
+            converter: SourceLocationConverter(
+                fileName: "",
+                tree: node.root
+            ))
 
         let info = PreviewInfo(
             name: name,
@@ -89,7 +90,8 @@ private final class PreviewVisitor: SyntaxVisitor {
 
     private func extractName(from arguments: LabeledExprListSyntax) -> String? {
         guard let firstArg = arguments.first,
-              let stringLiteral = firstArg.expression.as(StringLiteralExprSyntax.self) else {
+            let stringLiteral = firstArg.expression.as(StringLiteralExprSyntax.self)
+        else {
             return nil
         }
         return stringLiteral.segments.description

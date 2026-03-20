@@ -1,8 +1,8 @@
 import Foundation
 import MCP
 import PreviewsCore
-import PreviewsMacOS
 import PreviewsIOS
+import PreviewsMacOS
 
 /// Tracks active iOS preview sessions and lazily creates shared iOS resources.
 private actor IOSState {
@@ -72,14 +72,15 @@ func configureMCPServer() async throws -> (Server, Compiler) {
                         "filePath": .object([
                             "type": .string("string"),
                             "description": .string("Absolute path to a Swift source file"),
-                        ]),
+                        ])
                     ]),
                     "required": .array([.string("filePath")]),
                 ])
             ),
             Tool(
                 name: "preview_start",
-                description: "Compile and launch a live SwiftUI preview. Returns a session ID. Supports macOS (default) and iOS simulator.",
+                description:
+                    "Compile and launch a live SwiftUI preview. Returns a session ID. Supports macOS (default) and iOS simulator.",
                 inputSchema: .object([
                     "type": .string("object"),
                     "properties": .object([
@@ -97,7 +98,8 @@ func configureMCPServer() async throws -> (Server, Compiler) {
                         ]),
                         "deviceUDID": .object([
                             "type": .string("string"),
-                            "description": .string("Simulator device UDID (for ios-simulator; auto-selects if omitted)"),
+                            "description": .string(
+                                "Simulator device UDID (for ios-simulator; auto-selects if omitted)"),
                         ]),
                         "headless": .object([
                             "type": .string("boolean"),
@@ -113,7 +115,9 @@ func configureMCPServer() async throws -> (Server, Compiler) {
                         ]),
                         "projectPath": .object([
                             "type": .string("string"),
-                            "description": .string("Project root path (auto-detected if omitted). Enables importing project types from SPM packages."),
+                            "description": .string(
+                                "Project root path (auto-detected if omitted). Enables importing project types from SPM packages."
+                            ),
                         ]),
                     ]),
                     "required": .array([.string("filePath")]),
@@ -128,7 +132,7 @@ func configureMCPServer() async throws -> (Server, Compiler) {
                         "sessionID": .object([
                             "type": .string("string"),
                             "description": .string("Session ID from preview_start"),
-                        ]),
+                        ])
                     ]),
                     "required": .array([.string("sessionID")]),
                 ])
@@ -142,14 +146,15 @@ func configureMCPServer() async throws -> (Server, Compiler) {
                         "sessionID": .object([
                             "type": .string("string"),
                             "description": .string("Session ID from preview_start"),
-                        ]),
+                        ])
                     ]),
                     "required": .array([.string("sessionID")]),
                 ])
             ),
             Tool(
                 name: "preview_elements",
-                description: "Get the accessibility tree of an iOS simulator preview. Returns elements with labels, frames, and traits for targeted interaction.",
+                description:
+                    "Get the accessibility tree of an iOS simulator preview. Returns elements with labels, frames, and traits for targeted interaction.",
                 inputSchema: .object([
                     "type": .string("object"),
                     "properties": .object([
@@ -160,7 +165,9 @@ func configureMCPServer() async throws -> (Server, Compiler) {
                         "filter": .object([
                             "type": .string("string"),
                             "enum": .array([.string("all"), .string("interactable"), .string("labeled")]),
-                            "description": .string("Filter mode: 'all' (default) returns the full tree, 'interactable' returns only buttons/links/toggles, 'labeled' returns only elements with label/value/identifier"),
+                            "description": .string(
+                                "Filter mode: 'all' (default) returns the full tree, 'interactable' returns only buttons/links/toggles, 'labeled' returns only elements with label/value/identifier"
+                            ),
                         ]),
                     ]),
                     "required": .array([.string("sessionID")]),
@@ -168,7 +175,8 @@ func configureMCPServer() async throws -> (Server, Compiler) {
             ),
             Tool(
                 name: "preview_touch",
-                description: "Send a touch event to an iOS simulator preview. Coordinates are in device points. For swipe, x/y is the start point.",
+                description:
+                    "Send a touch event to an iOS simulator preview. Coordinates are in device points. For swipe, x/y is the start point.",
                 inputSchema: .object([
                     "type": .string("object"),
                     "properties": .object([
@@ -354,7 +362,9 @@ private func handlePreviewStart(params: CallTool.Parameters, macCompiler: Compil
         }
     }
 
-    return CallTool.Result(content: [.text("macOS preview started. Session ID: \(sessionID). File is being watched for changes.")])
+    return CallTool.Result(content: [
+        .text("macOS preview started. Session ID: \(sessionID). File is being watched for changes.")
+    ])
 }
 
 private func handleIOSPreviewStart(
@@ -438,7 +448,11 @@ private func handleIOSPreviewStart(
     // Wait briefly for the app to launch and render
     try await Task.sleep(for: .seconds(2))
 
-    return CallTool.Result(content: [.text("iOS simulator preview started on device \(deviceUDID). Session ID: \(sessionID). PID: \(pid). File is being watched for changes.")])
+    return CallTool.Result(content: [
+        .text(
+            "iOS simulator preview started on device \(deviceUDID). Session ID: \(sessionID). PID: \(pid). File is being watched for changes."
+        )
+    ])
 }
 
 private func handlePreviewSnapshot(params: CallTool.Parameters) async throws -> CallTool.Result {
@@ -497,14 +511,18 @@ private func handlePreviewElements(params: CallTool.Parameters) async throws -> 
     }
 
     guard let iosSession = await iosState.getSession(sessionID) else {
-        return CallTool.Result(content: [.text("No iOS session found for \(sessionID). Elements are only available for iOS simulator previews.")], isError: true)
+        return CallTool.Result(
+            content: [
+                .text("No iOS session found for \(sessionID). Elements are only available for iOS simulator previews.")
+            ], isError: true)
     }
 
     let validFilters: Set<String> = ["all", "interactable", "labeled"]
     let filter: String
     if case .string(let f) = params.arguments?["filter"] {
         guard validFilters.contains(f) else {
-            return CallTool.Result(content: [.text("Invalid filter '\(f)'. Must be one of: all, interactable, labeled")], isError: true)
+            return CallTool.Result(
+                content: [.text("Invalid filter '\(f)'. Must be one of: all, interactable, labeled")], isError: true)
         }
         filter = f
     } else {
@@ -521,7 +539,10 @@ private func handlePreviewTouch(params: CallTool.Parameters) async throws -> Cal
     }
 
     guard let iosSession = await iosState.getSession(sessionID) else {
-        return CallTool.Result(content: [.text("No iOS session found for \(sessionID). Touch is only supported for iOS simulator previews.")], isError: true)
+        return CallTool.Result(
+            content: [
+                .text("No iOS session found for \(sessionID). Touch is only supported for iOS simulator previews.")
+            ], isError: true)
     }
 
     let x: Double
@@ -552,14 +573,22 @@ private func handlePreviewTouch(params: CallTool.Parameters) async throws -> Cal
     if action == "swipe" {
         // Swipe requires fromX/fromY (use x/y) and toX/toY
         let toX: Double
-        if case .double(let n) = params.arguments?["toX"] { toX = n }
-        else if case .int(let n) = params.arguments?["toX"] { toX = Double(n) }
-        else { return CallTool.Result(content: [.text("Missing toX for swipe")], isError: true) }
+        if case .double(let n) = params.arguments?["toX"] {
+            toX = n
+        } else if case .int(let n) = params.arguments?["toX"] {
+            toX = Double(n)
+        } else {
+            return CallTool.Result(content: [.text("Missing toX for swipe")], isError: true)
+        }
 
         let toY: Double
-        if case .double(let n) = params.arguments?["toY"] { toY = n }
-        else if case .int(let n) = params.arguments?["toY"] { toY = Double(n) }
-        else { return CallTool.Result(content: [.text("Missing toY for swipe")], isError: true) }
+        if case .double(let n) = params.arguments?["toY"] {
+            toY = n
+        } else if case .int(let n) = params.arguments?["toY"] {
+            toY = Double(n)
+        } else {
+            return CallTool.Result(content: [.text("Missing toY for swipe")], isError: true)
+        }
 
         let duration: Double = {
             if case .double(let n) = params.arguments?["duration"] { return n }

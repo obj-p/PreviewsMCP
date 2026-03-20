@@ -1,5 +1,6 @@
-import Testing
 import Foundation
+import Testing
+
 @testable import PreviewsCore
 
 @Suite("BuildSystem")
@@ -94,14 +95,14 @@ struct BuildSystemTests {
     @Test("BridgeGenerator.generateOverlaySource includes DesignTimeStore")
     func overlaySourceIncludesDesignTimeStore() {
         let originalSource = """
-        import SwiftUI
-        struct MyView: View {
-            var body: some View {
-                Text("Hello")
+            import SwiftUI
+            struct MyView: View {
+                var body: some View {
+                    Text("Hello")
+                }
             }
-        }
-        #Preview { MyView() }
-        """
+            #Preview { MyView() }
+            """
 
         let (source, literals) = BridgeGenerator.generateOverlaySource(
             originalSource: originalSource,
@@ -120,16 +121,16 @@ struct BuildSystemTests {
     func compilerExtraFlags() async throws {
         let compiler = try await Compiler()
         let source = """
-        import SwiftUI
-        import AppKit
+            import SwiftUI
+            import AppKit
 
-        @_cdecl("createPreviewView")
-        public func createPreviewView() -> UnsafeMutableRawPointer {
-            let view = SwiftUI.AnyView(Text("Hello"))
-            let hostingView = NSHostingView(rootView: view)
-            return Unmanaged.passRetained(hostingView).toOpaque()
-        }
-        """
+            @_cdecl("createPreviewView")
+            public func createPreviewView() -> UnsafeMutableRawPointer {
+                let view = SwiftUI.AnyView(Text("Hello"))
+                let hostingView = NSHostingView(rootView: view)
+                return Unmanaged.passRetained(hostingView).toOpaque()
+            }
+            """
 
         // -DPREVIEW_MODE is a harmless extra flag
         let result = try await compiler.compileCombined(

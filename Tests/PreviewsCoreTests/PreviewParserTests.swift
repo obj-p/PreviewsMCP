@@ -1,4 +1,5 @@
 import Testing
+
 @testable import PreviewsCore
 
 @Suite("PreviewParser")
@@ -7,16 +8,16 @@ struct PreviewParserTests {
     @Test("Finds a single unnamed preview")
     func singleUnnamedPreview() {
         let source = """
-        import SwiftUI
+            import SwiftUI
 
-        struct MyView: View {
-            var body: some View { Text("Hello") }
-        }
+            struct MyView: View {
+                var body: some View { Text("Hello") }
+            }
 
-        #Preview {
-            MyView()
-        }
-        """
+            #Preview {
+                MyView()
+            }
+            """
 
         let previews = PreviewParser.parse(source: source)
         #expect(previews.count == 1)
@@ -28,17 +29,17 @@ struct PreviewParserTests {
     @Test("Finds a named preview")
     func namedPreview() {
         let source = """
-        import SwiftUI
+            import SwiftUI
 
-        struct MyView: View {
-            var body: some View { Text("Hello") }
-        }
+            struct MyView: View {
+                var body: some View { Text("Hello") }
+            }
 
-        #Preview("Dark Mode") {
-            MyView()
-                .preferredColorScheme(.dark)
-        }
-        """
+            #Preview("Dark Mode") {
+                MyView()
+                    .preferredColorScheme(.dark)
+            }
+            """
 
         let previews = PreviewParser.parse(source: source)
         #expect(previews.count == 1)
@@ -50,21 +51,21 @@ struct PreviewParserTests {
     @Test("Finds multiple previews in one file")
     func multiplePreviews() {
         let source = """
-        import SwiftUI
+            import SwiftUI
 
-        struct MyView: View {
-            var body: some View { Text("Hello") }
-        }
+            struct MyView: View {
+                var body: some View { Text("Hello") }
+            }
 
-        #Preview {
-            MyView()
-        }
+            #Preview {
+                MyView()
+            }
 
-        #Preview("Dark Mode") {
-            MyView()
-                .preferredColorScheme(.dark)
-        }
-        """
+            #Preview("Dark Mode") {
+                MyView()
+                    .preferredColorScheme(.dark)
+            }
+            """
 
         let previews = PreviewParser.parse(source: source)
         #expect(previews.count == 2)
@@ -77,12 +78,12 @@ struct PreviewParserTests {
     @Test("Returns empty for file with no previews")
     func noPreviews() {
         let source = """
-        import SwiftUI
+            import SwiftUI
 
-        struct MyView: View {
-            var body: some View { Text("Hello") }
-        }
-        """
+            struct MyView: View {
+                var body: some View { Text("Hello") }
+            }
+            """
 
         let previews = PreviewParser.parse(source: source)
         #expect(previews.isEmpty)

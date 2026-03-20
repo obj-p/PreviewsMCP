@@ -21,12 +21,13 @@ public enum ThunkGenerator {
         // Build entries with sequential IDs
         var entries: [LiteralEntry] = []
         for (index, raw) in collector.rawEntries.enumerated() {
-            entries.append(LiteralEntry(
-                id: "#\(index)",
-                value: raw.value,
-                utf8Start: raw.utf8Start,
-                utf8End: raw.utf8End
-            ))
+            entries.append(
+                LiteralEntry(
+                    id: "#\(index)",
+                    value: raw.value,
+                    utf8Start: raw.utf8Start,
+                    utf8End: raw.utf8End
+                ))
         }
 
         // Apply replacements back-to-front so offsets stay valid
@@ -78,11 +79,12 @@ final class LiteralCollector: SyntaxVisitor {
             return nil
         }.joined()
 
-        rawEntries.append(RawLiteralEntry(
-            value: .string(text),
-            utf8Start: node.position.utf8Offset,
-            utf8End: node.endPosition.utf8Offset
-        ))
+        rawEntries.append(
+            RawLiteralEntry(
+                value: .string(text),
+                utf8Start: node.position.utf8Offset,
+                utf8End: node.endPosition.utf8Offset
+            ))
         return .skipChildren
     }
 
@@ -107,18 +109,21 @@ final class LiteralCollector: SyntaxVisitor {
 
         // Check for negation: if parent is PrefixOperatorExprSyntax with "-"
         if let prefix = node.parent?.as(PrefixOperatorExprSyntax.self),
-           prefix.operator.text == "-" {
-            rawEntries.append(RawLiteralEntry(
-                value: .integer(-intValue),
-                utf8Start: prefix.position.utf8Offset,
-                utf8End: prefix.endPosition.utf8Offset
-            ))
+            prefix.operator.text == "-"
+        {
+            rawEntries.append(
+                RawLiteralEntry(
+                    value: .integer(-intValue),
+                    utf8Start: prefix.position.utf8Offset,
+                    utf8End: prefix.endPosition.utf8Offset
+                ))
         } else {
-            rawEntries.append(RawLiteralEntry(
-                value: .integer(intValue),
-                utf8Start: node.position.utf8Offset,
-                utf8End: node.endPosition.utf8Offset
-            ))
+            rawEntries.append(
+                RawLiteralEntry(
+                    value: .integer(intValue),
+                    utf8Start: node.position.utf8Offset,
+                    utf8End: node.endPosition.utf8Offset
+                ))
         }
         return .skipChildren
     }
@@ -132,18 +137,21 @@ final class LiteralCollector: SyntaxVisitor {
         guard let doubleValue = Double(text) else { return .visitChildren }
 
         if let prefix = node.parent?.as(PrefixOperatorExprSyntax.self),
-           prefix.operator.text == "-" {
-            rawEntries.append(RawLiteralEntry(
-                value: .float(-doubleValue),
-                utf8Start: prefix.position.utf8Offset,
-                utf8End: prefix.endPosition.utf8Offset
-            ))
+            prefix.operator.text == "-"
+        {
+            rawEntries.append(
+                RawLiteralEntry(
+                    value: .float(-doubleValue),
+                    utf8Start: prefix.position.utf8Offset,
+                    utf8End: prefix.endPosition.utf8Offset
+                ))
         } else {
-            rawEntries.append(RawLiteralEntry(
-                value: .float(doubleValue),
-                utf8Start: node.position.utf8Offset,
-                utf8End: node.endPosition.utf8Offset
-            ))
+            rawEntries.append(
+                RawLiteralEntry(
+                    value: .float(doubleValue),
+                    utf8Start: node.position.utf8Offset,
+                    utf8End: node.endPosition.utf8Offset
+                ))
         }
         return .skipChildren
     }
@@ -154,11 +162,12 @@ final class LiteralCollector: SyntaxVisitor {
         guard isEligible(node) else { return .visitChildren }
 
         let value = node.literal.tokenKind == .keyword(.true)
-        rawEntries.append(RawLiteralEntry(
-            value: .boolean(value),
-            utf8Start: node.position.utf8Offset,
-            utf8End: node.endPosition.utf8Offset
-        ))
+        rawEntries.append(
+            RawLiteralEntry(
+                value: .boolean(value),
+                utf8Start: node.position.utf8Offset,
+                utf8End: node.endPosition.utf8Offset
+            ))
         return .skipChildren
     }
 
@@ -182,7 +191,8 @@ final class LiteralCollector: SyntaxVisitor {
         while let parent = current?.parent {
             if let call = parent.as(FunctionCallExprSyntax.self) {
                 if let member = call.calledExpression.as(MemberAccessExprSyntax.self),
-                   member.declName.baseName.text == "tag" {
+                    member.declName.baseName.text == "tag"
+                {
                     return true
                 }
                 return false
@@ -201,7 +211,8 @@ final class LiteralCollector: SyntaxVisitor {
             if parent.is(CodeBlockSyntax.self)
                 || parent.is(AccessorDeclSyntax.self)
                 || parent.is(AccessorBlockSyntax.self)
-                || parent.is(ClosureExprSyntax.self) {
+                || parent.is(ClosureExprSyntax.self)
+            {
                 return true
             }
             // Stored property initializer: PatternBindingSyntax with an initializer
@@ -226,12 +237,14 @@ final class LiteralCollector: SyntaxVisitor {
             // If we hit a closure or function call before a macro, we're not a macro argument
             if parent.is(ClosureExprSyntax.self)
                 || parent.is(FunctionCallExprSyntax.self)
-                || parent.is(CodeBlockSyntax.self) {
+                || parent.is(CodeBlockSyntax.self)
+            {
                 return false
             }
             // If we're in a macro's labeled argument list, we ARE a macro argument
             if parent.is(MacroExpansionExprSyntax.self)
-                || parent.is(MacroExpansionDeclSyntax.self) {
+                || parent.is(MacroExpansionDeclSyntax.self)
+            {
                 // Only if we came through the arguments, not the trailing closure
                 if current?.is(ClosureExprSyntax.self) == true {
                     return false
@@ -283,7 +296,8 @@ final class LiteralCollector: SyntaxVisitor {
         var current: Syntax? = Syntax(node)
         while let parent = current?.parent {
             if parent.is(IfConfigClauseSyntax.self),
-               current?.is(ExprSyntax.self) != true {
+                current?.is(ExprSyntax.self) != true
+            {
                 // We're in the condition, not the body
                 return true
             }

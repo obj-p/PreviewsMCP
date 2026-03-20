@@ -169,11 +169,13 @@ public actor SPMBuildSystem: BuildSystem {
         let targetDir = projectRoot.appendingPathComponent(target.path).standardizedFileURL
 
         // Enumerate .swift files in the target directory
-        guard let enumerator = FileManager.default.enumerator(
-            at: targetDir,
-            includingPropertiesForKeys: nil,
-            options: [.skipsHiddenFiles]
-        ) else {
+        guard
+            let enumerator = FileManager.default.enumerator(
+                at: targetDir,
+                includingPropertiesForKeys: nil,
+                options: [.skipsHiddenFiles]
+            )
+        else {
             return nil
         }
 
@@ -193,7 +195,9 @@ public actor SPMBuildSystem: BuildSystem {
     // MARK: - Private: Process Execution
 
     @discardableResult
-    private func runProcess(_ executable: String, _ args: String..., workingDirectory: URL? = nil) async throws -> String {
+    private func runProcess(_ executable: String, _ args: String..., workingDirectory: URL? = nil) async throws
+        -> String
+    {
         try await runProcess(executable, args: args, workingDirectory: workingDirectory)
     }
 

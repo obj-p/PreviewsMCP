@@ -50,11 +50,13 @@ struct ToDoView: View {
                 Toggle("Show Completed", isOn: $showCompleted)
 
                 ForEach(filteredItems) { item in
-                    ItemRow(item: item, onToggle: {
-                        if let idx = items.firstIndex(where: { $0.id == item.id }) {
-                            items[idx].isComplete.toggle()
-                        }
-                    })
+                    ItemRow(
+                        item: item,
+                        onToggle: {
+                            if let idx = items.firstIndex(where: { $0.id == item.id }) {
+                                items[idx].isComplete.toggle()
+                            }
+                        })
                 }
             }
             .navigationTitle("My Items")

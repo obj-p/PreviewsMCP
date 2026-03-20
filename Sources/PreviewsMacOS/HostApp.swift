@@ -1,6 +1,6 @@
 import AppKit
-import SwiftUI
 import PreviewsCore
+import SwiftUI
 
 /// Manages preview windows. Loads compiled dylibs and displays views in NSWindows.
 @MainActor
@@ -106,8 +106,9 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
 
                 // Fast path: try literal-only update
                 if let currentSession = await MainActor.run(body: { self.sessions[sessionID] }),
-                   let changes = await currentSession.tryLiteralUpdate(newSource: newSource),
-                   !changes.isEmpty {
+                    let changes = await currentSession.tryLiteralUpdate(newSource: newSource),
+                    !changes.isEmpty
+                {
                     fputs("Literal-only change: \(changes.count) value(s)\n", stderr)
                     await MainActor.run {
                         self.applyLiteralChanges(sessionID: sessionID, changes: changes)
