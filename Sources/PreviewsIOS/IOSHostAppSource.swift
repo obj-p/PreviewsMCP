@@ -391,17 +391,17 @@ enum IOSHostAppSource {
         private func dumpAccessibilityTree(to responsePath: String) {
             guard let window = self.window else { return }
 
-            let tree = snapshotElement(window) ?? ["children": [] as [Any]]
+            let tree = snapshotElement(window, window: window) ?? ["children": [] as [Any]]
             guard let data = try? JSONSerialization.data(withJSONObject: tree, options: []) else { return }
             try? data.write(to: URL(fileURLWithPath: responsePath), options: .atomic)
         }
 
-        private func snapshotElement(_ element: Any) -> [String: Any]? {
+        private func snapshotElement(_ element: Any, window: UIWindow) -> [String: Any]? {
             guard let obj = element as? NSObject else { return nil }
 
             // Leaf: this element IS an accessibility element — capture it
             if obj.isAccessibilityElement {
-                return captureAccessibleNode(element)
+                return captureAccessibleNode(element, window: window)
             }
 
             // Container: walk accessibility children
@@ -411,7 +411,7 @@ enum IOSHostAppSource {
             if count != NSNotFound && count > 0 {
                 for i in 0..<min(count, 500) {
                     if let child = obj.accessibilityElement(at: i) {
-                        if let childNode = snapshotElement(child) {
+                        if let childNode = snapshotElement(child, window: window) {
                             children.append(childNode)
                         }
                     }
@@ -419,7 +419,7 @@ enum IOSHostAppSource {
             } else if let view = element as? UIView {
                 // Fallback: subviews
                 for subview in view.subviews {
-                    if let childNode = snapshotElement(subview) {
+                    if let childNode = snapshotElement(subview, window: window) {
                         children.append(childNode)
                     }
                 }
@@ -444,10 +444,10 @@ enum IOSHostAppSource {
             return node
         }
 
-        private func captureAccessibleNode(_ element: Any) -> [String: Any] {
+        private func captureAccessibleNode(_ element: Any, window: UIWindow) -> [String: Any] {
             var node: [String: Any] = [:]
 
-            // Frame
+            // Frame — normalize all coordinates to window-relative
             if let view = element as? UIView {
                 let frame = view.convert(view.bounds, to: nil)
                 node["frame"] = [
@@ -457,12 +457,14 @@ enum IOSHostAppSource {
                     "height": Int(frame.size.height)
                 ]
             } else if let accElement = element as? NSObject {
-                let frame = accElement.accessibilityFrame
+                // accessibilityFrame is in screen coordinates — convert to window
+                let screenFrame = accElement.accessibilityFrame
+                let windowFrame = window.convert(screenFrame, from: nil)
                 node["frame"] = [
-                    "x": Int(frame.origin.x),
-                    "y": Int(frame.origin.y),
-                    "width": Int(frame.size.width),
-                    "height": Int(frame.size.height)
+                    "x": Int(windowFrame.origin.x),
+                    "y": Int(windowFrame.origin.y),
+                    "width": Int(windowFrame.size.width),
+                    "height": Int(windowFrame.size.height)
                 ]
             }
 
