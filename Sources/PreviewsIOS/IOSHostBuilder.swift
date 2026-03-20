@@ -89,52 +89,23 @@ public actor IOSHostBuilder {
 
     @discardableResult
     private func run(_ args: String...) async throws -> String {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: args[0])
-        process.arguments = Array(args.dropFirst())
-
-        let stdoutPipe = Pipe()
-        let stderrPipe = Pipe()
-        process.standardOutput = stdoutPipe
-        process.standardError = stderrPipe
-
-        try process.run()
-        process.waitUntilExit()
-
-        let stdoutData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
-        let stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
-        let stdout = String(data: stdoutData, encoding: .utf8) ?? ""
-        let stderr = String(data: stderrData, encoding: .utf8) ?? ""
-
-        guard process.terminationStatus == 0 else {
+        let output = try await runAsync(args[0], arguments: Array(args.dropFirst()))
+        guard output.exitCode == 0 else {
             throw IOSHostBuildError.compilationFailed(
-                "Command failed: \(args.joined(separator: " "))\n\(stderr)"
+                "Command failed: \(args.joined(separator: " "))\n\(output.stderr)"
             )
         }
-
-        return stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+        return output.stdout
     }
 
     private static func resolve(_ args: String...) async throws -> String {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-        process.arguments = args
-
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = FileHandle.nullDevice
-
-        try process.run()
-        process.waitUntilExit()
-
-        guard process.terminationStatus == 0 else {
+        let output = try await runAsync("/usr/bin/env", arguments: args, discardStderr: true)
+        guard output.exitCode == 0 else {
             throw IOSHostBuildError.compilationFailed(
                 "Failed to resolve: \(args.joined(separator: " "))"
             )
         }
-
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        return (String(data: data, encoding: .utf8) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        return output.stdout
     }
 }
 

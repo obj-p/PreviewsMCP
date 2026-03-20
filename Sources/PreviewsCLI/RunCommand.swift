@@ -58,15 +58,7 @@ struct RunCommand: ParsableCommand {
 
                 // Detect build system
                 let projectRootURL = projectPath.map { URL(fileURLWithPath: $0) }
-                let buildContext: BuildContext?
-                if let buildSystem = try await BuildSystemDetector.detect(for: fileURL, projectRoot: projectRootURL) {
-                    fputs("Detected project at \(buildSystem.projectRoot.path), building...\n", stderr)
-                    let ctx = try await buildSystem.build(platform: .macOS)
-                    fputs("Built target: \(ctx.targetName) (tier \(ctx.supportsTier2 ? "2" : "1"))\n", stderr)
-                    buildContext = ctx
-                } else {
-                    buildContext = nil
-                }
+                let buildContext = try await detectAndBuild(for: fileURL, projectRoot: projectRootURL, platform: .macOS)
 
                 let session = PreviewSession(
                     sourceFile: fileURL,
@@ -121,33 +113,11 @@ struct RunCommand: ParsableCommand {
                 let simulatorManager = SimulatorManager()
 
                 // Resolve device
-                let udid: String
-                if let provided = deviceUDID {
-                    udid = provided
-                } else {
-                    do {
-                        let booted = try await simulatorManager.findBootedDevice()
-                        udid = booted.udid
-                    } catch {
-                        let devices = try await simulatorManager.listDevices()
-                        guard let first = devices.first(where: { $0.isAvailable }) else {
-                            throw ValidationError("No available iOS simulator devices found")
-                        }
-                        udid = first.udid
-                    }
-                }
+                let udid = try await resolveDeviceUDID(provided: deviceUDID, using: simulatorManager)
 
                 // Detect build system
                 let projectRootURL = projectPath.map { URL(fileURLWithPath: $0) }
-                let buildContext: BuildContext?
-                if let buildSystem = try await BuildSystemDetector.detect(for: fileURL, projectRoot: projectRootURL) {
-                    fputs("Detected project at \(buildSystem.projectRoot.path), building for iOS...\n", stderr)
-                    let ctx = try await buildSystem.build(platform: .iOSSimulator)
-                    fputs("Built target: \(ctx.targetName) (tier \(ctx.supportsTier2 ? "2" : "1"))\n", stderr)
-                    buildContext = ctx
-                } else {
-                    buildContext = nil
-                }
+                let buildContext = try await detectAndBuild(for: fileURL, projectRoot: projectRootURL, platform: .iOSSimulator)
 
                 let session = IOSPreviewSession(
                     sourceFile: fileURL,
