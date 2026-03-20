@@ -10,9 +10,11 @@ func detectAndBuild(
     platform: PreviewPlatform,
     logPrefix: String = ""
 ) async throws -> BuildContext? {
-    guard let buildSystem = try await BuildSystemDetector.detect(
-        for: fileURL, projectRoot: projectRootURL
-    ) else {
+    guard
+        let buildSystem = try await BuildSystemDetector.detect(
+            for: fileURL, projectRoot: projectRootURL
+        )
+    else {
         return nil
     }
 
@@ -45,4 +47,3 @@ func resolveDeviceUDID(
         return first.udid
     }
 }
-

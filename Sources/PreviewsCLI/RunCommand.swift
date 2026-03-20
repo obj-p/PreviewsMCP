@@ -117,7 +117,8 @@ struct RunCommand: ParsableCommand {
 
                 // Detect build system
                 let projectRootURL = projectPath.map { URL(fileURLWithPath: $0) }
-                let buildContext = try await detectAndBuild(for: fileURL, projectRoot: projectRootURL, platform: .iOSSimulator)
+                let buildContext = try await detectAndBuild(
+                    for: fileURL, projectRoot: projectRootURL, platform: .iOSSimulator)
 
                 let session = IOSPreviewSession(
                     sourceFile: fileURL,

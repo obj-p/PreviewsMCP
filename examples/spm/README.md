@@ -36,7 +36,7 @@ The example project is at examples/spm/ relative to the PreviewsMCP repo root.
 - Use preview_elements to get element frames for accurate tap coordinates
 - Tap an uncompleted item (e.g. "Write code") — verify its checkmark changes to filled
 - Tap the "Show Completed" toggle — verify completed items are hidden
-- Swipe the summary cards left (horizontal swipe) — take a snapshot and verify the orange "Next Up" card is now visible instead of the blue "Progress" card
+- Swipe the summary cards left (horizontal swipe) — use the TabView/page control frame from preview_elements to find the card section's vertical bounds, and swipe within that area (not in the list below it). Take a snapshot and verify the orange "Next Up" card is now visible instead of the blue "Progress" card
 
 ### 4. Hot reload — literal edit
 - With a preview session running, change "My Items" to "Tasks" in ToDoView.swift (the navigationTitle string)
