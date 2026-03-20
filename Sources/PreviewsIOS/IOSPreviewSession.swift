@@ -220,7 +220,8 @@ public actor IOSPreviewSession {
 
     /// Fetch the accessibility tree from the running preview.
     /// Returns JSON describing all accessible elements with their frames and labels.
-    public func fetchElements() async throws -> String {
+    /// - Parameter filter: Filter mode: "all" (default), "interactable", or "labeled"
+    public func fetchElements(filter: String = "all") async throws -> String {
         guard let elementsFile = elementsFilePath else {
             throw IOSPreviewSessionError.notStarted
         }
@@ -240,11 +241,65 @@ public actor IOSPreviewSession {
         for _ in 0..<20 {
             try await Task.sleep(for: .milliseconds(100))
             if FileManager.default.fileExists(atPath: responseFile.path) {
-                return try String(contentsOf: responseFile, encoding: .utf8)
+                let rawJSON = try String(contentsOf: responseFile, encoding: .utf8)
+
+                guard filter != "all" else { return rawJSON }
+
+                // Apply server-side filtering
+                guard let jsonData = rawJSON.data(using: .utf8),
+                      let tree = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
+                      let filtered = filterTree(tree, mode: filter),
+                      let filteredData = try? JSONSerialization.data(withJSONObject: filtered),
+                      let filteredJSON = String(data: filteredData, encoding: .utf8) else {
+                    return rawJSON
+                }
+                return filteredJSON
             }
         }
 
         throw IOSPreviewSessionError.elementsTimeout
+    }
+
+    /// Recursively filter the accessibility tree, keeping only nodes that match the filter mode.
+    /// Container nodes are kept if they have matching descendants.
+    private func filterTree(_ node: [String: Any], mode: String) -> [String: Any]? {
+        let children = node["children"] as? [[String: Any]]
+
+        if children == nil || children!.isEmpty {
+            // Leaf node — apply filter
+            return matchesFilter(node, mode: mode) ? node : nil
+        }
+
+        // Container node — recurse and keep branches with matching descendants
+        var filteredChildren: [[String: Any]] = []
+        for child in children! {
+            if let filtered = filterTree(child, mode: mode) {
+                filteredChildren.append(filtered)
+            }
+        }
+
+        guard !filteredChildren.isEmpty else { return nil }
+
+        var result = node
+        result["children"] = filteredChildren
+        return result
+    }
+
+    /// Check whether a leaf node matches the given filter mode.
+    private func matchesFilter(_ node: [String: Any], mode: String) -> Bool {
+        switch mode {
+        case "interactable":
+            guard let traits = node["traits"] as? [String] else { return false }
+            let interactableTraits: Set<String> = ["button", "link", "adjustable", "searchField"]
+            return traits.contains(where: { interactableTraits.contains($0) })
+        case "labeled":
+            if let label = node["label"] as? String, !label.isEmpty { return true }
+            if let value = node["value"] as? String, !value.isEmpty { return true }
+            if let identifier = node["identifier"] as? String, !identifier.isEmpty { return true }
+            return false
+        default:
+            return true
+        }
     }
 
     /// Capture a screenshot of the simulator.

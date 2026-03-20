@@ -157,6 +157,11 @@ func configureMCPServer() async throws -> (Server, Compiler) {
                             "type": .string("string"),
                             "description": .string("Session ID from preview_start (iOS simulator only)"),
                         ]),
+                        "filter": .object([
+                            "type": .string("string"),
+                            "enum": .array([.string("all"), .string("interactable"), .string("labeled")]),
+                            "description": .string("Filter mode: 'all' (default) returns the full tree, 'interactable' returns only buttons/links/toggles, 'labeled' returns only elements with label/value/identifier"),
+                        ]),
                     ]),
                     "required": .array([.string("sessionID")]),
                 ])
@@ -495,7 +500,18 @@ private func handlePreviewElements(params: CallTool.Parameters) async throws -> 
         return CallTool.Result(content: [.text("No iOS session found for \(sessionID). Elements are only available for iOS simulator previews.")], isError: true)
     }
 
-    let elementsJSON = try await iosSession.fetchElements()
+    let validFilters: Set<String> = ["all", "interactable", "labeled"]
+    let filter: String
+    if case .string(let f) = params.arguments?["filter"] {
+        guard validFilters.contains(f) else {
+            return CallTool.Result(content: [.text("Invalid filter '\(f)'. Must be one of: all, interactable, labeled")], isError: true)
+        }
+        filter = f
+    } else {
+        filter = "all"
+    }
+
+    let elementsJSON = try await iosSession.fetchElements(filter: filter)
     return CallTool.Result(content: [.text(elementsJSON)])
 }
 
