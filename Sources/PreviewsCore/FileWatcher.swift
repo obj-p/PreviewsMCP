@@ -66,7 +66,7 @@ public final class FileWatcher: @unchecked Sendable {
             if newDate != lastModDates[path] {
                 lastModDates[path] = newDate
                 callback()
-                return // Fire once per poll cycle
+                return  // Fire once per poll cycle
             }
         }
     }

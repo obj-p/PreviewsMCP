@@ -174,7 +174,8 @@ public actor SimulatorManager {
                 } else {
                     let stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
                     let stderr = String(data: stderrData, encoding: .utf8) ?? ""
-                    continuation.resume(throwing: SimulatorError.screenshotFailed("simctl screenshot failed: \(stderr)"))
+                    continuation.resume(
+                        throwing: SimulatorError.screenshotFailed("simctl screenshot failed: \(stderr)"))
                 }
             }
 

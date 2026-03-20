@@ -2,8 +2,8 @@ import AppKit
 import ArgumentParser
 import Foundation
 import PreviewsCore
-import PreviewsMacOS
 import PreviewsIOS
+import PreviewsMacOS
 
 struct SnapshotCommand: ParsableCommand {
     static let configuration = CommandConfiguration(

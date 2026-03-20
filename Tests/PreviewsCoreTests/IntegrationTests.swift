@@ -1,27 +1,28 @@
-import Testing
 import Foundation
+import Testing
+
 @testable import PreviewsCore
 
 @Suite("Integration Tests")
 struct IntegrationTests {
 
     static let testViewSource = """
-    import SwiftUI
+        import SwiftUI
 
-    struct TestView: View {
-        @State private var count = 0
-        var body: some View {
-            VStack {
-                Text("Count: \\(count)")
-                Button("Increment") { count += 1 }
+        struct TestView: View {
+            @State private var count = 0
+            var body: some View {
+                VStack {
+                    Text("Count: \\(count)")
+                    Button("Increment") { count += 1 }
+                }
             }
         }
-    }
 
-    #Preview {
-        TestView()
-    }
-    """
+        #Preview {
+            TestView()
+        }
+        """
 
     // MARK: - Parse → Generate → Compile
 
@@ -138,23 +139,23 @@ struct IntegrationTests {
 
         let (source1, _) = BridgeGenerator.generateCombinedSource(
             originalSource: """
-            import SwiftUI
-            struct V1: View {
-                var body: some View { Text("Version 1") }
-            }
-            #Preview { V1() }
-            """,
+                import SwiftUI
+                struct V1: View {
+                    var body: some View { Text("Version 1") }
+                }
+                #Preview { V1() }
+                """,
             closureBody: "V1()"
         )
 
         let (source2, _) = BridgeGenerator.generateCombinedSource(
             originalSource: """
-            import SwiftUI
-            struct V2: View {
-                var body: some View { Text("Version 2") }
-            }
-            #Preview { V2() }
-            """,
+                import SwiftUI
+                struct V2: View {
+                    var body: some View { Text("Version 2") }
+                }
+                #Preview { V2() }
+                """,
             closureBody: "V2()"
         )
 
@@ -189,7 +190,7 @@ struct IntegrationTests {
         let compiler = try await Compiler()
         let session = PreviewSession(
             sourceFile: sourceFile,
-            previewIndex: 5, // only 1 preview exists
+            previewIndex: 5,  // only 1 preview exists
             compiler: compiler
         )
 

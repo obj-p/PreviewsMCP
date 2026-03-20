@@ -136,9 +136,10 @@ public actor IOSPreviewSession {
 
         // Fast path: literal-only change
         if let currentSession = session,
-           let changes = await currentSession.tryLiteralUpdate(newSource: newSource),
-           !changes.isEmpty,
-           let literalsFile = literalsFilePath {
+            let changes = await currentSession.tryLiteralUpdate(newSource: newSource),
+            !changes.isEmpty,
+            let literalsFile = literalsFilePath
+        {
             let json = changes.map { change -> [String: Any] in
                 var entry: [String: Any] = ["id": change.id]
                 switch change.newValue {
@@ -247,10 +248,11 @@ public actor IOSPreviewSession {
 
                 // Apply server-side filtering
                 guard let jsonData = rawJSON.data(using: .utf8),
-                      let tree = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
-                      let filtered = filterTree(tree, mode: filter),
-                      let filteredData = try? JSONSerialization.data(withJSONObject: filtered),
-                      let filteredJSON = String(data: filteredData, encoding: .utf8) else {
+                    let tree = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
+                    let filtered = filterTree(tree, mode: filter),
+                    let filteredData = try? JSONSerialization.data(withJSONObject: filtered),
+                    let filteredJSON = String(data: filteredData, encoding: .utf8)
+                else {
                     return rawJSON
                 }
                 return filteredJSON

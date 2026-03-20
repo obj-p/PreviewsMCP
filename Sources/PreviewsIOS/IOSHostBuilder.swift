@@ -13,7 +13,9 @@ public actor IOSHostBuilder {
     private var cachedAppPath: URL?
 
     public init(workDir: URL? = nil) async throws {
-        let dir = workDir ?? FileManager.default.temporaryDirectory
+        let dir =
+            workDir
+            ?? FileManager.default.temporaryDirectory
             .appendingPathComponent("previewsmcp-host", isDirectory: true)
 
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)

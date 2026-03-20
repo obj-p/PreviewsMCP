@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+
 @testable import PreviewsIOS
 
 @Suite("SimulatorManager")
@@ -65,9 +66,11 @@ struct SimulatorManagerTests {
     func bootAndShutdown() async throws {
         let manager = SimulatorManager()
         let devices = try await manager.listDevices()
-        guard let target = devices.first(where: {
-            $0.isAvailable && $0.state == .shutdown
-        }) else {
+        guard
+            let target = devices.first(where: {
+                $0.isAvailable && $0.state == .shutdown
+            })
+        else {
             print("No available shutdown device to test boot/shutdown")
             return
         }

@@ -7,12 +7,14 @@ public enum Snapshot {
 
     /// Capture the current contents of a window as PNG data.
     public static func capture(window: NSWindow) throws -> Data {
-        guard let cgImage = CGWindowListCreateImage(
-            .null,
-            .optionIncludingWindow,
-            CGWindowID(window.windowNumber),
-            [.boundsIgnoreFraming]
-        ) else {
+        guard
+            let cgImage = CGWindowListCreateImage(
+                .null,
+                .optionIncludingWindow,
+                CGWindowID(window.windowNumber),
+                [.boundsIgnoreFraming]
+            )
+        else {
             throw SnapshotError.captureFailed
         }
 

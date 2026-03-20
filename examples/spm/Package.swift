@@ -8,6 +8,6 @@ let package = Package(
         .target(
             name: "ToDo",
             path: "Sources/ToDo"
-        ),
+        )
     ]
 )

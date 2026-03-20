@@ -4,6 +4,16 @@
 
 PreviewsMCP — standalone SwiftUI preview renderer with MCP server for AI-driven UI development. Renders `#Preview` blocks outside Xcode on both macOS and iOS simulator, with hot-reload, touch interaction, and accessibility tree inspection.
 
+## Setup
+
+```bash
+brew bundle                              # Install tools (swift-format)
+git config core.hooksPath .githooks      # Activate pre-commit formatting hook
+swift build                              # Build all targets
+```
+
+Or run `/bootstrap` in Claude Code.
+
 ## Build & Test
 
 ```bash
@@ -12,6 +22,15 @@ swift test               # Run all tests (~34 tests, 7 suites)
 swift test --filter "PreviewParser"      # Run specific suite
 swift test --filter "IOSHostBuilder"     # Test iOS host app compilation
 swift test --filter "endToEnd"           # Full iOS pipeline (slow, boots simulator)
+```
+
+## Formatting
+
+Swift sources are formatted with [swift-format](https://github.com/swiftlang/swift-format) (config: `.swift-format`). The pre-commit hook lints staged files automatically.
+
+```bash
+swift-format format --in-place --recursive Sources/ Tests/ examples/   # Auto-fix
+swift-format lint --strict --recursive Sources/ Tests/ examples/        # Check only
 ```
 
 ## Architecture

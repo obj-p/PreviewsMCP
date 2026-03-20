@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if ! command -v swift-format &>/dev/null; then
+    echo "error: swift-format not found. Install with: brew bundle" >&2
+    exit 1
+fi
+
+# Lint only staged .swift files (null-delimited to handle spaces in paths)
+if ! git diff --cached --name-only --diff-filter=ACM -z -- '*.swift' | grep -qz .; then
+    exit 0
+fi
+
+git diff --cached --name-only --diff-filter=ACM -z -- '*.swift' | xargs -0 swift-format lint --strict 2>&1
