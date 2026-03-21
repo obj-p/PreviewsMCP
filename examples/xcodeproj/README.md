@@ -91,6 +91,6 @@ The example project is at examples/xcodeproj/ relative to the PreviewsMCP repo r
 |--------|-----|-------|-------|
 | Compilation tier | Tier 2 (source compilation) | Tier 2 (source compilation, Tier 1 fallback) | Tier 2 (source compilation) |
 | Hot-reload | Literal + cross-file (automatic) | Literal + cross-file (automatic) | Literal + cross-file (automatic) |
-| Detection marker | `Package.swift` | `.xcodeproj` | `BUILD.bazel` / `MODULE.bazel` |
+| Detection marker | `Package.swift` | `.xcodeproj` (`.xcworkspace` preferred if present) | `BUILD.bazel` / `MODULE.bazel` |
 | Artifact location | `.build/<triple>/debug/Modules/` | `DerivedData/.../<Target>.swiftmodule` | `bazel-bin/Sources/ToDo/` |
 | Project generator | N/A | XcodeGen (`project.yml`) | N/A |

@@ -1,15 +1,20 @@
 import Foundation
 
-/// Xcode build system integration for .xcodeproj projects.
+/// Xcode build system integration for .xcodeproj and .xcworkspace projects.
 public actor XcodeBuildSystem: BuildSystem {
     public nonisolated let projectRoot: URL
     private let sourceFile: URL
-    private let xcodeproj: URL
+    private let projectFile: URL
 
-    public init(projectRoot: URL, sourceFile: URL, xcodeproj: URL) {
+    /// The xcodebuild flag for referencing the project or workspace.
+    private var xcodebuildFlag: String {
+        projectFile.pathExtension == "xcworkspace" ? "-workspace" : "-project"
+    }
+
+    public init(projectRoot: URL, sourceFile: URL, projectFile: URL) {
         self.projectRoot = projectRoot
         self.sourceFile = sourceFile.standardizedFileURL
-        self.xcodeproj = xcodeproj
+        self.projectFile = projectFile
     }
 
     // MARK: - Detection
@@ -19,24 +24,37 @@ public actor XcodeBuildSystem: BuildSystem {
         let root = URL(fileURLWithPath: "/")
 
         while dir.path != root.path {
-            if let xcodeproj = findXcodeproj(in: dir) {
+            if let projectFile = findXcodeProject(in: dir) {
                 guard await isXcodebuildAvailable() else { return nil }
                 return XcodeBuildSystem(
                     projectRoot: dir, sourceFile: sourceFile.standardizedFileURL,
-                    xcodeproj: xcodeproj)
+                    projectFile: projectFile)
             }
             dir = dir.deletingLastPathComponent()
         }
         return nil
     }
 
-    /// Find a .xcodeproj directory in the given directory.
-    static func findXcodeproj(in directory: URL) -> URL? {
+    /// Find a .xcworkspace or .xcodeproj in the given directory.
+    /// Prefers a .xcworkspace whose name matches a colocated .xcodeproj (standard Xcode convention),
+    /// then falls back to any workspace, then any project.
+    static func findXcodeProject(in directory: URL) -> URL? {
         guard
             let contents = try? FileManager.default.contentsOfDirectory(
                 at: directory, includingPropertiesForKeys: nil)
         else { return nil }
-        return contents.first { $0.pathExtension == "xcodeproj" }
+        let workspaces = contents.filter { $0.pathExtension == "xcworkspace" }
+        let projects = contents.filter { $0.pathExtension == "xcodeproj" }
+        // Prefer a workspace whose stem matches a colocated .xcodeproj
+        if let project = projects.first {
+            let stem = project.deletingPathExtension().lastPathComponent
+            if let matching = workspaces.first(where: {
+                $0.deletingPathExtension().lastPathComponent == stem
+            }) {
+                return matching
+            }
+        }
+        return workspaces.first ?? projects.first
     }
 
     private static func isXcodebuildAvailable() async -> Bool {
@@ -94,16 +112,14 @@ public actor XcodeBuildSystem: BuildSystem {
 
     // MARK: - Private: Scheme Discovery
 
-    struct ProjectInfo: Decodable {
-        let project: ProjectDetails
-        struct ProjectDetails: Decodable {
-            let schemes: [String]
-        }
+    struct ProjectInfo {
+        let schemes: [String]
+        init(schemes: [String]) { self.schemes = schemes }
     }
 
     private func listSchemes() async throws -> ProjectInfo {
         let output = try await runXcodebuild(
-            "-project", xcodeproj.path, "-list", "-json")
+            xcodebuildFlag, projectFile.path, "-list", "-json")
         guard let data = output.data(using: .utf8) else {
             throw BuildSystemError.missingArtifacts(
                 "Could not parse xcodebuild -list output")
@@ -112,11 +128,11 @@ public actor XcodeBuildSystem: BuildSystem {
     }
 
     func pickScheme(from info: ProjectInfo) throws -> String {
-        let schemes = info.project.schemes
+        let schemes = info.schemes
         guard !schemes.isEmpty else {
             throw BuildSystemError.targetNotFound(
                 sourceFile: sourceFile.lastPathComponent,
-                project: xcodeproj.lastPathComponent)
+                project: projectFile.lastPathComponent)
         }
         if schemes.count == 1 { return schemes[0] }
 
@@ -138,7 +154,7 @@ public actor XcodeBuildSystem: BuildSystem {
     ) async throws -> [String: String] {
         let destination = destinationString(for: platform)
         let output = try await runXcodebuild(
-            "-project", xcodeproj.path,
+            xcodebuildFlag, projectFile.path,
             "-scheme", scheme,
             "-showBuildSettings",
             "-destination", destination)
@@ -173,7 +189,7 @@ public actor XcodeBuildSystem: BuildSystem {
         let destination = destinationString(for: platform)
         try await runXcodebuild(
             "build",
-            "-project", xcodeproj.path,
+            xcodebuildFlag, projectFile.path,
             "-scheme", scheme,
             "-configuration", "Debug",
             "-destination", destination,
@@ -270,5 +286,34 @@ public actor XcodeBuildSystem: BuildSystem {
                 exitCode: output.exitCode)
         }
         return output.stdout
+    }
+}
+
+// MARK: - ProjectInfo Decodable
+
+extension XcodeBuildSystem.ProjectInfo: Decodable {
+    private enum CodingKeys: String, CodingKey {
+        case project
+        case workspace
+    }
+
+    private struct Details: Decodable {
+        let schemes: [String]
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        if container.contains(.project) {
+            self.schemes = try container.decode(Details.self, forKey: .project).schemes
+        } else if container.contains(.workspace) {
+            self.schemes = try container.decode(Details.self, forKey: .workspace).schemes
+        } else {
+            throw DecodingError.dataCorrupted(
+                DecodingError.Context(
+                    codingPath: decoder.codingPath,
+                    debugDescription:
+                        "Expected 'project' or 'workspace' key in xcodebuild -list JSON"
+                ))
+        }
     }
 }

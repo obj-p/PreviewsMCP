@@ -32,10 +32,10 @@ public enum BuildSystemDetector {
                     return BazelBuildSystem(projectRoot: projectRoot, sourceFile: sourceFile)
                 }
             }
-            // Xcode: enumerate directory for *.xcodeproj (name varies)
-            if let xcodeproj = XcodeBuildSystem.findXcodeproj(in: projectRoot) {
+            // Xcode: enumerate directory for *.xcworkspace / *.xcodeproj (name varies)
+            if let projectFile = XcodeBuildSystem.findXcodeProject(in: projectRoot) {
                 return XcodeBuildSystem(
-                    projectRoot: projectRoot, sourceFile: sourceFile, xcodeproj: xcodeproj)
+                    projectRoot: projectRoot, sourceFile: sourceFile, projectFile: projectFile)
             }
             return nil
         }
@@ -47,7 +47,7 @@ public enum BuildSystemDetector {
         if let bazel = try await BazelBuildSystem.detect(for: sourceFile) {
             return bazel
         }
-        // Xcode (.xcodeproj)
+        // Xcode (.xcworkspace / .xcodeproj)
         if let xcode = try await XcodeBuildSystem.detect(for: sourceFile) {
             return xcode
         }

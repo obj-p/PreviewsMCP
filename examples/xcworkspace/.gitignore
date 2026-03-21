@@ -1,0 +1,6 @@
+# Generated Xcode project (regenerate with: mint run xcodegen generate)
+*.xcodeproj/
+
+# Xcode build artifacts
+DerivedData/
+build/
