@@ -642,4 +642,39 @@ struct BuildSystemTests {
         let info = try JSONDecoder().decode(XcodeBuildSystem.ProjectInfo.self, from: data)
         #expect(info.schemes == ["ToDo"])
     }
+
+    @Test("ProjectInfo throws when JSON has neither project nor workspace key")
+    func decodeProjectInfoFromInvalidJSON() throws {
+        let json = """
+            {"unexpected":{"schemes":["ToDo"]}}
+            """
+        let data = json.data(using: .utf8)!
+        #expect(throws: DecodingError.self) {
+            try JSONDecoder().decode(XcodeBuildSystem.ProjectInfo.self, from: data)
+        }
+    }
+
+    // MARK: - XcodeBuildSystem workspace stem matching
+
+    @Test("XcodeBuildSystem findXcodeProject prefers stem-matching workspace over auxiliary workspace")
+    func findXcodeProjectPrefersStemMatch() async throws {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+
+        // Simulate CocoaPods layout: project + matching workspace + auxiliary workspace
+        let xcodeproj = tmpDir.appendingPathComponent("ToDo.xcodeproj")
+        try FileManager.default.createDirectory(at: xcodeproj, withIntermediateDirectories: true)
+        let workspace = tmpDir.appendingPathComponent("ToDo.xcworkspace")
+        try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
+        let podsWorkspace = tmpDir.appendingPathComponent("Pods.xcworkspace")
+        try FileManager.default.createDirectory(
+            at: podsWorkspace, withIntermediateDirectories: true)
+
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        let result = XcodeBuildSystem.findXcodeProject(in: tmpDir)
+        #expect(result != nil)
+        #expect(result?.lastPathComponent == "ToDo.xcworkspace")
+    }
 }

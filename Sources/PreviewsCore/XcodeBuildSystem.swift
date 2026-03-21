@@ -36,16 +36,25 @@ public actor XcodeBuildSystem: BuildSystem {
     }
 
     /// Find a .xcworkspace or .xcodeproj in the given directory.
-    /// Prefers .xcworkspace when both exist (standard Xcode convention).
+    /// Prefers a .xcworkspace whose name matches a colocated .xcodeproj (standard Xcode convention),
+    /// then falls back to any workspace, then any project.
     static func findXcodeProject(in directory: URL) -> URL? {
         guard
             let contents = try? FileManager.default.contentsOfDirectory(
                 at: directory, includingPropertiesForKeys: nil)
         else { return nil }
-        if let workspace = contents.first(where: { $0.pathExtension == "xcworkspace" }) {
-            return workspace
+        let workspaces = contents.filter { $0.pathExtension == "xcworkspace" }
+        let projects = contents.filter { $0.pathExtension == "xcodeproj" }
+        // Prefer a workspace whose stem matches a colocated .xcodeproj
+        if let project = projects.first {
+            let stem = project.deletingPathExtension().lastPathComponent
+            if let matching = workspaces.first(where: {
+                $0.deletingPathExtension().lastPathComponent == stem
+            }) {
+                return matching
+            }
         }
-        return contents.first { $0.pathExtension == "xcodeproj" }
+        return workspaces.first ?? projects.first
     }
 
     private static func isXcodebuildAvailable() async -> Bool {
@@ -296,8 +305,15 @@ extension XcodeBuildSystem.ProjectInfo: Decodable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         if container.contains(.project) {
             self.schemes = try container.decode(Details.self, forKey: .project).schemes
-        } else {
+        } else if container.contains(.workspace) {
             self.schemes = try container.decode(Details.self, forKey: .workspace).schemes
+        } else {
+            throw DecodingError.dataCorrupted(
+                DecodingError.Context(
+                    codingPath: decoder.codingPath,
+                    debugDescription:
+                        "Expected 'project' or 'workspace' key in xcodebuild -list JSON"
+                ))
         }
     }
 }
