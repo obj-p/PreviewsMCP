@@ -1,10 +1,14 @@
 ---
 name: bootstrap
-description: Set up the development environment for this repository. Installs dependencies via Homebrew, configures git hooks, and builds the project.
+description: Set up the development environment for this repository. Installs dependencies via Homebrew, configures git hooks, and builds the project. Pass `--examples` to also install dependencies for the example projects (Bazel, Xcode).
 allowed-tools: Bash, Read, Glob
 ---
 
 Bootstrap the PreviewsMCP development environment.
+
+## Arguments
+
+- `--examples` — Also install dependencies and build the example projects (Bazel and Xcode).
 
 ## Steps
 
@@ -14,10 +18,10 @@ Bootstrap the PreviewsMCP development environment.
 
 3. **Build the project.** Run `swift build` from the repo root. If the build fails, stop and report the error.
 
-4. **Bazel example (optional).** If the user is working on the Bazel example, also set up bazelisk: run `cd examples/bazel && mise install` (requires mise) or `brew install bazelisk`. Verify with `cd examples/bazel && bazel build //Sources/ToDo`.
+4. **Bazel example (if `--examples`).** Set up bazelisk: run `cd examples/bazel && mise install` (requires mise) or `brew install bazelisk`. Verify with `cd examples/bazel && bazel build //Sources/ToDo`.
 
-5. **Xcode example (optional).** If the user is working on the Xcode example, install Mint and XcodeGen: run `brew install mint && cd examples/xcodeproj && mint bootstrap`. Generate the project with `mint run xcodegen generate`. Verify with `xcodebuild build -project ToDo.xcodeproj -scheme ToDo -destination 'platform=macOS'`.
+5. **Xcode example (if `--examples`).** Install Mint and XcodeGen: run `brew install mint && cd examples/xcodeproj && mint bootstrap`. Generate the project with `mint run xcodegen generate`. Verify with `xcodebuild build -project ToDo.xcodeproj -scheme ToDo -destination 'platform=macOS'`.
 
-6. **Verify setup.** Run `swift-format --version` and `swift --version` to confirm tool availability. Report the installed versions.
+6. **Verify setup.** Run `swift-format --version` and `swift --version` to confirm tool availability. If `--examples` was passed, also verify `bazel --version` and `mint version`.
 
 7. **Report.** Summarize what was set up and confirm the environment is ready.
