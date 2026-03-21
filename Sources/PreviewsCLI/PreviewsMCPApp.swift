@@ -40,17 +40,13 @@ struct PreviewsMCPApp {
         let host = App.host
         app.delegate = host
 
-        // MCP serve mode: don't quit when last window closes, run headless
-        if command is ServeCommand {
-            host.keepAliveWithoutWindows = true
+        // Serve and snapshot modes run headless (no Dock icon, off-screen windows)
+        if command is ServeCommand || command is SnapshotCommand {
             host.headless = true
             app.setActivationPolicy(.accessory)
         }
-
-        // Snapshot mode: headless (non-interactive, no visible window needed)
-        if command is SnapshotCommand {
-            host.headless = true
-            app.setActivationPolicy(.accessory)
+        if command is ServeCommand {
+            host.keepAliveWithoutWindows = true
         }
 
         host.onLaunch = {
