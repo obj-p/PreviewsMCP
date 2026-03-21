@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(swift build:*)",
+      "Bash(swift test:*)",
+      "Bash(swift format:*)",
+      "Bash(bazel build:*)",
+      "Bash(mint run xcodegen:*)",
+      "Bash(mise trust:*)",
+      "Bash(gh issue:*)",
+      "Bash(gh pr:*)",
+      "mcp__previewsmcp__preview_start",
+      "mcp__previewsmcp__preview_snapshot",
+      "mcp__previewsmcp__preview_stop",
+      "mcp__previewsmcp__preview_elements",
+      "mcp__previewsmcp__preview_touch"
+    ]
+  }
+}
