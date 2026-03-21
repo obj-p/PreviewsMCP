@@ -71,12 +71,17 @@ The example project is at examples/xcodeproj/ relative to the PreviewsMCP repo r
 - Tap the "Show Completed" toggle — verify completed items are hidden
 - Swipe the summary cards left (horizontal swipe) — take a snapshot and verify the orange "Next Up" card is now visible instead of the blue "Progress" card
 
-### 4. Cross-file edit
-- With a preview session running, edit Item.swift (add a new item to Item.samples)
-- Take a snapshot — verify the new item appears
+### 4. Hot reload — literal edit
+- With a preview session running, change "My Items" to "Tasks" in ToDoView.swift (the navigationTitle string)
+- Take a snapshot — verify the title now shows "Tasks"
 - Revert the change
 
-### 5. Cleanup
+### 5. Hot reload — cross-file edit
+- With a preview session running, add a new item to Item.samples in Item.swift
+- Take a snapshot — verify the new item appears (file watcher monitors all target files)
+- Revert the change
+
+### 6. Cleanup
 - Stop all preview sessions
 ```
 
