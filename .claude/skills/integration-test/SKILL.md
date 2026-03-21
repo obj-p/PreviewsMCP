@@ -64,7 +64,7 @@ If any "reload failed" lines appear, report them as a test failure with the full
 When `$ARGUMENTS` is `playground` (or when running all tests), run this standalone preview test. Playground files live at `~/.previewsmcp/playground/` — outside any project tree to avoid build system detection.
 
 ### 1. Setup
-- Build previewsmcp: `swift build` from the PreviewsMCP root
+- Ensure previewsmcp was built (already done in step 2 of the main flow above)
 - Create the playground directory: `mkdir -p ~/.previewsmcp/playground`
 
 ### 2. Standalone rendering (macOS)

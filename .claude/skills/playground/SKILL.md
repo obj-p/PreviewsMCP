@@ -18,27 +18,27 @@ Create a standalone SwiftUI playground file and open a live preview.
 2. **Generate playground file.** Create a new file at `~/.previewsmcp/playground/Playground_<short-id>.swift` where `<short-id>` is the first 8 characters of a UUID. Use the Write tool.
 
    - If `$ARGUMENTS` is provided, generate a SwiftUI view that matches the description. The file must contain `import SwiftUI`, a `View` struct, and a `#Preview` block.
-   - If no arguments, write the default skeleton:
+   - If no arguments, write the default skeleton (use the short-id in the struct name, e.g., `Playground_a1b2c3d4View`):
 
    ```swift
    import SwiftUI
 
-   struct PlaygroundView: View {
+   struct Playground_<short-id>View: View {
        var body: some View {
            Text("Hello, world!")
        }
    }
 
    #Preview {
-       PlaygroundView()
+       Playground_<short-id>View()
    }
    ```
 
-3. **Start preview.** Call `preview_start` with the absolute file path. Do NOT pass `projectPath` — standalone mode compiles the file directly without any build system. Default to macOS platform.
+3. **Start preview.** Call `preview_start` with the absolute file path. Do NOT pass `projectPath` — standalone mode compiles the file directly without any build system. Default to macOS platform. If `preview_start` fails (e.g., compilation error from generated code), inspect the error, fix the file, and retry.
 
 4. **Show snapshot.** Call `preview_snapshot` and display the result to the user.
 
 5. **Guide iteration.** Tell the user:
    - They can ask for changes and you will edit the file — hot-reload updates the preview automatically
    - For iOS simulator rendering, they can ask you to restart with `platform: "ios-simulator"`
-   - Playground files persist at `~/.previewsmcp/playground/` — delete manually when no longer needed
+   - Playground files persist at `~/.previewsmcp/playground/` and can be deleted when no longer needed
