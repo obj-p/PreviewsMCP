@@ -8,10 +8,10 @@ enum CLIPlatform: String, ExpressibleByArgument, CaseIterable {
     case iosSimulator = "ios-simulator"
 }
 
-/// Shared state, accessible from commands.
+/// Shared state, accessible from commands. Initialized in main() after command parsing.
 @MainActor
 enum App {
-    static let host = PreviewHost()
+    static var host: PreviewHost!
 }
 
 @main
@@ -37,16 +37,22 @@ struct PreviewsMCPApp {
 
         // Commands needing UI: start NSApplication
         let app = NSApplication.shared
-        let host = App.host
+
+        let mode: PreviewHost.Mode
+        if command is ServeCommand {
+            mode = .serve
+        } else if command is SnapshotCommand {
+            mode = .snapshot
+        } else {
+            mode = .interactive
+        }
+
+        let host = PreviewHost(mode: mode)
+        App.host = host
         app.delegate = host
 
-        // Serve and snapshot modes run headless (no Dock icon, off-screen windows)
-        if command is ServeCommand || command is SnapshotCommand {
-            host.headless = true
+        if host.headless {
             app.setActivationPolicy(.accessory)
-        }
-        if command is ServeCommand {
-            host.keepAliveWithoutWindows = true
         }
 
         host.onLaunch = {

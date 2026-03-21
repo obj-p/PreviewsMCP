@@ -5,6 +5,19 @@ import SwiftUI
 /// Manages preview windows. Loads compiled dylibs and displays views in NSWindows.
 @MainActor
 public class PreviewHost: NSObject, NSApplicationDelegate {
+
+    /// How the host app presents itself.
+    public enum Mode: Sendable {
+        /// Interactive window with Dock icon (run command).
+        case interactive
+        /// Headless background service that stays alive (MCP serve).
+        case serve
+        /// Headless one-shot capture (snapshot command).
+        case snapshot
+    }
+
+    public let mode: Mode
+
     private var windows: [String: NSWindow] = [:]
     private var loaders: [String: DylibLoader] = [:]
     private var sessions: [String: PreviewSession] = [:]
@@ -15,11 +28,16 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
     /// Callback invoked after NSApplication finishes launching.
     public var onLaunch: (@MainActor () -> Void)?
 
-    /// When true, the app stays alive even after all windows close (for MCP serve mode).
-    nonisolated(unsafe) public var keepAliveWithoutWindows = false
+    public init(mode: Mode = .interactive) {
+        self.mode = mode
+        super.init()
+    }
 
-    /// When true, windows are positioned off-screen and no Dock icon appears (for MCP serve/snapshot mode).
-    nonisolated(unsafe) public var headless = false
+    /// Whether windows are positioned off-screen with no Dock icon.
+    public var headless: Bool { mode != .interactive }
+
+    /// Whether the app stays alive after all windows close.
+    public var keepAliveWithoutWindows: Bool { mode == .serve }
 
     private var fileWatchers: [String: FileWatcher] = [:]
 
