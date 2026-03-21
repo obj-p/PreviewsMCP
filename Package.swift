@@ -15,7 +15,13 @@ let package = Package(
     ],
     targets: [
         .target(
-            name: "SimulatorBridge"
+            name: "SimulatorBridge",
+            linkerSettings: [
+                .linkedFramework("IOSurface"),
+                .linkedFramework("CoreImage"),
+                .linkedFramework("ImageIO"),
+                .linkedFramework("UniformTypeIdentifiers"),
+            ]
         ),
         .target(
             name: "PreviewsCore",

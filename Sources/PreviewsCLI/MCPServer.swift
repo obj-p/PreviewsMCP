@@ -125,14 +125,19 @@ func configureMCPServer() async throws -> (Server, Compiler) {
             ),
             Tool(
                 name: "preview_snapshot",
-                description: "Capture a screenshot of a running preview. Returns the image as PNG.",
+                description: "Capture a screenshot of a running preview. Returns the image as JPEG (default) or PNG.",
                 inputSchema: .object([
                     "type": .string("object"),
                     "properties": .object([
                         "sessionID": .object([
                             "type": .string("string"),
                             "description": .string("Session ID from preview_start"),
-                        ])
+                        ]),
+                        "quality": .object([
+                            "type": .string("number"),
+                            "description": .string(
+                                "JPEG quality 0.0–1.0 (default: 0.85). Values >= 1.0 produce PNG output."),
+                        ]),
                     ]),
                     "required": .array([.string("sessionID")]),
                 ])
@@ -451,29 +456,42 @@ private func handlePreviewSnapshot(params: CallTool.Parameters) async throws -> 
         return CallTool.Result(content: [.text("Missing sessionID parameter")], isError: true)
     }
 
+    // Parse quality parameter (default 0.85 = JPEG)
+    let quality: Double
+    if case .double(let q) = params.arguments?["quality"] {
+        quality = max(0.0, min(1.0, q))
+    } else if case .int(let n) = params.arguments?["quality"] {
+        quality = max(0.0, min(1.0, Double(n)))
+    } else {
+        quality = 0.85
+    }
+    let usePNG = quality >= 1.0
+    let mimeType = usePNG ? "image/png" : "image/jpeg"
+
     // Check if this is an iOS session
     if let iosSession = await iosState.getSession(sessionID) {
-        let pngData = try await iosSession.screenshot()
-        let base64 = pngData.base64EncodedString()
+        let imageData = try await iosSession.screenshot(jpegQuality: quality)
+        let base64 = imageData.base64EncodedString()
         return CallTool.Result(content: [
-            .image(data: base64, mimeType: "image/png", metadata: nil)
+            .image(data: base64, mimeType: mimeType, metadata: nil)
         ])
     }
 
     // macOS path
     try await Task.sleep(for: .milliseconds(300))
 
-    let pngData: Data = try await MainActor.run {
+    let format: Snapshot.ImageFormat = usePNG ? .png : .jpeg(quality: quality)
+    let imageData: Data = try await MainActor.run {
         guard let window = App.host.window(for: sessionID) else {
             throw SnapshotError.captureFailed
         }
-        return try Snapshot.capture(window: window)
+        return try Snapshot.capture(window: window, format: format)
     }
 
-    let base64 = pngData.base64EncodedString()
+    let base64 = imageData.base64EncodedString()
 
     return CallTool.Result(content: [
-        .image(data: base64, mimeType: "image/png", metadata: nil)
+        .image(data: base64, mimeType: mimeType, metadata: nil)
     ])
 }
 

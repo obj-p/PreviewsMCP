@@ -157,24 +157,42 @@ public actor SimulatorManager {
 
     // MARK: - Screenshots
 
-    /// Capture a screenshot of a booted device using simctl.
-    /// Runs the process without blocking the actor's executor.
-    public func screenshot(udid: String, outputPath: URL) async throws {
+    /// Capture a screenshot using direct IOSurface access.
+    /// Falls back to simctl if IOSurface is unavailable.
+    /// - Parameters:
+    ///   - udid: Device UDID.
+    ///   - jpegQuality: JPEG quality 0.0–1.0. Values >= 1.0 produce PNG. Default: 0.85.
+    /// - Returns: Image data (JPEG or PNG).
+    public func screenshotData(udid: String, jpegQuality: Double = 0.85) async throws -> Data {
+        let sbDevice = try findSBDevice(udid: udid)
+
+        // Try direct framebuffer capture first
+        var fbError: NSError?
+        if let data = SBCaptureFramebuffer(sbDevice, jpegQuality, &fbError) {
+            return data as Data
+        }
+
+        // Fall back to simctl subprocess
+        fputs(
+            "SimulatorBridge: IOSurface capture failed (\(fbError?.localizedDescription ?? "unknown")), falling back to simctl\n",
+            stderr)
+        let imageType = jpegQuality >= 1.0 ? "png" : "jpeg"
+        return try await screenshotDataViaSimctl(udid: udid, imageType: imageType)
+    }
+
+    /// Capture a screenshot via simctl and return image data (fallback path).
+    private func screenshotDataViaSimctl(udid: String, imageType: String = "png") async throws -> Data {
+        let ext = imageType == "jpeg" ? "jpg" : imageType
+        let tempPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent("sim_screenshot_\(UUID().uuidString).\(ext)")
+        defer { try? FileManager.default.removeItem(at: tempPath) }
         let result = try await runAsync(
             "/usr/bin/xcrun",
-            arguments: ["simctl", "io", udid, "screenshot", "--type=png", outputPath.path]
+            arguments: ["simctl", "io", udid, "screenshot", "--type=\(imageType)", tempPath.path]
         )
         if result.exitCode != 0 {
             throw SimulatorError.screenshotFailed("simctl screenshot failed: \(result.stderr)")
         }
-    }
-
-    /// Capture a screenshot and return PNG data.
-    public func screenshotData(udid: String) async throws -> Data {
-        let tempPath = FileManager.default.temporaryDirectory
-            .appendingPathComponent("sim_screenshot_\(UUID().uuidString).png")
-        defer { try? FileManager.default.removeItem(at: tempPath) }
-        try await screenshot(udid: udid, outputPath: tempPath)
         return try Data(contentsOf: tempPath)
     }
 

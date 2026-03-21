@@ -13,7 +13,8 @@
       "mcp__previewsmcp__preview_snapshot",
       "mcp__previewsmcp__preview_stop",
       "mcp__previewsmcp__preview_elements",
-      "mcp__previewsmcp__preview_touch"
+      "mcp__previewsmcp__preview_touch",
+      "mcp__previewsmcp__simulator_list"
     ]
   }
 }

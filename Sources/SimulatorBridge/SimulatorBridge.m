@@ -1,5 +1,9 @@
 #import "SimulatorBridge.h"
 #import <objc/runtime.h>
+#import <CoreImage/CoreImage.h>
+#import <IOSurface/IOSurface.h>
+#import <ImageIO/ImageIO.h>
+#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
 #pragma mark - Private API Protocols
 
@@ -401,3 +405,132 @@ SBDevice *SBFindBootedDevice(NSError **error) {
 // IOHIDEvent + BKSHIDEventSetDigitizerInfo + UIApplication._enqueueHIDEvent:
 // See IOSHostAppSource.swift for the implementation.
 // No SimulatorBridge involvement needed for touch.
+
+#pragma mark - Framebuffer Capture
+
+// Protocols for SimDevice IO port access (CoreSimDeviceIO / SimulatorKit)
+@protocol _SimDeviceIOPort
+- (id)ioPortDescriptor;
+@end
+
+@protocol _SimDeviceIOClient
+- (NSArray *)ioPorts;
+@end
+
+@protocol _SimDisplayIOSurfaceRenderable
+- (IOSurfaceRef)ioSurface;
+@end
+
+static NSData *_encodeImage(CGImageRef cgImage, double jpegQuality) {
+    BOOL usePNG = (jpegQuality >= 1.0);
+    CFStringRef utType = usePNG
+        ? (__bridge CFStringRef)UTTypePNG.identifier
+        : (__bridge CFStringRef)UTTypeJPEG.identifier;
+
+    NSMutableData *data = [NSMutableData data];
+    CGImageDestinationRef dest = CGImageDestinationCreateWithData(
+        (__bridge CFMutableDataRef)data, utType, 1, NULL);
+    if (!dest) return nil;
+
+    if (!usePNG) {
+        NSDictionary *props = @{(__bridge NSString *)kCGImageDestinationLossyCompressionQuality:
+                                    @(jpegQuality)};
+        CGImageDestinationAddImage(dest, cgImage, (__bridge CFDictionaryRef)props);
+    } else {
+        CGImageDestinationAddImage(dest, cgImage, NULL);
+    }
+
+    BOOL ok = CGImageDestinationFinalize(dest);
+    CFRelease(dest);
+    return ok ? [data copy] : nil;
+}
+
+NSData *SBCaptureFramebuffer(SBDevice *device, double jpegQuality, NSError **error) {
+    if (!_frameworkLoaded && !SBLoadFramework(error)) return nil;
+
+    id simDevice = device.simDevice;
+
+    // Access SimDevice.io — returns a SimDeviceIOClient
+    if (![simDevice respondsToSelector:@selector(io)]) {
+        if (error) *error = _makeError(20, @"SimDevice does not respond to -io (Xcode version may be unsupported)");
+        return nil;
+    }
+
+    id ioClient = nil;
+    @try {
+        ioClient = [simDevice valueForKey:@"io"];
+    } @catch (NSException *e) {
+        if (error) *error = _makeError(21, [NSString stringWithFormat:@"Failed to access SimDevice.io: %@", e.reason]);
+        return nil;
+    }
+
+    if (!ioClient || ![ioClient respondsToSelector:@selector(ioPorts)]) {
+        if (error) *error = _makeError(22, @"SimDeviceIOClient does not respond to -ioPorts");
+        return nil;
+    }
+
+    // Find the display port with an IOSurface
+    NSArray *ports = [(id<_SimDeviceIOClient>)ioClient ioPorts];
+    IOSurfaceRef surface = NULL;
+
+    for (id port in ports) {
+        if (![port respondsToSelector:@selector(ioPortDescriptor)]) continue;
+
+        id descriptor = nil;
+        @try {
+            descriptor = [(id<_SimDeviceIOPort>)port ioPortDescriptor];
+        } @catch (NSException *e) {
+            continue;
+        }
+        if (!descriptor) continue;
+
+        // Check if this descriptor provides an IOSurface (display port)
+        if ([descriptor respondsToSelector:@selector(ioSurface)]) {
+            @try {
+                surface = [(id<_SimDisplayIOSurfaceRenderable>)descriptor ioSurface];
+            } @catch (NSException *e) {
+                continue;
+            }
+            if (surface) break;
+        }
+    }
+
+    if (!surface) {
+        if (error) *error = _makeError(23, @"No IOSurface found on any display port (device may not be booted or have no display)");
+        return nil;
+    }
+
+    // Lock surface for CPU read access
+    IOSurfaceLock(surface, kIOSurfaceLockReadOnly, NULL);
+
+    CIImage *ciImage = [CIImage imageWithIOSurface:surface];
+    if (!ciImage) {
+        IOSurfaceUnlock(surface, kIOSurfaceLockReadOnly, NULL);
+        if (error) *error = _makeError(24, @"Failed to create CIImage from IOSurface");
+        return nil;
+    }
+
+    static CIContext *ctx = nil;
+    static dispatch_once_t ciOnce;
+    dispatch_once(&ciOnce, ^{
+        ctx = [CIContext contextWithOptions:@{kCIContextUseSoftwareRenderer: @NO}];
+    });
+    CGImageRef cgImage = [ctx createCGImage:ciImage fromRect:ciImage.extent];
+
+    IOSurfaceUnlock(surface, kIOSurfaceLockReadOnly, NULL);
+
+    if (!cgImage) {
+        if (error) *error = _makeError(25, @"Failed to render CIImage to CGImage");
+        return nil;
+    }
+
+    NSData *result = _encodeImage(cgImage, jpegQuality);
+    CGImageRelease(cgImage);
+
+    if (!result) {
+        if (error) *error = _makeError(26, @"Failed to encode image data");
+        return nil;
+    }
+
+    return result;
+}

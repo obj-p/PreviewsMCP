@@ -14,8 +14,8 @@ struct SnapshotCommand: ParsableCommand {
     @Argument(help: "Path to Swift source file containing #Preview")
     var file: String
 
-    @Option(name: .shortAndLong, help: "Output PNG file path")
-    var output: String = "preview.png"
+    @Option(name: .shortAndLong, help: "Output image file path (.jpg or .png)")
+    var output: String = "preview.jpg"
 
     @Option(name: .long, help: "Which preview to snapshot (0-based index)")
     var preview: Int = 0
@@ -92,6 +92,8 @@ struct SnapshotCommand: ParsableCommand {
                 // Wait for SwiftUI to lay out
                 try await Task.sleep(for: .milliseconds(500))
 
+                let snapshotFormat: Snapshot.ImageFormat =
+                    outputURL.pathExtension.lowercased() == "png" ? .png : .jpeg(quality: 0.85)
                 await MainActor.run {
                     do {
                         guard let window = App.host.window(for: sessionID) else {
@@ -99,7 +101,7 @@ struct SnapshotCommand: ParsableCommand {
                             NSApp.terminate(nil)
                             return
                         }
-                        try Snapshot.capture(window: window, to: outputURL)
+                        try Snapshot.capture(window: window, format: snapshotFormat, to: outputURL)
                         print(outputURL.path)
                     } catch {
                         fputs("Snapshot failed: \(error)\n", stderr)
@@ -150,8 +152,9 @@ struct SnapshotCommand: ParsableCommand {
                 // Wait for the app to render
                 try await Task.sleep(for: .seconds(2))
 
-                let pngData = try await session.screenshot()
-                try pngData.write(to: outputURL)
+                let jpegQuality: Double = outputURL.pathExtension.lowercased() == "png" ? 1.0 : 0.85
+                let imageData = try await session.screenshot(jpegQuality: jpegQuality)
+                try imageData.write(to: outputURL)
                 print(outputURL.path)
 
                 await MainActor.run { NSApp.terminate(nil) }
