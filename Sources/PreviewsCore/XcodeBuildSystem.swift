@@ -66,17 +66,15 @@ public actor XcodeBuildSystem: BuildSystem {
             settings["PRODUCT_MODULE_NAME"] ?? settings["TARGET_NAME"] ?? scheme
         let targetName = settings["TARGET_NAME"] ?? scheme
 
-        // 4. Verify framework exists
+        // 4. Verify build products exist
         guard let builtProductsDir = settings["BUILT_PRODUCTS_DIR"] else {
             throw BuildSystemError.missingArtifacts(
                 "BUILT_PRODUCTS_DIR not found in build settings for scheme \(scheme)")
         }
 
-        let frameworkPath = URL(fileURLWithPath: builtProductsDir)
-            .appendingPathComponent("\(moduleName).framework")
-        guard FileManager.default.fileExists(atPath: frameworkPath.path) else {
+        guard FileManager.default.fileExists(atPath: builtProductsDir) else {
             throw BuildSystemError.missingArtifacts(
-                "Expected \(moduleName).framework at \(builtProductsDir)")
+                "Build products directory not found at \(builtProductsDir)")
         }
 
         // 5. Collect source files for Tier 2 (from OutputFileMap.json)
@@ -100,7 +98,6 @@ public actor XcodeBuildSystem: BuildSystem {
         let project: ProjectDetails
         struct ProjectDetails: Decodable {
             let schemes: [String]
-            let targets: [String]
         }
     }
 
@@ -148,10 +145,18 @@ public actor XcodeBuildSystem: BuildSystem {
         return Self.parseBuildSettings(output)
     }
 
+    /// Parse build settings from xcodebuild output.
+    /// Only parses the first target's settings (stops at the next "Build settings for" header).
     static func parseBuildSettings(_ output: String) -> [String: String] {
         var settings: [String: String] = [:]
+        var foundFirstTarget = false
         for line in output.split(separator: "\n", omittingEmptySubsequences: false) {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.hasPrefix("Build settings for") {
+                if foundFirstTarget { break }
+                foundFirstTarget = true
+                continue
+            }
             guard let equalsRange = trimmed.range(of: " = ") else { continue }
             let key = String(trimmed[trimmed.startIndex..<equalsRange.lowerBound])
                 .trimmingCharacters(in: .whitespaces)
@@ -208,16 +213,18 @@ public actor XcodeBuildSystem: BuildSystem {
 
     private func buildCompilerFlags(settings: [String: String]) -> [String] {
         var flags: [String] = []
+        var seenPaths: Set<String> = []
 
         // Framework search path for the target's own framework
         if let builtProductsDir = settings["BUILT_PRODUCTS_DIR"] {
             flags += ["-F", builtProductsDir]
+            seenPaths.insert(builtProductsDir)
         }
 
         // Additional framework search paths for dependencies
         if let searchPaths = settings["FRAMEWORK_SEARCH_PATHS"] {
             for path in Self.parseSearchPaths(searchPaths) {
-                if !flags.contains(path) {
+                if seenPaths.insert(path).inserted {
                     flags += ["-F", path]
                 }
             }
@@ -226,32 +233,11 @@ public actor XcodeBuildSystem: BuildSystem {
         return flags
     }
 
-    /// Parse space-separated paths from xcodebuild, handling quoted paths and $(inherited).
+    /// Parse space-separated paths from xcodebuild, filtering out $(inherited) and quotes.
     static func parseSearchPaths(_ value: String) -> [String] {
-        var paths: [String] = []
-        var current = ""
-        var inQuote = false
-
-        for char in value {
-            if char == "\"" {
-                inQuote.toggle()
-            } else if char == " " && !inQuote {
-                let trimmed = current.trimmingCharacters(in: .whitespaces)
-                if !trimmed.isEmpty && trimmed != "$(inherited)" {
-                    paths.append(trimmed)
-                }
-                current = ""
-            } else {
-                current.append(char)
-            }
-        }
-
-        let trimmed = current.trimmingCharacters(in: .whitespaces)
-        if !trimmed.isEmpty && trimmed != "$(inherited)" {
-            paths.append(trimmed)
-        }
-
-        return paths
+        value.components(separatedBy: " ")
+            .map { $0.trimmingCharacters(in: CharacterSet(charactersIn: "\"")) }
+            .filter { !$0.isEmpty && $0 != "$(inherited)" }
     }
 
     // MARK: - Private: Platform

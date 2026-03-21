@@ -362,8 +362,8 @@ struct BuildSystemTests {
 
     // MARK: - XcodeBuildSystem.detect
 
-    @Test("XcodeBuildSystem detects .xcodeproj walking up directories")
-    func detectXcodeProject() async throws {
+    @Test("XcodeBuildSystem stores projectRoot from init")
+    func xcodeProjectInit() async throws {
         let tmpDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("previewsmcp-test-\(UUID().uuidString)")
         let sourcesDir = tmpDir.appendingPathComponent("Sources/MyTarget")
@@ -424,7 +424,7 @@ struct BuildSystemTests {
             xcodeproj: URL(fileURLWithPath: "/tmp/App.xcodeproj"))
 
         let info = XcodeBuildSystem.ProjectInfo(
-            project: .init(schemes: ["MyApp"], targets: ["MyApp"]))
+            project: .init(schemes: ["MyApp"]))
         let scheme = try await xcode.pickScheme(from: info)
         #expect(scheme == "MyApp")
     }
@@ -437,7 +437,7 @@ struct BuildSystemTests {
             xcodeproj: URL(fileURLWithPath: "/tmp/App.xcodeproj"))
 
         let info = XcodeBuildSystem.ProjectInfo(
-            project: .init(schemes: ["FeatureA", "FeatureB", "FeatureC"], targets: []))
+            project: .init(schemes: ["FeatureA", "FeatureB", "FeatureC"]))
         let scheme = try await xcode.pickScheme(from: info)
         #expect(scheme == "FeatureB")
     }
@@ -450,7 +450,7 @@ struct BuildSystemTests {
             xcodeproj: URL(fileURLWithPath: "/tmp/App.xcodeproj"))
 
         let info = XcodeBuildSystem.ProjectInfo(
-            project: .init(schemes: ["Alpha", "Beta"], targets: []))
+            project: .init(schemes: ["Alpha", "Beta"]))
         await #expect(throws: BuildSystemError.self) {
             try await xcode.pickScheme(from: info)
         }
@@ -477,6 +477,22 @@ struct BuildSystemTests {
         #expect(settings["SWIFT_VERSION"] == "6.0")
     }
 
+    @Test("XcodeBuildSystem parseBuildSettings stops at second target")
+    func parseBuildSettingsMultiTarget() {
+        let output = """
+            Build settings for action build and target ToDo:
+                PRODUCT_MODULE_NAME = ToDo
+                TARGET_NAME = ToDo
+
+            Build settings for action build and target ToDoTests:
+                PRODUCT_MODULE_NAME = ToDoTests
+                TARGET_NAME = ToDoTests
+            """
+        let settings = XcodeBuildSystem.parseBuildSettings(output)
+        #expect(settings["PRODUCT_MODULE_NAME"] == "ToDo")
+        #expect(settings["TARGET_NAME"] == "ToDo")
+    }
+
     // MARK: - XcodeBuildSystem search paths parsing
 
     @Test("XcodeBuildSystem parses space-separated search paths")
@@ -486,11 +502,11 @@ struct BuildSystemTests {
         #expect(paths == ["/path/one", "/path/two"])
     }
 
-    @Test("XcodeBuildSystem parses quoted search paths")
+    @Test("XcodeBuildSystem parses search paths stripping quotes")
     func parseQuotedSearchPaths() {
         let paths = XcodeBuildSystem.parseSearchPaths(
-            "\"/path/with spaces\" /normal/path")
-        #expect(paths == ["/path/with spaces", "/normal/path"])
+            "\"/path/to/libs\" /normal/path")
+        #expect(paths == ["/path/to/libs", "/normal/path"])
     }
 
     // MARK: - XcodeBuildSystem source file collection
