@@ -92,20 +92,19 @@ struct SnapshotCommand: ParsableCommand {
                 // Wait for SwiftUI to lay out
                 try await Task.sleep(for: .milliseconds(500))
 
-                await MainActor.run {
-                    do {
-                        guard let window = App.host.window(for: sessionID) else {
-                            fputs("No window found\n", stderr)
-                            NSApp.terminate(nil)
-                            return
-                        }
-                        try Snapshot.capture(window: window, to: outputURL)
-                        print(outputURL.path)
-                    } catch {
-                        fputs("Snapshot failed: \(error)\n", stderr)
+                do {
+                    let window: NSWindow? = await MainActor.run { App.host.window(for: sessionID) }
+                    guard let window else {
+                        fputs("No window found\n", stderr)
+                        await MainActor.run { NSApp.terminate(nil) }
+                        return
                     }
-                    NSApp.terminate(nil)
+                    try await Snapshot.capture(window: window, to: outputURL)
+                    print(outputURL.path)
+                } catch {
+                    fputs("Snapshot failed: \(error)\n", stderr)
                 }
+                await MainActor.run { NSApp.terminate(nil) }
             } catch {
                 fputs("Error: \(error)\n", stderr)
                 await MainActor.run { NSApp.terminate(nil) }

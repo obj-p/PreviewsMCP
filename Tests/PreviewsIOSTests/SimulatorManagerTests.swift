@@ -86,15 +86,13 @@ struct SimulatorManagerTests {
             #expect(booted.state == .booted || booted.state == .booting)
             print("State after boot: \(booted.stateString)")
 
-            // Take a screenshot
-            let screenshotPath = FileManager.default.temporaryDirectory
-                .appendingPathComponent("sim_test_screenshot.png")
-            defer { try? FileManager.default.removeItem(at: screenshotPath) }
+            // Take a screenshot (direct IOSurface capture with simctl fallback)
             try await Task.sleep(for: .seconds(5))
-            try await manager.screenshot(udid: target.udid, outputPath: screenshotPath)
-            let screenshotData = try Data(contentsOf: screenshotPath)
+            let screenshotData = try await manager.screenshotData(udid: target.udid)
             #expect(screenshotData.count > 0)
-            print("Screenshot captured: \(screenshotData.count) bytes at \(screenshotPath.path)")
+            // Verify JPEG header (0xFF 0xD8) since default quality is < 1.0
+            #expect(screenshotData[0] == 0xFF && screenshotData[1] == 0xD8)
+            print("Screenshot captured: \(screenshotData.count) bytes (JPEG)")
         } catch {
             testError = error
         }

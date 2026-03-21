@@ -66,4 +66,14 @@ SBDevice *_Nullable SBFindDeviceByUDID(NSString *udidString, NSError *_Nullable 
 /// Find the first booted device.
 SBDevice *_Nullable SBFindBootedDevice(NSError *_Nullable *_Nullable error);
 
+/// Capture the framebuffer of a booted device as image data (JPEG or PNG).
+/// Uses direct IOSurface access — no subprocess needed.
+/// @param device A booted SBDevice.
+/// @param jpegQuality JPEG quality 0.0–1.0. Values >= 1.0 produce PNG output.
+/// @param error On failure, set to describe the problem.
+/// @return Image data, or nil on failure.
+NSData *_Nullable SBCaptureFramebuffer(SBDevice *device,
+                                        double jpegQuality,
+                                        NSError *_Nullable *_Nullable error);
+
 NS_ASSUME_NONNULL_END

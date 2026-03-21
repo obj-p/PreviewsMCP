@@ -157,9 +157,30 @@ public actor SimulatorManager {
 
     // MARK: - Screenshots
 
-    /// Capture a screenshot of a booted device using simctl.
-    /// Runs the process without blocking the actor's executor.
-    public func screenshot(udid: String, outputPath: URL) async throws {
+    /// Capture a screenshot using direct IOSurface access.
+    /// Falls back to simctl if IOSurface is unavailable.
+    /// - Parameters:
+    ///   - udid: Device UDID.
+    ///   - jpegQuality: JPEG quality 0.0–1.0. Values >= 1.0 produce PNG. Default: 0.85.
+    /// - Returns: Image data (JPEG or PNG).
+    public func screenshotData(udid: String, jpegQuality: Double = 0.85) async throws -> Data {
+        let sbDevice = try findSBDevice(udid: udid)
+
+        // Try direct framebuffer capture first
+        var fbError: NSError?
+        if let data = SBCaptureFramebuffer(sbDevice, jpegQuality, &fbError) {
+            return data as Data
+        }
+
+        // Fall back to simctl subprocess
+        fputs(
+            "SimulatorBridge: IOSurface capture failed (\(fbError?.localizedDescription ?? "unknown")), falling back to simctl\n",
+            stderr)
+        return try await screenshotDataViaSimctl(udid: udid)
+    }
+
+    /// Capture a screenshot of a booted device using simctl (fallback path).
+    private func screenshotViaSimctl(udid: String, outputPath: URL) async throws {
         let result = try await runAsync(
             "/usr/bin/xcrun",
             arguments: ["simctl", "io", udid, "screenshot", "--type=png", outputPath.path]
@@ -169,12 +190,12 @@ public actor SimulatorManager {
         }
     }
 
-    /// Capture a screenshot and return PNG data.
-    public func screenshotData(udid: String) async throws -> Data {
+    /// Capture a screenshot via simctl and return PNG data (fallback path).
+    private func screenshotDataViaSimctl(udid: String) async throws -> Data {
         let tempPath = FileManager.default.temporaryDirectory
             .appendingPathComponent("sim_screenshot_\(UUID().uuidString).png")
         defer { try? FileManager.default.removeItem(at: tempPath) }
-        try await screenshot(udid: udid, outputPath: tempPath)
+        try await screenshotViaSimctl(udid: udid, outputPath: tempPath)
         return try Data(contentsOf: tempPath)
     }
 

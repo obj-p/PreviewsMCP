@@ -304,8 +304,9 @@ public actor IOSPreviewSession {
     }
 
     /// Capture a screenshot of the simulator.
-    public func screenshot() async throws -> Data {
-        return try await simulatorManager.screenshotData(udid: deviceUDID)
+    /// - Parameter jpegQuality: JPEG quality 0.0–1.0. Values >= 1.0 produce PNG. Default: 0.85.
+    public func screenshot(jpegQuality: Double = 0.85) async throws -> Data {
+        return try await simulatorManager.screenshotData(udid: deviceUDID, jpegQuality: jpegQuality)
     }
 }
 

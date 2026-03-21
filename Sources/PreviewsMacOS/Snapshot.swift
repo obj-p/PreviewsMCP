@@ -1,15 +1,24 @@
 import AppKit
 import Foundation
 
-/// Captures the contents of an NSWindow as PNG image data.
+/// Captures the contents of an NSWindow as image data.
 @MainActor
 public enum Snapshot {
 
-    /// Capture the current contents of a window as PNG data.
+    /// Image output format.
+    public enum ImageFormat: Sendable {
+        case jpeg(quality: Double)
+        case png
+    }
+
+    /// Capture the current contents of a window's content view.
     /// Uses `cacheDisplay` to render directly from the view hierarchy, which works
     /// regardless of window position (including off-screen/headless) and captures
     /// only the SwiftUI content without the title bar.
-    public static func capture(window: NSWindow) throws -> Data {
+    /// - Parameters:
+    ///   - window: The window to capture.
+    ///   - format: Output format (default: JPEG at 0.85 quality).
+    public static func capture(window: NSWindow, format: ImageFormat = .jpeg(quality: 0.85)) throws -> Data {
         guard let contentView = window.contentView else {
             throw SnapshotError.captureFailed
         }
@@ -25,15 +34,29 @@ public enum Snapshot {
             throw SnapshotError.captureFailed
         }
         contentView.cacheDisplay(in: bounds, to: bitmapRep)
-        guard let pngData = bitmapRep.representation(using: .png, properties: [:]) else {
-            throw SnapshotError.encodingFailed
+
+        switch format {
+        case .jpeg(let quality):
+            guard
+                let data = bitmapRep.representation(
+                    using: .jpeg,
+                    properties: [.compressionFactor: NSNumber(value: quality)]
+                )
+            else {
+                throw SnapshotError.encodingFailed
+            }
+            return data
+        case .png:
+            guard let data = bitmapRep.representation(using: .png, properties: [:]) else {
+                throw SnapshotError.encodingFailed
+            }
+            return data
         }
-        return pngData
     }
 
     /// Capture and write to a file.
-    public static func capture(window: NSWindow, to path: URL) throws {
-        let data = try capture(window: window)
+    public static func capture(window: NSWindow, format: ImageFormat = .jpeg(quality: 0.85), to path: URL) throws {
+        let data = try capture(window: window, format: format)
         try data.write(to: path)
     }
 }
@@ -45,7 +68,7 @@ public enum SnapshotError: Error, LocalizedError, CustomStringConvertible {
     public var description: String {
         switch self {
         case .captureFailed: return "Failed to capture window contents"
-        case .encodingFailed: return "Failed to encode screenshot as PNG"
+        case .encodingFailed: return "Failed to encode screenshot"
         }
     }
 
