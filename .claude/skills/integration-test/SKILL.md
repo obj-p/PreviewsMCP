@@ -17,9 +17,11 @@ Run integration tests for PreviewsMCP example projects.
 
 2. **Build PreviewsMCP.** Run `swift build` from the repo root. If the build fails, stop and report the error.
 
-3. **For each example**, read its `README.md` and follow the "Integration Test Prompt" section. The README contains the exact steps to execute, including which MCP tools to call and what to verify.
+3. **Trust mise configs (worktrees).** If running in a git worktree, the Bazel example's `.mise.toml` has a different absolute path than in the main repo, so mise will refuse to load it. Run `mise trust examples/bazel/.mise.toml` before testing the Bazel example to ensure the `bazel` shim works.
 
-4. **Report results.** For each example, report pass/fail per test step. Summarize at the end.
+4. **For each example**, read its `README.md` and follow the "Integration Test Prompt" section. The README contains the exact steps to execute, including which MCP tools to call and what to verify.
+
+5. **Report results.** For each example, report pass/fail per test step. Summarize at the end.
 
 ## Touch interaction guidance
 

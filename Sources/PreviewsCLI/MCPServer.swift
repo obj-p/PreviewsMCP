@@ -1,4 +1,3 @@
-import AppKit
 import Foundation
 import MCP
 import PreviewsCore
@@ -482,11 +481,12 @@ private func handlePreviewSnapshot(params: CallTool.Parameters) async throws -> 
     try await Task.sleep(for: .milliseconds(300))
 
     let format: Snapshot.ImageFormat = usePNG ? .png : .jpeg(quality: quality)
-    let window: NSWindow? = await MainActor.run { App.host.window(for: sessionID) }
-    guard let window else {
-        throw SnapshotError.captureFailed
+    let imageData: Data = try await MainActor.run {
+        guard let window = App.host.window(for: sessionID) else {
+            throw SnapshotError.captureFailed
+        }
+        return try Snapshot.capture(window: window, format: format)
     }
-    let imageData = try await Snapshot.capture(window: window, format: format)
 
     let base64 = imageData.base64EncodedString()
 
