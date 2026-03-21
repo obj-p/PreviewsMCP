@@ -18,6 +18,9 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
     /// When true, the app stays alive even after all windows close (for MCP serve mode).
     nonisolated(unsafe) public var keepAliveWithoutWindows = false
 
+    /// When true, windows are positioned off-screen and no Dock icon appears (for MCP serve/snapshot mode).
+    nonisolated(unsafe) public var headless = false
+
     private var fileWatchers: [String: FileWatcher] = [:]
 
     public func applicationDidFinishLaunching(_ notification: Notification) {
@@ -63,15 +66,21 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
             // Create new window
             let window = NSWindow(
                 contentRect: NSRect(origin: .zero, size: size),
-                styleMask: [.titled, .closable, .resizable, .miniaturizable],
+                styleMask: headless
+                    ? .borderless : [.titled, .closable, .resizable, .miniaturizable],
                 backing: .buffered,
                 defer: false
             )
             window.title = title
-            window.center()
             window.contentView = hostingView
-            window.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
+            if headless {
+                window.setFrameOrigin(NSPoint(x: -10000, y: -10000))
+                window.orderFrontRegardless()
+            } else {
+                window.center()
+                window.makeKeyAndOrderFront(nil)
+                NSApp.activate(ignoringOtherApps: true)
+            }
             windows[sessionID] = window
         }
     }
