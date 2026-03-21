@@ -459,9 +459,9 @@ private func handlePreviewSnapshot(params: CallTool.Parameters) async throws -> 
     // Parse quality parameter (default 0.85 = JPEG)
     let quality: Double
     if case .double(let q) = params.arguments?["quality"] {
-        quality = max(0.0, min(1.5, q))
+        quality = max(0.0, min(1.0, q))
     } else if case .int(let n) = params.arguments?["quality"] {
-        quality = max(0.0, min(1.5, Double(n)))
+        quality = max(0.0, min(1.0, Double(n)))
     } else {
         quality = 0.85
     }

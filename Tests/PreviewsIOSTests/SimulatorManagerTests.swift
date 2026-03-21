@@ -93,6 +93,12 @@ struct SimulatorManagerTests {
             // Verify JPEG header (0xFF 0xD8) since default quality is < 1.0
             #expect(screenshotData[0] == 0xFF && screenshotData[1] == 0xD8)
             print("Screenshot captured: \(screenshotData.count) bytes (JPEG)")
+
+            // Verify PNG output when quality >= 1.0
+            let pngData = try await manager.screenshotData(udid: target.udid, jpegQuality: 1.0)
+            #expect(pngData.count > 0)
+            #expect(pngData[0] == 0x89 && pngData[1] == 0x50)  // PNG header
+            print("PNG screenshot captured: \(pngData.count) bytes")
         } catch {
             testError = error
         }

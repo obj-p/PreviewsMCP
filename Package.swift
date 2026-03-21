@@ -19,7 +19,6 @@ let package = Package(
             linkerSettings: [
                 .linkedFramework("IOSurface"),
                 .linkedFramework("CoreImage"),
-                .linkedFramework("CoreGraphics"),
                 .linkedFramework("ImageIO"),
                 .linkedFramework("UniformTypeIdentifiers"),
             ]

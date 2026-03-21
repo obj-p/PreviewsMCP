@@ -475,7 +475,13 @@ NSData *SBCaptureFramebuffer(SBDevice *device, double jpegQuality, NSError **err
 
     for (id port in ports) {
         if (![port respondsToSelector:@selector(ioPortDescriptor)]) continue;
-        id descriptor = [(id<_SimDeviceIOPort>)port ioPortDescriptor];
+
+        id descriptor = nil;
+        @try {
+            descriptor = [(id<_SimDeviceIOPort>)port ioPortDescriptor];
+        } @catch (NSException *e) {
+            continue;
+        }
         if (!descriptor) continue;
 
         // Check if this descriptor provides an IOSurface (display port)
@@ -504,7 +510,11 @@ NSData *SBCaptureFramebuffer(SBDevice *device, double jpegQuality, NSError **err
         return nil;
     }
 
-    CIContext *ctx = [CIContext contextWithOptions:@{kCIContextUseSoftwareRenderer: @NO}];
+    static CIContext *ctx = nil;
+    static dispatch_once_t ciOnce;
+    dispatch_once(&ciOnce, ^{
+        ctx = [CIContext contextWithOptions:@{kCIContextUseSoftwareRenderer: @NO}];
+    });
     CGImageRef cgImage = [ctx createCGImage:ciImage fromRect:ciImage.extent];
 
     IOSurfaceUnlock(surface, kIOSurfaceLockReadOnly, NULL);
