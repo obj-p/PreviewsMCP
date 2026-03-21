@@ -13,7 +13,7 @@ public actor BazelBuildSystem: BuildSystem {
     // MARK: - Detection
 
     /// Marker files that indicate a Bazel project root.
-    private static let projectMarkers = ["MODULE.bazel", "WORKSPACE.bazel", "WORKSPACE"]
+    static let projectMarkers = ["MODULE.bazel", "WORKSPACE.bazel", "WORKSPACE"]
 
     /// Marker files that indicate a Bazel package directory.
     static let packageMarkers = ["BUILD.bazel", "BUILD"]
@@ -64,9 +64,8 @@ public actor BazelBuildSystem: BuildSystem {
         try await runBazelBuild(target: target, platform: platform)
 
         // 4. Locate the .swiftmodule
-        let (moduleDir, compilerFlags) = try await findSwiftModule(
+        let compilerFlags = try await findCompilerFlags(
             target: target, moduleName: moduleName, platform: platform)
-        _ = moduleDir  // moduleDir captured in compilerFlags
 
         // 5. Collect source files for Tier 2
         let sourceFiles = try await collectSourceFiles(target: target)
@@ -176,36 +175,22 @@ public actor BazelBuildSystem: BuildSystem {
     private func runBazelBuild(target: String, platform: PreviewPlatform) async throws {
         var args = ["bazel", "build", target]
         args += platformFlags(for: platform)
-
-        let output = try await runAsync(
-            "/usr/bin/env", arguments: args, workingDirectory: projectRoot)
-        guard output.exitCode == 0 else {
-            throw BuildSystemError.buildFailed(
-                stderr: output.stderr.isEmpty ? output.stdout : output.stderr,
-                exitCode: output.exitCode
-            )
-        }
+        try await runBazel(args)
     }
 
     // MARK: - Private: Artifact Discovery
 
-    /// Find the .swiftmodule using `bazel cquery --output=files`.
-    private func findSwiftModule(
+    /// Locate the .swiftmodule and return compiler flags (`-I <dir>`).
+    private func findCompilerFlags(
         target: String, moduleName: String, platform: PreviewPlatform
-    ) async throws -> (moduleDir: URL, compilerFlags: [String]) {
+    ) async throws -> [String] {
         var args = ["bazel", "cquery", "--output=files", target]
         args += platformFlags(for: platform)
 
-        let output = try await runAsync(
-            "/usr/bin/env", arguments: args,
-            workingDirectory: projectRoot, discardStderr: true)
-        guard output.exitCode == 0 else {
-            throw BuildSystemError.missingArtifacts(
-                "bazel cquery failed for \(target): \(output.stderr)")
-        }
+        let output = try await runBazel(args, discardStderr: true)
 
         // Find the .swiftmodule file in the output
-        let files = output.stdout.split(separator: "\n").map(String.init)
+        let files = output.split(separator: "\n").map(String.init)
         let swiftmoduleFile = files.first { $0.hasSuffix(".swiftmodule") }
 
         if let swiftmodulePath = swiftmoduleFile {
@@ -214,11 +199,9 @@ public actor BazelBuildSystem: BuildSystem {
             if swiftmodulePath.hasPrefix("/") {
                 absolutePath = URL(fileURLWithPath: swiftmodulePath)
             } else {
-                // Relative to project root's bazel-bin symlink
                 absolutePath = projectRoot.appendingPathComponent(swiftmodulePath)
             }
-            let moduleDir = absolutePath.deletingLastPathComponent()
-            return (moduleDir, ["-I", moduleDir.path])
+            return ["-I", absolutePath.deletingLastPathComponent().path]
         }
 
         // Fallback: try bazel-bin symlink + package path
@@ -233,7 +216,7 @@ public actor BazelBuildSystem: BuildSystem {
                 "Expected \(moduleName).swiftmodule in bazel-bin output for \(target)")
         }
 
-        return (moduleDir, ["-I", moduleDir.path])
+        return ["-I", moduleDir.path]
     }
 
     // MARK: - Private: Source Files (Tier 2)
@@ -305,10 +288,17 @@ public actor BazelBuildSystem: BuildSystem {
         if let format = outputFormat {
             args += ["--output=\(format)"]
         }
+        return try await runBazel(args, discardStderr: true)
+    }
 
+    /// Run a bazel command via `/usr/bin/env`, check exit code, and return stdout.
+    @discardableResult
+    private func runBazel(
+        _ arguments: [String], discardStderr: Bool = false
+    ) async throws -> String {
         let output = try await runAsync(
-            "/usr/bin/env", arguments: args,
-            workingDirectory: projectRoot, discardStderr: true)
+            "/usr/bin/env", arguments: arguments,
+            workingDirectory: projectRoot, discardStderr: discardStderr)
         guard output.exitCode == 0 else {
             throw BuildSystemError.buildFailed(
                 stderr: output.stderr.isEmpty ? output.stdout : output.stderr,

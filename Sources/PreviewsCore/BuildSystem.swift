@@ -27,7 +27,7 @@ public enum BuildSystemDetector {
             if fm.fileExists(atPath: projectRoot.appendingPathComponent("Package.swift").path) {
                 return SPMBuildSystem(projectRoot: projectRoot, sourceFile: sourceFile)
             }
-            for marker in BazelBuildSystem.packageMarkers + ["MODULE.bazel", "WORKSPACE.bazel", "WORKSPACE"] {
+            for marker in BazelBuildSystem.projectMarkers {
                 if fm.fileExists(atPath: projectRoot.appendingPathComponent(marker).path) {
                     return BazelBuildSystem(projectRoot: projectRoot, sourceFile: sourceFile)
                 }
