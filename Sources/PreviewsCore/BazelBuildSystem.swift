@@ -25,7 +25,10 @@ public actor BazelBuildSystem: BuildSystem {
         while dir.path != root.path {
             for marker in projectMarkers {
                 let markerFile = dir.appendingPathComponent(marker)
-                if FileManager.default.fileExists(atPath: markerFile.path) {
+                var isDir: ObjCBool = false
+                if FileManager.default.fileExists(atPath: markerFile.path, isDirectory: &isDir),
+                    !isDir.boolValue
+                {
                     // Verify bazel is actually available
                     guard await isBazelAvailable(in: dir) else { return nil }
                     return BazelBuildSystem(

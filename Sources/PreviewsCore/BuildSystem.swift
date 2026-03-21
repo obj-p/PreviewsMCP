@@ -24,11 +24,19 @@ public enum BuildSystemDetector {
         // If an explicit project root is provided, detect which build system applies there
         if let projectRoot = projectRoot {
             let fm = FileManager.default
-            if fm.fileExists(atPath: projectRoot.appendingPathComponent("Package.swift").path) {
+            var isDir: ObjCBool = false
+            if fm.fileExists(
+                atPath: projectRoot.appendingPathComponent("Package.swift").path,
+                isDirectory: &isDir), !isDir.boolValue
+            {
                 return SPMBuildSystem(projectRoot: projectRoot, sourceFile: sourceFile)
             }
             for marker in BazelBuildSystem.projectMarkers {
-                if fm.fileExists(atPath: projectRoot.appendingPathComponent(marker).path) {
+                isDir = false
+                if fm.fileExists(
+                    atPath: projectRoot.appendingPathComponent(marker).path,
+                    isDirectory: &isDir), !isDir.boolValue
+                {
                     return BazelBuildSystem(projectRoot: projectRoot, sourceFile: sourceFile)
                 }
             }
