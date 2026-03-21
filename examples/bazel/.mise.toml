@@ -1,2 +1,2 @@
 [tools]
-"github:bazelbuild/bazelisk" = "latest"
+"github:bazelbuild/bazelisk" = { version = "latest", postinstall = "ln -sf $MISE_TOOL_INSTALL_PATH/bazelisk $MISE_TOOL_INSTALL_PATH/bazel" }

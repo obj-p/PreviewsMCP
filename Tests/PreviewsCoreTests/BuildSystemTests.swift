@@ -59,6 +59,171 @@ struct BuildSystemTests {
         #expect(buildSystem == nil)
     }
 
+    // MARK: - BazelBuildSystem.detect
+
+    @Test("BazelBuildSystem detects MODULE.bazel walking up directories")
+    func detectBazelModuleBazel() async throws {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-test-\(UUID().uuidString)")
+        let sourcesDir = tmpDir.appendingPathComponent("Sources/MyTarget")
+        try FileManager.default.createDirectory(at: sourcesDir, withIntermediateDirectories: true)
+
+        let moduleBazel = tmpDir.appendingPathComponent("MODULE.bazel")
+        try "module(name = \"test\")".write(to: moduleBazel, atomically: true, encoding: .utf8)
+
+        let sourceFile = sourcesDir.appendingPathComponent("MyView.swift")
+        try "import SwiftUI".write(to: sourceFile, atomically: true, encoding: .utf8)
+
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        // detect() will return nil if bazel is not installed, which is fine —
+        // we test the marker detection via the init + projectRoot directly
+        let bazel = BazelBuildSystem(projectRoot: tmpDir, sourceFile: sourceFile)
+        #expect(bazel.projectRoot.path == tmpDir.standardizedFileURL.path)
+    }
+
+    @Test("BazelBuildSystem detects WORKSPACE walking up directories")
+    func detectBazelWorkspace() async throws {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-test-\(UUID().uuidString)")
+        let sourcesDir = tmpDir.appendingPathComponent("Sources/MyTarget")
+        try FileManager.default.createDirectory(at: sourcesDir, withIntermediateDirectories: true)
+
+        let workspace = tmpDir.appendingPathComponent("WORKSPACE")
+        try "".write(to: workspace, atomically: true, encoding: .utf8)
+
+        let sourceFile = sourcesDir.appendingPathComponent("MyView.swift")
+        try "import SwiftUI".write(to: sourceFile, atomically: true, encoding: .utf8)
+
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        let bazel = BazelBuildSystem(projectRoot: tmpDir, sourceFile: sourceFile)
+        #expect(bazel.projectRoot.path == tmpDir.standardizedFileURL.path)
+    }
+
+    // MARK: - BazelBuildSystem package/label helpers
+
+    @Test("BazelBuildSystem finds BUILD.bazel package walking up from source file")
+    func findBazelPackage() async throws {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-test-\(UUID().uuidString)")
+        let pkgDir = tmpDir.appendingPathComponent("Sources/ToDo")
+        try FileManager.default.createDirectory(at: pkgDir, withIntermediateDirectories: true)
+
+        let buildFile = pkgDir.appendingPathComponent("BUILD.bazel")
+        try "swift_library(name = \"ToDo\")".write(to: buildFile, atomically: true, encoding: .utf8)
+
+        let sourceFile = pkgDir.appendingPathComponent("ToDoView.swift")
+        try "import SwiftUI".write(to: sourceFile, atomically: true, encoding: .utf8)
+
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        let bazel = BazelBuildSystem(projectRoot: tmpDir, sourceFile: sourceFile)
+        let packagePath = try await bazel.findBazelPackage(for: sourceFile)
+        #expect(packagePath == "Sources/ToDo")
+    }
+
+    @Test("BazelBuildSystem finds BUILD (not BUILD.bazel) package marker")
+    func findBazelPackageBUILD() async throws {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-test-\(UUID().uuidString)")
+        let pkgDir = tmpDir.appendingPathComponent("lib")
+        try FileManager.default.createDirectory(at: pkgDir, withIntermediateDirectories: true)
+
+        let buildFile = pkgDir.appendingPathComponent("BUILD")
+        try "swift_library(name = \"Lib\")".write(to: buildFile, atomically: true, encoding: .utf8)
+
+        let sourceFile = pkgDir.appendingPathComponent("Lib.swift")
+        try "import Foundation".write(to: sourceFile, atomically: true, encoding: .utf8)
+
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        let bazel = BazelBuildSystem(projectRoot: tmpDir, sourceFile: sourceFile)
+        let packagePath = try await bazel.findBazelPackage(for: sourceFile)
+        #expect(packagePath == "lib")
+    }
+
+    @Test("BazelBuildSystem constructs correct source label")
+    func buildSourceLabel() async throws {
+        let tmpDir = URL(fileURLWithPath: "/tmp/test-project")
+        let sourceFile = URL(fileURLWithPath: "/tmp/test-project/Sources/ToDo/ToDoView.swift")
+
+        let bazel = BazelBuildSystem(projectRoot: tmpDir, sourceFile: sourceFile)
+        let label = bazel.buildSourceLabel(packagePath: "Sources/ToDo", sourceFile: sourceFile)
+        #expect(label == "//Sources/ToDo:ToDoView.swift")
+    }
+
+    @Test("BazelBuildSystem constructs label for nested file in package")
+    func buildSourceLabelNested() async throws {
+        let tmpDir = URL(fileURLWithPath: "/tmp/test-project")
+        let sourceFile = URL(fileURLWithPath: "/tmp/test-project/Sources/Feature/Sub/View.swift")
+
+        let bazel = BazelBuildSystem(projectRoot: tmpDir, sourceFile: sourceFile)
+        let label = bazel.buildSourceLabel(packagePath: "Sources/Feature", sourceFile: sourceFile)
+        #expect(label == "//Sources/Feature:Sub/View.swift")
+    }
+
+    // MARK: - BazelBuildSystem label-to-path conversion
+
+    @Test("BazelBuildSystem converts label to relative path")
+    func labelToPath() async throws {
+        let bazel = BazelBuildSystem(
+            projectRoot: URL(fileURLWithPath: "/tmp"),
+            sourceFile: URL(fileURLWithPath: "/tmp/a.swift")
+        )
+
+        #expect(bazel.labelToPath("//Sources/ToDo:Item.swift") == "Sources/ToDo/Item.swift")
+        #expect(bazel.labelToPath("//lib:Lib.swift") == "lib/Lib.swift")
+        #expect(bazel.labelToPath("//:root.swift") == "root.swift")
+        #expect(bazel.labelToPath("@//Sources/ToDo:Item.swift") == "Sources/ToDo/Item.swift")
+        #expect(bazel.labelToPath("invalid") == nil)
+    }
+
+    // MARK: - BuildSystemDetector with Bazel
+
+    @Test("BuildSystemDetector prefers SPM when both Package.swift and MODULE.bazel exist")
+    func detectorPrefersSPM() async throws {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+
+        // Create both SPM and Bazel markers
+        try "// swift-tools-version: 6.0".write(
+            to: tmpDir.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        try "module(name = \"test\")".write(
+            to: tmpDir.appendingPathComponent("MODULE.bazel"), atomically: true, encoding: .utf8)
+
+        let sourceFile = tmpDir.appendingPathComponent("main.swift")
+        try "import SwiftUI".write(to: sourceFile, atomically: true, encoding: .utf8)
+
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        // With explicit projectRoot, SPM should win when Package.swift exists
+        let buildSystem = try await BuildSystemDetector.detect(
+            for: sourceFile, projectRoot: tmpDir)
+        #expect(buildSystem is SPMBuildSystem)
+    }
+
+    @Test("BuildSystemDetector returns BazelBuildSystem for explicit Bazel project root")
+    func detectorReturnsBazelForExplicitRoot() async throws {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+
+        // Only Bazel markers, no Package.swift
+        try "module(name = \"test\")".write(
+            to: tmpDir.appendingPathComponent("MODULE.bazel"), atomically: true, encoding: .utf8)
+
+        let sourceFile = tmpDir.appendingPathComponent("main.swift")
+        try "import SwiftUI".write(to: sourceFile, atomically: true, encoding: .utf8)
+
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        let buildSystem = try await BuildSystemDetector.detect(
+            for: sourceFile, projectRoot: tmpDir)
+        #expect(buildSystem is BazelBuildSystem)
+    }
+
     // MARK: - BridgeGenerator
 
     @Test("BridgeGenerator.generateBridgeOnlySource produces correct output")

@@ -21,15 +21,28 @@ public enum BuildSystemDetector {
     ///   - sourceFile: The Swift source file to detect the build system for.
     ///   - projectRoot: If provided, use this as the project root instead of auto-detecting.
     public static func detect(for sourceFile: URL, projectRoot: URL? = nil) async throws -> (any BuildSystem)? {
-        // If an explicit project root is provided, try to create a build system at that root directly
+        // If an explicit project root is provided, detect which build system applies there
         if let projectRoot = projectRoot {
-            return SPMBuildSystem(projectRoot: projectRoot, sourceFile: sourceFile)
+            let fm = FileManager.default
+            if fm.fileExists(atPath: projectRoot.appendingPathComponent("Package.swift").path) {
+                return SPMBuildSystem(projectRoot: projectRoot, sourceFile: sourceFile)
+            }
+            for marker in BazelBuildSystem.packageMarkers + ["MODULE.bazel", "WORKSPACE.bazel", "WORKSPACE"] {
+                if fm.fileExists(atPath: projectRoot.appendingPathComponent(marker).path) {
+                    return BazelBuildSystem(projectRoot: projectRoot, sourceFile: sourceFile)
+                }
+            }
+            return nil
         }
         // SPM first (most common for Swift-only projects)
         if let spm = try await SPMBuildSystem.detect(for: sourceFile) {
             return spm
         }
-        // Future: XcodeBuildSystem, BazelBuildSystem
+        // Bazel (rules_swift projects)
+        if let bazel = try await BazelBuildSystem.detect(for: sourceFile) {
+            return bazel
+        }
+        // Future: XcodeBuildSystem
         return nil
     }
 }
