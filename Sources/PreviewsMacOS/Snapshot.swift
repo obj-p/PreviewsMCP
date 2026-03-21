@@ -17,6 +17,10 @@ public enum Snapshot {
         guard bounds.width > 0, bounds.height > 0 else {
             throw SnapshotError.captureFailed
         }
+        // Note: bitmapImageRepForCachingDisplay produces 1x images. Off-screen headless
+        // windows aren't associated with a display, so backingScaleFactor is 1.0 anyway.
+        // To capture at a specific scale, create an NSBitmapImageRep manually with scaled
+        // pixel dimensions. (pointfreeco/swift-snapshot-testing has the same limitation.)
         guard let bitmapRep = contentView.bitmapImageRepForCachingDisplay(in: bounds) else {
             throw SnapshotError.captureFailed
         }
