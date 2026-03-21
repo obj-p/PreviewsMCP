@@ -32,6 +32,11 @@ public enum BuildSystemDetector {
                     return BazelBuildSystem(projectRoot: projectRoot, sourceFile: sourceFile)
                 }
             }
+            // Xcode: enumerate directory for *.xcodeproj (name varies)
+            if let xcodeproj = XcodeBuildSystem.findXcodeproj(in: projectRoot) {
+                return XcodeBuildSystem(
+                    projectRoot: projectRoot, sourceFile: sourceFile, xcodeproj: xcodeproj)
+            }
             return nil
         }
         // SPM first (most common for Swift-only projects)
@@ -42,7 +47,10 @@ public enum BuildSystemDetector {
         if let bazel = try await BazelBuildSystem.detect(for: sourceFile) {
             return bazel
         }
-        // Future: XcodeBuildSystem
+        // Xcode (.xcodeproj)
+        if let xcode = try await XcodeBuildSystem.detect(for: sourceFile) {
+            return xcode
+        }
         return nil
     }
 }
@@ -52,6 +60,7 @@ public enum BuildSystemError: Error, LocalizedError {
     case buildFailed(stderr: String, exitCode: Int32)
     case targetNotFound(sourceFile: String, project: String)
     case missingArtifacts(String)
+    case ambiguousTarget(sourceFile: String, candidates: [String])
 
     public var errorDescription: String? {
         switch self {
@@ -61,6 +70,9 @@ public enum BuildSystemError: Error, LocalizedError {
             return "Could not determine which target contains \(file) in \(project)"
         case .missingArtifacts(let msg):
             return "Build artifacts not found: \(msg)"
+        case .ambiguousTarget(let file, let candidates):
+            return
+                "Multiple schemes found for \(file). Use projectRoot to disambiguate. Available schemes: \(candidates.joined(separator: ", "))"
         }
     }
 }

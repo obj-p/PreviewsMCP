@@ -47,8 +47,6 @@ Build outputs land in DerivedData — the `.swiftmodule` and object files that P
 
 ## Integration Test Prompt
 
-> **Note:** This test requires `XcodeBuildSystem` (not yet implemented). The prompt below is aspirational — `preview_start` will not detect the `.xcodeproj` until #16 is complete.
-
 Use this prompt to test PreviewsMCP's Xcode integration end-to-end:
 
 ```
@@ -86,8 +84,8 @@ The example project is at examples/xcode/ relative to the PreviewsMCP repo root.
 
 | Aspect | SPM | Xcode | Bazel |
 |--------|-----|-------|-------|
-| Compilation tier | Tier 2 (source compilation) | TBD (Tier 1 or 2) | Tier 1 (bridge-only) |
-| Hot-reload | Literal + cross-file (automatic) | TBD | Requires manual `bazel build` |
+| Compilation tier | Tier 2 (source compilation) | Tier 2 (source compilation, Tier 1 fallback) | Tier 2 (source compilation) |
+| Hot-reload | Literal + cross-file (automatic) | Literal + cross-file (automatic) | Literal + cross-file (automatic) |
 | Detection marker | `Package.swift` | `.xcodeproj` | `BUILD.bazel` / `MODULE.bazel` |
 | Artifact location | `.build/<triple>/debug/Modules/` | `DerivedData/.../<Target>.swiftmodule` | `bazel-bin/Sources/ToDo/` |
 | Project generator | N/A | XcodeGen (`project.yml`) | N/A |

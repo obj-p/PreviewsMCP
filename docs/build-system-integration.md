@@ -88,8 +88,8 @@ Detection order is defined in `BuildSystemDetector`:
 public enum BuildSystemDetector {
     public static func detect(for sourceFile: URL) async throws -> (any BuildSystem)? {
         if let spm = try await SPMBuildSystem.detect(for: sourceFile) { return spm }
-        // Future: if let xcode = try await XcodeBuildSystem.detect(for: sourceFile) { return xcode }
-        // Future: if let bazel = try await BazelBuildSystem.detect(for: sourceFile) { return bazel }
+        if let bazel = try await BazelBuildSystem.detect(for: sourceFile) { return bazel }
+        if let xcode = try await XcodeBuildSystem.detect(for: sourceFile) { return xcode }
         return nil
     }
 }

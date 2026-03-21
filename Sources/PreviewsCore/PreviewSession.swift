@@ -76,8 +76,12 @@ public actor PreviewSession {
                     compiledSource = result.source
                     literals = result.literals
                     additionalSourceFiles = srcFiles
+                    moduleName = ctx.moduleName
                 } else {
                     // Tier 1: bridge-only (no literal hot-reload)
+                    // Use a different module name for the bridge dylib to avoid
+                    // "file is part of module X; ignoring import" when swiftc sees
+                    // both -module-name X and @testable import X in the same file.
                     compiledSource = BridgeGenerator.generateBridgeOnlySource(
                         moduleName: ctx.moduleName,
                         closureBody: preview.closureBody,
@@ -85,8 +89,8 @@ public actor PreviewSession {
                     )
                     literals = []
                     additionalSourceFiles = []
+                    moduleName = "PreviewBridge_\(ctx.moduleName)"
                 }
-                moduleName = ctx.moduleName
                 extraFlags = ctx.compilerFlags
             } else {
                 // Standalone mode: existing behavior

@@ -359,4 +359,234 @@ struct BuildSystemTests {
         )
         #expect(tier2.supportsTier2)
     }
+
+    // MARK: - XcodeBuildSystem.detect
+
+    @Test("XcodeBuildSystem detects .xcodeproj walking up directories")
+    func detectXcodeProject() async throws {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-test-\(UUID().uuidString)")
+        let sourcesDir = tmpDir.appendingPathComponent("Sources/MyTarget")
+        try FileManager.default.createDirectory(at: sourcesDir, withIntermediateDirectories: true)
+
+        let xcodeproj = tmpDir.appendingPathComponent("MyApp.xcodeproj")
+        try FileManager.default.createDirectory(at: xcodeproj, withIntermediateDirectories: true)
+
+        let sourceFile = sourcesDir.appendingPathComponent("MyView.swift")
+        try "import SwiftUI".write(to: sourceFile, atomically: true, encoding: .utf8)
+
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        let xcode = XcodeBuildSystem(
+            projectRoot: tmpDir, sourceFile: sourceFile, xcodeproj: xcodeproj)
+        #expect(xcode.projectRoot.path == tmpDir.standardizedFileURL.path)
+    }
+
+    @Test("XcodeBuildSystem findXcodeproj ignores .xcworkspace")
+    func findXcodeprojIgnoresWorkspace() async throws {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+
+        // Only a workspace, no xcodeproj
+        let workspace = tmpDir.appendingPathComponent("MyApp.xcworkspace")
+        try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
+
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        let result = XcodeBuildSystem.findXcodeproj(in: tmpDir)
+        #expect(result == nil)
+    }
+
+    @Test("XcodeBuildSystem findXcodeproj finds .xcodeproj in directory")
+    func findXcodeprojFindsProject() async throws {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+
+        let xcodeproj = tmpDir.appendingPathComponent("ToDo.xcodeproj")
+        try FileManager.default.createDirectory(at: xcodeproj, withIntermediateDirectories: true)
+
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        let result = XcodeBuildSystem.findXcodeproj(in: tmpDir)
+        #expect(result != nil)
+        #expect(result?.lastPathComponent == "ToDo.xcodeproj")
+    }
+
+    // MARK: - XcodeBuildSystem scheme picking
+
+    @Test("XcodeBuildSystem picks single scheme")
+    func pickSingleScheme() async throws {
+        let xcode = XcodeBuildSystem(
+            projectRoot: URL(fileURLWithPath: "/tmp"),
+            sourceFile: URL(fileURLWithPath: "/tmp/Sources/ToDo/View.swift"),
+            xcodeproj: URL(fileURLWithPath: "/tmp/App.xcodeproj"))
+
+        let info = XcodeBuildSystem.ProjectInfo(
+            project: .init(schemes: ["MyApp"], targets: ["MyApp"]))
+        let scheme = try await xcode.pickScheme(from: info)
+        #expect(scheme == "MyApp")
+    }
+
+    @Test("XcodeBuildSystem picks scheme matching path component")
+    func pickSchemeMatchingPath() async throws {
+        let xcode = XcodeBuildSystem(
+            projectRoot: URL(fileURLWithPath: "/tmp"),
+            sourceFile: URL(fileURLWithPath: "/tmp/Sources/FeatureB/View.swift"),
+            xcodeproj: URL(fileURLWithPath: "/tmp/App.xcodeproj"))
+
+        let info = XcodeBuildSystem.ProjectInfo(
+            project: .init(schemes: ["FeatureA", "FeatureB", "FeatureC"], targets: []))
+        let scheme = try await xcode.pickScheme(from: info)
+        #expect(scheme == "FeatureB")
+    }
+
+    @Test("XcodeBuildSystem throws ambiguousTarget when no scheme matches")
+    func pickSchemeThrowsWhenAmbiguous() async throws {
+        let xcode = XcodeBuildSystem(
+            projectRoot: URL(fileURLWithPath: "/tmp"),
+            sourceFile: URL(fileURLWithPath: "/tmp/Sources/Unknown/View.swift"),
+            xcodeproj: URL(fileURLWithPath: "/tmp/App.xcodeproj"))
+
+        let info = XcodeBuildSystem.ProjectInfo(
+            project: .init(schemes: ["Alpha", "Beta"], targets: []))
+        await #expect(throws: BuildSystemError.self) {
+            try await xcode.pickScheme(from: info)
+        }
+    }
+
+    // MARK: - XcodeBuildSystem build settings parsing
+
+    @Test("XcodeBuildSystem parses build settings output")
+    func parseBuildSettings() {
+        let output = """
+            Build settings for action build and target ToDo:
+                BUILT_PRODUCTS_DIR = /Users/dev/DerivedData/ToDo/Build/Products/Debug
+                PRODUCT_MODULE_NAME = ToDo
+                TARGET_NAME = ToDo
+                OBJECT_FILE_DIR_normal = /Users/dev/DerivedData/ToDo/Build/Intermediates.noindex/ToDo.build/Debug/ToDo.build/Objects-normal
+                FRAMEWORK_SEARCH_PATHS = /Users/dev/DerivedData/ToDo/Build/Products/Debug
+                SWIFT_VERSION = 6.0
+            """
+        let settings = XcodeBuildSystem.parseBuildSettings(output)
+        #expect(settings["BUILT_PRODUCTS_DIR"] == "/Users/dev/DerivedData/ToDo/Build/Products/Debug")
+        #expect(settings["PRODUCT_MODULE_NAME"] == "ToDo")
+        #expect(settings["TARGET_NAME"] == "ToDo")
+        #expect(settings["OBJECT_FILE_DIR_normal"] != nil)
+        #expect(settings["SWIFT_VERSION"] == "6.0")
+    }
+
+    // MARK: - XcodeBuildSystem search paths parsing
+
+    @Test("XcodeBuildSystem parses space-separated search paths")
+    func parseSearchPaths() {
+        let paths = XcodeBuildSystem.parseSearchPaths(
+            "/path/one /path/two $(inherited)")
+        #expect(paths == ["/path/one", "/path/two"])
+    }
+
+    @Test("XcodeBuildSystem parses quoted search paths")
+    func parseQuotedSearchPaths() {
+        let paths = XcodeBuildSystem.parseSearchPaths(
+            "\"/path/with spaces\" /normal/path")
+        #expect(paths == ["/path/with spaces", "/normal/path"])
+    }
+
+    // MARK: - XcodeBuildSystem source file collection
+
+    @Test("XcodeBuildSystem collects source files from OutputFileMap")
+    func collectSourceFilesFromOutputFileMap() async throws {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-test-\(UUID().uuidString)")
+        let objectDir = tmpDir.appendingPathComponent("Objects-normal/arm64")
+        try FileManager.default.createDirectory(at: objectDir, withIntermediateDirectories: true)
+
+        let previewFile = "/project/Sources/ToDo/ToDoView.swift"
+        let otherFile = "/project/Sources/ToDo/Item.swift"
+
+        // Create a mock OutputFileMap.json
+        let outputFileMap: [String: Any] = [
+            "": ["diagnostics": "/path/to/diag"],
+            previewFile: ["object": "/path/to/ToDoView.o"],
+            otherFile: ["object": "/path/to/Item.o"],
+        ]
+        let data = try JSONSerialization.data(withJSONObject: outputFileMap)
+        try data.write(to: objectDir.appendingPathComponent("ToDo-OutputFileMap.json"))
+
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        let xcode = XcodeBuildSystem(
+            projectRoot: URL(fileURLWithPath: "/project"),
+            sourceFile: URL(fileURLWithPath: previewFile),
+            xcodeproj: URL(fileURLWithPath: "/project/App.xcodeproj"))
+
+        let settings: [String: String] = [
+            "OBJECT_FILE_DIR_normal": tmpDir.appendingPathComponent("Objects-normal").path,
+            "TARGET_NAME": "ToDo",
+        ]
+
+        let files = await xcode.collectSourceFiles(settings: settings, targetName: "ToDo")
+        #expect(files != nil)
+        #expect(files?.count == 1)
+        #expect(files?.first?.lastPathComponent == "Item.swift")
+    }
+
+    @Test("XcodeBuildSystem returns nil when OutputFileMap is missing")
+    func collectSourceFilesReturnsNilWhenMissing() async throws {
+        let xcode = XcodeBuildSystem(
+            projectRoot: URL(fileURLWithPath: "/tmp"),
+            sourceFile: URL(fileURLWithPath: "/tmp/View.swift"),
+            xcodeproj: URL(fileURLWithPath: "/tmp/App.xcodeproj"))
+
+        let settings: [String: String] = [
+            "OBJECT_FILE_DIR_normal": "/nonexistent/path",
+            "TARGET_NAME": "App",
+        ]
+
+        let files = await xcode.collectSourceFiles(settings: settings, targetName: "App")
+        #expect(files == nil)
+    }
+
+    // MARK: - BuildSystemDetector with Xcode
+
+    @Test("BuildSystemDetector prefers SPM over Xcode when both exist")
+    func detectorPrefersSPMOverXcode() async throws {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+
+        try "// swift-tools-version: 6.0".write(
+            to: tmpDir.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        let xcodeproj = tmpDir.appendingPathComponent("MyApp.xcodeproj")
+        try FileManager.default.createDirectory(at: xcodeproj, withIntermediateDirectories: true)
+
+        let sourceFile = tmpDir.appendingPathComponent("main.swift")
+        try "import SwiftUI".write(to: sourceFile, atomically: true, encoding: .utf8)
+
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        let buildSystem = try await BuildSystemDetector.detect(
+            for: sourceFile, projectRoot: tmpDir)
+        #expect(buildSystem is SPMBuildSystem)
+    }
+
+    @Test("BuildSystemDetector returns XcodeBuildSystem for explicit Xcode project root")
+    func detectorReturnsXcodeForExplicitRoot() async throws {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+
+        let xcodeproj = tmpDir.appendingPathComponent("MyApp.xcodeproj")
+        try FileManager.default.createDirectory(at: xcodeproj, withIntermediateDirectories: true)
+
+        let sourceFile = tmpDir.appendingPathComponent("main.swift")
+        try "import SwiftUI".write(to: sourceFile, atomically: true, encoding: .utf8)
+
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        let buildSystem = try await BuildSystemDetector.detect(
+            for: sourceFile, projectRoot: tmpDir)
+        #expect(buildSystem is XcodeBuildSystem)
+    }
 }

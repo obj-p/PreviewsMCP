@@ -1,0 +1,288 @@
+import Foundation
+
+/// Xcode build system integration for .xcodeproj projects.
+public actor XcodeBuildSystem: BuildSystem {
+    public nonisolated let projectRoot: URL
+    private let sourceFile: URL
+    private let xcodeproj: URL
+
+    public init(projectRoot: URL, sourceFile: URL, xcodeproj: URL) {
+        self.projectRoot = projectRoot
+        self.sourceFile = sourceFile.standardizedFileURL
+        self.xcodeproj = xcodeproj
+    }
+
+    // MARK: - Detection
+
+    public static func detect(for sourceFile: URL) async throws -> XcodeBuildSystem? {
+        var dir = sourceFile.deletingLastPathComponent().standardizedFileURL
+        let root = URL(fileURLWithPath: "/")
+
+        while dir.path != root.path {
+            if let xcodeproj = findXcodeproj(in: dir) {
+                guard await isXcodebuildAvailable() else { return nil }
+                return XcodeBuildSystem(
+                    projectRoot: dir, sourceFile: sourceFile.standardizedFileURL,
+                    xcodeproj: xcodeproj)
+            }
+            dir = dir.deletingLastPathComponent()
+        }
+        return nil
+    }
+
+    /// Find a .xcodeproj directory in the given directory.
+    static func findXcodeproj(in directory: URL) -> URL? {
+        guard
+            let contents = try? FileManager.default.contentsOfDirectory(
+                at: directory, includingPropertiesForKeys: nil)
+        else { return nil }
+        return contents.first { $0.pathExtension == "xcodeproj" }
+    }
+
+    private static func isXcodebuildAvailable() async -> Bool {
+        do {
+            let output = try await runAsync(
+                "/usr/bin/xcrun", arguments: ["--find", "xcodebuild"], discardStderr: true)
+            return output.exitCode == 0
+        } catch {
+            return false
+        }
+    }
+
+    // MARK: - Build
+
+    public func build(platform: PreviewPlatform) async throws -> BuildContext {
+        // 1. List schemes and pick one
+        let projectInfo = try await listSchemes()
+        let scheme = try pickScheme(from: projectInfo)
+
+        // 2. Build the project (must happen before getBuildSettings so DerivedData is populated)
+        try await runBuild(scheme: scheme, platform: platform)
+
+        // 3. Get build settings (post-build so all paths are valid)
+        let settings = try await getBuildSettings(scheme: scheme, platform: platform)
+
+        let moduleName =
+            settings["PRODUCT_MODULE_NAME"] ?? settings["TARGET_NAME"] ?? scheme
+        let targetName = settings["TARGET_NAME"] ?? scheme
+
+        // 4. Verify framework exists
+        guard let builtProductsDir = settings["BUILT_PRODUCTS_DIR"] else {
+            throw BuildSystemError.missingArtifacts(
+                "BUILT_PRODUCTS_DIR not found in build settings for scheme \(scheme)")
+        }
+
+        let frameworkPath = URL(fileURLWithPath: builtProductsDir)
+            .appendingPathComponent("\(moduleName).framework")
+        guard FileManager.default.fileExists(atPath: frameworkPath.path) else {
+            throw BuildSystemError.missingArtifacts(
+                "Expected \(moduleName).framework at \(builtProductsDir)")
+        }
+
+        // 5. Collect source files for Tier 2 (from OutputFileMap.json)
+        let sourceFiles = collectSourceFiles(settings: settings, targetName: targetName)
+
+        // 6. Build compiler flags
+        let compilerFlags = buildCompilerFlags(settings: settings)
+
+        return BuildContext(
+            moduleName: moduleName,
+            compilerFlags: compilerFlags,
+            projectRoot: projectRoot,
+            targetName: targetName,
+            sourceFiles: sourceFiles
+        )
+    }
+
+    // MARK: - Private: Scheme Discovery
+
+    struct ProjectInfo: Decodable {
+        let project: ProjectDetails
+        struct ProjectDetails: Decodable {
+            let schemes: [String]
+            let targets: [String]
+        }
+    }
+
+    private func listSchemes() async throws -> ProjectInfo {
+        let output = try await runXcodebuild(
+            "-project", xcodeproj.path, "-list", "-json")
+        guard let data = output.data(using: .utf8) else {
+            throw BuildSystemError.missingArtifacts(
+                "Could not parse xcodebuild -list output")
+        }
+        return try JSONDecoder().decode(ProjectInfo.self, from: data)
+    }
+
+    func pickScheme(from info: ProjectInfo) throws -> String {
+        let schemes = info.project.schemes
+        guard !schemes.isEmpty else {
+            throw BuildSystemError.targetNotFound(
+                sourceFile: sourceFile.lastPathComponent,
+                project: xcodeproj.lastPathComponent)
+        }
+        if schemes.count == 1 { return schemes[0] }
+
+        // Try to match a scheme name to a directory component in the source file path
+        let pathComponents = Set(sourceFile.pathComponents)
+        if let match = schemes.first(where: { pathComponents.contains($0) }) {
+            return match
+        }
+
+        throw BuildSystemError.ambiguousTarget(
+            sourceFile: sourceFile.lastPathComponent,
+            candidates: schemes)
+    }
+
+    // MARK: - Private: Build Settings
+
+    private func getBuildSettings(
+        scheme: String, platform: PreviewPlatform
+    ) async throws -> [String: String] {
+        let destination = destinationString(for: platform)
+        let output = try await runXcodebuild(
+            "-project", xcodeproj.path,
+            "-scheme", scheme,
+            "-showBuildSettings",
+            "-destination", destination)
+        return Self.parseBuildSettings(output)
+    }
+
+    static func parseBuildSettings(_ output: String) -> [String: String] {
+        var settings: [String: String] = [:]
+        for line in output.split(separator: "\n", omittingEmptySubsequences: false) {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            guard let equalsRange = trimmed.range(of: " = ") else { continue }
+            let key = String(trimmed[trimmed.startIndex..<equalsRange.lowerBound])
+                .trimmingCharacters(in: .whitespaces)
+            let value = String(trimmed[equalsRange.upperBound...])
+                .trimmingCharacters(in: .whitespaces)
+            settings[key] = value
+        }
+        return settings
+    }
+
+    // MARK: - Private: Build
+
+    private func runBuild(scheme: String, platform: PreviewPlatform) async throws {
+        let destination = destinationString(for: platform)
+        try await runXcodebuild(
+            "build",
+            "-project", xcodeproj.path,
+            "-scheme", scheme,
+            "-configuration", "Debug",
+            "-destination", destination,
+            "-quiet")
+    }
+
+    // MARK: - Private: Source Files (Tier 2)
+
+    /// Collect source files from the OutputFileMap.json produced by xcodebuild.
+    /// Returns nil if the file doesn't exist (falls back to Tier 1).
+    func collectSourceFiles(settings: [String: String], targetName: String) -> [URL]? {
+        // OutputFileMap lives at <OBJECT_FILE_DIR_normal>/arm64/<Target>-OutputFileMap.json
+        guard let objectFileDir = settings["OBJECT_FILE_DIR_normal"] else { return nil }
+
+        let outputFileMapPath = URL(fileURLWithPath: objectFileDir)
+            .appendingPathComponent("arm64")
+            .appendingPathComponent("\(targetName)-OutputFileMap.json")
+
+        guard let data = try? Data(contentsOf: outputFileMapPath),
+            let map = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else { return nil }
+
+        // Keys are absolute source file paths; "" is module-level metadata (skip it)
+        var sourceFiles: [URL] = []
+        for key in map.keys {
+            guard !key.isEmpty, key.hasSuffix(".swift") else { continue }
+            let url = URL(fileURLWithPath: key).standardizedFileURL
+            if url.path != sourceFile.path {
+                sourceFiles.append(url)
+            }
+        }
+
+        return sourceFiles.isEmpty ? nil : sourceFiles
+    }
+
+    // MARK: - Private: Compiler Flags
+
+    private func buildCompilerFlags(settings: [String: String]) -> [String] {
+        var flags: [String] = []
+
+        // Framework search path for the target's own framework
+        if let builtProductsDir = settings["BUILT_PRODUCTS_DIR"] {
+            flags += ["-F", builtProductsDir]
+        }
+
+        // Additional framework search paths for dependencies
+        if let searchPaths = settings["FRAMEWORK_SEARCH_PATHS"] {
+            for path in Self.parseSearchPaths(searchPaths) {
+                if !flags.contains(path) {
+                    flags += ["-F", path]
+                }
+            }
+        }
+
+        return flags
+    }
+
+    /// Parse space-separated paths from xcodebuild, handling quoted paths and $(inherited).
+    static func parseSearchPaths(_ value: String) -> [String] {
+        var paths: [String] = []
+        var current = ""
+        var inQuote = false
+
+        for char in value {
+            if char == "\"" {
+                inQuote.toggle()
+            } else if char == " " && !inQuote {
+                let trimmed = current.trimmingCharacters(in: .whitespaces)
+                if !trimmed.isEmpty && trimmed != "$(inherited)" {
+                    paths.append(trimmed)
+                }
+                current = ""
+            } else {
+                current.append(char)
+            }
+        }
+
+        let trimmed = current.trimmingCharacters(in: .whitespaces)
+        if !trimmed.isEmpty && trimmed != "$(inherited)" {
+            paths.append(trimmed)
+        }
+
+        return paths
+    }
+
+    // MARK: - Private: Platform
+
+    private func destinationString(for platform: PreviewPlatform) -> String {
+        switch platform {
+        case .macOS:
+            return "platform=macOS"
+        case .iOSSimulator:
+            return "generic/platform=iOS Simulator"
+        }
+    }
+
+    // MARK: - Private: Process Execution
+
+    @discardableResult
+    private func runXcodebuild(_ args: String...) async throws -> String {
+        try await runXcodebuild(args: args)
+    }
+
+    @discardableResult
+    private func runXcodebuild(args: [String]) async throws -> String {
+        let fullArgs = ["xcodebuild"] + args
+        let output = try await runAsync(
+            "/usr/bin/env", arguments: fullArgs,
+            workingDirectory: projectRoot)
+        guard output.exitCode == 0 else {
+            throw BuildSystemError.buildFailed(
+                stderr: output.stderr.isEmpty ? output.stdout : output.stderr,
+                exitCode: output.exitCode)
+        }
+        return output.stdout
+    }
+}
