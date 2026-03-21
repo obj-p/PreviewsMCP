@@ -23,6 +23,14 @@ Run integration tests for PreviewsMCP example projects.
 
 5. **Report results.** For each example, report pass/fail per test step. Summarize at the end.
 
+## Project path guidance
+
+The example projects are nested inside the PreviewsMCP repo, which has its own `Package.swift`. Without an explicit `projectPath`, auto-detection walks up from the source file, finds the repo root SPM package first, and fails. **Always pass `projectPath` pointing to the example directory** (e.g., `examples/bazel/` or `examples/xcodeproj/`) when calling `preview_start` for Bazel or Xcode examples. The SPM example does not need this because its `Package.swift` is the closest one found.
+
+## Trust mise configs (worktrees)
+
+If running in a git worktree, the Bazel example's `.mise.toml` has a different absolute path than in the main repo, so mise will refuse to load it. Run `mise trust examples/bazel/.mise.toml` before testing the Bazel example to ensure the `bazel` shim works.
+
 ## Touch interaction guidance
 
 When using `preview_touch` based on `preview_elements` frames:

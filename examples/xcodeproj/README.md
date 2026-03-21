@@ -27,7 +27,7 @@ mint bootstrap   # installs XcodeGen from Mintfile
 ## Setup
 
 ```bash
-cd examples/xcode
+cd examples/xcodeproj
 mint run xcodegen generate
 ```
 
@@ -51,21 +51,21 @@ Use this prompt to test PreviewsMCP's Xcode integration end-to-end:
 
 ```
 Run the following integration test for PreviewsMCP's Xcode build system support.
-The example project is at examples/xcode/ relative to the PreviewsMCP repo root.
+The example project is at examples/xcodeproj/ relative to the PreviewsMCP repo root.
 
 ### 1. Setup
 - Build previewsmcp: `swift build` from the PreviewsMCP root
-- Generate the Xcode project: `cd examples/xcode && mint run xcodegen generate`
+- Generate the Xcode project: `cd examples/xcodeproj && mint run xcodegen generate`
 - Build the Xcode project: `xcodebuild build -project ToDo.xcodeproj -scheme ToDo -destination 'platform=macOS'`
 
 ### 2. Basic rendering (macOS)
-- Use preview_start on examples/xcode/Sources/ToDo/ToDoView.swift
+- Use preview_start on examples/xcodeproj/Sources/ToDo/ToDoView.swift with projectPath set to examples/xcodeproj/ (required — without it, auto-detection finds the repo root Package.swift and fails)
 - Take a snapshot — verify it shows "My Items" nav title with a summary card section and 8 item rows
 - The first item ("Design UI") should have a filled checkmark; others should have empty circles
 - The first summary card (blue "Progress") should show "1/8" with "7 remaining"
 
 ### 3. Interaction (iOS simulator)
-- Use preview_start with platform "ios-simulator" on the same file
+- Use preview_start with platform "ios-simulator" on the same file (keep projectPath set to examples/xcodeproj/)
 - Use preview_elements to get element frames for accurate tap coordinates
 - Tap an uncompleted item (e.g. "Write code") — verify its checkmark changes to filled
 - Tap the "Show Completed" toggle — verify completed items are hidden
