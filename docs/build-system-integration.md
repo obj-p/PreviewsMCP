@@ -71,7 +71,7 @@ Extensible protocol for adding new build systems (SPM, Xcode, Bazel):
 ```swift
 public protocol BuildSystem: Sendable {
     /// Detect if this build system applies to the source file.
-    /// Walk up directories to find project markers (Package.swift, .xcodeproj, BUILD).
+    /// Walk up directories to find project markers (Package.swift, .xcworkspace, .xcodeproj, BUILD).
     static func detect(for sourceFile: URL) async throws -> Self?
 
     /// Build the project and return the context for preview compilation.
@@ -145,7 +145,7 @@ PreviewSession.compile():
 
 To add Xcode or Bazel support, implement the `BuildSystem` protocol:
 
-1. **`detect(for:)`** — Walk up from the source file looking for your project marker (`.xcodeproj`, `BUILD`, `WORKSPACE`)
+1. **`detect(for:)`** — Walk up from the source file looking for your project marker (`.xcworkspace`, `.xcodeproj`, `BUILD`, `WORKSPACE`)
 2. **`build(platform:)`** — Run your build tool, then return a `BuildContext` with:
    - `moduleName` — the target containing the source file
    - `compilerFlags` — `-I` paths to find dependency `.swiftmodule` files

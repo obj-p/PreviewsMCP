@@ -378,28 +378,28 @@ struct BuildSystemTests {
         defer { try? FileManager.default.removeItem(at: tmpDir) }
 
         let xcode = XcodeBuildSystem(
-            projectRoot: tmpDir, sourceFile: sourceFile, xcodeproj: xcodeproj)
+            projectRoot: tmpDir, sourceFile: sourceFile, projectFile: xcodeproj)
         #expect(xcode.projectRoot.path == tmpDir.standardizedFileURL.path)
     }
 
-    @Test("XcodeBuildSystem findXcodeproj ignores .xcworkspace")
-    func findXcodeprojIgnoresWorkspace() async throws {
+    @Test("XcodeBuildSystem findXcodeProject finds .xcworkspace")
+    func findXcodeProjectFindsWorkspace() async throws {
         let tmpDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("previewsmcp-test-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
 
-        // Only a workspace, no xcodeproj
         let workspace = tmpDir.appendingPathComponent("MyApp.xcworkspace")
         try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
 
         defer { try? FileManager.default.removeItem(at: tmpDir) }
 
-        let result = XcodeBuildSystem.findXcodeproj(in: tmpDir)
-        #expect(result == nil)
+        let result = XcodeBuildSystem.findXcodeProject(in: tmpDir)
+        #expect(result != nil)
+        #expect(result?.lastPathComponent == "MyApp.xcworkspace")
     }
 
-    @Test("XcodeBuildSystem findXcodeproj finds .xcodeproj in directory")
-    func findXcodeprojFindsProject() async throws {
+    @Test("XcodeBuildSystem findXcodeProject finds .xcodeproj in directory")
+    func findXcodeProjectFindsProject() async throws {
         let tmpDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("previewsmcp-test-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
@@ -409,9 +409,27 @@ struct BuildSystemTests {
 
         defer { try? FileManager.default.removeItem(at: tmpDir) }
 
-        let result = XcodeBuildSystem.findXcodeproj(in: tmpDir)
+        let result = XcodeBuildSystem.findXcodeProject(in: tmpDir)
         #expect(result != nil)
         #expect(result?.lastPathComponent == "ToDo.xcodeproj")
+    }
+
+    @Test("XcodeBuildSystem findXcodeProject prefers workspace over xcodeproj")
+    func findXcodeProjectPrefersWorkspace() async throws {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+
+        let xcodeproj = tmpDir.appendingPathComponent("ToDo.xcodeproj")
+        try FileManager.default.createDirectory(at: xcodeproj, withIntermediateDirectories: true)
+        let workspace = tmpDir.appendingPathComponent("ToDo.xcworkspace")
+        try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
+
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        let result = XcodeBuildSystem.findXcodeProject(in: tmpDir)
+        #expect(result != nil)
+        #expect(result?.pathExtension == "xcworkspace")
     }
 
     // MARK: - XcodeBuildSystem scheme picking
@@ -421,10 +439,9 @@ struct BuildSystemTests {
         let xcode = XcodeBuildSystem(
             projectRoot: URL(fileURLWithPath: "/tmp"),
             sourceFile: URL(fileURLWithPath: "/tmp/Sources/ToDo/View.swift"),
-            xcodeproj: URL(fileURLWithPath: "/tmp/App.xcodeproj"))
+            projectFile: URL(fileURLWithPath: "/tmp/App.xcodeproj"))
 
-        let info = XcodeBuildSystem.ProjectInfo(
-            project: .init(schemes: ["MyApp"]))
+        let info = XcodeBuildSystem.ProjectInfo(schemes: ["MyApp"])
         let scheme = try await xcode.pickScheme(from: info)
         #expect(scheme == "MyApp")
     }
@@ -434,10 +451,9 @@ struct BuildSystemTests {
         let xcode = XcodeBuildSystem(
             projectRoot: URL(fileURLWithPath: "/tmp"),
             sourceFile: URL(fileURLWithPath: "/tmp/Sources/FeatureB/View.swift"),
-            xcodeproj: URL(fileURLWithPath: "/tmp/App.xcodeproj"))
+            projectFile: URL(fileURLWithPath: "/tmp/App.xcodeproj"))
 
-        let info = XcodeBuildSystem.ProjectInfo(
-            project: .init(schemes: ["FeatureA", "FeatureB", "FeatureC"]))
+        let info = XcodeBuildSystem.ProjectInfo(schemes: ["FeatureA", "FeatureB", "FeatureC"])
         let scheme = try await xcode.pickScheme(from: info)
         #expect(scheme == "FeatureB")
     }
@@ -447,10 +463,9 @@ struct BuildSystemTests {
         let xcode = XcodeBuildSystem(
             projectRoot: URL(fileURLWithPath: "/tmp"),
             sourceFile: URL(fileURLWithPath: "/tmp/Sources/Unknown/View.swift"),
-            xcodeproj: URL(fileURLWithPath: "/tmp/App.xcodeproj"))
+            projectFile: URL(fileURLWithPath: "/tmp/App.xcodeproj"))
 
-        let info = XcodeBuildSystem.ProjectInfo(
-            project: .init(schemes: ["Alpha", "Beta"]))
+        let info = XcodeBuildSystem.ProjectInfo(schemes: ["Alpha", "Beta"])
         await #expect(throws: BuildSystemError.self) {
             try await xcode.pickScheme(from: info)
         }
@@ -535,7 +550,7 @@ struct BuildSystemTests {
         let xcode = XcodeBuildSystem(
             projectRoot: URL(fileURLWithPath: "/project"),
             sourceFile: URL(fileURLWithPath: previewFile),
-            xcodeproj: URL(fileURLWithPath: "/project/App.xcodeproj"))
+            projectFile: URL(fileURLWithPath: "/project/App.xcodeproj"))
 
         let settings: [String: String] = [
             "OBJECT_FILE_DIR_normal": tmpDir.appendingPathComponent("Objects-normal").path,
@@ -553,7 +568,7 @@ struct BuildSystemTests {
         let xcode = XcodeBuildSystem(
             projectRoot: URL(fileURLWithPath: "/tmp"),
             sourceFile: URL(fileURLWithPath: "/tmp/View.swift"),
-            xcodeproj: URL(fileURLWithPath: "/tmp/App.xcodeproj"))
+            projectFile: URL(fileURLWithPath: "/tmp/App.xcodeproj"))
 
         let settings: [String: String] = [
             "OBJECT_FILE_DIR_normal": "/nonexistent/path",
@@ -604,5 +619,27 @@ struct BuildSystemTests {
         let buildSystem = try await BuildSystemDetector.detect(
             for: sourceFile, projectRoot: tmpDir)
         #expect(buildSystem is XcodeBuildSystem)
+    }
+
+    // MARK: - ProjectInfo Decodable
+
+    @Test("ProjectInfo decodes from xcodebuild -project -list JSON")
+    func decodeProjectInfoFromProjectJSON() throws {
+        let json = """
+            {"project":{"name":"ToDo","configurations":["Debug","Release"],"schemes":["ToDo"],"targets":["ToDo"]}}
+            """
+        let data = json.data(using: .utf8)!
+        let info = try JSONDecoder().decode(XcodeBuildSystem.ProjectInfo.self, from: data)
+        #expect(info.schemes == ["ToDo"])
+    }
+
+    @Test("ProjectInfo decodes from xcodebuild -workspace -list JSON")
+    func decodeProjectInfoFromWorkspaceJSON() throws {
+        let json = """
+            {"workspace":{"name":"ToDo","schemes":["ToDo"]}}
+            """
+        let data = json.data(using: .utf8)!
+        let info = try JSONDecoder().decode(XcodeBuildSystem.ProjectInfo.self, from: data)
+        #expect(info.schemes == ["ToDo"])
     }
 }
