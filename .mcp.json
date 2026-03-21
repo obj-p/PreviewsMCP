@@ -2,7 +2,10 @@
   "mcpServers": {
     "previewsmcp": {
       "command": ".build/debug/previewsmcp",
-      "args": ["serve"]
+      "args": ["serve"],
+      "env": {
+        "PATH": "${HOME}/.local/share/mise/shims:${PATH}"
+      }
     }
   }
 }

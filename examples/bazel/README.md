@@ -34,7 +34,7 @@ cd examples/bazel
 bazel build //Sources/ToDo
 ```
 
-Build outputs land in `bazel-bin/Sources/ToDo/` — the `.swiftmodule` and object files that PreviewsMCP needs for Tier 1 (bridge-only) compilation.
+Build outputs land in `bazel-bin/Sources/ToDo/` — the `.swiftmodule` and object files that PreviewsMCP uses. PreviewsMCP also queries source files via `bazel query` for Tier 2 (source compilation with hot-reload).
 
 ## Integration Test Prompt
 
@@ -46,7 +46,6 @@ The example project is at examples/bazel/ relative to the PreviewsMCP repo root.
 
 ### 1. Setup
 - Build previewsmcp: `swift build` from the PreviewsMCP root
-- Build the Bazel example: `cd examples/bazel && bazel build //Sources/ToDo`
 
 ### 2. Basic rendering (macOS)
 - Use preview_start on examples/bazel/Sources/ToDo/ToDoView.swift
@@ -59,23 +58,18 @@ The example project is at examples/bazel/ relative to the PreviewsMCP repo root.
 - Use preview_elements to get element frames for accurate tap coordinates
 - Tap an uncompleted item (e.g. "Write code") — verify its checkmark changes to filled
 - Tap the "Show Completed" toggle — verify completed items are hidden
-- Swipe the summary cards left (horizontal swipe) — take a snapshot and verify the orange "Next Up" card is now visible instead of the blue "Progress" card
+- Swipe the summary cards left (horizontal swipe) — use the TabView/page control frame from preview_elements to find the card section's vertical bounds, and swipe within that area (not in the list below it). Take a snapshot and verify the orange "Next Up" card is now visible instead of the blue "Progress" card
 
-### 4. Cross-file edit
-- With a preview session running, add a new item to Item.samples in Item.swift
-- Rebuild: `cd examples/bazel && bazel build //Sources/ToDo`
-- Take a snapshot — verify the new item appears (Tier 1: requires rebuild, no automatic hot-reload)
+### 4. Hot reload — literal edit
+- With a preview session running, change "My Items" to "Tasks" in ToDoView.swift (the navigationTitle string)
+- Take a snapshot — verify the title now shows "Tasks"
 - Revert the change
 
-### 5. Cleanup
+### 5. Hot reload — cross-file edit
+- With a preview session running, add a new item to Item.samples in Item.swift
+- Take a snapshot — verify the new item appears (file watcher monitors all target files)
+- Revert the change
+
+### 6. Cleanup
 - Stop all preview sessions
 ```
-
-### Differences from SPM
-
-| Aspect | SPM | Bazel |
-|--------|-----|-------|
-| Compilation tier | Tier 2 (source compilation) | Tier 1 (bridge-only) |
-| Hot-reload | Literal + cross-file (automatic) | Requires manual `bazel build` |
-| Detection marker | `Package.swift` | `BUILD.bazel` / `WORKSPACE` / `MODULE.bazel` |
-| Artifact location | `.build/<triple>/debug/Modules/` | `bazel-bin/Sources/ToDo/` |

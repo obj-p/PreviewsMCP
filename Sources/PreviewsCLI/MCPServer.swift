@@ -116,7 +116,7 @@ func configureMCPServer() async throws -> (Server, Compiler) {
                         "projectPath": .object([
                             "type": .string("string"),
                             "description": .string(
-                                "Project root path (auto-detected if omitted). Enables importing project types from SPM packages."
+                                "Project root path (auto-detected if omitted). Enables importing project types from SPM packages or Bazel swift_library targets."
                             ),
                         ]),
                     ]),
