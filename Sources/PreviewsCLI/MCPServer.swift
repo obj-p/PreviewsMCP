@@ -126,6 +126,14 @@ func configureMCPServer() async throws -> (Server, Compiler) {
                         ]),
                         "dynamicTypeSize": .object([
                             "type": .string("string"),
+                            "enum": .array([
+                                .string("xSmall"), .string("small"), .string("medium"),
+                                .string("large"),
+                                .string("xLarge"), .string("xxLarge"), .string("xxxLarge"),
+                                .string("accessibility1"), .string("accessibility2"),
+                                .string("accessibility3"),
+                                .string("accessibility4"), .string("accessibility5"),
+                            ]),
                             "description": .string(
                                 "Dynamic Type size (e.g., 'large', 'accessibility3')"),
                         ]),
@@ -300,6 +308,14 @@ func configureMCPServer() async throws -> (Server, Compiler) {
                         ]),
                         "dynamicTypeSize": .object([
                             "type": .string("string"),
+                            "enum": .array([
+                                .string("xSmall"), .string("small"), .string("medium"),
+                                .string("large"),
+                                .string("xLarge"), .string("xxLarge"), .string("xxxLarge"),
+                                .string("accessibility1"), .string("accessibility2"),
+                                .string("accessibility3"),
+                                .string("accessibility4"), .string("accessibility5"),
+                            ]),
                             "description": .string(
                                 "Dynamic Type size (e.g., 'large', 'accessibility3')"),
                         ]),
@@ -396,7 +412,9 @@ private func handlePreviewStart(params: CallTool.Parameters, macCompiler: Compil
         platformStr = "macos"
     }
 
-    let traits = parseTraits(from: params)
+    let (traits, traitsError) = parseTraits(from: params)
+    if let traitsError { return traitsError }
+    let resolvedTraits = traits ?? PreviewTraits()
 
     // iOS simulator path
     if platformStr == "ios-simulator" {
@@ -404,7 +422,7 @@ private func handlePreviewStart(params: CallTool.Parameters, macCompiler: Compil
             fileURL: fileURL,
             previewIndex: previewIndex,
             params: params,
-            traits: traits
+            traits: resolvedTraits
         )
     }
 
@@ -425,7 +443,7 @@ private func handlePreviewStart(params: CallTool.Parameters, macCompiler: Compil
         title: "Preview: \(fileURL.lastPathComponent)",
         width: width, height: height,
         compiler: macCompiler, buildContext: buildContext,
-        traits: traits
+        traits: resolvedTraits
     )
 
     return CallTool.Result(content: [
@@ -563,11 +581,13 @@ private func handlePreviewPlayground(
     let fileURL = try createPlaygroundFile(code: code)
 
     let platformStr = if case .string(let p) = params.arguments?["platform"] { p } else { "macos" }
-    let traits = parseTraits(from: params)
+    let (pgTraits, pgTraitsError) = parseTraits(from: params)
+    if let pgTraitsError { return pgTraitsError }
+    let resolvedPgTraits = pgTraits ?? PreviewTraits()
 
     if platformStr == "ios-simulator" {
         let result = try await handleIOSPreviewStart(
-            fileURL: fileURL, previewIndex: 0, params: params, traits: traits)
+            fileURL: fileURL, previewIndex: 0, params: params, traits: resolvedPgTraits)
         if let text = result.content.first, case .text(let msg) = text {
             return CallTool.Result(content: [
                 .text("Playground file: \(fileURL.path)\n\(msg)")
@@ -584,7 +604,7 @@ private func handlePreviewPlayground(
         title: "Playground: \(fileURL.lastPathComponent)",
         width: width, height: height,
         compiler: macCompiler, buildContext: nil,
-        traits: traits
+        traits: resolvedPgTraits
     )
 
     return CallTool.Result(content: [
@@ -793,11 +813,36 @@ private func handleSimulatorList() async throws -> CallTool.Result {
 
 // MARK: - Trait Helpers
 
-private func parseTraits(from params: CallTool.Parameters) -> PreviewTraits {
+/// Parse and validate trait parameters. Returns (traits, nil) on success or (nil, error result) on failure.
+private func parseTraits(from params: CallTool.Parameters) -> (PreviewTraits?, CallTool.Result?) {
     var traits = PreviewTraits()
-    if case .string(let cs) = params.arguments?["colorScheme"] { traits.colorScheme = cs }
-    if case .string(let dts) = params.arguments?["dynamicTypeSize"] { traits.dynamicTypeSize = dts }
-    return traits
+    if case .string(let cs) = params.arguments?["colorScheme"] {
+        guard PreviewTraits.validColorSchemes.contains(cs) else {
+            return (
+                nil,
+                CallTool.Result(
+                    content: [.text("Invalid colorScheme '\(cs)'. Must be 'light' or 'dark'.")],
+                    isError: true)
+            )
+        }
+        traits.colorScheme = cs
+    }
+    if case .string(let dts) = params.arguments?["dynamicTypeSize"] {
+        guard PreviewTraits.validDynamicTypeSizes.contains(dts) else {
+            return (
+                nil,
+                CallTool.Result(
+                    content: [
+                        .text(
+                            "Invalid dynamicTypeSize '\(dts)'. Valid values: \(PreviewTraits.validDynamicTypeSizes.sorted().joined(separator: ", "))"
+                        )
+                    ],
+                    isError: true)
+            )
+        }
+        traits.dynamicTypeSize = dts
+    }
+    return (traits, nil)
 }
 
 private func traitsSummary(_ traits: PreviewTraits) -> String {
@@ -813,29 +858,9 @@ private func handlePreviewConfigure(params: CallTool.Parameters) async throws ->
     }
 
     // Parse and validate traits
-    var traits = PreviewTraits()
-    if case .string(let cs) = params.arguments?["colorScheme"] {
-        guard PreviewTraits.validColorSchemes.contains(cs) else {
-            return CallTool.Result(
-                content: [.text("Invalid colorScheme '\(cs)'. Must be 'light' or 'dark'.")],
-                isError: true
-            )
-        }
-        traits.colorScheme = cs
-    }
-    if case .string(let dts) = params.arguments?["dynamicTypeSize"] {
-        guard PreviewTraits.validDynamicTypeSizes.contains(dts) else {
-            return CallTool.Result(
-                content: [
-                    .text(
-                        "Invalid dynamicTypeSize '\(dts)'. Valid values: \(PreviewTraits.validDynamicTypeSizes.sorted().joined(separator: ", "))"
-                    )
-                ],
-                isError: true
-            )
-        }
-        traits.dynamicTypeSize = dts
-    }
+    let (parsedTraits, validationError) = parseTraits(from: params)
+    if let validationError { return validationError }
+    let traits = parsedTraits ?? PreviewTraits()
 
     if traits.isEmpty {
         return CallTool.Result(content: [.text("No configuration changes specified.")])
@@ -858,12 +883,8 @@ private func handlePreviewConfigure(params: CallTool.Parameters) async throws ->
     }
 
     let compileResult = try await session.reconfigure(traits: traits)
-    await MainActor.run {
-        do {
-            try App.host.loadPreview(sessionID: sessionID, dylibPath: compileResult.dylibPath)
-        } catch {
-            fputs("MCP: Failed to reload after configure: \(error)\n", stderr)
-        }
+    try await MainActor.run {
+        try App.host.loadPreview(sessionID: sessionID, dylibPath: compileResult.dylibPath)
     }
 
     return CallTool.Result(content: [
