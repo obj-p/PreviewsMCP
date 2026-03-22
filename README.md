@@ -67,9 +67,3 @@ Add to your `.mcp.json` (or Claude Code MCP config):
   }
 }
 ```
-
-Tools: `preview_list`, `preview_start`, `preview_snapshot`, `preview_elements`, `preview_touch`, `preview_stop`, `preview_playground`, `simulator_list`
-
-## License
-
-MIT

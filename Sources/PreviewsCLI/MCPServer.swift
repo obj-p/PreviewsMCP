@@ -177,7 +177,7 @@ func configureMCPServer() async throws -> (Server, Compiler) {
             Tool(
                 name: "preview_configure",
                 description:
-                    "Change rendering traits (color scheme, dynamic type) for a running preview. Triggers recompile; @State is reset.",
+                    "Change rendering traits (color scheme, dynamic type) for a running preview. Triggers recompile; @State is reset. Note: dynamicTypeSize only has a visible effect on iOS simulator — macOS does not scale fonts in response to this modifier.",
                 inputSchema: .object([
                     "type": .string("object"),
                     "properties": .object([
