@@ -25,10 +25,12 @@
       "mcp__plugin_github_github__pull_request_review_write",
       "mcp__previewsmcp__preview_start",
       "mcp__previewsmcp__preview_snapshot",
+      "mcp__previewsmcp__preview_configure",
       "mcp__previewsmcp__preview_stop",
       "mcp__previewsmcp__preview_elements",
       "mcp__previewsmcp__preview_touch",
       "mcp__previewsmcp__preview_playground",
+      "mcp__previewsmcp__preview_list",
       "mcp__previewsmcp__simulator_list"
     ]
   }

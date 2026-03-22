@@ -146,11 +146,13 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
                 // Slow path: structural change, full recompile
                 fputs("Structural change, recompiling...\n", stderr)
                 do {
+                    let currentTraits = await self.sessions[sessionID]?.currentTraits ?? PreviewTraits()
                     let newSession = PreviewSession(
                         sourceFile: fileURL,
                         previewIndex: previewIndex,
                         compiler: compiler,
-                        buildContext: buildContext
+                        buildContext: buildContext,
+                        traits: currentTraits
                     )
                     let compileResult = try await newSession.compile()
                     fputs("Compiled: \(compileResult.dylibPath.lastPathComponent)\n", stderr)
@@ -239,6 +241,11 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
         if let loader = loaders.removeValue(forKey: sessionID) {
             retainedLoaders.append(loader)
         }
+    }
+
+    /// Get the session for a session ID (for reconfiguration).
+    public func session(for sessionID: String) -> PreviewSession? {
+        sessions[sessionID]
     }
 
     /// Get the window for a session (for snapshotting).

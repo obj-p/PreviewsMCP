@@ -2,7 +2,7 @@
 name: integration-test
 description: Run integration tests against example projects in the examples/ directory. Use when the user wants to validate PreviewsMCP's build system support, rendering, interaction, or hot-reload end-to-end.
 argument-hint: [example-name]
-allowed-tools: Bash, Read, Glob, Grep, preview_start, preview_snapshot, preview_elements, preview_touch, preview_stop, preview_list, preview_playground, simulator_list
+allowed-tools: Bash, Read, Glob, Grep, preview_start, preview_snapshot, preview_configure, preview_elements, preview_touch, preview_stop, preview_list, preview_playground, simulator_list
 ---
 
 Run integration tests for PreviewsMCP example projects.
@@ -19,14 +19,23 @@ Run integration tests for PreviewsMCP example projects.
 
 3. **For each example**, read its `README.md` and follow the "Integration Test Prompt" section. The README contains the exact steps to execute, including which MCP tools to call and what to verify.
 
-4. **Test playground.** After example tests, run the playground integration test:
+4. **Test trait injection.** After example tests, pick any running macOS session (or start a new one from the SPM example) and test `preview_configure`:
+   - Call `preview_configure` with `colorScheme: "dark"` — verify it returns a success message mentioning "colorScheme=dark" and "recompiled"
+   - Take a snapshot — visually verify the view renders with a dark background
+   - Call `preview_configure` with `dynamicTypeSize: "accessibility3"` — verify success and that colorScheme persists (merge semantics)
+   - Take a snapshot — verify text appears larger
+   - Call `preview_configure` with an invalid `dynamicTypeSize` (e.g., `"huge"`) — verify it returns an error listing valid values
+   - Call `preview_configure` with only `sessionID` and no traits — verify it returns "No configuration changes specified."
+   - Stop the session
+
+5. **Test playground.** After example tests, run the playground integration test:
    - Call `preview_playground` with no arguments (default code) — verify it returns a session ID and file path
    - Take a snapshot — verify it renders the default "Hello, playground!" view
    - Call `preview_playground` with custom `code` containing a simple SwiftUI view — verify it compiles and renders
    - Take a snapshot of the custom code session — verify the custom view appears
    - Stop both playground sessions
 
-5. **Report results.** For each example, report pass/fail per test step. Summarize at the end.
+6. **Report results.** For each example, report pass/fail per test step. Summarize at the end.
 
 ## Project path guidance
 

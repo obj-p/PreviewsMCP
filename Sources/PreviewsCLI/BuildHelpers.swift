@@ -76,7 +76,8 @@ func launchMacOSPreview(
     title: String,
     width: Int,
     height: Int,
-    buildContext: BuildContext?
+    buildContext: BuildContext?,
+    traits: PreviewTraits = PreviewTraits()
 ) async throws {
     let compiler = try await Compiler()
 
@@ -84,7 +85,8 @@ func launchMacOSPreview(
         sourceFile: fileURL,
         previewIndex: previewIndex,
         compiler: compiler,
-        buildContext: buildContext
+        buildContext: buildContext,
+        traits: traits
     )
 
     fputs("Compiling \(fileURL.lastPathComponent)...\n", stderr)
@@ -120,7 +122,8 @@ func launchIOSPreview(
     fileURL: URL,
     previewIndex: Int,
     deviceUDID: String?,
-    buildContext: BuildContext?
+    buildContext: BuildContext?,
+    traits: PreviewTraits = PreviewTraits()
 ) async throws {
     let compiler = try await Compiler(platform: .iOSSimulator)
     let hostBuilder = try await IOSHostBuilder()
@@ -136,7 +139,8 @@ func launchIOSPreview(
         hostBuilder: hostBuilder,
         simulatorManager: simulatorManager,
         headless: true,
-        buildContext: buildContext
+        buildContext: buildContext,
+        traits: traits
     )
 
     fputs("Launching on simulator \(udid)...\n", stderr)

@@ -15,6 +15,7 @@ public actor PreviewSession {
     private let compiler: Compiler
     private let platform: PreviewPlatform
     private let buildContext: BuildContext?
+    private var traits: PreviewTraits
     private var compilationResult: CompilationResult?
     private var lastOriginalSource: String?
     private var lastLiterals: [LiteralEntry]?
@@ -28,12 +29,15 @@ public actor PreviewSession {
 
     public private(set) var state: State = .idle
 
+    public var currentTraits: PreviewTraits { traits }
+
     public init(
         sourceFile: URL,
         previewIndex: Int = 0,
         compiler: Compiler,
         platform: PreviewPlatform = .macOS,
-        buildContext: BuildContext? = nil
+        buildContext: BuildContext? = nil,
+        traits: PreviewTraits = PreviewTraits()
     ) {
         self.id = UUID().uuidString
         self.sourceFile = sourceFile
@@ -41,6 +45,7 @@ public actor PreviewSession {
         self.compiler = compiler
         self.platform = platform
         self.buildContext = buildContext
+        self.traits = traits
     }
 
     /// Run the full pipeline and return the compiled dylib path + literal map.
@@ -71,7 +76,8 @@ public actor PreviewSession {
                     let result = BridgeGenerator.generateOverlaySource(
                         originalSource: source,
                         closureBody: preview.closureBody,
-                        platform: platform
+                        platform: platform,
+                        traits: traits
                     )
                     compiledSource = result.source
                     literals = result.literals
@@ -85,7 +91,8 @@ public actor PreviewSession {
                     compiledSource = BridgeGenerator.generateBridgeOnlySource(
                         moduleName: ctx.moduleName,
                         closureBody: preview.closureBody,
-                        platform: platform
+                        platform: platform,
+                        traits: traits
                     )
                     literals = []
                     additionalSourceFiles = []
@@ -97,7 +104,8 @@ public actor PreviewSession {
                 let result = BridgeGenerator.generateCombinedSource(
                     originalSource: source,
                     closureBody: preview.closureBody,
-                    platform: platform
+                    platform: platform,
+                    traits: traits
                 )
                 compiledSource = result.source
                 literals = result.literals
@@ -140,6 +148,12 @@ public actor PreviewSession {
         case .structural:
             return nil
         }
+    }
+
+    /// Update traits and recompile. Returns the new dylib. @State is lost.
+    public func reconfigure(traits: PreviewTraits) async throws -> CompileResult {
+        self.traits = self.traits.merged(with: traits)
+        return try await compile()
     }
 
     private static func moduleName(for file: URL) -> String {

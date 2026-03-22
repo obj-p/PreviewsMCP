@@ -119,6 +119,16 @@ func configureMCPServer() async throws -> (Server, Compiler) {
                                 "Project root path (auto-detected if omitted). Enables importing project types from SPM packages, Bazel swift_library targets, or Xcode projects (.xcodeproj / .xcworkspace)."
                             ),
                         ]),
+                        "colorScheme": .object([
+                            "type": .string("string"),
+                            "enum": .array([.string("light"), .string("dark")]),
+                            "description": .string("Color scheme override: 'light' or 'dark'"),
+                        ]),
+                        "dynamicTypeSize": .object([
+                            "type": .string("string"),
+                            "description": .string(
+                                "Dynamic Type size (e.g., 'large', 'accessibility3')"),
+                        ]),
                     ]),
                     "required": .array([.string("filePath")]),
                 ])
@@ -152,6 +162,38 @@ func configureMCPServer() async throws -> (Server, Compiler) {
                             "type": .string("string"),
                             "description": .string("Session ID from preview_start"),
                         ])
+                    ]),
+                    "required": .array([.string("sessionID")]),
+                ])
+            ),
+            Tool(
+                name: "preview_configure",
+                description:
+                    "Change rendering traits (color scheme, dynamic type) for a running preview. Triggers recompile; @State is reset.",
+                inputSchema: .object([
+                    "type": .string("object"),
+                    "properties": .object([
+                        "sessionID": .object([
+                            "type": .string("string"),
+                            "description": .string("Session ID from preview_start"),
+                        ]),
+                        "colorScheme": .object([
+                            "type": .string("string"),
+                            "enum": .array([.string("light"), .string("dark")]),
+                            "description": .string("Color scheme override"),
+                        ]),
+                        "dynamicTypeSize": .object([
+                            "type": .string("string"),
+                            "enum": .array([
+                                .string("xSmall"), .string("small"), .string("medium"),
+                                .string("large"),
+                                .string("xLarge"), .string("xxLarge"), .string("xxxLarge"),
+                                .string("accessibility1"), .string("accessibility2"),
+                                .string("accessibility3"),
+                                .string("accessibility4"), .string("accessibility5"),
+                            ]),
+                            "description": .string("Dynamic Type size override"),
+                        ]),
                     ]),
                     "required": .array([.string("sessionID")]),
                 ])
@@ -251,6 +293,16 @@ func configureMCPServer() async throws -> (Server, Compiler) {
                             "type": .string("integer"),
                             "description": .string("Window height in points (macOS only, default: 600)"),
                         ]),
+                        "colorScheme": .object([
+                            "type": .string("string"),
+                            "enum": .array([.string("light"), .string("dark")]),
+                            "description": .string("Color scheme override: 'light' or 'dark'"),
+                        ]),
+                        "dynamicTypeSize": .object([
+                            "type": .string("string"),
+                            "description": .string(
+                                "Dynamic Type size (e.g., 'large', 'accessibility3')"),
+                        ]),
                     ]),
                 ])
             ),
@@ -273,6 +325,8 @@ func configureMCPServer() async throws -> (Server, Compiler) {
             return try await handlePreviewStart(params: params, macCompiler: compiler)
         case "preview_snapshot":
             return try await handlePreviewSnapshot(params: params)
+        case "preview_configure":
+            return try await handlePreviewConfigure(params: params)
         case "preview_stop":
             return try await handlePreviewStop(params: params)
         case "preview_elements":
@@ -342,12 +396,15 @@ private func handlePreviewStart(params: CallTool.Parameters, macCompiler: Compil
         platformStr = "macos"
     }
 
+    let traits = parseTraits(from: params)
+
     // iOS simulator path
     if platformStr == "ios-simulator" {
         return try await handleIOSPreviewStart(
             fileURL: fileURL,
             previewIndex: previewIndex,
-            params: params
+            params: params,
+            traits: traits
         )
     }
 
@@ -367,7 +424,8 @@ private func handlePreviewStart(params: CallTool.Parameters, macCompiler: Compil
         fileURL: fileURL, previewIndex: previewIndex,
         title: "Preview: \(fileURL.lastPathComponent)",
         width: width, height: height,
-        compiler: macCompiler, buildContext: buildContext
+        compiler: macCompiler, buildContext: buildContext,
+        traits: traits
     )
 
     return CallTool.Result(content: [
@@ -378,7 +436,8 @@ private func handlePreviewStart(params: CallTool.Parameters, macCompiler: Compil
 private func handleIOSPreviewStart(
     fileURL: URL,
     previewIndex: Int,
-    params: CallTool.Parameters
+    params: CallTool.Parameters,
+    traits: PreviewTraits = PreviewTraits()
 ) async throws -> CallTool.Result {
     // Resolve device UDID — use provided or auto-select
     let deviceUDID: String
@@ -416,7 +475,8 @@ private func handleIOSPreviewStart(
         hostBuilder: hostBuilder,
         simulatorManager: simulatorManager,
         headless: headless,
-        buildContext: buildContext
+        buildContext: buildContext,
+        traits: traits
     )
 
     let pid = try await session.start()
@@ -457,13 +517,15 @@ private func handleIOSPreviewStart(
 private func startMacOSPreview(
     fileURL: URL, previewIndex: Int, title: String,
     width: Int, height: Int,
-    compiler: Compiler, buildContext: BuildContext?
+    compiler: Compiler, buildContext: BuildContext?,
+    traits: PreviewTraits = PreviewTraits()
 ) async throws -> String {
     let session = PreviewSession(
         sourceFile: fileURL,
         previewIndex: previewIndex,
         compiler: compiler,
-        buildContext: buildContext
+        buildContext: buildContext,
+        traits: traits
     )
 
     let compileResult = try await session.compile()
@@ -501,10 +563,11 @@ private func handlePreviewPlayground(
     let fileURL = try createPlaygroundFile(code: code)
 
     let platformStr = if case .string(let p) = params.arguments?["platform"] { p } else { "macos" }
+    let traits = parseTraits(from: params)
 
     if platformStr == "ios-simulator" {
         let result = try await handleIOSPreviewStart(
-            fileURL: fileURL, previewIndex: 0, params: params)
+            fileURL: fileURL, previewIndex: 0, params: params, traits: traits)
         if let text = result.content.first, case .text(let msg) = text {
             return CallTool.Result(content: [
                 .text("Playground file: \(fileURL.path)\n\(msg)")
@@ -520,7 +583,8 @@ private func handlePreviewPlayground(
         fileURL: fileURL, previewIndex: 0,
         title: "Playground: \(fileURL.lastPathComponent)",
         width: width, height: height,
-        compiler: macCompiler, buildContext: nil
+        compiler: macCompiler, buildContext: nil,
+        traits: traits
     )
 
     return CallTool.Result(content: [
@@ -725,4 +789,86 @@ private func handleSimulatorList() async throws -> CallTool.Result {
     }
 
     return CallTool.Result(content: [.text(lines.joined(separator: "\n"))])
+}
+
+// MARK: - Trait Helpers
+
+private func parseTraits(from params: CallTool.Parameters) -> PreviewTraits {
+    var traits = PreviewTraits()
+    if case .string(let cs) = params.arguments?["colorScheme"] { traits.colorScheme = cs }
+    if case .string(let dts) = params.arguments?["dynamicTypeSize"] { traits.dynamicTypeSize = dts }
+    return traits
+}
+
+private func traitsSummary(_ traits: PreviewTraits) -> String {
+    var parts: [String] = []
+    if let cs = traits.colorScheme { parts.append("colorScheme=\(cs)") }
+    if let dts = traits.dynamicTypeSize { parts.append("dynamicTypeSize=\(dts)") }
+    return parts.joined(separator: ", ")
+}
+
+private func handlePreviewConfigure(params: CallTool.Parameters) async throws -> CallTool.Result {
+    guard case .string(let sessionID) = params.arguments?["sessionID"] else {
+        return CallTool.Result(content: [.text("Missing sessionID parameter")], isError: true)
+    }
+
+    // Parse and validate traits
+    var traits = PreviewTraits()
+    if case .string(let cs) = params.arguments?["colorScheme"] {
+        guard PreviewTraits.validColorSchemes.contains(cs) else {
+            return CallTool.Result(
+                content: [.text("Invalid colorScheme '\(cs)'. Must be 'light' or 'dark'.")],
+                isError: true
+            )
+        }
+        traits.colorScheme = cs
+    }
+    if case .string(let dts) = params.arguments?["dynamicTypeSize"] {
+        guard PreviewTraits.validDynamicTypeSizes.contains(dts) else {
+            return CallTool.Result(
+                content: [
+                    .text(
+                        "Invalid dynamicTypeSize '\(dts)'. Valid values: \(PreviewTraits.validDynamicTypeSizes.sorted().joined(separator: ", "))"
+                    )
+                ],
+                isError: true
+            )
+        }
+        traits.dynamicTypeSize = dts
+    }
+
+    if traits.isEmpty {
+        return CallTool.Result(content: [.text("No configuration changes specified.")])
+    }
+
+    // iOS path
+    if let iosSession = await iosState.getSession(sessionID) {
+        try await iosSession.reconfigure(traits: traits)
+        return CallTool.Result(content: [
+            .text(
+                "Configured session \(sessionID): \(traitsSummary(traits)). View recompiled (@State was reset)."
+            )
+        ])
+    }
+
+    // macOS path
+    let session: PreviewSession? = await MainActor.run { App.host.session(for: sessionID) }
+    guard let session else {
+        return CallTool.Result(content: [.text("No session found for \(sessionID)")], isError: true)
+    }
+
+    let compileResult = try await session.reconfigure(traits: traits)
+    await MainActor.run {
+        do {
+            try App.host.loadPreview(sessionID: sessionID, dylibPath: compileResult.dylibPath)
+        } catch {
+            fputs("MCP: Failed to reload after configure: \(error)\n", stderr)
+        }
+    }
+
+    return CallTool.Result(content: [
+        .text(
+            "Configured session \(sessionID): \(traitsSummary(traits)). View recompiled (@State was reset)."
+        )
+    ])
 }

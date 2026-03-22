@@ -30,6 +30,12 @@ struct RunCommand: ParsableCommand {
     @Option(name: .long, help: "Simulator device UDID (for ios-simulator; auto-selects if omitted)")
     var device: String?
 
+    @Option(name: .long, help: "Color scheme: 'light' or 'dark'")
+    var colorScheme: String?
+
+    @Option(name: .long, help: "Dynamic Type size (e.g., 'large', 'accessibility3')")
+    var dynamicType: String?
+
     mutating func run() throws {
         let fileURL = URL(fileURLWithPath: file).standardizedFileURL
         guard FileManager.default.fileExists(atPath: fileURL.path) else {
@@ -49,6 +55,7 @@ struct RunCommand: ParsableCommand {
         let windowWidth = width
         let windowHeight = height
         let projectPath = project
+        let traits = PreviewTraits(colorScheme: colorScheme, dynamicTypeSize: dynamicType)
 
         Task {
             do {
@@ -62,7 +69,8 @@ struct RunCommand: ParsableCommand {
                     title: "Preview: \(fileURL.lastPathComponent)",
                     width: windowWidth,
                     height: windowHeight,
-                    buildContext: buildContext
+                    buildContext: buildContext,
+                    traits: traits
                 )
             } catch {
                 fputs("Error: \(error)\n", stderr)
@@ -75,6 +83,7 @@ struct RunCommand: ParsableCommand {
         let previewIndex = preview
         let deviceUDID = device
         let projectPath = project
+        let traits = PreviewTraits(colorScheme: colorScheme, dynamicTypeSize: dynamicType)
 
         Task {
             do {
@@ -86,7 +95,8 @@ struct RunCommand: ParsableCommand {
                     fileURL: fileURL,
                     previewIndex: previewIndex,
                     deviceUDID: deviceUDID,
-                    buildContext: buildContext
+                    buildContext: buildContext,
+                    traits: traits
                 )
             } catch {
                 fputs("Error: \(error)\n", stderr)

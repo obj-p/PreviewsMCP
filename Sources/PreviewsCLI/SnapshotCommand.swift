@@ -35,6 +35,12 @@ struct SnapshotCommand: ParsableCommand {
     @Option(name: .long, help: "Simulator device UDID (for ios-simulator; auto-selects if omitted)")
     var device: String?
 
+    @Option(name: .long, help: "Color scheme: 'light' or 'dark'")
+    var colorScheme: String?
+
+    @Option(name: .long, help: "Dynamic Type size (e.g., 'large', 'accessibility3')")
+    var dynamicType: String?
+
     mutating func run() throws {
         let fileURL = URL(fileURLWithPath: file).standardizedFileURL
         guard FileManager.default.fileExists(atPath: fileURL.path) else {
@@ -55,6 +61,7 @@ struct SnapshotCommand: ParsableCommand {
         let windowHeight = height
         let outputURL = URL(fileURLWithPath: output)
         let projectPath = project
+        let traits = PreviewTraits(colorScheme: colorScheme, dynamicTypeSize: dynamicType)
 
         Task {
             do {
@@ -68,7 +75,8 @@ struct SnapshotCommand: ParsableCommand {
                     sourceFile: fileURL,
                     previewIndex: previewIndex,
                     compiler: compiler,
-                    buildContext: buildContext
+                    buildContext: buildContext,
+                    traits: traits
                 )
 
                 fputs("Compiling \(fileURL.lastPathComponent)...\n", stderr)
@@ -120,6 +128,7 @@ struct SnapshotCommand: ParsableCommand {
         let outputURL = URL(fileURLWithPath: output)
         let deviceUDID = device
         let projectPath = project
+        let traits = PreviewTraits(colorScheme: colorScheme, dynamicTypeSize: dynamicType)
 
         Task {
             do {
@@ -143,7 +152,8 @@ struct SnapshotCommand: ParsableCommand {
                     hostBuilder: hostBuilder,
                     simulatorManager: simulatorManager,
                     headless: true,
-                    buildContext: buildContext
+                    buildContext: buildContext,
+                    traits: traits
                 )
 
                 fputs("Compiling and launching on simulator \(udid)...\n", stderr)
