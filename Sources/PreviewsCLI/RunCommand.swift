@@ -30,10 +30,26 @@ struct RunCommand: ParsableCommand {
     @Option(name: .long, help: "Simulator device UDID (for ios-simulator; auto-selects if omitted)")
     var device: String?
 
+    @Option(name: .long, help: "Color scheme: 'light' or 'dark'")
+    var colorScheme: String?
+
+    @Option(name: .long, help: "Dynamic Type size (e.g., 'large', 'accessibility3')")
+    var dynamicTypeSize: String?
+
     mutating func run() throws {
         let fileURL = URL(fileURLWithPath: file).standardizedFileURL
         guard FileManager.default.fileExists(atPath: fileURL.path) else {
             throw ValidationError("File not found: \(file)")
+        }
+
+        if let cs = colorScheme, !PreviewTraits.validColorSchemes.contains(cs) {
+            throw ValidationError(
+                "Invalid color scheme '\(cs)'. Must be 'light' or 'dark'.")
+        }
+        if let dts = dynamicTypeSize, !PreviewTraits.validDynamicTypeSizes.contains(dts) {
+            throw ValidationError(
+                "Invalid dynamic type size '\(dts)'. Valid values: \(PreviewTraits.validDynamicTypeSizes.sorted().joined(separator: ", "))"
+            )
         }
 
         switch platform {
@@ -49,6 +65,7 @@ struct RunCommand: ParsableCommand {
         let windowWidth = width
         let windowHeight = height
         let projectPath = project
+        let traits = PreviewTraits(colorScheme: colorScheme, dynamicTypeSize: dynamicTypeSize)
 
         Task {
             do {
@@ -62,7 +79,8 @@ struct RunCommand: ParsableCommand {
                     title: "Preview: \(fileURL.lastPathComponent)",
                     width: windowWidth,
                     height: windowHeight,
-                    buildContext: buildContext
+                    buildContext: buildContext,
+                    traits: traits
                 )
             } catch {
                 fputs("Error: \(error)\n", stderr)
@@ -75,6 +93,7 @@ struct RunCommand: ParsableCommand {
         let previewIndex = preview
         let deviceUDID = device
         let projectPath = project
+        let traits = PreviewTraits(colorScheme: colorScheme, dynamicTypeSize: dynamicTypeSize)
 
         Task {
             do {
@@ -86,7 +105,8 @@ struct RunCommand: ParsableCommand {
                     fileURL: fileURL,
                     previewIndex: previewIndex,
                     deviceUDID: deviceUDID,
-                    buildContext: buildContext
+                    buildContext: buildContext,
+                    traits: traits
                 )
             } catch {
                 fputs("Error: \(error)\n", stderr)

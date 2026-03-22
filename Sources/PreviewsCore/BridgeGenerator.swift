@@ -15,7 +15,8 @@ public enum BridgeGenerator {
         originalSource: String,
         closureBody: String,
         entryPoint: String = "createPreviewView",
-        platform: PreviewPlatform = .macOS
+        platform: PreviewPlatform = .macOS,
+        traits: PreviewTraits = PreviewTraits()
     ) -> (source: String, literals: [LiteralEntry]) {
         // Transform source to replace literals with DesignTimeStore lookups
         let thunkResult = ThunkGenerator.transform(source: originalSource)
@@ -29,6 +30,7 @@ public enum BridgeGenerator {
             transformedClosureBody = closureBody
         }
 
+        let modifiers = traitModifiers(traits)
         let bridgeCode: String
         switch platform {
         case .macOS:
@@ -38,7 +40,7 @@ public enum BridgeGenerator {
                 @_cdecl("\(entryPoint)")
                 public func \(entryPoint)() -> UnsafeMutableRawPointer {
                     let view = SwiftUI.AnyView(
-                        \(transformedClosureBody)
+                        \(transformedClosureBody)\(modifiers)
                     )
                     let hostingView = NSHostingView(rootView: view)
                     return Unmanaged.passRetained(hostingView).toOpaque()
@@ -51,7 +53,7 @@ public enum BridgeGenerator {
                 @_cdecl("\(entryPoint)")
                 public func \(entryPoint)() -> UnsafeMutableRawPointer {
                     let view = SwiftUI.AnyView(
-                        \(transformedClosureBody)
+                        \(transformedClosureBody)\(modifiers)
                     )
                     let hostingController = UIHostingController(rootView: view)
                     return Unmanaged.passRetained(hostingController).toOpaque()
@@ -82,7 +84,8 @@ public enum BridgeGenerator {
         moduleName: String,
         closureBody: String,
         entryPoint: String = "createPreviewView",
-        platform: PreviewPlatform = .macOS
+        platform: PreviewPlatform = .macOS,
+        traits: PreviewTraits = PreviewTraits()
     ) -> String {
         let frameworkImport: String
         let hostCode: String
@@ -102,6 +105,7 @@ public enum BridgeGenerator {
                 """
         }
 
+        let modifiers = traitModifiers(traits)
         return """
             import SwiftUI
             \(frameworkImport)
@@ -110,7 +114,7 @@ public enum BridgeGenerator {
             @_cdecl("\(entryPoint)")
             public func \(entryPoint)() -> UnsafeMutableRawPointer {
                 let view = SwiftUI.AnyView(
-                    \(closureBody)
+                    \(closureBody)\(modifiers)
                 )
                 \(hostCode)
             }
@@ -127,7 +131,8 @@ public enum BridgeGenerator {
         originalSource: String,
         closureBody: String,
         entryPoint: String = "createPreviewView",
-        platform: PreviewPlatform = .macOS
+        platform: PreviewPlatform = .macOS,
+        traits: PreviewTraits = PreviewTraits()
     ) -> (source: String, literals: [LiteralEntry]) {
         // Same as generateCombinedSource — transform literals, generate bridge
         // The difference is in how the Compiler uses the result: with -module-name <TargetName>
@@ -136,7 +141,20 @@ public enum BridgeGenerator {
             originalSource: originalSource,
             closureBody: closureBody,
             entryPoint: entryPoint,
-            platform: platform
+            platform: platform,
+            traits: traits
         )
+    }
+
+    /// Build SwiftUI modifier chain for the given traits.
+    private static func traitModifiers(_ traits: PreviewTraits) -> String {
+        var mods = ""
+        if let cs = traits.colorScheme {
+            mods += "\n            .preferredColorScheme(.\(cs))"
+        }
+        if let dts = traits.dynamicTypeSize {
+            mods += "\n            .dynamicTypeSize(.\(dts))"
+        }
+        return mods
     }
 }

@@ -20,6 +20,8 @@ public actor IOSPreviewSession {
     private var session: PreviewSession?
     public nonisolated let headless: Bool
     private let buildContext: BuildContext?
+    private var traits: PreviewTraits
+    public var currentTraits: PreviewTraits { traits }
 
     public static let hostBundleID = "com.previewsmcp.host"
 
@@ -31,7 +33,8 @@ public actor IOSPreviewSession {
         hostBuilder: IOSHostBuilder,
         simulatorManager: SimulatorManager,
         headless: Bool = true,
-        buildContext: BuildContext? = nil
+        buildContext: BuildContext? = nil,
+        traits: PreviewTraits = PreviewTraits()
     ) {
         self.id = UUID().uuidString
         self.sourceFile = sourceFile
@@ -42,6 +45,7 @@ public actor IOSPreviewSession {
         self.simulatorManager = simulatorManager
         self.headless = headless
         self.buildContext = buildContext
+        self.traits = traits
     }
 
     /// Start the iOS preview: compile, boot sim, install host, launch.
@@ -53,7 +57,8 @@ public actor IOSPreviewSession {
             previewIndex: previewIndex,
             compiler: compiler,
             platform: .iOSSimulator,
-            buildContext: buildContext
+            buildContext: buildContext,
+            traits: traits
         )
         self.session = previewSession
         let compileResult = try await previewSession.compile()
@@ -174,7 +179,8 @@ public actor IOSPreviewSession {
             previewIndex: previewIndex,
             compiler: compiler,
             platform: .iOSSimulator,
-            buildContext: buildContext
+            buildContext: buildContext,
+            traits: traits
         )
         self.session = previewSession
         let compileResult = try await previewSession.compile()
@@ -183,6 +189,12 @@ public actor IOSPreviewSession {
             throw IOSPreviewSessionError.notStarted
         }
         try compileResult.dylibPath.path.write(to: signalFile, atomically: true, encoding: .utf8)
+    }
+
+    /// Update traits and recompile. Signals the host app to reload. @State is lost.
+    public func reconfigure(traits: PreviewTraits) async throws {
+        self.traits = self.traits.merged(with: traits)
+        try await reload()
     }
 
     /// Send a tap at the given point coordinates (in device points).

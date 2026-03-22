@@ -51,13 +51,16 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
 
     /// Load a dylib and display its preview view in a window.
     /// If a window already exists for this session, reuses it (swaps content view).
+    /// - Parameter headless: If provided, overrides the instance-level default for this window.
     public func loadPreview(
         sessionID: String,
         dylibPath: URL,
         entryPoint: String = "createPreviewView",
         title: String = "Preview",
-        size: NSSize = NSSize(width: 400, height: 600)
+        size: NSSize = NSSize(width: 400, height: 600),
+        headless: Bool? = nil
     ) throws {
+        let headless = headless ?? self.headless
         // Retire the old loader (keep it alive, don't dlclose)
         if let oldLoader = loaders.removeValue(forKey: sessionID) {
             retainedLoaders.append(oldLoader)
@@ -97,6 +100,7 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
             } else {
                 window.center()
                 window.makeKeyAndOrderFront(nil)
+                NSApp.setActivationPolicy(.regular)
                 NSApp.activate(ignoringOtherApps: true)
             }
             windows[sessionID] = window
@@ -143,21 +147,25 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
                     return
                 }
 
-                // Slow path: structural change, full recompile
+                // Slow path: structural change, full recompile.
+                // Reuse the existing session so traits set via preview_configure are
+                // preserved without a race — compile() re-reads the source file and
+                // uses the session's stored traits, which live inside the actor.
                 fputs("Structural change, recompiling...\n", stderr)
                 do {
-                    let newSession = PreviewSession(
-                        sourceFile: fileURL,
-                        previewIndex: previewIndex,
-                        compiler: compiler,
-                        buildContext: buildContext
-                    )
-                    let compileResult = try await newSession.compile()
+                    guard
+                        let existingSession = await MainActor.run(body: {
+                            self.sessions[sessionID]
+                        })
+                    else {
+                        fputs("Session \(sessionID) no longer exists\n", stderr)
+                        return
+                    }
+                    let compileResult = try await existingSession.compile()
                     fputs("Compiled: \(compileResult.dylibPath.lastPathComponent)\n", stderr)
 
                     await MainActor.run {
                         do {
-                            self.sessions[sessionID] = newSession
                             let existingFrame = self.windows[sessionID]?.frame
                             try self.loadPreview(
                                 sessionID: sessionID,
@@ -239,6 +247,11 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
         if let loader = loaders.removeValue(forKey: sessionID) {
             retainedLoaders.append(loader)
         }
+    }
+
+    /// Get the session for a session ID (for reconfiguration).
+    public func session(for sessionID: String) -> PreviewSession? {
+        sessions[sessionID]
     }
 
     /// Get the window for a session (for snapshotting).
