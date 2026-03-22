@@ -48,17 +48,24 @@ let defaultPlaygroundCode = """
     }
     """
 
-/// Create a temporary playground Swift file, returning its URL.
-func createPlaygroundFile(code: String? = nil) throws -> URL {
-    let playgroundDir = FileManager.default.temporaryDirectory
-        .appendingPathComponent("previewsmcp-playground", isDirectory: true)
-    try FileManager.default.createDirectory(at: playgroundDir, withIntermediateDirectories: true)
+/// Create a playground Swift file, returning its URL.
+/// When `at` is provided, writes to that path (creating parent directories).
+/// Otherwise creates a temp file with a unique name.
+func createPlaygroundFile(code: String? = nil, at outputPath: URL? = nil) throws -> URL {
+    let fileURL: URL
+    if let outputPath {
+        let dir = outputPath.deletingLastPathComponent()
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        fileURL = outputPath
+    } else {
+        let playgroundDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-playground", isDirectory: true)
+        try FileManager.default.createDirectory(at: playgroundDir, withIntermediateDirectories: true)
+        let shortID = UUID().uuidString.prefix(8)
+        fileURL = playgroundDir.appendingPathComponent("Playground_\(shortID).swift")
+    }
 
-    let shortID = UUID().uuidString.prefix(8)
-    let fileName = "Playground_\(shortID).swift"
-    let fileURL = playgroundDir.appendingPathComponent(fileName)
     try (code ?? defaultPlaygroundCode).write(to: fileURL, atomically: true, encoding: .utf8)
-
     return fileURL
 }
 
