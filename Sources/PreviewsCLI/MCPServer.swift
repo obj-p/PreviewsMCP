@@ -218,6 +218,43 @@ func configureMCPServer() async throws -> (Server, Compiler) {
                 ])
             ),
             Tool(
+                name: "preview_playground",
+                description:
+                    "Create a temporary SwiftUI file and start a live preview. Returns session ID and file path for editing. No project setup needed.",
+                inputSchema: .object([
+                    "type": .string("object"),
+                    "properties": .object([
+                        "code": .object([
+                            "type": .string("string"),
+                            "description": .string(
+                                "Swift source code with a #Preview block. If omitted, creates a default SwiftUI view."
+                            ),
+                        ]),
+                        "platform": .object([
+                            "type": .string("string"),
+                            "description": .string("Target platform: 'macos' (default) or 'ios-simulator'"),
+                        ]),
+                        "deviceUDID": .object([
+                            "type": .string("string"),
+                            "description": .string(
+                                "Simulator device UDID (for ios-simulator; auto-selects if omitted)"),
+                        ]),
+                        "headless": .object([
+                            "type": .string("boolean"),
+                            "description": .string("If false, opens Simulator.app GUI (iOS only, default: true)"),
+                        ]),
+                        "width": .object([
+                            "type": .string("integer"),
+                            "description": .string("Window width in points (macOS only, default: 400)"),
+                        ]),
+                        "height": .object([
+                            "type": .string("integer"),
+                            "description": .string("Window height in points (macOS only, default: 600)"),
+                        ]),
+                    ]),
+                ])
+            ),
+            Tool(
                 name: "simulator_list",
                 description: "List available iOS simulator devices with their UDIDs and states.",
                 inputSchema: .object([
@@ -242,6 +279,8 @@ func configureMCPServer() async throws -> (Server, Compiler) {
             return try await handlePreviewElements(params: params)
         case "preview_touch":
             return try await handlePreviewTouch(params: params)
+        case "preview_playground":
+            return try await handlePreviewPlayground(params: params, macCompiler: compiler)
         case "simulator_list":
             return try await handleSimulatorList()
         default:
@@ -313,19 +352,8 @@ private func handlePreviewStart(params: CallTool.Parameters, macCompiler: Compil
     }
 
     // macOS path (default)
-    let width: Int
-    if case .int(let n) = params.arguments?["width"] {
-        width = n
-    } else {
-        width = 400
-    }
-
-    let height: Int
-    if case .int(let n) = params.arguments?["height"] {
-        height = n
-    } else {
-        height = 600
-    }
+    let width = if case .int(let n) = params.arguments?["width"] { n } else { 400 }
+    let height = if case .int(let n) = params.arguments?["height"] { n } else { 600 }
 
     // Detect build system (auto-detect or explicit projectPath)
     let buildContext: BuildContext?
@@ -335,37 +363,12 @@ private func handlePreviewStart(params: CallTool.Parameters, macCompiler: Compil
         return CallTool.Result(content: [.text("Project build failed: \(error.localizedDescription)")], isError: true)
     }
 
-    let session = PreviewSession(
-        sourceFile: fileURL,
-        previewIndex: previewIndex,
-        compiler: macCompiler,
-        buildContext: buildContext
+    let sessionID = try await startMacOSPreview(
+        fileURL: fileURL, previewIndex: previewIndex,
+        title: "Preview: \(fileURL.lastPathComponent)",
+        width: width, height: height,
+        compiler: macCompiler, buildContext: buildContext
     )
-
-    let compileResult = try await session.compile()
-    let sessionID = session.id
-
-    await MainActor.run {
-        do {
-            try App.host.loadPreview(
-                sessionID: sessionID,
-                dylibPath: compileResult.dylibPath,
-                title: "Preview: \(fileURL.lastPathComponent)",
-                size: NSSize(width: width, height: height)
-            )
-            App.host.watchFile(
-                sessionID: sessionID,
-                session: session,
-                filePath: fileURL.path,
-                compiler: macCompiler,
-                previewIndex: previewIndex,
-                additionalPaths: buildContext?.sourceFiles?.map(\.path) ?? [],
-                buildContext: buildContext
-            )
-        } catch {
-            fputs("MCP: Failed to load preview: \(error)\n", stderr)
-        }
-    }
 
     return CallTool.Result(content: [
         .text("macOS preview started. Session ID: \(sessionID). File is being watched for changes.")
@@ -447,6 +450,82 @@ private func handleIOSPreviewStart(
     return CallTool.Result(content: [
         .text(
             "iOS simulator preview started on device \(deviceUDID). Session ID: \(sessionID). PID: \(pid). File is being watched for changes."
+        )
+    ])
+}
+
+private func startMacOSPreview(
+    fileURL: URL, previewIndex: Int, title: String,
+    width: Int, height: Int,
+    compiler: Compiler, buildContext: BuildContext?
+) async throws -> String {
+    let session = PreviewSession(
+        sourceFile: fileURL,
+        previewIndex: previewIndex,
+        compiler: compiler,
+        buildContext: buildContext
+    )
+
+    let compileResult = try await session.compile()
+    let sessionID = session.id
+
+    await MainActor.run {
+        do {
+            try App.host.loadPreview(
+                sessionID: sessionID,
+                dylibPath: compileResult.dylibPath,
+                title: title,
+                size: NSSize(width: width, height: height)
+            )
+            App.host.watchFile(
+                sessionID: sessionID,
+                session: session,
+                filePath: fileURL.path,
+                compiler: compiler,
+                previewIndex: previewIndex,
+                additionalPaths: buildContext?.sourceFiles?.map(\.path) ?? [],
+                buildContext: buildContext
+            )
+        } catch {
+            fputs("MCP: Failed to load preview: \(error)\n", stderr)
+        }
+    }
+
+    return sessionID
+}
+
+private func handlePreviewPlayground(
+    params: CallTool.Parameters, macCompiler: Compiler
+) async throws -> CallTool.Result {
+    let code: String? = if case .string(let c) = params.arguments?["code"] { c } else { nil }
+    let fileURL = try createPlaygroundFile(code: code)
+
+    let platformStr = if case .string(let p) = params.arguments?["platform"] { p } else { "macos" }
+
+    if platformStr == "ios-simulator" {
+        let result = try await handleIOSPreviewStart(
+            fileURL: fileURL, previewIndex: 0, params: params)
+        if let text = result.content.first, case .text(let msg) = text {
+            return CallTool.Result(content: [
+                .text("Playground file: \(fileURL.path)\n\(msg)")
+            ])
+        }
+        return result
+    }
+
+    let width = if case .int(let n) = params.arguments?["width"] { n } else { 400 }
+    let height = if case .int(let n) = params.arguments?["height"] { n } else { 600 }
+
+    let sessionID = try await startMacOSPreview(
+        fileURL: fileURL, previewIndex: 0,
+        title: "Playground: \(fileURL.lastPathComponent)",
+        width: width, height: height,
+        compiler: macCompiler, buildContext: nil
+    )
+
+    return CallTool.Result(content: [
+        .text(
+            "Playground file: \(fileURL.path)\nmacOS preview started. Session ID: \(sessionID). Edit the file above to see live changes."
         )
     ])
 }

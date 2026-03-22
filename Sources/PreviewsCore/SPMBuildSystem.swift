@@ -18,7 +18,10 @@ public actor SPMBuildSystem: BuildSystem {
 
         while dir.path != root.path {
             let packageSwift = dir.appendingPathComponent("Package.swift")
-            if FileManager.default.fileExists(atPath: packageSwift.path) {
+            var isDir: ObjCBool = false
+            if FileManager.default.fileExists(atPath: packageSwift.path, isDirectory: &isDir),
+                !isDir.boolValue
+            {
                 return SPMBuildSystem(projectRoot: dir, sourceFile: sourceFile.standardizedFileURL)
             }
             dir = dir.deletingLastPathComponent()

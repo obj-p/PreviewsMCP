@@ -25,7 +25,10 @@ struct PreviewsMCPApp {
         }
 
         // Commands that don't need NSApplication (list, help, etc.)
-        if command is ListCommand || !(command is RunCommand || command is ServeCommand || command is SnapshotCommand) {
+        if command is ListCommand
+            || !(command is RunCommand || command is ServeCommand || command is SnapshotCommand
+                || command is PlaygroundCommand)
+        {
             do {
                 var mutable = command
                 try mutable.run()
@@ -74,7 +77,9 @@ struct PreviewsMCPCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "previewsmcp",
         abstract: "Run SwiftUI previews outside of Xcode",
-        subcommands: [RunCommand.self, ListCommand.self, SnapshotCommand.self, ServeCommand.self],
+        subcommands: [
+            RunCommand.self, ListCommand.self, SnapshotCommand.self, ServeCommand.self, PlaygroundCommand.self,
+        ],
         defaultSubcommand: RunCommand.self
     )
 }
