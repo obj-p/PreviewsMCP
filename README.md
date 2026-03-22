@@ -36,12 +36,18 @@ previewsmcp list MyView.swift
 # Run a live preview window (macOS)
 previewsmcp run MyView.swift
 
+# Run on iOS simulator
+previewsmcp run MyView.swift --platform ios-simulator
+
 # Capture a screenshot
 previewsmcp snapshot MyView.swift -o preview.png
 
-# Start the MCP server
-previewsmcp serve
+# Open a playground — creates a temp file with a starter view and live-reloads on edit
+previewsmcp playground
+previewsmcp playground --platform ios-simulator
 ```
+
+The `playground` command creates a temporary Swift file and opens a live preview. Edit the file in any editor and changes appear instantly — no project setup needed.
 
 ## MCP Server
 
@@ -57,6 +63,8 @@ Add to your `.mcp.json` (or Claude Code MCP config):
   }
 }
 ```
+
+Tools: `preview_list`, `preview_start`, `preview_snapshot`, `preview_elements`, `preview_touch`, `preview_stop`, `preview_playground`, `simulator_list`
 
 ## License
 
