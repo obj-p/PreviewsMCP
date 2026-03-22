@@ -446,8 +446,11 @@ private func handlePreviewStart(params: CallTool.Parameters, macCompiler: Compil
         traits: resolvedTraits
     )
 
+    let traitInfo = resolvedTraits.isEmpty ? "" : " Traits: \(traitsSummary(resolvedTraits))."
     return CallTool.Result(content: [
-        .text("macOS preview started. Session ID: \(sessionID). File is being watched for changes.")
+        .text(
+            "macOS preview started. Session ID: \(sessionID).\(traitInfo) File is being watched for changes."
+        )
     ])
 }
 
@@ -525,9 +528,10 @@ private func handleIOSPreviewStart(
     // Wait briefly for the app to launch and render
     try await Task.sleep(for: .seconds(2))
 
+    let traitInfo = traits.isEmpty ? "" : " Traits: \(traitsSummary(traits))."
     return CallTool.Result(content: [
         .text(
-            "iOS simulator preview started on device \(deviceUDID). Session ID: \(sessionID). PID: \(pid). File is being watched for changes."
+            "iOS simulator preview started on device \(deviceUDID). Session ID: \(sessionID). PID: \(pid).\(traitInfo) File is being watched for changes."
         )
     ])
 }
