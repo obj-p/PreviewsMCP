@@ -869,9 +869,10 @@ private func handlePreviewConfigure(params: CallTool.Parameters) async throws ->
     // iOS path
     if let iosSession = await iosState.getSession(sessionID) {
         try await iosSession.reconfigure(traits: traits)
+        let activeTraits = await iosSession.currentTraits
         return CallTool.Result(content: [
             .text(
-                "Configured session \(sessionID): \(traitsSummary(traits)). View recompiled (@State was reset)."
+                "Configured session \(sessionID): \(traitsSummary(activeTraits)). View recompiled (@State was reset)."
             )
         ])
     }
@@ -887,9 +888,10 @@ private func handlePreviewConfigure(params: CallTool.Parameters) async throws ->
         try App.host.loadPreview(sessionID: sessionID, dylibPath: compileResult.dylibPath)
     }
 
+    let activeTraits = await session.currentTraits
     return CallTool.Result(content: [
         .text(
-            "Configured session \(sessionID): \(traitsSummary(traits)). View recompiled (@State was reset)."
+            "Configured session \(sessionID): \(traitsSummary(activeTraits)). View recompiled (@State was reset)."
         )
     ])
 }

@@ -21,6 +21,7 @@ public actor IOSPreviewSession {
     public nonisolated let headless: Bool
     private let buildContext: BuildContext?
     private var traits: PreviewTraits
+    public var currentTraits: PreviewTraits { traits }
 
     public static let hostBundleID = "com.previewsmcp.host"
 
