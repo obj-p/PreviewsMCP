@@ -143,27 +143,25 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
                     return
                 }
 
-                // Slow path: structural change, full recompile
-                // Note: there is a narrow race between this code path and preview_configure.
-                // If a file change and a configure call overlap, the traits snapshot read here
-                // may not include the configure update (which mutates the old session's traits
-                // while this path creates a new session). In practice, the window is very small.
+                // Slow path: structural change, full recompile.
+                // Reuse the existing session so traits set via preview_configure are
+                // preserved without a race — compile() re-reads the source file and
+                // uses the session's stored traits, which live inside the actor.
                 fputs("Structural change, recompiling...\n", stderr)
                 do {
-                    let currentTraits = await self.sessions[sessionID]?.currentTraits ?? PreviewTraits()
-                    let newSession = PreviewSession(
-                        sourceFile: fileURL,
-                        previewIndex: previewIndex,
-                        compiler: compiler,
-                        buildContext: buildContext,
-                        traits: currentTraits
-                    )
-                    let compileResult = try await newSession.compile()
+                    guard
+                        let existingSession = await MainActor.run(body: {
+                            self.sessions[sessionID]
+                        })
+                    else {
+                        fputs("Session \(sessionID) no longer exists\n", stderr)
+                        return
+                    }
+                    let compileResult = try await existingSession.compile()
                     fputs("Compiled: \(compileResult.dylibPath.lastPathComponent)\n", stderr)
 
                     await MainActor.run {
                         do {
-                            self.sessions[sessionID] = newSession
                             let existingFrame = self.windows[sessionID]?.frame
                             try self.loadPreview(
                                 sessionID: sessionID,
