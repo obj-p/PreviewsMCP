@@ -42,18 +42,16 @@ previewsmcp run MyView.swift --platform ios-simulator
 # Capture a screenshot
 previewsmcp snapshot MyView.swift -o preview.png
 
-# Open a playground — creates a temp file with a starter view and live-reloads on edit
+# Scaffold a new playground file and start a live preview
 previewsmcp playground
-previewsmcp playground --platform ios-simulator
-
-# Or use an existing file
 previewsmcp playground MyView.swift
+previewsmcp playground --platform ios-simulator
 
 # Pipe to your editor
 vim $(previewsmcp playground)
 ```
 
-The `playground` command opens a live preview with hot-reload — no project setup needed. Pass an existing file or omit to create a temp one.
+The `playground` command scaffolds a new SwiftUI file with a starter view and opens a live preview with hot-reload. Pass a path to create the file there, or omit for a temp file. Use `run` to preview existing files.
 
 ## MCP Server
 

@@ -220,7 +220,7 @@ func configureMCPServer() async throws -> (Server, Compiler) {
             Tool(
                 name: "preview_playground",
                 description:
-                    "Create a temporary SwiftUI file and start a live preview. Returns session ID and file path for editing. No project setup needed.",
+                    "Create a temporary SwiftUI file and start a live preview for quick experimentation. Returns session ID and file path. For previewing existing files, use preview_start instead.",
                 inputSchema: .object([
                     "type": .string("object"),
                     "properties": .object([

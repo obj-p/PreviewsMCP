@@ -5,10 +5,10 @@ import Foundation
 struct PlaygroundCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "playground",
-        abstract: "Create a temporary SwiftUI file and start a live preview"
+        abstract: "Scaffold a new SwiftUI file and start a live preview"
     )
 
-    @Argument(help: "Path to an existing Swift file (creates a temp file if omitted)")
+    @Argument(help: "Output path for the new file (creates a temp file if omitted)")
     var file: String?
 
     @Option(name: .long, help: "Window width")
@@ -26,10 +26,12 @@ struct PlaygroundCommand: ParsableCommand {
     mutating func run() throws {
         let fileURL: URL
         if let file {
-            fileURL = URL(fileURLWithPath: file).standardizedFileURL
-            guard FileManager.default.fileExists(atPath: fileURL.path) else {
-                throw ValidationError("File not found: \(file)")
+            let url = URL(fileURLWithPath: file).standardizedFileURL
+            if FileManager.default.fileExists(atPath: url.path) {
+                throw ValidationError(
+                    "File already exists: \(file). Use 'previewsmcp run \(file)' to preview it.")
             }
+            fileURL = try createPlaygroundFile(at: url)
         } else {
             fileURL = try createPlaygroundFile()
         }
