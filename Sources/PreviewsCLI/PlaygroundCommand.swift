@@ -27,7 +27,12 @@ struct PlaygroundCommand: ParsableCommand {
         let fileURL: URL
         if let file {
             let url = URL(fileURLWithPath: file).standardizedFileURL
-            if FileManager.default.fileExists(atPath: url.path) {
+            var isDir: ObjCBool = false
+            if FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir) {
+                if isDir.boolValue {
+                    throw ValidationError(
+                        "'\(file)' is a directory. Provide a file path, e.g. '\(file)/MyView.swift'")
+                }
                 throw ValidationError(
                     "File already exists: \(file). Use 'previewsmcp run \(file)' to preview it.")
             }

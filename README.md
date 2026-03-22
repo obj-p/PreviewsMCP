@@ -44,7 +44,7 @@ previewsmcp snapshot MyView.swift -o preview.png
 
 # Scaffold a new playground file and start a live preview
 previewsmcp playground
-previewsmcp playground MyView.swift
+previewsmcp playground MyView.swift    # creates MyView.swift with starter code
 previewsmcp playground --platform ios-simulator
 
 # Pipe to your editor
