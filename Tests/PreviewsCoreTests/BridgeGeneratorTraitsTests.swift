@@ -242,4 +242,47 @@ struct BridgeGeneratorTraitsTests {
         #expect(mergedTraits.dynamicTypeSize == "accessibility3")
         #expect(result3.dylibPath != result2.dylibPath)
     }
+
+    // MARK: - generateOverlaySource
+
+    @Test("generateOverlaySource with traits injects modifiers")
+    func overlaySourceWithTraits() {
+        let traits = PreviewTraits(colorScheme: "dark", dynamicTypeSize: "xxxLarge")
+        let (source, literals) = BridgeGenerator.generateOverlaySource(
+            originalSource: Self.testSource,
+            closureBody: "TestView()",
+            traits: traits
+        )
+        #expect(source.contains(".preferredColorScheme(.dark)"))
+        #expect(source.contains(".dynamicTypeSize(.xxxLarge)"))
+        #expect(source.contains("DesignTimeStore"))
+        #expect(!literals.isEmpty)
+    }
+
+    // MARK: - Validation
+
+    @Test("PreviewTraits.validColorSchemes contains exactly light and dark")
+    func validColorSchemes() {
+        #expect(PreviewTraits.validColorSchemes == ["light", "dark"])
+    }
+
+    @Test("PreviewTraits.validDynamicTypeSizes contains all 12 SwiftUI cases")
+    func validDynamicTypeSizes() {
+        #expect(PreviewTraits.validDynamicTypeSizes.count == 12)
+        #expect(PreviewTraits.validDynamicTypeSizes.contains("xSmall"))
+        #expect(PreviewTraits.validDynamicTypeSizes.contains("accessibility5"))
+        #expect(!PreviewTraits.validDynamicTypeSizes.contains("huge"))
+    }
+
+    // MARK: - Equatable
+
+    @Test("PreviewTraits Equatable works correctly")
+    func traitsEquatable() {
+        let a = PreviewTraits(colorScheme: "dark", dynamicTypeSize: "large")
+        let b = PreviewTraits(colorScheme: "dark", dynamicTypeSize: "large")
+        let c = PreviewTraits(colorScheme: "light")
+        #expect(a == b)
+        #expect(a != c)
+        #expect(PreviewTraits() == PreviewTraits())
+    }
 }
