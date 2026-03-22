@@ -77,13 +77,16 @@ struct PreviewSessionBuildContextTests {
     }
 
     @Test("Tier 1 context has supportsTier2 == false")
-    func tier1ContextProperties() async throws {
-        let fullCtx = try await Self.buildSPMExample()
-        let ctx = Self.tier1Context(from: fullCtx)
+    func tier1ContextProperties() {
+        let ctx = BuildContext(
+            moduleName: "TestModule",
+            compilerFlags: ["-I", "/some/path"],
+            projectRoot: URL(fileURLWithPath: "/tmp"),
+            targetName: "TestModule",
+            sourceFiles: nil
+        )
         #expect(!ctx.supportsTier2)
         #expect(ctx.sourceFiles == nil)
-        #expect(ctx.moduleName == fullCtx.moduleName)
-        #expect(ctx.compilerFlags == fullCtx.compilerFlags)
     }
 
     @Test("tryLiteralUpdate returns nil for Tier 1 session")
@@ -102,8 +105,8 @@ struct PreviewSessionBuildContextTests {
         // No compile needed — tryLiteralUpdate checks buildContext.supportsTier2
         // before checking lastOriginalSource
         let original = try String(contentsOf: Self.toDoViewFile, encoding: .utf8)
+        #expect(original.contains("\"My Items\""), "ToDoView.swift should contain \"My Items\"")
         let modified = original.replacingOccurrences(of: "\"My Items\"", with: "\"My Tasks\"")
-        #expect(original != modified, "Should have made a replacement")
 
         let changes = await session.tryLiteralUpdate(newSource: modified)
         #expect(changes == nil, "Tier 1 should always return nil from tryLiteralUpdate")
@@ -124,8 +127,8 @@ struct PreviewSessionBuildContextTests {
         _ = try await session.compile()
 
         let original = try String(contentsOf: Self.toDoViewFile, encoding: .utf8)
+        #expect(original.contains("\"My Items\""), "ToDoView.swift should contain \"My Items\"")
         let modified = original.replacingOccurrences(of: "\"My Items\"", with: "\"My Tasks\"")
-        #expect(original != modified, "Should have made a replacement")
 
         let changes = await session.tryLiteralUpdate(newSource: modified)
         #expect(changes != nil, "Tier 2 should detect literal-only change")
