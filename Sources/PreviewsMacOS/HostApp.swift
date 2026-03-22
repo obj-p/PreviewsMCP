@@ -144,6 +144,10 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
                 }
 
                 // Slow path: structural change, full recompile
+                // Note: there is a narrow race between this code path and preview_configure.
+                // If a file change and a configure call overlap, the traits snapshot read here
+                // may not include the configure update (which mutates the old session's traits
+                // while this path creates a new session). In practice, the window is very small.
                 fputs("Structural change, recompiling...\n", stderr)
                 do {
                     let currentTraits = await self.sessions[sessionID]?.currentTraits ?? PreviewTraits()
