@@ -1,0 +1,137 @@
+import Foundation
+import Testing
+
+@testable import PreviewsCore
+
+@Suite("PreviewSession with BuildContext", .serialized)
+struct PreviewSessionBuildContextTests {
+
+    // MARK: - Paths
+
+    static let repoRoot: URL = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent()  // PreviewsCoreTests/
+        .deletingLastPathComponent()  // Tests/
+        .deletingLastPathComponent()  // repo root
+
+    static let spmExampleRoot = repoRoot.appendingPathComponent("examples/spm")
+    static let toDoViewFile = spmExampleRoot.appendingPathComponent("Sources/ToDo/ToDoView.swift")
+
+    // MARK: - Helpers
+
+    static func buildSPMExample() async throws -> BuildContext {
+        guard let spm = try await SPMBuildSystem.detect(for: toDoViewFile) else {
+            throw TestHelperError.noBuildSystem
+        }
+        return try await spm.build(platform: .macOS)
+    }
+
+    static func tier1Context(from ctx: BuildContext) -> BuildContext {
+        BuildContext(
+            moduleName: ctx.moduleName,
+            compilerFlags: ctx.compilerFlags,
+            projectRoot: ctx.projectRoot,
+            targetName: ctx.targetName,
+            sourceFiles: nil
+        )
+    }
+
+    enum TestHelperError: Error, LocalizedError {
+        case noBuildSystem
+
+        var errorDescription: String? {
+            switch self {
+            case .noBuildSystem:
+                return "SPMBuildSystem.detect returned nil for examples/spm"
+            }
+        }
+    }
+
+    // MARK: - Tests
+
+    @Test("Tier 2 compile: dylib + populated literals + DesignTimeStore symbols")
+    func tier2Compile() async throws {
+        let ctx = try await Self.buildSPMExample()
+        #expect(ctx.supportsTier2)
+        #expect(
+            ctx.sourceFiles?.contains(where: { $0.lastPathComponent == "Item.swift" }) == true)
+
+        let compiler = try await Compiler()
+        let session = PreviewSession(
+            sourceFile: Self.toDoViewFile,
+            previewIndex: 0,
+            compiler: compiler,
+            buildContext: ctx
+        )
+
+        let result = try await session.compile()
+        #expect(FileManager.default.fileExists(atPath: result.dylibPath.path))
+        #expect(!result.literals.isEmpty, "Tier 2 should produce literal mappings")
+
+        let loader = try DylibLoader(path: result.dylibPath.path)
+        typealias CreateFunc = @convention(c) () -> UnsafeMutableRawPointer
+        let _: CreateFunc = try loader.symbol(name: "createPreviewView")
+        typealias SetString = @convention(c) (UnsafePointer<CChar>, UnsafePointer<CChar>) -> Void
+        let _: SetString = try loader.symbol(name: "designTimeSetString")
+        typealias SetInt = @convention(c) (UnsafePointer<CChar>, Int) -> Void
+        let _: SetInt = try loader.symbol(name: "designTimeSetInteger")
+    }
+
+    @Test("Tier 1 context has supportsTier2 == false")
+    func tier1ContextProperties() async throws {
+        let fullCtx = try await Self.buildSPMExample()
+        let ctx = Self.tier1Context(from: fullCtx)
+        #expect(!ctx.supportsTier2)
+        #expect(ctx.sourceFiles == nil)
+        #expect(ctx.moduleName == fullCtx.moduleName)
+        #expect(ctx.compilerFlags == fullCtx.compilerFlags)
+    }
+
+    @Test("tryLiteralUpdate returns nil for Tier 1 session")
+    func tryLiteralUpdateNilForTier1() async throws {
+        let fullCtx = try await Self.buildSPMExample()
+        let ctx = Self.tier1Context(from: fullCtx)
+
+        let compiler = try await Compiler()
+        let session = PreviewSession(
+            sourceFile: Self.toDoViewFile,
+            previewIndex: 0,
+            compiler: compiler,
+            buildContext: ctx
+        )
+
+        // No compile needed — tryLiteralUpdate checks buildContext.supportsTier2
+        // before checking lastOriginalSource
+        let original = try String(contentsOf: Self.toDoViewFile, encoding: .utf8)
+        let modified = original.replacingOccurrences(of: "\"My Items\"", with: "\"My Tasks\"")
+        #expect(original != modified, "Should have made a replacement")
+
+        let changes = await session.tryLiteralUpdate(newSource: modified)
+        #expect(changes == nil, "Tier 1 should always return nil from tryLiteralUpdate")
+    }
+
+    @Test("tryLiteralUpdate returns changes for Tier 2 session")
+    func tryLiteralUpdateChangesForTier2() async throws {
+        let ctx = try await Self.buildSPMExample()
+
+        let compiler = try await Compiler()
+        let session = PreviewSession(
+            sourceFile: Self.toDoViewFile,
+            previewIndex: 0,
+            compiler: compiler,
+            buildContext: ctx
+        )
+
+        _ = try await session.compile()
+
+        let original = try String(contentsOf: Self.toDoViewFile, encoding: .utf8)
+        let modified = original.replacingOccurrences(of: "\"My Items\"", with: "\"My Tasks\"")
+        #expect(original != modified, "Should have made a replacement")
+
+        let changes = await session.tryLiteralUpdate(newSource: modified)
+        #expect(changes != nil, "Tier 2 should detect literal-only change")
+        #expect(
+            changes?.contains(where: { $0.newValue == .string("My Tasks") }) == true,
+            "Should contain the changed string value"
+        )
+    }
+}
