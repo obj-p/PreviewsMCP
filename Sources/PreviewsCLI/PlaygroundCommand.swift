@@ -41,7 +41,10 @@ struct PlaygroundCommand: ParsableCommand {
             fileURL = try createPlaygroundFile()
         }
 
-        print(fileURL.path)
+        // Use fputs to stdout — print() is fully buffered when piped, which
+        // breaks `vim $(previewsmcp playground)` since the path never flushes.
+        fputs("\(fileURL.path)\n", stdout)
+        fflush(stdout)
         fputs("Edit this file to see live changes.\n", stderr)
 
         let windowWidth = width
