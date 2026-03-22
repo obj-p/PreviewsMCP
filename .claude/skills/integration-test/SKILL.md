@@ -19,7 +19,14 @@ Run integration tests for PreviewsMCP example projects.
 
 3. **For each example**, read its `README.md` and follow the "Integration Test Prompt" section. The README contains the exact steps to execute, including which MCP tools to call and what to verify.
 
-4. **Report results.** For each example, report pass/fail per test step. Summarize at the end.
+4. **Test playground.** After example tests, run the playground integration test:
+   - Call `preview_playground` with no arguments (default code) — verify it returns a session ID and file path
+   - Take a snapshot — verify it renders the default "Hello, playground!" view
+   - Call `preview_playground` with custom `code` containing a simple SwiftUI view — verify it compiles and renders
+   - Take a snapshot of the custom code session — verify the custom view appears
+   - Stop both playground sessions
+
+5. **Report results.** For each example, report pass/fail per test step. Summarize at the end.
 
 ## Project path guidance
 
