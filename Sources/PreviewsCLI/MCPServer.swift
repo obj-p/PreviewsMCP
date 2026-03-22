@@ -412,9 +412,8 @@ private func handlePreviewStart(params: CallTool.Parameters, macCompiler: Compil
         platformStr = "macos"
     }
 
-    let (traits, traitsError) = parseTraits(from: params)
+    let (resolvedTraits, traitsError) = parseTraits(from: params)
     if let traitsError { return traitsError }
-    let resolvedTraits = traits ?? PreviewTraits()
 
     // iOS simulator path
     if platformStr == "ios-simulator" {
@@ -589,9 +588,8 @@ private func handlePreviewPlayground(
     let fileURL = try createPlaygroundFile(code: code)
 
     let platformStr = if case .string(let p) = params.arguments?["platform"] { p } else { "macos" }
-    let (pgTraits, pgTraitsError) = parseTraits(from: params)
+    let (resolvedPgTraits, pgTraitsError) = parseTraits(from: params)
     if let pgTraitsError { return pgTraitsError }
-    let resolvedPgTraits = pgTraits ?? PreviewTraits()
 
     if platformStr == "ios-simulator" {
         let result = try await handleIOSPreviewStart(
@@ -824,12 +822,12 @@ private func handleSimulatorList() async throws -> CallTool.Result {
 // MARK: - Trait Helpers
 
 /// Parse and validate trait parameters. Returns (traits, nil) on success or (nil, error result) on failure.
-private func parseTraits(from params: CallTool.Parameters) -> (PreviewTraits?, CallTool.Result?) {
+private func parseTraits(from params: CallTool.Parameters) -> (PreviewTraits, CallTool.Result?) {
     var traits = PreviewTraits()
     if case .string(let cs) = params.arguments?["colorScheme"] {
         guard PreviewTraits.validColorSchemes.contains(cs) else {
             return (
-                nil,
+                traits,
                 CallTool.Result(
                     content: [.text("Invalid colorScheme '\(cs)'. Must be 'light' or 'dark'.")],
                     isError: true)
@@ -840,7 +838,7 @@ private func parseTraits(from params: CallTool.Parameters) -> (PreviewTraits?, C
     if case .string(let dts) = params.arguments?["dynamicTypeSize"] {
         guard PreviewTraits.validDynamicTypeSizes.contains(dts) else {
             return (
-                nil,
+                traits,
                 CallTool.Result(
                     content: [
                         .text(
@@ -868,9 +866,8 @@ private func handlePreviewConfigure(params: CallTool.Parameters) async throws ->
     }
 
     // Parse and validate traits
-    let (parsedTraits, validationError) = parseTraits(from: params)
+    let (traits, validationError) = parseTraits(from: params)
     if let validationError { return validationError }
-    let traits = parsedTraits ?? PreviewTraits()
 
     if traits.isEmpty {
         return CallTool.Result(content: [.text("No configuration changes specified.")])
