@@ -2,7 +2,7 @@ import Foundation
 
 /// Configuration for SwiftUI rendering traits applied to a preview.
 /// Traits are injected as view modifiers in the generated bridge code.
-public struct PreviewTraits: Sendable {
+public struct PreviewTraits: Sendable, Equatable {
     public var colorScheme: String?
     public var dynamicTypeSize: String?
 
