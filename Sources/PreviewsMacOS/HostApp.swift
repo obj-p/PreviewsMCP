@@ -51,13 +51,16 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
 
     /// Load a dylib and display its preview view in a window.
     /// If a window already exists for this session, reuses it (swaps content view).
+    /// - Parameter headless: If provided, overrides the instance-level default for this window.
     public func loadPreview(
         sessionID: String,
         dylibPath: URL,
         entryPoint: String = "createPreviewView",
         title: String = "Preview",
-        size: NSSize = NSSize(width: 400, height: 600)
+        size: NSSize = NSSize(width: 400, height: 600),
+        headless: Bool? = nil
     ) throws {
+        let headless = headless ?? self.headless
         // Retire the old loader (keep it alive, don't dlclose)
         if let oldLoader = loaders.removeValue(forKey: sessionID) {
             retainedLoaders.append(oldLoader)
@@ -97,6 +100,7 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
             } else {
                 window.center()
                 window.makeKeyAndOrderFront(nil)
+                NSApp.setActivationPolicy(.regular)
                 NSApp.activate(ignoringOtherApps: true)
             }
             windows[sessionID] = window

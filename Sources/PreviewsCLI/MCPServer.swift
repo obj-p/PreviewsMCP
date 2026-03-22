@@ -103,7 +103,7 @@ func configureMCPServer() async throws -> (Server, Compiler) {
                         ]),
                         "headless": .object([
                             "type": .string("boolean"),
-                            "description": .string("If false, opens Simulator.app GUI (iOS only, default: true)"),
+                            "description": .string("If false, shows the preview window (default: true)"),
                         ]),
                         "width": .object([
                             "type": .string("integer"),
@@ -291,7 +291,7 @@ func configureMCPServer() async throws -> (Server, Compiler) {
                         ]),
                         "headless": .object([
                             "type": .string("boolean"),
-                            "description": .string("If false, opens Simulator.app GUI (iOS only, default: true)"),
+                            "description": .string("If false, shows the preview window (default: true)"),
                         ]),
                         "width": .object([
                             "type": .string("integer"),
@@ -429,6 +429,7 @@ private func handlePreviewStart(params: CallTool.Parameters, macCompiler: Compil
     // macOS path (default)
     let width = if case .int(let n) = params.arguments?["width"] { n } else { 400 }
     let height = if case .int(let n) = params.arguments?["height"] { n } else { 600 }
+    let headless = if case .bool(let h) = params.arguments?["headless"] { h } else { true }
 
     // Detect build system (auto-detect or explicit projectPath)
     let buildContext: BuildContext?
@@ -443,7 +444,8 @@ private func handlePreviewStart(params: CallTool.Parameters, macCompiler: Compil
         title: "Preview: \(fileURL.lastPathComponent)",
         width: width, height: height,
         compiler: macCompiler, buildContext: buildContext,
-        traits: resolvedTraits
+        traits: resolvedTraits,
+        headless: headless
     )
 
     let traitInfo = resolvedTraits.isEmpty ? "" : " Traits: \(traitsSummary(resolvedTraits))."
@@ -540,7 +542,8 @@ private func startMacOSPreview(
     fileURL: URL, previewIndex: Int, title: String,
     width: Int, height: Int,
     compiler: Compiler, buildContext: BuildContext?,
-    traits: PreviewTraits = PreviewTraits()
+    traits: PreviewTraits = PreviewTraits(),
+    headless: Bool = true
 ) async throws -> String {
     let session = PreviewSession(
         sourceFile: fileURL,
@@ -559,7 +562,8 @@ private func startMacOSPreview(
                 sessionID: sessionID,
                 dylibPath: compileResult.dylibPath,
                 title: title,
-                size: NSSize(width: width, height: height)
+                size: NSSize(width: width, height: height),
+                headless: headless
             )
             App.host.watchFile(
                 sessionID: sessionID,
@@ -602,13 +606,15 @@ private func handlePreviewPlayground(
 
     let width = if case .int(let n) = params.arguments?["width"] { n } else { 400 }
     let height = if case .int(let n) = params.arguments?["height"] { n } else { 600 }
+    let headless = if case .bool(let h) = params.arguments?["headless"] { h } else { true }
 
     let sessionID = try await startMacOSPreview(
         fileURL: fileURL, previewIndex: 0,
         title: "Playground: \(fileURL.lastPathComponent)",
         width: width, height: height,
         compiler: macCompiler, buildContext: nil,
-        traits: resolvedPgTraits
+        traits: resolvedPgTraits,
+        headless: headless
     )
 
     return CallTool.Result(content: [

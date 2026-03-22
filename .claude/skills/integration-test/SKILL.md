@@ -19,14 +19,14 @@ Run integration tests for PreviewsMCP example projects.
 
 3. **For each example**, read its `README.md` and follow the "Integration Test Prompt" section. The README contains the exact steps to execute, including which MCP tools to call and what to verify.
 
-4. **Test trait injection.** After example tests, pick any running macOS session (or start a new one from the SPM example) and test `preview_configure`:
-   - Call `preview_configure` with `colorScheme: "dark"` — verify it returns a success message mentioning "colorScheme=dark" and "recompiled"
-   - Take a snapshot — visually verify the view renders with a dark background
+4. **Test trait injection.** After example tests, test `preview_configure` on both macOS and iOS. The system appearance affects the default — test the **opposite** color scheme so the change is visually obvious (e.g., if the system is dark mode, test `colorScheme: "light"` and vice versa).
+   - Start a macOS session (from the SPM example) and an iOS simulator session
+   - Call `preview_configure` with the opposite `colorScheme` from the system default — verify the snapshot shows a clear visual difference (light background vs dark background)
    - Call `preview_configure` with `dynamicTypeSize: "accessibility3"` — verify success and that colorScheme persists (merge semantics)
    - Take a snapshot — verify text appears larger
    - Call `preview_configure` with an invalid `dynamicTypeSize` (e.g., `"huge"`) — verify it returns an error listing valid values
    - Call `preview_configure` with only `sessionID` and no traits — verify it returns "No configuration changes specified."
-   - Stop the session
+   - Stop the sessions
 
 5. **Test playground.** After example tests, run the playground integration test:
    - Call `preview_playground` with no arguments (default code) — verify it returns a session ID and file path
