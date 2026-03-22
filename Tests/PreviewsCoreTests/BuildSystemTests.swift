@@ -29,6 +29,26 @@ struct BuildSystemTests {
         #expect(spm?.projectRoot.path == tmpDir.standardizedFileURL.path)
     }
 
+    @Test("SPMBuildSystem ignores directory named Package.swift")
+    func detectSPMIgnoresDirectory() async throws {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-test-\(UUID().uuidString)")
+        let sourcesDir = tmpDir.appendingPathComponent("Sources/MyTarget")
+        try FileManager.default.createDirectory(at: sourcesDir, withIntermediateDirectories: true)
+
+        // Create a directory named Package.swift instead of a file
+        let packageDir = tmpDir.appendingPathComponent("Package.swift")
+        try FileManager.default.createDirectory(at: packageDir, withIntermediateDirectories: true)
+
+        let sourceFile = sourcesDir.appendingPathComponent("MyView.swift")
+        try "import SwiftUI".write(to: sourceFile, atomically: true, encoding: .utf8)
+
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        let spm = try await SPMBuildSystem.detect(for: sourceFile)
+        #expect(spm == nil)
+    }
+
     @Test("SPMBuildSystem returns nil for standalone file with no Package.swift")
     func detectStandaloneFile() async throws {
         let tmpDir = FileManager.default.temporaryDirectory
@@ -56,6 +76,46 @@ struct BuildSystemTests {
         defer { try? FileManager.default.removeItem(at: tmpDir) }
 
         let buildSystem = try await BuildSystemDetector.detect(for: sourceFile)
+        #expect(buildSystem == nil)
+    }
+
+    @Test("BuildSystemDetector ignores directory named Package.swift with explicit projectRoot")
+    func detectorIgnoresPackageSwiftDirectory() async throws {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+
+        // Directory named Package.swift — should not match as SPM
+        let packageDir = tmpDir.appendingPathComponent("Package.swift")
+        try FileManager.default.createDirectory(at: packageDir, withIntermediateDirectories: true)
+
+        let sourceFile = tmpDir.appendingPathComponent("main.swift")
+        try "import SwiftUI".write(to: sourceFile, atomically: true, encoding: .utf8)
+
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        let buildSystem = try await BuildSystemDetector.detect(
+            for: sourceFile, projectRoot: tmpDir)
+        #expect(buildSystem == nil)
+    }
+
+    @Test("BuildSystemDetector ignores directory named MODULE.bazel with explicit projectRoot")
+    func detectorIgnoresBazelMarkerDirectory() async throws {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+
+        // Directory named MODULE.bazel — should not match as Bazel
+        let bazelDir = tmpDir.appendingPathComponent("MODULE.bazel")
+        try FileManager.default.createDirectory(at: bazelDir, withIntermediateDirectories: true)
+
+        let sourceFile = tmpDir.appendingPathComponent("main.swift")
+        try "import SwiftUI".write(to: sourceFile, atomically: true, encoding: .utf8)
+
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        let buildSystem = try await BuildSystemDetector.detect(
+            for: sourceFile, projectRoot: tmpDir)
         #expect(buildSystem == nil)
     }
 

@@ -352,19 +352,8 @@ private func handlePreviewStart(params: CallTool.Parameters, macCompiler: Compil
     }
 
     // macOS path (default)
-    let width: Int
-    if case .int(let n) = params.arguments?["width"] {
-        width = n
-    } else {
-        width = 400
-    }
-
-    let height: Int
-    if case .int(let n) = params.arguments?["height"] {
-        height = n
-    } else {
-        height = 600
-    }
+    let width = if case .int(let n) = params.arguments?["width"] { n } else { 400 }
+    let height = if case .int(let n) = params.arguments?["height"] { n } else { 600 }
 
     // Detect build system (auto-detect or explicit projectPath)
     let buildContext: BuildContext?
@@ -374,37 +363,12 @@ private func handlePreviewStart(params: CallTool.Parameters, macCompiler: Compil
         return CallTool.Result(content: [.text("Project build failed: \(error.localizedDescription)")], isError: true)
     }
 
-    let session = PreviewSession(
-        sourceFile: fileURL,
-        previewIndex: previewIndex,
-        compiler: macCompiler,
-        buildContext: buildContext
+    let sessionID = try await startMacOSPreview(
+        fileURL: fileURL, previewIndex: previewIndex,
+        title: "Preview: \(fileURL.lastPathComponent)",
+        width: width, height: height,
+        compiler: macCompiler, buildContext: buildContext
     )
-
-    let compileResult = try await session.compile()
-    let sessionID = session.id
-
-    await MainActor.run {
-        do {
-            try App.host.loadPreview(
-                sessionID: sessionID,
-                dylibPath: compileResult.dylibPath,
-                title: "Preview: \(fileURL.lastPathComponent)",
-                size: NSSize(width: width, height: height)
-            )
-            App.host.watchFile(
-                sessionID: sessionID,
-                session: session,
-                filePath: fileURL.path,
-                compiler: macCompiler,
-                previewIndex: previewIndex,
-                additionalPaths: buildContext?.sourceFiles?.map(\.path) ?? [],
-                buildContext: buildContext
-            )
-        } catch {
-            fputs("MCP: Failed to load preview: \(error)\n", stderr)
-        }
-    }
 
     return CallTool.Result(content: [
         .text("macOS preview started. Session ID: \(sessionID). File is being watched for changes.")
@@ -490,85 +454,16 @@ private func handleIOSPreviewStart(
     ])
 }
 
-let defaultPlaygroundCode = """
-    import SwiftUI
-
-    struct PlaygroundView: View {
-        var body: some View {
-            VStack {
-                Text("Hello, playground!")
-                    .font(.title)
-            }
-            .padding()
-        }
-    }
-
-    #Preview {
-        PlaygroundView()
-    }
-    """
-
-private func handlePreviewPlayground(
-    params: CallTool.Parameters, macCompiler: Compiler
-) async throws -> CallTool.Result {
-    // Get code or use default skeleton
-    let code: String
-    if case .string(let c) = params.arguments?["code"] {
-        code = c
-    } else {
-        code = defaultPlaygroundCode
-    }
-
-    // Create temp file
-    let playgroundDir = FileManager.default.temporaryDirectory
-        .appendingPathComponent("previewsmcp-playground", isDirectory: true)
-    try FileManager.default.createDirectory(at: playgroundDir, withIntermediateDirectories: true)
-
-    let shortID = UUID().uuidString.prefix(8)
-    let fileName = "Playground_\(shortID).swift"
-    let fileURL = playgroundDir.appendingPathComponent(fileName)
-    try code.write(to: fileURL, atomically: true, encoding: .utf8)
-
-    // Delegate to preview_start logic (standalone — no projectPath)
-    let platformStr: String
-    if case .string(let p) = params.arguments?["platform"] {
-        platformStr = p
-    } else {
-        platformStr = "macos"
-    }
-
-    if platformStr == "ios-simulator" {
-        let result = try await handleIOSPreviewStart(
-            fileURL: fileURL, previewIndex: 0, params: params)
-        // Prepend file path to the response
-        if let text = result.content.first, case .text(let msg) = text {
-            return CallTool.Result(content: [
-                .text("Playground file: \(fileURL.path)\n\(msg)")
-            ])
-        }
-        return result
-    }
-
-    // macOS path
-    let width: Int
-    if case .int(let n) = params.arguments?["width"] {
-        width = n
-    } else {
-        width = 400
-    }
-
-    let height: Int
-    if case .int(let n) = params.arguments?["height"] {
-        height = n
-    } else {
-        height = 600
-    }
-
+private func startMacOSPreview(
+    fileURL: URL, previewIndex: Int, title: String,
+    width: Int, height: Int,
+    compiler: Compiler, buildContext: BuildContext?
+) async throws -> String {
     let session = PreviewSession(
         sourceFile: fileURL,
-        previewIndex: 0,
-        compiler: macCompiler,
-        buildContext: nil
+        previewIndex: previewIndex,
+        compiler: compiler,
+        buildContext: buildContext
     )
 
     let compileResult = try await session.compile()
@@ -579,22 +474,54 @@ private func handlePreviewPlayground(
             try App.host.loadPreview(
                 sessionID: sessionID,
                 dylibPath: compileResult.dylibPath,
-                title: "Playground: \(fileName)",
+                title: title,
                 size: NSSize(width: width, height: height)
             )
             App.host.watchFile(
                 sessionID: sessionID,
                 session: session,
                 filePath: fileURL.path,
-                compiler: macCompiler,
-                previewIndex: 0,
-                additionalPaths: [],
-                buildContext: nil
+                compiler: compiler,
+                previewIndex: previewIndex,
+                additionalPaths: buildContext?.sourceFiles?.map(\.path) ?? [],
+                buildContext: buildContext
             )
         } catch {
-            fputs("MCP: Failed to load playground preview: \(error)\n", stderr)
+            fputs("MCP: Failed to load preview: \(error)\n", stderr)
         }
     }
+
+    return sessionID
+}
+
+private func handlePreviewPlayground(
+    params: CallTool.Parameters, macCompiler: Compiler
+) async throws -> CallTool.Result {
+    let code: String? = if case .string(let c) = params.arguments?["code"] { c } else { nil }
+    let fileURL = try createPlaygroundFile(code: code)
+
+    let platformStr = if case .string(let p) = params.arguments?["platform"] { p } else { "macos" }
+
+    if platformStr == "ios-simulator" {
+        let result = try await handleIOSPreviewStart(
+            fileURL: fileURL, previewIndex: 0, params: params)
+        if let text = result.content.first, case .text(let msg) = text {
+            return CallTool.Result(content: [
+                .text("Playground file: \(fileURL.path)\n\(msg)")
+            ])
+        }
+        return result
+    }
+
+    let width = if case .int(let n) = params.arguments?["width"] { n } else { 400 }
+    let height = if case .int(let n) = params.arguments?["height"] { n } else { 600 }
+
+    let sessionID = try await startMacOSPreview(
+        fileURL: fileURL, previewIndex: 0,
+        title: "Playground: \(fileURL.lastPathComponent)",
+        width: width, height: height,
+        compiler: macCompiler, buildContext: nil
+    )
 
     return CallTool.Result(content: [
         .text(

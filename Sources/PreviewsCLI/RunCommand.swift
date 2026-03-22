@@ -2,8 +2,6 @@ import AppKit
 import ArgumentParser
 import Foundation
 import PreviewsCore
-import PreviewsIOS
-import PreviewsMacOS
 
 struct RunCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
@@ -54,46 +52,18 @@ struct RunCommand: ParsableCommand {
 
         Task {
             do {
-                let compiler = try await Compiler()
-
-                // Detect build system
                 let projectRootURL = projectPath.map { URL(fileURLWithPath: $0) }
-                let buildContext = try await detectAndBuild(for: fileURL, projectRoot: projectRootURL, platform: .macOS)
+                let buildContext = try await detectAndBuild(
+                    for: fileURL, projectRoot: projectRootURL, platform: .macOS)
 
-                let session = PreviewSession(
-                    sourceFile: fileURL,
+                try await launchMacOSPreview(
+                    fileURL: fileURL,
                     previewIndex: previewIndex,
-                    compiler: compiler,
+                    title: "Preview: \(fileURL.lastPathComponent)",
+                    width: windowWidth,
+                    height: windowHeight,
                     buildContext: buildContext
                 )
-
-                fputs("Compiling \(fileURL.lastPathComponent)...\n", stderr)
-                let compileResult = try await session.compile()
-                fputs("Compiled: \(compileResult.dylibPath.lastPathComponent)\n", stderr)
-
-                await MainActor.run {
-                    do {
-                        try App.host.loadPreview(
-                            sessionID: session.id,
-                            dylibPath: compileResult.dylibPath,
-                            title: "Preview: \(fileURL.lastPathComponent)",
-                            size: NSSize(width: windowWidth, height: windowHeight)
-                        )
-                        App.host.watchFile(
-                            sessionID: session.id,
-                            session: session,
-                            filePath: fileURL.path,
-                            compiler: compiler,
-                            previewIndex: previewIndex,
-                            additionalPaths: buildContext?.sourceFiles?.map(\.path) ?? [],
-                            buildContext: buildContext
-                        )
-                        fputs("Preview is live! Watching for changes...\n", stderr)
-                    } catch {
-                        fputs("Failed to load preview: \(error)\n", stderr)
-                        NSApp.terminate(nil)
-                    }
-                }
             } catch {
                 fputs("Error: \(error)\n", stderr)
                 await MainActor.run { NSApp.terminate(nil) }
@@ -108,53 +78,16 @@ struct RunCommand: ParsableCommand {
 
         Task {
             do {
-                let compiler = try await Compiler(platform: .iOSSimulator)
-                let hostBuilder = try await IOSHostBuilder()
-                let simulatorManager = SimulatorManager()
-
-                // Resolve device
-                let udid = try await resolveDeviceUDID(provided: deviceUDID, using: simulatorManager)
-
-                // Detect build system
                 let projectRootURL = projectPath.map { URL(fileURLWithPath: $0) }
                 let buildContext = try await detectAndBuild(
                     for: fileURL, projectRoot: projectRootURL, platform: .iOSSimulator)
 
-                let session = IOSPreviewSession(
-                    sourceFile: fileURL,
+                try await launchIOSPreview(
+                    fileURL: fileURL,
                     previewIndex: previewIndex,
-                    deviceUDID: udid,
-                    compiler: compiler,
-                    hostBuilder: hostBuilder,
-                    simulatorManager: simulatorManager,
-                    headless: true,
+                    deviceUDID: deviceUDID,
                     buildContext: buildContext
                 )
-
-                fputs("Launching preview on simulator \(udid)...\n", stderr)
-                _ = try await session.start()
-                fputs("iOS preview is live! Watching for changes...\n", stderr)
-
-                // Set up file watching for hot-reload
-                let allPaths = [fileURL.path] + (buildContext?.sourceFiles?.map(\.path) ?? [])
-                let watcher = try? FileWatcher(paths: allPaths) {
-                    Task {
-                        do {
-                            let wasLiteralOnly = try await session.handleSourceChange()
-                            if wasLiteralOnly {
-                                fputs("iOS literal-only change applied (state preserved)\n", stderr)
-                            } else {
-                                fputs("iOS structural change — recompiled\n", stderr)
-                            }
-                        } catch {
-                            fputs("iOS reload failed: \(error)\n", stderr)
-                        }
-                    }
-                }
-                // Keep watcher alive — suppress unused variable warning
-                _ = watcher
-
-                // Keep running (NSApp run loop keeps the process alive)
             } catch {
                 fputs("Error: \(error)\n", stderr)
                 await MainActor.run { NSApp.terminate(nil) }
