@@ -8,6 +8,9 @@ struct PlaygroundCommand: ParsableCommand {
         abstract: "Create a temporary SwiftUI file and start a live preview"
     )
 
+    @Argument(help: "Path to an existing Swift file (creates a temp file if omitted)")
+    var file: String?
+
     @Option(name: .long, help: "Window width")
     var width: Int = 400
 
@@ -21,9 +24,17 @@ struct PlaygroundCommand: ParsableCommand {
     var device: String?
 
     mutating func run() throws {
-        let fileURL = try createPlaygroundFile()
+        let fileURL: URL
+        if let file {
+            fileURL = URL(fileURLWithPath: file).standardizedFileURL
+            guard FileManager.default.fileExists(atPath: fileURL.path) else {
+                throw ValidationError("File not found: \(file)")
+            }
+        } else {
+            fileURL = try createPlaygroundFile()
+        }
 
-        fputs("Playground file: \(fileURL.path)\n", stderr)
+        print(fileURL.path)
         fputs("Edit this file to see live changes.\n", stderr)
 
         let windowWidth = width
