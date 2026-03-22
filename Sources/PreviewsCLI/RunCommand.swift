@@ -34,12 +34,22 @@ struct RunCommand: ParsableCommand {
     var colorScheme: String?
 
     @Option(name: .long, help: "Dynamic Type size (e.g., 'large', 'accessibility3')")
-    var dynamicType: String?
+    var dynamicTypeSize: String?
 
     mutating func run() throws {
         let fileURL = URL(fileURLWithPath: file).standardizedFileURL
         guard FileManager.default.fileExists(atPath: fileURL.path) else {
             throw ValidationError("File not found: \(file)")
+        }
+
+        if let cs = colorScheme, !PreviewTraits.validColorSchemes.contains(cs) {
+            throw ValidationError(
+                "Invalid color scheme '\(cs)'. Must be 'light' or 'dark'.")
+        }
+        if let dts = dynamicTypeSize, !PreviewTraits.validDynamicTypeSizes.contains(dts) {
+            throw ValidationError(
+                "Invalid dynamic type size '\(dts)'. Valid values: \(PreviewTraits.validDynamicTypeSizes.sorted().joined(separator: ", "))"
+            )
         }
 
         switch platform {
@@ -55,7 +65,7 @@ struct RunCommand: ParsableCommand {
         let windowWidth = width
         let windowHeight = height
         let projectPath = project
-        let traits = PreviewTraits(colorScheme: colorScheme, dynamicTypeSize: dynamicType)
+        let traits = PreviewTraits(colorScheme: colorScheme, dynamicTypeSize: dynamicTypeSize)
 
         Task {
             do {
@@ -83,7 +93,7 @@ struct RunCommand: ParsableCommand {
         let previewIndex = preview
         let deviceUDID = device
         let projectPath = project
-        let traits = PreviewTraits(colorScheme: colorScheme, dynamicTypeSize: dynamicType)
+        let traits = PreviewTraits(colorScheme: colorScheme, dynamicTypeSize: dynamicTypeSize)
 
         Task {
             do {
