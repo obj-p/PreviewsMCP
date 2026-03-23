@@ -318,8 +318,8 @@ struct PreviewParserTests {
         #expect(previews[1].closureBody.contains(".preferredColorScheme(.dark)"))
     }
 
-    @Test("PreviewProvider with ForEach is treated as single preview")
-    func previewProviderForEach() {
+    @Test("PreviewProvider with ForEach expands inline string array")
+    func previewProviderForEachExpanded() {
         let source = """
             import SwiftUI
 
@@ -332,6 +332,36 @@ struct PreviewParserTests {
                     ForEach(["iPhone 14", "iPhone SE"], id: \\.self) { device in
                         MyView()
                             .previewDevice(PreviewDevice(rawValue: device))
+                            .previewDisplayName(device)
+                    }
+                }
+            }
+            """
+
+        let previews = PreviewParser.parse(source: source)
+        #expect(previews.count == 2)
+        #expect(previews[0].closureBody.contains("\"iPhone 14\""))
+        #expect(previews[0].device == "iPhone 14")
+        #expect(previews[0].name == "iPhone 14")
+        #expect(previews[1].closureBody.contains("\"iPhone SE\""))
+        #expect(previews[1].device == "iPhone SE")
+        #expect(previews[1].name == "iPhone SE")
+    }
+
+    @Test("PreviewProvider with ForEach using non-literal array falls back to single preview")
+    func previewProviderForEachNonLiteral() {
+        let source = """
+            import SwiftUI
+
+            struct MyView: View {
+                var body: some View { Text("Hello") }
+            }
+
+            struct MyView_Previews: PreviewProvider {
+                static let devices = ["iPhone 14", "iPhone SE"]
+                static var previews: some View {
+                    ForEach(devices, id: \\.self) { device in
+                        MyView()
                     }
                 }
             }
@@ -410,6 +440,140 @@ struct PreviewParserTests {
         #expect(previews.count == 2)
         #expect(previews[0].name == "Light")
         #expect(previews[1].name == "Dark")
+    }
+
+    @Test("PreviewProvider extracts .previewDevice")
+    func previewProviderDevice() {
+        let source = """
+            import SwiftUI
+
+            struct MyView: View {
+                var body: some View { Text("Hello") }
+            }
+
+            struct MyView_Previews: PreviewProvider {
+                static var previews: some View {
+                    MyView()
+                        .previewDevice(PreviewDevice(rawValue: "iPhone 14 Pro"))
+                        .previewDisplayName("iPhone 14 Pro")
+                }
+            }
+            """
+
+        let previews = PreviewParser.parse(source: source)
+        #expect(previews.count == 1)
+        #expect(previews[0].device == "iPhone 14 Pro")
+        #expect(previews[0].name == "iPhone 14 Pro")
+    }
+
+    @Test("PreviewProvider extracts .previewLayout")
+    func previewProviderLayout() {
+        let source = """
+            import SwiftUI
+
+            struct MyView: View {
+                var body: some View { Text("Hello") }
+            }
+
+            struct MyView_Previews: PreviewProvider {
+                static var previews: some View {
+                    Group {
+                        MyView()
+                            .previewLayout(.sizeThatFits)
+                            .previewDisplayName("Size That Fits")
+                        MyView()
+                            .previewLayout(.fixed(width: 300, height: 200))
+                            .previewDisplayName("Fixed")
+                    }
+                }
+            }
+            """
+
+        let previews = PreviewParser.parse(source: source)
+        #expect(previews.count == 2)
+        #expect(previews[0].layout == "sizeThatFits")
+        #expect(previews[0].name == "Size That Fits")
+        #expect(previews[1].layout?.contains("fixed") == true)
+        #expect(previews[1].name == "Fixed")
+    }
+
+    @Test("#Preview blocks have nil device and layout")
+    func macroPreviewHasNilDeviceLayout() {
+        let source = """
+            import SwiftUI
+            struct V: View { var body: some View { Text("Hi") } }
+            #Preview { V() }
+            """
+
+        let previews = PreviewParser.parse(source: source)
+        #expect(previews.count == 1)
+        #expect(previews[0].device == nil)
+        #expect(previews[0].layout == nil)
+    }
+
+    @Test("PreviewProvider resolves cross-property references")
+    func previewProviderCrossPropertyRef() {
+        let source = """
+            import SwiftUI
+
+            struct MyView: View {
+                var body: some View { Text("Hello") }
+            }
+
+            struct MyView_Previews: PreviewProvider {
+                static var darkPreview: some View {
+                    MyView()
+                        .preferredColorScheme(.dark)
+                        .previewDisplayName("Dark")
+                }
+                static var lightPreview: some View {
+                    return MyView()
+                        .preferredColorScheme(.light)
+                }
+                static var previews: some View {
+                    Group {
+                        darkPreview
+                        lightPreview
+                    }
+                }
+            }
+            """
+
+        let previews = PreviewParser.parse(source: source)
+        #expect(previews.count == 2)
+        // darkPreview should be inlined
+        #expect(previews[0].closureBody.contains("MyView()"))
+        #expect(previews[0].closureBody.contains(".preferredColorScheme(.dark)"))
+        #expect(previews[0].name == "Dark")
+        // lightPreview should be inlined (return unwrapped)
+        #expect(previews[1].closureBody.contains("MyView()"))
+        #expect(previews[1].closureBody.contains(".preferredColorScheme(.light)"))
+    }
+
+    @Test("PreviewProvider does not resolve non-existent property references")
+    func previewProviderUnresolvedRef() {
+        let source = """
+            import SwiftUI
+
+            struct MyView: View {
+                var body: some View { Text("Hello") }
+            }
+
+            struct MyView_Previews: PreviewProvider {
+                static var previews: some View {
+                    Group {
+                        someExternalView
+                        MyView()
+                    }
+                }
+            }
+            """
+
+        let previews = PreviewParser.parse(source: source)
+        #expect(previews.count == 2)
+        // Unresolved reference is kept as-is
+        #expect(previews[0].closureBody == "someExternalView")
+        #expect(previews[1].closureBody.contains("MyView()"))
     }
 
     @Test("PreviewProvider with literals round-trips through ThunkGenerator")
