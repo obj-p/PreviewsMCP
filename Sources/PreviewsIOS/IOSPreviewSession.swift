@@ -56,7 +56,7 @@ public actor IOSPreviewSession {
             sourceFile: sourceFile,
             previewIndex: previewIndex,
             compiler: compiler,
-            platform: .iOSSimulator,
+            platform: .iOS,
             buildContext: buildContext,
             traits: traits
         )
@@ -178,7 +178,7 @@ public actor IOSPreviewSession {
             sourceFile: sourceFile,
             previewIndex: previewIndex,
             compiler: compiler,
-            platform: .iOSSimulator,
+            platform: .iOS,
             buildContext: buildContext,
             traits: traits
         )

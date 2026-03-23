@@ -309,7 +309,7 @@ struct BuildSystemTests {
         let source = BridgeGenerator.generateBridgeOnlySource(
             moduleName: "MyTarget",
             closureBody: "ContentView()",
-            platform: .iOSSimulator
+            platform: .iOS
         )
 
         #expect(source.contains("import UIKit"))

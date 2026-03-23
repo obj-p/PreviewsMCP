@@ -14,7 +14,7 @@ private actor IOSState {
 
     func getCompiler() async throws -> Compiler {
         if let c = compiler { return c }
-        let c = try await Compiler(platform: .iOSSimulator)
+        let c = try await Compiler(platform: .iOS)
         compiler = c
         return c
     }
@@ -94,12 +94,12 @@ func configureMCPServer() async throws -> (Server, Compiler) {
                         ]),
                         "platform": .object([
                             "type": .string("string"),
-                            "description": .string("Target platform: 'macos' (default) or 'ios-simulator'"),
+                            "description": .string("Target platform: 'macos' (default) or 'ios'"),
                         ]),
                         "deviceUDID": .object([
                             "type": .string("string"),
                             "description": .string(
-                                "Simulator device UDID (for ios-simulator; auto-selects if omitted)"),
+                                "Simulator device UDID (for ios; auto-selects if omitted)"),
                         ]),
                         "headless": .object([
                             "type": .string("boolean"),
@@ -268,61 +268,6 @@ func configureMCPServer() async throws -> (Server, Compiler) {
                 ])
             ),
             Tool(
-                name: "preview_playground",
-                description:
-                    "Create a temporary SwiftUI file and start a live preview for quick experimentation. Returns session ID and file path. For previewing existing files, use preview_start instead.",
-                inputSchema: .object([
-                    "type": .string("object"),
-                    "properties": .object([
-                        "code": .object([
-                            "type": .string("string"),
-                            "description": .string(
-                                "Swift source code with a #Preview block. If omitted, creates a default SwiftUI view."
-                            ),
-                        ]),
-                        "platform": .object([
-                            "type": .string("string"),
-                            "description": .string("Target platform: 'macos' (default) or 'ios-simulator'"),
-                        ]),
-                        "deviceUDID": .object([
-                            "type": .string("string"),
-                            "description": .string(
-                                "Simulator device UDID (for ios-simulator; auto-selects if omitted)"),
-                        ]),
-                        "headless": .object([
-                            "type": .string("boolean"),
-                            "description": .string("If false, shows the preview window (default: true)"),
-                        ]),
-                        "width": .object([
-                            "type": .string("integer"),
-                            "description": .string("Window width in points (macOS only, default: 400)"),
-                        ]),
-                        "height": .object([
-                            "type": .string("integer"),
-                            "description": .string("Window height in points (macOS only, default: 600)"),
-                        ]),
-                        "colorScheme": .object([
-                            "type": .string("string"),
-                            "enum": .array([.string("light"), .string("dark")]),
-                            "description": .string("Color scheme override: 'light' or 'dark'"),
-                        ]),
-                        "dynamicTypeSize": .object([
-                            "type": .string("string"),
-                            "enum": .array([
-                                .string("xSmall"), .string("small"), .string("medium"),
-                                .string("large"),
-                                .string("xLarge"), .string("xxLarge"), .string("xxxLarge"),
-                                .string("accessibility1"), .string("accessibility2"),
-                                .string("accessibility3"),
-                                .string("accessibility4"), .string("accessibility5"),
-                            ]),
-                            "description": .string(
-                                "Dynamic Type size (e.g., 'large', 'accessibility3')"),
-                        ]),
-                    ]),
-                ])
-            ),
-            Tool(
                 name: "simulator_list",
                 description: "List available iOS simulator devices with their UDIDs and states.",
                 inputSchema: .object([
@@ -349,8 +294,6 @@ func configureMCPServer() async throws -> (Server, Compiler) {
             return try await handlePreviewElements(params: params)
         case "preview_touch":
             return try await handlePreviewTouch(params: params)
-        case "preview_playground":
-            return try await handlePreviewPlayground(params: params, macCompiler: compiler)
         case "simulator_list":
             return try await handleSimulatorList()
         default:
@@ -416,7 +359,7 @@ private func handlePreviewStart(params: CallTool.Parameters, macCompiler: Compil
     if let traitsError { return traitsError }
 
     // iOS simulator path
-    if platformStr == "ios-simulator" {
+    if platformStr == "ios" {
         return try await handleIOSPreviewStart(
             fileURL: fileURL,
             previewIndex: previewIndex,
@@ -484,7 +427,7 @@ private func handleIOSPreviewStart(
     // Detect build system
     let buildContext: BuildContext?
     do {
-        buildContext = try await detectBuildContext(for: fileURL, params: params, platform: .iOSSimulator)
+        buildContext = try await detectBuildContext(for: fileURL, params: params, platform: .iOS)
     } catch {
         return CallTool.Result(content: [.text("Project build failed: \(error.localizedDescription)")], isError: true)
     }
@@ -579,47 +522,6 @@ private func startMacOSPreview(
     }
 
     return sessionID
-}
-
-private func handlePreviewPlayground(
-    params: CallTool.Parameters, macCompiler: Compiler
-) async throws -> CallTool.Result {
-    let code: String? = if case .string(let c) = params.arguments?["code"] { c } else { nil }
-    let fileURL = try createPlaygroundFile(code: code)
-
-    let platformStr = if case .string(let p) = params.arguments?["platform"] { p } else { "macos" }
-    let (resolvedPgTraits, pgTraitsError) = parseTraits(from: params)
-    if let pgTraitsError { return pgTraitsError }
-
-    if platformStr == "ios-simulator" {
-        let result = try await handleIOSPreviewStart(
-            fileURL: fileURL, previewIndex: 0, params: params, traits: resolvedPgTraits)
-        if let text = result.content.first, case .text(let msg) = text {
-            return CallTool.Result(content: [
-                .text("Playground file: \(fileURL.path)\n\(msg)")
-            ])
-        }
-        return result
-    }
-
-    let width = if case .int(let n) = params.arguments?["width"] { n } else { 400 }
-    let height = if case .int(let n) = params.arguments?["height"] { n } else { 600 }
-    let headless = if case .bool(let h) = params.arguments?["headless"] { h } else { true }
-
-    let sessionID = try await startMacOSPreview(
-        fileURL: fileURL, previewIndex: 0,
-        title: "Playground: \(fileURL.lastPathComponent)",
-        width: width, height: height,
-        compiler: macCompiler, buildContext: nil,
-        traits: resolvedPgTraits,
-        headless: headless
-    )
-
-    return CallTool.Result(content: [
-        .text(
-            "Playground file: \(fileURL.path)\nmacOS preview started. Session ID: \(sessionID). Edit the file above to see live changes."
-        )
-    ])
 }
 
 private func handlePreviewSnapshot(params: CallTool.Parameters) async throws -> CallTool.Result {

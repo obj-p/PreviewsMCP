@@ -52,7 +52,7 @@ public actor Compiler {
         case .macOS:
             self.sdkPath = try await Self.resolve("xcrun", "--show-sdk-path")
             self.targetTriple = "arm64-apple-macosx14.0"
-        case .iOSSimulator:
+        case .iOS:
             self.sdkPath = try await Self.resolve("xcrun", "--show-sdk-path", "--sdk", "iphonesimulator")
             self.targetTriple = "arm64-apple-ios17.0-simulator"
         }

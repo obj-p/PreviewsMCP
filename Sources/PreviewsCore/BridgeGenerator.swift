@@ -46,7 +46,7 @@ public enum BridgeGenerator {
                     return Unmanaged.passRetained(hostingView).toOpaque()
                 }
                 """
-        case .iOSSimulator:
+        case .iOS:
             bridgeCode = """
                 import UIKit
 
@@ -97,7 +97,7 @@ public enum BridgeGenerator {
                     let hostingView = NSHostingView(rootView: view)
                     return Unmanaged.passRetained(hostingView).toOpaque()
                 """
-        case .iOSSimulator:
+        case .iOS:
             frameworkImport = "import UIKit"
             hostCode = """
                     let hostingController = UIHostingController(rootView: view)

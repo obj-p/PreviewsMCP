@@ -5,7 +5,7 @@ import PreviewsMacOS
 /// Target platform for CLI commands.
 enum CLIPlatform: String, ExpressibleByArgument, CaseIterable {
     case macos
-    case iosSimulator = "ios-simulator"
+    case ios
 }
 
 /// Shared state, accessible from commands. Initialized in main() after command parsing.
@@ -26,8 +26,7 @@ struct PreviewsMCPApp {
 
         // Commands that don't need NSApplication (list, help, etc.)
         if command is ListCommand
-            || !(command is RunCommand || command is ServeCommand || command is SnapshotCommand
-                || command is PlaygroundCommand)
+            || !(command is RunCommand || command is ServeCommand || command is SnapshotCommand)
         {
             do {
                 var mutable = command
@@ -78,7 +77,7 @@ struct PreviewsMCPCommand: ParsableCommand {
         commandName: "previewsmcp",
         abstract: "Run SwiftUI previews outside of Xcode",
         subcommands: [
-            RunCommand.self, ListCommand.self, SnapshotCommand.self, ServeCommand.self, PlaygroundCommand.self,
+            RunCommand.self, ListCommand.self, SnapshotCommand.self, ServeCommand.self,
         ],
         defaultSubcommand: RunCommand.self
     )

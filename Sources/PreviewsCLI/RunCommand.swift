@@ -21,13 +21,13 @@ struct RunCommand: ParsableCommand {
     @Option(name: .long, help: "Window height")
     var height: Int = 600
 
-    @Option(name: .long, help: "Target platform: 'macos' (default) or 'ios-simulator'")
+    @Option(name: .long, help: "Target platform: 'macos' (default) or 'ios'")
     var platform: CLIPlatform = .macos
 
     @Option(name: .long, help: "Project root path (auto-detected if omitted)")
     var project: String?
 
-    @Option(name: .long, help: "Simulator device UDID (for ios-simulator; auto-selects if omitted)")
+    @Option(name: .long, help: "Simulator device UDID (for ios; auto-selects if omitted)")
     var device: String?
 
     @Option(name: .long, help: "Color scheme: 'light' or 'dark'")
@@ -35,6 +35,9 @@ struct RunCommand: ParsableCommand {
 
     @Option(name: .long, help: "Dynamic Type size (e.g., 'large', 'accessibility3')")
     var dynamicTypeSize: String?
+
+    @Flag(name: .long, help: "Hide Simulator.app GUI (iOS only)")
+    var headless: Bool = false
 
     mutating func run() throws {
         let fileURL = URL(fileURLWithPath: file).standardizedFileURL
@@ -53,7 +56,7 @@ struct RunCommand: ParsableCommand {
         }
 
         switch platform {
-        case .iosSimulator:
+        case .ios:
             runIOS(fileURL: fileURL)
         case .macos:
             runMacOS(fileURL: fileURL)
@@ -94,17 +97,19 @@ struct RunCommand: ParsableCommand {
         let deviceUDID = device
         let projectPath = project
         let traits = PreviewTraits(colorScheme: colorScheme, dynamicTypeSize: dynamicTypeSize)
+        let isHeadless = headless
 
         Task {
             do {
                 let projectRootURL = projectPath.map { URL(fileURLWithPath: $0) }
                 let buildContext = try await detectAndBuild(
-                    for: fileURL, projectRoot: projectRootURL, platform: .iOSSimulator)
+                    for: fileURL, projectRoot: projectRootURL, platform: .iOS)
 
                 try await launchIOSPreview(
                     fileURL: fileURL,
                     previewIndex: previewIndex,
                     deviceUDID: deviceUDID,
+                    headless: isHeadless,
                     buildContext: buildContext,
                     traits: traits
                 )

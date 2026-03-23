@@ -55,7 +55,7 @@ The example project is at examples/bazel/ relative to the PreviewsMCP repo root.
 - The first summary card (blue "Progress") should show "1/8" with "7 remaining"
 
 ### 3. Interaction (iOS simulator)
-- Use preview_start with platform "ios-simulator" on the same file (keep projectPath set to examples/bazel/)
+- Use preview_start with platform "ios" on the same file (keep projectPath set to examples/bazel/)
 - Use preview_elements to get element frames for accurate tap coordinates
 - Tap an uncompleted item (e.g. "Write code") — verify its checkmark changes to filled
 - Tap the "Show Completed" toggle — verify completed items are hidden

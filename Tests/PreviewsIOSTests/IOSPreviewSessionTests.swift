@@ -49,7 +49,7 @@ struct IOSPreviewSessionTests {
         // Create session with isolated work dirs to avoid conflicts with other tests
         let hostWorkDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("ios-host-e2e-\(UUID().uuidString)")
-        let compiler = try await Compiler(platform: .iOSSimulator)
+        let compiler = try await Compiler(platform: .iOS)
         let hostBuilder = try await IOSHostBuilder(workDir: hostWorkDir)
         defer { try? FileManager.default.removeItem(at: hostWorkDir) }
         let session = IOSPreviewSession(

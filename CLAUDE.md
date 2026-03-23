@@ -63,7 +63,7 @@ Sources/
 Binary: `.build/debug/previewsmcp serve`
 Config: `/.mcp.json` (in parent directory)
 
-Tools: `preview_list`, `preview_start`, `preview_configure`, `preview_snapshot`, `preview_elements`, `preview_touch`, `preview_stop`, `preview_playground`, `simulator_list`
+Tools: `preview_list`, `preview_start`, `preview_configure`, `preview_snapshot`, `preview_elements`, `preview_touch`, `preview_stop`, `simulator_list`
 
 ## Trait Injection
 

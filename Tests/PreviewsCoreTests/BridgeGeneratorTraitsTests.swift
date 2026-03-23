@@ -137,7 +137,7 @@ struct BridgeGeneratorTraitsTests {
         let (source, _) = BridgeGenerator.generateCombinedSource(
             originalSource: Self.testSource,
             closureBody: "TestView()",
-            platform: .iOSSimulator,
+            platform: .iOS,
             traits: traits
         )
         #expect(source.contains(".preferredColorScheme(.dark)"))
