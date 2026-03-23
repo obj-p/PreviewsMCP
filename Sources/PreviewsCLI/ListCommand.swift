@@ -22,7 +22,7 @@ struct ListCommand: ParsableCommand {
 
         for preview in previews {
             let name = preview.name ?? "Preview"
-            print("[\(preview.index)] \(name) (line \(preview.line))")
+            print("[\(preview.index)] \(name) (line \(preview.line)): \(preview.snippet)")
         }
     }
 }

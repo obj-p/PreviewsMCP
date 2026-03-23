@@ -10,7 +10,7 @@ public struct CompileResult: Sendable {
 public actor PreviewSession {
     public nonisolated let id: String
     public nonisolated let sourceFile: URL
-    public nonisolated let previewIndex: Int
+    public private(set) var previewIndex: Int
 
     private let compiler: Compiler
     private let platform: PreviewPlatform
@@ -56,7 +56,7 @@ public actor PreviewSession {
             let source = try String(contentsOf: sourceFile, encoding: .utf8)
             let previews = PreviewParser.parse(source: source)
 
-            guard previewIndex < previews.count else {
+            guard previewIndex >= 0, previewIndex < previews.count else {
                 throw PreviewSessionError.previewNotFound(
                     index: previewIndex,
                     available: previews.count
@@ -149,6 +149,19 @@ public actor PreviewSession {
             return changes
         case .structural:
             return nil
+        }
+    }
+
+    /// Switch to a different preview index and recompile. Traits are preserved. @State is lost.
+    /// Rolls back the index if compilation fails.
+    public func switchPreview(to newIndex: Int) async throws -> CompileResult {
+        let oldIndex = self.previewIndex
+        self.previewIndex = newIndex
+        do {
+            return try await compile()
+        } catch {
+            self.previewIndex = oldIndex
+            throw error
         }
     }
 

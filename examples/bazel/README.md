@@ -11,7 +11,7 @@ Sources/ToDo/
 └── ToDoView.swift — view + #Preview that references Item
 ```
 
-The `#Preview` in `ToDoView.swift` uses `Item.samples` which is defined in `Item.swift`. This requires PreviewsMCP to detect the Bazel project, build it, and compile the preview against the target's build artifacts.
+The `#Preview` blocks in `ToDoView.swift` use `Item.samples` which is defined in `Item.swift`. This requires PreviewsMCP to detect the Bazel project, build it, and compile the preview against the target's build artifacts. The file has two previews: the default (with sample data) and "Empty State" (no items).
 
 The UI includes tappable item rows (toggle completion), a toggle switch, and a horizontally paged summary card section — suitable for testing tap, toggle, and swipe interactions.
 
@@ -71,6 +71,11 @@ The example project is at examples/bazel/ relative to the PreviewsMCP repo root.
 - Take a snapshot — verify the new item appears (file watcher monitors all target files)
 - Revert the change
 
-### 6. Cleanup
+### 6. Multi-preview and switching
+- Call preview_list — verify two previews with snippets
+- Call preview_switch with previewIndex 1 — take a snapshot and verify the empty state (no item rows)
+- Call preview_switch with previewIndex 0 — verify the full item list returns
+
+### 7. Cleanup
 - Stop all preview sessions
 ```

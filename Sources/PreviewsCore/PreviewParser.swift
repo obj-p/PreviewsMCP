@@ -13,6 +13,14 @@ public struct PreviewInfo: Sendable {
     public let column: Int
     /// 0-based index among all `#Preview` blocks in the file.
     public let index: Int
+
+    /// First line of the closure body, truncated to 80 characters.
+    public var snippet: String {
+        let firstLine =
+            closureBody.split(separator: "\n", maxSplits: 1).first.map(String.init) ?? closureBody
+        let trimmed = firstLine.trimmingCharacters(in: .whitespaces)
+        return trimmed.count > 80 ? String(trimmed.prefix(77)) + "..." : trimmed
+    }
 }
 
 /// Parses Swift source files to find `#Preview` macro invocations.

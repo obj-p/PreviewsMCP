@@ -207,6 +207,26 @@ func configureMCPServer() async throws -> (Server, Compiler) {
                 ])
             ),
             Tool(
+                name: "preview_switch",
+                description:
+                    "Switch which #Preview block is rendered in a running session. Triggers recompile; @State is reset. Traits persist across switches.",
+                inputSchema: .object([
+                    "type": .string("object"),
+                    "properties": .object([
+                        "sessionID": .object([
+                            "type": .string("string"),
+                            "description": .string("Session ID from preview_start"),
+                        ]),
+                        "previewIndex": .object([
+                            "type": .string("integer"),
+                            "description": .string(
+                                "0-based index of the #Preview block to switch to"),
+                        ]),
+                    ]),
+                    "required": .array([.string("sessionID"), .string("previewIndex")]),
+                ])
+            ),
+            Tool(
                 name: "preview_elements",
                 description:
                     "Get the accessibility tree of an iOS simulator preview. Returns elements with labels, frames, and traits for targeted interaction.",
@@ -288,6 +308,8 @@ func configureMCPServer() async throws -> (Server, Compiler) {
             return try await handlePreviewSnapshot(params: params)
         case "preview_configure":
             return try await handlePreviewConfigure(params: params)
+        case "preview_switch":
+            return try await handlePreviewSwitch(params: params)
         case "preview_stop":
             return try await handlePreviewStop(params: params)
         case "preview_elements":
@@ -325,7 +347,7 @@ private func handlePreviewList(params: CallTool.Parameters) async throws -> Call
     var lines: [String] = []
     for preview in previews {
         let name = preview.name ?? "Preview"
-        lines.append("[\(preview.index)] \(name) (line \(preview.line))")
+        lines.append("[\(preview.index)] \(name) (line \(preview.line)): \(preview.snippet)")
     }
 
     return CallTool.Result(content: [.text(lines.joined(separator: "\n"))])
@@ -391,9 +413,12 @@ private func handlePreviewStart(params: CallTool.Parameters, macCompiler: Compil
     )
 
     let traitInfo = resolvedTraits.isEmpty ? "" : " Traits: \(traitsSummary(resolvedTraits))."
+    let previews = try PreviewParser.parse(fileAt: fileURL)
+    let previewList = formatPreviewList(previews: previews, activeIndex: previewIndex)
+    let switchHint = previews.count > 1 ? "\nUse preview_switch to change the active preview." : ""
     return CallTool.Result(content: [
         .text(
-            "macOS preview started. Session ID: \(sessionID).\(traitInfo) File is being watched for changes."
+            "macOS preview started. Session ID: \(sessionID).\(traitInfo) File is being watched for changes.\n\(previewList)\(switchHint)"
         )
     ])
 }
@@ -473,9 +498,12 @@ private func handleIOSPreviewStart(
     try await Task.sleep(for: .seconds(2))
 
     let traitInfo = traits.isEmpty ? "" : " Traits: \(traitsSummary(traits))."
+    let previews = try PreviewParser.parse(fileAt: fileURL)
+    let previewList = formatPreviewList(previews: previews, activeIndex: previewIndex)
+    let switchHint = previews.count > 1 ? "\nUse preview_switch to change the active preview." : ""
     return CallTool.Result(content: [
         .text(
-            "iOS simulator preview started on device \(deviceUDID). Session ID: \(sessionID). PID: \(pid).\(traitInfo) File is being watched for changes."
+            "iOS simulator preview started on device \(deviceUDID). Session ID: \(sessionID). PID: \(pid).\(traitInfo) File is being watched for changes.\n\(previewList)\(switchHint)"
         )
     ])
 }
@@ -512,7 +540,6 @@ private func startMacOSPreview(
                 session: session,
                 filePath: fileURL.path,
                 compiler: compiler,
-                previewIndex: previewIndex,
                 additionalPaths: buildContext?.sourceFiles?.map(\.path) ?? [],
                 buildContext: buildContext
             )
@@ -803,4 +830,60 @@ private func handlePreviewConfigure(params: CallTool.Parameters) async throws ->
             "Configured session \(sessionID): \(traitsSummary(activeTraits)). View recompiled (@State was reset)."
         )
     ])
+}
+
+private func handlePreviewSwitch(params: CallTool.Parameters) async throws -> CallTool.Result {
+    guard case .string(let sessionID) = params.arguments?["sessionID"] else {
+        return CallTool.Result(content: [.text("Missing sessionID parameter")], isError: true)
+    }
+    guard case .int(let newIndex) = params.arguments?["previewIndex"] else {
+        return CallTool.Result(content: [.text("Missing previewIndex parameter")], isError: true)
+    }
+
+    // iOS path
+    if let iosSession = await iosState.getSession(sessionID) {
+        try await iosSession.switchPreview(to: newIndex)
+        let activeTraits = await iosSession.currentTraits
+        let traitInfo = activeTraits.isEmpty ? "" : " Traits: \(traitsSummary(activeTraits))."
+
+        let previews = try PreviewParser.parse(fileAt: iosSession.sourceFile)
+        let previewList = formatPreviewList(previews: previews, activeIndex: newIndex)
+        return CallTool.Result(content: [
+            .text(
+                "Switched to preview \(newIndex) in session \(sessionID).\(traitInfo) View recompiled (@State was reset).\n\(previewList)"
+            )
+        ])
+    }
+
+    // macOS path
+    let session: PreviewSession? = await MainActor.run { App.host.session(for: sessionID) }
+    guard let session else {
+        return CallTool.Result(content: [.text("No session found for \(sessionID)")], isError: true)
+    }
+
+    let compileResult = try await session.switchPreview(to: newIndex)
+    try await MainActor.run {
+        try App.host.loadPreview(sessionID: sessionID, dylibPath: compileResult.dylibPath)
+    }
+
+    let activeTraits = await session.currentTraits
+    let traitInfo = activeTraits.isEmpty ? "" : " Traits: \(traitsSummary(activeTraits))."
+
+    let previews = try PreviewParser.parse(fileAt: session.sourceFile)
+    let previewList = formatPreviewList(previews: previews, activeIndex: newIndex)
+    return CallTool.Result(content: [
+        .text(
+            "Switched to preview \(newIndex) in session \(sessionID).\(traitInfo) View recompiled (@State was reset).\n\(previewList)"
+        )
+    ])
+}
+
+private func formatPreviewList(previews: [PreviewInfo], activeIndex: Int) -> String {
+    var lines: [String] = ["Available previews:"]
+    for preview in previews {
+        let name = preview.name ?? "Preview"
+        let marker = preview.index == activeIndex ? " <- active" : ""
+        lines.append("  [\(preview.index)] \(name) (line \(preview.line)): \(preview.snippet)\(marker)")
+    }
+    return lines.joined(separator: "\n")
 }

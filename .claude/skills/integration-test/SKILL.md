@@ -2,7 +2,7 @@
 name: integration-test
 description: Run integration tests against example projects in the examples/ directory. Use when the user wants to validate PreviewsMCP's build system support, rendering, interaction, or hot-reload end-to-end.
 argument-hint: [example-name]
-allowed-tools: Bash, Read, Glob, Grep, preview_start, preview_snapshot, preview_configure, preview_elements, preview_touch, preview_stop, preview_list, simulator_list
+allowed-tools: Bash, Read, Glob, Grep, preview_start, preview_snapshot, preview_configure, preview_switch, preview_elements, preview_touch, preview_stop, preview_list, simulator_list
 ---
 
 Run integration tests for PreviewsMCP example projects.
@@ -19,16 +19,31 @@ Run integration tests for PreviewsMCP example projects.
 
 3. **For each example**, read its `README.md` and follow the "Integration Test Prompt" section. The README contains the exact steps to execute, including which MCP tools to call and what to verify.
 
-4. **Test trait injection.** After example tests, test `preview_configure` on both macOS and iOS. The system appearance affects the default — test the **opposite** color scheme so the change is visually obvious (e.g., if the system is dark mode, test `colorScheme: "light"` and vice versa).
+4. **Test multi-preview and preview switching.** After example tests, test `preview_list` snippets, `preview_start` available-previews output, and `preview_switch` using the SPM example (which has two previews: `[0]` the default with sample data, `[1]` "Empty State" with no items).
+   - Call `preview_list` on `examples/spm/Sources/ToDo/ToDoView.swift` — verify it shows two previews with closure body snippets (e.g., `[0] Preview (line …): ToDoView(items: Item.samples)` and `[1] Empty State (line …): ToDoView(items: [])`)
+   - Start a macOS session on the same file (default `previewIndex: 0`) — verify the response includes an "Available previews" section listing both previews, an `<- active` marker on preview 0, and a `preview_switch` hint
+   - Take a snapshot — verify it shows the full item list ("My Items", 8 rows)
+   - Call `preview_switch` with `previewIndex: 1` — verify success
+   - Take a snapshot — verify it now shows the empty state (no item rows, just the nav title)
+   - Call `preview_switch` with an invalid `previewIndex` (e.g., `99`) — verify it returns an error and the session remains on preview 1 (rollback)
+   - Take a snapshot after the failed switch — verify the empty state is still rendered (confirming rollback)
+   - Stop the session
+
+5. **Test trait injection.** After multi-preview tests, test `preview_configure` on both macOS and iOS. The system appearance affects the default — test the **opposite** color scheme so the change is visually obvious (e.g., if the system is dark mode, test `colorScheme: "light"` and vice versa).
    - Start a macOS session (from the SPM example) and an iOS simulator session
    - Call `preview_configure` with the opposite `colorScheme` from the system default — verify the snapshot shows a clear visual difference (light background vs dark background)
    - Call `preview_configure` with `dynamicTypeSize: "accessibility3"` — verify success and that colorScheme persists (merge semantics)
    - Take a snapshot — verify text appears larger
    - Call `preview_configure` with an invalid `dynamicTypeSize` (e.g., `"huge"`) — verify it returns an error listing valid values
    - Call `preview_configure` with only `sessionID` and no traits — verify it returns "No configuration changes specified."
+
+6. **Test traits persist across preview switch.** Using one of the sessions from step 5 (with traits already configured):
+   - Call `preview_switch` with `previewIndex: 1` — verify success
+   - Take a snapshot — verify the empty state is rendered **with the configured traits still applied** (e.g., opposite color scheme background)
+   - Switch back to `previewIndex: 0` — verify traits still persist
    - Stop the sessions
 
-5. **Report results.** For each example, report pass/fail per test step. Summarize at the end.
+7. **Report results.** For each example, report pass/fail per test step. Summarize at the end.
 
 ## Project path guidance
 
