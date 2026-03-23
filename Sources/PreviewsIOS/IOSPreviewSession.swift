@@ -133,10 +133,14 @@ public actor IOSPreviewSession {
         // Read the assigned port
         var boundAddr = sockaddr_in()
         var boundLen = socklen_t(MemoryLayout<sockaddr_in>.size)
-        _ = withUnsafeMutablePointer(to: &boundAddr) { ptr in
+        let nameResult = withUnsafeMutablePointer(to: &boundAddr) { ptr in
             ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockPtr in
                 getsockname(serverFD, sockPtr, &boundLen)
             }
+        }
+        guard nameResult == 0 else {
+            Darwin.close(serverFD)
+            throw IOSPreviewSessionError.socketCreateFailed
         }
         let port = Int(UInt16(bigEndian: boundAddr.sin_port))
         listenFD = serverFD
@@ -339,8 +343,11 @@ public actor IOSPreviewSession {
                 try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Int32, Error>) in
                     let source = DispatchSource.makeReadSource(
                         fileDescriptor: listenFD, queue: .global())
+                    var resumed = false
                     source.setEventHandler {
                         source.cancel()
+                        guard !resumed else { return }
+                        resumed = true
                         let clientFD = Darwin.accept(listenFD, nil, nil)
                         if clientFD >= 0 {
                             cont.resume(returning: clientFD)
@@ -348,7 +355,12 @@ public actor IOSPreviewSession {
                             cont.resume(throwing: IOSPreviewSessionError.socketAcceptFailed)
                         }
                     }
-                    source.setCancelHandler {}
+                    source.setCancelHandler {
+                        // Clean up on timeout: cancel fires when task group cancels this task
+                        guard !resumed else { return }
+                        resumed = true
+                        cont.resume(throwing: IOSPreviewSessionError.socketAcceptTimeout)
+                    }
                     source.resume()
                 }
             }
@@ -359,6 +371,12 @@ public actor IOSPreviewSession {
             let fd = try await group.next()!
             group.cancelAll()
             self.connectedFD = fd
+        }
+
+        // Close listen socket after successful accept — no longer needed
+        if listenFD >= 0 {
+            Darwin.close(listenFD)
+            listenFD = -1
         }
     }
 
@@ -378,6 +396,14 @@ public actor IOSPreviewSession {
                 // EOF — host app disconnected
                 if let self {
                     Task { await self.handleDisconnect() }
+                }
+            } else {
+                // read() error — treat as disconnect (ECONNRESET, etc.)
+                let err = errno
+                if err != EAGAIN && err != EWOULDBLOCK {
+                    if let self {
+                        Task { await self.handleDisconnect() }
+                    }
                 }
             }
         }
@@ -427,16 +453,23 @@ public actor IOSPreviewSession {
         else { return }
         data.append(0x0A)  // newline delimiter
         let fd = connectedFD
+        var writeFailed = false
         data.withUnsafeBytes { buf in
             guard let base = buf.baseAddress else { return }
             var remaining = buf.count
             var offset = 0
             while remaining > 0 {
                 let n = Darwin.write(fd, base + offset, remaining)
-                if n <= 0 { break }
+                if n <= 0 {
+                    writeFailed = true
+                    break
+                }
                 offset += n
                 remaining -= n
             }
+        }
+        if writeFailed {
+            handleDisconnect()
         }
     }
 
