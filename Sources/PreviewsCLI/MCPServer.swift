@@ -53,6 +53,9 @@ private let iosState = IOSState()
 
 /// Configures and returns an MCP server with preview tools.
 func configureMCPServer() async throws -> (Server, Compiler) {
+    // Clean up stale temp directories from previous sessions (older than 24 hours)
+    cleanupStaleTempDirs()
+
     let compiler = try await Compiler()
 
     let server = Server(
@@ -601,7 +604,8 @@ private func handlePreviewStop(params: CallTool.Parameters) async throws -> Call
     }
 
     // Check if this is an iOS session
-    if await iosState.getSession(sessionID) != nil {
+    if let iosSession = await iosState.getSession(sessionID) {
+        await iosSession.stop()
         await iosState.removeSession(sessionID)
         return CallTool.Result(content: [.text("iOS preview session \(sessionID) closed.")])
     }
@@ -886,4 +890,23 @@ private func formatPreviewList(previews: [PreviewInfo], activeIndex: Int) -> Str
         lines.append("  [\(preview.index)] \(name) (line \(preview.line)): \(preview.snippet)\(marker)")
     }
     return lines.joined(separator: "\n")
+}
+
+/// Remove stale previewsmcp temp directories older than 24 hours.
+private func cleanupStaleTempDirs() {
+    let tempBase = FileManager.default.temporaryDirectory.appendingPathComponent("previewsmcp")
+    guard
+        let contents = try? FileManager.default.contentsOfDirectory(
+            at: tempBase, includingPropertiesForKeys: [.contentModificationDateKey])
+    else { return }
+
+    let cutoff = Date().addingTimeInterval(-24 * 60 * 60)
+    for dir in contents {
+        guard let attrs = try? dir.resourceValues(forKeys: [.contentModificationDateKey]),
+            let modDate = attrs.contentModificationDate,
+            modDate < cutoff
+        else { continue }
+        try? FileManager.default.removeItem(at: dir)
+        fputs("MCP: Cleaned up stale temp dir: \(dir.lastPathComponent)\n", stderr)
+    }
 }

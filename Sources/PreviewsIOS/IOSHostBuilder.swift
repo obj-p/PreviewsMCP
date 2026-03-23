@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import PreviewsCore
 
@@ -29,12 +30,31 @@ public actor IOSHostBuilder {
 
     /// Build the iOS host app, returning the path to the .app bundle.
     /// Caches the result — subsequent calls return the cached path.
+    /// Rebuilds if the host app source has changed (detected via hash marker).
     public func ensureHostApp() async throws -> URL {
-        if let cached = cachedAppPath { return cached }
+        if let cached = cachedAppPath {
+            // Check if source hash still matches
+            let hashFile = cached.appendingPathComponent(".source-hash")
+            let currentHash = Self.sourceHash
+            if let savedHash = try? String(contentsOf: hashFile, encoding: .utf8),
+                savedHash == currentHash
+            {
+                return cached
+            }
+            // Source changed — invalidate cache and rebuild
+            cachedAppPath = nil
+        }
         let path = try await buildHostApp()
         cachedAppPath = path
         return path
     }
+
+    /// SHA-256 hash of the host app source, used for cache invalidation.
+    private static let sourceHash: String = {
+        let data = Data(IOSHostAppSource.code.utf8)
+        let digest = SHA256.hash(data: data)
+        return digest.map { String(format: "%02x", $0) }.joined()
+    }()
 
     /// Compile and package the iOS host app.
     private func buildHostApp() async throws -> URL {
@@ -81,6 +101,10 @@ public actor IOSHostBuilder {
 
         // Codesign
         try await run(codesignPath, "-s", "-", "--force", appDir.path)
+
+        // Write source hash for cache invalidation
+        let hashFile = appDir.appendingPathComponent(".source-hash")
+        try Self.sourceHash.write(to: hashFile, atomically: true, encoding: .utf8)
 
         return appDir
     }

@@ -1,5 +1,8 @@
 /// Embedded source code for the iOS simulator host app.
 /// Compiled at runtime by IOSHostBuilder targeting arm64-apple-ios-simulator.
+///
+/// Communicates with the CLI over a TCP loopback socket (127.0.0.1).
+/// See docs/communication-protocol.md for protocol details.
 enum IOSHostAppSource {
     static let code = """
         import UIKit
@@ -9,13 +12,12 @@ enum IOSHostAppSource {
         class PreviewHostAppDelegate: UIResponder, UIApplicationDelegate {
             var window: UIWindow?
             private var retainedControllers: [UIViewController] = []
-            private var signalTimer: Timer?
-            private var lastSignalModDate: Date?
-            private var literalsTimer: Timer?
-            private var lastLiteralsModDate: Date?
-            private var touchTimer: Timer?
-            private var lastTouchModDate: Date?
             private var currentDylibHandle: UnsafeMutableRawPointer?
+
+            // TCP socket state
+            private var socketFD: Int32 = -1
+            private var socketReadSource: DispatchSourceRead?
+            private var socketReadBuffer = Data()
 
             func application(
                 _ application: UIApplication,
@@ -29,15 +31,7 @@ enum IOSHostAppSource {
 
                 guard let dylibIndex = args.firstIndex(of: "--dylib"),
                       dylibIndex + 1 < args.count else {
-                    let vc = UIViewController()
-                    vc.view.backgroundColor = .systemRed
-                    let label = UILabel()
-                    label.text = "Missing --dylib argument"
-                    label.textAlignment = .center
-                    label.frame = vc.view.bounds
-                    label.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-                    vc.view.addSubview(label)
-                    window.rootViewController = vc
+                    showError("Missing --dylib argument")
                     window.makeKeyAndVisible()
                     return true
                 }
@@ -45,26 +39,13 @@ enum IOSHostAppSource {
                 let dylibPath = args[dylibIndex + 1]
                 loadPreview(dylibPath: dylibPath)
 
-                if let signalIndex = args.firstIndex(of: "--signal-file"),
-                   signalIndex + 1 < args.count {
-                    watchSignalFile(at: args[signalIndex + 1])
-                }
+                initTouchInjection()
+                activateAccessibility()
 
-                if let literalsIndex = args.firstIndex(of: "--literals-file"),
-                   literalsIndex + 1 < args.count {
-                    watchLiteralsFile(at: args[literalsIndex + 1])
-                }
-
-                if let touchIndex = args.firstIndex(of: "--touch-file"),
-                   touchIndex + 1 < args.count {
-                    initTouchInjection()
-                    watchTouchFile(at: args[touchIndex + 1])
-                }
-
-                if let elementsIndex = args.firstIndex(of: "--elements-file"),
-                   elementsIndex + 1 < args.count {
-                    activateAccessibility()
-                    watchElementsFile(at: args[elementsIndex + 1])
+                if let portIndex = args.firstIndex(of: "--port"),
+                   portIndex + 1 < args.count,
+                   let port = UInt16(args[portIndex + 1]) {
+                    connectToServer(port: port)
                 }
 
                 window.makeKeyAndVisible()
@@ -113,45 +94,120 @@ enum IOSHostAppSource {
                 window?.rootViewController = vc
             }
 
-            // MARK: - Signal File Watching (hot-reload)
+            // MARK: - TCP Socket Client
 
-            private func watchSignalFile(at path: String) {
-                // Derive ack file path from signal file path
-                let ackPath = path.replacingOccurrences(of: "reload-signal.txt", with: "reload-ack.txt")
-                lastSignalModDate = modDate(of: path)
-                signalTimer = Timer.scheduledTimer(withTimeInterval: 0.3, repeats: true) { [weak self] _ in
-                    guard let self else { return }
-                    guard let newDate = self.modDate(of: path) else { return }
-                    guard newDate != self.lastSignalModDate else { return }
-                    self.lastSignalModDate = newDate
+            private func connectToServer(port: UInt16) {
+                let fd = Darwin.socket(AF_INET, SOCK_STREAM, 0)
+                guard fd >= 0 else {
+                    NSLog("PreviewHost: Failed to create socket")
+                    return
+                }
 
-                    guard let newPath = try? String(contentsOfFile: path, encoding: .utf8)
-                        .trimmingCharacters(in: .whitespacesAndNewlines) else { return }
-                    self.loadPreview(dylibPath: newPath)
-                    // Write ack after one RunLoop turn to ensure SwiftUI environment propagation
-                    DispatchQueue.main.async {
-                        try? "ok".write(toFile: ackPath, atomically: true, encoding: .utf8)
+                var addr = sockaddr_in()
+                addr.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
+                addr.sin_family = sa_family_t(AF_INET)
+                addr.sin_port = port.bigEndian
+                addr.sin_addr.s_addr = inet_addr("127.0.0.1")
+
+                let result = withUnsafePointer(to: &addr) { ptr in
+                    ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockPtr in
+                        Darwin.connect(fd, sockPtr, socklen_t(MemoryLayout<sockaddr_in>.size))
                     }
+                }
+
+                guard result == 0 else {
+                    NSLog("PreviewHost: Failed to connect to server on port \\(port)")
+                    Darwin.close(fd)
+                    return
+                }
+
+                socketFD = fd
+                NSLog("PreviewHost: Connected to server on port \\(port)")
+                startReadLoop()
+            }
+
+            private func startReadLoop() {
+                let fd = socketFD
+                let source = DispatchSource.makeReadSource(fileDescriptor: fd, queue: .global())
+                source.setEventHandler { [weak self] in
+                    var buf = [UInt8](repeating: 0, count: 8192)
+                    let n = Darwin.read(fd, &buf, buf.count)
+                    if n > 0 {
+                        let data = Data(buf[0..<n])
+                        DispatchQueue.main.async {
+                            self?.processIncomingData(data)
+                        }
+                    } else if n == 0 {
+                        NSLog("PreviewHost: Server disconnected")
+                    }
+                }
+                source.setCancelHandler {
+                    Darwin.close(fd)
+                }
+                source.resume()
+                socketReadSource = source
+            }
+
+            private func processIncomingData(_ data: Data) {
+                socketReadBuffer.append(data)
+                while let newlineIndex = socketReadBuffer.firstIndex(of: 0x0A) {
+                    let lineData = Data(socketReadBuffer[socketReadBuffer.startIndex..<newlineIndex])
+                    socketReadBuffer = Data(socketReadBuffer[(newlineIndex + 1)...])
+
+                    guard let message = try? JSONSerialization.jsonObject(with: lineData) as? [String: Any],
+                          let type = message["type"] as? String else { continue }
+
+                    handleMessage(message, type: type)
                 }
             }
 
-            private func modDate(of path: String) -> Date? {
-                let attrs = try? FileManager.default.attributesOfItem(atPath: path)
-                return attrs?[.modificationDate] as? Date
+            private func handleMessage(_ msg: [String: Any], type: String) {
+                switch type {
+                case "reload":
+                    guard let dylibPath = msg["dylibPath"] as? String else { return }
+                    loadPreview(dylibPath: dylibPath)
+                    // Send ack after one RunLoop turn to ensure SwiftUI environment propagation
+                    DispatchQueue.main.async { [weak self] in
+                        var response: [String: Any] = ["type": "reloadAck"]
+                        if let id = msg["id"] { response["id"] = id }
+                        self?.sendResponse(response)
+                    }
+
+                case "literals":
+                    guard let changes = msg["changes"],
+                          let data = try? JSONSerialization.data(withJSONObject: changes) else { return }
+                    applyLiterals(data)
+
+                case "touch":
+                    handleTouchCommand(msg)
+
+                case "elements":
+                    guard let window = self.window else { return }
+                    let tree = snapshotElement(window, window: window) ?? ["children": [] as [Any]]
+                    var response: [String: Any] = ["type": "elementsResponse", "tree": tree]
+                    if let id = msg["id"] { response["id"] = id }
+                    sendResponse(response)
+
+                default:
+                    break
+                }
             }
 
-            // MARK: - Literals File Watching (fast path)
-
-            private func watchLiteralsFile(at path: String) {
-                lastLiteralsModDate = modDate(of: path)
-                literalsTimer = Timer.scheduledTimer(withTimeInterval: 0.15, repeats: true) { [weak self] _ in
-                    guard let self else { return }
-                    guard let newDate = self.modDate(of: path) else { return }
-                    guard newDate != self.lastLiteralsModDate else { return }
-                    self.lastLiteralsModDate = newDate
-
-                    guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)) else { return }
-                    self.applyLiterals(data)
+            private func sendResponse(_ dict: [String: Any]) {
+                guard socketFD >= 0,
+                      var data = try? JSONSerialization.data(withJSONObject: dict) else { return }
+                data.append(0x0A) // newline
+                let fd = socketFD
+                data.withUnsafeBytes { buf in
+                    guard let base = buf.baseAddress else { return }
+                    var remaining = buf.count
+                    var offset = 0
+                    while remaining > 0 {
+                        let n = Darwin.write(fd, base + offset, remaining)
+                        if n <= 0 { break }
+                        offset += n
+                        remaining -= n
+                    }
                 }
             }
 
@@ -222,20 +278,6 @@ enum IOSHostAppSource {
                               appendEvent != nil && setIntegerValue != nil && bksSetDigitizerInfo != nil)
 
                 NSLog("PreviewHost: Touch injection \\(touchReady ? "ready" : "FAILED")")
-            }
-
-            private func watchTouchFile(at path: String) {
-                lastTouchModDate = modDate(of: path)
-                touchTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
-                    guard let self else { return }
-                    guard let newDate = self.modDate(of: path) else { return }
-                    guard newDate != self.lastTouchModDate else { return }
-                    self.lastTouchModDate = newDate
-
-                    guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
-                          let command = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
-                    self.handleTouchCommand(command)
-                }
             }
 
             private func handleTouchCommand(_ command: [String: Any]) {
@@ -361,25 +403,6 @@ enum IOSHostAppSource {
 
             // MARK: - Accessibility Tree Dump
 
-            private var elementsTimer: Timer?
-            private var lastElementsModDate: Date?
-
-            private func watchElementsFile(at path: String) {
-                lastElementsModDate = modDate(of: path)
-                elementsTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
-                    guard let self else { return }
-                    guard let newDate = self.modDate(of: path) else { return }
-                    guard newDate != self.lastElementsModDate else { return }
-                    self.lastElementsModDate = newDate
-
-                    guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
-                          let request = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                          let responsePath = request["responsePath"] as? String else { return }
-
-                    self.dumpAccessibilityTree(to: responsePath)
-                }
-            }
-
             private var accessibilityActivated = false
 
             private func activateAccessibility() {
@@ -392,14 +415,6 @@ enum IOSHostAppSource {
                     let fn = unsafeBitCast(sym, to: Fn.self)
                     fn(true)
                 }
-            }
-
-            private func dumpAccessibilityTree(to responsePath: String) {
-                guard let window = self.window else { return }
-
-                let tree = snapshotElement(window, window: window) ?? ["children": [] as [Any]]
-                guard let data = try? JSONSerialization.data(withJSONObject: tree, options: []) else { return }
-                try? data.write(to: URL(fileURLWithPath: responsePath), options: .atomic)
             }
 
             private func snapshotElement(_ element: Any, window: UIWindow) -> [String: Any]? {
