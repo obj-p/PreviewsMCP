@@ -4,6 +4,19 @@ import PreviewsCore
 import PreviewsIOS
 import PreviewsMacOS
 
+/// Tool names for MCP server. Used in both schema definitions and dispatch.
+private enum ToolName: String, CaseIterable {
+    case previewList = "preview_list"
+    case previewStart = "preview_start"
+    case previewSnapshot = "preview_snapshot"
+    case previewStop = "preview_stop"
+    case previewConfigure = "preview_configure"
+    case previewSwitch = "preview_switch"
+    case previewElements = "preview_elements"
+    case previewTouch = "preview_touch"
+    case simulatorList = "simulator_list"
+}
+
 /// Tracks active iOS preview sessions and lazily creates shared iOS resources.
 private actor IOSState {
     let simulatorManager = SimulatorManager()
@@ -67,7 +80,7 @@ func configureMCPServer() async throws -> (Server, Compiler) {
     await server.withMethodHandler(ListTools.self) { _ in
         ListTools.Result(tools: [
             Tool(
-                name: "preview_list",
+                name: ToolName.previewList.rawValue,
                 description: "List #Preview blocks in a Swift source file",
                 inputSchema: .object([
                     "type": .string("object"),
@@ -81,7 +94,7 @@ func configureMCPServer() async throws -> (Server, Compiler) {
                 ])
             ),
             Tool(
-                name: "preview_start",
+                name: ToolName.previewStart.rawValue,
                 description:
                     "Compile and launch a live SwiftUI preview. Returns a session ID. Supports macOS (default) and iOS simulator.",
                 inputSchema: .object([
@@ -145,7 +158,7 @@ func configureMCPServer() async throws -> (Server, Compiler) {
                 ])
             ),
             Tool(
-                name: "preview_snapshot",
+                name: ToolName.previewSnapshot.rawValue,
                 description: "Capture a screenshot of a running preview. Returns the image as JPEG (default) or PNG.",
                 inputSchema: .object([
                     "type": .string("object"),
@@ -164,7 +177,7 @@ func configureMCPServer() async throws -> (Server, Compiler) {
                 ])
             ),
             Tool(
-                name: "preview_stop",
+                name: ToolName.previewStop.rawValue,
                 description: "Close a preview and clean up the session.",
                 inputSchema: .object([
                     "type": .string("object"),
@@ -178,7 +191,7 @@ func configureMCPServer() async throws -> (Server, Compiler) {
                 ])
             ),
             Tool(
-                name: "preview_configure",
+                name: ToolName.previewConfigure.rawValue,
                 description:
                     "Change rendering traits (color scheme, dynamic type) for a running preview. Triggers recompile; @State is reset. Note: dynamicTypeSize only has a visible effect on iOS simulator — macOS does not scale fonts in response to this modifier.",
                 inputSchema: .object([
@@ -210,7 +223,7 @@ func configureMCPServer() async throws -> (Server, Compiler) {
                 ])
             ),
             Tool(
-                name: "preview_switch",
+                name: ToolName.previewSwitch.rawValue,
                 description:
                     "Switch which #Preview block is rendered in a running session. Triggers recompile; @State is reset. Traits persist across switches.",
                 inputSchema: .object([
@@ -230,7 +243,7 @@ func configureMCPServer() async throws -> (Server, Compiler) {
                 ])
             ),
             Tool(
-                name: "preview_elements",
+                name: ToolName.previewElements.rawValue,
                 description:
                     "Get the accessibility tree of an iOS simulator preview. Returns elements with labels, frames, and traits for targeted interaction.",
                 inputSchema: .object([
@@ -252,7 +265,7 @@ func configureMCPServer() async throws -> (Server, Compiler) {
                 ])
             ),
             Tool(
-                name: "preview_touch",
+                name: ToolName.previewTouch.rawValue,
                 description:
                     "Send a touch event to an iOS simulator preview. Coordinates are in device points. For swipe, x/y is the start point.",
                 inputSchema: .object([
@@ -291,7 +304,7 @@ func configureMCPServer() async throws -> (Server, Compiler) {
                 ])
             ),
             Tool(
-                name: "simulator_list",
+                name: ToolName.simulatorList.rawValue,
                 description: "List available iOS simulator devices with their UDIDs and states.",
                 inputSchema: .object([
                     "type": .string("object"),
@@ -302,27 +315,28 @@ func configureMCPServer() async throws -> (Server, Compiler) {
     }
 
     await server.withMethodHandler(CallTool.self) { params in
-        switch params.name {
-        case "preview_list":
-            return try await handlePreviewList(params: params)
-        case "preview_start":
-            return try await handlePreviewStart(params: params, macCompiler: compiler)
-        case "preview_snapshot":
-            return try await handlePreviewSnapshot(params: params)
-        case "preview_configure":
-            return try await handlePreviewConfigure(params: params)
-        case "preview_switch":
-            return try await handlePreviewSwitch(params: params)
-        case "preview_stop":
-            return try await handlePreviewStop(params: params)
-        case "preview_elements":
-            return try await handlePreviewElements(params: params)
-        case "preview_touch":
-            return try await handlePreviewTouch(params: params)
-        case "simulator_list":
-            return try await handleSimulatorList()
-        default:
+        guard let tool = ToolName(rawValue: params.name) else {
             return CallTool.Result(content: [.text("Unknown tool: \(params.name)")], isError: true)
+        }
+        switch tool {
+        case .previewList:
+            return try await handlePreviewList(params: params)
+        case .previewStart:
+            return try await handlePreviewStart(params: params, macCompiler: compiler)
+        case .previewSnapshot:
+            return try await handlePreviewSnapshot(params: params)
+        case .previewConfigure:
+            return try await handlePreviewConfigure(params: params)
+        case .previewSwitch:
+            return try await handlePreviewSwitch(params: params)
+        case .previewStop:
+            return try await handlePreviewStop(params: params)
+        case .previewElements:
+            return try await handlePreviewElements(params: params)
+        case .previewTouch:
+            return try await handlePreviewTouch(params: params)
+        case .simulatorList:
+            return try await handleSimulatorList()
         }
     }
 
@@ -332,8 +346,9 @@ func configureMCPServer() async throws -> (Server, Compiler) {
 // MARK: - Tool Handlers
 
 private func handlePreviewList(params: CallTool.Parameters) async throws -> CallTool.Result {
-    guard case .string(let filePath) = params.arguments?["filePath"] else {
-        return CallTool.Result(content: [.text("Missing filePath parameter")], isError: true)
+    let filePath: String
+    do { filePath = try extractString("filePath", from: params) } catch {
+        return CallTool.Result(content: [.text(error.localizedDescription)], isError: true)
     }
 
     let fileURL = URL(fileURLWithPath: filePath)
@@ -357,8 +372,9 @@ private func handlePreviewList(params: CallTool.Parameters) async throws -> Call
 }
 
 private func handlePreviewStart(params: CallTool.Parameters, macCompiler: Compiler) async throws -> CallTool.Result {
-    guard case .string(let filePath) = params.arguments?["filePath"] else {
-        return CallTool.Result(content: [.text("Missing filePath parameter")], isError: true)
+    let filePath: String
+    do { filePath = try extractString("filePath", from: params) } catch {
+        return CallTool.Result(content: [.text(error.localizedDescription)], isError: true)
     }
 
     let fileURL = URL(fileURLWithPath: filePath)
@@ -366,19 +382,8 @@ private func handlePreviewStart(params: CallTool.Parameters, macCompiler: Compil
         return CallTool.Result(content: [.text("File not found: \(filePath)")], isError: true)
     }
 
-    let previewIndex: Int
-    if case .int(let n) = params.arguments?["previewIndex"] {
-        previewIndex = n
-    } else {
-        previewIndex = 0
-    }
-
-    let platformStr: String
-    if case .string(let p) = params.arguments?["platform"] {
-        platformStr = p
-    } else {
-        platformStr = "macos"
-    }
+    let previewIndex = extractOptionalInt("previewIndex", from: params) ?? 0
+    let platformStr = extractOptionalString("platform", from: params) ?? "macos"
 
     let (resolvedTraits, traitsError) = parseTraits(from: params)
     if let traitsError { return traitsError }
@@ -394,9 +399,9 @@ private func handlePreviewStart(params: CallTool.Parameters, macCompiler: Compil
     }
 
     // macOS path (default)
-    let width = if case .int(let n) = params.arguments?["width"] { n } else { 400 }
-    let height = if case .int(let n) = params.arguments?["height"] { n } else { 600 }
-    let headless = if case .bool(let h) = params.arguments?["headless"] { h } else { true }
+    let width = extractOptionalInt("width", from: params) ?? 400
+    let height = extractOptionalInt("height", from: params) ?? 600
+    let headless = extractOptionalBool("headless", from: params) ?? true
 
     // Detect build system (auto-detect or explicit projectPath)
     let buildContext: BuildContext?
@@ -434,7 +439,7 @@ private func handleIOSPreviewStart(
 ) async throws -> CallTool.Result {
     // Resolve device UDID — use provided or auto-select
     let deviceUDID: String
-    let providedUDID: String? = if case .string(let udid) = params.arguments?["deviceUDID"] { udid } else { nil }
+    let providedUDID = extractOptionalString("deviceUDID", from: params)
     do {
         deviceUDID = try await resolveDeviceUDID(provided: providedUDID, using: iosState.simulatorManager)
     } catch {
@@ -445,12 +450,7 @@ private func handleIOSPreviewStart(
     let hostBuilder = try await iosState.getHostBuilder()
     let simulatorManager = iosState.simulatorManager
 
-    let headless: Bool
-    if case .bool(let h) = params.arguments?["headless"] {
-        headless = h
-    } else {
-        headless = true
-    }
+    let headless = extractOptionalBool("headless", from: params) ?? true
 
     // Detect build system
     let buildContext: BuildContext?
@@ -555,19 +555,12 @@ private func startMacOSPreview(
 }
 
 private func handlePreviewSnapshot(params: CallTool.Parameters) async throws -> CallTool.Result {
-    guard case .string(let sessionID) = params.arguments?["sessionID"] else {
-        return CallTool.Result(content: [.text("Missing sessionID parameter")], isError: true)
+    let sessionID: String
+    do { sessionID = try extractString("sessionID", from: params) } catch {
+        return CallTool.Result(content: [.text(error.localizedDescription)], isError: true)
     }
 
-    // Parse quality parameter (default 0.85 = JPEG)
-    let quality: Double
-    if case .double(let q) = params.arguments?["quality"] {
-        quality = max(0.0, min(1.0, q))
-    } else if case .int(let n) = params.arguments?["quality"] {
-        quality = max(0.0, min(1.0, Double(n)))
-    } else {
-        quality = 0.85
-    }
+    let quality = max(0.0, min(1.0, extractOptionalDouble("quality", from: params) ?? 0.85))
     let usePNG = quality >= 1.0
     let mimeType = usePNG ? "image/png" : "image/jpeg"
 
@@ -599,8 +592,9 @@ private func handlePreviewSnapshot(params: CallTool.Parameters) async throws -> 
 }
 
 private func handlePreviewStop(params: CallTool.Parameters) async throws -> CallTool.Result {
-    guard case .string(let sessionID) = params.arguments?["sessionID"] else {
-        return CallTool.Result(content: [.text("Missing sessionID parameter")], isError: true)
+    let sessionID: String
+    do { sessionID = try extractString("sessionID", from: params) } catch {
+        return CallTool.Result(content: [.text(error.localizedDescription)], isError: true)
     }
 
     // Check if this is an iOS session
@@ -619,8 +613,9 @@ private func handlePreviewStop(params: CallTool.Parameters) async throws -> Call
 }
 
 private func handlePreviewElements(params: CallTool.Parameters) async throws -> CallTool.Result {
-    guard case .string(let sessionID) = params.arguments?["sessionID"] else {
-        return CallTool.Result(content: [.text("Missing sessionID parameter")], isError: true)
+    let sessionID: String
+    do { sessionID = try extractString("sessionID", from: params) } catch {
+        return CallTool.Result(content: [.text(error.localizedDescription)], isError: true)
     }
 
     guard let iosSession = await iosState.getSession(sessionID) else {
@@ -631,15 +626,10 @@ private func handlePreviewElements(params: CallTool.Parameters) async throws -> 
     }
 
     let validFilters: Set<String> = ["all", "interactable", "labeled"]
-    let filter: String
-    if case .string(let f) = params.arguments?["filter"] {
-        guard validFilters.contains(f) else {
-            return CallTool.Result(
-                content: [.text("Invalid filter '\(f)'. Must be one of: all, interactable, labeled")], isError: true)
-        }
-        filter = f
-    } else {
-        filter = "all"
+    let filter = extractOptionalString("filter", from: params) ?? "all"
+    guard validFilters.contains(filter) else {
+        return CallTool.Result(
+            content: [.text("Invalid filter '\(filter)'. Must be one of: all, interactable, labeled")], isError: true)
     }
 
     let elementsJSON = try await iosSession.fetchElements(filter: filter)
@@ -647,8 +637,15 @@ private func handlePreviewElements(params: CallTool.Parameters) async throws -> 
 }
 
 private func handlePreviewTouch(params: CallTool.Parameters) async throws -> CallTool.Result {
-    guard case .string(let sessionID) = params.arguments?["sessionID"] else {
-        return CallTool.Result(content: [.text("Missing sessionID parameter")], isError: true)
+    let sessionID: String
+    let x: Double
+    let y: Double
+    do {
+        sessionID = try extractString("sessionID", from: params)
+        x = try extractDouble("x", from: params)
+        y = try extractDouble("y", from: params)
+    } catch {
+        return CallTool.Result(content: [.text(error.localizedDescription)], isError: true)
     }
 
     guard let iosSession = await iosState.getSession(sessionID) else {
@@ -658,55 +655,19 @@ private func handlePreviewTouch(params: CallTool.Parameters) async throws -> Cal
             ], isError: true)
     }
 
-    let x: Double
-    if case .double(let n) = params.arguments?["x"] {
-        x = n
-    } else if case .int(let n) = params.arguments?["x"] {
-        x = Double(n)
-    } else {
-        return CallTool.Result(content: [.text("Missing x coordinate")], isError: true)
-    }
-
-    let y: Double
-    if case .double(let n) = params.arguments?["y"] {
-        y = n
-    } else if case .int(let n) = params.arguments?["y"] {
-        y = Double(n)
-    } else {
-        return CallTool.Result(content: [.text("Missing y coordinate")], isError: true)
-    }
-
-    let action: String
-    if case .string(let a) = params.arguments?["action"] {
-        action = a
-    } else {
-        action = "tap"
-    }
+    let action = extractOptionalString("action", from: params) ?? "tap"
 
     if action == "swipe" {
-        // Swipe requires fromX/fromY (use x/y) and toX/toY
         let toX: Double
-        if case .double(let n) = params.arguments?["toX"] {
-            toX = n
-        } else if case .int(let n) = params.arguments?["toX"] {
-            toX = Double(n)
-        } else {
-            return CallTool.Result(content: [.text("Missing toX for swipe")], isError: true)
-        }
-
         let toY: Double
-        if case .double(let n) = params.arguments?["toY"] {
-            toY = n
-        } else if case .int(let n) = params.arguments?["toY"] {
-            toY = Double(n)
-        } else {
-            return CallTool.Result(content: [.text("Missing toY for swipe")], isError: true)
+        do {
+            toX = try extractDouble("toX", from: params)
+            toY = try extractDouble("toY", from: params)
+        } catch {
+            return CallTool.Result(content: [.text(error.localizedDescription)], isError: true)
         }
 
-        let duration: Double = {
-            if case .double(let n) = params.arguments?["duration"] { return n }
-            return 0.3
-        }()
+        let duration = extractOptionalDouble("duration", from: params) ?? 0.3
 
         try await iosSession.sendSwipe(fromX: x, fromY: y, toX: toX, toY: toY, duration: duration)
         return CallTool.Result(content: [.text("Swipe from (\(Int(x)),\(Int(y))) to (\(Int(toX)),\(Int(toY)))")])
@@ -725,12 +686,7 @@ private func detectBuildContext(
     params: CallTool.Parameters,
     platform: PreviewPlatform
 ) async throws -> BuildContext? {
-    let projectRootURL: URL?
-    if case .string(let path) = params.arguments?["projectPath"] {
-        projectRootURL = URL(fileURLWithPath: path)
-    } else {
-        projectRootURL = nil
-    }
+    let projectRootURL = extractOptionalString("projectPath", from: params).map { URL(fileURLWithPath: $0) }
     return try await detectAndBuild(for: fileURL, projectRoot: projectRootURL, platform: platform, logPrefix: "MCP:")
 }
 
@@ -756,34 +712,15 @@ private func handleSimulatorList() async throws -> CallTool.Result {
 
 /// Parse and validate trait parameters. Returns (traits, nil) on success or (nil, error result) on failure.
 private func parseTraits(from params: CallTool.Parameters) -> (PreviewTraits, CallTool.Result?) {
-    var traits = PreviewTraits()
-    if case .string(let cs) = params.arguments?["colorScheme"] {
-        guard PreviewTraits.validColorSchemes.contains(cs) else {
-            return (
-                traits,
-                CallTool.Result(
-                    content: [.text("Invalid colorScheme '\(cs)'. Must be 'light' or 'dark'.")],
-                    isError: true)
-            )
-        }
-        traits.colorScheme = cs
+    do {
+        let traits = try PreviewTraits.validated(
+            colorScheme: extractOptionalString("colorScheme", from: params),
+            dynamicTypeSize: extractOptionalString("dynamicTypeSize", from: params)
+        )
+        return (traits, nil)
+    } catch {
+        return (PreviewTraits(), CallTool.Result(content: [.text(error.localizedDescription)], isError: true))
     }
-    if case .string(let dts) = params.arguments?["dynamicTypeSize"] {
-        guard PreviewTraits.validDynamicTypeSizes.contains(dts) else {
-            return (
-                traits,
-                CallTool.Result(
-                    content: [
-                        .text(
-                            "Invalid dynamicTypeSize '\(dts)'. Valid values: \(PreviewTraits.validDynamicTypeSizes.sorted().joined(separator: ", "))"
-                        )
-                    ],
-                    isError: true)
-            )
-        }
-        traits.dynamicTypeSize = dts
-    }
-    return (traits, nil)
 }
 
 private func traitsSummary(_ traits: PreviewTraits) -> String {
@@ -794,8 +731,9 @@ private func traitsSummary(_ traits: PreviewTraits) -> String {
 }
 
 private func handlePreviewConfigure(params: CallTool.Parameters) async throws -> CallTool.Result {
-    guard case .string(let sessionID) = params.arguments?["sessionID"] else {
-        return CallTool.Result(content: [.text("Missing sessionID parameter")], isError: true)
+    let sessionID: String
+    do { sessionID = try extractString("sessionID", from: params) } catch {
+        return CallTool.Result(content: [.text(error.localizedDescription)], isError: true)
     }
 
     // Parse and validate traits
@@ -837,11 +775,13 @@ private func handlePreviewConfigure(params: CallTool.Parameters) async throws ->
 }
 
 private func handlePreviewSwitch(params: CallTool.Parameters) async throws -> CallTool.Result {
-    guard case .string(let sessionID) = params.arguments?["sessionID"] else {
-        return CallTool.Result(content: [.text("Missing sessionID parameter")], isError: true)
-    }
-    guard case .int(let newIndex) = params.arguments?["previewIndex"] else {
-        return CallTool.Result(content: [.text("Missing previewIndex parameter")], isError: true)
+    let sessionID: String
+    let newIndex: Int
+    do {
+        sessionID = try extractString("sessionID", from: params)
+        newIndex = try extractInt("previewIndex", from: params)
+    } catch {
+        return CallTool.Result(content: [.text(error.localizedDescription)], isError: true)
     }
 
     // iOS path
@@ -890,6 +830,59 @@ private func formatPreviewList(previews: [PreviewInfo], activeIndex: Int) -> Str
         lines.append("  [\(preview.index)] \(name) (line \(preview.line)): \(preview.snippet)\(marker)")
     }
     return lines.joined(separator: "\n")
+}
+
+// MARK: - Parameter Extraction Helpers
+
+private enum ParamError: Error, LocalizedError {
+    case missing(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .missing(let key): return "Missing \(key) parameter"
+        }
+    }
+}
+
+private func extractString(_ key: String, from params: CallTool.Parameters) throws -> String {
+    guard case .string(let value) = params.arguments?[key] else {
+        throw ParamError.missing(key)
+    }
+    return value
+}
+
+private func extractOptionalString(_ key: String, from params: CallTool.Parameters) -> String? {
+    if case .string(let value) = params.arguments?[key] { return value }
+    return nil
+}
+
+private func extractInt(_ key: String, from params: CallTool.Parameters) throws -> Int {
+    guard case .int(let value) = params.arguments?[key] else {
+        throw ParamError.missing(key)
+    }
+    return value
+}
+
+private func extractOptionalInt(_ key: String, from params: CallTool.Parameters) -> Int? {
+    if case .int(let value) = params.arguments?[key] { return value }
+    return nil
+}
+
+private func extractDouble(_ key: String, from params: CallTool.Parameters) throws -> Double {
+    if case .double(let value) = params.arguments?[key] { return value }
+    if case .int(let value) = params.arguments?[key] { return Double(value) }
+    throw ParamError.missing(key)
+}
+
+private func extractOptionalDouble(_ key: String, from params: CallTool.Parameters) -> Double? {
+    if case .double(let value) = params.arguments?[key] { return value }
+    if case .int(let value) = params.arguments?[key] { return Double(value) }
+    return nil
+}
+
+private func extractOptionalBool(_ key: String, from params: CallTool.Parameters) -> Bool? {
+    if case .bool(let value) = params.arguments?[key] { return value }
+    return nil
 }
 
 /// Remove stale previewsmcp temp directories older than 24 hours.

@@ -504,20 +504,23 @@ NSData *SBCaptureFramebuffer(SBDevice *device, double jpegQuality, NSError **err
     IOSurfaceLock(surface, kIOSurfaceLockReadOnly, NULL);
 
     CIImage *ciImage = [CIImage imageWithIOSurface:surface];
+    CGImageRef cgImage = NULL;
+
+    if (ciImage) {
+        static CIContext *ctx = nil;
+        static dispatch_once_t ciOnce;
+        dispatch_once(&ciOnce, ^{
+            ctx = [CIContext contextWithOptions:@{kCIContextUseSoftwareRenderer: @NO}];
+        });
+        cgImage = [ctx createCGImage:ciImage fromRect:ciImage.extent];
+    }
+
+    IOSurfaceUnlock(surface, kIOSurfaceLockReadOnly, NULL);
+
     if (!ciImage) {
-        IOSurfaceUnlock(surface, kIOSurfaceLockReadOnly, NULL);
         if (error) *error = _makeError(24, @"Failed to create CIImage from IOSurface");
         return nil;
     }
-
-    static CIContext *ctx = nil;
-    static dispatch_once_t ciOnce;
-    dispatch_once(&ciOnce, ^{
-        ctx = [CIContext contextWithOptions:@{kCIContextUseSoftwareRenderer: @NO}];
-    });
-    CGImageRef cgImage = [ctx createCGImage:ciImage fromRect:ciImage.extent];
-
-    IOSurfaceUnlock(surface, kIOSurfaceLockReadOnly, NULL);
 
     if (!cgImage) {
         if (error) *error = _makeError(25, @"Failed to render CIImage to CGImage");

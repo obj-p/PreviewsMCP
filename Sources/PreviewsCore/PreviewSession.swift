@@ -173,8 +173,18 @@ public actor PreviewSession {
 
     private static func moduleName(for file: URL) -> String {
         let stem = file.deletingPathExtension().lastPathComponent
-        let hash = String(abs(file.path.hashValue), radix: 16).prefix(6)
+        let hash = String(stableHash(file.path), radix: 16).prefix(6)
         return "Preview_\(stem)_\(hash)"
+    }
+
+    /// FNV-1a hash producing a stable, deterministic value across processes.
+    private static func stableHash(_ string: String) -> UInt64 {
+        var hash: UInt64 = 0xcbf2_9ce4_8422_2325  // FNV offset basis
+        for byte in string.utf8 {
+            hash ^= UInt64(byte)
+            hash &*= 0x0000_0100_0000_01B3  // FNV prime
+        }
+        return hash
     }
 }
 

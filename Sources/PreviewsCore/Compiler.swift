@@ -51,11 +51,10 @@ public actor Compiler {
         switch platform {
         case .macOS:
             self.sdkPath = try await Self.resolve("xcrun", "--show-sdk-path")
-            self.targetTriple = "arm64-apple-macosx14.0"
         case .iOS:
             self.sdkPath = try await Self.resolve("xcrun", "--show-sdk-path", "--sdk", "iphonesimulator")
-            self.targetTriple = "arm64-apple-ios17.0-simulator"
         }
+        self.targetTriple = platform.targetTriple
         self.swiftcPath = try await Self.resolve("xcrun", "--find", "swiftc")
         self.codesignPath = try await Self.resolve("xcrun", "--find", "codesign")
     }

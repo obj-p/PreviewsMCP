@@ -138,7 +138,7 @@ public actor SPMBuildSystem: BuildSystem {
         var args = ["swift", "build"]
 
         if platform == .iOS, let sdkPath = iosSDKPath {
-            args += ["--triple", "arm64-apple-ios17.0-simulator", "--sdk", sdkPath]
+            args += ["--triple", PreviewPlatform.iOS.targetTriple, "--sdk", sdkPath]
         }
 
         try await runProcess("/usr/bin/env", args: args, workingDirectory: projectRoot)
@@ -148,7 +148,7 @@ public actor SPMBuildSystem: BuildSystem {
         var args = ["swift", "build", "--show-bin-path"]
 
         if platform == .iOS, let sdkPath = iosSDKPath {
-            args += ["--triple", "arm64-apple-ios17.0-simulator", "--sdk", sdkPath]
+            args += ["--triple", PreviewPlatform.iOS.targetTriple, "--sdk", sdkPath]
         }
 
         let output = try await runProcess(

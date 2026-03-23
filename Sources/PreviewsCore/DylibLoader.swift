@@ -29,7 +29,7 @@ public final class DylibLoader: @unchecked Sendable {
     // Closing a dylib while its types are in use causes crashes.
 }
 
-public enum DylibLoaderError: Error, CustomStringConvertible {
+public enum DylibLoaderError: Error, LocalizedError, CustomStringConvertible {
     case loadFailed(path: String, reason: String)
     case symbolNotFound(name: String, reason: String)
 
@@ -41,4 +41,6 @@ public enum DylibLoaderError: Error, CustomStringConvertible {
             return "Symbol '\(name)' not found: \(reason)"
         }
     }
+
+    public var errorDescription: String? { description }
 }

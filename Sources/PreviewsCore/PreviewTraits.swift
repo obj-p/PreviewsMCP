@@ -29,4 +29,33 @@ public struct PreviewTraits: Sendable, Equatable {
         "accessibility1", "accessibility2", "accessibility3",
         "accessibility4", "accessibility5",
     ]
+
+    /// Validate optional trait values and return a PreviewTraits, or throw on invalid input.
+    public static func validated(
+        colorScheme: String?,
+        dynamicTypeSize: String?
+    ) throws -> PreviewTraits {
+        if let cs = colorScheme, !validColorSchemes.contains(cs) {
+            throw TraitValidationError.invalidColorScheme(cs)
+        }
+        if let dts = dynamicTypeSize, !validDynamicTypeSizes.contains(dts) {
+            throw TraitValidationError.invalidDynamicTypeSize(dts)
+        }
+        return PreviewTraits(colorScheme: colorScheme, dynamicTypeSize: dynamicTypeSize)
+    }
+}
+
+public enum TraitValidationError: Error, LocalizedError {
+    case invalidColorScheme(String)
+    case invalidDynamicTypeSize(String)
+
+    public var errorDescription: String? {
+        switch self {
+        case .invalidColorScheme(let cs):
+            return "Invalid color scheme '\(cs)'. Must be 'light' or 'dark'."
+        case .invalidDynamicTypeSize(let dts):
+            return
+                "Invalid dynamic type size '\(dts)'. Valid values: \(PreviewTraits.validDynamicTypeSizes.sorted().joined(separator: ", "))"
+        }
+    }
 }
