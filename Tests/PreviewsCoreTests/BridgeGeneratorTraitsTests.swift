@@ -243,6 +243,123 @@ struct BridgeGeneratorTraitsTests {
         #expect(result3.dylibPath != result2.dylibPath)
     }
 
+    // MARK: - Multi-preview index selection
+
+    static let multiPreviewSource = """
+        import SwiftUI
+
+        struct FirstView: View {
+            var body: some View {
+                Text("first")
+            }
+        }
+
+        struct SecondView: View {
+            var body: some View {
+                Text("second")
+            }
+        }
+
+        #Preview { FirstView() }
+
+        #Preview("Second") { SecondView() }
+        """
+
+    @Test("generateCombinedSource with previewIndex selects correct preview closure body")
+    func combinedSourceRespectsPreviewIndex() {
+        // Parse to get preview[1]'s closure body
+        let previews = PreviewParser.parse(source: Self.multiPreviewSource)
+        #expect(previews.count == 2)
+
+        let (source, _) = BridgeGenerator.generateCombinedSource(
+            originalSource: Self.multiPreviewSource,
+            closureBody: previews[1].closureBody,
+            previewIndex: 1
+        )
+
+        // The bridge entry point should render SecondView, not FirstView
+        // Extract just the @_cdecl function to avoid matching the full source that contains both
+        let bridgeRange = source.range(of: "@_cdecl(\"createPreviewView\")")!
+        let bridgeCode = String(source[bridgeRange.lowerBound...])
+
+        #expect(bridgeCode.contains("SecondView()"), "Bridge should render SecondView for previewIndex 1")
+        #expect(!bridgeCode.contains("FirstView()"), "Bridge should NOT render FirstView for previewIndex 1")
+    }
+
+    @Test("generateCombinedSource with default previewIndex selects first preview")
+    func combinedSourceDefaultIndex() {
+        let previews = PreviewParser.parse(source: Self.multiPreviewSource)
+        #expect(previews.count == 2)
+
+        let (source, _) = BridgeGenerator.generateCombinedSource(
+            originalSource: Self.multiPreviewSource,
+            closureBody: previews[0].closureBody
+        )
+
+        let bridgeRange = source.range(of: "@_cdecl(\"createPreviewView\")")!
+        let bridgeCode = String(source[bridgeRange.lowerBound...])
+
+        #expect(bridgeCode.contains("FirstView()"), "Bridge should render FirstView for default previewIndex")
+        #expect(!bridgeCode.contains("SecondView()"), "Bridge should NOT render SecondView for default previewIndex")
+    }
+
+    @Test("generateCombinedSource falls back to closureBody when previewIndex is out of bounds")
+    func combinedSourceOutOfBoundsFallback() {
+        let (source, _) = BridgeGenerator.generateCombinedSource(
+            originalSource: Self.multiPreviewSource,
+            closureBody: "FallbackView()",
+            previewIndex: 99
+        )
+
+        let bridgeRange = source.range(of: "@_cdecl(\"createPreviewView\")")!
+        let bridgeCode = String(source[bridgeRange.lowerBound...])
+
+        #expect(bridgeCode.contains("FallbackView()"), "Bridge should fall back to closureBody for out-of-bounds index")
+    }
+
+    @Test("generateOverlaySource with previewIndex selects correct preview")
+    func overlaySourceRespectsPreviewIndex() {
+        let previews = PreviewParser.parse(source: Self.multiPreviewSource)
+        #expect(previews.count == 2)
+
+        let (source, _) = BridgeGenerator.generateOverlaySource(
+            originalSource: Self.multiPreviewSource,
+            closureBody: previews[1].closureBody,
+            previewIndex: 1
+        )
+
+        let bridgeRange = source.range(of: "@_cdecl(\"createPreviewView\")")!
+        let bridgeCode = String(source[bridgeRange.lowerBound...])
+
+        #expect(bridgeCode.contains("SecondView()"), "Overlay bridge should render SecondView for previewIndex 1")
+        #expect(!bridgeCode.contains("FirstView()"), "Overlay bridge should NOT render FirstView for previewIndex 1")
+    }
+
+    @Test("PreviewSession.compile with previewIndex 1 renders second preview")
+    func previewSessionCompilesSecondPreview() async throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previews-mcp-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let sourceFile = tempDir.appendingPathComponent("MultiPreview.swift")
+        try Self.multiPreviewSource.write(to: sourceFile, atomically: true, encoding: .utf8)
+
+        let compiler = try await Compiler()
+        let session = PreviewSession(
+            sourceFile: sourceFile,
+            previewIndex: 1,
+            compiler: compiler
+        )
+
+        let compileResult = try await session.compile()
+        #expect(FileManager.default.fileExists(atPath: compileResult.dylibPath.path))
+
+        let loader = try DylibLoader(path: compileResult.dylibPath.path)
+        typealias CreateFunc = @convention(c) () -> UnsafeMutableRawPointer
+        let _: CreateFunc = try loader.symbol(name: "createPreviewView")
+    }
+
     // MARK: - generateOverlaySource
 
     @Test("generateOverlaySource with traits injects modifiers")
