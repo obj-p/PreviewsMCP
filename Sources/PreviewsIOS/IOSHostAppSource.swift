@@ -116,6 +116,8 @@ enum IOSHostAppSource {
             // MARK: - Signal File Watching (hot-reload)
 
             private func watchSignalFile(at path: String) {
+                // Derive ack file path from signal file path
+                let ackPath = path.replacingOccurrences(of: "reload-signal.txt", with: "reload-ack.txt")
                 lastSignalModDate = modDate(of: path)
                 signalTimer = Timer.scheduledTimer(withTimeInterval: 0.3, repeats: true) { [weak self] _ in
                     guard let self else { return }
@@ -126,6 +128,10 @@ enum IOSHostAppSource {
                     guard let newPath = try? String(contentsOfFile: path, encoding: .utf8)
                         .trimmingCharacters(in: .whitespacesAndNewlines) else { return }
                     self.loadPreview(dylibPath: newPath)
+                    // Write ack after one RunLoop turn to ensure SwiftUI environment propagation
+                    DispatchQueue.main.async {
+                        try? "ok".write(toFile: ackPath, atomically: true, encoding: .utf8)
+                    }
                 }
             }
 

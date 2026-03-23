@@ -173,6 +173,7 @@ public actor IOSPreviewSession {
     }
 
     /// Recompile the preview and signal the running host app to reload.
+    /// Waits for the host app to acknowledge the reload before returning.
     public func reload() async throws {
         let previewSession = PreviewSession(
             sourceFile: sourceFile,
@@ -188,7 +189,24 @@ public actor IOSPreviewSession {
         guard let signalFile = signalFilePath else {
             throw IOSPreviewSessionError.notStarted
         }
+
+        // Remove stale ack before signalling
+        let ackFile = signalFile.deletingLastPathComponent().appendingPathComponent("reload-ack.txt")
+        try? FileManager.default.removeItem(at: ackFile)
+
+        // Signal the host app to reload
         try compileResult.dylibPath.path.write(to: signalFile, atomically: true, encoding: .utf8)
+
+        // Wait for the host app to acknowledge (up to 3 seconds)
+        // The host app writes the ack after loadPreview() + one RunLoop turn,
+        // ensuring SwiftUI environment modifiers (like dynamicTypeSize) have propagated.
+        for _ in 0..<30 {
+            try await Task.sleep(for: .milliseconds(100))
+            if FileManager.default.fileExists(atPath: ackFile.path) {
+                return
+            }
+        }
+        // Timeout is non-fatal — the reload likely succeeded but ack was missed
     }
 
     /// Switch to a different preview index and recompile. Traits are preserved. @State is lost.
