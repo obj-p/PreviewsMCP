@@ -805,6 +805,8 @@ private func handlePreviewConfigure(params: CallTool.Parameters) async throws ->
     // iOS path
     if let iosSession = await iosState.getSession(sessionID) {
         try await iosSession.reconfigure(traits: traits)
+        // Wait for the host app to load the new dylib and render
+        try await Task.sleep(for: .seconds(1))
         let activeTraits = await iosSession.currentTraits
         return CallTool.Result(content: [
             .text(
@@ -843,6 +845,8 @@ private func handlePreviewSwitch(params: CallTool.Parameters) async throws -> Ca
     // iOS path
     if let iosSession = await iosState.getSession(sessionID) {
         try await iosSession.switchPreview(to: newIndex)
+        // Wait for the host app to load the new dylib and render
+        try await Task.sleep(for: .seconds(1))
         let activeTraits = await iosSession.currentTraits
         let traitInfo = activeTraits.isEmpty ? "" : " Traits: \(traitsSummary(activeTraits))."
 
