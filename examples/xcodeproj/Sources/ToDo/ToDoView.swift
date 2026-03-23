@@ -117,3 +117,7 @@ struct ItemRow: View {
 #Preview {
     ToDoView(items: Item.samples)
 }
+
+#Preview("Empty State") {
+    ToDoView(items: [])
+}

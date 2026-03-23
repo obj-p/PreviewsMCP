@@ -12,7 +12,7 @@ project.yml         — XcodeGen spec (generates ToDo.xcodeproj)
 ToDo.xcworkspace/   — workspace wrapping ToDo.xcodeproj (committed)
 ```
 
-The `#Preview` in `ToDoView.swift` uses `Item.samples` which is defined in `Item.swift`. This requires PreviewsMCP to detect the Xcode workspace, build it, and compile the preview against the target's build artifacts.
+The `#Preview` blocks in `ToDoView.swift` use `Item.samples` which is defined in `Item.swift`. This requires PreviewsMCP to detect the Xcode workspace, build it, and compile the preview against the target's build artifacts. The file has two previews: the default (with sample data) and "Empty State" (no items).
 
 The key difference from the `xcodeproj` example: PreviewsMCP must detect the `.xcworkspace` and use `-workspace` instead of `-project` in xcodebuild commands.
 
@@ -82,7 +82,12 @@ The example project is at examples/xcworkspace/ relative to the PreviewsMCP repo
 - Take a snapshot — verify the new item appears (file watcher monitors all target files)
 - Revert the change
 
-### 6. Cleanup
+### 6. Multi-preview and switching
+- Call preview_list — verify two previews with snippets
+- Call preview_switch with previewIndex 1 — take a snapshot and verify the empty state (no item rows)
+- Call preview_switch with previewIndex 0 — verify the full item list returns
+
+### 7. Cleanup
 - Stop all preview sessions
 ```
 
