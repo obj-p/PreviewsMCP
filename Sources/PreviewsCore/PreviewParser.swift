@@ -11,7 +11,7 @@ public struct PreviewInfo: Sendable {
     /// Location in the source file.
     public let line: Int
     public let column: Int
-    /// 0-based index among all `#Preview` blocks in the file.
+    /// 0-based index among all previews (`#Preview` blocks and `PreviewProvider` entries) in the file.
     public let index: Int
 
     /// First line of the closure body, truncated to 80 characters.
@@ -121,14 +121,14 @@ private final class PreviewVisitor: SyntaxVisitor {
         if items.count == 1, let returnStmt = items[0].item.as(ReturnStmtSyntax.self),
             let expr = returnStmt.expression
         {
-            addPreviewProviderItems(from: expr, node: Syntax(node))
+            addPreviewProviderItems(from: expr)
         } else if items.count == 1 {
             // Single expression — check for Group or treat as one preview
-            addPreviewProviderItems(from: items[0].item, node: Syntax(node))
+            addPreviewProviderItems(from: items[0].item)
         } else {
             // Multiple statements (@ViewBuilder) — each is a separate preview
             for item in items {
-                addSingleProviderPreview(from: item.item, node: Syntax(node))
+                addSingleProviderPreview(from: item.item)
             }
         }
 
@@ -137,7 +137,7 @@ private final class PreviewVisitor: SyntaxVisitor {
 
     /// Check if the expression is a `Group { ... }` call, and split its children.
     /// Otherwise treat it as a single preview.
-    private func addPreviewProviderItems(from syntax: SyntaxProtocol, node: Syntax) {
+    private func addPreviewProviderItems(from syntax: SyntaxProtocol) {
         if let funcCall = syntax.as(FunctionCallExprSyntax.self),
             let callee = funcCall.calledExpression.as(DeclReferenceExprSyntax.self),
             callee.baseName.text == "Group",
@@ -145,14 +145,14 @@ private final class PreviewVisitor: SyntaxVisitor {
         {
             // Group { ... } — each statement is a separate preview
             for statement in trailingClosure.statements {
-                addSingleProviderPreview(from: statement.item, node: Syntax(statement))
+                addSingleProviderPreview(from: statement.item)
             }
         } else {
-            addSingleProviderPreview(from: syntax, node: node)
+            addSingleProviderPreview(from: syntax)
         }
     }
 
-    private func addSingleProviderPreview(from syntax: SyntaxProtocol, node: Syntax) {
+    private func addSingleProviderPreview(from syntax: SyntaxProtocol) {
         let closureBody = syntax.description.trimmed
         let name = extractDisplayName(from: syntax)
 
@@ -176,7 +176,8 @@ private final class PreviewVisitor: SyntaxVisitor {
     private func conformsToPreviewProvider(_ node: StructDeclSyntax) -> Bool {
         guard let inheritanceClause = node.inheritanceClause else { return false }
         return inheritanceClause.inheritedTypes.contains { inherited in
-            inherited.type.description.trimmed == "PreviewProvider"
+            let name = inherited.type.description.trimmed
+            return name == "PreviewProvider" || name == "SwiftUI.PreviewProvider"
         }
     }
 

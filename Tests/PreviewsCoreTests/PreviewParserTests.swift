@@ -342,6 +342,76 @@ struct PreviewParserTests {
         #expect(previews[0].closureBody.contains("ForEach"))
     }
 
+    @Test("PreviewProvider with return single view unwraps correctly")
+    func previewProviderWithReturnSingleView() {
+        let source = """
+            import SwiftUI
+
+            struct MyView: View {
+                var body: some View { Text("Hello") }
+            }
+
+            struct MyView_Previews: PreviewProvider {
+                static var previews: some View {
+                    return MyView()
+                        .preferredColorScheme(.dark)
+                }
+            }
+            """
+
+        let previews = PreviewParser.parse(source: source)
+        #expect(previews.count == 1)
+        #expect(previews[0].closureBody.contains("MyView()"))
+        #expect(previews[0].closureBody.contains(".preferredColorScheme(.dark)"))
+    }
+
+    @Test("PreviewProvider with fully-qualified SwiftUI.PreviewProvider conformance")
+    func previewProviderFullyQualified() {
+        let source = """
+            import SwiftUI
+
+            struct MyView: View {
+                var body: some View { Text("Hello") }
+            }
+
+            struct MyView_Previews: SwiftUI.PreviewProvider {
+                static var previews: some View {
+                    MyView()
+                }
+            }
+            """
+
+        let previews = PreviewParser.parse(source: source)
+        #expect(previews.count == 1)
+        #expect(previews[0].closureBody.contains("MyView()"))
+    }
+
+    @Test("PreviewProvider with displayName in multi-statement body")
+    func previewProviderDisplayNameMultiStatement() {
+        let source = """
+            import SwiftUI
+
+            struct MyView: View {
+                var body: some View { Text("Hello") }
+            }
+
+            struct MyView_Previews: PreviewProvider {
+                static var previews: some View {
+                    MyView()
+                        .previewDisplayName("Light")
+                    MyView()
+                        .preferredColorScheme(.dark)
+                        .previewDisplayName("Dark")
+                }
+            }
+            """
+
+        let previews = PreviewParser.parse(source: source)
+        #expect(previews.count == 2)
+        #expect(previews[0].name == "Light")
+        #expect(previews[1].name == "Dark")
+    }
+
     @Test("PreviewProvider with literals round-trips through ThunkGenerator")
     func previewProviderThunkRoundTrip() {
         let source = """
