@@ -38,7 +38,7 @@ public actor SPMBuildSystem: BuildSystem {
 
         // 2. Resolve iOS SDK path once (used by both swift build and --show-bin-path)
         let iosSDKPath: String?
-        if platform == .iOSSimulator {
+        if platform == .iOS {
             iosSDKPath = try await runProcess(
                 "/usr/bin/xcrun", "--show-sdk-path", "--sdk", "iphonesimulator"
             )
@@ -137,7 +137,7 @@ public actor SPMBuildSystem: BuildSystem {
     private func runSwiftBuild(platform: PreviewPlatform, iosSDKPath: String?) async throws {
         var args = ["swift", "build"]
 
-        if platform == .iOSSimulator, let sdkPath = iosSDKPath {
+        if platform == .iOS, let sdkPath = iosSDKPath {
             args += ["--triple", "arm64-apple-ios17.0-simulator", "--sdk", sdkPath]
         }
 
@@ -147,7 +147,7 @@ public actor SPMBuildSystem: BuildSystem {
     private func showBinPath(platform: PreviewPlatform, iosSDKPath: String?) async throws -> URL {
         var args = ["swift", "build", "--show-bin-path"]
 
-        if platform == .iOSSimulator, let sdkPath = iosSDKPath {
+        if platform == .iOS, let sdkPath = iosSDKPath {
             args += ["--triple", "arm64-apple-ios17.0-simulator", "--sdk", sdkPath]
         }
 

@@ -21,52 +21,13 @@ func detectAndBuild(
     }
 
     let prefix = logPrefix.isEmpty ? "" : "\(logPrefix) "
-    let platformLabel = platform == .iOSSimulator ? "building for iOS..." : "building..."
+    let platformLabel = platform == .iOS ? "building for iOS..." : "building..."
     fputs("\(prefix)Detected project at \(buildSystem.projectRoot.path), \(platformLabel)\n", stderr)
 
     let context = try await buildSystem.build(platform: platform)
     fputs("\(prefix)Built target: \(context.targetName) (tier \(context.supportsTier2 ? "2" : "1"))\n", stderr)
 
     return context
-}
-
-let defaultPlaygroundCode = """
-    import SwiftUI
-
-    struct PlaygroundView: View {
-        var body: some View {
-            VStack {
-                Text("Hello, playground!")
-                    .font(.title)
-            }
-            .padding()
-        }
-    }
-
-    #Preview {
-        PlaygroundView()
-    }
-    """
-
-/// Create a playground Swift file, returning its URL.
-/// When `at` is provided, writes to that path (creating parent directories).
-/// Otherwise creates a temp file with a unique name.
-func createPlaygroundFile(code: String? = nil, at outputPath: URL? = nil) throws -> URL {
-    let fileURL: URL
-    if let outputPath {
-        let dir = outputPath.deletingLastPathComponent()
-        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        fileURL = outputPath
-    } else {
-        let playgroundDir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("previewsmcp-playground", isDirectory: true)
-        try FileManager.default.createDirectory(at: playgroundDir, withIntermediateDirectories: true)
-        let shortID = UUID().uuidString.prefix(8)
-        fileURL = playgroundDir.appendingPathComponent("Playground_\(shortID).swift")
-    }
-
-    try (code ?? defaultPlaygroundCode).write(to: fileURL, atomically: true, encoding: .utf8)
-    return fileURL
 }
 
 /// Compile and display a macOS SwiftUI preview window with file watching.
@@ -122,10 +83,11 @@ func launchIOSPreview(
     fileURL: URL,
     previewIndex: Int,
     deviceUDID: String?,
+    headless: Bool = false,
     buildContext: BuildContext?,
     traits: PreviewTraits = PreviewTraits()
 ) async throws {
-    let compiler = try await Compiler(platform: .iOSSimulator)
+    let compiler = try await Compiler(platform: .iOS)
     let hostBuilder = try await IOSHostBuilder()
     let simulatorManager = SimulatorManager()
 
@@ -138,7 +100,7 @@ func launchIOSPreview(
         compiler: compiler,
         hostBuilder: hostBuilder,
         simulatorManager: simulatorManager,
-        headless: true,
+        headless: headless,
         buildContext: buildContext,
         traits: traits
     )

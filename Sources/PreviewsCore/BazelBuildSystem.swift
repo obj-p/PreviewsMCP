@@ -279,7 +279,7 @@ public actor BazelBuildSystem: BuildSystem {
         switch platform {
         case .macOS:
             return []
-        case .iOSSimulator:
+        case .iOS:
             return ["--platforms=@apple_support//platforms:ios_sim_arm64"]
         }
     }

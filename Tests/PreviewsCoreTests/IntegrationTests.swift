@@ -74,7 +74,7 @@ struct IntegrationTests {
         let (combined, _) = BridgeGenerator.generateCombinedSource(
             originalSource: Self.testViewSource,
             closureBody: "TestView()",
-            platform: .iOSSimulator
+            platform: .iOS
         )
         #expect(combined.contains("import UIKit"))
         #expect(combined.contains("UIHostingController"))
@@ -88,9 +88,9 @@ struct IntegrationTests {
         let (combined, _) = BridgeGenerator.generateCombinedSource(
             originalSource: Self.testViewSource,
             closureBody: "TestView()",
-            platform: .iOSSimulator
+            platform: .iOS
         )
-        let compiler = try await Compiler(platform: .iOSSimulator)
+        let compiler = try await Compiler(platform: .iOS)
         let result = try await compiler.compileCombined(
             source: combined,
             moduleName: "IOSTest_\(Int.random(in: 0...999999))"

@@ -26,13 +26,13 @@ struct SnapshotCommand: ParsableCommand {
     @Option(name: .long, help: "Window height")
     var height: Int = 600
 
-    @Option(name: .long, help: "Target platform: 'macos' (default) or 'ios-simulator'")
+    @Option(name: .long, help: "Target platform: 'macos' (default) or 'ios'")
     var platform: CLIPlatform = .macos
 
     @Option(name: .long, help: "Project root path (auto-detected if omitted)")
     var project: String?
 
-    @Option(name: .long, help: "Simulator device UDID (for ios-simulator; auto-selects if omitted)")
+    @Option(name: .long, help: "Simulator device UDID (for ios; auto-selects if omitted)")
     var device: String?
 
     @Option(name: .long, help: "Color scheme: 'light' or 'dark'")
@@ -58,7 +58,7 @@ struct SnapshotCommand: ParsableCommand {
         }
 
         switch platform {
-        case .iosSimulator:
+        case .ios:
             runIOSSnapshot(fileURL: fileURL)
         case .macos:
             runMacOSSnapshot(fileURL: fileURL)
@@ -142,7 +142,7 @@ struct SnapshotCommand: ParsableCommand {
 
         Task {
             do {
-                let compiler = try await Compiler(platform: .iOSSimulator)
+                let compiler = try await Compiler(platform: .iOS)
                 let hostBuilder = try await IOSHostBuilder()
                 let simulatorManager = SimulatorManager()
 
@@ -152,7 +152,7 @@ struct SnapshotCommand: ParsableCommand {
                 // Detect build system
                 let projectRootURL = projectPath.map { URL(fileURLWithPath: $0) }
                 let buildContext = try await detectAndBuild(
-                    for: fileURL, projectRoot: projectRootURL, platform: .iOSSimulator)
+                    for: fileURL, projectRoot: projectRootURL, platform: .iOS)
 
                 let session = IOSPreviewSession(
                     sourceFile: fileURL,

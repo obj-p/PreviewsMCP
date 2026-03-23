@@ -262,7 +262,7 @@ public actor XcodeBuildSystem: BuildSystem {
         switch platform {
         case .macOS:
             return "platform=macOS"
-        case .iOSSimulator:
+        case .iOS:
             return "generic/platform=iOS Simulator"
         }
     }
