@@ -63,11 +63,15 @@ Sources/
 Binary: `.build/debug/previewsmcp serve`
 Config: `/.mcp.json` (in parent directory)
 
-Tools: `preview_list`, `preview_start`, `preview_configure`, `preview_snapshot`, `preview_elements`, `preview_touch`, `preview_stop`, `simulator_list`
+Tools: `preview_list`, `preview_start`, `preview_configure`, `preview_switch`, `preview_snapshot`, `preview_elements`, `preview_touch`, `preview_stop`, `simulator_list`
 
 ## Trait Injection
 
-`preview_configure` and `preview_start` accept `colorScheme` (`"light"` / `"dark"`) and `dynamicTypeSize` (e.g., `"large"`, `"accessibility3"`) to render previews under different SwiftUI traits. Traits are injected as `.preferredColorScheme()` and `.dynamicTypeSize()` modifiers in the generated bridge code. Changing traits triggers a full recompile (@State is lost). Traits persist across hot-reload cycles.
+`preview_configure` and `preview_start` accept `colorScheme` (`"light"` / `"dark"`) and `dynamicTypeSize` (e.g., `"large"`, `"accessibility3"`) to render previews under different SwiftUI traits. Traits are injected as `.preferredColorScheme()` and `.dynamicTypeSize()` modifiers in the generated bridge code. Changing traits triggers a full recompile (@State is lost). Traits persist across hot-reload cycles and preview switches.
+
+## Multi-Preview Support
+
+Files with multiple `#Preview` blocks are fully supported. `preview_list` shows all previews with closure body snippets. `preview_start` accepts a `previewIndex` parameter (default 0) and returns the full list of available previews. `preview_switch` changes which preview is rendered in a running session without tearing down the session — traits persist across switches, @State is reset. If a switch fails (e.g., invalid index), the session rolls back to the previous preview.
 
 **macOS limitation:** `dynamicTypeSize` has no visible effect on macOS. macOS does not have a system-level Dynamic Type feature, and `NSHostingView` does not scale fonts in response to the `.dynamicTypeSize()` modifier. Use iOS simulator previews to test dynamic type sizes. `colorScheme` works on both platforms.
 

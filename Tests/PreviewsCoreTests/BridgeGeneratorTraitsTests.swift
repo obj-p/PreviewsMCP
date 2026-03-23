@@ -360,6 +360,65 @@ struct BridgeGeneratorTraitsTests {
         let _: CreateFunc = try loader.symbol(name: "createPreviewView")
     }
 
+    // MARK: - switchPreview
+
+    @Test("switchPreview compiles different preview and preserves traits")
+    func switchPreviewPreservesTraits() async throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previews-mcp-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let sourceFile = tempDir.appendingPathComponent("MultiPreview.swift")
+        try Self.multiPreviewSource.write(to: sourceFile, atomically: true, encoding: .utf8)
+
+        let compiler = try await Compiler()
+        let session = PreviewSession(
+            sourceFile: sourceFile,
+            previewIndex: 0,
+            compiler: compiler,
+            traits: PreviewTraits(colorScheme: "dark")
+        )
+
+        let result0 = try await session.compile()
+        #expect(FileManager.default.fileExists(atPath: result0.dylibPath.path))
+
+        let result1 = try await session.switchPreview(to: 1)
+        #expect(result1.dylibPath != result0.dylibPath)
+
+        let currentIndex = await session.previewIndex
+        #expect(currentIndex == 1)
+
+        let traits = await session.currentTraits
+        #expect(traits.colorScheme == "dark")
+    }
+
+    @Test("switchPreview rolls back previewIndex on invalid index")
+    func switchPreviewRollsBack() async throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previews-mcp-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let sourceFile = tempDir.appendingPathComponent("MultiPreview.swift")
+        try Self.multiPreviewSource.write(to: sourceFile, atomically: true, encoding: .utf8)
+
+        let compiler = try await Compiler()
+        let session = PreviewSession(
+            sourceFile: sourceFile,
+            previewIndex: 0,
+            compiler: compiler
+        )
+        _ = try await session.compile()
+
+        await #expect(throws: PreviewSessionError.self) {
+            _ = try await session.switchPreview(to: 99)
+        }
+
+        let currentIndex = await session.previewIndex
+        #expect(currentIndex == 0, "previewIndex should roll back to 0 after failed switch")
+    }
+
     // MARK: - generateOverlaySource
 
     @Test("generateOverlaySource with traits injects modifiers")

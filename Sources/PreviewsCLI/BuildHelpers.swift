@@ -66,7 +66,6 @@ func launchMacOSPreview(
                 session: session,
                 filePath: fileURL.path,
                 compiler: compiler,
-                previewIndex: previewIndex,
                 additionalPaths: buildContext?.sourceFiles?.map(\.path) ?? [],
                 buildContext: buildContext
             )

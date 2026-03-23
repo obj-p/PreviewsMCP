@@ -6,7 +6,7 @@ import PreviewsCore
 public actor IOSPreviewSession {
     public nonisolated let id: String
     public nonisolated let sourceFile: URL
-    public nonisolated let previewIndex: Int
+    public private(set) var previewIndex: Int
     public nonisolated let deviceUDID: String
 
     private let compiler: Compiler
@@ -189,6 +189,19 @@ public actor IOSPreviewSession {
             throw IOSPreviewSessionError.notStarted
         }
         try compileResult.dylibPath.path.write(to: signalFile, atomically: true, encoding: .utf8)
+    }
+
+    /// Switch to a different preview index and recompile. Traits are preserved. @State is lost.
+    /// Rolls back the index if compilation fails.
+    public func switchPreview(to newIndex: Int) async throws {
+        let oldIndex = self.previewIndex
+        self.previewIndex = newIndex
+        do {
+            try await reload()
+        } catch {
+            self.previewIndex = oldIndex
+            throw error
+        }
     }
 
     /// Update traits and recompile. Signals the host app to reload. @State is lost.

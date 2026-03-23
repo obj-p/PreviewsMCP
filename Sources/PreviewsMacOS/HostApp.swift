@@ -115,7 +115,6 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
         session: PreviewSession,
         filePath: String,
         compiler: Compiler,
-        previewIndex: Int,
         additionalPaths: [String] = [],
         buildContext: BuildContext? = nil
     ) {

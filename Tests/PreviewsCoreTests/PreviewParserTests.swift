@@ -75,6 +75,52 @@ struct PreviewParserTests {
         #expect(previews[1].index == 1)
     }
 
+    // MARK: - Snippet
+
+    @Test("Snippet returns first line of multi-line closure body")
+    func snippetMultiLine() {
+        let source = """
+            import SwiftUI
+            struct V: View { var body: some View { Text("Hi") } }
+            #Preview {
+                V()
+                    .padding()
+            }
+            """
+        let previews = PreviewParser.parse(source: source)
+        #expect(previews.count == 1)
+        #expect(previews[0].snippet == "V()")
+    }
+
+    @Test("Snippet returns single-line closure body as-is")
+    func snippetSingleLine() {
+        let source = """
+            import SwiftUI
+            struct V: View { var body: some View { Text("Hi") } }
+            #Preview { V() }
+            """
+        let previews = PreviewParser.parse(source: source)
+        #expect(previews.count == 1)
+        #expect(previews[0].snippet == "V()")
+    }
+
+    @Test("Snippet truncates lines longer than 80 characters")
+    func snippetTruncation() {
+        let longExpr =
+            "SomeVeryLongViewName(parameter1: \"value1\", parameter2: \"value2\", parameter3: \"value3\", parameter4: true)"
+        let source = """
+            import SwiftUI
+            struct V: View { var body: some View { Text("Hi") } }
+            #Preview {
+                \(longExpr)
+            }
+            """
+        let previews = PreviewParser.parse(source: source)
+        #expect(previews.count == 1)
+        #expect(previews[0].snippet.count <= 80)
+        #expect(previews[0].snippet.hasSuffix("..."))
+    }
+
     @Test("Returns empty for file with no previews")
     func noPreviews() {
         let source = """
