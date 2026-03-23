@@ -43,7 +43,16 @@ Run integration tests for PreviewsMCP example projects.
    - Switch back to `previewIndex: 0` — verify traits still persist
    - Stop the sessions
 
-7. **Report results.** For each example, report pass/fail per test step. Summarize at the end.
+7. **Test PreviewProvider support.** Each example has a `ToDoProviderPreview.swift` file with a `PreviewProvider`-based preview using `Group` and `.previewDisplayName()`. Test it using the SPM example:
+   - Call `preview_list` on `examples/spm/Sources/ToDo/ToDoProviderPreview.swift` — verify it shows two previews: `[0] Default` and `[1] Empty State` (extracted from `.previewDisplayName()`)
+   - Start a macOS session on the same file (default `previewIndex: 0`) — verify it compiles and renders
+   - Take a snapshot — verify it shows the full item list (same as `#Preview` with `Item.samples`)
+   - Call `preview_switch` with `previewIndex: 1` — verify it switches to the empty state
+   - Take a snapshot — verify empty state (0/0 progress, no item rows)
+   - Stop the session
+   - **For one non-SPM example** (e.g., xcodeproj), also call `preview_list` on its `ToDoProviderPreview.swift` with the appropriate `projectPath` — verify it also shows two previews. Start a session and take a snapshot to confirm rendering works across build systems.
+
+8. **Report results.** For each example, report pass/fail per test step. Summarize at the end.
 
 ## Project path guidance
 

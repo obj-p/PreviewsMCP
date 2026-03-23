@@ -6,9 +6,10 @@ A minimal SwiftUI framework built with Xcode (via XcodeGen), with a cross-file t
 
 ```
 Sources/ToDo/
-├── Item.swift      — defines Item model (used by views)
-└── ToDoView.swift  — view + #Preview that references Item
-project.yml         — XcodeGen spec (generates ToDo.xcodeproj)
+├── Item.swift                — defines Item model (used by views)
+├── ToDoView.swift            — view + #Preview that references Item
+└── ToDoProviderPreview.swift — PreviewProvider-based preview for integration testing
+project.yml                   — XcodeGen spec (generates ToDo.xcodeproj)
 ```
 
 The `#Preview` blocks in `ToDoView.swift` use `Item.samples` which is defined in `Item.swift`. This requires PreviewsMCP to detect the Xcode project, build it, and compile the preview against the target's build artifacts. The file has two previews: the default (with sample data) and "Empty State" (no items).
@@ -86,7 +87,13 @@ The example project is at examples/xcodeproj/ relative to the PreviewsMCP repo r
 - Call preview_switch with previewIndex 1 — take a snapshot and verify the empty state (no item rows)
 - Call preview_switch with previewIndex 0 — verify the full item list returns
 
-### 7. Cleanup
+### 7. PreviewProvider support
+- Call preview_list on ToDoProviderPreview.swift (keep projectPath set to examples/xcodeproj/) — verify two previews: `[0] Default` and `[1] Empty State`
+- Use preview_start on ToDoProviderPreview.swift — take a snapshot and verify it shows the full item list
+- Call preview_switch with previewIndex 1 — take a snapshot and verify the empty state
+- Stop the session
+
+### 8. Cleanup
 - Stop all preview sessions
 ```
 

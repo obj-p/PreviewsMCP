@@ -6,9 +6,10 @@ A minimal SwiftUI library built with Bazel, with a cross-file type dependency, u
 
 ```
 Sources/ToDo/
-├── BUILD.bazel    — swift_library target
-├── Item.swift     — defines Item model (used by views)
-└── ToDoView.swift — view + #Preview that references Item
+├── BUILD.bazel                — swift_library target
+├── Item.swift                 — defines Item model (used by views)
+├── ToDoView.swift             — view + #Preview that references Item
+└── ToDoProviderPreview.swift  — PreviewProvider-based preview for integration testing
 ```
 
 The `#Preview` blocks in `ToDoView.swift` use `Item.samples` which is defined in `Item.swift`. This requires PreviewsMCP to detect the Bazel project, build it, and compile the preview against the target's build artifacts. The file has two previews: the default (with sample data) and "Empty State" (no items).
@@ -76,6 +77,12 @@ The example project is at examples/bazel/ relative to the PreviewsMCP repo root.
 - Call preview_switch with previewIndex 1 — take a snapshot and verify the empty state (no item rows)
 - Call preview_switch with previewIndex 0 — verify the full item list returns
 
-### 7. Cleanup
+### 7. PreviewProvider support
+- Call preview_list on ToDoProviderPreview.swift (keep projectPath set to examples/bazel/) — verify two previews: `[0] Default` and `[1] Empty State`
+- Use preview_start on ToDoProviderPreview.swift — take a snapshot and verify it shows the full item list
+- Call preview_switch with previewIndex 1 — take a snapshot and verify the empty state
+- Stop the session
+
+### 8. Cleanup
 - Stop all preview sessions
 ```
