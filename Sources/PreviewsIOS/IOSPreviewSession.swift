@@ -474,20 +474,22 @@ public actor IOSPreviewSession {
     }
 
     /// Send a message and await a response with the matching id.
+    /// Races the response against a timeout. The continuation is registered on the actor,
+    /// and both the response path (processIncomingData) and the timeout path use
+    /// removeValue(forKey:) to ensure exactly one resumption.
     private func sendAndAwait(
         _ message: [String: Any], id: String, timeout: Duration
     ) async throws -> [String: Any] {
         sendMessage(message)
 
-        // Register continuation on the actor, then race response vs timeout
         let responseData: Data = try await withCheckedThrowingContinuation { cont in
             pendingDataResponses[id] = cont
 
-            // Start a timeout task that will fail the continuation if no response arrives
+            // Timeout task: if no response arrives, fail the continuation.
+            // Uses removeValue to guarantee no double-resume with processIncomingData.
             Task { [weak self] in
                 try? await Task.sleep(for: timeout)
                 guard let self else { return }
-                // Only resume if still pending (response hasn't arrived yet)
                 if let cont = await self.removePendingResponse(forKey: id) {
                     cont.resume(throwing: IOSPreviewSessionError.socketResponseTimeout(id))
                 }
@@ -500,7 +502,7 @@ public actor IOSPreviewSession {
         return dict
     }
 
-    /// Remove and return a pending response continuation (actor-isolated helper to prevent double-resume).
+    /// Remove and return a pending response continuation (actor-isolated, prevents double-resume).
     private func removePendingResponse(forKey id: String) -> CheckedContinuation<Data, Error>? {
         pendingDataResponses.removeValue(forKey: id)
     }
@@ -508,14 +510,12 @@ public actor IOSPreviewSession {
     // MARK: - Accessibility tree filtering
 
     private func filterTree(_ node: [String: Any], mode: String) -> [String: Any]? {
-        let children = node["children"] as? [[String: Any]]
-
-        if children == nil || children!.isEmpty {
+        guard let children = node["children"] as? [[String: Any]], !children.isEmpty else {
             return matchesFilter(node, mode: mode) ? node : nil
         }
 
         var filteredChildren: [[String: Any]] = []
-        for child in children! {
+        for child in children {
             if let filtered = filterTree(child, mode: mode) {
                 filteredChildren.append(filtered)
             }

@@ -409,11 +409,10 @@ private final class PreviewVisitor: SyntaxVisitor {
                 if let memberAccess = firstArg.expression.as(MemberAccessExprSyntax.self) {
                     result.layout = memberAccess.declName.baseName.text
                 } else if let funcCallArg = firstArg.expression.as(FunctionCallExprSyntax.self),
-                    let member = funcCallArg.calledExpression.as(MemberAccessExprSyntax.self)
+                    funcCallArg.calledExpression.is(MemberAccessExprSyntax.self)
                 {
                     // .fixed(width: 300, height: 500)
                     result.layout = funcCallArg.description.trimmed
-                    _ = member  // silence unused warning
                 }
             }
         default:
