@@ -273,7 +273,8 @@ struct BridgeGeneratorTraitsTests {
 
         let (source, _) = BridgeGenerator.generateCombinedSource(
             originalSource: Self.multiPreviewSource,
-            closureBody: previews[1].closureBody
+            closureBody: previews[1].closureBody,
+            previewIndex: 1
         )
 
         // The bridge entry point should render SecondView, not FirstView

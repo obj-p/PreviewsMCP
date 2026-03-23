@@ -76,6 +76,7 @@ public actor PreviewSession {
                     let result = BridgeGenerator.generateOverlaySource(
                         originalSource: source,
                         closureBody: preview.closureBody,
+                        previewIndex: previewIndex,
                         platform: platform,
                         traits: traits
                     )
@@ -104,6 +105,7 @@ public actor PreviewSession {
                 let result = BridgeGenerator.generateCombinedSource(
                     originalSource: source,
                     closureBody: preview.closureBody,
+                    previewIndex: previewIndex,
                     platform: platform,
                     traits: traits
                 )

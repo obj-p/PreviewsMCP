@@ -14,6 +14,7 @@ public enum BridgeGenerator {
     public static func generateCombinedSource(
         originalSource: String,
         closureBody: String,
+        previewIndex: Int = 0,
         entryPoint: String = "createPreviewView",
         platform: PreviewPlatform = .macOS,
         traits: PreviewTraits = PreviewTraits()
@@ -24,8 +25,8 @@ public enum BridgeGenerator {
         // Re-parse transformed source to get the closure body with DesignTimeStore calls
         let previews = PreviewParser.parse(source: thunkResult.source)
         let transformedClosureBody: String
-        if let first = previews.first {
-            transformedClosureBody = first.closureBody
+        if previewIndex < previews.count {
+            transformedClosureBody = previews[previewIndex].closureBody
         } else {
             transformedClosureBody = closureBody
         }
@@ -130,6 +131,7 @@ public enum BridgeGenerator {
     public static func generateOverlaySource(
         originalSource: String,
         closureBody: String,
+        previewIndex: Int = 0,
         entryPoint: String = "createPreviewView",
         platform: PreviewPlatform = .macOS,
         traits: PreviewTraits = PreviewTraits()
@@ -140,6 +142,7 @@ public enum BridgeGenerator {
         return generateCombinedSource(
             originalSource: originalSource,
             closureBody: closureBody,
+            previewIndex: previewIndex,
             entryPoint: entryPoint,
             platform: platform,
             traits: traits
