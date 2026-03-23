@@ -56,7 +56,7 @@ public actor PreviewSession {
             let source = try String(contentsOf: sourceFile, encoding: .utf8)
             let previews = PreviewParser.parse(source: source)
 
-            guard previewIndex < previews.count else {
+            guard previewIndex >= 0, previewIndex < previews.count else {
                 throw PreviewSessionError.previewNotFound(
                     index: previewIndex,
                     available: previews.count

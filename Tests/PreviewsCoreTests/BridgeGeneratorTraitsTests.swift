@@ -417,6 +417,13 @@ struct BridgeGeneratorTraitsTests {
 
         let currentIndex = await session.previewIndex
         #expect(currentIndex == 0, "previewIndex should roll back to 0 after failed switch")
+
+        // Negative index should also fail gracefully
+        await #expect(throws: PreviewSessionError.self) {
+            _ = try await session.switchPreview(to: -1)
+        }
+        let afterNegative = await session.previewIndex
+        #expect(afterNegative == 0, "previewIndex should roll back after negative index")
     }
 
     // MARK: - generateOverlaySource
