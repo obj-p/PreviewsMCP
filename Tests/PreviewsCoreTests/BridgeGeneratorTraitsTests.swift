@@ -243,6 +243,48 @@ struct BridgeGeneratorTraitsTests {
         #expect(result3.dylibPath != result2.dylibPath)
     }
 
+    // MARK: - Multi-preview index selection
+
+    static let multiPreviewSource = """
+        import SwiftUI
+
+        struct FirstView: View {
+            var body: some View {
+                Text("first")
+            }
+        }
+
+        struct SecondView: View {
+            var body: some View {
+                Text("second")
+            }
+        }
+
+        #Preview { FirstView() }
+
+        #Preview("Second") { SecondView() }
+        """
+
+    @Test("generateCombinedSource with previewIndex selects correct preview closure body")
+    func combinedSourceRespectsPreviewIndex() {
+        // Parse to get preview[1]'s closure body
+        let previews = PreviewParser.parse(source: Self.multiPreviewSource)
+        #expect(previews.count == 2)
+
+        let (source, _) = BridgeGenerator.generateCombinedSource(
+            originalSource: Self.multiPreviewSource,
+            closureBody: previews[1].closureBody
+        )
+
+        // The bridge entry point should render SecondView, not FirstView
+        // Extract just the @_cdecl function to avoid matching the full source that contains both
+        let bridgeRange = source.range(of: "@_cdecl(\"createPreviewView\")")!
+        let bridgeCode = String(source[bridgeRange.lowerBound...])
+
+        #expect(bridgeCode.contains("SecondView()"), "Bridge should render SecondView for previewIndex 1")
+        #expect(!bridgeCode.contains("FirstView()"), "Bridge should NOT render FirstView for previewIndex 1")
+    }
+
     // MARK: - generateOverlaySource
 
     @Test("generateOverlaySource with traits injects modifiers")
