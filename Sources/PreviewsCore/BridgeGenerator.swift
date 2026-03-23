@@ -8,7 +8,9 @@ public enum BridgeGenerator {
     ///
     /// - Parameters:
     ///   - originalSource: The full content of the original Swift source file.
-    ///   - closureBody: The body of the `#Preview { ... }` closure (extracted from TRANSFORMED source).
+    ///   - closureBody: The body of the `#Preview { ... }` closure from the original source.
+    ///     Used as fallback if re-parsing the transformed source yields fewer previews than expected.
+    ///   - previewIndex: 0-based index of which `#Preview` block to render (default: 0).
     ///   - entryPoint: The name of the C-callable entry function (default: `"createPreviewView"`).
     /// - Returns: Tuple of (source code ready to compile, literal entries for diffing).
     public static func generateCombinedSource(
