@@ -30,6 +30,7 @@
       "mcp__previewsmcp__preview_elements",
       "mcp__previewsmcp__preview_touch",
       "mcp__previewsmcp__preview_list",
+      "mcp__previewsmcp__preview_switch",
       "mcp__previewsmcp__simulator_list"
     ]
   }
