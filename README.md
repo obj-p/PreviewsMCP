@@ -30,18 +30,38 @@ The binary is at `.build/release/previewsmcp`.
 ## CLI Usage
 
 ```bash
-# List #Preview blocks in a file
+# List previews in a file (#Preview macros and PreviewProvider)
 previewsmcp list MyView.swift
 
 # Run a live preview window (macOS)
 previewsmcp run MyView.swift
 
-# Run on iOS simulator
+# Run a specific preview (0-based index)
+previewsmcp run MyView.swift --preview 1
+
+# Run on iOS simulator (headless by default)
 previewsmcp run MyView.swift --platform ios
 
-# Capture a screenshot
+# Run with a visible Simulator.app window
+previewsmcp run MyView.swift --platform ios --no-headless
+
+# Specify project root for Xcode/Bazel projects
+previewsmcp run MyView.swift --project ./MyApp
+
+# Render with trait overrides
+previewsmcp run MyView.swift --color-scheme dark --dynamic-type-size accessibility3
+
+# Capture a screenshot (JPEG by default, .png for PNG)
 previewsmcp snapshot MyView.swift -o preview.png
+
+# Snapshot a specific preview with traits
+previewsmcp snapshot MyView.swift --preview 1 --color-scheme light -o dark.jpg
+
+# Snapshot on iOS simulator
+previewsmcp snapshot MyView.swift --platform ios -o ios_preview.png
 ```
+
+Supports both `#Preview` macros and the legacy `PreviewProvider` protocol — `list` shows all previews from both, and `run`/`snapshot` can render any by index.
 
 ## MCP Server
 

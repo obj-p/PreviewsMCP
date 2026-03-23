@@ -6,11 +6,12 @@ A minimal SwiftUI library with a cross-file type dependency, used to integration
 
 ```
 Sources/ToDo/
-├── Item.swift      — defines Item model (used by views)
-└── ToDoView.swift  — view + #Preview that references Item
+├── Item.swift                — defines Item model (used by views)
+├── ToDoView.swift            — view + #Preview that references Item
+└── ToDoProviderPreview.swift — PreviewProvider-based preview for integration testing
 ```
 
-The `#Preview` blocks in `ToDoView.swift` use `Item.samples` which is defined in `Item.swift`. This requires PreviewsMCP to detect the SPM package, build it, and compile the preview against the target's build artifacts.
+The `#Preview` blocks in `ToDoView.swift` use `Item.samples` which is defined in `Item.swift`. This requires PreviewsMCP to detect the SPM package, build it, and compile the preview against the target's build artifacts. `ToDoProviderPreview.swift` uses the legacy `PreviewProvider` protocol with `Group` and `.previewDisplayName()` to test PreviewProvider parsing support.
 
 The file has two previews: the default (with sample data) and "Empty State" (no items) — suitable for testing `preview_switch`.
 
@@ -56,6 +57,12 @@ The example project is at examples/spm/ relative to the PreviewsMCP repo root.
 - Call preview_switch with previewIndex 0 — verify the full item list returns
 - Call preview_switch with an invalid index (e.g., 99) — verify it errors and the session stays on preview 0
 
-### 7. Cleanup
+### 7. PreviewProvider support
+- Call preview_list on ToDoProviderPreview.swift — verify two previews: `[0] Default` and `[1] Empty State` (from `.previewDisplayName()`)
+- Use preview_start on ToDoProviderPreview.swift — take a snapshot and verify it shows the full item list
+- Call preview_switch with previewIndex 1 — take a snapshot and verify the empty state
+- Stop the session
+
+### 8. Cleanup
 - Stop all preview sessions
 ```
