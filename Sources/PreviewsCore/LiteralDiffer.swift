@@ -48,9 +48,10 @@ public enum LiteralDiffer {
 
     private static func buildSkeleton(source: String, literals: [RawLiteralEntry]) -> String {
         var utf8 = Array(source.utf8)
-        let placeholder = Array("__LIT__".utf8)
-        // Replace from back to front
-        for entry in literals.reversed() {
+        // Replace from back to front with null-byte-delimited indexed placeholders.
+        // Null bytes cannot appear in valid Swift source, so these won't collide.
+        for (index, entry) in literals.enumerated().reversed() {
+            let placeholder = Array("\0LIT_\(index)\0".utf8)
             utf8.replaceSubrange(entry.utf8Start..<entry.utf8End, with: placeholder)
         }
         return String(decoding: utf8, as: UTF8.self)

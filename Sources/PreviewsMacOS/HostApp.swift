@@ -61,18 +61,20 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
         headless: Bool? = nil
     ) throws {
         let headless = headless ?? self.headless
+
+        // Load the new dylib and resolve the entry point BEFORE retiring the old loader.
+        // If either step fails, the old loader remains valid for the session.
+        let loader = try DylibLoader(path: dylibPath.path)
+        typealias CreateFunc = @convention(c) () -> UnsafeMutableRawPointer
+        let createView: CreateFunc = try loader.symbol(name: entryPoint)
+
         // Retire the old loader (keep it alive, don't dlclose)
         if let oldLoader = loaders.removeValue(forKey: sessionID) {
             retainedLoaders.append(oldLoader)
         }
-
-        // Load the new dylib
-        let loader = try DylibLoader(path: dylibPath.path)
         loaders[sessionID] = loader
 
-        // Resolve the entry point and create the view
-        typealias CreateFunc = @convention(c) () -> UnsafeMutableRawPointer
-        let createView: CreateFunc = try loader.symbol(name: entryPoint)
+        // Create the view
         let rawPtr = createView()
         let hostingView = Unmanaged<NSView>.fromOpaque(rawPtr).takeRetainedValue()
 

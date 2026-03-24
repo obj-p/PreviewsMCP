@@ -26,8 +26,13 @@ public final class FileWatcher: @unchecked Sendable {
         interval: TimeInterval = 0.5,
         callback: @escaping @Sendable () -> Void
     ) throws {
-        guard let first = paths.first, FileManager.default.fileExists(atPath: first) else {
-            throw FileWatcherError.cannotOpen(path: paths.first ?? "<empty>")
+        guard !paths.isEmpty else {
+            throw FileWatcherError.cannotOpen(path: "<empty>")
+        }
+        for path in paths {
+            guard FileManager.default.fileExists(atPath: path) else {
+                throw FileWatcherError.cannotOpen(path: path)
+            }
         }
 
         self.filePaths = paths
@@ -77,7 +82,7 @@ public final class FileWatcher: @unchecked Sendable {
     }
 }
 
-public enum FileWatcherError: Error, CustomStringConvertible {
+public enum FileWatcherError: Error, LocalizedError, CustomStringConvertible {
     case cannotOpen(path: String)
 
     public var description: String {
@@ -86,4 +91,6 @@ public enum FileWatcherError: Error, CustomStringConvertible {
             return "Cannot watch file: \(path)"
         }
     }
+
+    public var errorDescription: String? { description }
 }

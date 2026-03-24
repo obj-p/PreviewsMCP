@@ -47,14 +47,10 @@ struct SnapshotCommand: ParsableCommand {
             throw ValidationError("File not found: \(file)")
         }
 
-        if let cs = colorScheme, !PreviewTraits.validColorSchemes.contains(cs) {
-            throw ValidationError(
-                "Invalid color scheme '\(cs)'. Must be 'light' or 'dark'.")
-        }
-        if let dts = dynamicTypeSize, !PreviewTraits.validDynamicTypeSizes.contains(dts) {
-            throw ValidationError(
-                "Invalid dynamic type size '\(dts)'. Valid values: \(PreviewTraits.validDynamicTypeSizes.sorted().joined(separator: ", "))"
-            )
+        do {
+            _ = try PreviewTraits.validated(colorScheme: colorScheme, dynamicTypeSize: dynamicTypeSize)
+        } catch {
+            throw ValidationError(error.localizedDescription)
         }
 
         switch platform {

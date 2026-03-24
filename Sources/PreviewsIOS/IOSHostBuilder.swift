@@ -9,8 +9,6 @@ public actor IOSHostBuilder {
     private let swiftcPath: String
     private let sdkPath: String
     private let codesignPath: String
-    private let targetTriple: String
-
     private var cachedAppPath: URL?
 
     public init(workDir: URL? = nil) async throws {
@@ -21,7 +19,6 @@ public actor IOSHostBuilder {
 
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         self.workDir = dir
-        self.targetTriple = "arm64-apple-ios17.0-simulator"
 
         self.sdkPath = try await Self.resolve("xcrun", "--show-sdk-path", "--sdk", "iphonesimulator")
         self.swiftcPath = try await Self.resolve("xcrun", "--find", "swiftc")
@@ -72,7 +69,7 @@ public actor IOSHostBuilder {
             swiftcPath,
             "-emit-executable",
             "-parse-as-library",
-            "-target", targetTriple,
+            "-target", PreviewPlatform.iOS.targetTriple,
             "-sdk", sdkPath,
             "-module-name", "PreviewsMCPHost",
             "-Onone",
