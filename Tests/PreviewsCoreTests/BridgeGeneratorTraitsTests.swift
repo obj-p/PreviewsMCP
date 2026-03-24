@@ -457,6 +457,52 @@ struct BridgeGeneratorTraitsTests {
         #expect(!PreviewTraits.validDynamicTypeSizes.contains("huge"))
     }
 
+    // MARK: - PreviewTraits.validated()
+
+    @Test("validated accepts valid traits")
+    func validatedAcceptsValid() throws {
+        let traits = try PreviewTraits.validated(colorScheme: "dark", dynamicTypeSize: "large")
+        #expect(traits.colorScheme == "dark")
+        #expect(traits.dynamicTypeSize == "large")
+    }
+
+    @Test("validated accepts nil traits")
+    func validatedAcceptsNil() throws {
+        let traits = try PreviewTraits.validated(colorScheme: nil, dynamicTypeSize: nil)
+        #expect(traits.isEmpty)
+    }
+
+    @Test("validated rejects invalid color scheme")
+    func validatedRejectsInvalidColorScheme() {
+        #expect(throws: PreviewTraits.ValidationError.self) {
+            try PreviewTraits.validated(colorScheme: "purple", dynamicTypeSize: nil)
+        }
+    }
+
+    @Test("validated rejects invalid dynamic type size")
+    func validatedRejectsInvalidDynamicTypeSize() {
+        #expect(throws: PreviewTraits.ValidationError.self) {
+            try PreviewTraits.validated(colorScheme: nil, dynamicTypeSize: "huge")
+        }
+    }
+
+    // MARK: - stableHash determinism
+
+    @Test("stableHash produces deterministic output for known input")
+    func stableHashDeterministic() {
+        let hash = PreviewSession.stableHash("/Users/test/MyView.swift")
+        #expect(hash == PreviewSession.stableHash("/Users/test/MyView.swift"))
+        // Different inputs produce different hashes
+        #expect(hash != PreviewSession.stableHash("/Users/test/OtherView.swift"))
+    }
+
+    @Test("stableHash produces consistent known value")
+    func stableHashKnownValue() {
+        // Pin a known input/output to detect accidental algorithm changes
+        let hash = PreviewSession.stableHash("hello")
+        #expect(hash == 0xa430_d846_80aa_bd0b)
+    }
+
     // MARK: - Equatable
 
     @Test("PreviewTraits Equatable works correctly")

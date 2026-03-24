@@ -178,7 +178,7 @@ public actor PreviewSession {
     }
 
     /// FNV-1a hash producing a stable, deterministic value across processes.
-    private static func stableHash(_ string: String) -> UInt64 {
+    static func stableHash(_ string: String) -> UInt64 {
         var hash: UInt64 = 0xcbf2_9ce4_8422_2325  // FNV offset basis
         for byte in string.utf8 {
             hash ^= UInt64(byte)

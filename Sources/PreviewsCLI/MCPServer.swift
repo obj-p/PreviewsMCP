@@ -5,7 +5,7 @@ import PreviewsIOS
 import PreviewsMacOS
 
 /// Tool names for MCP server. Used in both schema definitions and dispatch.
-private enum ToolName: String, CaseIterable {
+private enum ToolName: String {
     case previewList = "preview_list"
     case previewStart = "preview_start"
     case previewSnapshot = "preview_snapshot"
@@ -710,7 +710,8 @@ private func handleSimulatorList() async throws -> CallTool.Result {
 
 // MARK: - Trait Helpers
 
-/// Parse and validate trait parameters. Returns (traits, nil) on success or (nil, error result) on failure.
+/// Parse and validate trait parameters. Returns (traits, nil) on success or (default traits, error result) on failure.
+/// Callers should check the second element first; the traits value is meaningless when an error is returned.
 private func parseTraits(from params: CallTool.Parameters) -> (PreviewTraits, CallTool.Result?) {
     do {
         let traits = try PreviewTraits.validated(
@@ -836,19 +837,20 @@ private func formatPreviewList(previews: [PreviewInfo], activeIndex: Int) -> Str
 
 private enum ParamError: Error, LocalizedError {
     case missing(String)
+    case wrongType(key: String, expected: String)
 
     var errorDescription: String? {
         switch self {
         case .missing(let key): return "Missing \(key) parameter"
+        case .wrongType(let key, let expected): return "Parameter \(key) must be \(expected)"
         }
     }
 }
 
 private func extractString(_ key: String, from params: CallTool.Parameters) throws -> String {
-    guard case .string(let value) = params.arguments?[key] else {
-        throw ParamError.missing(key)
-    }
-    return value
+    guard let value = params.arguments?[key] else { throw ParamError.missing(key) }
+    guard case .string(let str) = value else { throw ParamError.wrongType(key: key, expected: "a string") }
+    return str
 }
 
 private func extractOptionalString(_ key: String, from params: CallTool.Parameters) -> String? {
@@ -857,21 +859,23 @@ private func extractOptionalString(_ key: String, from params: CallTool.Paramete
 }
 
 private func extractInt(_ key: String, from params: CallTool.Parameters) throws -> Int {
-    guard case .int(let value) = params.arguments?[key] else {
-        throw ParamError.missing(key)
-    }
-    return value
+    guard let value = params.arguments?[key] else { throw ParamError.missing(key) }
+    if case .int(let n) = value { return n }
+    if case .double(let n) = value, let int = Int(exactly: n) { return int }
+    throw ParamError.wrongType(key: key, expected: "an integer")
 }
 
 private func extractOptionalInt(_ key: String, from params: CallTool.Parameters) -> Int? {
     if case .int(let value) = params.arguments?[key] { return value }
+    if case .double(let value) = params.arguments?[key], let int = Int(exactly: value) { return int }
     return nil
 }
 
 private func extractDouble(_ key: String, from params: CallTool.Parameters) throws -> Double {
-    if case .double(let value) = params.arguments?[key] { return value }
-    if case .int(let value) = params.arguments?[key] { return Double(value) }
-    throw ParamError.missing(key)
+    guard let value = params.arguments?[key] else { throw ParamError.missing(key) }
+    if case .double(let n) = value { return n }
+    if case .int(let n) = value { return Double(n) }
+    throw ParamError.wrongType(key: key, expected: "a number")
 }
 
 private func extractOptionalDouble(_ key: String, from params: CallTool.Parameters) -> Double? {

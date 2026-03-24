@@ -58,13 +58,13 @@ enum IOSHostAppSource {
                     showError("dlopen failed: \\(error)")
                     return
                 }
-                currentDylibHandle = handle
 
                 guard let sym = dlsym(handle, "createPreviewView") else {
                     let error = String(cString: dlerror())
                     showError("dlsym failed: \\(error)")
                     return
                 }
+                currentDylibHandle = handle
 
                 typealias CreateFunc = @convention(c) () -> UnsafeMutableRawPointer
                 let createView = unsafeBitCast(sym, to: CreateFunc.self)

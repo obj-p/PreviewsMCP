@@ -36,26 +36,26 @@ public struct PreviewTraits: Sendable, Equatable {
         dynamicTypeSize: String?
     ) throws -> PreviewTraits {
         if let cs = colorScheme, !validColorSchemes.contains(cs) {
-            throw TraitValidationError.invalidColorScheme(cs)
+            throw ValidationError.invalidColorScheme(cs)
         }
         if let dts = dynamicTypeSize, !validDynamicTypeSizes.contains(dts) {
-            throw TraitValidationError.invalidDynamicTypeSize(dts)
+            throw ValidationError.invalidDynamicTypeSize(dts)
         }
         return PreviewTraits(colorScheme: colorScheme, dynamicTypeSize: dynamicTypeSize)
     }
-}
 
-public enum TraitValidationError: Error, LocalizedError {
-    case invalidColorScheme(String)
-    case invalidDynamicTypeSize(String)
+    public enum ValidationError: Error, LocalizedError {
+        case invalidColorScheme(String)
+        case invalidDynamicTypeSize(String)
 
-    public var errorDescription: String? {
-        switch self {
-        case .invalidColorScheme(let cs):
-            return "Invalid color scheme '\(cs)'. Must be 'light' or 'dark'."
-        case .invalidDynamicTypeSize(let dts):
-            return
-                "Invalid dynamic type size '\(dts)'. Valid values: \(PreviewTraits.validDynamicTypeSizes.sorted().joined(separator: ", "))"
+        public var errorDescription: String? {
+            switch self {
+            case .invalidColorScheme(let cs):
+                return "Invalid color scheme '\(cs)'. Must be 'light' or 'dark'."
+            case .invalidDynamicTypeSize(let dts):
+                return
+                    "Invalid dynamic type size '\(dts)'. Valid values: \(PreviewTraits.validDynamicTypeSizes.sorted().joined(separator: ", "))"
+            }
         }
     }
 }
