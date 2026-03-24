@@ -57,5 +57,9 @@ let package = Package(
             name: "PreviewsIOSTests",
             dependencies: ["PreviewsIOS"]
         ),
+        .testTarget(
+            name: "CLIIntegrationTests",
+            dependencies: []
+        ),
     ]
 )
