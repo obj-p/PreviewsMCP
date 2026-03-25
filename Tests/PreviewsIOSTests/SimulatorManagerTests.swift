@@ -3,7 +3,7 @@ import Testing
 
 @testable import PreviewsIOS
 
-@Suite("SimulatorManager")
+@Suite("SimulatorManager", .serialized)
 struct SimulatorManagerTests {
 
     @Test("Load CoreSimulator and list devices")

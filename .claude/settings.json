@@ -14,6 +14,7 @@
       "Bash(xcrun simctl:*)",
       "Bash(gh issue:*)",
       "Bash(gh pr:*)",
+      "Bash(gh run:*)",
       "mcp__plugin_github_github__list_issues",
       "mcp__plugin_github_github__issue_read",
       "mcp__plugin_github_github__issue_write",

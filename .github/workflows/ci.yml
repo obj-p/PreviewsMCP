@@ -18,7 +18,35 @@ jobs:
       - name: Check formatting
         run: swift-format lint --strict --recursive Sources/ Tests/ examples/
 
+  changes:
+    runs-on: macos-15
+    outputs:
+      ios: ${{ steps.filter.outputs.ios }}
+      src: ${{ steps.filter.outputs.src }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            src:
+              - 'Sources/**'
+              - 'Tests/**'
+              - 'Package.swift'
+              - 'Package.resolved'
+              - 'examples/**'
+            ios:
+              - 'Sources/PreviewsIOS/**'
+              - 'Sources/SimulatorBridge/**'
+              - 'Sources/PreviewsCore/**'
+              - 'Sources/PreviewsCLI/**'
+              - 'Tests/PreviewsIOSTests/**'
+              - 'Package.swift'
+              - 'Package.resolved'
+
   build-and-test:
+    needs: changes
+    if: needs.changes.outputs.src == 'true'
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
@@ -26,11 +54,61 @@ jobs:
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode_26.3.app
 
+      - name: Disable Spotlight
+        run: sudo mdutil -a -i off
+
+      - name: Cache SPM build
+        uses: actions/cache@v4
+        with:
+          path: .build
+          key: spm-${{ runner.os }}-${{ hashFiles('Package.resolved') }}
+          restore-keys: spm-${{ runner.os }}-
+
       - name: Build
         run: swift build
+
+      - name: Pre-build SPM example
+        run: swift build --package-path examples/spm
 
       - name: Unit tests
         run: swift test --filter "PreviewsCoreTests"
 
       - name: CLI integration tests
-        run: swift test --filter "CLIIntegrationTests"
+        run: swift test --filter "CLIIntegrationTests" --skip "snapshotIOS"
+
+      - name: MCP integration tests
+        run: swift test --filter "MCPIntegrationTests" --skip "IOSMCPTests"
+
+  ios-tests:
+    needs: changes
+    if: needs.changes.outputs.ios == 'true'
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_26.3.app
+
+      - name: Disable Spotlight
+        run: sudo mdutil -a -i off
+
+      # Warm CoreSimulator daemon and device set in background while building.
+      # SimServiceContext.deviceSetWithPath: takes ~10 min on cold CI VMs.
+      # simctl list forces this initialization so the test binary doesn't block.
+      - name: Warm CoreSimulator and build in parallel
+        run: |
+          echo "Starting CoreSimulator warmup in background..."
+          xcrun simctl list devices available &
+          SIMCTL_PID=$!
+
+          swift build
+
+          echo "Waiting for CoreSimulator warmup to complete..."
+          wait $SIMCTL_PID
+          echo "CoreSimulator ready."
+
+      - name: iOS tests
+        timeout-minutes: 20
+        env:
+          NSUnbufferedIO: "YES"
+        run: swift test --filter "PreviewsIOSTests"
