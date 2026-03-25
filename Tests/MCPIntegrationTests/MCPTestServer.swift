@@ -4,6 +4,8 @@ import System
 import Testing
 
 /// Manages a `previewsmcp serve` subprocess with an MCP Client connected via stdio pipes.
+/// Thread safety: instances are only used within serialized test suites — never shared across
+/// isolation boundaries.
 final class MCPTestServer: @unchecked Sendable {
 
     // MARK: - Paths
@@ -28,14 +30,12 @@ final class MCPTestServer: @unchecked Sendable {
     private let client: Client
     private let stdinPipe: Pipe
     private let stdoutPipe: Pipe
-    private let stderrPipe: Pipe
 
-    private init(process: Process, client: Client, stdinPipe: Pipe, stdoutPipe: Pipe, stderrPipe: Pipe) {
+    private init(process: Process, client: Client, stdinPipe: Pipe, stdoutPipe: Pipe) {
         self.process = process
         self.client = client
         self.stdinPipe = stdinPipe
         self.stdoutPipe = stdoutPipe
-        self.stderrPipe = stderrPipe
     }
 
     // MARK: - Lifecycle
@@ -58,6 +58,11 @@ final class MCPTestServer: @unchecked Sendable {
         process.standardOutput = stdoutPipe
         process.standardError = stderrPipe
 
+        // Drain stderr continuously to prevent pipe buffer from filling and blocking the server.
+        stderrPipe.fileHandleForReading.readabilityHandler = { handle in
+            _ = handle.availableData
+        }
+
         try process.run()
 
         let readFD = FileDescriptor(rawValue: stdoutPipe.fileHandleForReading.fileDescriptor)
@@ -69,17 +74,20 @@ final class MCPTestServer: @unchecked Sendable {
 
         return MCPTestServer(
             process: process, client: client,
-            stdinPipe: stdinPipe, stdoutPipe: stdoutPipe, stderrPipe: stderrPipe
+            stdinPipe: stdinPipe, stdoutPipe: stdoutPipe
         )
     }
 
-    /// Disconnect client and terminate subprocess.
-    func stop() async {
-        try? await client.disconnect()
+    /// Terminate subprocess. Safe to call multiple times.
+    func stop() {
         if process.isRunning {
             process.terminate()
             process.waitUntilExit()
         }
+    }
+
+    deinit {
+        stop()
     }
 
     // MARK: - Tool calls
@@ -159,11 +167,6 @@ final class MCPTestServer: @unchecked Sendable {
         return (w, h)
     }
 
-    /// Get stderr output (for debugging).
-    func stderrOutput() -> String {
-        let data = stderrPipe.fileHandleForReading.availableData
-        return String(data: data, encoding: .utf8) ?? ""
-    }
 }
 
 enum MCPTestError: Error, LocalizedError {

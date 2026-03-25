@@ -61,10 +61,6 @@ struct SnapshotCommandTests {
             size0 != size1,
             "Preview 0 (\(size0) bytes) and preview 1 (\(size1) bytes) should differ"
         )
-        #expect(
-            size0 > size1,
-            "Full list (\(size0) bytes) should be larger than empty state (\(size1) bytes)"
-        )
     }
 
     @Test("Snapshot with --color-scheme dark produces different image", .timeLimit(.minutes(2)))

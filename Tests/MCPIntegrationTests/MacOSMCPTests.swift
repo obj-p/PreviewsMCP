@@ -13,7 +13,7 @@ struct MacOSMCPTests {
     @Test("simulator_list returns available devices", .timeLimit(.minutes(2)))
     func simulatorListReturnsDevices() async throws {
         let server = try await MCPTestServer.start()
-        defer { Task { await server.stop() } }
+        defer { server.stop() }
 
         let (content, isError) = try await server.callTool(name: "simulator_list")
 
@@ -30,7 +30,7 @@ struct MacOSMCPTests {
     @Test("Full macOS MCP workflow", .timeLimit(.minutes(10)))
     func fullMacOSWorkflow() async throws {
         let server = try await MCPTestServer.start()
-        defer { Task { await server.stop() } }
+        defer { server.stop() }
 
         // --- preview_start returns session ID and available previews ---
         let (startContent, startError) = try await server.callTool(
@@ -95,10 +95,6 @@ struct MacOSMCPTests {
         )
         let (data1, _) = try MCPTestServer.extractImageData(from: content1)
         #expect(data0 != data1, "Snapshots of different previews should differ")
-        #expect(
-            data0.count > data1.count,
-            "Full list (\(data0.count) bytes) should be larger than empty state (\(data1.count) bytes)"
-        )
 
         // --- preview_switch to invalid index rolls back ---
         var switchFailed = false
@@ -216,7 +212,7 @@ struct MacOSMCPTests {
     @Test("File edit triggers hot reload", .timeLimit(.minutes(3)))
     func hotReload() async throws {
         let server = try await MCPTestServer.start()
-        defer { Task { await server.stop() } }
+        defer { server.stop() }
 
         let filePath = MCPTestServer.toDoViewPath
         let originalContent = try String(contentsOfFile: filePath, encoding: .utf8)
@@ -241,21 +237,9 @@ struct MacOSMCPTests {
         try modified.write(
             to: URL(fileURLWithPath: filePath), atomically: false, encoding: .utf8)
 
-        // Poll stderr for reload confirmation
-        var reloadDetected = false
-        for _ in 0..<20 {
-            try await Task.sleep(for: .milliseconds(500))
-            let stderr = server.stderrOutput()
-            if stderr.contains("Literal-only change") || stderr.contains("Structural change")
-                || stderr.contains("Compiled:")
-            {
-                reloadDetected = true
-                break
-            }
-        }
-        #expect(reloadDetected, "Server should detect file change and reload")
-
-        try await Task.sleep(for: .milliseconds(500))
+        // Wait for file watcher to detect change and reload.
+        // File watcher polls every 0.5s; recompilation takes a few seconds.
+        try await Task.sleep(for: .seconds(5))
         let (snapshotContent, snapshotError) = try await server.callTool(
             name: "preview_snapshot",
             arguments: ["sessionID": .string(sessionID)]

@@ -92,6 +92,13 @@ jobs:
       - name: Disable Spotlight
         run: sudo mdutil -a -i off
 
+      - name: Cache SPM build
+        uses: actions/cache@v4
+        with:
+          path: .build
+          key: spm-${{ runner.os }}-${{ hashFiles('Package.resolved') }}
+          restore-keys: spm-${{ runner.os }}-
+
       # Warm CoreSimulator daemon and device set in background while building.
       # SimServiceContext.deviceSetWithPath: takes ~10 min on cold CI VMs.
       # simctl list forces this initialization so the test binary doesn't block.
@@ -102,13 +109,24 @@ jobs:
           SIMCTL_PID=$!
 
           swift build
+          swift build --package-path examples/spm
 
           echo "Waiting for CoreSimulator warmup to complete..."
           wait $SIMCTL_PID
           echo "CoreSimulator ready."
 
-      - name: iOS tests
+      - name: iOS unit tests
         timeout-minutes: 20
         env:
           NSUnbufferedIO: "YES"
         run: swift test --filter "PreviewsIOSTests"
+
+      - name: iOS CLI snapshot test
+        timeout-minutes: 10
+        run: swift test --filter "snapshotIOS"
+
+      - name: iOS MCP tests
+        timeout-minutes: 10
+        env:
+          NSUnbufferedIO: "YES"
+        run: swift test --filter "IOSMCPTests"

@@ -36,7 +36,7 @@ struct IOSMCPTests {
         }
 
         let server = try await MCPTestServer.start()
-        defer { Task { await server.stop() } }
+        defer { server.stop() }
 
         // --- Start iOS preview (single preview_start for all iOS assertions) ---
         let (startContent, startError) = try await server.callTool(
