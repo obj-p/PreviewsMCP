@@ -63,7 +63,7 @@ Sources/
 Binary: `.build/debug/previewsmcp serve`
 Config: `/.mcp.json` (in parent directory)
 
-Tools: `preview_list`, `preview_start`, `preview_configure`, `preview_switch`, `preview_snapshot`, `preview_elements`, `preview_touch`, `preview_stop`, `simulator_list`
+Tools: `preview_list`, `preview_start`, `preview_configure`, `preview_switch`, `preview_variants`, `preview_snapshot`, `preview_elements`, `preview_touch`, `preview_stop`, `simulator_list`
 
 ## Trait Injection
 
@@ -74,6 +74,10 @@ Tools: `preview_list`, `preview_start`, `preview_configure`, `preview_switch`, `
 Files with multiple `#Preview` blocks are fully supported. `preview_list` shows all previews with closure body snippets. `preview_start` accepts a `previewIndex` parameter (default 0) and returns the full list of available previews. `preview_switch` changes which preview is rendered in a running session without tearing down the session — traits persist across switches, @State is reset. If a switch fails (e.g., invalid index), the session rolls back to the previous preview.
 
 **macOS limitation:** `dynamicTypeSize` has no visible effect on macOS. macOS does not have a system-level Dynamic Type feature, and `NSHostingView` does not scale fonts in response to the `.dynamicTypeSize()` modifier. Use iOS simulator previews to test dynamic type sizes. `colorScheme` works on both platforms.
+
+## Variant Capture
+
+`preview_variants` captures screenshots under multiple trait configurations in a single MCP call. Pass preset names (`"light"`, `"dark"`, `"xSmall"` through `"accessibility5"`) or JSON object strings for custom combinations (e.g., `{"colorScheme":"dark","dynamicTypeSize":"large","label":"dark+large"}`). The session's original traits are restored after all variants are captured. Each variant triggers a recompile.
 
 ## iOS Touch Injection
 

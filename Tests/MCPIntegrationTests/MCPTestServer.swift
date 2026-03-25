@@ -159,6 +159,18 @@ final class MCPTestServer: @unchecked Sendable {
         }
     }
 
+    /// Extract all image content items from a tool result.
+    static func extractImages(from content: [Tool.Content]) -> [(data: Data, mimeType: String)] {
+        content.compactMap { item in
+            if case .image(let base64, let mimeType, _) = item,
+                let data = Data(base64Encoded: base64)
+            {
+                return (data, mimeType)
+            }
+            return nil
+        }
+    }
+
     /// Read width and height from PNG IHDR chunk (bytes 16-23, big-endian uint32).
     static func pngDimensions(_ data: Data) -> (width: Int, height: Int) {
         guard data.count >= 24 else { return (0, 0) }

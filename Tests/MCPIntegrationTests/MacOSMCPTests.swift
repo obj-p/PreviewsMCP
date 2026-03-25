@@ -207,6 +207,91 @@ struct MacOSMCPTests {
         #expect(fakeStopText.contains("closed"), "Should return closed message")
     }
 
+    // MARK: - preview_variants
+
+    @Test("preview_variants captures multiple configurations", .timeLimit(.minutes(10)))
+    func previewVariants() async throws {
+        let server = try await MCPTestServer.start()
+        defer { server.stop() }
+
+        // Start a session
+        let (startContent, startError) = try await server.callTool(
+            name: "preview_start",
+            arguments: [
+                "filePath": .string(MCPTestServer.toDoViewPath),
+                "projectPath": .string(MCPTestServer.spmExampleRoot.path),
+            ]
+        )
+        #expect(startError != true, "preview_start should succeed")
+        let sessionID = try MCPTestServer.extractSessionID(from: startContent)
+
+        try await Task.sleep(for: .milliseconds(500))
+
+        // --- Preset variants: light + dark ---
+        let (varContent, varError) = try await server.callTool(
+            name: "preview_variants",
+            arguments: [
+                "sessionID": .string(sessionID),
+                "variants": .array([.string("light"), .string("dark")]),
+            ]
+        )
+        #expect(varError != true, "preview_variants should succeed")
+
+        let images = MCPTestServer.extractImages(from: varContent)
+        #expect(images.count == 2, "Should return 2 images for 2 variants")
+        #expect(images[0].mimeType == "image/jpeg", "Default format should be JPEG")
+
+        let varText = MCPTestServer.extractText(from: varContent)
+        #expect(varText.contains("[0] light:"), "Should have label for light variant")
+        #expect(varText.contains("[1] dark:"), "Should have label for dark variant")
+
+        // Images should differ (light vs dark)
+        #expect(images[0].data != images[1].data, "Light and dark screenshots should differ")
+
+        // --- Custom JSON object variant ---
+        let customJSON = #"{"colorScheme":"dark","dynamicTypeSize":"large","label":"dark-large"}"#
+        let (customContent, customError) = try await server.callTool(
+            name: "preview_variants",
+            arguments: [
+                "sessionID": .string(sessionID),
+                "variants": .array([.string(customJSON)]),
+            ]
+        )
+        #expect(customError != true, "Custom JSON variant should succeed")
+        let customImages = MCPTestServer.extractImages(from: customContent)
+        #expect(customImages.count == 1, "Should return 1 image for custom variant")
+        let customText = MCPTestServer.extractText(from: customContent)
+        #expect(customText.contains("dark-large"), "Should use custom label")
+
+        // --- Empty variants → error ---
+        let (_, emptyErr) = try await server.callTool(
+            name: "preview_variants",
+            arguments: [
+                "sessionID": .string(sessionID),
+                "variants": .array([]),
+            ]
+        )
+        #expect(emptyErr == true, "Empty variants should return error")
+
+        // --- Invalid preset → error ---
+        let (invalidContent, invalidErr) = try await server.callTool(
+            name: "preview_variants",
+            arguments: [
+                "sessionID": .string(sessionID),
+                "variants": .array([.string("neon")]),
+            ]
+        )
+        #expect(invalidErr == true, "Invalid preset should return error")
+        let invalidText = MCPTestServer.extractText(from: invalidContent)
+        #expect(invalidText.contains("neon"), "Error should mention the invalid preset")
+
+        // --- Cleanup ---
+        _ = try await server.callTool(
+            name: "preview_stop",
+            arguments: ["sessionID": .string(sessionID)]
+        )
+    }
+
     // MARK: - Hot reload (separate test — modifies source file)
 
     @Test("File edit triggers hot reload", .timeLimit(.minutes(3)))
