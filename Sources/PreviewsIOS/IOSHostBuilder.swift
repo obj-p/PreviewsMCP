@@ -9,6 +9,7 @@ public actor IOSHostBuilder {
     private let swiftcPath: String
     private let sdkPath: String
     private let codesignPath: String
+    private let moduleCachePath: URL
     private var cachedAppPath: URL?
 
     public init(workDir: URL? = nil) async throws {
@@ -23,6 +24,10 @@ public actor IOSHostBuilder {
         self.sdkPath = try await Self.resolve("xcrun", "--show-sdk-path", "--sdk", "iphonesimulator")
         self.swiftcPath = try await Self.resolve("xcrun", "--find", "swiftc")
         self.codesignPath = try await Self.resolve("xcrun", "--find", "codesign")
+
+        let cacheDir = dir.appendingPathComponent("ModuleCache", isDirectory: true)
+        try FileManager.default.createDirectory(at: cacheDir, withIntermediateDirectories: true)
+        self.moduleCachePath = cacheDir
     }
 
     /// Build the iOS host app, returning the path to the .app bundle.
@@ -73,6 +78,8 @@ public actor IOSHostBuilder {
             "-sdk", sdkPath,
             "-module-name", "PreviewsMCPHost",
             "-Onone",
+            "-gnone",
+            "-module-cache-path", moduleCachePath.path,
             "-o", binaryPath.path,
             sourceFile.path
         )

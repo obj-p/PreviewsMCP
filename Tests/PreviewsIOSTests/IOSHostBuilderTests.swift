@@ -3,7 +3,7 @@ import Testing
 
 @testable import PreviewsIOS
 
-@Suite("IOSHostBuilder")
+@Suite("IOSHostBuilder", .serialized)
 struct IOSHostBuilderTests {
 
     @Test("Build iOS host app produces valid .app bundle")

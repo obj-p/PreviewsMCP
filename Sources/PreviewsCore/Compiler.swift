@@ -33,6 +33,7 @@ public actor Compiler {
     private let codesignPath: String
     public nonisolated let platform: PreviewPlatform
     private let targetTriple: String
+    private let moduleCachePath: URL
 
     /// Create a compiler with a work directory for build artifacts.
     /// Resolves SDK and swiftc paths from the active Xcode toolchain.
@@ -57,6 +58,13 @@ public actor Compiler {
         self.targetTriple = platform.targetTriple
         self.swiftcPath = try await Self.resolve("xcrun", "--find", "swiftc")
         self.codesignPath = try await Self.resolve("xcrun", "--find", "codesign")
+
+        // Shared module cache at parent of workDir, keyed by platform to avoid SDK conflicts.
+        let cacheDir =
+            dir.deletingLastPathComponent()
+            .appendingPathComponent("ModuleCache-\(platform)", isDirectory: true)
+        try FileManager.default.createDirectory(at: cacheDir, withIntermediateDirectories: true)
+        self.moduleCachePath = cacheDir
     }
 
     private var compilationCounter = 0
@@ -91,6 +99,8 @@ public actor Compiler {
             "-sdk", sdkPath,
             "-module-name", moduleName,
             "-Onone",
+            "-gnone",
+            "-module-cache-path", moduleCachePath.path,
         ]
         args += extraFlags
         args += ["-o", dylibFile.path, sourceFile.path]

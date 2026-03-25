@@ -83,7 +83,7 @@ struct RunCommand: ParsableCommand {
                 )
             } catch {
                 fputs("Error: \(error)\n", stderr)
-                await MainActor.run { NSApp.terminate(nil) }
+                Darwin.exit(1)
             }
         }
     }
@@ -111,7 +111,7 @@ struct RunCommand: ParsableCommand {
                 )
             } catch {
                 fputs("Error: \(error)\n", stderr)
-                await MainActor.run { NSApp.terminate(nil) }
+                Darwin.exit(1)
             }
         }
     }

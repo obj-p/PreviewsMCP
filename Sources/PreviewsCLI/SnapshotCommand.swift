@@ -124,7 +124,7 @@ struct SnapshotCommand: ParsableCommand {
                 }
             } catch {
                 fputs("Error: \(error)\n", stderr)
-                await MainActor.run { NSApp.terminate(nil) }
+                Darwin.exit(1)
             }
         }
     }
@@ -176,7 +176,7 @@ struct SnapshotCommand: ParsableCommand {
                 await MainActor.run { NSApp.terminate(nil) }
             } catch {
                 fputs("Error: \(error)\n", stderr)
-                await MainActor.run { NSApp.terminate(nil) }
+                Darwin.exit(1)
             }
         }
     }
