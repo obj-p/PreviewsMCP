@@ -54,16 +54,34 @@ enum CLIRunner {
 
     // MARK: - Image validation
 
-    static func assertValidPNG(at path: String, minSize: Int = 1024) throws {
+    static func assertValidPNG(
+        at path: String,
+        minSize: Int = 1024,
+        expectedWidth: Int? = nil,
+        expectedHeight: Int? = nil
+    ) throws {
         let data = try Data(contentsOf: URL(fileURLWithPath: path))
         #expect(data.count >= minSize, "PNG should be at least \(minSize) bytes, got \(data.count)")
         #expect(data.count >= 2 && data[0] == 0x89 && data[1] == 0x50, "File should have PNG header")
+        if let expectedWidth, let expectedHeight {
+            let (w, h) = pngDimensions(data)
+            #expect(w == expectedWidth, "PNG width should be \(expectedWidth), got \(w)")
+            #expect(h == expectedHeight, "PNG height should be \(expectedHeight), got \(h)")
+        }
     }
 
     static func assertValidJPEG(at path: String, minSize: Int = 1024) throws {
         let data = try Data(contentsOf: URL(fileURLWithPath: path))
         #expect(data.count >= minSize, "JPEG should be at least \(minSize) bytes, got \(data.count)")
         #expect(data.count >= 2 && data[0] == 0xFF && data[1] == 0xD8, "File should have JPEG header")
+    }
+
+    /// Read width and height from PNG IHDR chunk (bytes 16-23, big-endian uint32).
+    static func pngDimensions(_ data: Data) -> (width: Int, height: Int) {
+        guard data.count >= 24 else { return (0, 0) }
+        let w = Int(data[16]) << 24 | Int(data[17]) << 16 | Int(data[18]) << 8 | Int(data[19])
+        let h = Int(data[20]) << 24 | Int(data[21]) << 16 | Int(data[22]) << 8 | Int(data[23])
+        return (w, h)
     }
 
     // MARK: - Temp directory

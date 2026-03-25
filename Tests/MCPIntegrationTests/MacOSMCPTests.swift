@@ -1,0 +1,271 @@
+import Foundation
+import MCP
+import Testing
+
+/// All macOS MCP tests share a single server process to avoid repeated
+/// swift build / swiftc overhead. Tests are serialized and reuse sessions
+/// where possible.
+@Suite("MCP macOS integration", .serialized)
+struct MacOSMCPTests {
+
+    // MARK: - simulator_list (no preview_start needed)
+
+    @Test("simulator_list returns available devices", .timeLimit(.minutes(2)))
+    func simulatorListReturnsDevices() async throws {
+        let server = try await MCPTestServer.start()
+        defer { Task { await server.stop() } }
+
+        let (content, isError) = try await server.callTool(name: "simulator_list")
+
+        #expect(isError != true, "simulator_list should succeed")
+        let text = MCPTestServer.extractText(from: content)
+        let uuidPattern =
+            /[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}/
+        #expect(
+            text.firstMatch(of: uuidPattern) != nil, "Should contain at least one device UDID")
+    }
+
+    // MARK: - Session lifecycle, snapshots, switch, configure, hot reload
+
+    @Test("Full macOS MCP workflow", .timeLimit(.minutes(10)))
+    func fullMacOSWorkflow() async throws {
+        let server = try await MCPTestServer.start()
+        defer { Task { await server.stop() } }
+
+        // --- preview_start returns session ID and available previews ---
+        let (startContent, startError) = try await server.callTool(
+            name: "preview_start",
+            arguments: [
+                "filePath": .string(MCPTestServer.toDoViewPath),
+                "projectPath": .string(MCPTestServer.spmExampleRoot.path),
+            ]
+        )
+        #expect(startError != true, "preview_start should succeed")
+        let sessionID = try MCPTestServer.extractSessionID(from: startContent)
+        #expect(sessionID.count == 36, "Session ID should be UUID format")
+
+        let startText = MCPTestServer.extractText(from: startContent)
+        #expect(startText.contains("[0]"), "Should list preview index 0")
+        #expect(startText.contains("[1]"), "Should list preview index 1")
+        #expect(startText.contains("Empty State"), "Should show Empty State preview")
+        #expect(startText.contains("<- active"), "Should mark active preview")
+
+        try await Task.sleep(for: .milliseconds(500))
+
+        // --- preview_snapshot returns JPEG ---
+        let (jpegContent, jpegError) = try await server.callTool(
+            name: "preview_snapshot",
+            arguments: ["sessionID": .string(sessionID)]
+        )
+        #expect(jpegError != true, "Snapshot should succeed")
+        try MCPTestServer.assertValidImage(
+            jpegContent, expectedMimeType: "image/jpeg", minSize: 10_000)
+
+        // --- preview_snapshot returns PNG when quality >= 1.0 ---
+        let (pngContent, _) = try await server.callTool(
+            name: "preview_snapshot",
+            arguments: [
+                "sessionID": .string(sessionID),
+                "quality": .double(1.0),
+            ]
+        )
+        try MCPTestServer.assertValidImage(
+            pngContent, expectedMimeType: "image/png",
+            minSize: 10_000, expectedWidth: 400, expectedHeight: 600)
+        let (data0, _) = try MCPTestServer.extractImageData(from: jpegContent)
+
+        // --- preview_switch to valid index ---
+        let (switchContent, switchError) = try await server.callTool(
+            name: "preview_switch",
+            arguments: [
+                "sessionID": .string(sessionID),
+                "previewIndex": .int(1),
+            ]
+        )
+        #expect(switchError != true, "Switch should succeed")
+        let switchText = MCPTestServer.extractText(from: switchContent)
+        #expect(switchText.contains("Switched to preview 1"), "Should confirm switch")
+
+        try await Task.sleep(for: .milliseconds(500))
+
+        // --- Snapshot after switch should differ ---
+        let (content1, _) = try await server.callTool(
+            name: "preview_snapshot",
+            arguments: ["sessionID": .string(sessionID)]
+        )
+        let (data1, _) = try MCPTestServer.extractImageData(from: content1)
+        #expect(data0 != data1, "Snapshots of different previews should differ")
+        #expect(
+            data0.count > data1.count,
+            "Full list (\(data0.count) bytes) should be larger than empty state (\(data1.count) bytes)"
+        )
+
+        // --- preview_switch to invalid index rolls back ---
+        var switchFailed = false
+        do {
+            let (_, err) = try await server.callTool(
+                name: "preview_switch",
+                arguments: [
+                    "sessionID": .string(sessionID),
+                    "previewIndex": .int(99),
+                ]
+            )
+            switchFailed = err == true
+        } catch {
+            switchFailed = true
+        }
+        #expect(switchFailed, "Switch to invalid index should fail")
+
+        // Snapshot after failed switch should still work (rollback)
+        try await Task.sleep(for: .milliseconds(500))
+        let (rollbackContent, rollbackError) = try await server.callTool(
+            name: "preview_snapshot",
+            arguments: ["sessionID": .string(sessionID)]
+        )
+        #expect(rollbackError != true, "Snapshot after failed switch should succeed")
+        try MCPTestServer.assertValidImage(rollbackContent)
+
+        // Switch back to preview 0 for configure tests
+        _ = try await server.callTool(
+            name: "preview_switch",
+            arguments: [
+                "sessionID": .string(sessionID),
+                "previewIndex": .int(0),
+            ]
+        )
+
+        // --- preview_configure colorScheme ---
+        let (colorConfig, colorErr) = try await server.callTool(
+            name: "preview_configure",
+            arguments: [
+                "sessionID": .string(sessionID),
+                "colorScheme": .string("dark"),
+            ]
+        )
+        #expect(colorErr != true, "Configure colorScheme should succeed")
+        let colorText = MCPTestServer.extractText(from: colorConfig)
+        #expect(colorText.contains("colorScheme=dark"), "Should confirm dark color scheme")
+        #expect(colorText.contains("Configured session"), "Should confirm configuration")
+
+        // --- preview_configure dynamicTypeSize (merge semantics — colorScheme preserved) ---
+        let (dtsConfig, dtsErr) = try await server.callTool(
+            name: "preview_configure",
+            arguments: [
+                "sessionID": .string(sessionID),
+                "dynamicTypeSize": .string("large"),
+            ]
+        )
+        #expect(dtsErr != true, "Configure dynamicTypeSize should succeed")
+        let dtsText = MCPTestServer.extractText(from: dtsConfig)
+        #expect(dtsText.contains("colorScheme=dark"), "colorScheme should be preserved (merge)")
+        #expect(dtsText.contains("dynamicTypeSize=large"), "dynamicTypeSize should be set")
+
+        // --- preview_configure with no traits ---
+        let (noTraitConfig, _) = try await server.callTool(
+            name: "preview_configure",
+            arguments: ["sessionID": .string(sessionID)]
+        )
+        let noTraitText = MCPTestServer.extractText(from: noTraitConfig)
+        #expect(
+            noTraitText.contains("No configuration changes specified"),
+            "Should indicate no changes")
+
+        // --- preview_configure invalid trait ---
+        let (_, invalidErr) = try await server.callTool(
+            name: "preview_configure",
+            arguments: [
+                "sessionID": .string(sessionID),
+                "colorScheme": .string("purple"),
+            ]
+        )
+        #expect(invalidErr == true, "Invalid colorScheme should return error")
+
+        // --- Traits persist across switch ---
+        let (traitSwitch, traitSwitchErr) = try await server.callTool(
+            name: "preview_switch",
+            arguments: [
+                "sessionID": .string(sessionID),
+                "previewIndex": .int(1),
+            ]
+        )
+        #expect(traitSwitchErr != true, "Switch should succeed")
+        let traitSwitchText = MCPTestServer.extractText(from: traitSwitch)
+        #expect(
+            traitSwitchText.contains("colorScheme=dark"), "Traits should persist across switch")
+
+        // --- preview_stop ---
+        let (stopContent, stopError) = try await server.callTool(
+            name: "preview_stop",
+            arguments: ["sessionID": .string(sessionID)]
+        )
+        #expect(stopError != true)
+        let stopText = MCPTestServer.extractText(from: stopContent)
+        #expect(stopText.contains("closed"), "Stop should confirm closure")
+
+        // --- preview_stop nonexistent session ---
+        let (fakeStop, _) = try await server.callTool(
+            name: "preview_stop",
+            arguments: ["sessionID": .string("00000000-0000-0000-0000-000000000000")]
+        )
+        let fakeStopText = MCPTestServer.extractText(from: fakeStop)
+        #expect(fakeStopText.contains("closed"), "Should return closed message")
+    }
+
+    // MARK: - Hot reload (separate test — modifies source file)
+
+    @Test("File edit triggers hot reload", .timeLimit(.minutes(3)))
+    func hotReload() async throws {
+        let server = try await MCPTestServer.start()
+        defer { Task { await server.stop() } }
+
+        let filePath = MCPTestServer.toDoViewPath
+        let originalContent = try String(contentsOfFile: filePath, encoding: .utf8)
+        defer {
+            try? originalContent.write(toFile: filePath, atomically: true, encoding: .utf8)
+        }
+
+        let (startContent, _) = try await server.callTool(
+            name: "preview_start",
+            arguments: [
+                "filePath": .string(filePath),
+                "projectPath": .string(MCPTestServer.spmExampleRoot.path),
+            ]
+        )
+        let sessionID = try MCPTestServer.extractSessionID(from: startContent)
+
+        try await Task.sleep(for: .milliseconds(500))
+
+        // Edit source file
+        let modified = originalContent.replacingOccurrences(of: "\"My Items\"", with: "\"Tasks\"")
+        #expect(modified != originalContent, "Replacement should have changed the content")
+        try modified.write(
+            to: URL(fileURLWithPath: filePath), atomically: false, encoding: .utf8)
+
+        // Poll stderr for reload confirmation
+        var reloadDetected = false
+        for _ in 0..<20 {
+            try await Task.sleep(for: .milliseconds(500))
+            let stderr = server.stderrOutput()
+            if stderr.contains("Literal-only change") || stderr.contains("Structural change")
+                || stderr.contains("Compiled:")
+            {
+                reloadDetected = true
+                break
+            }
+        }
+        #expect(reloadDetected, "Server should detect file change and reload")
+
+        try await Task.sleep(for: .milliseconds(500))
+        let (snapshotContent, snapshotError) = try await server.callTool(
+            name: "preview_snapshot",
+            arguments: ["sessionID": .string(sessionID)]
+        )
+        #expect(snapshotError != true, "Snapshot should succeed after hot reload")
+        try MCPTestServer.assertValidImage(snapshotContent)
+
+        _ = try await server.callTool(
+            name: "preview_stop",
+            arguments: ["sessionID": .string(sessionID)]
+        )
+    }
+}

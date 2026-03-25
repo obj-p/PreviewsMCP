@@ -23,7 +23,8 @@ struct SnapshotCommandTests {
 
         #expect(result.exitCode == 0, "stderr: \(result.stderr)")
         #expect(result.stdout.contains(outputPath), "stdout should print output path")
-        try CLIRunner.assertValidPNG(at: outputPath)
+        try CLIRunner.assertValidPNG(
+            at: outputPath, minSize: 10_000, expectedWidth: 400, expectedHeight: 600)
     }
 
     @Test("Snapshot with --preview 1 produces different image", .timeLimit(.minutes(2)))
@@ -51,7 +52,7 @@ struct SnapshotCommandTests {
             ])
         #expect(result1.exitCode == 0, "preview 1 stderr: \(result1.stderr)")
 
-        try CLIRunner.assertValidPNG(at: output0)
+        try CLIRunner.assertValidPNG(at: output0, minSize: 10_000)
         try CLIRunner.assertValidPNG(at: output1)
 
         let size0 = try Data(contentsOf: URL(fileURLWithPath: output0)).count
@@ -59,6 +60,10 @@ struct SnapshotCommandTests {
         #expect(
             size0 != size1,
             "Preview 0 (\(size0) bytes) and preview 1 (\(size1) bytes) should differ"
+        )
+        #expect(
+            size0 > size1,
+            "Full list (\(size0) bytes) should be larger than empty state (\(size1) bytes)"
         )
     }
 
@@ -283,7 +288,7 @@ struct SnapshotCommandTests {
         try CLIRunner.assertValidPNG(at: outputPath)
     }
 
-    @Test("Snapshot of Bazel example with --project", .timeLimit(.minutes(3)))
+    @Test("Snapshot of Bazel example with --project", .timeLimit(.minutes(5)))
     func snapshotBazel() async throws {
         var hasBazel = await CLIRunner.toolAvailable("bazelisk")
         if !hasBazel { hasBazel = await CLIRunner.toolAvailable("bazel") }

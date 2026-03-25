@@ -61,5 +61,11 @@ let package = Package(
             name: "CLIIntegrationTests",
             dependencies: []
         ),
+        .testTarget(
+            name: "MCPIntegrationTests",
+            dependencies: [
+                .product(name: "MCP", package: "swift-sdk")
+            ]
+        ),
     ]
 )
