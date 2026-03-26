@@ -263,6 +263,48 @@ struct MacOSMCPTests {
         let customText = MCPTestServer.extractText(from: customContent)
         #expect(customText.contains("dark-large"), "Should use custom label")
 
+        // --- Trait restoration: session should return to default traits ---
+        // Set traits to dark before variants call
+        let (configContent, configErr) = try await server.callTool(
+            name: "preview_configure",
+            arguments: [
+                "sessionID": .string(sessionID),
+                "colorScheme": .string("dark"),
+            ]
+        )
+        #expect(configErr != true, "preview_configure should succeed")
+        let configText = MCPTestServer.extractText(from: configContent)
+        #expect(configText.contains("colorScheme=dark"), "Should be dark before variants")
+
+        // Run variants with light only
+        let (restoreContent, restoreErr) = try await server.callTool(
+            name: "preview_variants",
+            arguments: [
+                "sessionID": .string(sessionID),
+                "variants": .array([.string("light")]),
+            ]
+        )
+        #expect(restoreErr != true, "Restore variants should succeed")
+        let restoreImages = MCPTestServer.extractImages(from: restoreContent)
+        #expect(restoreImages.count == 1)
+
+        // Verify traits were restored to dark (the pre-variants state).
+        // Configure dynamicTypeSize only — if colorScheme was restored to dark,
+        // the response should show both colorScheme=dark AND dynamicTypeSize.
+        let (checkContent, checkErr) = try await server.callTool(
+            name: "preview_configure",
+            arguments: [
+                "sessionID": .string(sessionID),
+                "dynamicTypeSize": .string("large"),
+            ]
+        )
+        #expect(checkErr != true)
+        let checkText = MCPTestServer.extractText(from: checkContent)
+        #expect(
+            checkText.contains("colorScheme=dark"),
+            "colorScheme should have been restored to dark after preview_variants"
+        )
+
         // --- Empty variants → error ---
         let (_, emptyErr) = try await server.callTool(
             name: "preview_variants",
