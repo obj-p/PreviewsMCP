@@ -26,6 +26,25 @@ struct IOSMCPTests {
         }
     }
 
+    // MARK: - simulator_list (requires CoreSimulator; ios-tests job warms daemon)
+
+    @Test("simulator_list returns available devices", .timeLimit(.minutes(2)))
+    func simulatorListReturnsDevices() async throws {
+        let server = try await MCPTestServer.start()
+        defer { server.stop() }
+
+        let (content, isError) = try await server.callTool(name: "simulator_list")
+
+        #expect(isError != true, "simulator_list should succeed")
+        let text = MCPTestServer.extractText(from: content)
+        let uuidPattern =
+            /[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}/
+        #expect(
+            text.firstMatch(of: uuidPattern) != nil, "Should contain at least one device UDID")
+    }
+
+    // MARK: - Full iOS workflow
+
     @Test(
         "iOS preview workflow: start, snapshot, elements, tap, swipe, switch",
         .timeLimit(.minutes(5)))
