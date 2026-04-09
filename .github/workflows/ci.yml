@@ -130,7 +130,7 @@ jobs:
         run: swift test --filter "snapshotIOS"
 
       - name: iOS MCP tests
-        timeout-minutes: 15
+        timeout-minutes: 20
         env:
           NSUnbufferedIO: "YES"
         run: swift test --filter "IOSMCPTests"

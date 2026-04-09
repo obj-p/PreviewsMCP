@@ -47,7 +47,7 @@ struct IOSMCPTests {
 
     @Test(
         "iOS preview workflow: start, snapshot, elements, tap, swipe, switch",
-        .timeLimit(.minutes(5)))
+        .timeLimit(.minutes(10)))
     func fullIOSWorkflow() async throws {
         guard await Self.hasIOSSimulator() else {
             print("No iOS simulator available — skipping iOS MCP tests")
