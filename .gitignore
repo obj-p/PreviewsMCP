@@ -3,3 +3,4 @@
 .swiftpm/
 xcuserdata/
 DerivedData/
+.claude/worktrees/

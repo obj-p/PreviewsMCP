@@ -77,3 +77,43 @@ Add to your `.mcp.json` (or Claude Code MCP config):
   }
 }
 ```
+
+### Tools
+
+| Tool | Description |
+|---|---|
+| `preview_list` | List `#Preview` blocks and `PreviewProvider` previews in a Swift file |
+| `preview_start` | Compile and launch a live preview (macOS or iOS simulator). Returns a session ID |
+| `preview_snapshot` | Capture a screenshot of the active session (JPEG by default; `quality: 1.0` for PNG) |
+| `preview_configure` | Update traits (`colorScheme`, `dynamicTypeSize`) on a running session |
+| `preview_switch` | Swap to a different `#Preview` index without tearing down the session |
+| `preview_variants` | Capture screenshots under multiple trait configurations in one call |
+| `preview_elements` | Inspect the accessibility tree of an iOS preview |
+| `preview_touch` | Send a tap or swipe to an iOS preview |
+| `preview_stop` | Close a session |
+| `simulator_list` | List available iOS simulator devices |
+
+### Capturing variants
+
+`preview_variants` captures multiple snapshots in a single call — useful for comparing light/dark mode, dynamic type sizes, or custom trait combinations. Each variant triggers a recompile, and the session's original traits are restored afterward.
+
+Pass an array of preset names or JSON object strings as the `variants` argument:
+
+```jsonc
+// Preset names — light/dark and xSmall through accessibility5
+{
+  "sessionID": "...",
+  "variants": ["light", "dark", "accessibility3"]
+}
+
+// Custom combinations via JSON object strings
+{
+  "sessionID": "...",
+  "variants": [
+    "{\"colorScheme\":\"dark\",\"dynamicTypeSize\":\"large\",\"label\":\"dark+large\"}",
+    "{\"colorScheme\":\"light\",\"dynamicTypeSize\":\"xSmall\",\"label\":\"light+xSmall\"}"
+  ]
+}
+```
+
+The response contains one labeled image per variant.
