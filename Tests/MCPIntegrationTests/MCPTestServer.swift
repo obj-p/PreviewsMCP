@@ -30,12 +30,17 @@ final class MCPTestServer: @unchecked Sendable {
     private let client: Client
     private let stdinPipe: Pipe
     private let stdoutPipe: Pipe
+    private let stderrPipe: Pipe
 
-    private init(process: Process, client: Client, stdinPipe: Pipe, stdoutPipe: Pipe) {
+    private init(
+        process: Process, client: Client,
+        stdinPipe: Pipe, stdoutPipe: Pipe, stderrPipe: Pipe
+    ) {
         self.process = process
         self.client = client
         self.stdinPipe = stdinPipe
         self.stdoutPipe = stdoutPipe
+        self.stderrPipe = stderrPipe
     }
 
     // MARK: - Lifecycle
@@ -79,7 +84,7 @@ final class MCPTestServer: @unchecked Sendable {
 
         let server = MCPTestServer(
             process: process, client: client,
-            stdinPipe: stdinPipe, stdoutPipe: stdoutPipe
+            stdinPipe: stdinPipe, stdoutPipe: stdoutPipe, stderrPipe: stderrPipe
         )
 
         // Detect unexpected server termination so pending callTool requests fail fast
@@ -102,16 +107,14 @@ final class MCPTestServer: @unchecked Sendable {
         // Clear termination handler so manual stop() doesn't trigger the unexpected-exit
         // diagnostic / disconnect path.
         process.terminationHandler = nil
-        let log = { (msg: String) in
-            FileHandle.standardError.write("[test] stop: \(msg)\n".data(using: .utf8)!)
-        }
-        log("isRunning=\(process.isRunning)")
+        // Clear stderr readabilityHandler — its underlying dispatch source keeps the
+        // test binary's main run loop alive after the subprocess dies, preventing the
+        // test runner from exiting (observed on macOS 15 CI runners; macOS 26 appears
+        // to clean it up automatically when the pipe FD is closed).
+        stderrPipe.fileHandleForReading.readabilityHandler = nil
         if process.isRunning {
-            log("sending SIGTERM")
             process.terminate()
-            log("waiting for exit")
             process.waitUntilExit()
-            log("exited with status \(process.terminationStatus)")
         }
     }
 
