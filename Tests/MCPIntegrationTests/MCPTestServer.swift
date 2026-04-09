@@ -102,9 +102,16 @@ final class MCPTestServer: @unchecked Sendable {
         // Clear termination handler so manual stop() doesn't trigger the unexpected-exit
         // diagnostic / disconnect path.
         process.terminationHandler = nil
+        let log = { (msg: String) in
+            FileHandle.standardError.write("[test] stop: \(msg)\n".data(using: .utf8)!)
+        }
+        log("isRunning=\(process.isRunning)")
         if process.isRunning {
+            log("sending SIGTERM")
             process.terminate()
+            log("waiting for exit")
             process.waitUntilExit()
+            log("exited with status \(process.terminationStatus)")
         }
     }
 

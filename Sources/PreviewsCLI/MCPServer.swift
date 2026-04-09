@@ -592,6 +592,7 @@ private func startMacOSPreview(
 
 private func handlePreviewSnapshot(params: CallTool.Parameters) async throws -> CallTool.Result {
     fputs("snapshot: enter\n", stderr)
+    defer { fputs("snapshot: function exit (defer)\n", stderr) }
     let sessionID: String
     do { sessionID = try extractString("sessionID", from: params) } catch {
         return CallTool.Result(content: [.text(error.localizedDescription)], isError: true)
@@ -637,6 +638,8 @@ private func handlePreviewSnapshot(params: CallTool.Parameters) async throws -> 
 }
 
 private func handlePreviewStop(params: CallTool.Parameters) async throws -> CallTool.Result {
+    fputs("stop: enter\n", stderr)
+    defer { fputs("stop: function exit (defer)\n", stderr) }
     let sessionID: String
     do { sessionID = try extractString("sessionID", from: params) } catch {
         return CallTool.Result(content: [.text(error.localizedDescription)], isError: true)
@@ -650,9 +653,13 @@ private func handlePreviewStop(params: CallTool.Parameters) async throws -> Call
     }
 
     // macOS path
+    fputs("stop: hopping to MainActor\n", stderr)
     await MainActor.run {
+        fputs("stop: on MainActor, closing preview\n", stderr)
         App.host.closePreview(sessionID: sessionID)
+        fputs("stop: closePreview returned\n", stderr)
     }
+    fputs("stop: returning result\n", stderr)
 
     return CallTool.Result(content: [.text("Preview session \(sessionID) closed.")])
 }
