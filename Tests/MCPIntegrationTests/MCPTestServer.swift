@@ -86,7 +86,7 @@ final class MCPTestServer: @unchecked Sendable {
         // instead of hanging forever on the MCP client's continuation, and so the SDK's
         // busy-spin loop (see stop() docs) doesn't accumulate.
         process.terminationHandler = { [weak server] _ in
-            Task { [weak server] in
+            Task {
                 await server?.client.disconnect()
             }
         }
