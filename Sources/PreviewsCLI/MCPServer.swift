@@ -14,6 +14,7 @@ private enum ToolName: String {
     case previewSwitch = "preview_switch"
     case previewElements = "preview_elements"
     case previewTouch = "preview_touch"
+    case previewVariants = "preview_variants"
     case simulatorList = "simulator_list"
 }
 
@@ -304,6 +305,39 @@ func configureMCPServer() async throws -> (Server, Compiler) {
                 ])
             ),
             Tool(
+                name: ToolName.previewVariants.rawValue,
+                description:
+                    "Capture screenshots under multiple trait configurations in a single call. Renders each variant, snapshots it, then restores original traits. Accepts preset names or JSON trait objects.",
+                inputSchema: .object([
+                    "type": .string("object"),
+                    "properties": .object([
+                        "sessionID": .object([
+                            "type": .string("string"),
+                            "description": .string("Session ID from preview_start"),
+                        ]),
+                        "variants": .object([
+                            "type": .string("array"),
+                            "items": .object([
+                                "type": .string("string"),
+                                "description": .string(
+                                    "Preset name ('light', 'dark', 'xSmall', 'small', 'medium', 'large', 'xLarge', 'xxLarge', 'xxxLarge', 'accessibility1'-'accessibility5') or a JSON object string like '{\"colorScheme\":\"dark\",\"dynamicTypeSize\":\"large\",\"label\":\"dark+large\"}'."
+                                ),
+                            ]),
+                            "description": .string(
+                                "Array of trait variants to snapshot. Example: [\"light\", \"dark\", \"accessibility3\"]"
+                            ),
+                        ]),
+                        "quality": .object([
+                            "type": .string("number"),
+                            "description": .string(
+                                "JPEG quality 0.0-1.0 (default: 0.85). Values >= 1.0 produce PNG output."
+                            ),
+                        ]),
+                    ]),
+                    "required": .array([.string("sessionID"), .string("variants")]),
+                ])
+            ),
+            Tool(
                 name: ToolName.simulatorList.rawValue,
                 description: "List available iOS simulator devices with their UDIDs and states.",
                 inputSchema: .object([
@@ -335,6 +369,8 @@ func configureMCPServer() async throws -> (Server, Compiler) {
             return try await handlePreviewElements(params: params)
         case .previewTouch:
             return try await handlePreviewTouch(params: params)
+        case .previewVariants:
+            return try await handlePreviewVariants(params: params)
         case .simulatorList:
             return try await handleSimulatorList()
         }
@@ -775,6 +811,171 @@ private func handlePreviewConfigure(params: CallTool.Parameters) async throws ->
     ])
 }
 
+// MARK: - preview_variants
+
+private enum VariantError: Error, LocalizedError {
+    case unknownPreset(String)
+    case emptyVariantObject
+    case invalidVariantType
+    case emptyVariantsArray
+
+    var errorDescription: String? {
+        switch self {
+        case .unknownPreset(let name):
+            return
+                "Unknown variant preset '\(name)'. Valid presets: \(PreviewTraits.allPresetNames.sorted().joined(separator: ", "))"
+        case .emptyVariantObject:
+            return "Variant object must specify at least one trait (colorScheme or dynamicTypeSize)"
+        case .invalidVariantType:
+            return
+                "Each variant must be a preset name string or a JSON object string with colorScheme/dynamicTypeSize"
+        case .emptyVariantsArray:
+            return "variants array must not be empty"
+        }
+    }
+}
+
+/// Resolve a variant value (preset name string or JSON object string) to traits and a label.
+private func resolveVariant(_ value: Value) throws -> (traits: PreviewTraits, label: String) {
+    guard case .string(let str) = value else {
+        throw VariantError.invalidVariantType
+    }
+
+    // Try as a preset name first
+    if let traits = PreviewTraits.fromPreset(str) {
+        return (traits, str)
+    }
+
+    // Try parsing as JSON object string
+    guard let data = str.data(using: .utf8),
+        let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+    else {
+        throw VariantError.unknownPreset(str)
+    }
+
+    let colorScheme = json["colorScheme"] as? String
+    let dynamicTypeSize = json["dynamicTypeSize"] as? String
+    let traits = try PreviewTraits.validated(colorScheme: colorScheme, dynamicTypeSize: dynamicTypeSize)
+    if traits.isEmpty {
+        throw VariantError.emptyVariantObject
+    }
+    let label = (json["label"] as? String) ?? traitsSummary(traits)
+    return (traits, label)
+}
+
+private func handlePreviewVariants(params: CallTool.Parameters) async throws -> CallTool.Result {
+    let sessionID: String
+    let variantValues: [Value]
+    do {
+        sessionID = try extractString("sessionID", from: params)
+        variantValues = try extractArray("variants", from: params)
+    } catch {
+        return CallTool.Result(content: [.text(error.localizedDescription)], isError: true)
+    }
+
+    guard !variantValues.isEmpty else {
+        return CallTool.Result(
+            content: [.text(VariantError.emptyVariantsArray.localizedDescription)], isError: true)
+    }
+
+    // Resolve all variants upfront — fail fast on validation errors before any recompilation
+    let resolved: [(traits: PreviewTraits, label: String)]
+    do {
+        resolved = try variantValues.map { try resolveVariant($0) }
+    } catch {
+        return CallTool.Result(content: [.text(error.localizedDescription)], isError: true)
+    }
+
+    let quality = max(0.0, min(1.0, extractOptionalDouble("quality", from: params) ?? 0.85))
+    let usePNG = quality >= 1.0
+    let mimeType = usePNG ? "image/png" : "image/jpeg"
+
+    // iOS path
+    if let iosSession = await iosState.getSession(sessionID) {
+        let savedTraits = await iosSession.currentTraits
+        var contentBlocks: [Tool.Content] = []
+        var failCount = 0
+
+        for (index, variant) in resolved.enumerated() {
+            do {
+                try await iosSession.setTraits(variant.traits)
+                let imageData = try await iosSession.screenshot(jpegQuality: quality)
+                let base64 = imageData.base64EncodedString()
+                contentBlocks.append(.text("[\(index)] \(variant.label):"))
+                contentBlocks.append(.image(data: base64, mimeType: mimeType, metadata: nil))
+            } catch {
+                failCount += 1
+                contentBlocks.append(
+                    .text("[\(index)] \(variant.label): ERROR — \(error.localizedDescription)"))
+            }
+        }
+
+        // Restore original traits if they changed
+        let currentTraits = await iosSession.currentTraits
+        if savedTraits != currentTraits {
+            do {
+                try await iosSession.setTraits(savedTraits)
+            } catch {
+                contentBlocks.append(
+                    .text("Warning: failed to restore original traits: \(error.localizedDescription)")
+                )
+            }
+        }
+
+        return CallTool.Result(content: contentBlocks, isError: failCount == resolved.count)
+    }
+
+    // macOS path
+    let session: PreviewSession? = await MainActor.run { App.host.session(for: sessionID) }
+    guard let session else {
+        return CallTool.Result(content: [.text("No session found for \(sessionID)")], isError: true)
+    }
+
+    let savedTraits = await session.currentTraits
+    var contentBlocks: [Tool.Content] = []
+    var failCount = 0
+    let format: Snapshot.ImageFormat = usePNG ? .png : .jpeg(quality: quality)
+
+    for (index, variant) in resolved.enumerated() {
+        do {
+            let compileResult = try await session.setTraits(variant.traits)
+            try await MainActor.run {
+                try App.host.loadPreview(sessionID: sessionID, dylibPath: compileResult.dylibPath)
+            }
+            try await Task.sleep(for: .milliseconds(300))
+            let imageData: Data = try await MainActor.run {
+                guard let window = App.host.window(for: sessionID) else {
+                    throw SnapshotError.captureFailed
+                }
+                return try Snapshot.capture(window: window, format: format)
+            }
+            let base64 = imageData.base64EncodedString()
+            contentBlocks.append(.text("[\(index)] \(variant.label):"))
+            contentBlocks.append(.image(data: base64, mimeType: mimeType, metadata: nil))
+        } catch {
+            failCount += 1
+            contentBlocks.append(
+                .text("[\(index)] \(variant.label): ERROR — \(error.localizedDescription)"))
+        }
+    }
+
+    // Restore original traits if they changed
+    let currentTraits = await session.currentTraits
+    if savedTraits != currentTraits {
+        do {
+            let restoreResult = try await session.setTraits(savedTraits)
+            try await MainActor.run {
+                try App.host.loadPreview(sessionID: sessionID, dylibPath: restoreResult.dylibPath)
+            }
+        } catch {
+            contentBlocks.append(
+                .text("Warning: failed to restore original traits: \(error.localizedDescription)"))
+        }
+    }
+
+    return CallTool.Result(content: contentBlocks, isError: failCount == resolved.count)
+}
+
 private func handlePreviewSwitch(params: CallTool.Parameters) async throws -> CallTool.Result {
     let sessionID: String
     let newIndex: Int
@@ -887,6 +1088,12 @@ private func extractOptionalDouble(_ key: String, from params: CallTool.Paramete
 private func extractOptionalBool(_ key: String, from params: CallTool.Parameters) -> Bool? {
     if case .bool(let value) = params.arguments?[key] { return value }
     return nil
+}
+
+private func extractArray(_ key: String, from params: CallTool.Parameters) throws -> [Value] {
+    guard let value = params.arguments?[key] else { throw ParamError.missing(key) }
+    guard case .array(let arr) = value else { throw ParamError.wrongType(key: key, expected: "an array") }
+    return arr
 }
 
 /// Remove stale previewsmcp temp directories older than 24 hours.

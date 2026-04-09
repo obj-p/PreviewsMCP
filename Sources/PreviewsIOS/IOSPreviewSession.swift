@@ -276,6 +276,12 @@ public actor IOSPreviewSession {
         try await reload()
     }
 
+    /// Replace traits entirely (no merge) and recompile. Used by preview_variants.
+    public func setTraits(_ newTraits: PreviewTraits) async throws {
+        self.traits = newTraits
+        try await reload()
+    }
+
     /// Send a tap at the given point coordinates (in device points).
     public func sendTap(x: Double, y: Double) async throws {
         sendMessage(["type": "touch", "action": "tap", "x": x, "y": y])

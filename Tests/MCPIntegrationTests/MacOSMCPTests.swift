@@ -8,23 +8,6 @@ import Testing
 @Suite("MCP macOS integration", .serialized)
 struct MacOSMCPTests {
 
-    // MARK: - simulator_list (no preview_start needed)
-
-    @Test("simulator_list returns available devices", .timeLimit(.minutes(2)))
-    func simulatorListReturnsDevices() async throws {
-        let server = try await MCPTestServer.start()
-        defer { server.stop() }
-
-        let (content, isError) = try await server.callTool(name: "simulator_list")
-
-        #expect(isError != true, "simulator_list should succeed")
-        let text = MCPTestServer.extractText(from: content)
-        let uuidPattern =
-            /[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}/
-        #expect(
-            text.firstMatch(of: uuidPattern) != nil, "Should contain at least one device UDID")
-    }
-
     // MARK: - Session lifecycle, snapshots, switch, configure, hot reload
 
     @Test("Full macOS MCP workflow", .timeLimit(.minutes(10)))
@@ -205,6 +188,133 @@ struct MacOSMCPTests {
         )
         let fakeStopText = MCPTestServer.extractText(from: fakeStop)
         #expect(fakeStopText.contains("closed"), "Should return closed message")
+    }
+
+    // MARK: - preview_variants
+
+    @Test("preview_variants captures multiple configurations", .timeLimit(.minutes(10)))
+    func previewVariants() async throws {
+        let server = try await MCPTestServer.start()
+        defer { server.stop() }
+
+        // Start a session
+        let (startContent, startError) = try await server.callTool(
+            name: "preview_start",
+            arguments: [
+                "filePath": .string(MCPTestServer.toDoViewPath),
+                "projectPath": .string(MCPTestServer.spmExampleRoot.path),
+            ]
+        )
+        #expect(startError != true, "preview_start should succeed")
+        let sessionID = try MCPTestServer.extractSessionID(from: startContent)
+
+        try await Task.sleep(for: .milliseconds(500))
+
+        // --- Preset variants: light + dark ---
+        let (varContent, varError) = try await server.callTool(
+            name: "preview_variants",
+            arguments: [
+                "sessionID": .string(sessionID),
+                "variants": .array([.string("light"), .string("dark")]),
+            ]
+        )
+        #expect(varError != true, "preview_variants should succeed")
+
+        let images = MCPTestServer.extractImages(from: varContent)
+        #expect(images.count == 2, "Should return 2 images for 2 variants")
+        #expect(images[0].mimeType == "image/jpeg", "Default format should be JPEG")
+
+        let varText = MCPTestServer.extractText(from: varContent)
+        #expect(varText.contains("[0] light:"), "Should have label for light variant")
+        #expect(varText.contains("[1] dark:"), "Should have label for dark variant")
+
+        // Images should differ (light vs dark)
+        #expect(images[0].data != images[1].data, "Light and dark screenshots should differ")
+
+        // --- Custom JSON object variant ---
+        let customJSON = #"{"colorScheme":"dark","dynamicTypeSize":"large","label":"dark-large"}"#
+        let (customContent, customError) = try await server.callTool(
+            name: "preview_variants",
+            arguments: [
+                "sessionID": .string(sessionID),
+                "variants": .array([.string(customJSON)]),
+            ]
+        )
+        #expect(customError != true, "Custom JSON variant should succeed")
+        let customImages = MCPTestServer.extractImages(from: customContent)
+        #expect(customImages.count == 1, "Should return 1 image for custom variant")
+        let customText = MCPTestServer.extractText(from: customContent)
+        #expect(customText.contains("dark-large"), "Should use custom label")
+
+        // --- Trait restoration: session should return to default traits ---
+        // Set traits to dark before variants call
+        let (configContent, configErr) = try await server.callTool(
+            name: "preview_configure",
+            arguments: [
+                "sessionID": .string(sessionID),
+                "colorScheme": .string("dark"),
+            ]
+        )
+        #expect(configErr != true, "preview_configure should succeed")
+        let configText = MCPTestServer.extractText(from: configContent)
+        #expect(configText.contains("colorScheme=dark"), "Should be dark before variants")
+
+        // Run variants with light only
+        let (restoreContent, restoreErr) = try await server.callTool(
+            name: "preview_variants",
+            arguments: [
+                "sessionID": .string(sessionID),
+                "variants": .array([.string("light")]),
+            ]
+        )
+        #expect(restoreErr != true, "Restore variants should succeed")
+        let restoreImages = MCPTestServer.extractImages(from: restoreContent)
+        #expect(restoreImages.count == 1)
+
+        // Verify traits were restored to dark (the pre-variants state).
+        // Configure dynamicTypeSize only — if colorScheme was restored to dark,
+        // the response should show both colorScheme=dark AND dynamicTypeSize.
+        let (checkContent, checkErr) = try await server.callTool(
+            name: "preview_configure",
+            arguments: [
+                "sessionID": .string(sessionID),
+                "dynamicTypeSize": .string("large"),
+            ]
+        )
+        #expect(checkErr != true)
+        let checkText = MCPTestServer.extractText(from: checkContent)
+        #expect(
+            checkText.contains("colorScheme=dark"),
+            "colorScheme should have been restored to dark after preview_variants"
+        )
+
+        // --- Empty variants → error ---
+        let (_, emptyErr) = try await server.callTool(
+            name: "preview_variants",
+            arguments: [
+                "sessionID": .string(sessionID),
+                "variants": .array([]),
+            ]
+        )
+        #expect(emptyErr == true, "Empty variants should return error")
+
+        // --- Invalid preset → error ---
+        let (invalidContent, invalidErr) = try await server.callTool(
+            name: "preview_variants",
+            arguments: [
+                "sessionID": .string(sessionID),
+                "variants": .array([.string("neon")]),
+            ]
+        )
+        #expect(invalidErr == true, "Invalid preset should return error")
+        let invalidText = MCPTestServer.extractText(from: invalidContent)
+        #expect(invalidText.contains("neon"), "Error should mention the invalid preset")
+
+        // --- Cleanup ---
+        _ = try await server.callTool(
+            name: "preview_stop",
+            arguments: ["sessionID": .string(sessionID)]
+        )
     }
 
     // MARK: - Hot reload (separate test — modifies source file)

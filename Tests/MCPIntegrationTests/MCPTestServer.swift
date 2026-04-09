@@ -31,7 +31,10 @@ final class MCPTestServer: @unchecked Sendable {
     private let stdinPipe: Pipe
     private let stdoutPipe: Pipe
 
-    private init(process: Process, client: Client, stdinPipe: Pipe, stdoutPipe: Pipe) {
+    private init(
+        process: Process, client: Client,
+        stdinPipe: Pipe, stdoutPipe: Pipe
+    ) {
         self.process = process
         self.client = client
         self.stdinPipe = stdinPipe
@@ -53,15 +56,17 @@ final class MCPTestServer: @unchecked Sendable {
 
         let stdinPipe = Pipe()
         let stdoutPipe = Pipe()
-        let stderrPipe = Pipe()
         process.standardInput = stdinPipe
         process.standardOutput = stdoutPipe
-        process.standardError = stderrPipe
-
-        // Drain stderr continuously to prevent pipe buffer from filling and blocking the server.
-        stderrPipe.fileHandleForReading.readabilityHandler = { handle in
-            _ = handle.availableData
-        }
+        // Discard server stderr. Two earlier approaches both caused CI hangs on macOS 15:
+        //  1. Pipe + readabilityHandler — the dispatch source persisted in the test
+        //     binary's CFRunLoop after the subprocess died, blocking process exit.
+        //  2. Sharing FileHandle.standardError with the child — caused previewsmcp's
+        //     own startup to hang on subsequent test runs (cause unclear; possibly
+        //     related to NSApplication's stderr handling).
+        // /dev/null is the only configuration that avoids both bugs. We lose visibility
+        // into server diagnostics but gain reliable test cleanup.
+        process.standardError = FileHandle.nullDevice
 
         try process.run()
 
@@ -72,22 +77,52 @@ final class MCPTestServer: @unchecked Sendable {
         let client = Client(name: "mcp-integration-test", version: "1.0")
         _ = try await client.connect(transport: transport)
 
-        return MCPTestServer(
+        let server = MCPTestServer(
             process: process, client: client,
             stdinPipe: stdinPipe, stdoutPipe: stdoutPipe
         )
-    }
 
-    /// Terminate subprocess. Safe to call multiple times.
-    func stop() {
-        if process.isRunning {
-            process.terminate()
-            process.waitUntilExit()
+        // Detect unexpected server termination so pending callTool requests fail fast
+        // instead of hanging forever on the MCP client's continuation, and so the SDK's
+        // busy-spin loop (see stop() docs) doesn't accumulate.
+        process.terminationHandler = { [weak server] _ in
+            Task {
+                await server?.client.disconnect()
+            }
         }
+
+        return server
     }
 
     deinit {
         stop()
+    }
+
+    /// Terminate subprocess and disconnect MCP client. Safe to call multiple times.
+    ///
+    /// Disconnecting the client cancels its internal message-handling Task. Without
+    /// this, the SDK's loop hits a busy-spin once the transport is dead: the
+    /// for-await loop on the finished message stream returns immediately, then the
+    /// outer `repeat ... while true` loop iterates again with no `await` point that
+    /// suspends, consuming 100% CPU. With multiple tests in a serialized suite,
+    /// accumulated orphan tasks would starve the test runner and hang CI.
+    ///
+    /// Synchronous wrapper (using a semaphore) so it can be used from `defer`.
+    /// Safe from deadlock because Client.disconnect() runs on the client actor's
+    /// executor, which is independent of any thread held by the calling defer.
+    func stop() {
+        process.terminationHandler = nil
+        if process.isRunning {
+            process.terminate()
+            process.waitUntilExit()
+        }
+        let semaphore = DispatchSemaphore(value: 0)
+        let client = self.client
+        Task.detached {
+            await client.disconnect()
+            semaphore.signal()
+        }
+        semaphore.wait()
     }
 
     // MARK: - Tool calls
@@ -156,6 +191,18 @@ final class MCPTestServer: @unchecked Sendable {
             }
         } else if mimeType == "image/jpeg" {
             #expect(data[0] == 0xFF && data[1] == 0xD8, "Expected JPEG header")
+        }
+    }
+
+    /// Extract all image content items from a tool result.
+    static func extractImages(from content: [Tool.Content]) -> [(data: Data, mimeType: String)] {
+        content.compactMap { item in
+            if case .image(let base64, let mimeType, _) = item,
+                let data = Data(base64Encoded: base64)
+            {
+                return (data, mimeType)
+            }
+            return nil
         }
     }
 

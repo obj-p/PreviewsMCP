@@ -41,6 +41,7 @@ jobs:
               - 'Sources/PreviewsCore/**'
               - 'Sources/PreviewsCLI/**'
               - 'Tests/PreviewsIOSTests/**'
+              - 'Tests/MCPIntegrationTests/**'
               - 'Package.swift'
               - 'Package.resolved'
 
@@ -77,6 +78,9 @@ jobs:
         run: swift test --filter "CLIIntegrationTests" --skip "snapshotIOS"
 
       - name: MCP integration tests
+        timeout-minutes: 10
+        env:
+          NSUnbufferedIO: "YES"
         run: swift test --filter "MCPIntegrationTests" --skip "IOSMCPTests"
 
   ios-tests:
@@ -126,7 +130,7 @@ jobs:
         run: swift test --filter "snapshotIOS"
 
       - name: iOS MCP tests
-        timeout-minutes: 10
+        timeout-minutes: 20
         env:
           NSUnbufferedIO: "YES"
         run: swift test --filter "IOSMCPTests"

@@ -44,6 +44,22 @@ public struct PreviewTraits: Sendable, Equatable {
         return PreviewTraits(colorScheme: colorScheme, dynamicTypeSize: dynamicTypeSize)
     }
 
+    /// Resolve a preset name to traits. Returns nil if unrecognized.
+    public static func fromPreset(_ name: String) -> PreviewTraits? {
+        if validColorSchemes.contains(name) {
+            return PreviewTraits(colorScheme: name)
+        }
+        if validDynamicTypeSizes.contains(name) {
+            return PreviewTraits(dynamicTypeSize: name)
+        }
+        return nil
+    }
+
+    /// All recognized preset names (color schemes + dynamic type sizes).
+    public static var allPresetNames: Set<String> {
+        validColorSchemes.union(validDynamicTypeSizes)
+    }
+
     public enum ValidationError: Error, LocalizedError {
         case invalidColorScheme(String)
         case invalidDynamicTypeSize(String)

@@ -171,6 +171,13 @@ public actor PreviewSession {
         return try await compile()
     }
 
+    /// Replace traits entirely (no merge) and recompile. Used by preview_variants
+    /// where each variant must be absolute, not accumulated.
+    public func setTraits(_ newTraits: PreviewTraits) async throws -> CompileResult {
+        self.traits = newTraits
+        return try await compile()
+    }
+
     private static func moduleName(for file: URL) -> String {
         let stem = file.deletingPathExtension().lastPathComponent
         let hash = String(stableHash(file.path), radix: 16).prefix(6)
