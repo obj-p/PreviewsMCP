@@ -30,17 +30,15 @@ final class MCPTestServer: @unchecked Sendable {
     private let client: Client
     private let stdinPipe: Pipe
     private let stdoutPipe: Pipe
-    private let stderrPipe: Pipe
 
     private init(
         process: Process, client: Client,
-        stdinPipe: Pipe, stdoutPipe: Pipe, stderrPipe: Pipe
+        stdinPipe: Pipe, stdoutPipe: Pipe
     ) {
         self.process = process
         self.client = client
         self.stdinPipe = stdinPipe
         self.stdoutPipe = stdoutPipe
-        self.stderrPipe = stderrPipe
     }
 
     // MARK: - Lifecycle
@@ -58,20 +56,13 @@ final class MCPTestServer: @unchecked Sendable {
 
         let stdinPipe = Pipe()
         let stdoutPipe = Pipe()
-        let stderrPipe = Pipe()
         process.standardInput = stdinPipe
         process.standardOutput = stdoutPipe
-        process.standardError = stderrPipe
-
-        // Forward stderr to test stderr so server diagnostics show up in test output and CI logs.
-        // Also drains the pipe to prevent the server from blocking on a full buffer.
-        // Split by newlines so each line is independently prefixed and atomically written
-        // (a single write() syscall is atomic up to PIPE_BUF, avoiding interleaving with
-        // concurrent writes from the test process).
-        let forwarder = StderrForwarder()
-        stderrPipe.fileHandleForReading.readabilityHandler = { handle in
-            forwarder.handle(chunk: handle.availableData)
-        }
+        // Forward server stderr directly to test stderr (no pipe, no readabilityHandler).
+        // Using FileHandle.standardError instead of a Pipe avoids creating a dispatch source
+        // that would keep the test binary's main run loop alive after the subprocess dies
+        // (observed on macOS 15 CI runners where the source persists beyond pipe closure).
+        process.standardError = FileHandle.standardError
 
         try process.run()
 
@@ -84,7 +75,7 @@ final class MCPTestServer: @unchecked Sendable {
 
         let server = MCPTestServer(
             process: process, client: client,
-            stdinPipe: stdinPipe, stdoutPipe: stdoutPipe, stderrPipe: stderrPipe
+            stdinPipe: stdinPipe, stdoutPipe: stdoutPipe
         )
 
         // Detect unexpected server termination so pending callTool requests fail fast
@@ -107,11 +98,6 @@ final class MCPTestServer: @unchecked Sendable {
         // Clear termination handler so manual stop() doesn't trigger the unexpected-exit
         // diagnostic / disconnect path.
         process.terminationHandler = nil
-        // Clear stderr readabilityHandler — its underlying dispatch source keeps the
-        // test binary's main run loop alive after the subprocess dies, preventing the
-        // test runner from exiting (observed on macOS 15 CI runners; macOS 26 appears
-        // to clean it up automatically when the pipe FD is closed).
-        stderrPipe.fileHandleForReading.readabilityHandler = nil
         if process.isRunning {
             process.terminate()
             process.waitUntilExit()
@@ -223,28 +209,6 @@ enum MCPTestError: Error, LocalizedError {
         case .noSessionID(let text): "No session ID found in: \(text)"
         case .invalidBase64: "Invalid base64 image data"
         case .noImageContent: "No image content in tool result"
-        }
-    }
-}
-
-/// Buffers partial stderr chunks and writes complete lines (prefixed with "[server] ")
-/// to the test process's stderr. Thread-safe via internal lock — the readabilityHandler
-/// can be invoked from any background queue.
-private final class StderrForwarder: @unchecked Sendable {
-    private let lock = NSLock()
-    private var carry = Data()
-
-    func handle(chunk: Data) {
-        guard !chunk.isEmpty else { return }
-        lock.lock()
-        defer { lock.unlock() }
-        carry.append(chunk)
-        while let nl = carry.firstIndex(of: 0x0A) {
-            var line = Data("[server] ".utf8)
-            line.append(carry[..<nl])
-            line.append(0x0A)
-            FileHandle.standardError.write(line)
-            carry = carry[(nl + 1)...]
         }
     }
 }
