@@ -591,6 +591,7 @@ private func startMacOSPreview(
 }
 
 private func handlePreviewSnapshot(params: CallTool.Parameters) async throws -> CallTool.Result {
+    fputs("snapshot: enter\n", stderr)
     let sessionID: String
     do { sessionID = try extractString("sessionID", from: params) } catch {
         return CallTool.Result(content: [.text(error.localizedDescription)], isError: true)
@@ -610,17 +611,25 @@ private func handlePreviewSnapshot(params: CallTool.Parameters) async throws -> 
     }
 
     // macOS path
+    fputs("snapshot: sleeping 300ms\n", stderr)
     try await Task.sleep(for: .milliseconds(300))
 
+    fputs("snapshot: hopping to MainActor\n", stderr)
     let format: Snapshot.ImageFormat = usePNG ? .png : .jpeg(quality: quality)
     let imageData: Data = try await MainActor.run {
+        fputs("snapshot: on MainActor, capturing window\n", stderr)
         guard let window = App.host.window(for: sessionID) else {
+            fputs("snapshot: no window for session\n", stderr)
             throw SnapshotError.captureFailed
         }
-        return try Snapshot.capture(window: window, format: format)
+        let data = try Snapshot.capture(window: window, format: format)
+        fputs("snapshot: captured \(data.count) bytes\n", stderr)
+        return data
     }
 
+    fputs("snapshot: encoding base64\n", stderr)
     let base64 = imageData.base64EncodedString()
+    fputs("snapshot: returning result\n", stderr)
 
     return CallTool.Result(content: [
         .image(data: base64, mimeType: mimeType, metadata: nil)
