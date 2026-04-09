@@ -58,11 +58,15 @@ final class MCPTestServer: @unchecked Sendable {
         let stdoutPipe = Pipe()
         process.standardInput = stdinPipe
         process.standardOutput = stdoutPipe
-        // Forward server stderr directly to test stderr (no pipe, no readabilityHandler).
-        // Using FileHandle.standardError instead of a Pipe avoids creating a dispatch source
-        // that would keep the test binary's main run loop alive after the subprocess dies
-        // (observed on macOS 15 CI runners where the source persists beyond pipe closure).
-        process.standardError = FileHandle.standardError
+        // Discard server stderr. Two earlier approaches both caused CI hangs on macOS 15:
+        //  1. Pipe + readabilityHandler — the dispatch source persisted in the test
+        //     binary's CFRunLoop after the subprocess died, blocking process exit.
+        //  2. Sharing FileHandle.standardError with the child — caused previewsmcp's
+        //     own startup to hang on subsequent test runs (cause unclear; possibly
+        //     related to NSApplication's stderr handling).
+        // /dev/null is the only configuration that avoids both bugs. We lose visibility
+        // into server diagnostics but gain reliable test cleanup.
+        process.standardError = FileHandle.nullDevice
 
         try process.run()
 
@@ -79,12 +83,9 @@ final class MCPTestServer: @unchecked Sendable {
         )
 
         // Detect unexpected server termination so pending callTool requests fail fast
-        // instead of hanging forever on the MCP client's continuation.
-        process.terminationHandler = { [weak server] proc in
-            FileHandle.standardError.write(
-                "[server] previewsmcp exited with status \(proc.terminationStatus) (reason: \(proc.terminationReason.rawValue))\n"
-                    .data(using: .utf8)!
-            )
+        // instead of hanging forever on the MCP client's continuation, and so the SDK's
+        // busy-spin loop (see stop() docs) doesn't accumulate.
+        process.terminationHandler = { [weak server] _ in
             Task { [weak server] in
                 await server?.client.disconnect()
             }
@@ -93,19 +94,35 @@ final class MCPTestServer: @unchecked Sendable {
         return server
     }
 
-    /// Terminate subprocess. Safe to call multiple times.
+    deinit {
+        stop()
+    }
+
+    /// Terminate subprocess and disconnect MCP client. Safe to call multiple times.
+    ///
+    /// Disconnecting the client cancels its internal message-handling Task. Without
+    /// this, the SDK's loop hits a busy-spin once the transport is dead: the
+    /// for-await loop on the finished message stream returns immediately, then the
+    /// outer `repeat ... while true` loop iterates again with no `await` point that
+    /// suspends, consuming 100% CPU. With multiple tests in a serialized suite,
+    /// accumulated orphan tasks would starve the test runner and hang CI.
+    ///
+    /// Synchronous wrapper (using a semaphore) so it can be used from `defer`.
+    /// Safe from deadlock because Client.disconnect() runs on the client actor's
+    /// executor, which is independent of any thread held by the calling defer.
     func stop() {
-        // Clear termination handler so manual stop() doesn't trigger the unexpected-exit
-        // diagnostic / disconnect path.
         process.terminationHandler = nil
         if process.isRunning {
             process.terminate()
             process.waitUntilExit()
         }
-    }
-
-    deinit {
-        stop()
+        let semaphore = DispatchSemaphore(value: 0)
+        let client = self.client
+        Task.detached {
+            await client.disconnect()
+            semaphore.signal()
+        }
+        semaphore.wait()
     }
 
     // MARK: - Tool calls
