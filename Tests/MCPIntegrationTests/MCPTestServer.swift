@@ -58,9 +58,14 @@ final class MCPTestServer: @unchecked Sendable {
         process.standardOutput = stdoutPipe
         process.standardError = stderrPipe
 
-        // Drain stderr continuously to prevent pipe buffer from filling and blocking the server.
+        // Forward stderr to test stderr so server diagnostics show up in test output and CI logs.
+        // Also drains the pipe to prevent the server from blocking on a full buffer.
+        // Split by newlines so each line is independently prefixed and atomically written
+        // (a single write() syscall is atomic up to PIPE_BUF, avoiding interleaving with
+        // concurrent writes from the test process).
+        let forwarder = StderrForwarder()
         stderrPipe.fileHandleForReading.readabilityHandler = { handle in
-            _ = handle.availableData
+            forwarder.handle(chunk: handle.availableData)
         }
 
         try process.run()
@@ -72,14 +77,31 @@ final class MCPTestServer: @unchecked Sendable {
         let client = Client(name: "mcp-integration-test", version: "1.0")
         _ = try await client.connect(transport: transport)
 
-        return MCPTestServer(
+        let server = MCPTestServer(
             process: process, client: client,
             stdinPipe: stdinPipe, stdoutPipe: stdoutPipe
         )
+
+        // Detect unexpected server termination so pending callTool requests fail fast
+        // instead of hanging forever on the MCP client's continuation.
+        process.terminationHandler = { [weak server] proc in
+            FileHandle.standardError.write(
+                "[server] previewsmcp exited with status \(proc.terminationStatus) (reason: \(proc.terminationReason.rawValue))\n"
+                    .data(using: .utf8)!
+            )
+            Task { [weak server] in
+                await server?.client.disconnect()
+            }
+        }
+
+        return server
     }
 
     /// Terminate subprocess. Safe to call multiple times.
     func stop() {
+        // Clear termination handler so manual stop() doesn't trigger the unexpected-exit
+        // diagnostic / disconnect path.
+        process.terminationHandler = nil
         if process.isRunning {
             process.terminate()
             process.waitUntilExit()
@@ -191,6 +213,28 @@ enum MCPTestError: Error, LocalizedError {
         case .noSessionID(let text): "No session ID found in: \(text)"
         case .invalidBase64: "Invalid base64 image data"
         case .noImageContent: "No image content in tool result"
+        }
+    }
+}
+
+/// Buffers partial stderr chunks and writes complete lines (prefixed with "[server] ")
+/// to the test process's stderr. Thread-safe via internal lock — the readabilityHandler
+/// can be invoked from any background queue.
+private final class StderrForwarder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var carry = Data()
+
+    func handle(chunk: Data) {
+        guard !chunk.isEmpty else { return }
+        lock.lock()
+        defer { lock.unlock() }
+        carry.append(chunk)
+        while let nl = carry.firstIndex(of: 0x0A) {
+            var line = Data("[server] ".utf8)
+            line.append(carry[..<nl])
+            line.append(0x0A)
+            FileHandle.standardError.write(line)
+            carry = carry[(nl + 1)...]
         }
     }
 }
