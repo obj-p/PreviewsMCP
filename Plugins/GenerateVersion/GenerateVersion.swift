@@ -19,7 +19,7 @@ struct GenerateVersion: BuildToolPlugin {
                 ],
                 inputFiles: [gitHeadURL],
                 outputFiles: [outputPath]
-            ),
+            )
         ]
     }
 

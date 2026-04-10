@@ -11,7 +11,8 @@ enum GenerateVersionTool {
         let outputPath = CommandLine.arguments[2]
 
         let version = gitDescribe(in: repoDir) ?? "unknown"
-        let escaped = version
+        let escaped =
+            version
             .replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "\"", with: "\\\"")
 
