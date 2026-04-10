@@ -9,7 +9,8 @@ let package = Package(
         .library(name: "ToDoExtras", targets: ["ToDoExtras"]),
     ],
     dependencies: [
-        .package(path: "LocalDep")
+        .package(path: "LocalDep"),
+        .package(url: "https://github.com/airbnb/lottie-spm.git", from: "4.4.0"),
     ],
     targets: [
         .target(
@@ -18,7 +19,11 @@ let package = Package(
         ),
         .target(
             name: "ToDo",
-            dependencies: ["ToDoExtras", .product(name: "LocalDep", package: "LocalDep")],
+            dependencies: [
+                "ToDoExtras",
+                .product(name: "LocalDep", package: "LocalDep"),
+                .product(name: "Lottie", package: "lottie-spm"),
+            ],
             path: "Sources/ToDo"
         ),
     ]

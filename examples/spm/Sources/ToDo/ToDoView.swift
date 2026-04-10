@@ -1,3 +1,4 @@
+import Lottie
 import SwiftUI
 
 /// A view that references `Item` from Item.swift.
@@ -60,6 +61,12 @@ struct ToDoView: View {
                 }
             }
             .navigationTitle("My Items")
+            .overlay {
+                if items.isEmpty {
+                    LottieView(animation: nil)
+                        .frame(width: 100, height: 100)
+                }
+            }
         }
     }
 }
