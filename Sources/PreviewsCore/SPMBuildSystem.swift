@@ -228,19 +228,25 @@ public actor SPMBuildSystem: BuildSystem {
             let objectFiles = collectObjectFiles(in: entry)
             guard !objectFiles.isEmpty else { continue }
 
+            // Write to a temp file and atomically rename to avoid a race where a
+            // concurrent compile reads the archive between delete and recreate.
             let archivePath = binPath.appendingPathComponent("lib\(targetName).a")
-            // `ar rcs` replaces any existing archive, so rebuilds stay consistent.
-            try? fm.removeItem(at: archivePath)
+            let tmpArchivePath = binPath.appendingPathComponent("lib\(targetName).a.tmp")
+            try? fm.removeItem(at: tmpArchivePath)
 
-            var arArgs = ["rcs", archivePath.path]
+            var arArgs = ["rcs", tmpArchivePath.path]
             arArgs.append(contentsOf: objectFiles.map(\.path))
             let result = try await runAsync(arPath, arguments: arArgs)
             guard result.exitCode == 0 else {
+                try? fm.removeItem(at: tmpArchivePath)
                 throw BuildSystemError.buildFailed(
                     stderr: "ar failed for \(targetName): \(result.stderr)",
                     exitCode: result.exitCode
                 )
             }
+            // Atomic rename: the archive is never absent from the perspective of
+            // a concurrent linker that reads it between two archiveDependencyTargets calls.
+            _ = try? fm.replaceItemAt(archivePath, withItemAt: tmpArchivePath)
             libs.append(targetName)
         }
 
