@@ -814,18 +814,11 @@ private func handlePreviewConfigure(params: CallTool.Parameters) async throws ->
 // MARK: - preview_variants
 
 private enum VariantError: Error, LocalizedError {
-    case unknownPreset(String)
-    case emptyVariantObject
     case invalidVariantType
     case emptyVariantsArray
 
     var errorDescription: String? {
         switch self {
-        case .unknownPreset(let name):
-            return
-                "Unknown variant preset '\(name)'. Valid presets: \(PreviewTraits.allPresetNames.sorted().joined(separator: ", "))"
-        case .emptyVariantObject:
-            return "Variant object must specify at least one trait (colorScheme or dynamicTypeSize)"
         case .invalidVariantType:
             return
                 "Each variant must be a preset name string or a JSON object string with colorScheme/dynamicTypeSize"
@@ -835,32 +828,12 @@ private enum VariantError: Error, LocalizedError {
     }
 }
 
-/// Resolve a variant value (preset name string or JSON object string) to traits and a label.
-private func resolveVariant(_ value: Value) throws -> (traits: PreviewTraits, label: String) {
+/// Unwrap an MCP Value to a String, then resolve via PreviewTraits.parseVariantString.
+private func resolveVariant(_ value: Value) throws -> PreviewTraits.Variant {
     guard case .string(let str) = value else {
         throw VariantError.invalidVariantType
     }
-
-    // Try as a preset name first
-    if let traits = PreviewTraits.fromPreset(str) {
-        return (traits, str)
-    }
-
-    // Try parsing as JSON object string
-    guard let data = str.data(using: .utf8),
-        let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-    else {
-        throw VariantError.unknownPreset(str)
-    }
-
-    let colorScheme = json["colorScheme"] as? String
-    let dynamicTypeSize = json["dynamicTypeSize"] as? String
-    let traits = try PreviewTraits.validated(colorScheme: colorScheme, dynamicTypeSize: dynamicTypeSize)
-    if traits.isEmpty {
-        throw VariantError.emptyVariantObject
-    }
-    let label = (json["label"] as? String) ?? traitsSummary(traits)
-    return (traits, label)
+    return try PreviewTraits.parseVariantString(str)
 }
 
 private func handlePreviewVariants(params: CallTool.Parameters) async throws -> CallTool.Result {
@@ -879,7 +852,7 @@ private func handlePreviewVariants(params: CallTool.Parameters) async throws -> 
     }
 
     // Resolve all variants upfront — fail fast on validation errors before any recompilation
-    let resolved: [(traits: PreviewTraits, label: String)]
+    let resolved: [PreviewTraits.Variant]
     do {
         resolved = try variantValues.map { try resolveVariant($0) }
     } catch {
