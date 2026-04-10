@@ -20,7 +20,13 @@ public enum BuildSystemDetector {
     /// - Parameters:
     ///   - sourceFile: The Swift source file to detect the build system for.
     ///   - projectRoot: If provided, use this as the project root instead of auto-detecting.
-    public static func detect(for sourceFile: URL, projectRoot: URL? = nil) async throws -> (any BuildSystem)? {
+    ///   - scheme: Optional Xcode scheme name. Only used when the detected build
+    ///     system is `XcodeBuildSystem`; ignored for SPM and Bazel.
+    public static func detect(
+        for sourceFile: URL,
+        projectRoot: URL? = nil,
+        scheme: String? = nil
+    ) async throws -> (any BuildSystem)? {
         // If an explicit project root is provided, detect which build system applies there
         if let projectRoot = projectRoot {
             let fm = FileManager.default
@@ -43,7 +49,10 @@ public enum BuildSystemDetector {
             // Xcode: enumerate directory for *.xcworkspace / *.xcodeproj (name varies)
             if let projectFile = XcodeBuildSystem.findXcodeProject(in: projectRoot) {
                 return XcodeBuildSystem(
-                    projectRoot: projectRoot, sourceFile: sourceFile, projectFile: projectFile)
+                    projectRoot: projectRoot,
+                    sourceFile: sourceFile,
+                    projectFile: projectFile,
+                    requestedScheme: scheme)
             }
             return nil
         }
@@ -56,7 +65,7 @@ public enum BuildSystemDetector {
             return bazel
         }
         // Xcode (.xcworkspace / .xcodeproj)
-        if let xcode = try await XcodeBuildSystem.detect(for: sourceFile) {
+        if let xcode = try await XcodeBuildSystem.detect(for: sourceFile, scheme: scheme) {
             return xcode
         }
         return nil
@@ -69,6 +78,7 @@ public enum BuildSystemError: Error, LocalizedError {
     case targetNotFound(sourceFile: String, project: String)
     case missingArtifacts(String)
     case ambiguousTarget(sourceFile: String, candidates: [String])
+    case unknownScheme(requested: String, candidates: [String])
 
     public var errorDescription: String? {
         switch self {
@@ -80,7 +90,10 @@ public enum BuildSystemError: Error, LocalizedError {
             return "Build artifacts not found: \(msg)"
         case .ambiguousTarget(let file, let candidates):
             return
-                "Multiple schemes found for \(file). Use projectRoot to disambiguate. Available schemes: \(candidates.joined(separator: ", "))"
+                "Multiple schemes found for \(file) and none matched the source file's directory. Pass the `scheme` parameter to pick one. Available schemes: \(candidates.joined(separator: ", "))"
+        case .unknownScheme(let requested, let candidates):
+            return
+                "Scheme '\(requested)' not found in project. Available schemes: \(candidates.joined(separator: ", "))"
         }
     }
 }

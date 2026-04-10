@@ -531,6 +531,104 @@ struct BuildSystemTests {
         }
     }
 
+    @Test("XcodeBuildSystem ambiguousTarget error lists candidates and mentions scheme param")
+    func ambiguousTargetErrorMessage() async throws {
+        let xcode = XcodeBuildSystem(
+            projectRoot: URL(fileURLWithPath: "/tmp"),
+            sourceFile: URL(fileURLWithPath: "/tmp/Sources/Unknown/View.swift"),
+            projectFile: URL(fileURLWithPath: "/tmp/App.xcodeproj"))
+
+        let info = XcodeBuildSystem.ProjectInfo(schemes: ["Alpha", "Beta", "Gamma"])
+        do {
+            _ = try await xcode.pickScheme(from: info)
+            Issue.record("expected pickScheme to throw")
+        } catch let error as BuildSystemError {
+            let message = error.errorDescription ?? ""
+            #expect(message.contains("scheme"), "error should mention the scheme parameter")
+            #expect(message.contains("Alpha"))
+            #expect(message.contains("Beta"))
+            #expect(message.contains("Gamma"))
+        }
+    }
+
+    @Test("XcodeBuildSystem uses requestedScheme when it exists in the list")
+    func pickSchemeHonorsRequested() async throws {
+        let xcode = XcodeBuildSystem(
+            projectRoot: URL(fileURLWithPath: "/tmp"),
+            sourceFile: URL(fileURLWithPath: "/tmp/Sources/Alpha/View.swift"),
+            projectFile: URL(fileURLWithPath: "/tmp/App.xcodeproj"),
+            requestedScheme: "Beta")
+
+        // Path-component heuristic would pick Alpha, but explicit request wins.
+        let info = XcodeBuildSystem.ProjectInfo(schemes: ["Alpha", "Beta", "Gamma"])
+        let scheme = try await xcode.pickScheme(from: info)
+        #expect(scheme == "Beta")
+    }
+
+    @Test("XcodeBuildSystem throws unknownScheme when requestedScheme is not in the list")
+    func pickSchemeRejectsUnknownRequested() async throws {
+        let xcode = XcodeBuildSystem(
+            projectRoot: URL(fileURLWithPath: "/tmp"),
+            sourceFile: URL(fileURLWithPath: "/tmp/Sources/Alpha/View.swift"),
+            projectFile: URL(fileURLWithPath: "/tmp/App.xcodeproj"),
+            requestedScheme: "DoesNotExist")
+
+        let info = XcodeBuildSystem.ProjectInfo(schemes: ["Alpha", "Beta"])
+        do {
+            _ = try await xcode.pickScheme(from: info)
+            Issue.record("expected pickScheme to throw")
+        } catch let error as BuildSystemError {
+            let message = error.errorDescription ?? ""
+            #expect(message.contains("DoesNotExist"), "error should name the requested scheme")
+            #expect(message.contains("Alpha"))
+            #expect(message.contains("Beta"))
+        }
+    }
+
+    @Test("XcodeBuildSystem requestedScheme wins over single-scheme fast path")
+    func pickSchemeRequestedWinsOverSingle() async throws {
+        // Even when there's only one scheme, an explicit (mismatched) request
+        // should surface a clear error rather than silently using the only one.
+        let xcode = XcodeBuildSystem(
+            projectRoot: URL(fileURLWithPath: "/tmp"),
+            sourceFile: URL(fileURLWithPath: "/tmp/Sources/Alpha/View.swift"),
+            projectFile: URL(fileURLWithPath: "/tmp/App.xcodeproj"),
+            requestedScheme: "WrongName")
+
+        let info = XcodeBuildSystem.ProjectInfo(schemes: ["OnlyScheme"])
+        await #expect(throws: BuildSystemError.self) {
+            try await xcode.pickScheme(from: info)
+        }
+    }
+
+    @Test("BuildSystemDetector threads scheme into XcodeBuildSystem for explicit projectRoot")
+    func detectorPassesSchemeToXcode() async throws {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+
+        let xcodeproj = tmpDir.appendingPathComponent("MyApp.xcodeproj")
+        try FileManager.default.createDirectory(at: xcodeproj, withIntermediateDirectories: true)
+
+        let sourceFile = tmpDir.appendingPathComponent("main.swift")
+        try "import SwiftUI".write(to: sourceFile, atomically: true, encoding: .utf8)
+
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        // Without a scheme, the detector should still return an XcodeBuildSystem.
+        let unbranded = try await BuildSystemDetector.detect(
+            for: sourceFile, projectRoot: tmpDir)
+        #expect(unbranded is XcodeBuildSystem)
+
+        // With a scheme, pickScheme should honor it instead of the heuristic.
+        let branded = try await BuildSystemDetector.detect(
+            for: sourceFile, projectRoot: tmpDir, scheme: "Beta")
+        let xcode = try #require(branded as? XcodeBuildSystem)
+        let info = XcodeBuildSystem.ProjectInfo(schemes: ["Alpha", "Beta"])
+        let picked = try await xcode.pickScheme(from: info)
+        #expect(picked == "Beta")
+    }
+
     // MARK: - XcodeBuildSystem build settings parsing
 
     @Test("XcodeBuildSystem parses build settings output")

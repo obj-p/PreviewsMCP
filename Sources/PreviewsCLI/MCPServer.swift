@@ -136,6 +136,12 @@ func configureMCPServer() async throws -> (Server, Compiler) {
                                 "Project root path (auto-detected if omitted). Enables importing project types from SPM packages, Bazel swift_library targets, or Xcode projects (.xcodeproj / .xcworkspace)."
                             ),
                         ]),
+                        "scheme": .object([
+                            "type": .string("string"),
+                            "description": .string(
+                                "Xcode scheme name (only used for .xcodeproj / .xcworkspace projects). Required when the project contains more than one scheme and none of them match the source file's directory."
+                            ),
+                        ]),
                         "colorScheme": .object([
                             "type": .string("string"),
                             "enum": .array([.string("light"), .string("dark")]),
@@ -723,7 +729,14 @@ private func detectBuildContext(
     platform: PreviewPlatform
 ) async throws -> BuildContext? {
     let projectRootURL = extractOptionalString("projectPath", from: params).map { URL(fileURLWithPath: $0) }
-    return try await detectAndBuild(for: fileURL, projectRoot: projectRootURL, platform: platform, logPrefix: "MCP:")
+    let scheme = extractOptionalString("scheme", from: params)
+    return try await detectAndBuild(
+        for: fileURL,
+        projectRoot: projectRootURL,
+        platform: platform,
+        scheme: scheme,
+        logPrefix: "MCP:"
+    )
 }
 
 private func handleSimulatorList() async throws -> CallTool.Result {

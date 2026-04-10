@@ -27,6 +27,12 @@ struct RunCommand: ParsableCommand {
     @Option(name: .long, help: "Project root path (auto-detected if omitted)")
     var project: String?
 
+    @Option(
+        name: .long,
+        help: "Xcode scheme name (only for .xcodeproj / .xcworkspace projects with multiple schemes)"
+    )
+    var scheme: String?
+
     @Option(name: .long, help: "Simulator device UDID (for ios; auto-selects if omitted)")
     var device: String?
 
@@ -64,13 +70,17 @@ struct RunCommand: ParsableCommand {
         let windowWidth = width
         let windowHeight = height
         let projectPath = project
+        let schemeName = scheme
         let traits = PreviewTraits(colorScheme: colorScheme, dynamicTypeSize: dynamicTypeSize)
 
         Task {
             do {
                 let projectRootURL = projectPath.map { URL(fileURLWithPath: $0) }
                 let buildContext = try await detectAndBuild(
-                    for: fileURL, projectRoot: projectRootURL, platform: .macOS)
+                    for: fileURL,
+                    projectRoot: projectRootURL,
+                    platform: .macOS,
+                    scheme: schemeName)
 
                 try await launchMacOSPreview(
                     fileURL: fileURL,
@@ -92,6 +102,7 @@ struct RunCommand: ParsableCommand {
         let previewIndex = preview
         let deviceUDID = device
         let projectPath = project
+        let schemeName = scheme
         let traits = PreviewTraits(colorScheme: colorScheme, dynamicTypeSize: dynamicTypeSize)
         let isHeadless = headless
 
@@ -99,7 +110,10 @@ struct RunCommand: ParsableCommand {
             do {
                 let projectRootURL = projectPath.map { URL(fileURLWithPath: $0) }
                 let buildContext = try await detectAndBuild(
-                    for: fileURL, projectRoot: projectRootURL, platform: .iOS)
+                    for: fileURL,
+                    projectRoot: projectRootURL,
+                    platform: .iOS,
+                    scheme: schemeName)
 
                 try await launchIOSPreview(
                     fileURL: fileURL,

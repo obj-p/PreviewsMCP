@@ -5,21 +5,35 @@ public actor XcodeBuildSystem: BuildSystem {
     public nonisolated let projectRoot: URL
     private let sourceFile: URL
     private let projectFile: URL
+    private let requestedScheme: String?
 
     /// The xcodebuild flag for referencing the project or workspace.
     private var xcodebuildFlag: String {
         projectFile.pathExtension == "xcworkspace" ? "-workspace" : "-project"
     }
 
-    public init(projectRoot: URL, sourceFile: URL, projectFile: URL) {
+    public init(
+        projectRoot: URL,
+        sourceFile: URL,
+        projectFile: URL,
+        requestedScheme: String? = nil
+    ) {
         self.projectRoot = projectRoot
         self.sourceFile = sourceFile.standardizedFileURL
         self.projectFile = projectFile
+        self.requestedScheme = requestedScheme
     }
 
     // MARK: - Detection
 
     public static func detect(for sourceFile: URL) async throws -> XcodeBuildSystem? {
+        try await detect(for: sourceFile, scheme: nil)
+    }
+
+    public static func detect(
+        for sourceFile: URL,
+        scheme: String?
+    ) async throws -> XcodeBuildSystem? {
         var dir = sourceFile.deletingLastPathComponent().standardizedFileURL
         let root = URL(fileURLWithPath: "/")
 
@@ -27,8 +41,10 @@ public actor XcodeBuildSystem: BuildSystem {
             if let projectFile = findXcodeProject(in: dir) {
                 guard await isXcodebuildAvailable() else { return nil }
                 return XcodeBuildSystem(
-                    projectRoot: dir, sourceFile: sourceFile.standardizedFileURL,
-                    projectFile: projectFile)
+                    projectRoot: dir,
+                    sourceFile: sourceFile.standardizedFileURL,
+                    projectFile: projectFile,
+                    requestedScheme: scheme)
             }
             dir = dir.deletingLastPathComponent()
         }
@@ -134,14 +150,29 @@ public actor XcodeBuildSystem: BuildSystem {
                 sourceFile: sourceFile.lastPathComponent,
                 project: projectFile.lastPathComponent)
         }
+
+        // 1. Explicit scheme from caller wins, if it's actually in the list.
+        if let requested = requestedScheme {
+            if schemes.contains(requested) {
+                return requested
+            }
+            throw BuildSystemError.unknownScheme(
+                requested: requested,
+                candidates: schemes)
+        }
+
+        // 2. Exactly one scheme: unambiguous.
         if schemes.count == 1 { return schemes[0] }
 
-        // Try to match a scheme name to a directory component in the source file path
+        // 3. Multiple schemes: try to match the target directory containing the
+        //    source file. This is a heuristic and only fires when a scheme name
+        //    appears as a directory component on the source file path.
         let pathComponents = Set(sourceFile.pathComponents)
         if let match = schemes.first(where: { pathComponents.contains($0) }) {
             return match
         }
 
+        // 4. Give up and ask the caller to disambiguate.
         throw BuildSystemError.ambiguousTarget(
             sourceFile: sourceFile.lastPathComponent,
             candidates: schemes)
