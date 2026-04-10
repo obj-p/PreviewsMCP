@@ -48,6 +48,33 @@ struct PreviewSessionBuildContextTests {
 
     // MARK: - Tests
 
+    @Test("SPM build context surfaces dependency libs for sibling and cross-package targets (#69)")
+    func spmLinksDependencyTargets() async throws {
+        let ctx = try await Self.buildSPMExample()
+
+        let flags = ctx.compilerFlags
+        #expect(
+            flags.contains("-L"),
+            "SPMBuildSystem should add -L <binPath> after swift build"
+        )
+        // Sibling target inside the same Package.swift
+        #expect(
+            flags.contains("-lToDoExtras"),
+            "SPMBuildSystem should archive and link sibling target deps; flags were: \(flags)"
+        )
+        // Cross-package dependency resolved via .package(path: "LocalDep")
+        #expect(
+            flags.contains("-lLocalDep"),
+            "SPMBuildSystem should archive and link cross-package path deps; flags were: \(flags)"
+        )
+        // The consumer target itself must not be linked as -lToDo; Tier 2 compiles
+        // those sources directly and a second copy would cause duplicate-symbol errors.
+        #expect(
+            !flags.contains("-lToDo"),
+            "Consumer target should not be linked as a library"
+        )
+    }
+
     @Test("Tier 2 compile: dylib + populated literals + DesignTimeStore symbols")
     func tier2Compile() async throws {
         let ctx = try await Self.buildSPMExample()

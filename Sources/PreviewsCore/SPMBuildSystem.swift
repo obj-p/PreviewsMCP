@@ -61,10 +61,30 @@ public actor SPMBuildSystem: BuildSystem {
             )
         }
 
-        // 6. Build compiler flags
+        // 6. Archive dependency targets into libDep.a files.
+        //    SPM leaves library targets as loose .o files under <Dep>.build/ instead
+        //    of creating .a archives, and .swiftmodule files don't carry autolink
+        //    hints (no -module-link-name), so we have to make the archives ourselves
+        //    and pass -l<Dep> explicitly below.
+        let dependencyLibs = try await archiveDependencyTargets(
+            binPath: binPath,
+            consumerTargetName: targetName
+        )
+
+        // 7. Build compiler flags
+        //    -I <Modules>   resolves dependency .swiftmodule files at compile time
+        //    -L <binPath>   library search path for the archives created above
+        //    -l<Dep>        per-dependency archive (lazy archive linking means only
+        //                   object files actually referenced get pulled in)
         var flags: [String] = [
             "-I", modulesDir.path,
         ]
+        if !dependencyLibs.isEmpty {
+            flags += ["-L", binPath.path]
+            for dep in dependencyLibs {
+                flags += ["-l\(dep)"]
+            }
+        }
 
         // Add C module include paths for targets with C shims
         let targetBuildDir = binPath.appendingPathComponent("\(targetName).build")
@@ -73,7 +93,7 @@ public actor SPMBuildSystem: BuildSystem {
             flags += ["-I", includeDir.path]
         }
 
-        // 7. Collect Tier 2 data: other source files in the target
+        // 8. Collect Tier 2 data: other source files in the target
         let otherSourceFiles = try collectSourceFiles(
             targetName: targetName,
             in: description
@@ -155,6 +175,104 @@ public actor SPMBuildSystem: BuildSystem {
             "/usr/bin/env", args: args, workingDirectory: projectRoot
         )
         return URL(fileURLWithPath: output)
+    }
+
+    // MARK: - Private: Dependency Archives
+
+    /// Archive every non-consumer target's `.o` files into `<binPath>/lib<Target>.a`
+    /// and return the list of target names (for use with `-l<Target>`).
+    ///
+    /// SPM's `swift build` produces loose object files under `<binPath>/<Target>.build/`
+    /// for each library target without creating a static archive, and doesn't emit
+    /// autolink hints for them either. So the bridge compile can't discover or link
+    /// dependency symbols on its own — we have to stage the archives ourselves.
+    ///
+    /// Consumer target `.build/` is skipped because Tier 2 already recompiles its
+    /// sources directly. All other sibling targets (and transitively-built external
+    /// packages, which land in the same bin path) are archived.
+    private func archiveDependencyTargets(
+        binPath: URL,
+        consumerTargetName: String
+    ) async throws -> [String] {
+        let fm = FileManager.default
+        guard
+            let entries = try? fm.contentsOfDirectory(
+                at: binPath,
+                includingPropertiesForKeys: [.isDirectoryKey],
+                options: [.skipsHiddenFiles]
+            )
+        else {
+            return []
+        }
+
+        let arPath = try await Self.resolvedArPath()
+        var libs: [String] = []
+
+        for entry in entries {
+            // We want `<binPath>/<Target>.build/` directories.
+            let name = entry.lastPathComponent
+            guard name.hasSuffix(".build") else { continue }
+            var isDir: ObjCBool = false
+            guard fm.fileExists(atPath: entry.path, isDirectory: &isDir), isDir.boolValue else {
+                continue
+            }
+
+            let targetName = String(name.dropLast(".build".count))
+            // Skip the consumer target — Tier 2 compiles its sources directly, and
+            // archiving them here would cause duplicate-symbol errors at link time.
+            if targetName == consumerTargetName { continue }
+            // Skip SPM's own plugin/support bundles if any.
+            if targetName.hasPrefix("_") { continue }
+
+            // Collect .o files produced for this target.
+            let objectFiles = collectObjectFiles(in: entry)
+            guard !objectFiles.isEmpty else { continue }
+
+            let archivePath = binPath.appendingPathComponent("lib\(targetName).a")
+            // `ar rcs` replaces any existing archive, so rebuilds stay consistent.
+            try? fm.removeItem(at: archivePath)
+
+            var arArgs = ["rcs", archivePath.path]
+            arArgs.append(contentsOf: objectFiles.map(\.path))
+            let result = try await runAsync(arPath, arguments: arArgs)
+            guard result.exitCode == 0 else {
+                throw BuildSystemError.buildFailed(
+                    stderr: "ar failed for \(targetName): \(result.stderr)",
+                    exitCode: result.exitCode
+                )
+            }
+            libs.append(targetName)
+        }
+
+        return libs
+    }
+
+    /// Recursively collect `.o` files under a target's build directory, including
+    /// files named `Foo.swift.o` that swift build emits for Swift sources.
+    private func collectObjectFiles(in directory: URL) -> [URL] {
+        guard
+            let enumerator = FileManager.default.enumerator(
+                at: directory,
+                includingPropertiesForKeys: nil,
+                options: [.skipsHiddenFiles]
+            )
+        else {
+            return []
+        }
+        var files: [URL] = []
+        for case let url as URL in enumerator where url.pathExtension == "o" {
+            files.append(url)
+        }
+        return files
+    }
+
+    private static func resolvedArPath() async throws -> String {
+        let output = try await runAsync(
+            "/usr/bin/xcrun", arguments: ["--find", "ar"], discardStderr: true)
+        guard output.exitCode == 0 else {
+            throw BuildSystemError.missingArtifacts("Could not locate `ar` via xcrun")
+        }
+        return output.stdout
     }
 
     // MARK: - Private: Source Files (Tier 2)

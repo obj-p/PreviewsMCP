@@ -32,6 +32,12 @@ struct SnapshotCommand: ParsableCommand {
     @Option(name: .long, help: "Project root path (auto-detected if omitted)")
     var project: String?
 
+    @Option(
+        name: .long,
+        help: "Xcode scheme name (only for .xcodeproj / .xcworkspace projects with multiple schemes)"
+    )
+    var scheme: String?
+
     @Option(name: .long, help: "Simulator device UDID (for ios; auto-selects if omitted)")
     var device: String?
 
@@ -67,6 +73,7 @@ struct SnapshotCommand: ParsableCommand {
         let windowHeight = height
         let outputURL = URL(fileURLWithPath: output)
         let projectPath = project
+        let schemeName = scheme
         let traits = PreviewTraits(colorScheme: colorScheme, dynamicTypeSize: dynamicTypeSize)
 
         Task {
@@ -75,7 +82,11 @@ struct SnapshotCommand: ParsableCommand {
 
                 // Detect build system
                 let projectRootURL = projectPath.map { URL(fileURLWithPath: $0) }
-                let buildContext = try await detectAndBuild(for: fileURL, projectRoot: projectRootURL, platform: .macOS)
+                let buildContext = try await detectAndBuild(
+                    for: fileURL,
+                    projectRoot: projectRootURL,
+                    platform: .macOS,
+                    scheme: schemeName)
 
                 let session = PreviewSession(
                     sourceFile: fileURL,
@@ -134,6 +145,7 @@ struct SnapshotCommand: ParsableCommand {
         let outputURL = URL(fileURLWithPath: output)
         let deviceUDID = device
         let projectPath = project
+        let schemeName = scheme
         let traits = PreviewTraits(colorScheme: colorScheme, dynamicTypeSize: dynamicTypeSize)
 
         Task {
@@ -148,7 +160,10 @@ struct SnapshotCommand: ParsableCommand {
                 // Detect build system
                 let projectRootURL = projectPath.map { URL(fileURLWithPath: $0) }
                 let buildContext = try await detectAndBuild(
-                    for: fileURL, projectRoot: projectRootURL, platform: .iOS)
+                    for: fileURL,
+                    projectRoot: projectRootURL,
+                    platform: .iOS,
+                    scheme: schemeName)
 
                 let session = IOSPreviewSession(
                     sourceFile: fileURL,

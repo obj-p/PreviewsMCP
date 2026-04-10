@@ -10,11 +10,12 @@ func detectAndBuild(
     for fileURL: URL,
     projectRoot projectRootURL: URL?,
     platform: PreviewPlatform,
+    scheme: String? = nil,
     logPrefix: String = ""
 ) async throws -> BuildContext? {
     guard
         let buildSystem = try await BuildSystemDetector.detect(
-            for: fileURL, projectRoot: projectRootURL
+            for: fileURL, projectRoot: projectRootURL, scheme: scheme
         )
     else {
         return nil
