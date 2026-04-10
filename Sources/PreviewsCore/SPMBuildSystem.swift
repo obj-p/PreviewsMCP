@@ -229,11 +229,10 @@ public actor SPMBuildSystem: BuildSystem {
             guard !objectFiles.isEmpty else { continue }
 
             // Write to a unique temp file and atomically swap into place so a
-            // concurrent linker never sees the archive as missing. UUID avoids
-            // collisions between parallel archiveDependencyTargets callers.
+            // concurrent linker never sees the archive as missing.
             let archivePath = binPath.appendingPathComponent("lib\(targetName).a")
             let tmpArchivePath = binPath.appendingPathComponent(
-                "lib\(targetName).a.\(UUID().uuidString).tmp")
+                "lib\(targetName).a.\(ProcessInfo.processInfo.globallyUniqueString).tmp")
 
             var arArgs = ["rcs", tmpArchivePath.path]
             arArgs.append(contentsOf: objectFiles.map(\.path))
