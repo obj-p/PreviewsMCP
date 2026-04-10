@@ -3,6 +3,7 @@ import MCP
 import PreviewsCore
 import PreviewsIOS
 import PreviewsMacOS
+import os
 
 /// Tool names for MCP server. Used in both schema definitions and dispatch.
 private enum ToolName: String {
@@ -65,6 +66,52 @@ private actor IOSState {
 
 private let iosState = IOSState()
 
+/// MCP progress reporter that sends progress notifications and log messages to the client.
+final class MCPProgressReporter: ProgressReporter, @unchecked Sendable {
+    private let server: Server
+    private let progressToken: ProgressToken?
+    private let totalSteps: Int
+    private let stepCounter: OSAllocatedUnfairLock<Int>
+
+    init(server: Server, progressToken: ProgressToken?, totalSteps: Int) {
+        self.server = server
+        self.progressToken = progressToken
+        self.totalSteps = totalSteps
+        self.stepCounter = OSAllocatedUnfairLock(initialState: 0)
+    }
+
+    func report(_ phase: BuildPhase, message: String) async {
+        let step = stepCounter.withLock { value -> Int in
+            value += 1
+            return value
+        }
+        try? await server.log(
+            level: .info, logger: "preview",
+            data: .string("[\(step)/\(totalSteps)] \(message)"))
+        if let token = progressToken {
+            try? await server.notify(
+                ProgressNotification.message(
+                    .init(
+                        progressToken: token,
+                        progress: Double(step),
+                        total: Double(totalSteps),
+                        message: message
+                    )))
+        }
+    }
+}
+
+/// Create an MCP progress reporter for the given tool call parameters.
+private func mcpReporter(
+    server: Server, params: CallTool.Parameters, totalSteps: Int
+) -> MCPProgressReporter {
+    MCPProgressReporter(
+        server: server,
+        progressToken: params._meta?.progressToken,
+        totalSteps: totalSteps
+    )
+}
+
 /// Configures and returns an MCP server with preview tools.
 func configureMCPServer() async throws -> (Server, Compiler) {
     // Clean up stale temp directories from previous sessions (older than 24 hours)
@@ -74,8 +121,8 @@ func configureMCPServer() async throws -> (Server, Compiler) {
 
     let server = Server(
         name: "previewsmcp",
-        version: "0.2.0",
-        capabilities: .init(tools: .init(listChanged: false))
+        version: PreviewsMCPCommand.version,
+        capabilities: .init(logging: .init(), tools: .init(listChanged: false))
     )
 
     await server.withMethodHandler(ListTools.self) { _ in
@@ -354,7 +401,7 @@ func configureMCPServer() async throws -> (Server, Compiler) {
         ])
     }
 
-    await server.withMethodHandler(CallTool.self) { params in
+    await server.withMethodHandler(CallTool.self) { [server] params in
         guard let tool = ToolName(rawValue: params.name) else {
             return CallTool.Result(content: [.text("Unknown tool: \(params.name)")], isError: true)
         }
@@ -362,13 +409,13 @@ func configureMCPServer() async throws -> (Server, Compiler) {
         case .previewList:
             return try await handlePreviewList(params: params)
         case .previewStart:
-            return try await handlePreviewStart(params: params, macCompiler: compiler)
+            return try await handlePreviewStart(params: params, macCompiler: compiler, server: server)
         case .previewSnapshot:
             return try await handlePreviewSnapshot(params: params)
         case .previewConfigure:
-            return try await handlePreviewConfigure(params: params)
+            return try await handlePreviewConfigure(params: params, server: server)
         case .previewSwitch:
-            return try await handlePreviewSwitch(params: params)
+            return try await handlePreviewSwitch(params: params, server: server)
         case .previewStop:
             return try await handlePreviewStop(params: params)
         case .previewElements:
@@ -376,7 +423,7 @@ func configureMCPServer() async throws -> (Server, Compiler) {
         case .previewTouch:
             return try await handlePreviewTouch(params: params)
         case .previewVariants:
-            return try await handlePreviewVariants(params: params)
+            return try await handlePreviewVariants(params: params, server: server)
         case .simulatorList:
             return try await handleSimulatorList()
         }
@@ -413,7 +460,9 @@ private func handlePreviewList(params: CallTool.Parameters) async throws -> Call
     return CallTool.Result(content: [.text(lines.joined(separator: "\n"))])
 }
 
-private func handlePreviewStart(params: CallTool.Parameters, macCompiler: Compiler) async throws -> CallTool.Result {
+private func handlePreviewStart(params: CallTool.Parameters, macCompiler: Compiler, server: Server) async throws
+    -> CallTool.Result
+{
     let filePath: String
     do { filePath = try extractString("filePath", from: params) } catch {
         return CallTool.Result(content: [.text(error.localizedDescription)], isError: true)
@@ -436,7 +485,8 @@ private func handlePreviewStart(params: CallTool.Parameters, macCompiler: Compil
             fileURL: fileURL,
             previewIndex: previewIndex,
             params: params,
-            traits: resolvedTraits
+            traits: resolvedTraits,
+            server: server
         )
     }
 
@@ -446,13 +496,15 @@ private func handlePreviewStart(params: CallTool.Parameters, macCompiler: Compil
     let headless = extractOptionalBool("headless", from: params) ?? true
 
     // Detect build system (auto-detect or explicit projectPath)
+    let progress = mcpReporter(server: server, params: params, totalSteps: 3)
     let buildContext: BuildContext?
     do {
-        buildContext = try await detectBuildContext(for: fileURL, params: params, platform: .macOS)
+        buildContext = try await detectBuildContext(for: fileURL, params: params, platform: .macOS, progress: progress)
     } catch {
         return CallTool.Result(content: [.text("Project build failed: \(error.localizedDescription)")], isError: true)
     }
 
+    await progress.report(.compilingBridge, message: "Compiling \(fileURL.lastPathComponent)...")
     let sessionID = try await startMacOSPreview(
         fileURL: fileURL, previewIndex: previewIndex,
         title: "Preview: \(fileURL.lastPathComponent)",
@@ -477,7 +529,8 @@ private func handleIOSPreviewStart(
     fileURL: URL,
     previewIndex: Int,
     params: CallTool.Parameters,
-    traits: PreviewTraits = PreviewTraits()
+    traits: PreviewTraits = PreviewTraits(),
+    server: Server
 ) async throws -> CallTool.Result {
     // Resolve device UDID — use provided or auto-select
     let deviceUDID: String
@@ -495,9 +548,10 @@ private func handleIOSPreviewStart(
     let headless = extractOptionalBool("headless", from: params) ?? true
 
     // Detect build system
+    let progress = mcpReporter(server: server, params: params, totalSteps: 8)
     let buildContext: BuildContext?
     do {
-        buildContext = try await detectBuildContext(for: fileURL, params: params, platform: .iOS)
+        buildContext = try await detectBuildContext(for: fileURL, params: params, platform: .iOS, progress: progress)
     } catch {
         return CallTool.Result(content: [.text("Project build failed: \(error.localizedDescription)")], isError: true)
     }
@@ -511,7 +565,8 @@ private func handleIOSPreviewStart(
         simulatorManager: simulatorManager,
         headless: headless,
         buildContext: buildContext,
-        traits: traits
+        traits: traits,
+        progress: progress
     )
 
     let pid = try await session.start()
@@ -726,7 +781,8 @@ private func handlePreviewTouch(params: CallTool.Parameters) async throws -> Cal
 private func detectBuildContext(
     for fileURL: URL,
     params: CallTool.Parameters,
-    platform: PreviewPlatform
+    platform: PreviewPlatform,
+    progress: (any ProgressReporter)? = nil
 ) async throws -> BuildContext? {
     let projectRootURL = extractOptionalString("projectPath", from: params).map { URL(fileURLWithPath: $0) }
     let scheme = extractOptionalString("scheme", from: params)
@@ -735,7 +791,7 @@ private func detectBuildContext(
         projectRoot: projectRootURL,
         platform: platform,
         scheme: scheme,
-        logPrefix: "MCP:"
+        progress: progress
     )
 }
 
@@ -780,7 +836,7 @@ private func traitsSummary(_ traits: PreviewTraits) -> String {
     return parts.joined(separator: ", ")
 }
 
-private func handlePreviewConfigure(params: CallTool.Parameters) async throws -> CallTool.Result {
+private func handlePreviewConfigure(params: CallTool.Parameters, server: Server) async throws -> CallTool.Result {
     let sessionID: String
     do { sessionID = try extractString("sessionID", from: params) } catch {
         return CallTool.Result(content: [.text(error.localizedDescription)], isError: true)
@@ -794,8 +850,11 @@ private func handlePreviewConfigure(params: CallTool.Parameters) async throws ->
         return CallTool.Result(content: [.text("No configuration changes specified.")])
     }
 
+    let progress = mcpReporter(server: server, params: params, totalSteps: 1)
+
     // iOS path
     if let iosSession = await iosState.getSession(sessionID) {
+        await progress.report(.compilingBridge, message: "Recompiling with new traits...")
         try await iosSession.reconfigure(traits: traits)
         let activeTraits = await iosSession.currentTraits
         return CallTool.Result(content: [
@@ -811,6 +870,7 @@ private func handlePreviewConfigure(params: CallTool.Parameters) async throws ->
         return CallTool.Result(content: [.text("No session found for \(sessionID)")], isError: true)
     }
 
+    await progress.report(.compilingBridge, message: "Recompiling with new traits...")
     let compileResult = try await session.reconfigure(traits: traits)
     try await MainActor.run {
         try App.host.loadPreview(sessionID: sessionID, dylibPath: compileResult.dylibPath)
@@ -849,7 +909,7 @@ private func resolveVariant(_ value: Value) throws -> PreviewTraits.Variant {
     return try PreviewTraits.parseVariantString(str)
 }
 
-private func handlePreviewVariants(params: CallTool.Parameters) async throws -> CallTool.Result {
+private func handlePreviewVariants(params: CallTool.Parameters, server: Server) async throws -> CallTool.Result {
     let sessionID: String
     let variantValues: [Value]
     do {
@@ -875,6 +935,7 @@ private func handlePreviewVariants(params: CallTool.Parameters) async throws -> 
     let quality = max(0.0, min(1.0, extractOptionalDouble("quality", from: params) ?? 0.85))
     let usePNG = quality >= 1.0
     let mimeType = usePNG ? "image/png" : "image/jpeg"
+    let progress = mcpReporter(server: server, params: params, totalSteps: 2 * resolved.count)
 
     // iOS path
     if let iosSession = await iosState.getSession(sessionID) {
@@ -884,7 +945,12 @@ private func handlePreviewVariants(params: CallTool.Parameters) async throws -> 
 
         for (index, variant) in resolved.enumerated() {
             do {
+                await progress.report(
+                    .compilingBridge, message: "Recompiling for variant \"\(variant.label)\"...")
                 try await iosSession.setTraits(variant.traits)
+                await progress.report(
+                    .capturingSnapshot,
+                    message: "Capturing variant \(index + 1)/\(resolved.count) \"\(variant.label)\"...")
                 let imageData = try await iosSession.screenshot(jpegQuality: quality)
                 let base64 = imageData.base64EncodedString()
                 contentBlocks.append(.text("[\(index)] \(variant.label):"))
@@ -924,11 +990,16 @@ private func handlePreviewVariants(params: CallTool.Parameters) async throws -> 
 
     for (index, variant) in resolved.enumerated() {
         do {
+            await progress.report(
+                .compilingBridge, message: "Recompiling for variant \"\(variant.label)\"...")
             let compileResult = try await session.setTraits(variant.traits)
             try await MainActor.run {
                 try App.host.loadPreview(sessionID: sessionID, dylibPath: compileResult.dylibPath)
             }
             try await Task.sleep(for: .milliseconds(300))
+            await progress.report(
+                .capturingSnapshot,
+                message: "Capturing variant \(index + 1)/\(resolved.count) \"\(variant.label)\"...")
             let imageData: Data = try await MainActor.run {
                 guard let window = App.host.window(for: sessionID) else {
                     throw SnapshotError.captureFailed
@@ -962,7 +1033,7 @@ private func handlePreviewVariants(params: CallTool.Parameters) async throws -> 
     return CallTool.Result(content: contentBlocks, isError: failCount == resolved.count)
 }
 
-private func handlePreviewSwitch(params: CallTool.Parameters) async throws -> CallTool.Result {
+private func handlePreviewSwitch(params: CallTool.Parameters, server: Server) async throws -> CallTool.Result {
     let sessionID: String
     let newIndex: Int
     do {
@@ -972,8 +1043,11 @@ private func handlePreviewSwitch(params: CallTool.Parameters) async throws -> Ca
         return CallTool.Result(content: [.text(error.localizedDescription)], isError: true)
     }
 
+    let progress = mcpReporter(server: server, params: params, totalSteps: 1)
+
     // iOS path
     if let iosSession = await iosState.getSession(sessionID) {
+        await progress.report(.compilingBridge, message: "Switching to preview \(newIndex)...")
         try await iosSession.switchPreview(to: newIndex)
         let activeTraits = await iosSession.currentTraits
         let traitInfo = activeTraits.isEmpty ? "" : " Traits: \(traitsSummary(activeTraits))."
@@ -993,6 +1067,7 @@ private func handlePreviewSwitch(params: CallTool.Parameters) async throws -> Ca
         return CallTool.Result(content: [.text("No session found for \(sessionID)")], isError: true)
     }
 
+    await progress.report(.compilingBridge, message: "Switching to preview \(newIndex)...")
     let compileResult = try await session.switchPreview(to: newIndex)
     try await MainActor.run {
         try App.host.loadPreview(sessionID: sessionID, dylibPath: compileResult.dylibPath)

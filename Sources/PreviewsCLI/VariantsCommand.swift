@@ -137,6 +137,9 @@ struct VariantsCommand: ParsableCommand {
         let projectPath = project
         let snapshotFormat: Snapshot.ImageFormat =
             format == .png ? .png : .jpeg(quality: quality)
+        // Setup: detect + build (2 steps) + per variant: compile + capture (2 × N)
+        let progress: any ProgressReporter = StderrProgressReporter(
+            totalSteps: 2 + 2 * resolved.count)
 
         Task {
             // Setup phase — any failure here is a hard exit (no variants can be captured).
@@ -146,7 +149,8 @@ struct VariantsCommand: ParsableCommand {
                 let compiler = try await Compiler()
                 let projectRootURL = projectPath.map { URL(fileURLWithPath: $0) }
                 let buildContext = try await detectAndBuild(
-                    for: fileURL, projectRoot: projectRootURL, platform: .macOS)
+                    for: fileURL, projectRoot: projectRootURL, platform: .macOS,
+                    progress: progress)
 
                 session = PreviewSession(
                     sourceFile: fileURL,
@@ -161,16 +165,15 @@ struct VariantsCommand: ParsableCommand {
                 Darwin.exit(2)
             }
 
-            fputs(
-                "Capturing \(resolved.count) variant(s) of \(fileURL.lastPathComponent)...\n",
-                stderr)
-
             // Per-variant phase — collect failures, continue past them, stream successes.
             var successCount = 0
             var failCount = 0
 
             for (index, variant) in resolved.enumerated() {
                 do {
+                    await progress.report(
+                        .compilingBridge,
+                        message: "Recompiling for variant \"\(variant.label)\"...")
                     let compileResult = try await session.setTraits(variant.traits)
 
                     try await MainActor.run {
@@ -185,6 +188,11 @@ struct VariantsCommand: ParsableCommand {
                     // Wait for SwiftUI layout
                     try await Task.sleep(for: .milliseconds(500))
 
+                    await progress.report(
+                        .capturingSnapshot,
+                        message:
+                            "Capturing variant \(index + 1)/\(resolved.count) \"\(variant.label)\"..."
+                    )
                     let outURL = outputURL(in: outputDirURL, label: variant.label)
                     try await MainActor.run {
                         guard let window = App.host.window(for: sessionID) else {
@@ -218,6 +226,9 @@ struct VariantsCommand: ParsableCommand {
         let deviceUDID = device
         let projectPath = project
         let jpegQuality: Double = format == .png ? 1.0 : quality
+        // Setup: detect + build (2) + iOS start (6) = 8; first variant: capture only (1); rest: compile + capture (2 × (N-1))
+        let progress: any ProgressReporter = StderrProgressReporter(
+            totalSteps: 7 + 2 * resolved.count)
 
         Task {
             // Setup phase — any failure here is a hard exit (no variants can be captured).
@@ -232,7 +243,8 @@ struct VariantsCommand: ParsableCommand {
 
                 let projectRootURL = projectPath.map { URL(fileURLWithPath: $0) }
                 let buildContext = try await detectAndBuild(
-                    for: fileURL, projectRoot: projectRootURL, platform: .iOS)
+                    for: fileURL, projectRoot: projectRootURL, platform: .iOS,
+                    progress: progress)
 
                 session = IOSPreviewSession(
                     sourceFile: fileURL,
@@ -243,11 +255,10 @@ struct VariantsCommand: ParsableCommand {
                     simulatorManager: simulatorManager,
                     headless: true,
                     buildContext: buildContext,
-                    traits: resolved[0].traits
+                    traits: resolved[0].traits,
+                    progress: progress
                 )
 
-                fputs(
-                    "Capturing \(resolved.count) variant(s) on simulator \(udid)...\n", stderr)
                 _ = try await session.start()
                 try await Task.sleep(for: .seconds(2))
             } catch {
@@ -264,11 +275,19 @@ struct VariantsCommand: ParsableCommand {
             for (index, variant) in resolved.enumerated() {
                 do {
                     if !first {
+                        await progress.report(
+                            .compilingBridge,
+                            message: "Recompiling for variant \"\(variant.label)\"...")
                         try await session.setTraits(variant.traits)
                         try await Task.sleep(for: .seconds(1))
                     }
                     first = false
 
+                    await progress.report(
+                        .capturingSnapshot,
+                        message:
+                            "Capturing variant \(index + 1)/\(resolved.count) \"\(variant.label)\"..."
+                    )
                     let imageData = try await session.screenshot(jpegQuality: jpegQuality)
                     let outURL = outputURL(in: outputDirURL, label: variant.label)
                     try imageData.write(to: outURL)

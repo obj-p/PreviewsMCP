@@ -4,15 +4,31 @@ import Foundation
 import PreviewsCore
 import PreviewsIOS
 import PreviewsMacOS
+import os
 
-/// Detect the build system for a source file and build it, logging progress to stderr.
+/// CLI progress reporter that prints `[X/Y] message` to stderr.
+struct StderrProgressReporter: ProgressReporter {
+    let totalSteps: Int
+    private let counter = OSAllocatedUnfairLock(initialState: 0)
+
+    func report(_ phase: BuildPhase, message: String) async {
+        let step = counter.withLock { value -> Int in
+            value += 1
+            return value
+        }
+        fputs("[\(step)/\(totalSteps)] \(message)\n", stderr)
+    }
+}
+
+/// Detect the build system for a source file and build it, reporting progress.
 func detectAndBuild(
     for fileURL: URL,
     projectRoot projectRootURL: URL?,
     platform: PreviewPlatform,
     scheme: String? = nil,
-    logPrefix: String = ""
+    progress: (any ProgressReporter)? = nil
 ) async throws -> BuildContext? {
+    await progress?.report(.detectingProject, message: "Detecting project...")
     guard
         let buildSystem = try await BuildSystemDetector.detect(
             for: fileURL, projectRoot: projectRootURL, scheme: scheme
@@ -21,13 +37,10 @@ func detectAndBuild(
         return nil
     }
 
-    let prefix = logPrefix.isEmpty ? "" : "\(logPrefix) "
-    let platformLabel = platform == .iOS ? "building for iOS..." : "building..."
-    fputs("\(prefix)Detected project at \(buildSystem.projectRoot.path), \(platformLabel)\n", stderr)
+    let platformLabel = platform == .iOS ? "Building for iOS..." : "Building..."
+    await progress?.report(.buildingProject, message: platformLabel)
 
     let context = try await buildSystem.build(platform: platform)
-    fputs("\(prefix)Built target: \(context.targetName) (tier \(context.supportsTier2 ? "2" : "1"))\n", stderr)
-
     return context
 }
 
@@ -39,7 +52,8 @@ func launchMacOSPreview(
     width: Int,
     height: Int,
     buildContext: BuildContext?,
-    traits: PreviewTraits = PreviewTraits()
+    traits: PreviewTraits = PreviewTraits(),
+    progress: (any ProgressReporter)? = nil
 ) async throws {
     let compiler = try await Compiler()
 
@@ -51,7 +65,7 @@ func launchMacOSPreview(
         traits: traits
     )
 
-    fputs("Compiling \(fileURL.lastPathComponent)...\n", stderr)
+    await progress?.report(.compilingBridge, message: "Compiling \(fileURL.lastPathComponent)...")
     let compileResult = try await session.compile()
 
     await MainActor.run {
@@ -85,7 +99,8 @@ func launchIOSPreview(
     deviceUDID: String?,
     headless: Bool = false,
     buildContext: BuildContext?,
-    traits: PreviewTraits = PreviewTraits()
+    traits: PreviewTraits = PreviewTraits(),
+    progress: (any ProgressReporter)? = nil
 ) async throws {
     let compiler = try await Compiler(platform: .iOS)
     let hostBuilder = try await IOSHostBuilder()
@@ -102,10 +117,10 @@ func launchIOSPreview(
         simulatorManager: simulatorManager,
         headless: headless,
         buildContext: buildContext,
-        traits: traits
+        traits: traits,
+        progress: progress
     )
 
-    fputs("Launching on simulator \(udid)...\n", stderr)
     _ = try await session.start()
     fputs("Preview is live! Watching for changes...\n", stderr)
 

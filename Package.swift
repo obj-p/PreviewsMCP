@@ -47,7 +47,16 @@ let package = Package(
                 "PreviewsIOS",
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 .product(name: "MCP", package: "swift-sdk"),
-            ]
+            ],
+            plugins: [.plugin(name: "GenerateVersion")]
+        ),
+        .executableTarget(
+            name: "GenerateVersionTool"
+        ),
+        .plugin(
+            name: "GenerateVersion",
+            capability: .buildTool(),
+            dependencies: ["GenerateVersionTool"]
         ),
         .testTarget(
             name: "PreviewsCoreTests",

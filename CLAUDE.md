@@ -88,6 +88,10 @@ Uses Hammer approach (in-app, headless, no mouse movement):
 
 All loaded via dlopen/dlsym inside the iOS host app. Does NOT use IndigoHID/SimulatorKit (those create pointer events, not touch events on Xcode 26.2).
 
+## Git Workflow
+
+The `main` branch has branch protections — all changes must go through a pull request. Always create a feature branch before committing. Use worktrees when working in parallel with other agents to avoid conflicts.
+
 ## Test Notes
 
 - iOS simulator tests boot/shutdown real devices — can be slow (~10-20s)
