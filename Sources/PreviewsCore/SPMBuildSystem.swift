@@ -228,11 +228,12 @@ public actor SPMBuildSystem: BuildSystem {
             let objectFiles = collectObjectFiles(in: entry)
             guard !objectFiles.isEmpty else { continue }
 
-            // Write to a temp file and atomically rename to avoid a race where a
-            // concurrent compile reads the archive between delete and recreate.
+            // Write to a unique temp file and atomically swap into place so a
+            // concurrent linker never sees the archive as missing. UUID avoids
+            // collisions between parallel archiveDependencyTargets callers.
             let archivePath = binPath.appendingPathComponent("lib\(targetName).a")
-            let tmpArchivePath = binPath.appendingPathComponent("lib\(targetName).a.tmp")
-            try? fm.removeItem(at: tmpArchivePath)
+            let tmpArchivePath = binPath.appendingPathComponent(
+                "lib\(targetName).a.\(UUID().uuidString).tmp")
 
             var arArgs = ["rcs", tmpArchivePath.path]
             arArgs.append(contentsOf: objectFiles.map(\.path))
@@ -244,9 +245,13 @@ public actor SPMBuildSystem: BuildSystem {
                     exitCode: result.exitCode
                 )
             }
-            // Atomic rename: the archive is never absent from the perspective of
-            // a concurrent linker that reads it between two archiveDependencyTargets calls.
-            _ = try? fm.replaceItemAt(archivePath, withItemAt: tmpArchivePath)
+            // replaceItemAt swaps atomically on APFS. Falls back to moveItem
+            // when the archive doesn't exist yet (first build).
+            do {
+                _ = try fm.replaceItemAt(archivePath, withItemAt: tmpArchivePath)
+            } catch {
+                try fm.moveItem(at: tmpArchivePath, to: archivePath)
+            }
             libs.append(targetName)
         }
 
