@@ -247,18 +247,28 @@ public actor SPMBuildSystem: BuildSystem {
             let objectFiles = collectObjectFiles(in: entry)
             guard !objectFiles.isEmpty else { continue }
 
+            // Write to a unique temp file and atomically swap into place so a
+            // concurrent linker never sees the archive as missing.
             let archivePath = binPath.appendingPathComponent("lib\(targetName).a")
-            // `ar rcs` replaces any existing archive, so rebuilds stay consistent.
-            try? fm.removeItem(at: archivePath)
+            let tmpArchivePath = binPath.appendingPathComponent(
+                "lib\(targetName).a.\(ProcessInfo.processInfo.globallyUniqueString).tmp")
 
-            var arArgs = ["rcs", archivePath.path]
+            var arArgs = ["rcs", tmpArchivePath.path]
             arArgs.append(contentsOf: objectFiles.map(\.path))
             let result = try await runAsync(arPath, arguments: arArgs)
             guard result.exitCode == 0 else {
+                try? fm.removeItem(at: tmpArchivePath)
                 throw BuildSystemError.buildFailed(
                     stderr: "ar failed for \(targetName): \(result.stderr)",
                     exitCode: result.exitCode
                 )
+            }
+            // replaceItemAt swaps atomically on APFS. Falls back to moveItem
+            // when the archive doesn't exist yet (first build).
+            do {
+                _ = try fm.replaceItemAt(archivePath, withItemAt: tmpArchivePath)
+            } catch {
+                try fm.moveItem(at: tmpArchivePath, to: archivePath)
             }
             libs.append(targetName)
         }
