@@ -26,7 +26,8 @@ struct PreviewsMCPApp {
 
         // Commands that don't need NSApplication (list, help, etc.)
         if command is ListCommand
-            || !(command is RunCommand || command is ServeCommand || command is SnapshotCommand)
+            || !(command is RunCommand || command is ServeCommand || command is SnapshotCommand
+                || command is VariantsCommand)
         {
             do {
                 var mutable = command
@@ -43,7 +44,7 @@ struct PreviewsMCPApp {
         let mode: PreviewHost.Mode
         if command is ServeCommand {
             mode = .serve
-        } else if command is SnapshotCommand {
+        } else if command is SnapshotCommand || command is VariantsCommand {
             mode = .snapshot
         } else {
             mode = .interactive
@@ -77,7 +78,8 @@ struct PreviewsMCPCommand: ParsableCommand {
         commandName: "previewsmcp",
         abstract: "Run SwiftUI previews outside of Xcode",
         subcommands: [
-            RunCommand.self, ListCommand.self, SnapshotCommand.self, ServeCommand.self,
+            RunCommand.self, ListCommand.self, SnapshotCommand.self, VariantsCommand.self,
+            ServeCommand.self,
         ],
         defaultSubcommand: RunCommand.self
     )

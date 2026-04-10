@@ -39,11 +39,11 @@ previewsmcp run MyView.swift
 # Run a specific preview (0-based index)
 previewsmcp run MyView.swift --preview 1
 
-# Run on iOS simulator (headless by default)
+# Run on iOS simulator (Simulator.app window visible by default)
 previewsmcp run MyView.swift --platform ios
 
-# Run with a visible Simulator.app window
-previewsmcp run MyView.swift --platform ios --no-headless
+# Run iOS preview headless (hide Simulator.app GUI)
+previewsmcp run MyView.swift --platform ios --headless
 
 # Specify project root for Xcode/Bazel projects
 previewsmcp run MyView.swift --project ./MyApp
@@ -55,10 +55,19 @@ previewsmcp run MyView.swift --color-scheme dark --dynamic-type-size accessibili
 previewsmcp snapshot MyView.swift -o preview.png
 
 # Snapshot a specific preview with traits
-previewsmcp snapshot MyView.swift --preview 1 --color-scheme light -o dark.jpg
+previewsmcp snapshot MyView.swift --preview 1 --color-scheme dark -o dark.jpg
 
 # Snapshot on iOS simulator
 previewsmcp snapshot MyView.swift --platform ios -o ios_preview.png
+
+# Capture multiple trait variants in one run (creates one image per variant)
+previewsmcp variants MyView.swift --variant light --variant dark -o snapshots/
+
+# Custom variants with JSON object strings (label sets the output filename)
+previewsmcp variants MyView.swift \
+  --variant '{"colorScheme":"dark","dynamicTypeSize":"large","label":"dark-large"}' \
+  --variant '{"colorScheme":"light","dynamicTypeSize":"xSmall","label":"light-xSmall"}' \
+  --platform ios -o snapshots/
 ```
 
 Supports both `#Preview` macros and the legacy `PreviewProvider` protocol — `list` shows all previews from both, and `run`/`snapshot` can render any by index.
