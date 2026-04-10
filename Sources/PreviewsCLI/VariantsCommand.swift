@@ -1,0 +1,303 @@
+import AppKit
+import ArgumentParser
+import Foundation
+import PreviewsCore
+import PreviewsIOS
+import PreviewsMacOS
+
+/// Exit codes:
+///   0 — all variants captured
+///   1 — partial failure (some variants captured, others failed) or setup/validation error
+///   2 — total failure (every variant failed)
+struct VariantsCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "variants",
+        abstract:
+            "Capture multiple snapshots of a SwiftUI preview under different trait configurations"
+    )
+
+    @Argument(help: "Path to Swift source file containing #Preview")
+    var file: String
+
+    @Option(
+        name: .long,
+        help: ArgumentHelp(
+            "A trait variant to capture. Repeat for multiple variants.",
+            discussion: """
+                Either a preset name (light, dark, xSmall…accessibility5) or a JSON object \
+                string like '{"colorScheme":"dark","dynamicTypeSize":"large","label":"dark+large"}'.
+                """
+        )
+    )
+    var variant: [String] = []
+
+    @Option(name: [.short, .long], help: "Output directory for snapshots")
+    var outputDir: String = "."
+
+    @Option(name: .long, help: "Image format")
+    var format: ImageFormat = .jpeg
+
+    @Option(name: .long, help: "JPEG quality 0.0–1.0 (ignored for PNG)")
+    var quality: Double = 0.85
+
+    @Option(name: .long, help: "Which preview to capture (0-based index)")
+    var preview: Int = 0
+
+    @Option(name: .long, help: "Window width")
+    var width: Int = 400
+
+    @Option(name: .long, help: "Window height")
+    var height: Int = 600
+
+    @Option(name: .long, help: "Target platform: 'macos' (default) or 'ios'")
+    var platform: CLIPlatform = .macos
+
+    @Option(name: .long, help: "Project root path (auto-detected if omitted)")
+    var project: String?
+
+    @Option(name: .long, help: "Simulator device UDID (for ios; auto-selects if omitted)")
+    var device: String?
+
+    enum ImageFormat: String, ExpressibleByArgument, CaseIterable {
+        case jpeg, png
+    }
+
+    mutating func run() throws {
+        let fileURL = URL(fileURLWithPath: file).standardizedFileURL
+        guard FileManager.default.fileExists(atPath: fileURL.path) else {
+            throw ValidationError("File not found: \(file)")
+        }
+
+        guard !variant.isEmpty else {
+            throw ValidationError("At least one --variant is required")
+        }
+
+        // Resolve all variants up front — validation errors are setup-time failures (exit 1).
+        let resolved: [PreviewTraits.Variant]
+        do {
+            resolved = try variant.map(PreviewTraits.parseVariantString)
+        } catch {
+            throw ValidationError(error.localizedDescription)
+        }
+
+        // Reject duplicate labels — they would silently overwrite each other on disk.
+        var seen: [String: Int] = [:]
+        for (index, variant) in resolved.enumerated() {
+            if let prior = seen[variant.label] {
+                throw ValidationError(
+                    "Duplicate variant label '\(variant.label)' at indices \(prior) and \(index). "
+                        + "Provide a unique 'label' field in JSON variants.")
+            }
+            seen[variant.label] = index
+        }
+
+        let outputDirURL = URL(fileURLWithPath: outputDir)
+        try FileManager.default.createDirectory(
+            at: outputDirURL, withIntermediateDirectories: true)
+
+        switch platform {
+        case .ios:
+            runIOSVariants(fileURL: fileURL, resolved: resolved, outputDirURL: outputDirURL)
+        case .macos:
+            runMacOSVariants(fileURL: fileURL, resolved: resolved, outputDirURL: outputDirURL)
+        }
+    }
+
+    private func outputURL(in dir: URL, label: String) -> URL {
+        let ext = format == .png ? "png" : "jpg"
+        return dir.appendingPathComponent("\(label).\(ext)")
+    }
+
+    /// Print a per-variant failure to stderr in the same format as the MCP `preview_variants` tool.
+    private func reportVariantFailure(index: Int, label: String, error: Error) {
+        fputs("[\(index)] \(label): ERROR — \(error.localizedDescription)\n", stderr)
+    }
+
+    /// Print a final summary line and return the appropriate exit code.
+    private func summarize(successCount: Int, failCount: Int) -> Int32 {
+        let total = successCount + failCount
+        if failCount == 0 {
+            fputs("Captured \(successCount)/\(total) variants.\n", stderr)
+            return 0
+        }
+        fputs(
+            "Captured \(successCount)/\(total) variants (\(failCount) failed). "
+                + "See stderr for details.\n", stderr)
+        return failCount == total ? 2 : 1
+    }
+
+    private func runMacOSVariants(
+        fileURL: URL,
+        resolved: [PreviewTraits.Variant],
+        outputDirURL: URL
+    ) {
+        let previewIndex = preview
+        let windowWidth = width
+        let windowHeight = height
+        let projectPath = project
+        let snapshotFormat: Snapshot.ImageFormat =
+            format == .png ? .png : .jpeg(quality: quality)
+
+        Task {
+            // Setup phase — any failure here is a hard exit (no variants can be captured).
+            let session: PreviewSession
+            let sessionID: String
+            do {
+                let compiler = try await Compiler()
+                let projectRootURL = projectPath.map { URL(fileURLWithPath: $0) }
+                let buildContext = try await detectAndBuild(
+                    for: fileURL, projectRoot: projectRootURL, platform: .macOS)
+
+                session = PreviewSession(
+                    sourceFile: fileURL,
+                    previewIndex: previewIndex,
+                    compiler: compiler,
+                    buildContext: buildContext,
+                    traits: resolved[0].traits
+                )
+                sessionID = session.id
+            } catch {
+                fputs("Error: \(error.localizedDescription)\n", stderr)
+                Darwin.exit(2)
+            }
+
+            fputs(
+                "Capturing \(resolved.count) variant(s) of \(fileURL.lastPathComponent)...\n",
+                stderr)
+
+            // Per-variant phase — collect failures, continue past them, stream successes.
+            var successCount = 0
+            var failCount = 0
+
+            for (index, variant) in resolved.enumerated() {
+                do {
+                    let compileResult = try await session.setTraits(variant.traits)
+
+                    try await MainActor.run {
+                        try App.host.loadPreview(
+                            sessionID: sessionID,
+                            dylibPath: compileResult.dylibPath,
+                            title: "Variant: \(variant.label)",
+                            size: NSSize(width: windowWidth, height: windowHeight)
+                        )
+                    }
+
+                    // Wait for SwiftUI layout
+                    try await Task.sleep(for: .milliseconds(500))
+
+                    let outURL = outputURL(in: outputDirURL, label: variant.label)
+                    try await MainActor.run {
+                        guard let window = App.host.window(for: sessionID) else {
+                            throw VariantsCommandError.captureFailed(label: variant.label)
+                        }
+                        try Snapshot.capture(
+                            window: window, format: snapshotFormat, to: outURL)
+                    }
+                    print(outURL.path)
+                    successCount += 1
+                } catch {
+                    failCount += 1
+                    reportVariantFailure(
+                        index: index, label: variant.label, error: error)
+                }
+            }
+
+            let exitCode = summarize(successCount: successCount, failCount: failCount)
+            await MainActor.run { NSApp.terminate(nil) }
+            // NSApp.terminate sends an event; explicit exit ensures the right code propagates.
+            Darwin.exit(exitCode)
+        }
+    }
+
+    private func runIOSVariants(
+        fileURL: URL,
+        resolved: [PreviewTraits.Variant],
+        outputDirURL: URL
+    ) {
+        let previewIndex = preview
+        let deviceUDID = device
+        let projectPath = project
+        let jpegQuality: Double = format == .png ? 1.0 : quality
+
+        Task {
+            // Setup phase — any failure here is a hard exit (no variants can be captured).
+            let session: IOSPreviewSession
+            do {
+                let compiler = try await Compiler(platform: .iOS)
+                let hostBuilder = try await IOSHostBuilder()
+                let simulatorManager = SimulatorManager()
+
+                let udid = try await resolveDeviceUDID(
+                    provided: deviceUDID, using: simulatorManager)
+
+                let projectRootURL = projectPath.map { URL(fileURLWithPath: $0) }
+                let buildContext = try await detectAndBuild(
+                    for: fileURL, projectRoot: projectRootURL, platform: .iOS)
+
+                session = IOSPreviewSession(
+                    sourceFile: fileURL,
+                    previewIndex: previewIndex,
+                    deviceUDID: udid,
+                    compiler: compiler,
+                    hostBuilder: hostBuilder,
+                    simulatorManager: simulatorManager,
+                    headless: true,
+                    buildContext: buildContext,
+                    traits: resolved[0].traits
+                )
+
+                fputs(
+                    "Capturing \(resolved.count) variant(s) on simulator \(udid)...\n", stderr)
+                _ = try await session.start()
+                try await Task.sleep(for: .seconds(2))
+            } catch {
+                fputs("Error: \(error.localizedDescription)\n", stderr)
+                Darwin.exit(2)
+            }
+
+            // Per-variant phase. Whatever happens, stop the session before exiting so we
+            // don't leak the simulator's preview app.
+            var successCount = 0
+            var failCount = 0
+            var first = true
+
+            for (index, variant) in resolved.enumerated() {
+                do {
+                    if !first {
+                        try await session.setTraits(variant.traits)
+                        try await Task.sleep(for: .seconds(1))
+                    }
+                    first = false
+
+                    let imageData = try await session.screenshot(jpegQuality: jpegQuality)
+                    let outURL = outputURL(in: outputDirURL, label: variant.label)
+                    try imageData.write(to: outURL)
+                    print(outURL.path)
+                    successCount += 1
+                } catch {
+                    failCount += 1
+                    reportVariantFailure(
+                        index: index, label: variant.label, error: error)
+                    // Reset `first` so the next iteration tries to apply its traits.
+                    first = false
+                }
+            }
+
+            await session.stop()
+            let exitCode = summarize(successCount: successCount, failCount: failCount)
+            await MainActor.run { NSApp.terminate(nil) }
+            Darwin.exit(exitCode)
+        }
+    }
+}
+
+enum VariantsCommandError: Error, LocalizedError {
+    case captureFailed(label: String)
+
+    var errorDescription: String? {
+        switch self {
+        case .captureFailed(let label):
+            return "Failed to capture variant '\(label)': no preview window found."
+        }
+    }
+}

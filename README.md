@@ -39,11 +39,11 @@ previewsmcp run MyView.swift
 # Run a specific preview (0-based index)
 previewsmcp run MyView.swift --preview 1
 
-# Run on iOS simulator (headless by default)
+# Run on iOS simulator (Simulator.app window visible by default)
 previewsmcp run MyView.swift --platform ios
 
-# Run with a visible Simulator.app window
-previewsmcp run MyView.swift --platform ios --no-headless
+# Run iOS preview headless (hide Simulator.app GUI)
+previewsmcp run MyView.swift --platform ios --headless
 
 # Specify project root for Xcode/Bazel projects
 previewsmcp run MyView.swift --project ./MyApp
@@ -55,10 +55,19 @@ previewsmcp run MyView.swift --color-scheme dark --dynamic-type-size accessibili
 previewsmcp snapshot MyView.swift -o preview.png
 
 # Snapshot a specific preview with traits
-previewsmcp snapshot MyView.swift --preview 1 --color-scheme light -o dark.jpg
+previewsmcp snapshot MyView.swift --preview 1 --color-scheme dark -o dark.jpg
 
 # Snapshot on iOS simulator
 previewsmcp snapshot MyView.swift --platform ios -o ios_preview.png
+
+# Capture multiple trait variants in one run (creates one image per variant)
+previewsmcp variants MyView.swift --variant light --variant dark -o snapshots/
+
+# Custom variants with JSON object strings (label sets the output filename)
+previewsmcp variants MyView.swift \
+  --variant '{"colorScheme":"dark","dynamicTypeSize":"large","label":"dark-large"}' \
+  --variant '{"colorScheme":"light","dynamicTypeSize":"xSmall","label":"light-xSmall"}' \
+  --platform ios -o snapshots/
 ```
 
 Supports both `#Preview` macros and the legacy `PreviewProvider` protocol — `list` shows all previews from both, and `run`/`snapshot` can render any by index.
@@ -77,3 +86,43 @@ Add to your `.mcp.json` (or Claude Code MCP config):
   }
 }
 ```
+
+### Tools
+
+| Tool | Description |
+|---|---|
+| `preview_list` | List `#Preview` blocks and `PreviewProvider` previews in a Swift file |
+| `preview_start` | Compile and launch a live preview (macOS or iOS simulator). Returns a session ID |
+| `preview_snapshot` | Capture a screenshot of the active session (JPEG by default; `quality: 1.0` for PNG) |
+| `preview_configure` | Update traits (`colorScheme`, `dynamicTypeSize`) on a running session |
+| `preview_switch` | Swap to a different `#Preview` index without tearing down the session |
+| `preview_variants` | Capture screenshots under multiple trait configurations in one call |
+| `preview_elements` | Inspect the accessibility tree of an iOS preview |
+| `preview_touch` | Send a tap or swipe to an iOS preview |
+| `preview_stop` | Close a session |
+| `simulator_list` | List available iOS simulator devices |
+
+### Capturing variants
+
+`preview_variants` captures multiple snapshots in a single call — useful for comparing light/dark mode, dynamic type sizes, or custom trait combinations. Each variant triggers a recompile, and the session's original traits are restored afterward.
+
+Pass an array of preset names or JSON object strings as the `variants` argument:
+
+```jsonc
+// Preset names — light/dark and xSmall through accessibility5
+{
+  "sessionID": "...",
+  "variants": ["light", "dark", "accessibility3"]
+}
+
+// Custom combinations via JSON object strings
+{
+  "sessionID": "...",
+  "variants": [
+    "{\"colorScheme\":\"dark\",\"dynamicTypeSize\":\"large\",\"label\":\"dark+large\"}",
+    "{\"colorScheme\":\"light\",\"dynamicTypeSize\":\"xSmall\",\"label\":\"light+xSmall\"}"
+  ]
+}
+```
+
+The response contains one labeled image per variant.
