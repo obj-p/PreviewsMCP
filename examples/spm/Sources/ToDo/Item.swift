@@ -1,5 +1,4 @@
 import Foundation
-import Lottie
 
 /// A simple model defined in a separate file from the views.
 /// Previews that reference this type require build system integration.

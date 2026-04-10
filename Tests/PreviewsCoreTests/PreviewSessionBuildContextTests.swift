@@ -83,6 +83,13 @@ struct PreviewSessionBuildContextTests {
             flags.contains("-framework"),
             "SPMBuildSystem should add -framework flags for binary deps; flags were: \(flags)"
         )
+        // Verify the actual framework name is emitted, not just the flag.
+        if let idx = flags.firstIndex(of: "-framework") {
+            #expect(
+                idx + 1 < flags.count && flags[idx + 1] == "Lottie",
+                "Expected -framework Lottie; flags were: \(flags)"
+            )
+        }
         #expect(
             flags.contains("-rpath"),
             "SPMBuildSystem should add -rpath for framework dlopen; flags were: \(flags)"
