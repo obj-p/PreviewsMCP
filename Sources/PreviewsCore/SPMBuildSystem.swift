@@ -71,11 +71,20 @@ public actor SPMBuildSystem: BuildSystem {
             consumerTargetName: targetName
         )
 
+        // 6b. Discover binary XCFramework dependencies.
+        //     SPM copies pre-built .framework bundles (from binaryTarget / XCFramework
+        //     dependencies) directly into binPath. These aren't covered by the
+        //     .build/-directory scan above — they need -F (framework search path)
+        //     and -framework flags instead of -L/-l.
+        let frameworkNames = collectFrameworks(binPath: binPath)
+
         // 7. Build compiler flags
         //    -I <Modules>   resolves dependency .swiftmodule files at compile time
         //    -L <binPath>   library search path for the archives created above
         //    -l<Dep>        per-dependency archive (lazy archive linking means only
         //                   object files actually referenced get pulled in)
+        //    -F <binPath>   framework search path for binary XCFramework deps
+        //    -framework X   link against a binary framework
         var flags: [String] = [
             "-I", modulesDir.path,
         ]
@@ -84,6 +93,16 @@ public actor SPMBuildSystem: BuildSystem {
             for dep in dependencyLibs {
                 flags += ["-l\(dep)"]
             }
+        }
+        if !frameworkNames.isEmpty {
+            flags += ["-F", binPath.path]
+            for fw in frameworkNames {
+                flags += ["-framework", fw]
+            }
+            // Embed the framework search path as an rpath so dlopen can
+            // find the framework at runtime (the dylib references it via
+            // @rpath/Foo.framework/...).
+            flags += ["-Xlinker", "-rpath", "-Xlinker", binPath.path]
         }
 
         // Add C module include paths for targets with C shims
@@ -245,6 +264,34 @@ public actor SPMBuildSystem: BuildSystem {
         }
 
         return libs
+    }
+
+    /// Collect `.framework` bundles in binPath (binary XCFramework dependencies).
+    /// Returns the framework names (e.g. ["Lottie"]) for use with `-framework`.
+    private func collectFrameworks(binPath: URL) -> [String] {
+        let fm = FileManager.default
+        guard
+            let entries = try? fm.contentsOfDirectory(
+                at: binPath,
+                includingPropertiesForKeys: [.isDirectoryKey],
+                options: [.skipsHiddenFiles]
+            )
+        else {
+            return []
+        }
+
+        var frameworks: [String] = []
+        for entry in entries {
+            let name = entry.lastPathComponent
+            guard name.hasSuffix(".framework") else { continue }
+            var isDir: ObjCBool = false
+            guard fm.fileExists(atPath: entry.path, isDirectory: &isDir), isDir.boolValue else {
+                continue
+            }
+            let frameworkName = String(name.dropLast(".framework".count))
+            frameworks.append(frameworkName)
+        }
+        return frameworks
     }
 
     /// Recursively collect `.o` files under a target's build directory, including

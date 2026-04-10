@@ -73,6 +73,20 @@ struct PreviewSessionBuildContextTests {
             !flags.contains("-lToDo"),
             "Consumer target should not be linked as a library"
         )
+        // Binary XCFramework dependency (lottie-spm) — SPM copies .framework bundles
+        // into binPath instead of producing .build/ directories with loose .o files.
+        #expect(
+            flags.contains("-F"),
+            "SPMBuildSystem should add -F <binPath> for binary framework deps; flags were: \(flags)"
+        )
+        #expect(
+            flags.contains("-framework"),
+            "SPMBuildSystem should add -framework flags for binary deps; flags were: \(flags)"
+        )
+        #expect(
+            flags.contains("-rpath"),
+            "SPMBuildSystem should add -rpath for framework dlopen; flags were: \(flags)"
+        )
     }
 
     @Test("Tier 2 compile: dylib + populated literals + DesignTimeStore symbols")
