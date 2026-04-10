@@ -75,6 +75,7 @@ struct SnapshotCommand: ParsableCommand {
         let projectPath = project
         let schemeName = scheme
         let traits = PreviewTraits(colorScheme: colorScheme, dynamicTypeSize: dynamicTypeSize)
+        let progress: any ProgressReporter = StderrProgressReporter(totalSteps: 4)
 
         Task {
             do {
@@ -86,7 +87,8 @@ struct SnapshotCommand: ParsableCommand {
                     for: fileURL,
                     projectRoot: projectRootURL,
                     platform: .macOS,
-                    scheme: schemeName)
+                    scheme: schemeName,
+                    progress: progress)
 
                 let session = PreviewSession(
                     sourceFile: fileURL,
@@ -96,7 +98,8 @@ struct SnapshotCommand: ParsableCommand {
                     traits: traits
                 )
 
-                fputs("Compiling \(fileURL.lastPathComponent)...\n", stderr)
+                await progress.report(
+                    .compilingBridge, message: "Compiling \(fileURL.lastPathComponent)...")
                 let compileResult = try await session.compile()
                 let sessionID = session.id
 
@@ -117,6 +120,7 @@ struct SnapshotCommand: ParsableCommand {
                 // Wait for SwiftUI to lay out
                 try await Task.sleep(for: .milliseconds(500))
 
+                await progress.report(.capturingSnapshot, message: "Capturing snapshot...")
                 let snapshotFormat: Snapshot.ImageFormat =
                     outputURL.pathExtension.lowercased() == "png" ? .png : .jpeg(quality: 0.85)
                 await MainActor.run {
@@ -147,6 +151,7 @@ struct SnapshotCommand: ParsableCommand {
         let projectPath = project
         let schemeName = scheme
         let traits = PreviewTraits(colorScheme: colorScheme, dynamicTypeSize: dynamicTypeSize)
+        let progress: any ProgressReporter = StderrProgressReporter(totalSteps: 9)
 
         Task {
             do {
@@ -163,7 +168,8 @@ struct SnapshotCommand: ParsableCommand {
                     for: fileURL,
                     projectRoot: projectRootURL,
                     platform: .iOS,
-                    scheme: schemeName)
+                    scheme: schemeName,
+                    progress: progress)
 
                 let session = IOSPreviewSession(
                     sourceFile: fileURL,
@@ -174,15 +180,16 @@ struct SnapshotCommand: ParsableCommand {
                     simulatorManager: simulatorManager,
                     headless: true,
                     buildContext: buildContext,
-                    traits: traits
+                    traits: traits,
+                    progress: progress
                 )
 
-                fputs("Compiling and launching on simulator \(udid)...\n", stderr)
                 _ = try await session.start()
 
                 // Wait for the app to render
                 try await Task.sleep(for: .seconds(2))
 
+                await progress.report(.capturingSnapshot, message: "Capturing snapshot...")
                 let jpegQuality: Double = outputURL.pathExtension.lowercased() == "png" ? 1.0 : 0.85
                 let imageData = try await session.screenshot(jpegQuality: jpegQuality)
                 try imageData.write(to: outputURL)

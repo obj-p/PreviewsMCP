@@ -74,9 +74,12 @@ struct PreviewsMCPApp {
 }
 
 struct PreviewsMCPCommand: ParsableCommand {
+    static let version = GeneratedVersion.value
+
     static let configuration = CommandConfiguration(
         commandName: "previewsmcp",
         abstract: "Run SwiftUI previews outside of Xcode",
+        version: version,
         subcommands: [
             RunCommand.self, ListCommand.self, SnapshotCommand.self, VariantsCommand.self,
             ServeCommand.self,

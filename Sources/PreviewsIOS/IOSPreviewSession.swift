@@ -15,6 +15,7 @@ public actor IOSPreviewSession {
     private let compiler: Compiler
     private let hostBuilder: IOSHostBuilder
     private let simulatorManager: SimulatorManager
+    private let progress: (any ProgressReporter)?
 
     private var session: PreviewSession?
     public nonisolated let headless: Bool
@@ -41,7 +42,8 @@ public actor IOSPreviewSession {
         simulatorManager: SimulatorManager,
         headless: Bool = true,
         buildContext: BuildContext? = nil,
-        traits: PreviewTraits = PreviewTraits()
+        traits: PreviewTraits = PreviewTraits(),
+        progress: (any ProgressReporter)? = nil
     ) {
         self.id = UUID().uuidString
         self.sourceFile = sourceFile
@@ -53,6 +55,7 @@ public actor IOSPreviewSession {
         self.headless = headless
         self.buildContext = buildContext
         self.traits = traits
+        self.progress = progress
     }
 
     // MARK: - Lifecycle
@@ -61,6 +64,7 @@ public actor IOSPreviewSession {
     /// Returns the PID of the launched host app.
     public func start() async throws -> Int {
         // 1. Compile preview dylib for iOS simulator
+        await progress?.report(.compilingBridge, message: "Compiling \(sourceFile.lastPathComponent)...")
         let previewSession = PreviewSession(
             sourceFile: sourceFile,
             previewIndex: previewIndex,
@@ -72,8 +76,11 @@ public actor IOSPreviewSession {
         self.session = previewSession
         let compileResult = try await previewSession.compile()
 
-        // 2. Boot simulator and install host app.
+        // 2. Build host app, boot simulator, install.
+        await progress?.report(.compilingHostApp, message: "Building iOS host app...")
         let appPath = try await hostBuilder.ensureHostApp()
+        await progress?.report(.bootingSimulator, message: "Booting simulator (\(deviceUDID.prefix(8))...)...")
+        await progress?.report(.installingApp, message: "Installing host app...")
         var lastError: Error?
         for attempt in 1...3 {
             do {
@@ -146,6 +153,7 @@ public actor IOSPreviewSession {
         listenFD = serverFD
 
         // 5. Launch host app with dylib path and port
+        await progress?.report(.launchingApp, message: "Launching host app...")
         let pid = try await simulatorManager.launchApp(
             udid: deviceUDID,
             bundleID: Self.hostBundleID,
@@ -156,6 +164,7 @@ public actor IOSPreviewSession {
         )
 
         // 6. Accept connection from host app (up to 10 seconds)
+        await progress?.report(.connectingToApp, message: "Waiting for host app connection...")
         try await acceptConnection(timeout: .seconds(10))
         setupReadLoop()
 

@@ -72,6 +72,7 @@ struct RunCommand: ParsableCommand {
         let projectPath = project
         let schemeName = scheme
         let traits = PreviewTraits(colorScheme: colorScheme, dynamicTypeSize: dynamicTypeSize)
+        let progress: any ProgressReporter = StderrProgressReporter(totalSteps: 3)
 
         Task {
             do {
@@ -80,7 +81,8 @@ struct RunCommand: ParsableCommand {
                     for: fileURL,
                     projectRoot: projectRootURL,
                     platform: .macOS,
-                    scheme: schemeName)
+                    scheme: schemeName,
+                    progress: progress)
 
                 try await launchMacOSPreview(
                     fileURL: fileURL,
@@ -89,7 +91,8 @@ struct RunCommand: ParsableCommand {
                     width: windowWidth,
                     height: windowHeight,
                     buildContext: buildContext,
-                    traits: traits
+                    traits: traits,
+                    progress: progress
                 )
             } catch {
                 fputs("Error: \(error)\n", stderr)
@@ -105,6 +108,7 @@ struct RunCommand: ParsableCommand {
         let schemeName = scheme
         let traits = PreviewTraits(colorScheme: colorScheme, dynamicTypeSize: dynamicTypeSize)
         let isHeadless = headless
+        let progress: any ProgressReporter = StderrProgressReporter(totalSteps: 8)
 
         Task {
             do {
@@ -113,7 +117,8 @@ struct RunCommand: ParsableCommand {
                     for: fileURL,
                     projectRoot: projectRootURL,
                     platform: .iOS,
-                    scheme: schemeName)
+                    scheme: schemeName,
+                    progress: progress)
 
                 try await launchIOSPreview(
                     fileURL: fileURL,
@@ -121,7 +126,8 @@ struct RunCommand: ParsableCommand {
                     deviceUDID: deviceUDID,
                     headless: isHeadless,
                     buildContext: buildContext,
-                    traits: traits
+                    traits: traits,
+                    progress: progress
                 )
             } catch {
                 fputs("Error: \(error)\n", stderr)
