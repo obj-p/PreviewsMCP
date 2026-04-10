@@ -42,9 +42,10 @@ public enum BridgeGenerator {
 
                 @_cdecl("\(entryPoint)")
                 public func \(entryPoint)() -> UnsafeMutableRawPointer {
-                    let view = SwiftUI.AnyView(
-                        \(transformedClosureBody)\(modifiers)
-                    )
+                    @ViewBuilder func __previewBody() -> some SwiftUI.View {
+                        \(transformedClosureBody)
+                    }
+                    let view = SwiftUI.AnyView(__previewBody()\(modifiers))
                     let hostingView = NSHostingView(rootView: view)
                     return Unmanaged.passRetained(hostingView).toOpaque()
                 }
@@ -55,9 +56,10 @@ public enum BridgeGenerator {
 
                 @_cdecl("\(entryPoint)")
                 public func \(entryPoint)() -> UnsafeMutableRawPointer {
-                    let view = SwiftUI.AnyView(
-                        \(transformedClosureBody)\(modifiers)
-                    )
+                    @ViewBuilder func __previewBody() -> some SwiftUI.View {
+                        \(transformedClosureBody)
+                    }
+                    let view = SwiftUI.AnyView(__previewBody()\(modifiers))
                     let hostingController = UIHostingController(rootView: view)
                     return Unmanaged.passRetained(hostingController).toOpaque()
                 }
@@ -116,9 +118,10 @@ public enum BridgeGenerator {
 
             @_cdecl("\(entryPoint)")
             public func \(entryPoint)() -> UnsafeMutableRawPointer {
-                let view = SwiftUI.AnyView(
-                    \(closureBody)\(modifiers)
-                )
+                @ViewBuilder func __previewBody() -> some SwiftUI.View {
+                    \(closureBody)
+                }
+                let view = SwiftUI.AnyView(__previewBody()\(modifiers))
                 \(hostCode)
             }
             """
@@ -150,6 +153,37 @@ public enum BridgeGenerator {
             traits: traits
         )
     }
+
+    // MARK: - @ViewBuilder context
+    //
+    // The generated bridge wraps the closure body in a nested
+    // `@ViewBuilder func __previewBody() -> some SwiftUI.View { <body> }`
+    // and calls it from `AnyView(__previewBody())`.
+    //
+    // Why: `AnyView.init` takes a bare `View` expression. That rejects several
+    // constructs that Xcode's `#Preview` (which forwards its trailing closure
+    // to `DeveloperToolsSupport.Preview.init` — a `@ViewBuilder` closure)
+    // accepts without ceremony:
+    //   - `if #available` / `if #unavailable` (statement-only in Swift)
+    //   - Multi-statement bodies with leading `let`/`var` declarations
+    //   - `if` / `switch` branches producing different concrete `View` types
+    //
+    // Regular `if` / `switch` are valid expressions in Swift 5.9+ *only* when
+    // every branch has the same type; `@ViewBuilder` lifts that restriction via
+    // `_ConditionalContent`. Giving the body a `@ViewBuilder` context
+    // unconditionally (rather than pattern-matching specific syntactic forms)
+    // catches every case the compiler would otherwise reject, including ones
+    // we haven't enumerated.
+    //
+    // Why a nested function and not `Group { ... }`: `Group` has a special
+    // canvas-level behavior in the legacy `PreviewProvider` API — Xcode's
+    // preview inspector walks into a top-level `Group` and renders each child
+    // as a separate preview card. That's a canvas-inspection quirk, not a
+    // runtime behavior (and not relevant to the new `#Preview` macro at all),
+    // but seeing `Group` in generated bridge code is a code smell that invites
+    // confusion. A nested `@ViewBuilder` function gives the exact same runtime
+    // semantics with zero added view types in the render tree and unambiguous
+    // intent at the source level.
 
     /// Build SwiftUI modifier chain for the given traits.
     private static func traitModifiers(_ traits: PreviewTraits) -> String {
