@@ -4,3 +4,9 @@
 xcuserdata/
 DerivedData/
 .claude/worktrees/
+
+# The example's Package.resolved is deliberately left unpinned so the SPM
+# integration tests always exercise fresh dependency resolution (and catch
+# upstream breakage in deps like lottie-spm early). The ROOT /Package.resolved
+# stays tracked — this exclusion is scoped to the example package only.
+examples/spm/Package.resolved
