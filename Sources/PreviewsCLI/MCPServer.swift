@@ -567,12 +567,20 @@ private func handlePreviewStart(params: CallTool.Parameters, macCompiler: Compil
     }
 
     await progress.report(.compilingBridge, message: "Compiling \(fileURL.lastPathComponent)...")
+    let setupModule = config?.setup?.moduleName
+    let setupType = config?.setup?.typeName
+    let standaloneSetupWarning = (setupModule != nil && buildContext == nil)
+        ? " Warning: setup plugin requires a project build system and is ignored in standalone mode."
+        : ""
+
     let sessionID = try await startMacOSPreview(
         fileURL: fileURL, previewIndex: previewIndex,
         title: "Preview: \(fileURL.lastPathComponent)",
         width: width, height: height,
         compiler: macCompiler, buildContext: buildContext,
         traits: resolvedTraits,
+        setupModule: setupModule,
+        setupType: setupType,
         headless: headless
     )
 
@@ -582,7 +590,7 @@ private func handlePreviewStart(params: CallTool.Parameters, macCompiler: Compil
     let switchHint = previews.count > 1 ? "\nUse preview_switch to change the active preview." : ""
     return CallTool.Result(content: [
         .text(
-            "macOS preview started. Session ID: \(sessionID).\(traitInfo) File is being watched for changes.\n\(previewList)\(switchHint)"
+            "macOS preview started. Session ID: \(sessionID).\(traitInfo)\(standaloneSetupWarning) File is being watched for changes.\n\(previewList)\(switchHint)"
         )
     ])
 }
@@ -619,6 +627,9 @@ private func handleIOSPreviewStart(
         return CallTool.Result(content: [.text("Project build failed: \(error.localizedDescription)")], isError: true)
     }
 
+    let setupModule = config?.setup?.moduleName
+    let setupType = config?.setup?.typeName
+
     let session = IOSPreviewSession(
         sourceFile: fileURL,
         previewIndex: previewIndex,
@@ -629,6 +640,8 @@ private func handleIOSPreviewStart(
         headless: headless,
         buildContext: buildContext,
         traits: traits,
+        setupModule: setupModule,
+        setupType: setupType,
         progress: progress
     )
 
@@ -676,6 +689,8 @@ private func startMacOSPreview(
     width: Int, height: Int,
     compiler: Compiler, buildContext: BuildContext?,
     traits: PreviewTraits = PreviewTraits(),
+    setupModule: String? = nil,
+    setupType: String? = nil,
     headless: Bool = true
 ) async throws -> String {
     let session = PreviewSession(
@@ -683,7 +698,9 @@ private func startMacOSPreview(
         previewIndex: previewIndex,
         compiler: compiler,
         buildContext: buildContext,
-        traits: traits
+        traits: traits,
+        setupModule: setupModule,
+        setupType: setupType
     )
 
     let compileResult = try await session.compile()

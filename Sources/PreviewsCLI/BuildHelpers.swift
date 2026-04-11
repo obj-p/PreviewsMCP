@@ -68,6 +68,8 @@ func launchMacOSPreview(
     height: Int,
     buildContext: BuildContext?,
     traits: PreviewTraits = PreviewTraits(),
+    setupModule: String? = nil,
+    setupType: String? = nil,
     progress: (any ProgressReporter)? = nil
 ) async throws {
     let compiler = try await Compiler()
@@ -77,7 +79,9 @@ func launchMacOSPreview(
         previewIndex: previewIndex,
         compiler: compiler,
         buildContext: buildContext,
-        traits: traits
+        traits: traits,
+        setupModule: setupModule,
+        setupType: setupType
     )
 
     await progress?.report(.compilingBridge, message: "Compiling \(fileURL.lastPathComponent)...")
@@ -115,6 +119,8 @@ func launchIOSPreview(
     headless: Bool = false,
     buildContext: BuildContext?,
     traits: PreviewTraits = PreviewTraits(),
+    setupModule: String? = nil,
+    setupType: String? = nil,
     progress: (any ProgressReporter)? = nil
 ) async throws {
     let compiler = try await Compiler(platform: .iOS)
@@ -133,6 +139,8 @@ func launchIOSPreview(
         headless: headless,
         buildContext: buildContext,
         traits: traits,
+        setupModule: setupModule,
+        setupType: setupType,
         progress: progress
     )
 

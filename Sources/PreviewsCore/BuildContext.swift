@@ -24,17 +24,29 @@ public struct BuildContext: Sendable {
     /// Whether this context supports Tier 2 (source compilation with literal hot-reload).
     public var supportsTier2: Bool { sourceFiles != nil }
 
+    // MARK: - Setup plugin (optional)
+
+    /// Module name of the setup target (e.g., "MyAppPreviewSetup").
+    public let setupModuleName: String?
+
+    /// Additional compiler flags for the setup module (typically -I for its .swiftmodule).
+    public let setupCompilerFlags: [String]
+
     public init(
         moduleName: String,
         compilerFlags: [String],
         projectRoot: URL,
         targetName: String,
-        sourceFiles: [URL]? = nil
+        sourceFiles: [URL]? = nil,
+        setupModuleName: String? = nil,
+        setupCompilerFlags: [String] = []
     ) {
         self.moduleName = moduleName
         self.compilerFlags = compilerFlags
         self.projectRoot = projectRoot
         self.targetName = targetName
         self.sourceFiles = sourceFiles
+        self.setupModuleName = setupModuleName
+        self.setupCompilerFlags = setupCompilerFlags
     }
 }

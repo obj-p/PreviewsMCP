@@ -16,6 +16,8 @@ public actor PreviewSession {
     private let platform: PreviewPlatform
     private let buildContext: BuildContext?
     private var traits: PreviewTraits
+    private let setupModule: String?
+    private let setupType: String?
     private var compilationResult: CompilationResult?
     private var lastOriginalSource: String?
     private var lastLiterals: [LiteralEntry]?
@@ -37,7 +39,9 @@ public actor PreviewSession {
         compiler: Compiler,
         platform: PreviewPlatform = .macOS,
         buildContext: BuildContext? = nil,
-        traits: PreviewTraits = PreviewTraits()
+        traits: PreviewTraits = PreviewTraits(),
+        setupModule: String? = nil,
+        setupType: String? = nil
     ) {
         self.id = UUID().uuidString
         self.sourceFile = sourceFile
@@ -46,6 +50,8 @@ public actor PreviewSession {
         self.platform = platform
         self.buildContext = buildContext
         self.traits = traits
+        self.setupModule = setupModule
+        self.setupType = setupType
     }
 
     /// Run the full pipeline and return the compiled dylib path + literal map.
@@ -71,37 +77,38 @@ public actor PreviewSession {
             let additionalSourceFiles: [URL]
 
             if let ctx = buildContext {
+                let resolvedSetupModule = setupModule ?? ctx.setupModuleName
+                let setupFlags = ctx.setupCompilerFlags
                 if ctx.supportsTier2, let srcFiles = ctx.sourceFiles {
-                    // Tier 2: compile preview file (with thunks) + all other target sources
                     let result = BridgeGenerator.generateOverlaySource(
                         originalSource: source,
                         closureBody: preview.closureBody,
                         previewIndex: previewIndex,
                         platform: platform,
-                        traits: traits
+                        traits: traits,
+                        setupModule: resolvedSetupModule,
+                        setupType: setupType
                     )
                     compiledSource = result.source
                     literals = result.literals
                     additionalSourceFiles = srcFiles
                     moduleName = ctx.moduleName
                 } else {
-                    // Tier 1: bridge-only (no literal hot-reload)
-                    // Use a different module name for the bridge dylib to avoid
-                    // "file is part of module X; ignoring import" when swiftc sees
-                    // both -module-name X and @testable import X in the same file.
                     compiledSource = BridgeGenerator.generateBridgeOnlySource(
                         moduleName: ctx.moduleName,
                         closureBody: preview.closureBody,
                         platform: platform,
-                        traits: traits
+                        traits: traits,
+                        setupModule: resolvedSetupModule,
+                        setupType: setupType
                     )
                     literals = []
                     additionalSourceFiles = []
                     moduleName = "PreviewBridge_\(ctx.moduleName)"
                 }
-                extraFlags = ctx.compilerFlags
+                extraFlags = ctx.compilerFlags + setupFlags
             } else {
-                // Standalone mode: existing behavior
+                // Standalone mode: setup not supported (no module system)
                 let result = BridgeGenerator.generateCombinedSource(
                     originalSource: source,
                     closureBody: preview.closureBody,

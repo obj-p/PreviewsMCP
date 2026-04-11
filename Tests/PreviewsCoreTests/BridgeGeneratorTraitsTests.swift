@@ -607,6 +607,79 @@ struct BridgeGeneratorTraitsTests {
         #expect(!literals.isEmpty)
     }
 
+    // MARK: - Setup plugin code generation
+
+    @Test("generateCombinedSource with setup generates import and previewSetUp entry point")
+    func combinedSourceWithSetup() {
+        let (source, _) = BridgeGenerator.generateCombinedSource(
+            originalSource: Self.testSource,
+            closureBody: "TestView()",
+            setupModule: "MySetup",
+            setupType: "AppSetup"
+        )
+        #expect(source.contains("import MySetup"))
+        #expect(source.contains("@_cdecl(\"previewSetUp\")"))
+        #expect(source.contains("AppSetup.setUp()"))
+        #expect(source.contains("DispatchSemaphore"))
+    }
+
+    @Test("generateCombinedSource with setup calls wrap and applies traits outside")
+    func combinedSourceSetupWrapAndTraits() {
+        let traits = PreviewTraits(colorScheme: "dark")
+        let (source, _) = BridgeGenerator.generateCombinedSource(
+            originalSource: Self.testSource,
+            closureBody: "TestView()",
+            traits: traits,
+            setupModule: "MySetup",
+            setupType: "AppSetup"
+        )
+        #expect(source.contains("AppSetup.wrap(innerView)"))
+        #expect(source.contains("wrappedView"))
+        #expect(source.contains(".preferredColorScheme(.dark)"))
+
+        let wrapIdx = source.range(of: "AppSetup.wrap")!.lowerBound
+        let traitIdx = source.range(of: ".preferredColorScheme(.dark)")!.lowerBound
+        #expect(wrapIdx < traitIdx, "wrap() should appear before trait modifiers (traits outside wrap)")
+    }
+
+    @Test("generateCombinedSource without setup has no previewSetUp or wrap")
+    func combinedSourceNoSetup() {
+        let (source, _) = BridgeGenerator.generateCombinedSource(
+            originalSource: Self.testSource,
+            closureBody: "TestView()"
+        )
+        #expect(!source.contains("previewSetUp"))
+        #expect(!source.contains(".wrap("))
+        #expect(!source.contains("DispatchSemaphore"))
+    }
+
+    @Test("generateBridgeOnlySource with setup generates import and entry points")
+    func bridgeOnlySourceWithSetup() {
+        let source = BridgeGenerator.generateBridgeOnlySource(
+            moduleName: "MyTarget",
+            closureBody: "ContentView()",
+            setupModule: "MySetup",
+            setupType: "AppSetup"
+        )
+        #expect(source.contains("import MySetup"))
+        #expect(source.contains("@_cdecl(\"previewSetUp\")"))
+        #expect(source.contains("AppSetup.setUp()"))
+        #expect(source.contains("AppSetup.wrap(innerView)"))
+    }
+
+    @Test("generateOverlaySource with setup passes through to combined")
+    func overlaySourceWithSetup() {
+        let (source, _) = BridgeGenerator.generateOverlaySource(
+            originalSource: Self.testSource,
+            closureBody: "TestView()",
+            setupModule: "MySetup",
+            setupType: "AppSetup"
+        )
+        #expect(source.contains("import MySetup"))
+        #expect(source.contains("@_cdecl(\"previewSetUp\")"))
+        #expect(source.contains("AppSetup.wrap(innerView)"))
+    }
+
     // MARK: - Validation
 
     @Test("PreviewTraits.validColorSchemes contains exactly light and dark")

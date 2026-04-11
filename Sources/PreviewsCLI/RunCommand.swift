@@ -122,6 +122,8 @@ struct RunCommand: ParsableCommand {
                     height: windowHeight,
                     buildContext: buildContext,
                     traits: traits,
+                    setupModule: projectConfig?.setup?.moduleName,
+                    setupType: projectConfig?.setup?.typeName,
                     progress: progress
                 )
             } catch {
@@ -163,6 +165,8 @@ struct RunCommand: ParsableCommand {
                     headless: isHeadless,
                     buildContext: buildContext,
                     traits: traits,
+                    setupModule: projectConfig?.setup?.moduleName,
+                    setupType: projectConfig?.setup?.typeName,
                     progress: progress
                 )
             } catch {
