@@ -564,21 +564,21 @@ private func handlePreviewStart(params: CallTool.Parameters, macCompiler: Compil
         return CallTool.Result(content: [.text("Project build failed: \(error.localizedDescription)")], isError: true)
     }
 
-    await progress.report(.compilingBridge, message: "Compiling \(fileURL.lastPathComponent)...")
-    let setupModule = config?.setup?.moduleName
-    let setupType = config?.setup?.typeName
-    let standaloneSetupWarning = (setupModule != nil && buildContext == nil)
+    // Build setup plugin if configured
+    let configDir = fileURL.deletingLastPathComponent()
+    let setupResult = try await buildSetupIfConfigured(config: config, configDirectory: configDir, platform: .macOS)
+    let standaloneSetupWarning = (config?.setup != nil && buildContext == nil)
         ? " Warning: setup plugin requires a project build system and is ignored in standalone mode."
         : ""
 
+    await progress.report(.compilingBridge, message: "Compiling \(fileURL.lastPathComponent)...")
     let sessionID = try await startMacOSPreview(
         fileURL: fileURL, previewIndex: previewIndex,
         title: "Preview: \(fileURL.lastPathComponent)",
         width: width, height: height,
         compiler: macCompiler, buildContext: buildContext,
         traits: resolvedTraits,
-        setupModule: setupModule,
-        setupType: setupType,
+        setupResult: setupResult,
         headless: headless
     )
 
@@ -625,8 +625,8 @@ private func handleIOSPreviewStart(
         return CallTool.Result(content: [.text("Project build failed: \(error.localizedDescription)")], isError: true)
     }
 
-    let setupModule = config?.setup?.moduleName
-    let setupType = config?.setup?.typeName
+    let configDir = fileURL.deletingLastPathComponent()
+    let setupResult = try await buildSetupIfConfigured(config: config, configDirectory: configDir, platform: .iOS)
 
     let session = IOSPreviewSession(
         sourceFile: fileURL,
@@ -638,8 +638,9 @@ private func handleIOSPreviewStart(
         headless: headless,
         buildContext: buildContext,
         traits: traits,
-        setupModule: setupModule,
-        setupType: setupType,
+        setupModule: setupResult?.moduleName,
+        setupType: setupResult?.typeName,
+        setupCompilerFlags: setupResult?.compilerFlags ?? [],
         progress: progress
     )
 
@@ -682,13 +683,25 @@ private func handleIOSPreviewStart(
     ])
 }
 
+/// Build the setup package if configured. Returns nil if no setup or standalone mode.
+private func buildSetupIfConfigured(
+    config: ProjectConfig?,
+    configDirectory: URL,
+    platform: PreviewPlatform
+) async throws -> SetupBuilder.Result? {
+    guard let setupConfig = config?.setup else { return nil }
+    let configDir = ProjectConfigLoader.findConfigDirectory(from: configDirectory) ?? configDirectory
+    return try await SetupBuilder.build(
+        config: setupConfig, configDirectory: configDir, platform: platform
+    )
+}
+
 private func startMacOSPreview(
     fileURL: URL, previewIndex: Int, title: String,
     width: Int, height: Int,
     compiler: Compiler, buildContext: BuildContext?,
     traits: PreviewTraits = PreviewTraits(),
-    setupModule: String? = nil,
-    setupType: String? = nil,
+    setupResult: SetupBuilder.Result? = nil,
     headless: Bool = true
 ) async throws -> String {
     let session = PreviewSession(
@@ -697,8 +710,9 @@ private func startMacOSPreview(
         compiler: compiler,
         buildContext: buildContext,
         traits: traits,
-        setupModule: setupModule,
-        setupType: setupType
+        setupModule: setupResult?.moduleName,
+        setupType: setupResult?.typeName,
+        setupCompilerFlags: setupResult?.compilerFlags ?? []
     )
 
     let compileResult = try await session.compile()

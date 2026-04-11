@@ -24,7 +24,8 @@ struct ProjectConfigTests {
                 "quality": 0.9,
                 "setup": {
                     "moduleName": "MyAppPreviewSetup",
-                    "typeName": "AppPreviewSetup"
+                    "typeName": "AppPreviewSetup",
+                    "packagePath": "../PreviewSetup"
                 }
             }
             """
@@ -39,6 +40,7 @@ struct ProjectConfigTests {
         #expect(config.quality == 0.9)
         #expect(config.setup?.moduleName == "MyAppPreviewSetup")
         #expect(config.setup?.typeName == "AppPreviewSetup")
+        #expect(config.setup?.packagePath == "../PreviewSetup")
     }
 
     @Test("Decodes minimal JSON with single field")

@@ -114,6 +114,8 @@ struct RunCommand: ParsableCommand {
                     scheme: schemeName,
                     progress: progress)
 
+                let setupResult = try await buildSetupFromConfig(projectConfig, fileURL: fileURL, platform: .macOS)
+
                 try await launchMacOSPreview(
                     fileURL: fileURL,
                     previewIndex: previewIndex,
@@ -122,8 +124,7 @@ struct RunCommand: ParsableCommand {
                     height: windowHeight,
                     buildContext: buildContext,
                     traits: traits,
-                    setupModule: projectConfig?.setup?.moduleName,
-                    setupType: projectConfig?.setup?.typeName,
+                    setupResult: setupResult,
                     progress: progress
                 )
             } catch {
@@ -158,6 +159,8 @@ struct RunCommand: ParsableCommand {
                     scheme: schemeName,
                     progress: progress)
 
+                let setupResult = try await buildSetupFromConfig(projectConfig, fileURL: fileURL, platform: .iOS)
+
                 try await launchIOSPreview(
                     fileURL: fileURL,
                     previewIndex: previewIndex,
@@ -165,8 +168,7 @@ struct RunCommand: ParsableCommand {
                     headless: isHeadless,
                     buildContext: buildContext,
                     traits: traits,
-                    setupModule: projectConfig?.setup?.moduleName,
-                    setupType: projectConfig?.setup?.typeName,
+                    setupResult: setupResult,
                     progress: progress
                 )
             } catch {

@@ -171,14 +171,17 @@ struct VariantsCommand: ParsableCommand {
                     for: fileURL, projectRoot: projectRootURL, platform: .macOS,
                     progress: progress)
 
+                let setupResult = try await buildSetupFromConfig(projectConfig, fileURL: fileURL, platform: .macOS)
+
                 session = PreviewSession(
                     sourceFile: fileURL,
                     previewIndex: previewIndex,
                     compiler: compiler,
                     buildContext: buildContext,
                     traits: resolved[0].traits,
-                    setupModule: projectConfig?.setup?.moduleName,
-                    setupType: projectConfig?.setup?.typeName
+                    setupModule: setupResult?.moduleName,
+                    setupType: setupResult?.typeName,
+                    setupCompilerFlags: setupResult?.compilerFlags ?? []
                 )
                 sessionID = session.id
             } catch {
@@ -268,6 +271,8 @@ struct VariantsCommand: ParsableCommand {
                     for: fileURL, projectRoot: projectRootURL, platform: .iOS,
                     progress: progress)
 
+                let setupResult = try await buildSetupFromConfig(projectConfig, fileURL: fileURL, platform: .iOS)
+
                 session = IOSPreviewSession(
                     sourceFile: fileURL,
                     previewIndex: previewIndex,
@@ -278,8 +283,9 @@ struct VariantsCommand: ParsableCommand {
                     headless: true,
                     buildContext: buildContext,
                     traits: resolved[0].traits,
-                    setupModule: projectConfig?.setup?.moduleName,
-                    setupType: projectConfig?.setup?.typeName,
+                    setupModule: setupResult?.moduleName,
+                    setupType: setupResult?.typeName,
+                    setupCompilerFlags: setupResult?.compilerFlags ?? [],
                     progress: progress
                 )
 

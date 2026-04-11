@@ -6,6 +6,7 @@
   "quality": 0.9,
   "setup": {
     "moduleName": "ToDoPreviewSetup",
-    "typeName": "ToDoPreviewSetup"
+    "typeName": "ToDoPreviewSetup",
+    "packagePath": "../PreviewSetup"
   }
 }

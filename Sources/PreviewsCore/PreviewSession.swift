@@ -18,6 +18,7 @@ public actor PreviewSession {
     private var traits: PreviewTraits
     private let setupModule: String?
     private let setupType: String?
+    private let setupCompilerFlags: [String]
     private var compilationResult: CompilationResult?
     private var lastOriginalSource: String?
     private var lastLiterals: [LiteralEntry]?
@@ -41,7 +42,8 @@ public actor PreviewSession {
         buildContext: BuildContext? = nil,
         traits: PreviewTraits = PreviewTraits(),
         setupModule: String? = nil,
-        setupType: String? = nil
+        setupType: String? = nil,
+        setupCompilerFlags: [String] = []
     ) {
         self.id = UUID().uuidString
         self.sourceFile = sourceFile
@@ -52,6 +54,7 @@ public actor PreviewSession {
         self.traits = traits
         self.setupModule = setupModule
         self.setupType = setupType
+        self.setupCompilerFlags = setupCompilerFlags
     }
 
     /// Run the full pipeline and return the compiled dylib path + literal map.
@@ -106,7 +109,7 @@ public actor PreviewSession {
                     additionalSourceFiles = []
                     moduleName = "PreviewBridge_\(ctx.moduleName)"
                 }
-                extraFlags = ctx.compilerFlags + setupFlags
+                extraFlags = ctx.compilerFlags + setupFlags + setupCompilerFlags
             } else {
                 // Standalone mode: setup not supported (no module system)
                 let result = BridgeGenerator.generateCombinedSource(
@@ -119,7 +122,7 @@ public actor PreviewSession {
                 compiledSource = result.source
                 literals = result.literals
                 moduleName = Self.moduleName(for: sourceFile)
-                extraFlags = []
+                extraFlags = setupCompilerFlags
                 additionalSourceFiles = []
             }
 

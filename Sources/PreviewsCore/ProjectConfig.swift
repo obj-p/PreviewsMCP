@@ -28,6 +28,7 @@ public struct ProjectConfig: Sendable, Codable {
     public struct SetupConfig: Sendable, Codable {
         public var moduleName: String
         public var typeName: String
+        public var packagePath: String
     }
 }
 
@@ -42,6 +43,20 @@ public enum ProjectConfigLoader {
                 let config = try? JSONDecoder().decode(ProjectConfig.self, from: data)
             {
                 return config
+            }
+            dir = dir.deletingLastPathComponent()
+        }
+        return nil
+    }
+
+    /// Find the directory containing `.previewsmcp.json`, or nil if not found.
+    /// Used to resolve relative paths in the config (e.g., setup.packagePath).
+    public static func findConfigDirectory(from directory: URL) -> URL? {
+        var dir = directory.standardizedFileURL
+        while dir.path != "/" {
+            let configFile = dir.appendingPathComponent(fileName)
+            if FileManager.default.fileExists(atPath: configFile.path) {
+                return dir
             }
             dir = dir.deletingLastPathComponent()
         }

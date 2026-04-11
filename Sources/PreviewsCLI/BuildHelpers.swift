@@ -35,6 +35,21 @@ func loadProjectConfig(explicit configPath: String?, fileURL: URL) -> ProjectCon
     return ProjectConfigLoader.find(from: fileURL.deletingLastPathComponent())
 }
 
+/// Build the setup package if configured in a ProjectConfig.
+func buildSetupFromConfig(
+    _ config: ProjectConfig?,
+    fileURL: URL,
+    platform: PreviewPlatform
+) async throws -> SetupBuilder.Result? {
+    guard let setupConfig = config?.setup else { return nil }
+    let configDir =
+        ProjectConfigLoader.findConfigDirectory(from: fileURL.deletingLastPathComponent())
+        ?? fileURL.deletingLastPathComponent()
+    return try await SetupBuilder.build(
+        config: setupConfig, configDirectory: configDir, platform: platform
+    )
+}
+
 /// Detect the build system for a source file and build it, reporting progress.
 func detectAndBuild(
     for fileURL: URL,
@@ -68,8 +83,7 @@ func launchMacOSPreview(
     height: Int,
     buildContext: BuildContext?,
     traits: PreviewTraits = PreviewTraits(),
-    setupModule: String? = nil,
-    setupType: String? = nil,
+    setupResult: SetupBuilder.Result? = nil,
     progress: (any ProgressReporter)? = nil
 ) async throws {
     let compiler = try await Compiler()
@@ -80,8 +94,9 @@ func launchMacOSPreview(
         compiler: compiler,
         buildContext: buildContext,
         traits: traits,
-        setupModule: setupModule,
-        setupType: setupType
+        setupModule: setupResult?.moduleName,
+        setupType: setupResult?.typeName,
+        setupCompilerFlags: setupResult?.compilerFlags ?? []
     )
 
     await progress?.report(.compilingBridge, message: "Compiling \(fileURL.lastPathComponent)...")
@@ -119,8 +134,7 @@ func launchIOSPreview(
     headless: Bool = false,
     buildContext: BuildContext?,
     traits: PreviewTraits = PreviewTraits(),
-    setupModule: String? = nil,
-    setupType: String? = nil,
+    setupResult: SetupBuilder.Result? = nil,
     progress: (any ProgressReporter)? = nil
 ) async throws {
     let compiler = try await Compiler(platform: .iOS)
@@ -139,8 +153,9 @@ func launchIOSPreview(
         headless: headless,
         buildContext: buildContext,
         traits: traits,
-        setupModule: setupModule,
-        setupType: setupType,
+        setupModule: setupResult?.moduleName,
+        setupType: setupResult?.typeName,
+        setupCompilerFlags: setupResult?.compilerFlags ?? [],
         progress: progress
     )
 

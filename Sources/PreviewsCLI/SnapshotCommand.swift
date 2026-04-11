@@ -120,14 +120,17 @@ struct SnapshotCommand: ParsableCommand {
                     scheme: schemeName,
                     progress: progress)
 
+                let setupResult = try await buildSetupFromConfig(projectConfig, fileURL: fileURL, platform: .macOS)
+
                 let session = PreviewSession(
                     sourceFile: fileURL,
                     previewIndex: previewIndex,
                     compiler: compiler,
                     buildContext: buildContext,
                     traits: traits,
-                    setupModule: projectConfig?.setup?.moduleName,
-                    setupType: projectConfig?.setup?.typeName
+                    setupModule: setupResult?.moduleName,
+                    setupType: setupResult?.typeName,
+                    setupCompilerFlags: setupResult?.compilerFlags ?? []
                 )
 
                 await progress.report(
@@ -209,6 +212,8 @@ struct SnapshotCommand: ParsableCommand {
                     scheme: schemeName,
                     progress: progress)
 
+                let setupResult = try await buildSetupFromConfig(projectConfig, fileURL: fileURL, platform: .iOS)
+
                 let session = IOSPreviewSession(
                     sourceFile: fileURL,
                     previewIndex: previewIndex,
@@ -219,8 +224,9 @@ struct SnapshotCommand: ParsableCommand {
                     headless: true,
                     buildContext: buildContext,
                     traits: traits,
-                    setupModule: projectConfig?.setup?.moduleName,
-                    setupType: projectConfig?.setup?.typeName,
+                    setupModule: setupResult?.moduleName,
+                    setupType: setupResult?.typeName,
+                    setupCompilerFlags: setupResult?.compilerFlags ?? [],
                     progress: progress
                 )
 
