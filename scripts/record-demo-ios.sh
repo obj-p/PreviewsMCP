@@ -1,0 +1,106 @@
+#!/usr/bin/env bash
+# Composite iOS demo recorder. Runs vhs (terminal) and `xcrun simctl io
+# recordVideo` (simulator screen) in parallel, then hstacks them into a
+# single gif at assets/demo.gif.
+#
+# One-time setup:
+#   brew install vhs ffmpeg
+#
+# Then:
+#   scripts/record-demo-ios.sh
+
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+
+for tool in vhs ffmpeg xcrun; do
+  if ! command -v "$tool" >/dev/null 2>&1; then
+    echo "error: $tool not found on PATH" >&2
+    exit 1
+  fi
+done
+
+# Pick the previewsmcp binary to use.
+if [[ -x .build/release/previewsmcp ]]; then
+  bin_dir="$PWD/.build/release"
+elif [[ -x .build/debug/previewsmcp ]]; then
+  bin_dir="$PWD/.build/debug"
+else
+  echo "Building previewsmcp (release)..."
+  swift build -c release
+  bin_dir="$PWD/.build/release"
+fi
+export PATH="$bin_dir:$PATH"
+
+mkdir -p /tmp/pmcp-demo assets
+
+# Ensure a simulator is booted. If none, boot the first available iPhone.
+if ! xcrun simctl list devices booted 2>/dev/null | grep -q '(Booted)'; then
+  udid=$(xcrun simctl list devices available \
+    | grep -Eo '\(([0-9A-F-]{36})\)' \
+    | head -1 | tr -d '()')
+  if [[ -z "${udid:-}" ]]; then
+    echo "error: no available iOS simulator devices" >&2
+    exit 1
+  fi
+  echo "Booting simulator $udid..."
+  xcrun simctl boot "$udid"
+  sleep 3
+fi
+
+# Always leave the example file pristine on exit, even if we crash.
+EXAMPLE_FILE="examples/spm/Sources/ToDo/ToDoView.swift"
+trap 'git checkout -- "$EXAMPLE_FILE" 2>/dev/null || true; \
+      [[ -n "${SIM_PID:-}" ]] && kill -INT "$SIM_PID" 2>/dev/null || true; \
+      pkill -f "previewsmcp run $EXAMPLE_FILE" 2>/dev/null || true' EXIT
+
+# Warm the iOS host app + dylib caches so the recorded `run` is as fast as possible.
+echo "Warming iOS caches..."
+previewsmcp snapshot "$EXAMPLE_FILE" --platform ios -o /tmp/pmcp-demo/warmup.png >/dev/null 2>&1
+xcrun simctl terminate booted com.obj-p.previewsmcp.host 2>/dev/null || true
+
+# Start simulator video capture in the background.
+rm -f /tmp/pmcp-demo/sim.mp4 /tmp/pmcp-demo/terminal.mp4
+echo "Starting simulator recording..."
+xcrun simctl io booted recordVideo --codec=h264 /tmp/pmcp-demo/sim.mp4 &
+SIM_PID=$!
+sleep 1
+
+# Run the tape. vhs drives the shell and records the terminal to mp4.
+echo "Running vhs tape..."
+vhs scripts/demo-ios.tape
+
+# Stop simulator recording cleanly.
+echo "Stopping simulator recording..."
+kill -INT "$SIM_PID" 2>/dev/null || true
+wait "$SIM_PID" 2>/dev/null || true
+SIM_PID=""
+
+# Composite: scale both to equal height, pad the end of each stream with its
+# last frame (tpad) so the final state is held visible, then hstack.
+# simctl recordVideo is variable-framerate and only samples on screen
+# changes, so the very last frame of the sim video often coincides with
+# the hot-reload moment — without the tpad pad, hstack would cut it off.
+# Height 960 keeps the iPhone screen large enough to read text in the gif.
+echo "Compositing..."
+ffmpeg -y \
+  -i /tmp/pmcp-demo/terminal.mp4 \
+  -i /tmp/pmcp-demo/sim.mp4 \
+  -filter_complex "\
+    [0:v]tpad=stop_mode=clone:stop_duration=4,scale=-2:960,setsar=1[t];\
+    [1:v]tpad=stop_mode=clone:stop_duration=4,scale=-2:960,setsar=1[s];\
+    [t][s]hstack=inputs=2" \
+  -c:v libx264 -pix_fmt yuv420p \
+  /tmp/pmcp-demo/composite.mp4 >/dev/null 2>&1
+
+# Render the gif with a generated palette for quality.
+echo "Rendering gif..."
+ffmpeg -y -i /tmp/pmcp-demo/composite.mp4 \
+  -vf "fps=12,scale=1600:-2:flags=lanczos,palettegen=stats_mode=diff" \
+  /tmp/pmcp-demo/palette.png >/dev/null 2>&1
+ffmpeg -y -i /tmp/pmcp-demo/composite.mp4 -i /tmp/pmcp-demo/palette.png \
+  -lavfi "fps=12,scale=1600:-2:flags=lanczos[x];[x][1:v]paletteuse=dither=bayer:bayer_scale=5" \
+  assets/demo.gif >/dev/null 2>&1
+
+echo "Wrote assets/demo.gif"
+ls -la assets/demo.gif

@@ -10,8 +10,10 @@
 </p>
 
 <p align="center">
-  <img src="assets/demo.gif" alt="PreviewsMCP CLI demo" width="720">
+  <img src="assets/demo.gif" alt="PreviewsMCP iOS hot-reload demo" width="900">
 </p>
+
+<p align="center"><em>Edit a SwiftUI source file — the iOS simulator hot-reloads live. No Xcode.</em></p>
 
 <p align="center">
   <img src="assets/preview-light.png" alt="Light variant" width="260">
@@ -166,11 +168,20 @@ The response contains one labeled image per variant.
 
 ## Regenerating the demo assets
 
-`assets/demo.gif` and the paired `assets/preview-{light,dark}.png` are produced from [`scripts/demo.tape`](scripts/demo.tape) with [vhs](https://github.com/charmbracelet/vhs):
+Two pipelines produce the README visuals:
 
 ```bash
-brew install vhs
+brew install vhs ffmpeg
+
+# Side-by-side iOS hot-reload demo (assets/demo.gif):
+# records the terminal via vhs and the booted simulator via `simctl io
+# recordVideo` in parallel, then composites them with ffmpeg.
+scripts/record-demo-ios.sh
+
+# Terminal-only demo + light/dark variant PNGs:
+# uses previewsmcp variants against the bundled SPM ToDo example and
+# copies the captured PNGs into assets/.
 scripts/record-demo.sh
 ```
 
-The script builds `previewsmcp` if needed, runs the tape against the bundled SPM `ToDo` example, and copies the light/dark variant PNGs into `assets/` alongside the GIF.
+Each script builds `previewsmcp` if needed, runs against the bundled SPM `ToDo` example, and writes outputs to `assets/`.
