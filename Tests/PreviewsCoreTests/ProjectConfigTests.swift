@@ -123,11 +123,8 @@ struct ProjectConfigTests {
         defer { try? FileManager.default.removeItem(at: tempDir) }
 
         let configFile = tempDir.appendingPathComponent(".previewsmcp.json")
-        try Data(
-            """
-            { "platform": "ios" }
-            """.utf8
-        ).write(to: configFile)
+        let json = #"{ "platform": "ios" }"#
+        try Data(json.utf8).write(to: configFile)
 
         let config = ProjectConfigLoader.find(from: tempDir)
         #expect(config?.platform == "ios")
@@ -142,11 +139,8 @@ struct ProjectConfigTests {
         defer { try? FileManager.default.removeItem(at: root) }
 
         let configFile = root.appendingPathComponent(".previewsmcp.json")
-        try Data(
-            """
-            { "platform": "macos", "quality": 0.95 }
-            """.utf8
-        ).write(to: configFile)
+        let json = #"{ "platform": "macos", "quality": 0.95 }"#
+        try Data(json.utf8).write(to: configFile)
 
         let config = ProjectConfigLoader.find(from: child)
         #expect(config?.platform == "macos")
