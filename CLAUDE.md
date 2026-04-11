@@ -130,7 +130,7 @@ The `device` field accepts either a device name (e.g., `"iPhone 16 Pro"`) or a U
 
 `setUp()` is `async throws` and runs completely outside the hot-reload path. If it throws, the preview renders without setup and the error is reported as a warning. Trait modifiers from `preview_configure` are applied outside the wrap, so explicit overrides always take precedence.
 
-The setup target is declared in `.previewsmcp.json` via `setup.moduleName` and `setup.typeName`. It requires project mode (SPM/Xcode/Bazel) — standalone mode ignores the setup config with a warning.
+The setup target is declared in `.previewsmcp.json` via `setup.moduleName`, `setup.typeName`, and `setup.packagePath` (relative to config file). PreviewsMCP builds the setup package independently via `SetupBuilder` — the user's app target has no dependency on PreviewsMCP. Standalone mode (no build system) ignores the setup config with a warning.
 
 ## iOS Touch Injection
 

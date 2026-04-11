@@ -182,7 +182,8 @@ Create a `.previewsmcp.json` in your project root to set defaults for all CLI co
   "quality": 0.9,
   "setup": {
     "moduleName": "MyAppPreviewSetup",
-    "typeName": "AppPreviewSetup"
+    "typeName": "AppPreviewSetup",
+    "packagePath": "PreviewSetup"
   }
 }
 ```
@@ -193,15 +194,29 @@ All fields are optional. Explicit CLI/MCP parameters override config values. The
 
 `PreviewsSetupKit` provides a protocol for app-level initialization and view wrapping — replacing micro apps / dev apps that teams maintain for isolated feature testing. PreviewsMCP runs a real app process (UIApplication on iOS, NSApplication on macOS), so SDK initialization, authentication, and font registration work normally.
 
-Add a setup target to your project:
+Your app target does not depend on PreviewsMCP. Instead, create a separate standalone package for preview setup:
+
+```
+PreviewSetup/
+├── Package.swift
+└── Sources/MyAppPreviewSetup/Setup.swift
+```
 
 ```swift
-// Package.swift
-.target(
-    name: "MyAppPreviewSetup",
+// PreviewSetup/Package.swift
+let package = Package(
+    name: "PreviewSetup",
+    platforms: [.macOS(.v14), .iOS(.v17)],
     dependencies: [
-        "MyApp",
-        .product(name: "PreviewsSetupKit", package: "PreviewsMCP"),
+        .package(url: "https://github.com/obj-p/PreviewsMCP.git", from: "..."),
+    ],
+    targets: [
+        .target(
+            name: "MyAppPreviewSetup",
+            dependencies: [
+                .product(name: "PreviewsSetupKit", package: "PreviewsMCP"),
+            ]
+        ),
     ]
 )
 ```
@@ -210,18 +225,29 @@ Implement the protocol:
 
 ```swift
 import PreviewsSetupKit
-import MyApp
 
-struct AppPreviewSetup: PreviewSetup {
-    static func setUp() async throws {
+public struct AppPreviewSetup: PreviewSetup {
+    public static func setUp() async throws {
         FirebaseApp.configure()
         FontManager.registerCustomFonts()
     }
 
-    static func wrap(_ content: AnyView) -> AnyView {
+    public static func wrap(_ content: AnyView) -> AnyView {
         AnyView(content.environment(\.theme, AppTheme.default))
     }
 }
 ```
 
-`setUp()` runs once per session before the first preview renders — completely outside the hot-reload path. `wrap()` runs on every render. Trait overrides from `preview_configure` are applied outside the wrapper.
+Point your `.previewsmcp.json` at it:
+
+```json
+{
+  "setup": {
+    "moduleName": "MyAppPreviewSetup",
+    "typeName": "AppPreviewSetup",
+    "packagePath": "PreviewSetup"
+  }
+}
+```
+
+PreviewsMCP builds the setup package independently — your app's `Package.swift` is untouched. `setUp()` runs once per session before the first preview renders, completely outside the hot-reload path. `wrap()` runs on every render. Trait overrides from `preview_configure` are applied outside the wrapper. Works across SPM, Xcode, and Bazel projects.
