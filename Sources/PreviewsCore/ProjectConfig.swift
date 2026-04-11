@@ -15,13 +15,13 @@ public struct ProjectConfig: Sendable, Codable {
         public var legibilityWeight: String?
 
         public func toPreviewTraits() -> PreviewTraits {
-            PreviewTraits(
+            (try? PreviewTraits.validated(
                 colorScheme: colorScheme,
                 dynamicTypeSize: dynamicTypeSize,
                 locale: locale,
                 layoutDirection: layoutDirection,
                 legibilityWeight: legibilityWeight
-            )
+            )) ?? PreviewTraits()
         }
     }
 

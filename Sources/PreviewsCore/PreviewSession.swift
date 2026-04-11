@@ -122,7 +122,7 @@ public actor PreviewSession {
                 compiledSource = result.source
                 literals = result.literals
                 moduleName = Self.moduleName(for: sourceFile)
-                extraFlags = setupCompilerFlags
+                extraFlags = []
                 additionalSourceFiles = []
             }
 
