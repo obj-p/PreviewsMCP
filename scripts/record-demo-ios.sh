@@ -53,11 +53,6 @@ else
 fi
 export PATH="$bin_dir:$PATH"
 
-# Wipe the cached iOS host app so we get a fresh build. The recording
-# pipeline depends on visual details (e.g. the app icon) that the cache
-# key may not cover — cheaper to always rebuild than debug stale bundles.
-rm -rf /tmp/previewsmcp-host
-
 mkdir -p /tmp/pmcp-demo assets
 
 # Ensure a simulator is booted. If none, boot the first available iPhone.
@@ -125,7 +120,7 @@ SIM_PID=""
 # on VFR input).
 term_dur=$(ffprobe -v error -show_entries stream=duration -of csv=p=0 \
   /tmp/pmcp-demo/terminal.mp4)
-sim_end=$(awk "BEGIN {printf \"%.3f\", $term_dur + 1.5}")
+sim_end=$(awk -v t="$term_dur" 'BEGIN {printf "%.3f", t + 1.5}')
 
 # Composite: trim the sim lead-in and tail, force both inputs to a
 # constant 15fps, scale both to 960 tall, tpad 3s of the last frame so

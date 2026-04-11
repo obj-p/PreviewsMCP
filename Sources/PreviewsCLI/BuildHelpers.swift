@@ -140,21 +140,17 @@ func launchIOSPreview(
         }
     }
 
-    // Retain the watcher (and indirectly the session it captures) for the
-    // lifetime of the process. Without this the watcher is released as soon
-    // as launchIOSPreview returns and hot reload silently stops firing.
-    IOSRunHolder.watcher = watcher
-    IOSRunHolder.session = session
-}
-
-/// Module-level strong references that keep the `previewsmcp run --platform ios`
-/// file watcher and session alive for the lifetime of the process. The CLI's
-/// NSApplication run loop keeps the process alive, but the Swift task that sets
-/// the watcher up returns, so without a separate retain the watcher's deinit
-/// cancels the polling timer.
-enum IOSRunHolder {
-    nonisolated(unsafe) static var watcher: FileWatcher?
-    nonisolated(unsafe) static var session: IOSPreviewSession?
+    // Hand the watcher off to PreviewHost so it survives past the end of
+    // this function. The watcher's timer closure captures self weakly;
+    // without an external retain it would deinit the moment
+    // launchIOSPreview returns and hot reload would silently stop firing.
+    // The closure also captures `session` strongly, so retaining the
+    // watcher keeps the session alive transitively.
+    if let watcher {
+        await MainActor.run {
+            App.host.retainFileWatcher(watcher)
+        }
+    }
 }
 
 /// Resolve a simulator device UDID: provided > booted > first available.

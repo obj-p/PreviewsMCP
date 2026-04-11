@@ -63,6 +63,10 @@ let package = Package(
             dependencies: ["PreviewsCore"]
         ),
         .testTarget(
+            name: "PreviewsMacOSTests",
+            dependencies: ["PreviewsMacOS"]
+        ),
+        .testTarget(
             name: "PreviewsIOSTests",
             dependencies: ["PreviewsIOS"]
         ),

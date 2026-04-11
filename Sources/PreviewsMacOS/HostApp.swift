@@ -40,6 +40,17 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
     public var keepAliveWithoutWindows: Bool { mode == .serve }
 
     private var fileWatchers: [String: FileWatcher] = [:]
+    private var retainedFileWatchers: [FileWatcher] = []
+
+    /// Hold a strong reference to a file watcher for the lifetime of the
+    /// host. `FileWatcher`'s timer closure captures `self` weakly, so a
+    /// watcher goes silent as soon as the creating scope releases its
+    /// local binding. The macOS preview path stores its watchers in the
+    /// keyed `fileWatchers` map (cleaned up per-session); the iOS `run`
+    /// path has no such per-session cleanup and uses this bag instead.
+    public func retainFileWatcher(_ watcher: FileWatcher) {
+        retainedFileWatchers.append(watcher)
+    }
 
     public func applicationDidFinishLaunching(_ notification: Notification) {
         onLaunch?()
