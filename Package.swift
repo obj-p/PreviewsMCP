@@ -3,7 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "PreviewsMCP",
-    platforms: [.macOS(.v14)],
+    platforms: [.macOS(.v14), .iOS(.v16)],
     products: [
         .executable(name: "previewsmcp", targets: ["PreviewsCLI"]),
         .library(name: "PreviewsCore", targets: ["PreviewsCore"]),
