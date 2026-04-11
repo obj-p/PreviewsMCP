@@ -20,6 +20,21 @@ struct StderrProgressReporter: ProgressReporter {
     }
 }
 
+/// Load project config from explicit path or auto-discover from source file directory.
+func loadProjectConfig(explicit configPath: String?, fileURL: URL) -> ProjectConfig? {
+    if let configPath {
+        let url = URL(fileURLWithPath: configPath)
+        guard let data = try? Data(contentsOf: url),
+            let config = try? JSONDecoder().decode(ProjectConfig.self, from: data)
+        else {
+            fputs("Warning: Could not load config from \(configPath)\n", stderr)
+            return nil
+        }
+        return config
+    }
+    return ProjectConfigLoader.find(from: fileURL.deletingLastPathComponent())
+}
+
 /// Detect the build system for a source file and build it, reporting progress.
 func detectAndBuild(
     for fileURL: URL,

@@ -24,8 +24,9 @@ struct VariantsCommand: ParsableCommand {
         help: ArgumentHelp(
             "A trait variant to capture. Repeat for multiple variants.",
             discussion: """
-                Either a preset name (light, dark, xSmall…accessibility5) or a JSON object \
-                string like '{"colorScheme":"dark","dynamicTypeSize":"large","label":"dark+large"}'.
+                Either a preset name (light, dark, xSmall…accessibility5, rtl, ltr, boldText) or a JSON object \
+                string with trait fields (colorScheme, dynamicTypeSize, locale, layoutDirection, legibilityWeight) \
+                and an optional label.
                 """
         )
     )
@@ -58,6 +59,9 @@ struct VariantsCommand: ParsableCommand {
     @Option(name: .long, help: "Simulator device UDID (for ios; auto-selects if omitted)")
     var device: String?
 
+    @Option(name: .long, help: "Path to .previewsmcp.json config file (auto-discovered if omitted)")
+    var config: String?
+
     enum ImageFormat: String, ExpressibleByArgument, CaseIterable {
         case jpeg, png
     }
@@ -67,6 +71,8 @@ struct VariantsCommand: ParsableCommand {
         guard FileManager.default.fileExists(atPath: fileURL.path) else {
             throw ValidationError("File not found: \(file)")
         }
+
+        let projectConfig = loadProjectConfig(explicit: config, fileURL: fileURL)
 
         guard !variant.isEmpty else {
             throw ValidationError("At least one --variant is required")
@@ -95,9 +101,18 @@ struct VariantsCommand: ParsableCommand {
         try FileManager.default.createDirectory(
             at: outputDirURL, withIntermediateDirectories: true)
 
-        switch platform {
+        let resolvedPlatform: CLIPlatform = {
+            if platform != .macos { return platform }
+            if let cp = projectConfig?.platform, cp == "ios" { return .ios }
+            return platform
+        }()
+
+        switch resolvedPlatform {
         case .ios:
-            runIOSVariants(fileURL: fileURL, resolved: resolved, outputDirURL: outputDirURL)
+            runIOSVariants(
+                fileURL: fileURL, resolved: resolved, outputDirURL: outputDirURL,
+                projectConfig: projectConfig
+            )
         case .macos:
             runMacOSVariants(fileURL: fileURL, resolved: resolved, outputDirURL: outputDirURL)
         }
@@ -220,10 +235,11 @@ struct VariantsCommand: ParsableCommand {
     private func runIOSVariants(
         fileURL: URL,
         resolved: [PreviewTraits.Variant],
-        outputDirURL: URL
+        outputDirURL: URL,
+        projectConfig: ProjectConfig?
     ) {
         let previewIndex = preview
-        let deviceUDID = device
+        let deviceUDID = device ?? projectConfig?.device
         let projectPath = project
         let jpegQuality: Double = format == .png ? 1.0 : quality
         // Setup: detect + build (2) + iOS start (6) = 8; first variant: capture only (1); rest: compile + capture (2 × (N-1))

@@ -65,6 +65,21 @@ private actor IOSState {
 }
 
 private let iosState = IOSState()
+private let configCache = ConfigCache()
+
+private actor ConfigCache {
+    private var cache: [String: ProjectConfig?] = [:]
+
+    func config(for fileURL: URL) -> ProjectConfig? {
+        let dir = fileURL.deletingLastPathComponent().standardizedFileURL.path
+        if let cached = cache[dir] {
+            return cached
+        }
+        let config = ProjectConfigLoader.find(from: fileURL.deletingLastPathComponent())
+        cache[dir] = config
+        return config
+    }
+}
 
 /// MCP progress reporter that sends progress notifications and log messages to the client.
 final class MCPProgressReporter: ProgressReporter, @unchecked Sendable {
@@ -207,6 +222,28 @@ func configureMCPServer() async throws -> (Server, Compiler) {
                             "description": .string(
                                 "Dynamic Type size (e.g., 'large', 'accessibility3')"),
                         ]),
+                        "locale": .object([
+                            "type": .string("string"),
+                            "description": .string(
+                                "BCP 47 locale identifier (e.g., 'en', 'ar', 'ja-JP')"),
+                        ]),
+                        "layoutDirection": .object([
+                            "type": .string("string"),
+                            "enum": .array([
+                                .string("leftToRight"), .string("rightToLeft"),
+                            ]),
+                            "description": .string(
+                                "Layout direction: 'leftToRight' or 'rightToLeft'"),
+                        ]),
+                        "legibilityWeight": .object([
+                            "type": .string("string"),
+                            "enum": .array([
+                                .string("regular"), .string("bold"),
+                            ]),
+                            "description": .string(
+                                "Legibility weight: 'regular' or 'bold' (Bold Text accessibility)"
+                            ),
+                        ]),
                     ]),
                     "required": .array([.string("filePath")]),
                 ])
@@ -247,7 +284,7 @@ func configureMCPServer() async throws -> (Server, Compiler) {
             Tool(
                 name: ToolName.previewConfigure.rawValue,
                 description:
-                    "Change rendering traits (color scheme, dynamic type) for a running preview. Triggers recompile; @State is reset. Note: dynamicTypeSize only has a visible effect on iOS simulator — macOS does not scale fonts in response to this modifier.",
+                    "Change rendering traits (color scheme, dynamic type, locale, layout direction, legibility weight) for a running preview. Triggers recompile; @State is reset. Pass empty string to clear a trait. Note: dynamicTypeSize only has a visible effect on iOS simulator — macOS does not scale fonts in response to this modifier.",
                 inputSchema: .object([
                     "type": .string("object"),
                     "properties": .object([
@@ -271,6 +308,26 @@ func configureMCPServer() async throws -> (Server, Compiler) {
                                 .string("accessibility4"), .string("accessibility5"),
                             ]),
                             "description": .string("Dynamic Type size override"),
+                        ]),
+                        "locale": .object([
+                            "type": .string("string"),
+                            "description": .string(
+                                "BCP 47 locale identifier (e.g., 'en', 'ar', 'ja-JP'). Pass empty string to clear."
+                            ),
+                        ]),
+                        "layoutDirection": .object([
+                            "type": .string("string"),
+                            "enum": .array([
+                                .string("leftToRight"), .string("rightToLeft"),
+                            ]),
+                            "description": .string("Layout direction override"),
+                        ]),
+                        "legibilityWeight": .object([
+                            "type": .string("string"),
+                            "enum": .array([
+                                .string("regular"), .string("bold"),
+                            ]),
+                            "description": .string("Legibility weight override (Bold Text)"),
                         ]),
                     ]),
                     "required": .array([.string("sessionID")]),
@@ -373,7 +430,7 @@ func configureMCPServer() async throws -> (Server, Compiler) {
                             "items": .object([
                                 "type": .string("string"),
                                 "description": .string(
-                                    "Preset name ('light', 'dark', 'xSmall', 'small', 'medium', 'large', 'xLarge', 'xxLarge', 'xxxLarge', 'accessibility1'-'accessibility5') or a JSON object string like '{\"colorScheme\":\"dark\",\"dynamicTypeSize\":\"large\",\"label\":\"dark+large\"}'."
+                                    "Preset name ('light', 'dark', 'xSmall'…'accessibility5', 'rtl', 'ltr', 'boldText') or a JSON object string with any combination of colorScheme, dynamicTypeSize, locale, layoutDirection, legibilityWeight, and an optional label."
                                 ),
                             ]),
                             "description": .string(
@@ -474,10 +531,14 @@ private func handlePreviewStart(params: CallTool.Parameters, macCompiler: Compil
     }
 
     let previewIndex = extractOptionalInt("previewIndex", from: params) ?? 0
-    let platformStr = extractOptionalString("platform", from: params) ?? "macos"
 
-    let (resolvedTraits, traitsError) = parseTraits(from: params)
+    let config = await configCache.config(for: fileURL)
+    let platformStr = extractOptionalString("platform", from: params) ?? config?.platform ?? "macos"
+
+    let (explicitTraits, traitsError) = parseTraits(from: params)
     if let traitsError { return traitsError }
+    let configTraits = config?.traits?.toPreviewTraits() ?? PreviewTraits()
+    let resolvedTraits = configTraits.merged(with: explicitTraits)
 
     // iOS simulator path
     if platformStr == "ios" {
@@ -485,6 +546,7 @@ private func handlePreviewStart(params: CallTool.Parameters, macCompiler: Compil
             fileURL: fileURL,
             previewIndex: previewIndex,
             params: params,
+            config: config,
             traits: resolvedTraits,
             server: server
         )
@@ -529,12 +591,13 @@ private func handleIOSPreviewStart(
     fileURL: URL,
     previewIndex: Int,
     params: CallTool.Parameters,
+    config: ProjectConfig?,
     traits: PreviewTraits = PreviewTraits(),
     server: Server
 ) async throws -> CallTool.Result {
-    // Resolve device UDID — use provided or auto-select
+    // Resolve device UDID — use provided, config, or auto-select
     let deviceUDID: String
-    let providedUDID = extractOptionalString("deviceUDID", from: params)
+    let providedUDID = extractOptionalString("deviceUDID", from: params) ?? config?.device
     do {
         deviceUDID = try await resolveDeviceUDID(provided: providedUDID, using: iosState.simulatorManager)
     } catch {
@@ -821,7 +884,10 @@ private func parseTraits(from params: CallTool.Parameters) -> (PreviewTraits, Ca
     do {
         let traits = try PreviewTraits.validated(
             colorScheme: extractOptionalString("colorScheme", from: params),
-            dynamicTypeSize: extractOptionalString("dynamicTypeSize", from: params)
+            dynamicTypeSize: extractOptionalString("dynamicTypeSize", from: params),
+            locale: extractOptionalString("locale", from: params),
+            layoutDirection: extractOptionalString("layoutDirection", from: params),
+            legibilityWeight: extractOptionalString("legibilityWeight", from: params)
         )
         return (traits, nil)
     } catch {
@@ -833,6 +899,9 @@ private func traitsSummary(_ traits: PreviewTraits) -> String {
     var parts: [String] = []
     if let cs = traits.colorScheme { parts.append("colorScheme=\(cs)") }
     if let dts = traits.dynamicTypeSize { parts.append("dynamicTypeSize=\(dts)") }
+    if let loc = traits.locale { parts.append("locale=\(loc)") }
+    if let ld = traits.layoutDirection { parts.append("layoutDirection=\(ld)") }
+    if let lw = traits.legibilityWeight { parts.append("legibilityWeight=\(lw)") }
     return parts.joined(separator: ", ")
 }
 
@@ -894,7 +963,7 @@ private enum VariantError: Error, LocalizedError {
         switch self {
         case .invalidVariantType:
             return
-                "Each variant must be a preset name string or a JSON object string with colorScheme/dynamicTypeSize"
+                "Each variant must be a preset name string or a JSON object string with trait fields (colorScheme, dynamicTypeSize, locale, layoutDirection, legibilityWeight)"
         case .emptyVariantsArray:
             return "variants array must not be empty"
         }

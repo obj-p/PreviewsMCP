@@ -5,19 +5,37 @@ import Foundation
 public struct PreviewTraits: Sendable, Equatable {
     public var colorScheme: String?
     public var dynamicTypeSize: String?
+    public var locale: String?
+    public var layoutDirection: String?
+    public var legibilityWeight: String?
 
-    public init(colorScheme: String? = nil, dynamicTypeSize: String? = nil) {
+    public init(
+        colorScheme: String? = nil,
+        dynamicTypeSize: String? = nil,
+        locale: String? = nil,
+        layoutDirection: String? = nil,
+        legibilityWeight: String? = nil
+    ) {
         self.colorScheme = colorScheme
         self.dynamicTypeSize = dynamicTypeSize
+        self.locale = locale
+        self.layoutDirection = layoutDirection
+        self.legibilityWeight = legibilityWeight
     }
 
-    public var isEmpty: Bool { colorScheme == nil && dynamicTypeSize == nil }
+    public var isEmpty: Bool {
+        colorScheme == nil && dynamicTypeSize == nil && locale == nil
+            && layoutDirection == nil && legibilityWeight == nil
+    }
 
     /// Merge: non-nil values in `other` overwrite self.
     public func merged(with other: PreviewTraits) -> PreviewTraits {
         PreviewTraits(
             colorScheme: other.colorScheme ?? colorScheme,
-            dynamicTypeSize: other.dynamicTypeSize ?? dynamicTypeSize
+            dynamicTypeSize: other.dynamicTypeSize ?? dynamicTypeSize,
+            locale: other.locale ?? locale,
+            layoutDirection: other.layoutDirection ?? layoutDirection,
+            legibilityWeight: other.legibilityWeight ?? legibilityWeight
         )
     }
 
@@ -30,18 +48,48 @@ public struct PreviewTraits: Sendable, Equatable {
         "accessibility4", "accessibility5",
     ]
 
+    public static let validLayoutDirections: Set<String> = ["leftToRight", "rightToLeft"]
+
+    public static let validLegibilityWeights: Set<String> = ["regular", "bold"]
+
+    /// Normalize empty strings to nil (used for trait clearing).
+    private static func normalize(_ value: String?) -> String? {
+        guard let value, !value.isEmpty else { return nil }
+        return value
+    }
+
     /// Validate optional trait values and return a PreviewTraits, or throw on invalid input.
+    /// Empty strings are treated as nil (clears the trait).
+    /// Locale is not validated — any non-empty string is accepted.
     public static func validated(
-        colorScheme: String?,
-        dynamicTypeSize: String?
+        colorScheme: String? = nil,
+        dynamicTypeSize: String? = nil,
+        locale: String? = nil,
+        layoutDirection: String? = nil,
+        legibilityWeight: String? = nil
     ) throws -> PreviewTraits {
-        if let cs = colorScheme, !validColorSchemes.contains(cs) {
+        let cs = normalize(colorScheme)
+        let dts = normalize(dynamicTypeSize)
+        let loc = normalize(locale)
+        let ld = normalize(layoutDirection)
+        let lw = normalize(legibilityWeight)
+
+        if let cs, !validColorSchemes.contains(cs) {
             throw ValidationError.invalidColorScheme(cs)
         }
-        if let dts = dynamicTypeSize, !validDynamicTypeSizes.contains(dts) {
+        if let dts, !validDynamicTypeSizes.contains(dts) {
             throw ValidationError.invalidDynamicTypeSize(dts)
         }
-        return PreviewTraits(colorScheme: colorScheme, dynamicTypeSize: dynamicTypeSize)
+        if let ld, !validLayoutDirections.contains(ld) {
+            throw ValidationError.invalidLayoutDirection(ld)
+        }
+        if let lw, !validLegibilityWeights.contains(lw) {
+            throw ValidationError.invalidLegibilityWeight(lw)
+        }
+        return PreviewTraits(
+            colorScheme: cs, dynamicTypeSize: dts, locale: loc,
+            layoutDirection: ld, legibilityWeight: lw
+        )
     }
 
     /// Resolve a preset name to traits. Returns nil if unrecognized.
@@ -52,12 +100,17 @@ public struct PreviewTraits: Sendable, Equatable {
         if validDynamicTypeSizes.contains(name) {
             return PreviewTraits(dynamicTypeSize: name)
         }
-        return nil
+        switch name {
+        case "rtl": return PreviewTraits(layoutDirection: "rightToLeft")
+        case "ltr": return PreviewTraits(layoutDirection: "leftToRight")
+        case "boldText": return PreviewTraits(legibilityWeight: "bold")
+        default: return nil
+        }
     }
 
-    /// All recognized preset names (color schemes + dynamic type sizes).
+    /// All recognized preset names (color schemes + dynamic type sizes + layout/legibility).
     public static var allPresetNames: Set<String> {
-        validColorSchemes.union(validDynamicTypeSizes)
+        validColorSchemes.union(validDynamicTypeSizes).union(["rtl", "ltr", "boldText"])
     }
 
     /// A trait variant resolved from a user-supplied string (preset name or JSON object).
@@ -70,10 +123,11 @@ public struct PreviewTraits: Sendable, Equatable {
     /// Resolve a variant string to a `Variant` (traits + label).
     ///
     /// Accepts:
-    /// - A preset name from `allPresetNames` (light, dark, xSmall…accessibility5).
+    /// - A preset name from `allPresetNames` (light, dark, xSmall…accessibility5, rtl, ltr, boldText).
     ///   The label defaults to the preset name.
-    /// - A JSON object string with `colorScheme` and/or `dynamicTypeSize` and an
-    ///   optional `label` field. The default label joins non-nil trait values with `+`.
+    /// - A JSON object string with any combination of `colorScheme`, `dynamicTypeSize`,
+    ///   `locale`, `layoutDirection`, `legibilityWeight`, and an optional `label` field.
+    ///   The default label joins non-nil trait values with `+`.
     ///
     /// Validates that:
     /// - At least one trait is set in JSON variants.
@@ -95,7 +149,13 @@ public struct PreviewTraits: Sendable, Equatable {
             }
             let cs = json["colorScheme"] as? String
             let dts = json["dynamicTypeSize"] as? String
-            traits = try validated(colorScheme: cs, dynamicTypeSize: dts)
+            let loc = json["locale"] as? String
+            let ld = json["layoutDirection"] as? String
+            let lw = json["legibilityWeight"] as? String
+            traits = try validated(
+                colorScheme: cs, dynamicTypeSize: dts, locale: loc,
+                layoutDirection: ld, legibilityWeight: lw
+            )
             if traits.isEmpty {
                 throw VariantError.emptyVariantObject
             }
@@ -111,6 +171,9 @@ public struct PreviewTraits: Sendable, Equatable {
         var parts: [String] = []
         if let cs = traits.colorScheme { parts.append(cs) }
         if let dts = traits.dynamicTypeSize { parts.append(dts) }
+        if let loc = traits.locale { parts.append(loc) }
+        if let ld = traits.layoutDirection { parts.append(ld) }
+        if let lw = traits.legibilityWeight { parts.append(lw) }
         return parts.joined(separator: "+")
     }
 
@@ -130,6 +193,8 @@ public struct PreviewTraits: Sendable, Equatable {
     public enum ValidationError: Error, LocalizedError {
         case invalidColorScheme(String)
         case invalidDynamicTypeSize(String)
+        case invalidLayoutDirection(String)
+        case invalidLegibilityWeight(String)
 
         public var errorDescription: String? {
             switch self {
@@ -138,6 +203,11 @@ public struct PreviewTraits: Sendable, Equatable {
             case .invalidDynamicTypeSize(let dts):
                 return
                     "Invalid dynamic type size '\(dts)'. Valid values: \(PreviewTraits.validDynamicTypeSizes.sorted().joined(separator: ", "))"
+            case .invalidLayoutDirection(let ld):
+                return
+                    "Invalid layout direction '\(ld)'. Must be 'leftToRight' or 'rightToLeft'."
+            case .invalidLegibilityWeight(let lw):
+                return "Invalid legibility weight '\(lw)'. Must be 'regular' or 'bold'."
             }
         }
     }
@@ -155,7 +225,7 @@ public struct PreviewTraits: Sendable, Equatable {
                     "Unknown variant '\(name)'. Expected a preset name (\(presets)) or a JSON object string."
             case .emptyVariantObject:
                 return
-                    "Variant object must specify at least one trait (colorScheme or dynamicTypeSize)."
+                    "Variant object must specify at least one trait (colorScheme, dynamicTypeSize, locale, layoutDirection, or legibilityWeight)."
             case .invalidLabel(let label, let reason):
                 return "Invalid variant label '\(label)': \(reason)."
             }

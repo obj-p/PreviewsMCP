@@ -194,6 +194,15 @@ public enum BridgeGenerator {
         if let dts = traits.dynamicTypeSize {
             mods += "\n            .dynamicTypeSize(.\(dts))"
         }
+        if let locale = traits.locale {
+            mods += "\n            .environment(\\.locale, Locale(identifier: \"\(locale)\"))"
+        }
+        if let ld = traits.layoutDirection {
+            mods += "\n            .environment(\\.layoutDirection, .\(ld))"
+        }
+        if let lw = traits.legibilityWeight {
+            mods += "\n            .environment(\\.legibilityWeight, .\(lw))"
+        }
         return mods
     }
 }
