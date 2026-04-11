@@ -3,9 +3,5 @@
   "traits": {
     "colorScheme": "light"
   },
-  "quality": 0.9,
-  "setup": {
-    "moduleName": "ToDoPreviewSetup",
-    "typeName": "ToDoPreviewSetup"
-  }
+  "quality": 0.9
 }
