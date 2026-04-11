@@ -5,17 +5,17 @@ let package = Package(
     name: "PreviewSetup",
     platforms: [.macOS(.v14), .iOS(.v17)],
     products: [
-        .library(name: "ToDoPreviewSetup", targets: ["ToDoPreviewSetup"]),
+        .library(name: "ToDoPreviewSetup", targets: ["ToDoPreviewSetup"])
     ],
     dependencies: [
-        .package(name: "PreviewsMCP", path: "../.."),
+        .package(name: "PreviewsMCP", path: "../..")
     ],
     targets: [
         .target(
             name: "ToDoPreviewSetup",
             dependencies: [
-                .product(name: "PreviewsSetupKit", package: "PreviewsMCP"),
+                .product(name: "PreviewsSetupKit", package: "PreviewsMCP")
             ]
-        ),
+        )
     ]
 )

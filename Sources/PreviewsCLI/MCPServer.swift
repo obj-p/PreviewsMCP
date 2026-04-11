@@ -567,7 +567,8 @@ private func handlePreviewStart(params: CallTool.Parameters, macCompiler: Compil
     // Build setup plugin if configured
     let configDir = fileURL.deletingLastPathComponent()
     let setupResult = try await buildSetupIfConfigured(config: config, configDirectory: configDir, platform: .macOS)
-    let standaloneSetupWarning = (config?.setup != nil && buildContext == nil)
+    let standaloneSetupWarning =
+        (config?.setup != nil && buildContext == nil)
         ? " Warning: setup plugin requires a project build system and is ignored in standalone mode."
         : ""
 
@@ -749,11 +750,12 @@ private func handlePreviewSnapshot(params: CallTool.Parameters) async throws -> 
         return CallTool.Result(content: [.text(error.localizedDescription)], isError: true)
     }
 
-    let configQuality: Double? = if let iosSession = await iosState.getSession(sessionID) {
-        await configCache.config(for: iosSession.sourceFile)?.quality
-    } else {
-        nil
-    }
+    let configQuality: Double? =
+        if let iosSession = await iosState.getSession(sessionID) {
+            await configCache.config(for: iosSession.sourceFile)?.quality
+        } else {
+            nil
+        }
     let quality = max(0.0, min(1.0, extractOptionalDouble("quality", from: params) ?? configQuality ?? 0.85))
     let usePNG = quality >= 1.0
     let mimeType = usePNG ? "image/png" : "image/jpeg"
@@ -1035,11 +1037,12 @@ private func handlePreviewVariants(params: CallTool.Parameters, server: Server) 
         return CallTool.Result(content: [.text(error.localizedDescription)], isError: true)
     }
 
-    let variantConfigQuality: Double? = if let iosSession = await iosState.getSession(sessionID) {
-        await configCache.config(for: iosSession.sourceFile)?.quality
-    } else {
-        nil
-    }
+    let variantConfigQuality: Double? =
+        if let iosSession = await iosState.getSession(sessionID) {
+            await configCache.config(for: iosSession.sourceFile)?.quality
+        } else {
+            nil
+        }
     let quality = max(0.0, min(1.0, extractOptionalDouble("quality", from: params) ?? variantConfigQuality ?? 0.85))
     let usePNG = quality >= 1.0
     let mimeType = usePNG ? "image/png" : "image/jpeg"

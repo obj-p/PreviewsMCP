@@ -22,9 +22,11 @@ public enum SetupBuilder {
     ) async throws -> Result {
         let packageDir = configDirectory.appendingPathComponent(config.packagePath).standardizedFileURL
 
-        guard FileManager.default.fileExists(
-            atPath: packageDir.appendingPathComponent("Package.swift").path
-        ) else {
+        guard
+            FileManager.default.fileExists(
+                atPath: packageDir.appendingPathComponent("Package.swift").path
+            )
+        else {
             throw SetupBuilderError.packageNotFound(packageDir.path)
         }
 
@@ -58,9 +60,11 @@ public enum SetupBuilder {
         let binPath = URL(fileURLWithPath: binPathResult.stdout)
         let modulesDir = binPath.appendingPathComponent("Modules")
 
-        guard FileManager.default.fileExists(
-            atPath: modulesDir.appendingPathComponent("\(config.moduleName).swiftmodule").path
-        ) else {
+        guard
+            FileManager.default.fileExists(
+                atPath: modulesDir.appendingPathComponent("\(config.moduleName).swiftmodule").path
+            )
+        else {
             throw SetupBuilderError.moduleNotFound(
                 config.moduleName, searchPath: modulesDir.path
             )

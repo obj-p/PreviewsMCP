@@ -36,11 +36,13 @@ public enum BridgeGenerator {
         }
 
         let modifiers = traitModifiers(traits)
-        let hasSetup = setupModule != nil && setupType != nil
+        let hasSetup =
+            setupModule != nil && setupType != nil
             && isValidSwiftIdentifier(setupModule!) && isValidSwiftIdentifier(setupType!)
         let setupImport = hasSetup ? "import \(setupModule!)\n" : ""
         let setUpEntry = hasSetup ? setUpEntryPoint(setupType: setupType!) : ""
-        let viewCode = hasSetup
+        let viewCode =
+            hasSetup
             ? viewWithSetup(closureBody: transformedClosureBody, setupType: setupType!, modifiers: modifiers)
             : """
             {
@@ -126,11 +128,13 @@ public enum BridgeGenerator {
         }
 
         let modifiers = traitModifiers(traits)
-        let hasSetup = setupModule != nil && setupType != nil
+        let hasSetup =
+            setupModule != nil && setupType != nil
             && isValidSwiftIdentifier(setupModule!) && isValidSwiftIdentifier(setupType!)
         let setupImport = hasSetup ? "\nimport \(setupModule!)" : ""
         let setUpEntry = hasSetup ? "\n\n\(setUpEntryPoint(setupType: setupType!))\n" : ""
-        let viewCode = hasSetup
+        let viewCode =
+            hasSetup
             ? viewWithSetup(closureBody: closureBody, setupType: setupType!, modifiers: modifiers)
             : """
             {
