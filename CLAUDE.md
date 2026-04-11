@@ -41,7 +41,8 @@ Sources/
 ├── PreviewsCore/        # Platform-agnostic: parser, compiler, bridge gen, differ, file watcher
 ├── PreviewsMacOS/       # macOS host: NSApplication + NSWindow + Snapshot
 ├── PreviewsIOS/         # iOS simulator: SimulatorManager, IOSHostBuilder, IOSPreviewSession
-└── PreviewsCLI/         # CLI (ArgumentParser) + MCP server (swift-sdk)
+├── PreviewsCLI/         # CLI (ArgumentParser) + MCP server (swift-sdk)
+└── PreviewsSetupKit/    # Setup plugin protocol (PreviewSetup) — zero-dependency SwiftUI-only library
 ```
 
 - **PreviewsCore** has no platform-specific dependencies (no AppKit, no CoreSimulator)
@@ -67,7 +68,19 @@ Tools: `preview_list`, `preview_start`, `preview_configure`, `preview_switch`, `
 
 ## Trait Injection
 
-`preview_configure` and `preview_start` accept `colorScheme` (`"light"` / `"dark"`) and `dynamicTypeSize` (e.g., `"large"`, `"accessibility3"`) to render previews under different SwiftUI traits. Traits are injected as `.preferredColorScheme()` and `.dynamicTypeSize()` modifiers in the generated bridge code. Changing traits triggers a full recompile (@State is lost). Traits persist across hot-reload cycles and preview switches.
+`preview_configure` and `preview_start` accept these trait parameters to render previews under different SwiftUI traits:
+
+| Trait | Values | SwiftUI modifier |
+|-------|--------|-----------------|
+| `colorScheme` | `"light"`, `"dark"` | `.preferredColorScheme()` |
+| `dynamicTypeSize` | `"xSmall"` through `"accessibility5"` | `.dynamicTypeSize()` |
+| `locale` | BCP 47 identifier (e.g., `"en"`, `"ar"`, `"ja-JP"`) | `.environment(\.locale, ...)` |
+| `layoutDirection` | `"leftToRight"`, `"rightToLeft"` | `.environment(\.layoutDirection, ...)` |
+| `legibilityWeight` | `"regular"`, `"bold"` | `.environment(\.legibilityWeight, ...)` |
+
+Traits are injected as view modifiers in the generated bridge code. Changing traits triggers a full recompile (@State is lost). Traits persist across hot-reload cycles and preview switches. Pass an empty string `""` to clear a previously set trait.
+
+`locale` is not validated against a fixed list — any non-empty string is accepted. `layoutDirection` and `legibilityWeight` are validated against their respective enum values.
 
 ## Multi-Preview Support
 
@@ -77,7 +90,47 @@ Files with multiple `#Preview` blocks are fully supported. `preview_list` shows 
 
 ## Variant Capture
 
-`preview_variants` captures screenshots under multiple trait configurations in a single MCP call. Pass preset names (`"light"`, `"dark"`, `"xSmall"` through `"accessibility5"`) or JSON object strings for custom combinations (e.g., `{"colorScheme":"dark","dynamicTypeSize":"large","label":"dark+large"}`). The session's original traits are restored after all variants are captured. Each variant triggers a recompile.
+`preview_variants` captures screenshots under multiple trait configurations in a single MCP call. Pass preset names (`"light"`, `"dark"`, `"xSmall"` through `"accessibility5"`, `"rtl"`, `"ltr"`, `"boldText"`) or JSON object strings for custom combinations (e.g., `{"colorScheme":"dark","locale":"ar","layoutDirection":"rightToLeft","label":"dark-arabic"}`). The session's original traits are restored after all variants are captured. Each variant triggers a recompile.
+
+## Project Config
+
+A `.previewsmcp.json` file at the project root sets defaults for all CLI commands and MCP tool calls. All fields are optional.
+
+```json
+{
+  "platform": "ios",
+  "device": "iPhone 16 Pro",
+  "traits": {
+    "colorScheme": "dark",
+    "dynamicTypeSize": "large",
+    "locale": "en"
+  },
+  "quality": 0.9,
+  "setup": {
+    "moduleName": "MyAppPreviewSetup",
+    "typeName": "AppPreviewSetup"
+  }
+}
+```
+
+**Precedence:** explicit MCP/CLI parameter > config file > built-in default. The config file is auto-discovered by walking up from the source file directory. CLI commands accept `--config <path>` to override auto-discovery.
+
+The `device` field accepts either a device name (e.g., `"iPhone 16 Pro"`) or a UDID.
+
+## Setup Plugin
+
+`PreviewsSetupKit` is a zero-dependency SwiftUI-only library that ships the `PreviewSetup` protocol. It replaces micro apps / dev apps by providing the same mock dependency setup and theme wrapping without maintaining a separate app target.
+
+**Two methods, two lifecycles:**
+
+| Method | When | Survives hot-reload? | Use case |
+|--------|------|---------------------|----------|
+| `setUp()` | Once per session, before first preview | Yes | Firebase init, auth, fonts, DI container |
+| `wrap(_:)` | Every dylib load | N/A | Theme providers, environment values |
+
+`setUp()` is `async throws` and runs completely outside the hot-reload path. If it throws, the preview renders without setup and the error is reported as a warning. Trait modifiers from `preview_configure` are applied outside the wrap, so explicit overrides always take precedence.
+
+The setup target is declared in `.previewsmcp.json` via `setup.moduleName` and `setup.typeName`. It requires project mode (SPM/Xcode/Bazel) — standalone mode ignores the setup config with a warning.
 
 ## iOS Touch Injection
 
