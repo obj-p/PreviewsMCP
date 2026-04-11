@@ -53,6 +53,11 @@ else
 fi
 export PATH="$bin_dir:$PATH"
 
+# Wipe the cached iOS host app so we get a fresh build. The recording
+# pipeline depends on visual details (e.g. the app icon) that the cache
+# key may not cover — cheaper to always rebuild than debug stale bundles.
+rm -rf /tmp/previewsmcp-host
+
 mkdir -p /tmp/pmcp-demo assets
 
 # Ensure a simulator is booted. If none, boot the first available iPhone.
@@ -75,10 +80,21 @@ trap 'git checkout -- "$EXAMPLE_FILE" 2>/dev/null || true; \
       [[ -n "${SIM_PID:-}" ]] && kill -INT "$SIM_PID" 2>/dev/null || true; \
       pkill -f "previewsmcp run $EXAMPLE_FILE" 2>/dev/null || true' EXIT
 
-# Warm the iOS host app + dylib caches so the recorded `run` is as fast as possible.
+# Warm the iOS host app + dylib caches so the recorded `run` is as fast
+# as possible, then uninstall so the recording starts clean and the
+# re-install picks up any updated AppIcon.png.
 echo "Warming iOS caches..."
 previewsmcp snapshot "$EXAMPLE_FILE" --platform ios -o /tmp/pmcp-demo/warmup.png >/dev/null 2>&1
 xcrun simctl terminate booted com.obj-p.previewsmcp.host 2>/dev/null || true
+xcrun simctl uninstall booted com.obj-p.previewsmcp.host 2>/dev/null || true
+
+# Drive the simulator to a clean home screen. `simctl terminate` +
+# `simctl uninstall` alone don't return to home — iOS preserves a
+# snapshot of the last foreground app. Kicking SpringBoard forces a
+# fresh home screen (the warning about the service identifier is
+# benign — the command still works).
+xcrun simctl spawn booted launchctl kickstart -k system/com.apple.SpringBoard 2>/dev/null || true
+sleep 10
 
 # Start simulator video capture in the background.
 rm -f /tmp/pmcp-demo/sim.mp4 /tmp/pmcp-demo/terminal.mp4
@@ -97,39 +113,47 @@ kill -INT "$SIM_PID" 2>/dev/null || true
 wait "$SIM_PID" 2>/dev/null || true
 SIM_PID=""
 
-# Trim sim.mp4 to the timestamp of its last real frame — simctl often
-# pads several seconds of silence at the tail after SIGINT, which would
-# otherwise stretch the composite.
-sim_last_ts=$(ffprobe -v error -select_streams v:0 \
-  -show_entries frame=best_effort_timestamp_time \
-  -of csv=p=0 /tmp/pmcp-demo/sim.mp4 \
-  | awk -F, '/./ {t=$1} END {print t}')
-sim_trim=$(awk "BEGIN {printf \"%.3f\", $sim_last_ts + 0.5}")
+# Trim sim to match the terminal's duration (plus a small tail buffer).
+# Two tricks:
+#  - Trimming discards the 1s lead-in where simctl was recording but
+#    vhs hadn't started typing yet.
+#  - Trimming the tail cuts simctl's post-SIGINT activity — simctl
+#    tends to capture a ghost frame at a much later timestamp when
+#    the app is torn down, which would otherwise stretch the composite.
+# `-ss`/`-to` don't cooperate with VFR sources, so we trim inside the
+# filtergraph via the `trim` filter (order matters: `fps` before `trim`
+# on VFR input).
+term_dur=$(ffprobe -v error -show_entries stream=duration -of csv=p=0 \
+  /tmp/pmcp-demo/terminal.mp4)
+sim_end=$(awk "BEGIN {printf \"%.3f\", $term_dur + 1.5}")
 
-# Composite: scale both to equal height, pad the end of each stream with
-# its last frame (tpad) so the final state is held visible, then hstack.
-# simctl recordVideo is variable-framerate and only samples on screen
-# changes, so without tpad the hot-reload transition frame would be cut
-# off at the right edge of the timeline. Height 960 keeps the iPhone
-# screen large enough to read text in the gif.
+# Composite: trim the sim lead-in and tail, force both inputs to a
+# constant 15fps, scale both to 960 tall, tpad 3s of the last frame so
+# the post-reload state is held visible, then hstack. CFR + tpad are
+# both required because `simctl io recordVideo` is variable-framerate
+# and only samples on screen changes — without CFR the simulator half
+# drifts out of sync with the terminal, and without tpad the transition
+# frame gets cut at the right edge. Height 960 keeps the iPhone screen
+# large enough to read text in the gif.
 echo "Compositing..."
 ffmpeg -y \
   -i /tmp/pmcp-demo/terminal.mp4 \
-  -ss 0 -to "$sim_trim" -i /tmp/pmcp-demo/sim.mp4 \
+  -i /tmp/pmcp-demo/sim.mp4 \
   -filter_complex "\
-    [0:v]tpad=stop_mode=clone:stop_duration=3,scale=-2:960,setsar=1[t];\
-    [1:v]tpad=stop_mode=clone:stop_duration=3,scale=-2:960,setsar=1[s];\
+    [0:v]fps=15,tpad=stop_mode=clone:stop_duration=3,scale=-2:960,setsar=1[t];\
+    [1:v]fps=15,trim=start=1:end=${sim_end},setpts=PTS-STARTPTS,tpad=stop_mode=clone:stop_duration=3,scale=-2:960,setsar=1[s];\
     [t][s]hstack=inputs=2" \
-  -c:v libx264 -pix_fmt yuv420p \
+  -c:v libx264 -pix_fmt yuv420p -r 15 \
   /tmp/pmcp-demo/composite.mp4 >/dev/null 2>&1
 
-# Render the gif with a generated palette for quality.
+# Render the gif with a generated palette for quality. Keep the gif at
+# the composite's framerate (15) so playback feels smooth.
 echo "Rendering gif..."
 ffmpeg -y -i /tmp/pmcp-demo/composite.mp4 \
-  -vf "fps=12,scale=1600:-2:flags=lanczos,palettegen=stats_mode=diff" \
+  -vf "fps=15,scale=1600:-2:flags=lanczos,palettegen=stats_mode=diff" \
   /tmp/pmcp-demo/palette.png >/dev/null 2>&1
 ffmpeg -y -i /tmp/pmcp-demo/composite.mp4 -i /tmp/pmcp-demo/palette.png \
-  -lavfi "fps=12,scale=1600:-2:flags=lanczos[x];[x][1:v]paletteuse=dither=bayer:bayer_scale=5" \
+  -lavfi "fps=15,scale=1600:-2:flags=lanczos[x];[x][1:v]paletteuse=dither=bayer:bayer_scale=5" \
   assets/demo.gif >/dev/null 2>&1
 
 echo "Wrote assets/demo.gif"

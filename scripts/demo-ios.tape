@@ -45,7 +45,7 @@ Sleep 500ms
 Type "sed -i '' 's/color: .blue/color: .pink/' examples/spm/Sources/ToDo/ToDoView.swift"
 Sleep 400ms
 Enter
-Sleep 8s
+Sleep 14s
 
 Hide
 Type "kill %1 2>/dev/null; wait 2>/dev/null"
