@@ -94,6 +94,16 @@ struct BridgeGeneratorTraitsTests {
         #expect(traits.legibilityWeight == "bold")
     }
 
+    @Test("PreviewTraits.validated rejects locale with injection characters")
+    func validatedRejectsLocaleInjection() {
+        #expect(throws: PreviewTraits.ValidationError.self) {
+            try PreviewTraits.validated(locale: "ar\"); import Foundation; //")
+        }
+        #expect(throws: PreviewTraits.ValidationError.self) {
+            try PreviewTraits.validated(locale: "en\\nmalicious")
+        }
+    }
+
     @Test("PreviewTraits.validated rejects invalid layout direction")
     func validatedRejectsInvalidLayoutDirection() {
         #expect(throws: PreviewTraits.ValidationError.self) {
@@ -640,6 +650,18 @@ struct BridgeGeneratorTraitsTests {
         let wrapIdx = source.range(of: "AppSetup.wrap")!.lowerBound
         let traitIdx = source.range(of: ".preferredColorScheme(.dark)")!.lowerBound
         #expect(wrapIdx < traitIdx, "wrap() should appear before trait modifiers (traits outside wrap)")
+    }
+
+    @Test("generateCombinedSource rejects setup with invalid identifier characters")
+    func combinedSourceRejectsInvalidSetupIdentifier() {
+        let (source, _) = BridgeGenerator.generateCombinedSource(
+            originalSource: Self.testSource,
+            closureBody: "TestView()",
+            setupModule: "Foo\n}; /* exploit */",
+            setupType: "Bar"
+        )
+        #expect(!source.contains("previewSetUp"), "Should not generate setup for invalid identifier")
+        #expect(!source.contains("exploit"))
     }
 
     @Test("generateCombinedSource without setup has no previewSetUp or wrap")

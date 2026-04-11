@@ -317,17 +317,15 @@ func configureMCPServer() async throws -> (Server, Compiler) {
                         ]),
                         "layoutDirection": .object([
                             "type": .string("string"),
-                            "enum": .array([
-                                .string("leftToRight"), .string("rightToLeft"),
-                            ]),
-                            "description": .string("Layout direction override"),
+                            "description": .string(
+                                "Layout direction: 'leftToRight' or 'rightToLeft'. Pass empty string to clear."
+                            ),
                         ]),
                         "legibilityWeight": .object([
                             "type": .string("string"),
-                            "enum": .array([
-                                .string("regular"), .string("bold"),
-                            ]),
-                            "description": .string("Legibility weight override (Bold Text)"),
+                            "description": .string(
+                                "Legibility weight: 'regular' or 'bold'. Pass empty string to clear."
+                            ),
                         ]),
                     ]),
                     "required": .array([.string("sessionID")]),
@@ -737,7 +735,12 @@ private func handlePreviewSnapshot(params: CallTool.Parameters) async throws -> 
         return CallTool.Result(content: [.text(error.localizedDescription)], isError: true)
     }
 
-    let quality = max(0.0, min(1.0, extractOptionalDouble("quality", from: params) ?? 0.85))
+    let configQuality: Double? = if let iosSession = await iosState.getSession(sessionID) {
+        await configCache.config(for: iosSession.sourceFile)?.quality
+    } else {
+        nil
+    }
+    let quality = max(0.0, min(1.0, extractOptionalDouble("quality", from: params) ?? configQuality ?? 0.85))
     let usePNG = quality >= 1.0
     let mimeType = usePNG ? "image/png" : "image/jpeg"
 
@@ -1018,7 +1021,12 @@ private func handlePreviewVariants(params: CallTool.Parameters, server: Server) 
         return CallTool.Result(content: [.text(error.localizedDescription)], isError: true)
     }
 
-    let quality = max(0.0, min(1.0, extractOptionalDouble("quality", from: params) ?? 0.85))
+    let variantConfigQuality: Double? = if let iosSession = await iosState.getSession(sessionID) {
+        await configCache.config(for: iosSession.sourceFile)?.quality
+    } else {
+        nil
+    }
+    let quality = max(0.0, min(1.0, extractOptionalDouble("quality", from: params) ?? variantConfigQuality ?? 0.85))
     let usePNG = quality >= 1.0
     let mimeType = usePNG ? "image/png" : "image/jpeg"
     let progress = mcpReporter(server: server, params: params, totalSteps: 2 * resolved.count)

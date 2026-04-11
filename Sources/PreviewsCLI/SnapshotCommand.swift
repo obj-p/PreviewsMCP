@@ -125,7 +125,9 @@ struct SnapshotCommand: ParsableCommand {
                     previewIndex: previewIndex,
                     compiler: compiler,
                     buildContext: buildContext,
-                    traits: traits
+                    traits: traits,
+                    setupModule: projectConfig?.setup?.moduleName,
+                    setupType: projectConfig?.setup?.typeName
                 )
 
                 await progress.report(
@@ -217,6 +219,8 @@ struct SnapshotCommand: ParsableCommand {
                     headless: true,
                     buildContext: buildContext,
                     traits: traits,
+                    setupModule: projectConfig?.setup?.moduleName,
+                    setupType: projectConfig?.setup?.typeName,
                     progress: progress
                 )
 

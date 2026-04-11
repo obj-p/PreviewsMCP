@@ -114,7 +114,10 @@ struct VariantsCommand: ParsableCommand {
                 projectConfig: projectConfig
             )
         case .macos:
-            runMacOSVariants(fileURL: fileURL, resolved: resolved, outputDirURL: outputDirURL)
+            runMacOSVariants(
+                fileURL: fileURL, resolved: resolved, outputDirURL: outputDirURL,
+                projectConfig: projectConfig
+            )
         }
     }
 
@@ -144,7 +147,8 @@ struct VariantsCommand: ParsableCommand {
     private func runMacOSVariants(
         fileURL: URL,
         resolved: [PreviewTraits.Variant],
-        outputDirURL: URL
+        outputDirURL: URL,
+        projectConfig: ProjectConfig?
     ) {
         let previewIndex = preview
         let windowWidth = width
@@ -172,7 +176,9 @@ struct VariantsCommand: ParsableCommand {
                     previewIndex: previewIndex,
                     compiler: compiler,
                     buildContext: buildContext,
-                    traits: resolved[0].traits
+                    traits: resolved[0].traits,
+                    setupModule: projectConfig?.setup?.moduleName,
+                    setupType: projectConfig?.setup?.typeName
                 )
                 sessionID = session.id
             } catch {
@@ -272,6 +278,8 @@ struct VariantsCommand: ParsableCommand {
                     headless: true,
                     buildContext: buildContext,
                     traits: resolved[0].traits,
+                    setupModule: projectConfig?.setup?.moduleName,
+                    setupType: projectConfig?.setup?.typeName,
                     progress: progress
                 )
 

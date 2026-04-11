@@ -80,6 +80,9 @@ public struct PreviewTraits: Sendable, Equatable {
         if let dts, !validDynamicTypeSizes.contains(dts) {
             throw ValidationError.invalidDynamicTypeSize(dts)
         }
+        if let loc, loc.contains("\"") || loc.contains("\\") || loc.contains("\n") {
+            throw ValidationError.invalidLocale(loc)
+        }
         if let ld, !validLayoutDirections.contains(ld) {
             throw ValidationError.invalidLayoutDirection(ld)
         }
@@ -193,6 +196,7 @@ public struct PreviewTraits: Sendable, Equatable {
     public enum ValidationError: Error, LocalizedError {
         case invalidColorScheme(String)
         case invalidDynamicTypeSize(String)
+        case invalidLocale(String)
         case invalidLayoutDirection(String)
         case invalidLegibilityWeight(String)
 
@@ -203,6 +207,9 @@ public struct PreviewTraits: Sendable, Equatable {
             case .invalidDynamicTypeSize(let dts):
                 return
                     "Invalid dynamic type size '\(dts)'. Valid values: \(PreviewTraits.validDynamicTypeSizes.sorted().joined(separator: ", "))"
+            case .invalidLocale(let loc):
+                return
+                    "Invalid locale '\(loc)'. Locale identifiers must not contain quotes, backslashes, or newlines."
             case .invalidLayoutDirection(let ld):
                 return
                     "Invalid layout direction '\(ld)'. Must be 'leftToRight' or 'rightToLeft'."
