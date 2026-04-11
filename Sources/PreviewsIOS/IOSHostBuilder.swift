@@ -51,10 +51,20 @@ public actor IOSHostBuilder {
         return path
     }
 
-    /// SHA-256 hash of the host app source, used for cache invalidation.
+    /// SHA-256 hash of the host app source, info plist, and bundled
+    /// resources (AppIcon.png), used for cache invalidation. Hashing only
+    /// the Swift source would miss resource changes — e.g. replacing
+    /// AppIcon.png with a new design wouldn't rebuild the cached .app.
     private static let sourceHash: String = {
-        let data = Data(IOSHostAppSource.code.utf8)
-        let digest = SHA256.hash(data: data)
+        var hasher = SHA256()
+        hasher.update(data: Data(IOSHostAppSource.code.utf8))
+        hasher.update(data: Data(IOSHostAppSource.infoPlist.utf8))
+        if let iconURL = Bundle.module.url(forResource: "AppIcon", withExtension: "png"),
+            let iconData = try? Data(contentsOf: iconURL)
+        {
+            hasher.update(data: iconData)
+        }
+        let digest = hasher.finalize()
         return digest.map { String(format: "%02x", $0) }.joined()
     }()
 

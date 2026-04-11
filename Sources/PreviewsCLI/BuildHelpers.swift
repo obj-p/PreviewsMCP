@@ -139,7 +139,18 @@ func launchIOSPreview(
             }
         }
     }
-    _ = watcher
+
+    // Hand the watcher off to PreviewHost so it survives past the end of
+    // this function. The watcher's timer closure captures self weakly;
+    // without an external retain it would deinit the moment
+    // launchIOSPreview returns and hot reload would silently stop firing.
+    // The closure also captures `session` strongly, so retaining the
+    // watcher keeps the session alive transitively.
+    if let watcher {
+        await MainActor.run {
+            App.host.retainFileWatcher(watcher)
+        }
+    }
 }
 
 /// Resolve a simulator device UDID: provided > booted > first available.

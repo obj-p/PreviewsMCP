@@ -1,6 +1,39 @@
-# PreviewsMCP
+<p align="center">
+  <img src="assets/icon.svg" width="128" height="128" alt="PreviewsMCP icon">
+</p>
 
-Render and interact with SwiftUI previews outside of Xcode. Works as a CLI tool and as an [MCP server](https://modelcontextprotocol.io/) for AI-driven UI development.
+<h1 align="center">PreviewsMCP</h1>
+
+<p align="center">
+  Render and interact with SwiftUI previews outside of Xcode.<br>
+  Works as a CLI tool and as an <a href="https://modelcontextprotocol.io/">MCP server</a> for AI-driven UI development.
+</p>
+
+<p align="center">
+  <img src="assets/demo.gif" alt="PreviewsMCP iOS hot-reload demo" width="900">
+</p>
+
+<p align="center"><em>Edit a SwiftUI source file — the iOS simulator hot-reloads live. No Xcode.</em></p>
+
+
+## How it works
+
+```mermaid
+flowchart LR
+    Agent([AI Agent]) -->|MCP tools| Server[previewsmcp serve]
+    Server --> Parse[Parse #Preview]
+    Parse --> Compile[Compile bridge dylib]
+    Compile --> Platform{Platform}
+    Platform -->|macOS| Mac[NSHostingView]
+    Platform -->|iOS| Sim[Simulator + host app]
+    Mac --> Capture[Snapshot &middot; a11y tree &middot; touch]
+    Sim --> Capture
+    Capture -->|image, elements| Agent
+    Agent -.->|edit .swift| Watch[File watcher]
+    Watch -.->|hot reload| Compile
+```
+
+The agent drives the loop: call an MCP tool, get a snapshot or accessibility tree back, edit code, and the file watcher triggers a hot reload that preserves `@State` where possible. No Xcode needed.
 
 ## Installation
 
