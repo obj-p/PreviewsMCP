@@ -66,11 +66,18 @@ public enum SetupBuilder {
             )
         }
 
+        // Archive .o files into .a libraries (SPM doesn't create archives for library targets)
+        let archivedLibs = try await archiveTargets(binPath: binPath)
+
         var flags: [String] = [
             "-I", modulesDir.path,
-            "-L", binPath.path,
-            "-l\(config.moduleName)",
         ]
+        if !archivedLibs.isEmpty {
+            flags += ["-L", binPath.path]
+            for lib in archivedLibs {
+                flags += ["-l\(lib)"]
+            }
+        }
 
         let frameworkNames = collectFrameworks(binPath: binPath)
         if !frameworkNames.isEmpty {
@@ -86,6 +93,73 @@ public enum SetupBuilder {
             typeName: config.typeName,
             compilerFlags: flags
         )
+    }
+
+    /// Archive .o files from each target's build directory into .a static libraries.
+    /// SPM leaves loose .o files under `<binPath>/<Target>.build/` without creating archives.
+    private static func archiveTargets(binPath: URL) async throws -> [String] {
+        let fm = FileManager.default
+        guard
+            let entries = try? fm.contentsOfDirectory(
+                at: binPath, includingPropertiesForKeys: [.isDirectoryKey],
+                options: [.skipsHiddenFiles]
+            )
+        else { return [] }
+
+        let arPath = try await resolveAr()
+        var libs: [String] = []
+
+        for entry in entries {
+            let name = entry.lastPathComponent
+            guard name.hasSuffix(".build") else { continue }
+            var isDir: ObjCBool = false
+            guard fm.fileExists(atPath: entry.path, isDirectory: &isDir), isDir.boolValue else {
+                continue
+            }
+
+            let targetName = String(name.dropLast(".build".count))
+            if targetName.hasPrefix("_") { continue }
+
+            let objectFiles = collectObjectFiles(in: entry)
+            guard !objectFiles.isEmpty else { continue }
+
+            let archivePath = binPath.appendingPathComponent("lib\(targetName).a")
+            try? fm.removeItem(at: archivePath)
+
+            var arArgs = ["rcs", archivePath.path]
+            arArgs.append(contentsOf: objectFiles.map(\.path))
+            let result = try await runAsync(arPath, arguments: arArgs)
+            guard result.exitCode == 0 else {
+                throw SetupBuilderError.buildFailed(
+                    package: targetName, stderr: "ar failed: \(result.stderr)"
+                )
+            }
+            libs.append(targetName)
+        }
+        return libs
+    }
+
+    private static func collectObjectFiles(in directory: URL) -> [URL] {
+        guard
+            let enumerator = FileManager.default.enumerator(
+                at: directory, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
+            )
+        else { return [] }
+        var files: [URL] = []
+        for case let url as URL in enumerator where url.pathExtension == "o" {
+            files.append(url)
+        }
+        return files
+    }
+
+    private static func resolveAr() async throws -> String {
+        let result = try await runAsync(
+            "/usr/bin/xcrun", arguments: ["--find", "ar"], discardStderr: true
+        )
+        guard result.exitCode == 0 else {
+            throw SetupBuilderError.buildFailed(package: "ar", stderr: "Could not locate ar via xcrun")
+        }
+        return result.stdout
     }
 
     private static func resolveIOSSDK() async throws -> String {
