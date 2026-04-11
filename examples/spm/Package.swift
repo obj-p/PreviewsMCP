@@ -11,6 +11,7 @@ let package = Package(
     dependencies: [
         .package(path: "LocalDep"),
         .package(url: "https://github.com/airbnb/lottie-spm.git", from: "4.4.0"),
+        .package(name: "PreviewsMCP", path: "../.."),
     ],
     targets: [
         .target(
@@ -25,6 +26,13 @@ let package = Package(
                 .product(name: "Lottie", package: "lottie-spm"),
             ],
             path: "Sources/ToDo"
+        ),
+        .target(
+            name: "ToDoPreviewSetup",
+            dependencies: [
+                .product(name: "PreviewsSetupKit", package: "PreviewsMCP"),
+            ],
+            path: "Sources/ToDoPreviewSetup"
         ),
     ]
 )
