@@ -1,13 +1,34 @@
 #!/usr/bin/env bash
-# Composite iOS demo recorder. Runs vhs (terminal) and `xcrun simctl io
-# recordVideo` (simulator screen) in parallel, then hstacks them into a
-# single gif at assets/demo.gif.
+# Regenerate assets/demo.gif — the side-by-side iOS hot-reload demo
+# shown at the top of the README.
+#
+# Pipeline:
+#   1. warm the iOS host app + dylib caches with a throwaway snapshot
+#   2. start `xcrun simctl io recordVideo` against the booted simulator
+#      in the background (captures the phone screen as it updates)
+#   3. run `vhs scripts/demo-ios.tape`, which drives the terminal:
+#        previewsmcp list … → previewsmcp run … --platform ios & →
+#        two sed edits that trigger literal/structural hot reload
+#   4. stop the simulator recording, composite the two streams
+#      side-by-side with ffmpeg (`hstack` + `tpad` so both final frames
+#      are held visible — simctl recordVideo is variable-framerate and
+#      only samples on screen changes, so the naive composite would cut
+#      off at the exact transition), render to gif with a generated
+#      palette
+#
+# The script is idempotent: it reverts the example source file on exit
+# (trap) so git stays clean even if anything fails partway through.
 #
 # One-time setup:
 #   brew install vhs ffmpeg
 #
 # Then:
 #   scripts/record-demo-ios.sh
+#
+# Tweaking the demo: edit scripts/demo-ios.tape. Timings (the `Sleep`
+# directives after each sed) need to stay long enough for the simulator
+# to render the post-reload frame — simctl's sparse sampling means
+# cutting close is risky. 10s after the final edit is a safe minimum.
 
 set -euo pipefail
 
@@ -76,19 +97,28 @@ kill -INT "$SIM_PID" 2>/dev/null || true
 wait "$SIM_PID" 2>/dev/null || true
 SIM_PID=""
 
-# Composite: scale both to equal height, pad the end of each stream with its
-# last frame (tpad) so the final state is held visible, then hstack.
+# Trim sim.mp4 to the timestamp of its last real frame — simctl often
+# pads several seconds of silence at the tail after SIGINT, which would
+# otherwise stretch the composite.
+sim_last_ts=$(ffprobe -v error -select_streams v:0 \
+  -show_entries frame=best_effort_timestamp_time \
+  -of csv=p=0 /tmp/pmcp-demo/sim.mp4 \
+  | awk -F, '/./ {t=$1} END {print t}')
+sim_trim=$(awk "BEGIN {printf \"%.3f\", $sim_last_ts + 0.5}")
+
+# Composite: scale both to equal height, pad the end of each stream with
+# its last frame (tpad) so the final state is held visible, then hstack.
 # simctl recordVideo is variable-framerate and only samples on screen
-# changes, so the very last frame of the sim video often coincides with
-# the hot-reload moment — without the tpad pad, hstack would cut it off.
-# Height 960 keeps the iPhone screen large enough to read text in the gif.
+# changes, so without tpad the hot-reload transition frame would be cut
+# off at the right edge of the timeline. Height 960 keeps the iPhone
+# screen large enough to read text in the gif.
 echo "Compositing..."
 ffmpeg -y \
   -i /tmp/pmcp-demo/terminal.mp4 \
-  -i /tmp/pmcp-demo/sim.mp4 \
+  -ss 0 -to "$sim_trim" -i /tmp/pmcp-demo/sim.mp4 \
   -filter_complex "\
-    [0:v]tpad=stop_mode=clone:stop_duration=4,scale=-2:960,setsar=1[t];\
-    [1:v]tpad=stop_mode=clone:stop_duration=4,scale=-2:960,setsar=1[s];\
+    [0:v]tpad=stop_mode=clone:stop_duration=3,scale=-2:960,setsar=1[t];\
+    [1:v]tpad=stop_mode=clone:stop_duration=3,scale=-2:960,setsar=1[s];\
     [t][s]hstack=inputs=2" \
   -c:v libx264 -pix_fmt yuv420p \
   /tmp/pmcp-demo/composite.mp4 >/dev/null 2>&1

@@ -1,4 +1,9 @@
-# Terminal half of the iOS composite demo. Run via scripts/record-demo-ios.sh.
+# PreviewsMCP iOS composite demo tape (terminal half).
+#
+# Run via scripts/record-demo-ios.sh — that orchestrator runs this
+# tape plus `xcrun simctl io recordVideo` in parallel and hstacks the
+# two streams into assets/demo.gif.
+#
 # Requires: vhs (brew install vhs).
 
 Output "/tmp/pmcp-demo/terminal.mp4"
@@ -24,15 +29,23 @@ Sleep 3s
 Type "previewsmcp run examples/spm/Sources/ToDo/ToDoView.swift --platform ios --headless &"
 Sleep 400ms
 Enter
-Sleep 14s
+Sleep 12s
 
-Type "# hot reload: change the navigation title"
+Type "# grow the summary card"
 Enter
-Sleep 800ms
-Type "sed -i '' 's/My Items/Focus Mode/' examples/spm/Sources/ToDo/ToDoView.swift"
+Sleep 500ms
+Type "sed -i '' 's/.frame(height: 120)/.frame(height: 220)/' examples/spm/Sources/ToDo/ToDoView.swift"
 Sleep 400ms
 Enter
-Sleep 10s
+Sleep 5s
+
+Type "# recolor on-brand"
+Enter
+Sleep 500ms
+Type "sed -i '' 's/color: .blue/color: .pink/' examples/spm/Sources/ToDo/ToDoView.swift"
+Sleep 400ms
+Enter
+Sleep 8s
 
 Hide
 Type "kill %1 2>/dev/null; wait 2>/dev/null"

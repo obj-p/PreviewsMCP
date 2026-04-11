@@ -15,12 +15,6 @@
 
 <p align="center"><em>Edit a SwiftUI source file — the iOS simulator hot-reloads live. No Xcode.</em></p>
 
-<p align="center">
-  <img src="assets/preview-light.png" alt="Light variant" width="260">
-  &nbsp;
-  <img src="assets/preview-dark.png" alt="Dark variant" width="260">
-</p>
-
 
 ## How it works
 
@@ -165,23 +159,3 @@ Pass an array of preset names or JSON object strings as the `variants` argument:
 ```
 
 The response contains one labeled image per variant.
-
-## Regenerating the demo assets
-
-Two pipelines produce the README visuals:
-
-```bash
-brew install vhs ffmpeg
-
-# Side-by-side iOS hot-reload demo (assets/demo.gif):
-# records the terminal via vhs and the booted simulator via `simctl io
-# recordVideo` in parallel, then composites them with ffmpeg.
-scripts/record-demo-ios.sh
-
-# Terminal-only demo + light/dark variant PNGs:
-# uses previewsmcp variants against the bundled SPM ToDo example and
-# copies the captured PNGs into assets/.
-scripts/record-demo.sh
-```
-
-Each script builds `previewsmcp` if needed, runs against the bundled SPM `ToDo` example, and writes outputs to `assets/`.
