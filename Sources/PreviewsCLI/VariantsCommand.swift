@@ -38,8 +38,8 @@ struct VariantsCommand: ParsableCommand {
     @Option(name: .long, help: "Image format")
     var format: ImageFormat = .jpeg
 
-    @Option(name: .long, help: "JPEG quality 0.0–1.0 (ignored for PNG)")
-    var quality: Double = 0.85
+    @Option(name: .long, help: "JPEG quality 0.0–1.0 (ignored for PNG; default from config or 0.85)")
+    var quality: Double?
 
     @Option(name: .long, help: "Which preview to capture (0-based index)")
     var preview: Int = 0
@@ -154,8 +154,9 @@ struct VariantsCommand: ParsableCommand {
         let windowWidth = width
         let windowHeight = height
         let projectPath = project
+        let resolvedQuality = quality ?? projectConfig?.quality ?? 0.85
         let snapshotFormat: Snapshot.ImageFormat =
-            format == .png ? .png : .jpeg(quality: quality)
+            format == .png ? .png : .jpeg(quality: resolvedQuality)
         // Setup: detect + build (2 steps) + per variant: compile + capture (2 × N)
         let progress: any ProgressReporter = StderrProgressReporter(
             totalSteps: 2 + 2 * resolved.count)
@@ -250,7 +251,8 @@ struct VariantsCommand: ParsableCommand {
         let previewIndex = preview
         let deviceUDID = device ?? projectConfig?.device
         let projectPath = project
-        let jpegQuality: Double = format == .png ? 1.0 : quality
+        let resolvedQuality = quality ?? projectConfig?.quality ?? 0.85
+        let jpegQuality: Double = format == .png ? 1.0 : resolvedQuality
         // Setup: detect + build (2) + iOS start (6) = 8; first variant: capture only (1); rest: compile + capture (2 × (N-1))
         let progress: any ProgressReporter = StderrProgressReporter(
             totalSteps: 7 + 2 * resolved.count)

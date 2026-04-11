@@ -697,6 +697,18 @@ private func buildSetupIfConfigured(
     )
 }
 
+/// Resolve the config quality default for a session (iOS or macOS).
+private func configQualityForSession(_ sessionID: String) async -> Double? {
+    if let iosSession = await iosState.getSession(sessionID) {
+        return await configCache.config(for: iosSession.sourceFile)?.quality
+    }
+    if let macSession: PreviewSession = await MainActor.run(body: { App.host.session(for: sessionID) }) {
+        let sourceFile = await macSession.sourceFile
+        return await configCache.config(for: sourceFile)?.quality
+    }
+    return nil
+}
+
 private func startMacOSPreview(
     fileURL: URL, previewIndex: Int, title: String,
     width: Int, height: Int,
@@ -750,12 +762,7 @@ private func handlePreviewSnapshot(params: CallTool.Parameters) async throws -> 
         return CallTool.Result(content: [.text(error.localizedDescription)], isError: true)
     }
 
-    let configQuality: Double? =
-        if let iosSession = await iosState.getSession(sessionID) {
-            await configCache.config(for: iosSession.sourceFile)?.quality
-        } else {
-            nil
-        }
+    let configQuality = await configQualityForSession(sessionID)
     let quality = max(0.0, min(1.0, extractOptionalDouble("quality", from: params) ?? configQuality ?? 0.85))
     let usePNG = quality >= 1.0
     let mimeType = usePNG ? "image/png" : "image/jpeg"
@@ -1037,12 +1044,7 @@ private func handlePreviewVariants(params: CallTool.Parameters, server: Server) 
         return CallTool.Result(content: [.text(error.localizedDescription)], isError: true)
     }
 
-    let variantConfigQuality: Double? =
-        if let iosSession = await iosState.getSession(sessionID) {
-            await configCache.config(for: iosSession.sourceFile)?.quality
-        } else {
-            nil
-        }
+    let variantConfigQuality = await configQualityForSession(sessionID)
     let quality = max(0.0, min(1.0, extractOptionalDouble("quality", from: params) ?? variantConfigQuality ?? 0.85))
     let usePNG = quality >= 1.0
     let mimeType = usePNG ? "image/png" : "image/jpeg"

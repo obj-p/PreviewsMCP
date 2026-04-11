@@ -156,8 +156,10 @@ struct SnapshotCommand: ParsableCommand {
                 try await Task.sleep(for: .milliseconds(500))
 
                 await progress.report(.capturingSnapshot, message: "Capturing snapshot...")
+                let resolvedQuality = projectConfig?.quality ?? 0.85
                 let snapshotFormat: Snapshot.ImageFormat =
-                    outputURL.pathExtension.lowercased() == "png" ? .png : .jpeg(quality: 0.85)
+                    outputURL.pathExtension.lowercased() == "png"
+                    ? .png : .jpeg(quality: resolvedQuality)
                 await MainActor.run {
                     do {
                         guard let window = App.host.window(for: sessionID) else {
@@ -236,7 +238,9 @@ struct SnapshotCommand: ParsableCommand {
                 try await Task.sleep(for: .seconds(2))
 
                 await progress.report(.capturingSnapshot, message: "Capturing snapshot...")
-                let jpegQuality: Double = outputURL.pathExtension.lowercased() == "png" ? 1.0 : 0.85
+                let resolvedQuality = projectConfig?.quality ?? 0.85
+                let jpegQuality: Double =
+                    outputURL.pathExtension.lowercased() == "png" ? 1.0 : resolvedQuality
                 let imageData = try await session.screenshot(jpegQuality: jpegQuality)
                 try imageData.write(to: outputURL)
                 print(outputURL.path)

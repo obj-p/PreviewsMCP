@@ -30,9 +30,10 @@ public enum SetupBuilder {
             throw SetupBuilderError.packageNotFound(packageDir.path)
         }
 
+        let iosSDKPath: String? = platform == .iOS ? try await resolveIOSSDK() : nil
+
         var buildArgs = ["swift", "build", "--package-path", packageDir.path]
-        if platform == .iOS {
-            let sdkPath = try await resolveIOSSDK()
+        if let sdkPath = iosSDKPath {
             buildArgs += ["--triple", PreviewPlatform.iOS.targetTriple, "--sdk", sdkPath]
         }
 
@@ -45,8 +46,7 @@ public enum SetupBuilder {
         }
 
         var binPathArgs = ["swift", "build", "--package-path", packageDir.path, "--show-bin-path"]
-        if platform == .iOS {
-            let sdkPath = try await resolveIOSSDK()
+        if let sdkPath = iosSDKPath {
             binPathArgs += ["--triple", PreviewPlatform.iOS.targetTriple, "--sdk", sdkPath]
         }
 
