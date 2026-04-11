@@ -9,11 +9,15 @@
   Works as a CLI tool and as an <a href="https://modelcontextprotocol.io/">MCP server</a> for AI-driven UI development.
 </p>
 
-<!-- TODO: enable after running scripts/record-demo.sh
 <p align="center">
   <img src="assets/demo.gif" alt="PreviewsMCP CLI demo" width="720">
 </p>
--->
+
+<p align="center">
+  <img src="assets/preview-light.png" alt="Light variant" width="260">
+  &nbsp;
+  <img src="assets/preview-dark.png" alt="Dark variant" width="260">
+</p>
 
 
 ## How it works
@@ -160,13 +164,13 @@ Pass an array of preset names or JSON object strings as the `variants` argument:
 
 The response contains one labeled image per variant.
 
-## Regenerating the demo GIF
+## Regenerating the demo assets
 
-`assets/demo.gif` is produced from [`scripts/demo.tape`](scripts/demo.tape) with [vhs](https://github.com/charmbracelet/vhs):
+`assets/demo.gif` and the paired `assets/preview-{light,dark}.png` are produced from [`scripts/demo.tape`](scripts/demo.tape) with [vhs](https://github.com/charmbracelet/vhs):
 
 ```bash
-brew install vhs chafa
+brew install vhs
 scripts/record-demo.sh
 ```
 
-The script builds `previewsmcp` in release mode if needed, runs the tape against the bundled SPM example, and writes the GIF to `assets/`.
+The script builds `previewsmcp` if needed, runs the tape against the bundled SPM `ToDo` example, and copies the light/dark variant PNGs into `assets/` alongside the GIF.
