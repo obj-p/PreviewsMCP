@@ -15,25 +15,6 @@
 
 <p align="center"><em>Edit the source, the simulator hot-reloads live.</em></p>
 
-## How it works
-
-```mermaid
-flowchart LR
-    Agent([AI Agent]) -->|MCP tools| Server[previewsmcp serve]
-    Server --> Parse[Parse #Preview]
-    Parse --> Compile[Compile bridge dylib]
-    Compile --> Platform{Platform}
-    Platform -->|macOS| Mac[NSHostingView]
-    Platform -->|iOS| Sim[Simulator + host app]
-    Mac --> Capture[Snapshot &middot; a11y tree &middot; touch]
-    Sim --> Capture
-    Capture -->|image, elements| Agent
-    Agent -.->|edit .swift| Watch[File watcher]
-    Watch -.->|hot reload| Compile
-```
-
-Parse the target `.swift` file, compile a bridge dylib, render it in an `NSHostingView` or a booted iOS simulator, and hand snapshots or the accessibility tree back to whoever asked. A file watcher hot-reloads edits in place, preserving `@State` where it can. Both `#Preview` macros and legacy `PreviewProvider` types are supported.
-
 ## Installation
 
 ### Homebrew
