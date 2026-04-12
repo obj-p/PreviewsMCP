@@ -34,6 +34,16 @@ Sources/
 - **PreviewsIOS** depends on `SimulatorBridge`; touch injection runs in-app via the Hammer approach (`IOHIDEventCreateDigitizerFingerEvent` + `BKSHIDEventSetDigitizerInfo` + `UIApplication._enqueueHIDEvent:`).
 - **IOSHostAppSource.swift** holds the iOS host app as an embedded string, compiled at runtime by `IOSHostBuilder` for `arm64-apple-ios-simulator`.
 
+## Private-framework surface & stability
+
+iOS rendering, touch injection, and the CoreSimulator handshake all reach into private or undocumented APIs rather than linking against them at build time. Specifically:
+
+- `CoreSimulator.framework` is runtime-loaded via `Bundle(path:).loadAndReturnError()` + `objc_lookUpClass()`; nothing is linked at build time.
+- Touch events are delivered through `IOHIDEventCreateDigitizerFingerEvent` (IOKit) and `BKSHIDEventSetDigitizerInfo` (BackBoardServices), then enqueued via `UIApplication._enqueueHIDEvent:`. All three symbols are resolved with `dlopen` / `dlsym` inside the host app.
+- Private SPI usage is scoped to `SimulatorBridge` (ObjC) and `PreviewsIOS` — `PreviewsCore` has no private-framework dependencies.
+
+**Stability:** this surface can change between Xcode releases. Treat the private-framework path as best-effort and pin to a known-working Xcode version in CI. See [`docs/reverse-engineering.md`](reverse-engineering.md) for the full list of symbols and the signatures PreviewsMCP depends on.
+
 ## Further reading
 
 - [`docs/build-system-integration.md`](build-system-integration.md) — how SPM / Xcode / Bazel projects are detected and built.

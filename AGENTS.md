@@ -1,4 +1,6 @@
-# CLAUDE.md
+# AGENTS.md
+
+Project instructions for any AI coding agent (Claude Code, Codex, Cursor, Aider, …) working in this repo.
 
 ## Project
 
