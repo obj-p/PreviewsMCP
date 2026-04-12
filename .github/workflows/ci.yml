@@ -76,8 +76,10 @@ jobs:
           path: |
             .build
             examples/spm/.build
-          key: spm-${{ runner.os }}-${{ hashFiles('Package.resolved') }}
-          restore-keys: spm-${{ runner.os }}-
+          key: spm-${{ runner.os }}-build-${{ hashFiles('Package.resolved') }}
+          restore-keys: |
+            spm-${{ runner.os }}-build-
+            spm-${{ runner.os }}-
 
       - name: Build
         run: swift build
@@ -116,8 +118,10 @@ jobs:
           path: |
             .build
             examples/spm/.build
-          key: spm-${{ runner.os }}-${{ hashFiles('Package.resolved') }}
-          restore-keys: spm-${{ runner.os }}-
+          key: spm-${{ runner.os }}-ios-${{ hashFiles('Package.resolved') }}
+          restore-keys: |
+            spm-${{ runner.os }}-ios-
+            spm-${{ runner.os }}-
 
       # Warm CoreSimulator daemon and device set in background while building.
       # SimServiceContext.deviceSetWithPath: takes ~10 min on cold CI VMs.

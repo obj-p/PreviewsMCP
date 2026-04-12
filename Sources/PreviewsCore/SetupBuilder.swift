@@ -3,7 +3,7 @@ import Foundation
 /// Builds a setup plugin package and returns compiler flags for importing its module.
 public enum SetupBuilder {
 
-    public struct Result: Sendable {
+    public struct Result: Sendable, Equatable {
         public let moduleName: String
         public let typeName: String
         public let compilerFlags: [String]
@@ -30,7 +30,20 @@ public enum SetupBuilder {
             throw SetupBuilderError.packageNotFound(packageDir.path)
         }
 
+        // Resolve inputs for the cache key before checking the cache.
         let iosSDKPath: String? = platform == .iOS ? try await resolveIOSSDK() : nil
+        let swiftVersion = try await SetupCache.resolveSwiftVersion()
+        let sourceHash = try SetupCache.hashSources(
+            packageDir: packageDir, sdkPath: iosSDKPath)
+
+        if let cached = SetupCache.load(
+            packageDir: packageDir,
+            platform: platform,
+            sourceHash: sourceHash,
+            swiftVersion: swiftVersion
+        ) {
+            return cached
+        }
 
         var buildArgs = ["swift", "build", "--package-path", packageDir.path]
         if let sdkPath = iosSDKPath {
@@ -92,11 +105,21 @@ public enum SetupBuilder {
             flags += ["-Xlinker", "-rpath", "-Xlinker", binPath.path]
         }
 
-        return Result(
+        let result = Result(
             moduleName: config.moduleName,
             typeName: config.typeName,
             compilerFlags: flags
         )
+
+        SetupCache.store(
+            result,
+            packageDir: packageDir,
+            platform: platform,
+            sourceHash: sourceHash,
+            swiftVersion: swiftVersion
+        )
+
+        return result
     }
 
     /// Archive .o files from each target's build directory into .a static libraries.
