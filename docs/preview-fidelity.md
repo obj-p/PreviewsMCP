@@ -1,4 +1,4 @@
-# SPEC: Extended Traits, Project Config, and Preview Setup Plugin
+# Preview Fidelity: Traits, Project Config, and Setup Plugin
 
 ## 1. Objective
 

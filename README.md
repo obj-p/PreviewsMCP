@@ -13,8 +13,6 @@
   <img src="assets/demo.gif" alt="PreviewsMCP iOS hot-reload demo" width="900">
 </p>
 
-<p align="center"><em>Edit the source, the simulator hot-reloads live.</em></p>
-
 ## Quickstart
 
 ```bash
@@ -24,6 +22,16 @@ swift run previewsmcp examples/spm/Sources/ToDo/ToDoView.swift
 ```
 
 A live macOS preview window opens. Edit the source file and the window hot-reloads.
+
+## Why PreviewsMCP?
+
+Xcode previews run in a sandboxed process with no app lifecycle — no `UIApplicationDelegate`, no `didBecomeActive`, no real `UIApplication`. This means Firebase, analytics, auth, and custom fonts crash or silently break. The ecosystem answer is "mock everything," and at scale teams maintain **micro apps** — standalone app targets that render a single feature with controlled dependencies. Airbnb's dev apps drive over 50% of local iOS builds. Point-Free's isowords has 9 preview apps. Every team pays the maintenance tax: separate targets, schemes, and mock setups that drift.
+
+PreviewsMCP eliminates this tradeoff. It compiles your `#Preview` closure into a dylib and loads it into a real app process (macOS `NSApplication` or iOS simulator `UIApplication`) with hot-reload. Firebase, auth, fonts, and DI containers just work — because there's a real app lifecycle.
+
+The [setup plugin](Sources/PreviewsSetupKit/PreviewSetup.swift) completes the picture: a `PreviewSetup` protocol where `setUp()` runs once per session (SDK init, auth, DI registration) and `wrap()` surrounds every preview (themes, environment values). It's the micro app's dependency layer extracted into a reusable framework — without maintaining a separate app target.
+
+Works with **SPM**, **Xcode projects** (`.xcodeproj` / `.xcworkspace`), and **Bazel**.
 
 ## Installation
 
@@ -52,11 +60,12 @@ The binary is at `.build/release/previewsmcp`.
 
 ## Capabilities
 
-- **Live previews** — hot-reload SwiftUI on macOS (`NSHostingView`) or a real iOS simulator, preserving `@State` where it can.
+- **Live previews** — hot-reload SwiftUI on macOS or a real iOS simulator, preserving `@State` where it can.
 - **Variant & trait sweeps** — render one preview across many trait combinations (`colorScheme`, `dynamicTypeSize`, `locale`, `layoutDirection`, `legibilityWeight`) in a single call, with presets for light/dark, `xSmall`–`accessibility5`, `rtl`, `ltr`, and `boldText`.
 - **Multi-preview selection** — `#Preview` macros and legacy `PreviewProvider`, with mid-session switching.
 - **iOS interaction** — walk the accessibility tree and inject taps/swipes through an in-simulator touch bridge.
-- **Setup plugin + project config** — `.previewsmcp.json` for per-project defaults and a zero-dependency [`PreviewSetup`](Sources/PreviewsSetupKit/PreviewSetup.swift) protocol for mock DI, fonts, and themes.
+- **Setup plugin** — one-time SDK init, auth, and DI registration via `setUp()`, per-render theme/environment wrapping via `wrap()`.
+- **Project config** — `.previewsmcp.json` for per-project defaults (platform, device, traits, quality, setup target).
 
 ## Usage
 
@@ -105,16 +114,4 @@ Add to your agent's MCP config — same `mcpServers` shape whether it lands in `
 
 Once connected, ask your agent *"what `previews` tools are available?"* — it will describe them directly from the server's registered schemas, including snapshotting, variant capture, accessibility-tree inspection, and touch injection.
 
-## Why / why not
 
-**Use PreviewsMCP when** you want scriptable SwiftUI rendering from a CI job, a shell, or an AI agent — anywhere the Xcode canvas isn't convenient. It's particularly useful for trait sweeps (localization, dynamic type, RTL) and for agents driving visual feedback loops.
-
-**Use Xcode previews when** you need full canvas fidelity: device chrome, orientation, `@PreviewModifier`, and `previewLayout` customization. PreviewsMCP is a headless renderer, not a canvas replacement.
-
-**Known limitation:** `dynamicTypeSize` is a no-op on macOS — `NSHostingView` doesn't scale fonts in response to the modifier. Use the iOS simulator path to test Dynamic Type.
-
-## Further reading
-
-- [`docs/architecture.md`](docs/architecture.md) — pipeline diagram, module layout, and the private-framework surface used for iOS rendering.
-- [`docs/build-system-integration.md`](docs/build-system-integration.md) — how SPM / Xcode / Bazel projects are detected and built.
-- [`examples/`](examples/) — working SPM, Xcode, and Bazel projects, plus a canonical `PreviewSetup` example.
