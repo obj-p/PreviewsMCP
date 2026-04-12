@@ -56,6 +56,130 @@ struct BridgeGeneratorTraitsTests {
         #expect(merged.dynamicTypeSize == "accessibility3")
     }
 
+    @Test("PreviewTraits.isEmpty returns false when locale set")
+    func traitsNotEmptyLocale() {
+        let traits = PreviewTraits(locale: "ar")
+        #expect(!traits.isEmpty)
+    }
+
+    @Test("PreviewTraits.isEmpty returns false when layoutDirection set")
+    func traitsNotEmptyLayoutDirection() {
+        let traits = PreviewTraits(layoutDirection: "rightToLeft")
+        #expect(!traits.isEmpty)
+    }
+
+    @Test("PreviewTraits.isEmpty returns false when legibilityWeight set")
+    func traitsNotEmptyLegibilityWeight() {
+        let traits = PreviewTraits(legibilityWeight: "bold")
+        #expect(!traits.isEmpty)
+    }
+
+    @Test("PreviewTraits.merged includes new trait fields")
+    func traitsMergedNewFields() {
+        let base = PreviewTraits(locale: "en", layoutDirection: "leftToRight")
+        let overlay = PreviewTraits(locale: "ar", legibilityWeight: "bold")
+        let merged = base.merged(with: overlay)
+        #expect(merged.locale == "ar")
+        #expect(merged.layoutDirection == "leftToRight")
+        #expect(merged.legibilityWeight == "bold")
+    }
+
+    @Test("PreviewTraits.validated accepts valid new trait values")
+    func validatedAcceptsNewTraits() throws {
+        let traits = try PreviewTraits.validated(
+            locale: "ar", layoutDirection: "rightToLeft", legibilityWeight: "bold"
+        )
+        #expect(traits.locale == "ar")
+        #expect(traits.layoutDirection == "rightToLeft")
+        #expect(traits.legibilityWeight == "bold")
+    }
+
+    @Test("PreviewTraits.validated rejects locale with injection characters")
+    func validatedRejectsLocaleInjection() {
+        #expect(throws: PreviewTraits.ValidationError.self) {
+            try PreviewTraits.validated(locale: "ar\"); import Foundation; //")
+        }
+        #expect(throws: PreviewTraits.ValidationError.self) {
+            try PreviewTraits.validated(locale: "en\\nmalicious")
+        }
+    }
+
+    @Test("PreviewTraits.validated rejects invalid layout direction")
+    func validatedRejectsInvalidLayoutDirection() {
+        #expect(throws: PreviewTraits.ValidationError.self) {
+            try PreviewTraits.validated(layoutDirection: "diagonal")
+        }
+    }
+
+    @Test("PreviewTraits.validated rejects invalid legibility weight")
+    func validatedRejectsInvalidLegibilityWeight() {
+        #expect(throws: PreviewTraits.ValidationError.self) {
+            try PreviewTraits.validated(legibilityWeight: "thin")
+        }
+    }
+
+    @Test("PreviewTraits.validated accepts any non-empty locale string")
+    func validatedAcceptsAnyLocale() throws {
+        let traits = try PreviewTraits.validated(locale: "xx-Fake")
+        #expect(traits.locale == "xx-Fake")
+    }
+
+    @Test("PreviewTraits.validated clears traits on empty string")
+    func validatedClearsEmptyString() throws {
+        let traits = try PreviewTraits.validated(
+            colorScheme: "", dynamicTypeSize: "", locale: "",
+            layoutDirection: "", legibilityWeight: ""
+        )
+        #expect(traits.isEmpty)
+    }
+
+    @Test("PreviewTraits.fromPreset resolves rtl, ltr, boldText")
+    func fromPresetNewPresets() {
+        let rtl = PreviewTraits.fromPreset("rtl")
+        #expect(rtl?.layoutDirection == "rightToLeft")
+
+        let ltr = PreviewTraits.fromPreset("ltr")
+        #expect(ltr?.layoutDirection == "leftToRight")
+
+        let boldText = PreviewTraits.fromPreset("boldText")
+        #expect(boldText?.legibilityWeight == "bold")
+    }
+
+    @Test("PreviewTraits.allPresetNames includes new presets")
+    func allPresetNamesIncludesNew() {
+        let presets = PreviewTraits.allPresetNames
+        #expect(presets.contains("rtl"))
+        #expect(presets.contains("ltr"))
+        #expect(presets.contains("boldText"))
+    }
+
+    @Test("parseVariantString parses JSON with new trait fields")
+    func parseVariantStringNewFields() throws {
+        let variant = try PreviewTraits.parseVariantString(
+            "{\"locale\":\"ar\",\"layoutDirection\":\"rightToLeft\",\"label\":\"arabic-rtl\"}"
+        )
+        #expect(variant.traits.locale == "ar")
+        #expect(variant.traits.layoutDirection == "rightToLeft")
+        #expect(variant.label == "arabic-rtl")
+    }
+
+    @Test("parseVariantString generates default label with new fields")
+    func parseVariantStringDefaultLabelNewFields() throws {
+        let variant = try PreviewTraits.parseVariantString(
+            "{\"locale\":\"ja\",\"legibilityWeight\":\"bold\"}"
+        )
+        #expect(variant.label == "ja+bold")
+    }
+
+    @Test("PreviewTraits Equatable works with new fields")
+    func traitsEquatableNewFields() {
+        let a = PreviewTraits(locale: "ar", layoutDirection: "rightToLeft", legibilityWeight: "bold")
+        let b = PreviewTraits(locale: "ar", layoutDirection: "rightToLeft", legibilityWeight: "bold")
+        let c = PreviewTraits(locale: "en")
+        #expect(a == b)
+        #expect(a != c)
+    }
+
     // MARK: - generateCombinedSource
 
     @Test("generateCombinedSource with no traits produces no modifiers")
@@ -102,6 +226,57 @@ struct BridgeGeneratorTraitsTests {
         )
         #expect(source.contains(".preferredColorScheme(.light)"))
         #expect(source.contains(".dynamicTypeSize(.xxLarge)"))
+    }
+
+    @Test("generateCombinedSource with locale injects .environment locale modifier")
+    func combinedSourceLocale() {
+        let traits = PreviewTraits(locale: "ar")
+        let (source, _) = BridgeGenerator.generateCombinedSource(
+            originalSource: Self.testSource,
+            closureBody: "TestView()",
+            traits: traits
+        )
+        #expect(source.contains(".environment(\\.locale, Locale(identifier: \"ar\"))"))
+    }
+
+    @Test("generateCombinedSource with layoutDirection injects .environment modifier")
+    func combinedSourceLayoutDirection() {
+        let traits = PreviewTraits(layoutDirection: "rightToLeft")
+        let (source, _) = BridgeGenerator.generateCombinedSource(
+            originalSource: Self.testSource,
+            closureBody: "TestView()",
+            traits: traits
+        )
+        #expect(source.contains(".environment(\\.layoutDirection, .rightToLeft)"))
+    }
+
+    @Test("generateCombinedSource with legibilityWeight injects .environment modifier")
+    func combinedSourceLegibilityWeight() {
+        let traits = PreviewTraits(legibilityWeight: "bold")
+        let (source, _) = BridgeGenerator.generateCombinedSource(
+            originalSource: Self.testSource,
+            closureBody: "TestView()",
+            traits: traits
+        )
+        #expect(source.contains(".environment(\\.legibilityWeight, .bold)"))
+    }
+
+    @Test("generateCombinedSource with all 5 traits injects all modifiers")
+    func combinedSourceAllFiveTraits() {
+        let traits = PreviewTraits(
+            colorScheme: "dark", dynamicTypeSize: "large", locale: "ja-JP",
+            layoutDirection: "rightToLeft", legibilityWeight: "bold"
+        )
+        let (source, _) = BridgeGenerator.generateCombinedSource(
+            originalSource: Self.testSource,
+            closureBody: "TestView()",
+            traits: traits
+        )
+        #expect(source.contains(".preferredColorScheme(.dark)"))
+        #expect(source.contains(".dynamicTypeSize(.large)"))
+        #expect(source.contains(".environment(\\.locale, Locale(identifier: \"ja-JP\"))"))
+        #expect(source.contains(".environment(\\.layoutDirection, .rightToLeft)"))
+        #expect(source.contains(".environment(\\.legibilityWeight, .bold)"))
     }
 
     // MARK: - generateBridgeOnlySource
@@ -440,6 +615,91 @@ struct BridgeGeneratorTraitsTests {
         #expect(source.contains(".dynamicTypeSize(.xxxLarge)"))
         #expect(source.contains("DesignTimeStore"))
         #expect(!literals.isEmpty)
+    }
+
+    // MARK: - Setup plugin code generation
+
+    @Test("generateCombinedSource with setup generates import and previewSetUp entry point")
+    func combinedSourceWithSetup() {
+        let (source, _) = BridgeGenerator.generateCombinedSource(
+            originalSource: Self.testSource,
+            closureBody: "TestView()",
+            setupModule: "MySetup",
+            setupType: "AppSetup"
+        )
+        #expect(source.contains("import MySetup"))
+        #expect(source.contains("@_cdecl(\"previewSetUp\")"))
+        #expect(source.contains("AppSetup.setUp()"))
+        #expect(source.contains("DispatchSemaphore"))
+    }
+
+    @Test("generateCombinedSource with setup calls wrap and applies traits outside")
+    func combinedSourceSetupWrapAndTraits() {
+        let traits = PreviewTraits(colorScheme: "dark")
+        let (source, _) = BridgeGenerator.generateCombinedSource(
+            originalSource: Self.testSource,
+            closureBody: "TestView()",
+            traits: traits,
+            setupModule: "MySetup",
+            setupType: "AppSetup"
+        )
+        #expect(source.contains("AppSetup.wrap(innerView)"))
+        #expect(source.contains("wrappedView"))
+        #expect(source.contains(".preferredColorScheme(.dark)"))
+
+        let wrapIdx = source.range(of: "AppSetup.wrap")!.lowerBound
+        let traitIdx = source.range(of: ".preferredColorScheme(.dark)")!.lowerBound
+        #expect(wrapIdx < traitIdx, "wrap() should appear before trait modifiers (traits outside wrap)")
+    }
+
+    @Test("generateCombinedSource rejects setup with invalid identifier characters")
+    func combinedSourceRejectsInvalidSetupIdentifier() {
+        let (source, _) = BridgeGenerator.generateCombinedSource(
+            originalSource: Self.testSource,
+            closureBody: "TestView()",
+            setupModule: "Foo\n}; /* exploit */",
+            setupType: "Bar"
+        )
+        #expect(!source.contains("previewSetUp"), "Should not generate setup for invalid identifier")
+        #expect(!source.contains("exploit"))
+    }
+
+    @Test("generateCombinedSource without setup has no previewSetUp or wrap")
+    func combinedSourceNoSetup() {
+        let (source, _) = BridgeGenerator.generateCombinedSource(
+            originalSource: Self.testSource,
+            closureBody: "TestView()"
+        )
+        #expect(!source.contains("previewSetUp"))
+        #expect(!source.contains(".wrap("))
+        #expect(!source.contains("DispatchSemaphore"))
+    }
+
+    @Test("generateBridgeOnlySource with setup generates import and entry points")
+    func bridgeOnlySourceWithSetup() {
+        let source = BridgeGenerator.generateBridgeOnlySource(
+            moduleName: "MyTarget",
+            closureBody: "ContentView()",
+            setupModule: "MySetup",
+            setupType: "AppSetup"
+        )
+        #expect(source.contains("import MySetup"))
+        #expect(source.contains("@_cdecl(\"previewSetUp\")"))
+        #expect(source.contains("AppSetup.setUp()"))
+        #expect(source.contains("AppSetup.wrap(innerView)"))
+    }
+
+    @Test("generateOverlaySource with setup passes through to combined")
+    func overlaySourceWithSetup() {
+        let (source, _) = BridgeGenerator.generateOverlaySource(
+            originalSource: Self.testSource,
+            closureBody: "TestView()",
+            setupModule: "MySetup",
+            setupType: "AppSetup"
+        )
+        #expect(source.contains("import MySetup"))
+        #expect(source.contains("@_cdecl(\"previewSetUp\")"))
+        #expect(source.contains("AppSetup.wrap(innerView)"))
     }
 
     // MARK: - Validation

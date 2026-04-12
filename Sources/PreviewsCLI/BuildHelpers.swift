@@ -20,6 +20,34 @@ struct StderrProgressReporter: ProgressReporter {
     }
 }
 
+/// Load project config from explicit path or auto-discover from source file directory.
+func loadProjectConfig(explicit configPath: String?, fileURL: URL) -> ProjectConfigLoader.Result? {
+    if let configPath {
+        let url = URL(fileURLWithPath: configPath)
+        let dir = url.deletingLastPathComponent()
+        guard let data = try? Data(contentsOf: url),
+            let config = try? JSONDecoder().decode(ProjectConfig.self, from: data)
+        else {
+            fputs("Warning: Could not load config from \(configPath)\n", stderr)
+            return nil
+        }
+        return ProjectConfigLoader.Result(config: config, directory: dir)
+    }
+    return ProjectConfigLoader.find(from: fileURL.deletingLastPathComponent())
+}
+
+/// Build the setup package if configured in a ProjectConfig.
+func buildSetupFromConfig(
+    _ configResult: ProjectConfigLoader.Result?,
+    platform: PreviewPlatform
+) async throws -> SetupBuilder.Result? {
+    guard let setupConfig = configResult?.config.setup, let configDir = configResult?.directory
+    else { return nil }
+    return try await SetupBuilder.build(
+        config: setupConfig, configDirectory: configDir, platform: platform
+    )
+}
+
 /// Detect the build system for a source file and build it, reporting progress.
 func detectAndBuild(
     for fileURL: URL,
@@ -53,6 +81,7 @@ func launchMacOSPreview(
     height: Int,
     buildContext: BuildContext?,
     traits: PreviewTraits = PreviewTraits(),
+    setupResult: SetupBuilder.Result? = nil,
     progress: (any ProgressReporter)? = nil
 ) async throws {
     let compiler = try await Compiler()
@@ -62,7 +91,10 @@ func launchMacOSPreview(
         previewIndex: previewIndex,
         compiler: compiler,
         buildContext: buildContext,
-        traits: traits
+        traits: traits,
+        setupModule: setupResult?.moduleName,
+        setupType: setupResult?.typeName,
+        setupCompilerFlags: setupResult?.compilerFlags ?? []
     )
 
     await progress?.report(.compilingBridge, message: "Compiling \(fileURL.lastPathComponent)...")
@@ -100,6 +132,7 @@ func launchIOSPreview(
     headless: Bool = false,
     buildContext: BuildContext?,
     traits: PreviewTraits = PreviewTraits(),
+    setupResult: SetupBuilder.Result? = nil,
     progress: (any ProgressReporter)? = nil
 ) async throws {
     let compiler = try await Compiler(platform: .iOS)
@@ -118,6 +151,9 @@ func launchIOSPreview(
         headless: headless,
         buildContext: buildContext,
         traits: traits,
+        setupModule: setupResult?.moduleName,
+        setupType: setupResult?.typeName,
+        setupCompilerFlags: setupResult?.compilerFlags ?? [],
         progress: progress
     )
 

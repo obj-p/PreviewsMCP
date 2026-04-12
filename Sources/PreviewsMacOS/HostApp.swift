@@ -24,6 +24,7 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
     // Keep old loaders and views alive so their dylib types remain valid.
     private var retainedLoaders: [DylibLoader] = []
     private var retainedViews: [NSView] = []
+    private var hasCalledSetUp = false
 
     /// Callback invoked after NSApplication finishes launching.
     public var onLaunch: (@MainActor () -> Void)?
@@ -73,9 +74,17 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
     ) throws {
         let headless = headless ?? self.headless
 
-        // Load the new dylib and resolve the entry point BEFORE retiring the old loader.
-        // If either step fails, the old loader remains valid for the session.
         let loader = try DylibLoader(path: dylibPath.path)
+
+        // Call setUp exactly once on first dylib load
+        if !hasCalledSetUp {
+            hasCalledSetUp = true
+            typealias SetUpFunc = @convention(c) () -> Void
+            if let setUpFn: SetUpFunc = try? loader.symbol(name: "previewSetUp") {
+                setUpFn()
+            }
+        }
+
         typealias CreateFunc = @convention(c) () -> UnsafeMutableRawPointer
         let createView: CreateFunc = try loader.symbol(name: entryPoint)
 

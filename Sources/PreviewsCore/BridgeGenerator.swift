@@ -19,7 +19,9 @@ public enum BridgeGenerator {
         previewIndex: Int = 0,
         entryPoint: String = "createPreviewView",
         platform: PreviewPlatform = .macOS,
-        traits: PreviewTraits = PreviewTraits()
+        traits: PreviewTraits = PreviewTraits(),
+        setupModule: String? = nil,
+        setupType: String? = nil
     ) -> (source: String, literals: [LiteralEntry]) {
         // Transform source to replace literals with DesignTimeStore lookups
         let thunkResult = ThunkGenerator.transform(source: originalSource)
@@ -34,18 +36,33 @@ public enum BridgeGenerator {
         }
 
         let modifiers = traitModifiers(traits)
+        let hasSetup =
+            setupModule != nil && setupType != nil
+            && isValidSwiftIdentifier(setupModule!) && isValidSwiftIdentifier(setupType!)
+        let setupImport = hasSetup ? "import \(setupModule!)\n" : ""
+        let setUpEntry = hasSetup ? setUpEntryPoint(setupType: setupType!) : ""
+        let viewCode =
+            hasSetup
+            ? viewWithSetup(closureBody: transformedClosureBody, setupType: setupType!, modifiers: modifiers)
+            : """
+            {
+                        @ViewBuilder func __previewBody() -> some SwiftUI.View {
+                            \(transformedClosureBody)
+                        }
+                        return SwiftUI.AnyView(__previewBody()\(modifiers))
+                    }()
+            """
+
         let bridgeCode: String
         switch platform {
         case .macOS:
             bridgeCode = """
                 import AppKit
-
+                \(setupImport)
+                \(setUpEntry)
                 @_cdecl("\(entryPoint)")
                 public func \(entryPoint)() -> UnsafeMutableRawPointer {
-                    @ViewBuilder func __previewBody() -> some SwiftUI.View {
-                        \(transformedClosureBody)
-                    }
-                    let view = SwiftUI.AnyView(__previewBody()\(modifiers))
+                    let view = \(viewCode)
                     let hostingView = NSHostingView(rootView: view)
                     return Unmanaged.passRetained(hostingView).toOpaque()
                 }
@@ -53,13 +70,11 @@ public enum BridgeGenerator {
         case .iOS:
             bridgeCode = """
                 import UIKit
-
+                \(setupImport)
+                \(setUpEntry)
                 @_cdecl("\(entryPoint)")
                 public func \(entryPoint)() -> UnsafeMutableRawPointer {
-                    @ViewBuilder func __previewBody() -> some SwiftUI.View {
-                        \(transformedClosureBody)
-                    }
-                    let view = SwiftUI.AnyView(__previewBody()\(modifiers))
+                    let view = \(viewCode)
                     let hostingController = UIHostingController(rootView: view)
                     return Unmanaged.passRetained(hostingController).toOpaque()
                 }
@@ -90,7 +105,9 @@ public enum BridgeGenerator {
         closureBody: String,
         entryPoint: String = "createPreviewView",
         platform: PreviewPlatform = .macOS,
-        traits: PreviewTraits = PreviewTraits()
+        traits: PreviewTraits = PreviewTraits(),
+        setupModule: String? = nil,
+        setupType: String? = nil
     ) -> String {
         let frameworkImport: String
         let hostCode: String
@@ -111,17 +128,31 @@ public enum BridgeGenerator {
         }
 
         let modifiers = traitModifiers(traits)
+        let hasSetup =
+            setupModule != nil && setupType != nil
+            && isValidSwiftIdentifier(setupModule!) && isValidSwiftIdentifier(setupType!)
+        let setupImport = hasSetup ? "\nimport \(setupModule!)" : ""
+        let setUpEntry = hasSetup ? "\n\n\(setUpEntryPoint(setupType: setupType!))\n" : ""
+        let viewCode =
+            hasSetup
+            ? viewWithSetup(closureBody: closureBody, setupType: setupType!, modifiers: modifiers)
+            : """
+            {
+                    @ViewBuilder func __previewBody() -> some SwiftUI.View {
+                        \(closureBody)
+                    }
+                    return SwiftUI.AnyView(__previewBody()\(modifiers))
+                }()
+            """
+
         return """
             import SwiftUI
             \(frameworkImport)
-            @testable import \(moduleName)
-
+            @testable import \(moduleName)\(setupImport)
+            \(setUpEntry)
             @_cdecl("\(entryPoint)")
             public func \(entryPoint)() -> UnsafeMutableRawPointer {
-                @ViewBuilder func __previewBody() -> some SwiftUI.View {
-                    \(closureBody)
-                }
-                let view = SwiftUI.AnyView(__previewBody()\(modifiers))
+                let view = \(viewCode)
                 \(hostCode)
             }
             """
@@ -139,18 +170,19 @@ public enum BridgeGenerator {
         previewIndex: Int = 0,
         entryPoint: String = "createPreviewView",
         platform: PreviewPlatform = .macOS,
-        traits: PreviewTraits = PreviewTraits()
+        traits: PreviewTraits = PreviewTraits(),
+        setupModule: String? = nil,
+        setupType: String? = nil
     ) -> (source: String, literals: [LiteralEntry]) {
-        // Same as generateCombinedSource — transform literals, generate bridge
-        // The difference is in how the Compiler uses the result: with -module-name <TargetName>
-        // and linking pre-built .o files for other target sources.
         return generateCombinedSource(
             originalSource: originalSource,
             closureBody: closureBody,
             previewIndex: previewIndex,
             entryPoint: entryPoint,
             platform: platform,
-            traits: traits
+            traits: traits,
+            setupModule: setupModule,
+            setupType: setupType
         )
     }
 
@@ -185,6 +217,44 @@ public enum BridgeGenerator {
     // semantics with zero added view types in the render tree and unambiguous
     // intent at the source level.
 
+    /// Validate that a string is safe to interpolate as a Swift identifier or dotted module path.
+    private static func isValidSwiftIdentifier(_ s: String) -> Bool {
+        let pattern = #"^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$"#
+        return s.range(of: pattern, options: .regularExpression) != nil
+    }
+
+    /// Generate the `@_cdecl("previewSetUp")` entry point that bridges async setUp.
+    private static func setUpEntryPoint(setupType: String) -> String {
+        """
+        @_cdecl("previewSetUp")
+        public func previewSetUp() {
+            let semaphore = DispatchSemaphore(value: 0)
+            Task {
+                try? await \(setupType).setUp()
+                semaphore.signal()
+            }
+            semaphore.wait()
+        }
+        """
+    }
+
+    /// Generate view code with setup wrapping. Uses `@ViewBuilder __previewBody()` for the
+    /// closure body. Traits are applied OUTSIDE the wrap so explicit overrides take precedence.
+    private static func viewWithSetup(closureBody: String, setupType: String, modifiers: String) -> String {
+        """
+        {
+                @ViewBuilder func __previewBody() -> some SwiftUI.View {
+                    \(closureBody)
+                }
+                let innerView = SwiftUI.AnyView(__previewBody())
+                let wrappedView = \(setupType).wrap(innerView)
+                return SwiftUI.AnyView(
+                    wrappedView\(modifiers)
+                )
+            }()
+        """
+    }
+
     /// Build SwiftUI modifier chain for the given traits.
     private static func traitModifiers(_ traits: PreviewTraits) -> String {
         var mods = ""
@@ -193,6 +263,15 @@ public enum BridgeGenerator {
         }
         if let dts = traits.dynamicTypeSize {
             mods += "\n            .dynamicTypeSize(.\(dts))"
+        }
+        if let locale = traits.locale {
+            mods += "\n            .environment(\\.locale, Locale(identifier: \"\(locale)\"))"
+        }
+        if let ld = traits.layoutDirection {
+            mods += "\n            .environment(\\.layoutDirection, .\(ld))"
+        }
+        if let lw = traits.legibilityWeight {
+            mods += "\n            .environment(\\.legibilityWeight, .\(lw))"
         }
         return mods
     }

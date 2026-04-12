@@ -65,6 +65,21 @@ private actor IOSState {
 }
 
 private let iosState = IOSState()
+private let configCache = ConfigCache()
+
+private actor ConfigCache {
+    private var cache: [String: ProjectConfigLoader.Result?] = [:]
+
+    func load(for fileURL: URL) -> ProjectConfigLoader.Result? {
+        let dir = fileURL.deletingLastPathComponent().standardizedFileURL.path
+        if let cached = cache[dir] {
+            return cached
+        }
+        let result = ProjectConfigLoader.find(from: fileURL.deletingLastPathComponent())
+        cache[dir] = result
+        return result
+    }
+}
 
 /// MCP progress reporter that sends progress notifications and log messages to the client.
 final class MCPProgressReporter: ProgressReporter, @unchecked Sendable {
@@ -207,6 +222,28 @@ func configureMCPServer() async throws -> (Server, Compiler) {
                             "description": .string(
                                 "Dynamic Type size (e.g., 'large', 'accessibility3')"),
                         ]),
+                        "locale": .object([
+                            "type": .string("string"),
+                            "description": .string(
+                                "BCP 47 locale identifier (e.g., 'en', 'ar', 'ja-JP')"),
+                        ]),
+                        "layoutDirection": .object([
+                            "type": .string("string"),
+                            "enum": .array([
+                                .string("leftToRight"), .string("rightToLeft"),
+                            ]),
+                            "description": .string(
+                                "Layout direction: 'leftToRight' or 'rightToLeft'"),
+                        ]),
+                        "legibilityWeight": .object([
+                            "type": .string("string"),
+                            "enum": .array([
+                                .string("regular"), .string("bold"),
+                            ]),
+                            "description": .string(
+                                "Legibility weight: 'regular' or 'bold' (Bold Text accessibility)"
+                            ),
+                        ]),
                     ]),
                     "required": .array([.string("filePath")]),
                 ])
@@ -247,7 +284,7 @@ func configureMCPServer() async throws -> (Server, Compiler) {
             Tool(
                 name: ToolName.previewConfigure.rawValue,
                 description:
-                    "Change rendering traits (color scheme, dynamic type) for a running preview. Triggers recompile; @State is reset. Note: dynamicTypeSize only has a visible effect on iOS simulator — macOS does not scale fonts in response to this modifier.",
+                    "Change rendering traits (color scheme, dynamic type, locale, layout direction, legibility weight) for a running preview. Triggers recompile; @State is reset. Pass empty string to clear a trait. Note: dynamicTypeSize only has a visible effect on iOS simulator — macOS does not scale fonts in response to this modifier.",
                 inputSchema: .object([
                     "type": .string("object"),
                     "properties": .object([
@@ -271,6 +308,24 @@ func configureMCPServer() async throws -> (Server, Compiler) {
                                 .string("accessibility4"), .string("accessibility5"),
                             ]),
                             "description": .string("Dynamic Type size override"),
+                        ]),
+                        "locale": .object([
+                            "type": .string("string"),
+                            "description": .string(
+                                "BCP 47 locale identifier (e.g., 'en', 'ar', 'ja-JP'). Pass empty string to clear."
+                            ),
+                        ]),
+                        "layoutDirection": .object([
+                            "type": .string("string"),
+                            "description": .string(
+                                "Layout direction: 'leftToRight' or 'rightToLeft'. Pass empty string to clear."
+                            ),
+                        ]),
+                        "legibilityWeight": .object([
+                            "type": .string("string"),
+                            "description": .string(
+                                "Legibility weight: 'regular' or 'bold'. Pass empty string to clear."
+                            ),
                         ]),
                     ]),
                     "required": .array([.string("sessionID")]),
@@ -373,7 +428,7 @@ func configureMCPServer() async throws -> (Server, Compiler) {
                             "items": .object([
                                 "type": .string("string"),
                                 "description": .string(
-                                    "Preset name ('light', 'dark', 'xSmall', 'small', 'medium', 'large', 'xLarge', 'xxLarge', 'xxxLarge', 'accessibility1'-'accessibility5') or a JSON object string like '{\"colorScheme\":\"dark\",\"dynamicTypeSize\":\"large\",\"label\":\"dark+large\"}'."
+                                    "Preset name ('light', 'dark', 'xSmall'…'accessibility5', 'rtl', 'ltr', 'boldText') or a JSON object string with any combination of colorScheme, dynamicTypeSize, locale, layoutDirection, legibilityWeight, and an optional label."
                                 ),
                             ]),
                             "description": .string(
@@ -474,10 +529,15 @@ private func handlePreviewStart(params: CallTool.Parameters, macCompiler: Compil
     }
 
     let previewIndex = extractOptionalInt("previewIndex", from: params) ?? 0
-    let platformStr = extractOptionalString("platform", from: params) ?? "macos"
 
-    let (resolvedTraits, traitsError) = parseTraits(from: params)
+    let configResult = await configCache.load(for: fileURL)
+    let config = configResult?.config
+    let platformStr = extractOptionalString("platform", from: params) ?? config?.platform ?? "macos"
+
+    let (explicitTraits, traitsError) = parseTraits(from: params)
     if let traitsError { return traitsError }
+    let configTraits = config?.traits?.toPreviewTraits() ?? PreviewTraits()
+    let resolvedTraits = configTraits.merged(with: explicitTraits)
 
     // iOS simulator path
     if platformStr == "ios" {
@@ -485,6 +545,7 @@ private func handlePreviewStart(params: CallTool.Parameters, macCompiler: Compil
             fileURL: fileURL,
             previewIndex: previewIndex,
             params: params,
+            configResult: configResult,
             traits: resolvedTraits,
             server: server
         )
@@ -504,6 +565,15 @@ private func handlePreviewStart(params: CallTool.Parameters, macCompiler: Compil
         return CallTool.Result(content: [.text("Project build failed: \(error.localizedDescription)")], isError: true)
     }
 
+    // Build setup plugin if configured
+    let setupResult = try await buildSetupIfConfigured(
+        config: config, configDirectory: configResult?.directory, platform: .macOS
+    )
+    let standaloneSetupWarning =
+        (config?.setup != nil && buildContext == nil)
+        ? " Warning: setup plugin requires a project build system and is ignored in standalone mode."
+        : ""
+
     await progress.report(.compilingBridge, message: "Compiling \(fileURL.lastPathComponent)...")
     let sessionID = try await startMacOSPreview(
         fileURL: fileURL, previewIndex: previewIndex,
@@ -511,6 +581,7 @@ private func handlePreviewStart(params: CallTool.Parameters, macCompiler: Compil
         width: width, height: height,
         compiler: macCompiler, buildContext: buildContext,
         traits: resolvedTraits,
+        setupResult: setupResult,
         headless: headless
     )
 
@@ -520,7 +591,7 @@ private func handlePreviewStart(params: CallTool.Parameters, macCompiler: Compil
     let switchHint = previews.count > 1 ? "\nUse preview_switch to change the active preview." : ""
     return CallTool.Result(content: [
         .text(
-            "macOS preview started. Session ID: \(sessionID).\(traitInfo) File is being watched for changes.\n\(previewList)\(switchHint)"
+            "macOS preview started. Session ID: \(sessionID).\(traitInfo)\(standaloneSetupWarning) File is being watched for changes.\n\(previewList)\(switchHint)"
         )
     ])
 }
@@ -529,12 +600,14 @@ private func handleIOSPreviewStart(
     fileURL: URL,
     previewIndex: Int,
     params: CallTool.Parameters,
+    configResult: ProjectConfigLoader.Result?,
     traits: PreviewTraits = PreviewTraits(),
     server: Server
 ) async throws -> CallTool.Result {
-    // Resolve device UDID — use provided or auto-select
+    let config = configResult?.config
+    // Resolve device UDID — use provided, config, or auto-select
     let deviceUDID: String
-    let providedUDID = extractOptionalString("deviceUDID", from: params)
+    let providedUDID = extractOptionalString("deviceUDID", from: params) ?? config?.device
     do {
         deviceUDID = try await resolveDeviceUDID(provided: providedUDID, using: iosState.simulatorManager)
     } catch {
@@ -556,6 +629,9 @@ private func handleIOSPreviewStart(
         return CallTool.Result(content: [.text("Project build failed: \(error.localizedDescription)")], isError: true)
     }
 
+    let setupResult = try await buildSetupIfConfigured(
+        config: config, configDirectory: configResult?.directory, platform: .iOS)
+
     let session = IOSPreviewSession(
         sourceFile: fileURL,
         previewIndex: previewIndex,
@@ -566,6 +642,9 @@ private func handleIOSPreviewStart(
         headless: headless,
         buildContext: buildContext,
         traits: traits,
+        setupModule: setupResult?.moduleName,
+        setupType: setupResult?.typeName,
+        setupCompilerFlags: setupResult?.compilerFlags ?? [],
         progress: progress
     )
 
@@ -608,11 +687,35 @@ private func handleIOSPreviewStart(
     ])
 }
 
+/// Build the setup package if configured. Returns nil if no setup or standalone mode.
+private func buildSetupIfConfigured(
+    config: ProjectConfig?,
+    configDirectory: URL?,
+    platform: PreviewPlatform
+) async throws -> SetupBuilder.Result? {
+    guard let setupConfig = config?.setup, let configDir = configDirectory else { return nil }
+    return try await SetupBuilder.build(
+        config: setupConfig, configDirectory: configDir, platform: platform
+    )
+}
+
+/// Resolve the config quality default for a session (iOS or macOS).
+private func configQualityForSession(_ sessionID: String) async -> Double? {
+    if let iosSession = await iosState.getSession(sessionID) {
+        return await configCache.load(for: iosSession.sourceFile)?.config.quality
+    }
+    if let macSession: PreviewSession = await MainActor.run(body: { App.host.session(for: sessionID) }) {
+        return await configCache.load(for: macSession.sourceFile)?.config.quality
+    }
+    return nil
+}
+
 private func startMacOSPreview(
     fileURL: URL, previewIndex: Int, title: String,
     width: Int, height: Int,
     compiler: Compiler, buildContext: BuildContext?,
     traits: PreviewTraits = PreviewTraits(),
+    setupResult: SetupBuilder.Result? = nil,
     headless: Bool = true
 ) async throws -> String {
     let session = PreviewSession(
@@ -620,7 +723,10 @@ private func startMacOSPreview(
         previewIndex: previewIndex,
         compiler: compiler,
         buildContext: buildContext,
-        traits: traits
+        traits: traits,
+        setupModule: setupResult?.moduleName,
+        setupType: setupResult?.typeName,
+        setupCompilerFlags: setupResult?.compilerFlags ?? []
     )
 
     let compileResult = try await session.compile()
@@ -657,7 +763,8 @@ private func handlePreviewSnapshot(params: CallTool.Parameters) async throws -> 
         return CallTool.Result(content: [.text(error.localizedDescription)], isError: true)
     }
 
-    let quality = max(0.0, min(1.0, extractOptionalDouble("quality", from: params) ?? 0.85))
+    let configQuality = await configQualityForSession(sessionID)
+    let quality = max(0.0, min(1.0, extractOptionalDouble("quality", from: params) ?? configQuality ?? 0.85))
     let usePNG = quality >= 1.0
     let mimeType = usePNG ? "image/png" : "image/jpeg"
 
@@ -821,7 +928,10 @@ private func parseTraits(from params: CallTool.Parameters) -> (PreviewTraits, Ca
     do {
         let traits = try PreviewTraits.validated(
             colorScheme: extractOptionalString("colorScheme", from: params),
-            dynamicTypeSize: extractOptionalString("dynamicTypeSize", from: params)
+            dynamicTypeSize: extractOptionalString("dynamicTypeSize", from: params),
+            locale: extractOptionalString("locale", from: params),
+            layoutDirection: extractOptionalString("layoutDirection", from: params),
+            legibilityWeight: extractOptionalString("legibilityWeight", from: params)
         )
         return (traits, nil)
     } catch {
@@ -833,6 +943,9 @@ private func traitsSummary(_ traits: PreviewTraits) -> String {
     var parts: [String] = []
     if let cs = traits.colorScheme { parts.append("colorScheme=\(cs)") }
     if let dts = traits.dynamicTypeSize { parts.append("dynamicTypeSize=\(dts)") }
+    if let loc = traits.locale { parts.append("locale=\(loc)") }
+    if let ld = traits.layoutDirection { parts.append("layoutDirection=\(ld)") }
+    if let lw = traits.legibilityWeight { parts.append("legibilityWeight=\(lw)") }
     return parts.joined(separator: ", ")
 }
 
@@ -894,7 +1007,7 @@ private enum VariantError: Error, LocalizedError {
         switch self {
         case .invalidVariantType:
             return
-                "Each variant must be a preset name string or a JSON object string with colorScheme/dynamicTypeSize"
+                "Each variant must be a preset name string or a JSON object string with trait fields (colorScheme, dynamicTypeSize, locale, layoutDirection, legibilityWeight)"
         case .emptyVariantsArray:
             return "variants array must not be empty"
         }
@@ -932,7 +1045,8 @@ private func handlePreviewVariants(params: CallTool.Parameters, server: Server) 
         return CallTool.Result(content: [.text(error.localizedDescription)], isError: true)
     }
 
-    let quality = max(0.0, min(1.0, extractOptionalDouble("quality", from: params) ?? 0.85))
+    let variantConfigQuality = await configQualityForSession(sessionID)
+    let quality = max(0.0, min(1.0, extractOptionalDouble("quality", from: params) ?? variantConfigQuality ?? 0.85))
     let usePNG = quality >= 1.0
     let mimeType = usePNG ? "image/png" : "image/jpeg"
     let progress = mcpReporter(server: server, params: params, totalSteps: 2 * resolved.count)
