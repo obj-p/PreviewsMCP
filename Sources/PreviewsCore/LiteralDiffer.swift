@@ -30,10 +30,9 @@ public enum LiteralDiffer {
         }
 
         var changes: [(id: String, newValue: LiteralValue)] = []
-        for (index, (oldEntry, newEntry)) in zip(oldLiterals, newLiterals).enumerated() {
-            if oldEntry.value != newEntry.value {
-                changes.append((id: "#\(index)", newValue: newEntry.value))
-            }
+        for (index, (oldEntry, newEntry)) in zip(oldLiterals, newLiterals).enumerated()
+        where oldEntry.value != newEntry.value {
+            changes.append((id: "#\(index)", newValue: newEntry.value))
         }
 
         return .literalOnly(changes: changes)

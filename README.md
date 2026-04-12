@@ -64,7 +64,7 @@ The binary is at `.build/release/previewsmcp`.
 - **Variant & trait sweeps** — render one preview across many trait combinations (`colorScheme`, `dynamicTypeSize`, `locale`, `layoutDirection`, `legibilityWeight`) in a single call, with presets for light/dark, `xSmall`–`accessibility5`, `rtl`, `ltr`, and `boldText`.
 - **Multi-preview selection** — `#Preview` macros and legacy `PreviewProvider`, with mid-session switching.
 - **iOS interaction** — walk the accessibility tree and inject taps/swipes through an in-simulator touch bridge.
-- **Setup plugin** — one-time SDK init, auth, and DI registration via `setUp()`, per-render theme/environment wrapping via `wrap()`.
+- **Setup plugin** — one-time SDK init, auth, and DI registration via `setUp()`, per-render theme/environment wrapping via `wrap()`. See the [full integration guide](docs/setup-plugin.md).
 - **Project config** — `.previewsmcp.json` for per-project defaults (platform, device, traits, quality, setup target).
 
 ## Usage

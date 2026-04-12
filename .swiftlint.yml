@@ -1,0 +1,54 @@
+# SwiftLint configuration
+# Complements swift-format (which handles formatting). SwiftLint catches semantic issues.
+
+excluded:
+  - .build
+  - examples
+  # Embedded iOS host app source — a string constant compiled at runtime, not regular Swift
+  - Sources/PreviewsIOS/IOSHostAppSource.swift
+
+# Disable rules that overlap with swift-format or conflict with project conventions
+disabled_rules:
+  - trailing_comma                  # swift-format allows trailing commas; project uses them
+  - opening_brace                   # swift-format owns brace placement
+  - line_length                     # swift-format enforces 120-char limit already
+  - trailing_whitespace             # swift-format handles this
+  - vertical_whitespace             # swift-format handles this
+  - comma                           # swift-format handles this
+  - colon                           # swift-format handles this
+  - statement_position              # swift-format handles this
+  - optional_data_string_conversion # false-positives on String(decoding:as:) which is non-failable
+
+# Tune thresholds for this codebase
+identifier_name:
+  min_length:
+    warning: 1               # short names (x, y, n, fd) are intentional
+  max_length:
+    warning: 60
+  excluded:
+    - id
+    - ok
+
+type_body_length:
+  warning: 500
+  error: 1000
+
+file_length:
+  warning: 1000
+  error: 1500
+
+function_body_length:
+  warning: 150
+  error: 400
+
+function_parameter_count:
+  warning: 8
+  error: 10
+
+cyclomatic_complexity:
+  warning: 15
+  error: 25
+
+nesting:
+  type_level: 2
+  function_level: 3

@@ -26,14 +26,17 @@ swift test --filter "IOSHostBuilder"     # Test iOS host app compilation
 swift test --filter "endToEnd"           # Full iOS pipeline (slow, boots simulator)
 ```
 
-## Formatting
+## Formatting & Linting
 
-Swift sources are formatted with [swift-format](https://github.com/swiftlang/swift-format) (config: `.swift-format`). The pre-commit hook lints staged files automatically.
+Swift sources are formatted with [swift-format](https://github.com/swiftlang/swift-format) (config: `.swift-format`) and linted with [SwiftLint](https://github.com/realm/SwiftLint) (config: `.swiftlint.yml`). The pre-commit hook runs both on staged files automatically.
 
 ```bash
-swift-format format --in-place --recursive Sources/ Tests/ examples/   # Auto-fix
-swift-format lint --strict --recursive Sources/ Tests/ examples/        # Check only
+swift-format format --in-place --recursive Sources/ Tests/ examples/   # Auto-fix formatting
+swift-format lint --strict --recursive Sources/ Tests/ examples/        # Check formatting only
+swiftlint lint --quiet Sources/ Tests/                                  # Semantic lint checks
 ```
+
+SwiftLint complements swift-format: formatting rules are disabled (swift-format owns those), while SwiftLint catches semantic issues (cyclomatic complexity, function length, nesting depth, etc.).
 
 ## Architecture
 
