@@ -72,7 +72,8 @@ struct VariantsCommand: ParsableCommand {
             throw ValidationError("File not found: \(file)")
         }
 
-        let projectConfig = loadProjectConfig(explicit: config, fileURL: fileURL)
+        let configResult = loadProjectConfig(explicit: config, fileURL: fileURL)
+        let projectConfig = configResult?.config
 
         guard !variant.isEmpty else {
             throw ValidationError("At least one --variant is required")
@@ -103,7 +104,7 @@ struct VariantsCommand: ParsableCommand {
 
         let resolvedPlatform: CLIPlatform = {
             if platform != .macos { return platform }
-            if let cp = projectConfig?.platform, cp == "ios" { return .ios }
+            if let cp = configResult?.config.platform, cp == "ios" { return .ios }
             return platform
         }()
 
@@ -111,12 +112,12 @@ struct VariantsCommand: ParsableCommand {
         case .ios:
             runIOSVariants(
                 fileURL: fileURL, resolved: resolved, outputDirURL: outputDirURL,
-                projectConfig: projectConfig
+                configResult: configResult
             )
         case .macos:
             runMacOSVariants(
                 fileURL: fileURL, resolved: resolved, outputDirURL: outputDirURL,
-                projectConfig: projectConfig
+                configResult: configResult
             )
         }
     }
@@ -148,13 +149,13 @@ struct VariantsCommand: ParsableCommand {
         fileURL: URL,
         resolved: [PreviewTraits.Variant],
         outputDirURL: URL,
-        projectConfig: ProjectConfig?
+        configResult: ProjectConfigLoader.Result?
     ) {
         let previewIndex = preview
         let windowWidth = width
         let windowHeight = height
         let projectPath = project
-        let resolvedQuality = quality ?? projectConfig?.quality ?? 0.85
+        let resolvedQuality = quality ?? configResult?.config.quality ?? 0.85
         let snapshotFormat: Snapshot.ImageFormat =
             format == .png ? .png : .jpeg(quality: resolvedQuality)
         // Setup: detect + build (2 steps) + per variant: compile + capture (2 × N)
@@ -172,7 +173,7 @@ struct VariantsCommand: ParsableCommand {
                     for: fileURL, projectRoot: projectRootURL, platform: .macOS,
                     progress: progress)
 
-                let setupResult = try await buildSetupFromConfig(projectConfig, fileURL: fileURL, platform: .macOS)
+                let setupResult = try await buildSetupFromConfig(configResult, platform: .macOS)
 
                 session = PreviewSession(
                     sourceFile: fileURL,
@@ -246,12 +247,12 @@ struct VariantsCommand: ParsableCommand {
         fileURL: URL,
         resolved: [PreviewTraits.Variant],
         outputDirURL: URL,
-        projectConfig: ProjectConfig?
+        configResult: ProjectConfigLoader.Result?
     ) {
         let previewIndex = preview
-        let deviceUDID = device ?? projectConfig?.device
+        let deviceUDID = device ?? configResult?.config.device
         let projectPath = project
-        let resolvedQuality = quality ?? projectConfig?.quality ?? 0.85
+        let resolvedQuality = quality ?? configResult?.config.quality ?? 0.85
         let jpegQuality: Double = format == .png ? 1.0 : resolvedQuality
         // Setup: detect + build (2) + iOS start (6) = 8; first variant: capture only (1); rest: compile + capture (2 × (N-1))
         let progress: any ProgressReporter = StderrProgressReporter(
@@ -273,7 +274,7 @@ struct VariantsCommand: ParsableCommand {
                     for: fileURL, projectRoot: projectRootURL, platform: .iOS,
                     progress: progress)
 
-                let setupResult = try await buildSetupFromConfig(projectConfig, fileURL: fileURL, platform: .iOS)
+                let setupResult = try await buildSetupFromConfig(configResult, platform: .iOS)
 
                 session = IOSPreviewSession(
                     sourceFile: fileURL,

@@ -68,16 +68,16 @@ private let iosState = IOSState()
 private let configCache = ConfigCache()
 
 private actor ConfigCache {
-    private var cache: [String: ProjectConfig?] = [:]
+    private var cache: [String: ProjectConfigLoader.Result?] = [:]
 
-    func config(for fileURL: URL) -> ProjectConfig? {
+    func load(for fileURL: URL) -> ProjectConfigLoader.Result? {
         let dir = fileURL.deletingLastPathComponent().standardizedFileURL.path
         if let cached = cache[dir] {
             return cached
         }
-        let config = ProjectConfigLoader.find(from: fileURL.deletingLastPathComponent())
-        cache[dir] = config
-        return config
+        let result = ProjectConfigLoader.find(from: fileURL.deletingLastPathComponent())
+        cache[dir] = result
+        return result
     }
 }
 
@@ -530,7 +530,8 @@ private func handlePreviewStart(params: CallTool.Parameters, macCompiler: Compil
 
     let previewIndex = extractOptionalInt("previewIndex", from: params) ?? 0
 
-    let config = await configCache.config(for: fileURL)
+    let configResult = await configCache.load(for: fileURL)
+    let config = configResult?.config
     let platformStr = extractOptionalString("platform", from: params) ?? config?.platform ?? "macos"
 
     let (explicitTraits, traitsError) = parseTraits(from: params)
@@ -544,7 +545,7 @@ private func handlePreviewStart(params: CallTool.Parameters, macCompiler: Compil
             fileURL: fileURL,
             previewIndex: previewIndex,
             params: params,
-            config: config,
+            configResult: configResult,
             traits: resolvedTraits,
             server: server
         )
@@ -565,8 +566,9 @@ private func handlePreviewStart(params: CallTool.Parameters, macCompiler: Compil
     }
 
     // Build setup plugin if configured
-    let configDir = fileURL.deletingLastPathComponent()
-    let setupResult = try await buildSetupIfConfigured(config: config, configDirectory: configDir, platform: .macOS)
+    let setupResult = try await buildSetupIfConfigured(
+        config: config, configDirectory: configResult?.directory, platform: .macOS
+    )
     let standaloneSetupWarning =
         (config?.setup != nil && buildContext == nil)
         ? " Warning: setup plugin requires a project build system and is ignored in standalone mode."
@@ -598,10 +600,11 @@ private func handleIOSPreviewStart(
     fileURL: URL,
     previewIndex: Int,
     params: CallTool.Parameters,
-    config: ProjectConfig?,
+    configResult: ProjectConfigLoader.Result?,
     traits: PreviewTraits = PreviewTraits(),
     server: Server
 ) async throws -> CallTool.Result {
+    let config = configResult?.config
     // Resolve device UDID — use provided, config, or auto-select
     let deviceUDID: String
     let providedUDID = extractOptionalString("deviceUDID", from: params) ?? config?.device
@@ -626,8 +629,8 @@ private func handleIOSPreviewStart(
         return CallTool.Result(content: [.text("Project build failed: \(error.localizedDescription)")], isError: true)
     }
 
-    let configDir = fileURL.deletingLastPathComponent()
-    let setupResult = try await buildSetupIfConfigured(config: config, configDirectory: configDir, platform: .iOS)
+    let setupResult = try await buildSetupIfConfigured(
+        config: config, configDirectory: configResult?.directory, platform: .iOS)
 
     let session = IOSPreviewSession(
         sourceFile: fileURL,
@@ -687,11 +690,10 @@ private func handleIOSPreviewStart(
 /// Build the setup package if configured. Returns nil if no setup or standalone mode.
 private func buildSetupIfConfigured(
     config: ProjectConfig?,
-    configDirectory: URL,
+    configDirectory: URL?,
     platform: PreviewPlatform
 ) async throws -> SetupBuilder.Result? {
-    guard let setupConfig = config?.setup else { return nil }
-    let configDir = ProjectConfigLoader.findConfigDirectory(from: configDirectory) ?? configDirectory
+    guard let setupConfig = config?.setup, let configDir = configDirectory else { return nil }
     return try await SetupBuilder.build(
         config: setupConfig, configDirectory: configDir, platform: platform
     )
@@ -700,11 +702,10 @@ private func buildSetupIfConfigured(
 /// Resolve the config quality default for a session (iOS or macOS).
 private func configQualityForSession(_ sessionID: String) async -> Double? {
     if let iosSession = await iosState.getSession(sessionID) {
-        return await configCache.config(for: iosSession.sourceFile)?.quality
+        return await configCache.load(for: iosSession.sourceFile)?.config.quality
     }
     if let macSession: PreviewSession = await MainActor.run(body: { App.host.session(for: sessionID) }) {
-        let sourceFile = await macSession.sourceFile
-        return await configCache.config(for: sourceFile)?.quality
+        return await configCache.load(for: macSession.sourceFile)?.config.quality
     }
     return nil
 }

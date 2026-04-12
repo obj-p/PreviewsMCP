@@ -65,7 +65,8 @@ struct SnapshotCommand: ParsableCommand {
             throw ValidationError("File not found: \(file)")
         }
 
-        let projectConfig = loadProjectConfig(explicit: config, fileURL: fileURL)
+        let configResult = loadProjectConfig(explicit: config, fileURL: fileURL)
+        let projectConfig = configResult?.config
 
         do {
             _ = try PreviewTraits.validated(
@@ -85,20 +86,20 @@ struct SnapshotCommand: ParsableCommand {
 
         switch resolvedPlatform {
         case .ios:
-            runIOSSnapshot(fileURL: fileURL, projectConfig: projectConfig)
+            runIOSSnapshot(fileURL: fileURL, configResult: configResult)
         case .macos:
-            runMacOSSnapshot(fileURL: fileURL, projectConfig: projectConfig)
+            runMacOSSnapshot(fileURL: fileURL, configResult: configResult)
         }
     }
 
-    private func runMacOSSnapshot(fileURL: URL, projectConfig: ProjectConfig?) {
+    private func runMacOSSnapshot(fileURL: URL, configResult: ProjectConfigLoader.Result?) {
         let previewIndex = preview
         let windowWidth = width
         let windowHeight = height
         let outputURL = URL(fileURLWithPath: output)
         let projectPath = project
         let schemeName = scheme
-        let configTraits = projectConfig?.traits?.toPreviewTraits() ?? PreviewTraits()
+        let configTraits = configResult?.config.traits?.toPreviewTraits() ?? PreviewTraits()
         let explicitTraits = PreviewTraits(
             colorScheme: colorScheme, dynamicTypeSize: dynamicTypeSize,
             locale: locale, layoutDirection: layoutDirection,
@@ -120,7 +121,7 @@ struct SnapshotCommand: ParsableCommand {
                     scheme: schemeName,
                     progress: progress)
 
-                let setupResult = try await buildSetupFromConfig(projectConfig, fileURL: fileURL, platform: .macOS)
+                let setupResult = try await buildSetupFromConfig(configResult, platform: .macOS)
 
                 let session = PreviewSession(
                     sourceFile: fileURL,
@@ -156,7 +157,7 @@ struct SnapshotCommand: ParsableCommand {
                 try await Task.sleep(for: .milliseconds(500))
 
                 await progress.report(.capturingSnapshot, message: "Capturing snapshot...")
-                let resolvedQuality = projectConfig?.quality ?? 0.85
+                let resolvedQuality = configResult?.config.quality ?? 0.85
                 let snapshotFormat: Snapshot.ImageFormat =
                     outputURL.pathExtension.lowercased() == "png"
                     ? .png : .jpeg(quality: resolvedQuality)
@@ -181,13 +182,13 @@ struct SnapshotCommand: ParsableCommand {
         }
     }
 
-    private func runIOSSnapshot(fileURL: URL, projectConfig: ProjectConfig?) {
+    private func runIOSSnapshot(fileURL: URL, configResult: ProjectConfigLoader.Result?) {
         let previewIndex = preview
         let outputURL = URL(fileURLWithPath: output)
-        let deviceUDID = device ?? projectConfig?.device
+        let deviceUDID = device ?? configResult?.config.device
         let projectPath = project
         let schemeName = scheme
-        let configTraits = projectConfig?.traits?.toPreviewTraits() ?? PreviewTraits()
+        let configTraits = configResult?.config.traits?.toPreviewTraits() ?? PreviewTraits()
         let explicitTraits = PreviewTraits(
             colorScheme: colorScheme, dynamicTypeSize: dynamicTypeSize,
             locale: locale, layoutDirection: layoutDirection,
@@ -214,7 +215,7 @@ struct SnapshotCommand: ParsableCommand {
                     scheme: schemeName,
                     progress: progress)
 
-                let setupResult = try await buildSetupFromConfig(projectConfig, fileURL: fileURL, platform: .iOS)
+                let setupResult = try await buildSetupFromConfig(configResult, platform: .iOS)
 
                 let session = IOSPreviewSession(
                     sourceFile: fileURL,
@@ -238,7 +239,7 @@ struct SnapshotCommand: ParsableCommand {
                 try await Task.sleep(for: .seconds(2))
 
                 await progress.report(.capturingSnapshot, message: "Capturing snapshot...")
-                let resolvedQuality = projectConfig?.quality ?? 0.85
+                let resolvedQuality = configResult?.config.quality ?? 0.85
                 let jpegQuality: Double =
                     outputURL.pathExtension.lowercased() == "png" ? 1.0 : resolvedQuality
                 let imageData = try await session.screenshot(jpegQuality: jpegQuality)

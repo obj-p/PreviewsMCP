@@ -63,7 +63,8 @@ struct RunCommand: ParsableCommand {
             throw ValidationError("File not found: \(file)")
         }
 
-        let projectConfig = loadProjectConfig(explicit: config, fileURL: fileURL)
+        let configResult = loadProjectConfig(explicit: config, fileURL: fileURL)
+        let projectConfig = configResult?.config
 
         do {
             _ = try PreviewTraits.validated(
@@ -83,19 +84,19 @@ struct RunCommand: ParsableCommand {
 
         switch resolvedPlatform {
         case .ios:
-            runIOS(fileURL: fileURL, projectConfig: projectConfig)
+            runIOS(fileURL: fileURL, configResult: configResult)
         case .macos:
-            runMacOS(fileURL: fileURL, projectConfig: projectConfig)
+            runMacOS(fileURL: fileURL, configResult: configResult)
         }
     }
 
-    private func runMacOS(fileURL: URL, projectConfig: ProjectConfig?) {
+    private func runMacOS(fileURL: URL, configResult: ProjectConfigLoader.Result?) {
         let previewIndex = preview
         let windowWidth = width
         let windowHeight = height
         let projectPath = project
         let schemeName = scheme
-        let configTraits = projectConfig?.traits?.toPreviewTraits() ?? PreviewTraits()
+        let configTraits = configResult?.config.traits?.toPreviewTraits() ?? PreviewTraits()
         let explicitTraits = PreviewTraits(
             colorScheme: colorScheme, dynamicTypeSize: dynamicTypeSize,
             locale: locale, layoutDirection: layoutDirection,
@@ -114,7 +115,7 @@ struct RunCommand: ParsableCommand {
                     scheme: schemeName,
                     progress: progress)
 
-                let setupResult = try await buildSetupFromConfig(projectConfig, fileURL: fileURL, platform: .macOS)
+                let setupResult = try await buildSetupFromConfig(configResult, platform: .macOS)
 
                 try await launchMacOSPreview(
                     fileURL: fileURL,
@@ -134,12 +135,12 @@ struct RunCommand: ParsableCommand {
         }
     }
 
-    private func runIOS(fileURL: URL, projectConfig: ProjectConfig?) {
+    private func runIOS(fileURL: URL, configResult: ProjectConfigLoader.Result?) {
         let previewIndex = preview
-        let deviceUDID = device ?? projectConfig?.device
+        let deviceUDID = device ?? configResult?.config.device
         let projectPath = project
         let schemeName = scheme
-        let configTraits = projectConfig?.traits?.toPreviewTraits() ?? PreviewTraits()
+        let configTraits = configResult?.config.traits?.toPreviewTraits() ?? PreviewTraits()
         let explicitTraits = PreviewTraits(
             colorScheme: colorScheme, dynamicTypeSize: dynamicTypeSize,
             locale: locale, layoutDirection: layoutDirection,
@@ -159,7 +160,7 @@ struct RunCommand: ParsableCommand {
                     scheme: schemeName,
                     progress: progress)
 
-                let setupResult = try await buildSetupFromConfig(projectConfig, fileURL: fileURL, platform: .iOS)
+                let setupResult = try await buildSetupFromConfig(configResult, platform: .iOS)
 
                 try await launchIOSPreview(
                     fileURL: fileURL,

@@ -80,8 +80,6 @@ public actor PreviewSession {
             let additionalSourceFiles: [URL]
 
             if let ctx = buildContext {
-                let resolvedSetupModule = setupModule ?? ctx.setupModuleName
-                let setupFlags = ctx.setupCompilerFlags
                 if ctx.supportsTier2, let srcFiles = ctx.sourceFiles {
                     let result = BridgeGenerator.generateOverlaySource(
                         originalSource: source,
@@ -89,7 +87,7 @@ public actor PreviewSession {
                         previewIndex: previewIndex,
                         platform: platform,
                         traits: traits,
-                        setupModule: resolvedSetupModule,
+                        setupModule: setupModule,
                         setupType: setupType
                     )
                     compiledSource = result.source
@@ -102,14 +100,14 @@ public actor PreviewSession {
                         closureBody: preview.closureBody,
                         platform: platform,
                         traits: traits,
-                        setupModule: resolvedSetupModule,
+                        setupModule: setupModule,
                         setupType: setupType
                     )
                     literals = []
                     additionalSourceFiles = []
                     moduleName = "PreviewBridge_\(ctx.moduleName)"
                 }
-                extraFlags = ctx.compilerFlags + setupFlags + setupCompilerFlags
+                extraFlags = ctx.compilerFlags + setupCompilerFlags
             } else {
                 // Standalone mode: setup not supported (no module system)
                 let result = BridgeGenerator.generateCombinedSource(

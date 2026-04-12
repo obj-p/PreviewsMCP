@@ -1,3 +1,6 @@
+// Copy of Sources/PreviewsSetupKit/PreviewSetup.swift — keep in sync.
+// Local copy avoids pulling the full PreviewsMCP dependency tree.
+
 import SwiftUI
 
 /// Conform to this protocol in a dedicated target to customize how PreviewsMCP

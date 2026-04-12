@@ -21,30 +21,28 @@ struct StderrProgressReporter: ProgressReporter {
 }
 
 /// Load project config from explicit path or auto-discover from source file directory.
-func loadProjectConfig(explicit configPath: String?, fileURL: URL) -> ProjectConfig? {
+func loadProjectConfig(explicit configPath: String?, fileURL: URL) -> ProjectConfigLoader.Result? {
     if let configPath {
         let url = URL(fileURLWithPath: configPath)
+        let dir = url.deletingLastPathComponent()
         guard let data = try? Data(contentsOf: url),
             let config = try? JSONDecoder().decode(ProjectConfig.self, from: data)
         else {
             fputs("Warning: Could not load config from \(configPath)\n", stderr)
             return nil
         }
-        return config
+        return ProjectConfigLoader.Result(config: config, directory: dir)
     }
     return ProjectConfigLoader.find(from: fileURL.deletingLastPathComponent())
 }
 
 /// Build the setup package if configured in a ProjectConfig.
 func buildSetupFromConfig(
-    _ config: ProjectConfig?,
-    fileURL: URL,
+    _ configResult: ProjectConfigLoader.Result?,
     platform: PreviewPlatform
 ) async throws -> SetupBuilder.Result? {
-    guard let setupConfig = config?.setup else { return nil }
-    let configDir =
-        ProjectConfigLoader.findConfigDirectory(from: fileURL.deletingLastPathComponent())
-        ?? fileURL.deletingLastPathComponent()
+    guard let setupConfig = configResult?.config.setup, let configDir = configResult?.directory
+    else { return nil }
     return try await SetupBuilder.build(
         config: setupConfig, configDirectory: configDir, platform: platform
     )

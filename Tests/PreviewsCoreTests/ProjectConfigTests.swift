@@ -126,8 +126,9 @@ struct ProjectConfigTests {
         let json = #"{ "platform": "ios" }"#
         try Data(json.utf8).write(to: configFile)
 
-        let config = ProjectConfigLoader.find(from: tempDir)
-        #expect(config?.platform == "ios")
+        let result = ProjectConfigLoader.find(from: tempDir)
+        #expect(result?.config.platform == "ios")
+        #expect(result?.directory == tempDir.standardizedFileURL)
     }
 
     @Test("find walks up to parent directory")
@@ -142,9 +143,10 @@ struct ProjectConfigTests {
         let json = #"{ "platform": "macos", "quality": 0.95 }"#
         try Data(json.utf8).write(to: configFile)
 
-        let config = ProjectConfigLoader.find(from: child)
-        #expect(config?.platform == "macos")
-        #expect(config?.quality == 0.95)
+        let result = ProjectConfigLoader.find(from: child)
+        #expect(result?.config.platform == "macos")
+        #expect(result?.config.quality == 0.95)
+        #expect(result?.directory == root.standardizedFileURL)
     }
 
     @Test("find returns nil for malformed JSON")
