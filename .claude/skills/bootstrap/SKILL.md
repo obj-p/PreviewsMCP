@@ -12,7 +12,7 @@ Bootstrap the PreviewsMCP development environment.
 
 ## Steps
 
-1. **Install dependencies.** Run `brew bundle` from the repo root to install tools from the `Brewfile` (currently swift-format). If `brew` is not available, report the error and list what needs to be installed manually.
+1. **Install dependencies.** Run `brew bundle` from the repo root to install tools from the `Brewfile` (swift-format and swiftlint). If `brew` is not available, report the error and list what needs to be installed manually.
 
 2. **Configure git hooks.** Run `git config core.hooksPath .githooks` to activate the pre-commit formatting hook.
 
@@ -22,6 +22,6 @@ Bootstrap the PreviewsMCP development environment.
 
 5. **Xcode example (if `--examples`).** Install Mint and XcodeGen: run `brew install mint && cd examples/xcodeproj && mint bootstrap`. Generate the project with `mint run xcodegen generate`. Verify with `xcodebuild build -project ToDo.xcodeproj -scheme ToDo -destination 'platform=macOS'`.
 
-6. **Verify setup.** Run `swift-format --version` and `swift --version` to confirm tool availability. If `--examples` was passed, also verify `bazel --version` and `mint version`.
+6. **Verify setup.** Run `swift-format --version`, `swiftlint version`, and `swift --version` to confirm tool availability. If `--examples` was passed, also verify `bazel --version` and `mint version`.
 
 7. **Report.** Summarize what was set up and confirm the environment is ready.

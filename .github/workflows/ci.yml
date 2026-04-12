@@ -18,6 +18,17 @@ jobs:
       - name: Check formatting
         run: swift-format lint --strict --recursive Sources/ Tests/ examples/
 
+  lint:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install SwiftLint
+        run: brew install swiftlint
+
+      - name: SwiftLint
+        run: swiftlint lint --quiet Sources/ Tests/
+
   changes:
     runs-on: macos-15
     outputs:

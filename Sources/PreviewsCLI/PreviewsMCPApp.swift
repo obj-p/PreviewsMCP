@@ -78,7 +78,23 @@ struct PreviewsMCPCommand: ParsableCommand {
 
     static let configuration = CommandConfiguration(
         commandName: "previewsmcp",
-        abstract: "Run SwiftUI previews outside of Xcode",
+        abstract: "Render, snapshot, and interact with SwiftUI previews outside of Xcode",
+        discussion: """
+            Works in two modes:
+
+              • CLI — run, snapshot, or enumerate #Preview blocks directly from
+                your shell (run / snapshot / variants / list).
+              • MCP server — `previewsmcp serve` exposes the same capabilities as
+                tools over stdio for Claude Code, Cursor, or any other
+                MCP-compatible agent.
+
+            Supports both #Preview macros and legacy PreviewProvider. Renders on
+            macOS via NSHostingView or on a booted iOS simulator, with trait
+            overrides, hot reload, accessibility-tree inspection, and touch
+            injection.
+
+            Run `previewsmcp help <subcommand>` for full options on each command.
+            """,
         version: version,
         subcommands: [
             RunCommand.self, ListCommand.self, SnapshotCommand.self, VariantsCommand.self,

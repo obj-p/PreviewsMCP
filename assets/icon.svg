@@ -10,10 +10,10 @@
 
   <!-- Code editor window -->
   <rect x="16" y="52" width="156" height="152" rx="14" fill="#FFFFFF"/>
-  <!-- Title bar: </> monogram -->
-  <path d="M 30 72 L 25 76 L 30 80 M 40 72 L 45 76 L 40 80"
-        fill="none" stroke="#FF2D55" stroke-width="2.4"
-        stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Title bar: macOS traffic-light buttons -->
+  <circle cx="32" cy="70" r="4" fill="#FF5F57"/>
+  <circle cx="46" cy="70" r="4" fill="#FEBC2E"/>
+  <circle cx="60" cy="70" r="4" fill="#28C840"/>
   <line x1="16" y1="88" x2="172" y2="88" stroke="#F2F2F7" stroke-width="1.5"/>
   <!-- Code lines -->
   <rect x="26" y="100" width="46" height="6" rx="3" fill="#FF8A3D"/>
@@ -49,17 +49,23 @@
   <!-- Circular sync arrows between code editor and phone -->
   <g transform="translate(146 128)">
     <circle r="16" fill="#FFFFFF" stroke="#FF2D55" stroke-width="2.5"/>
+    <!-- Top arc (clockwise from lower-left to upper-right of the inner circle) -->
     <path d="M -9 -2 A 9 9 0 0 1 7 -6"
           fill="none" stroke="#FF2D55" stroke-width="2.6"
           stroke-linecap="round"/>
-    <path d="M 4 -10 L 9 -6 L 5 -2"
+    <!-- Top chevron: tip anchored at arc end (7,-6), rotated to the CW tangent -->
+    <path d="M -5 -4 L 0 0 L -5 4"
           fill="none" stroke="#FF2D55" stroke-width="2.6"
-          stroke-linecap="round" stroke-linejoin="round"/>
+          stroke-linecap="round" stroke-linejoin="round"
+          transform="translate(7 -6) rotate(30)"/>
+    <!-- Bottom arc -->
     <path d="M 9 2 A 9 9 0 0 1 -7 6"
           fill="none" stroke="#FF2D55" stroke-width="2.6"
           stroke-linecap="round"/>
-    <path d="M -4 10 L -9 6 L -5 2"
+    <!-- Bottom chevron: tip anchored at arc end (-7,6), rotated by 180° from the top -->
+    <path d="M -5 -4 L 0 0 L -5 4"
           fill="none" stroke="#FF2D55" stroke-width="2.6"
-          stroke-linecap="round" stroke-linejoin="round"/>
+          stroke-linecap="round" stroke-linejoin="round"
+          transform="translate(-7 6) rotate(-150)"/>
   </g>
 </svg>

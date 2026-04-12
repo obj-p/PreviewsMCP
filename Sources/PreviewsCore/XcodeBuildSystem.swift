@@ -270,10 +270,9 @@ public actor XcodeBuildSystem: BuildSystem {
 
         // Additional framework search paths for dependencies
         if let searchPaths = settings["FRAMEWORK_SEARCH_PATHS"] {
-            for path in Self.parseSearchPaths(searchPaths) {
-                if seenPaths.insert(path).inserted {
-                    flags += ["-F", path]
-                }
+            for path in Self.parseSearchPaths(searchPaths)
+            where seenPaths.insert(path).inserted {
+                flags += ["-F", path]
             }
         }
 

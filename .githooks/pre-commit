@@ -12,3 +12,8 @@ if ! git diff --cached --name-only --diff-filter=ACM -z -- '*.swift' | grep -qz 
 fi
 
 git diff --cached --name-only --diff-filter=ACM -z -- '*.swift' | xargs -0 swift-format lint --strict 2>&1
+
+# SwiftLint (semantic checks that complement swift-format)
+if command -v swiftlint &>/dev/null; then
+    git diff --cached --name-only --diff-filter=ACM -z -- '*.swift' | xargs -0 swiftlint lint --quiet 2>&1
+fi
