@@ -8,13 +8,13 @@ let package = Package(
         .library(name: "ToDoPreviewSetup", targets: ["ToDoPreviewSetup"])
     ],
     dependencies: [
-        .package(name: "PreviewsMCP", path: "../..")
+        .package(path: "LocalPreviewsSetupKit")
     ],
     targets: [
         .target(
             name: "ToDoPreviewSetup",
             dependencies: [
-                .product(name: "PreviewsSetupKit", package: "PreviewsMCP")
+                .product(name: "PreviewsSetupKit", package: "LocalPreviewsSetupKit")
             ]
         )
     ]
