@@ -21,6 +21,9 @@ public actor IOSPreviewSession {
     public nonisolated let headless: Bool
     private let buildContext: BuildContext?
     private var traits: PreviewTraits
+    private let setupModule: String?
+    private let setupType: String?
+    private let setupCompilerFlags: [String]
     public var currentTraits: PreviewTraits { traits }
 
     // TCP socket state
@@ -43,6 +46,9 @@ public actor IOSPreviewSession {
         headless: Bool = true,
         buildContext: BuildContext? = nil,
         traits: PreviewTraits = PreviewTraits(),
+        setupModule: String? = nil,
+        setupType: String? = nil,
+        setupCompilerFlags: [String] = [],
         progress: (any ProgressReporter)? = nil
     ) {
         self.id = UUID().uuidString
@@ -55,6 +61,9 @@ public actor IOSPreviewSession {
         self.headless = headless
         self.buildContext = buildContext
         self.traits = traits
+        self.setupModule = setupModule
+        self.setupType = setupType
+        self.setupCompilerFlags = setupCompilerFlags
         self.progress = progress
     }
 
@@ -71,7 +80,10 @@ public actor IOSPreviewSession {
             compiler: compiler,
             platform: .iOS,
             buildContext: buildContext,
-            traits: traits
+            traits: traits,
+            setupModule: setupModule,
+            setupType: setupType,
+            setupCompilerFlags: setupCompilerFlags
         )
         self.session = previewSession
         let compileResult = try await previewSession.compile()
@@ -211,7 +223,10 @@ public actor IOSPreviewSession {
             compiler: compiler,
             platform: .iOS,
             buildContext: buildContext,
-            traits: traits
+            traits: traits,
+            setupModule: setupModule,
+            setupType: setupType,
+            setupCompilerFlags: setupCompilerFlags
         )
         self.session = previewSession
         let compileResult = try await previewSession.compile()

@@ -13,6 +13,7 @@ enum IOSHostAppSource {
             var window: UIWindow?
             private var retainedControllers: [UIViewController] = []
             private var currentDylibHandle: UnsafeMutableRawPointer?
+            private var hasCalledSetUp = false
 
             // TCP socket state
             private var socketFD: Int32 = -1
@@ -57,6 +58,16 @@ enum IOSHostAppSource {
                     let error = String(cString: dlerror())
                     showError("dlopen failed: \\(error)")
                     return
+                }
+
+                // Call setUp exactly once on first dylib load
+                if !hasCalledSetUp {
+                    hasCalledSetUp = true
+                    if let setUpSym = dlsym(handle, "previewSetUp") {
+                        typealias SetUpFunc = @convention(c) () -> Void
+                        let setUpFn = unsafeBitCast(setUpSym, to: SetUpFunc.self)
+                        setUpFn()
+                    }
                 }
 
                 guard let sym = dlsym(handle, "createPreviewView") else {

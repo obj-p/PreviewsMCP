@@ -24,8 +24,9 @@ struct VariantsCommand: ParsableCommand {
         help: ArgumentHelp(
             "A trait variant to capture. Repeat for multiple variants.",
             discussion: """
-                Either a preset name (light, dark, xSmall…accessibility5) or a JSON object \
-                string like '{"colorScheme":"dark","dynamicTypeSize":"large","label":"dark+large"}'.
+                Either a preset name (light, dark, xSmall…accessibility5, rtl, ltr, boldText) or a JSON object \
+                string with trait fields (colorScheme, dynamicTypeSize, locale, layoutDirection, legibilityWeight) \
+                and an optional label.
                 """
         )
     )
@@ -37,8 +38,8 @@ struct VariantsCommand: ParsableCommand {
     @Option(name: .long, help: "Image format")
     var format: ImageFormat = .jpeg
 
-    @Option(name: .long, help: "JPEG quality 0.0–1.0 (ignored for PNG)")
-    var quality: Double = 0.85
+    @Option(name: .long, help: "JPEG quality 0.0–1.0 (ignored for PNG; default from config or 0.85)")
+    var quality: Double?
 
     @Option(name: .long, help: "Which preview to capture (0-based index)")
     var preview: Int = 0
@@ -58,6 +59,9 @@ struct VariantsCommand: ParsableCommand {
     @Option(name: .long, help: "Simulator device UDID (for ios; auto-selects if omitted)")
     var device: String?
 
+    @Option(name: .long, help: "Path to .previewsmcp.json config file (auto-discovered if omitted)")
+    var config: String?
+
     enum ImageFormat: String, ExpressibleByArgument, CaseIterable {
         case jpeg, png
     }
@@ -67,6 +71,9 @@ struct VariantsCommand: ParsableCommand {
         guard FileManager.default.fileExists(atPath: fileURL.path) else {
             throw ValidationError("File not found: \(file)")
         }
+
+        let configResult = loadProjectConfig(explicit: config, fileURL: fileURL)
+        let projectConfig = configResult?.config
 
         guard !variant.isEmpty else {
             throw ValidationError("At least one --variant is required")
@@ -95,11 +102,23 @@ struct VariantsCommand: ParsableCommand {
         try FileManager.default.createDirectory(
             at: outputDirURL, withIntermediateDirectories: true)
 
-        switch platform {
+        let resolvedPlatform: CLIPlatform = {
+            if platform != .macos { return platform }
+            if let cp = configResult?.config.platform, cp == "ios" { return .ios }
+            return platform
+        }()
+
+        switch resolvedPlatform {
         case .ios:
-            runIOSVariants(fileURL: fileURL, resolved: resolved, outputDirURL: outputDirURL)
+            runIOSVariants(
+                fileURL: fileURL, resolved: resolved, outputDirURL: outputDirURL,
+                configResult: configResult
+            )
         case .macos:
-            runMacOSVariants(fileURL: fileURL, resolved: resolved, outputDirURL: outputDirURL)
+            runMacOSVariants(
+                fileURL: fileURL, resolved: resolved, outputDirURL: outputDirURL,
+                configResult: configResult
+            )
         }
     }
 
@@ -129,14 +148,16 @@ struct VariantsCommand: ParsableCommand {
     private func runMacOSVariants(
         fileURL: URL,
         resolved: [PreviewTraits.Variant],
-        outputDirURL: URL
+        outputDirURL: URL,
+        configResult: ProjectConfigLoader.Result?
     ) {
         let previewIndex = preview
         let windowWidth = width
         let windowHeight = height
         let projectPath = project
+        let resolvedQuality = quality ?? configResult?.config.quality ?? 0.85
         let snapshotFormat: Snapshot.ImageFormat =
-            format == .png ? .png : .jpeg(quality: quality)
+            format == .png ? .png : .jpeg(quality: resolvedQuality)
         // Setup: detect + build (2 steps) + per variant: compile + capture (2 × N)
         let progress: any ProgressReporter = StderrProgressReporter(
             totalSteps: 2 + 2 * resolved.count)
@@ -152,12 +173,17 @@ struct VariantsCommand: ParsableCommand {
                     for: fileURL, projectRoot: projectRootURL, platform: .macOS,
                     progress: progress)
 
+                let setupResult = try await buildSetupFromConfig(configResult, platform: .macOS)
+
                 session = PreviewSession(
                     sourceFile: fileURL,
                     previewIndex: previewIndex,
                     compiler: compiler,
                     buildContext: buildContext,
-                    traits: resolved[0].traits
+                    traits: resolved[0].traits,
+                    setupModule: setupResult?.moduleName,
+                    setupType: setupResult?.typeName,
+                    setupCompilerFlags: setupResult?.compilerFlags ?? []
                 )
                 sessionID = session.id
             } catch {
@@ -220,12 +246,14 @@ struct VariantsCommand: ParsableCommand {
     private func runIOSVariants(
         fileURL: URL,
         resolved: [PreviewTraits.Variant],
-        outputDirURL: URL
+        outputDirURL: URL,
+        configResult: ProjectConfigLoader.Result?
     ) {
         let previewIndex = preview
-        let deviceUDID = device
+        let deviceUDID = device ?? configResult?.config.device
         let projectPath = project
-        let jpegQuality: Double = format == .png ? 1.0 : quality
+        let resolvedQuality = quality ?? configResult?.config.quality ?? 0.85
+        let jpegQuality: Double = format == .png ? 1.0 : resolvedQuality
         // Setup: detect + build (2) + iOS start (6) = 8; first variant: capture only (1); rest: compile + capture (2 × (N-1))
         let progress: any ProgressReporter = StderrProgressReporter(
             totalSteps: 7 + 2 * resolved.count)
@@ -246,6 +274,8 @@ struct VariantsCommand: ParsableCommand {
                     for: fileURL, projectRoot: projectRootURL, platform: .iOS,
                     progress: progress)
 
+                let setupResult = try await buildSetupFromConfig(configResult, platform: .iOS)
+
                 session = IOSPreviewSession(
                     sourceFile: fileURL,
                     previewIndex: previewIndex,
@@ -256,6 +286,9 @@ struct VariantsCommand: ParsableCommand {
                     headless: true,
                     buildContext: buildContext,
                     traits: resolved[0].traits,
+                    setupModule: setupResult?.moduleName,
+                    setupType: setupResult?.typeName,
+                    setupCompilerFlags: setupResult?.compilerFlags ?? [],
                     progress: progress
                 )
 

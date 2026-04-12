@@ -3,10 +3,11 @@ import PackageDescription
 
 let package = Package(
     name: "PreviewsMCP",
-    platforms: [.macOS(.v14)],
+    platforms: [.macOS(.v14), .iOS(.v16)],
     products: [
         .executable(name: "previewsmcp", targets: ["PreviewsCLI"]),
         .library(name: "PreviewsCore", targets: ["PreviewsCore"]),
+        .library(name: "PreviewsSetupKit", targets: ["PreviewsSetupKit"]),
     ],
     dependencies: [
         .package(url: "https://github.com/swiftlang/swift-syntax.git", from: "600.0.1"),
@@ -29,6 +30,9 @@ let package = Package(
                 .product(name: "SwiftParser", package: "swift-syntax"),
                 .product(name: "SwiftSyntax", package: "swift-syntax"),
             ]
+        ),
+        .target(
+            name: "PreviewsSetupKit"
         ),
         .target(
             name: "PreviewsMacOS",
