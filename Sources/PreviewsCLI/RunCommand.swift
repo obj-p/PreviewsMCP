@@ -21,8 +21,8 @@ struct RunCommand: ParsableCommand {
     @Option(name: .long, help: "Window height")
     var height: Int = 600
 
-    @Option(name: .long, help: "Target platform: 'macos' (default) or 'ios'")
-    var platform: CLIPlatform = .macos
+    @Option(name: .long, help: "Target platform: 'macos' or 'ios' (auto-detected if omitted)")
+    var platform: CLIPlatform?
 
     @Option(name: .long, help: "Project root path (auto-detected if omitted)")
     var project: String?
@@ -77,12 +77,12 @@ struct RunCommand: ParsableCommand {
         }
 
         let resolvedPlatform: CLIPlatform = {
-            if platform != .macos { return platform }
+            if let explicit = platform { return explicit }
             if let cp = projectConfig?.platform, cp == "ios" { return .ios }
             if SPMBuildSystem.inferredPlatform(for: fileURL) == .iOS {
                 return .ios
             }
-            return platform
+            return .macos
         }()
 
         switch resolvedPlatform {
