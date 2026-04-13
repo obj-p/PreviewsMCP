@@ -94,10 +94,12 @@ public enum SetupBuilder {
         var flags: [String] = [
             "-I", modulesDir.path,
             // Link against the setup dylib so the linker resolves setup symbols at link time.
-            // At runtime the host pre-loads the dylib with RTLD_GLOBAL, so dyld reuses it.
-            // This is preferred over -undefined dynamic_lookup which suppresses ALL undefined
-            // symbol errors, masking genuine missing-dependency problems.
+            // At runtime the host pre-loads the dylib with RTLD_GLOBAL, so dyld reuses it
+            // (matched by install_name). This is preferred over -undefined dynamic_lookup
+            // which suppresses ALL undefined symbol errors, masking genuine problems.
             "-L", binPath.path, "-lPreviewSetup",
+            // rpath so dyld can find libPreviewSetup.dylib when loading the preview dylib.
+            "-Xlinker", "-rpath", "-Xlinker", binPath.path,
         ]
 
         let frameworkNames = collectFrameworks(binPath: binPath)
@@ -166,6 +168,9 @@ public enum SetupBuilder {
 
         let swiftcPath = try await resolveSwiftc()
         var args = ["-emit-library", "-o", dylibPath.path]
+        // Set the install name to the absolute path so dyld recognizes the
+        // already-RTLD_GLOBAL-loaded image when preview dylibs reference it.
+        args += ["-Xlinker", "-install_name", "-Xlinker", dylibPath.path]
         args += ["-target", platform.targetTriple]
 
         // Always pass -sdk — swiftc needs it for both macOS and iOS to locate
