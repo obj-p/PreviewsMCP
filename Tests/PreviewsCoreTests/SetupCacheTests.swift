@@ -362,29 +362,26 @@ struct SetupCacheTests {
         defer { try? FileManager.default.removeItem(at: dir) }
 
         // Cold build
-        let clock = ContinuousClock()
-        let coldStart = clock.now
         let coldResult = try await SetupBuilder.build(
             config: config, configDirectory: dir, platform: .macOS)
-        let coldDuration = clock.now - coldStart
 
         // Verify cache file exists on disk
         let cacheDir = dir.appendingPathComponent(".build/\(SetupCache.cacheDirectory)")
-        let cacheFiles = try? FileManager.default.contentsOfDirectory(
+        let filesAfterCold = try FileManager.default.contentsOfDirectory(
             at: cacheDir, includingPropertiesForKeys: nil)
-        #expect((cacheFiles?.count ?? 0) >= 1, "Cache file should exist after cold build")
+        #expect(filesAfterCold.count >= 1, "Cache file should exist after cold build")
 
         // Warm build
-        let warmStart = clock.now
         let warmResult = try await SetupBuilder.build(
             config: config, configDirectory: dir, platform: .macOS)
-        let warmDuration = clock.now - warmStart
 
+        // No new cache file written — proves the cache was hit, not rebuilt
+        let filesAfterWarm = try FileManager.default.contentsOfDirectory(
+            at: cacheDir, includingPropertiesForKeys: nil)
         #expect(coldResult == warmResult, "Warm result must equal cold result")
-        // Threshold is generous for CI shared runners where subprocess overhead is higher
         #expect(
-            warmDuration < .seconds(3),
-            "Warm build (\(warmDuration)) should complete in under 3s")
+            filesAfterWarm.count == filesAfterCold.count,
+            "No new cache entry should be written on cache hit")
     }
 
     @Test("Source change invalidates cache and triggers rebuild")
