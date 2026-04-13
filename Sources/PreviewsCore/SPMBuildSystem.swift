@@ -70,6 +70,21 @@ public actor SPMBuildSystem: BuildSystem {
         return nil
     }
 
+    /// Returns .iOS if the SPM package declares iOS but not macOS; nil otherwise.
+    /// Convenience for the common "should we default to iOS?" check at CLI/MCP call sites.
+    public static func inferredPlatform(for sourceFile: URL) -> PreviewPlatform? {
+        guard let platforms = detectPlatforms(for: sourceFile) else { return nil }
+        if platforms.contains("ios"), !platforms.contains("macos") { return .iOS }
+        return nil
+    }
+
+    /// Async variant of `inferredPlatform` for MCP server contexts.
+    public static func inferredPlatformAsync(for sourceFile: URL) async -> PreviewPlatform? {
+        guard let platforms = await detectPlatformsAsync(for: sourceFile) else { return nil }
+        if platforms.contains("ios"), !platforms.contains("macos") { return .iOS }
+        return nil
+    }
+
     private static func decodePlatforms(from data: Data) -> [String]? {
         struct PlatformInfo: Decodable {
             let platforms: [PlatformEntry]?

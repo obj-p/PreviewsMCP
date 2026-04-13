@@ -537,9 +537,7 @@ private func handlePreviewStart(params: CallTool.Parameters, macCompiler: Compil
         platformStr = explicit
     } else if let configPlatform = config?.platform {
         platformStr = configPlatform
-    } else if let spmPlatforms = await SPMBuildSystem.detectPlatformsAsync(for: fileURL),
-        spmPlatforms.contains("ios"), !spmPlatforms.contains("macos")
-    {
+    } else if await SPMBuildSystem.inferredPlatformAsync(for: fileURL) == .iOS {
         platformStr = "ios"
     } else {
         platformStr = "macos"
