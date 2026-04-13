@@ -839,18 +839,18 @@ struct BuildSystemTests {
     // MARK: - SPMBuildSystem.findPackageDirectory
 
     @Test("findPackageDirectory walks up to Package.swift")
-    func findPackageDirectory() {
+    func findPackageDirectory() throws {
         let tmpDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("previewsmcp-test-\(UUID().uuidString)")
         let sourcesDir = tmpDir.appendingPathComponent("Sources/MyTarget")
-        try! FileManager.default.createDirectory(at: sourcesDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: sourcesDir, withIntermediateDirectories: true)
 
         let packageSwift = tmpDir.appendingPathComponent("Package.swift")
-        try! "// swift-tools-version: 6.0".write(
+        try "// swift-tools-version: 6.0".write(
             to: packageSwift, atomically: true, encoding: .utf8)
 
         let sourceFile = sourcesDir.appendingPathComponent("MyView.swift")
-        try! "import SwiftUI".write(to: sourceFile, atomically: true, encoding: .utf8)
+        try "import SwiftUI".write(to: sourceFile, atomically: true, encoding: .utf8)
 
         defer { try? FileManager.default.removeItem(at: tmpDir) }
 
@@ -859,18 +859,18 @@ struct BuildSystemTests {
     }
 
     @Test("findPackageDirectory ignores directory named Package.swift")
-    func findPackageDirectoryIgnoresDirectory() {
+    func findPackageDirectoryIgnoresDirectory() throws {
         let tmpDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("previewsmcp-test-\(UUID().uuidString)")
         let sourcesDir = tmpDir.appendingPathComponent("Sources/MyTarget")
-        try! FileManager.default.createDirectory(at: sourcesDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: sourcesDir, withIntermediateDirectories: true)
 
         // Create a directory named Package.swift instead of a file
         let packageDir = tmpDir.appendingPathComponent("Package.swift")
-        try! FileManager.default.createDirectory(at: packageDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: packageDir, withIntermediateDirectories: true)
 
         let sourceFile = sourcesDir.appendingPathComponent("MyView.swift")
-        try! "import SwiftUI".write(to: sourceFile, atomically: true, encoding: .utf8)
+        try "import SwiftUI".write(to: sourceFile, atomically: true, encoding: .utf8)
 
         defer { try? FileManager.default.removeItem(at: tmpDir) }
 
@@ -879,13 +879,13 @@ struct BuildSystemTests {
     }
 
     @Test("findPackageDirectory returns nil for standalone file")
-    func findPackageDirectoryNilForStandalone() {
+    func findPackageDirectoryNilForStandalone() throws {
         let tmpDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("previewsmcp-test-\(UUID().uuidString)")
-        try! FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
 
         let sourceFile = tmpDir.appendingPathComponent("Standalone.swift")
-        try! "import SwiftUI".write(to: sourceFile, atomically: true, encoding: .utf8)
+        try "import SwiftUI".write(to: sourceFile, atomically: true, encoding: .utf8)
 
         defer { try? FileManager.default.removeItem(at: tmpDir) }
 
@@ -913,13 +913,13 @@ struct BuildSystemTests {
     }
 
     @Test("detectPlatforms returns nil for standalone file with no package")
-    func detectPlatformsNilForStandalone() {
+    func detectPlatformsNilForStandalone() throws {
         let tmpDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("previewsmcp-test-\(UUID().uuidString)")
-        try! FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
 
         let sourceFile = tmpDir.appendingPathComponent("Standalone.swift")
-        try! "import SwiftUI".write(to: sourceFile, atomically: true, encoding: .utf8)
+        try "import SwiftUI".write(to: sourceFile, atomically: true, encoding: .utf8)
 
         defer { try? FileManager.default.removeItem(at: tmpDir) }
 
