@@ -25,13 +25,21 @@ A live macOS preview window opens. Edit the source file and the window hot-reloa
 
 ## Why PreviewsMCP?
 
-Xcode previews run in a sandboxed process with no app lifecycle — no `UIApplicationDelegate`, no `didBecomeActive`, no real `UIApplication`. This means Firebase, analytics, auth, and custom fonts crash or silently break. The ecosystem answer is "mock everything," and at scale teams maintain **micro apps** — standalone app targets that render a single feature with controlled dependencies. Airbnb's dev apps drive over 50% of local iOS builds. Point-Free's isowords has 9 preview apps. Every team pays the maintenance tax: separate targets, schemes, and mock setups that drift.
+PreviewsMCP compiles your `#Preview` closure into a dylib and loads it into a real app process (macOS `NSApplication` or iOS simulator `UIApplication`) with hot-reload — driven entirely from the command line or over MCP. No Xcode process required.
 
-PreviewsMCP eliminates this tradeoff. It compiles your `#Preview` closure into a dylib and loads it into a real app process (macOS `NSApplication` or iOS simulator `UIApplication`) with hot-reload. Firebase, auth, fonts, and DI containers just work — because there's a real app lifecycle.
+That makes it a standalone, extensible preview workflow:
 
-The [setup plugin](Sources/PreviewsSetupKit/PreviewSetup.swift) completes the picture: a `PreviewSetup` protocol where `setUp()` runs once per session (SDK init, auth, DI registration) and `wrap()` surrounds every preview (themes, environment values). It's the micro app's dependency layer extracted into a reusable framework — without maintaining a separate app target.
+- **CLI and MCP-native** — preview, snapshot, and iterate from the terminal or let an AI agent drive the loop
+- **Hot-reload** — edit a file, see changes immediately, with `@State` preserved across literal edits
+- **Trait and variant sweeps** — render one preview across color schemes, dynamic type sizes, locales, and layout directions in a single call
+- **iOS interaction** — walk the accessibility tree and inject taps/swipes through an in-simulator touch bridge
+- **Build system flexible** — works with **SPM**, **Xcode projects** (`.xcodeproj` / `.xcworkspace`), and **Bazel**
 
-Works with **SPM**, **Xcode projects** (`.xcodeproj` / `.xcworkspace`), and **Bazel**.
+### Solving the Xcode preview sandbox problem
+
+Xcode previews run your code inside Apple's preview agent — a real app process, but an opaque one. You can't hook into its lifecycle, run your own initialization, or extend it. `FirebaseApp.configure()`, custom font registration, auth setup, and DI containers have nowhere to run. The ecosystem answer is "mock everything," and at scale teams maintain **micro apps** — standalone app targets that render a single feature with controlled dependencies. Airbnb's dev apps drive over 50% of local iOS builds. Point-Free's isowords has 9 preview apps. Every team pays the maintenance tax: separate targets, schemes, and mock setups that drift.
+
+Because PreviewsMCP hosts your preview in its own app process, you can extend that process. The [setup plugin](Sources/PreviewsSetupKit/PreviewSetup.swift) provides the hook: a `PreviewSetup` protocol where `setUp()` runs once per session (SDK init, auth, font registration, DI container) and `wrap()` surrounds every preview render (themes, environment values). It's the micro app's dependency layer extracted into a reusable framework — without maintaining a separate app target.
 
 ## Installation
 

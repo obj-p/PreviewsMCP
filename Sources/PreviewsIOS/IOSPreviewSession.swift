@@ -24,6 +24,7 @@ public actor IOSPreviewSession {
     private let setupModule: String?
     private let setupType: String?
     private let setupCompilerFlags: [String]
+    private let setupDylibPath: URL?
     public var currentTraits: PreviewTraits { traits }
 
     // TCP socket state
@@ -49,6 +50,7 @@ public actor IOSPreviewSession {
         setupModule: String? = nil,
         setupType: String? = nil,
         setupCompilerFlags: [String] = [],
+        setupDylibPath: URL? = nil,
         progress: (any ProgressReporter)? = nil
     ) {
         self.id = UUID().uuidString
@@ -64,6 +66,7 @@ public actor IOSPreviewSession {
         self.setupModule = setupModule
         self.setupType = setupType
         self.setupCompilerFlags = setupCompilerFlags
+        self.setupDylibPath = setupDylibPath
         self.progress = progress
     }
 
@@ -166,13 +169,17 @@ public actor IOSPreviewSession {
 
         // 5. Launch host app with dylib path and port
         await progress?.report(.launchingApp, message: "Launching host app...")
+        var launchArgs = [
+            "--dylib", compileResult.dylibPath.path,
+            "--port", String(port),
+        ]
+        if let setupPath = setupDylibPath {
+            launchArgs += ["--setup-dylib", setupPath.path]
+        }
         let pid = try await simulatorManager.launchApp(
             udid: deviceUDID,
             bundleID: Self.hostBundleID,
-            arguments: [
-                "--dylib", compileResult.dylibPath.path,
-                "--port", String(port),
-            ]
+            arguments: launchArgs
         )
 
         // 6. Accept connection from host app (up to 10 seconds)

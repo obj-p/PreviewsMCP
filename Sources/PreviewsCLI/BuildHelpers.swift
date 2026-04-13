@@ -99,6 +99,7 @@ func launchMacOSPreview(
 
     await progress?.report(.compilingBridge, message: "Compiling \(fileURL.lastPathComponent)...")
     let compileResult = try await session.compile()
+    let setupDylibPath = setupResult?.dylibPath
 
     await MainActor.run {
         do {
@@ -106,7 +107,8 @@ func launchMacOSPreview(
                 sessionID: session.id,
                 dylibPath: compileResult.dylibPath,
                 title: title,
-                size: NSSize(width: width, height: height)
+                size: NSSize(width: width, height: height),
+                setupDylibPath: setupDylibPath
             )
             App.host.watchFile(
                 sessionID: session.id,
@@ -154,6 +156,7 @@ func launchIOSPreview(
         setupModule: setupResult?.moduleName,
         setupType: setupResult?.typeName,
         setupCompilerFlags: setupResult?.compilerFlags ?? [],
+        setupDylibPath: setupResult?.dylibPath,
         progress: progress
     )
 

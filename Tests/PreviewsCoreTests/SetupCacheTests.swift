@@ -134,7 +134,9 @@ struct SetupCacheTests {
     // MARK: - Store / Load
 
     /// Create a fake build artifacts directory that matches expected compiler flags.
-    private func makeArtifacts(packageDir: URL, moduleName: String) throws -> [String] {
+    private func makeArtifacts(packageDir: URL, moduleName: String) throws
+        -> (flags: [String], dylibPath: URL)
+    {
         let buildDir = packageDir.appendingPathComponent(".build/debug")
         let modulesDir = buildDir.appendingPathComponent("Modules")
         try FileManager.default.createDirectory(
@@ -147,11 +149,14 @@ struct SetupCacheTests {
         try Data("fake".utf8).write(
             to: swiftmoduleDir.appendingPathComponent("arm64-apple-macos.swiftmodule"))
 
-        // Create static library
-        try Data("fake".utf8).write(
-            to: buildDir.appendingPathComponent("lib\(moduleName).a"))
+        // Create setup dylib
+        let dylibPath = buildDir.appendingPathComponent("libPreviewSetup.dylib")
+        try Data("fake".utf8).write(to: dylibPath)
 
-        return ["-I", modulesDir.path, "-L", buildDir.path, "-l\(moduleName)"]
+        return (
+            flags: ["-I", modulesDir.path, "-L", buildDir.path, "-lPreviewSetup"],
+            dylibPath: dylibPath
+        )
     }
 
     @Test("load returns nil when no cache file exists")
@@ -191,7 +196,8 @@ struct SetupCacheTests {
         // Store a valid entry with flags pointing to non-existent paths
         let fakeResult = SetupBuilder.Result(
             moduleName: "TestSetup", typeName: "Setup",
-            compilerFlags: ["-I", "/nonexistent/Modules", "-L", "/nonexistent"])
+            compilerFlags: ["-I", "/nonexistent/Modules", "-L", "/nonexistent"],
+            dylibPath: URL(fileURLWithPath: "/nonexistent/libPreviewSetup.dylib"))
         SetupCache.store(
             fakeResult, packageDir: dir, platform: .macOS,
             sourceHash: "abc123", swiftVersion: "Swift 6.0")
@@ -216,12 +222,19 @@ struct SetupCacheTests {
         try Data("fake".utf8).write(
             to: swiftmoduleDir.appendingPathComponent("arm64.swiftmodule"))
 
+        let dylibPath = buildDir.appendingPathComponent("libPreviewSetup.dylib")
+        try Data("fake".utf8).write(to: dylibPath)
+
         let fakeResult = SetupBuilder.Result(
             moduleName: "TestSetup", typeName: "Setup",
-            compilerFlags: ["-I", modulesDir.path, "-L", buildDir.path, "-lTestSetup"])
+            compilerFlags: ["-I", modulesDir.path, "-L", buildDir.path, "-lPreviewSetup"],
+            dylibPath: dylibPath)
         SetupCache.store(
             fakeResult, packageDir: dir, platform: .macOS,
             sourceHash: "abc123", swiftVersion: "Swift 6.0")
+
+        // Delete the dylib to simulate missing artifact
+        try FileManager.default.removeItem(at: dylibPath)
 
         let loaded = SetupCache.load(
             packageDir: dir, platform: .macOS, sourceHash: "abc123",
@@ -234,9 +247,10 @@ struct SetupCacheTests {
         let dir = try makePackageDir()
         defer { try? FileManager.default.removeItem(at: dir) }
 
-        let flags = try makeArtifacts(packageDir: dir, moduleName: "TestSetup")
+        let (flags, dylibPath) = try makeArtifacts(packageDir: dir, moduleName: "TestSetup")
         let original = SetupBuilder.Result(
-            moduleName: "TestSetup", typeName: "AppSetup", compilerFlags: flags)
+            moduleName: "TestSetup", typeName: "AppSetup", compilerFlags: flags,
+            dylibPath: dylibPath)
 
         SetupCache.store(
             original, packageDir: dir, platform: .macOS,
@@ -270,7 +284,8 @@ struct SetupCacheTests {
         }
 
         let result = SetupBuilder.Result(
-            moduleName: "Test", typeName: "Setup", compilerFlags: [])
+            moduleName: "Test", typeName: "Setup", compilerFlags: [],
+            dylibPath: URL(fileURLWithPath: "/tmp/libPreviewSetup.dylib"))
         // Should not throw — errors are swallowed
         SetupCache.store(
             result, packageDir: dir, platform: .macOS,
@@ -284,9 +299,10 @@ struct SetupCacheTests {
         let dir = try makePackageDir()
         defer { try? FileManager.default.removeItem(at: dir) }
 
-        let macFlags = try makeArtifacts(packageDir: dir, moduleName: "TestSetup")
+        let (macFlags, macDylibPath) = try makeArtifacts(packageDir: dir, moduleName: "TestSetup")
         let macResult = SetupBuilder.Result(
-            moduleName: "TestSetup", typeName: "Setup", compilerFlags: macFlags)
+            moduleName: "TestSetup", typeName: "Setup", compilerFlags: macFlags,
+            dylibPath: macDylibPath)
 
         // Create separate iOS artifacts
         let iosBuildDir = dir.appendingPathComponent(".build/ios-debug")
@@ -296,11 +312,12 @@ struct SetupCacheTests {
             at: iosSwiftmodule, withIntermediateDirectories: true)
         try Data("fake".utf8).write(
             to: iosSwiftmodule.appendingPathComponent("arm64.swiftmodule"))
-        try Data("fake".utf8).write(
-            to: iosBuildDir.appendingPathComponent("libTestSetup.a"))
-        let iosFlags = ["-I", iosModulesDir.path, "-L", iosBuildDir.path, "-lTestSetup"]
+        let iosDylibPath = iosBuildDir.appendingPathComponent("libPreviewSetup.dylib")
+        try Data("fake".utf8).write(to: iosDylibPath)
+        let iosFlags = ["-I", iosModulesDir.path, "-L", iosBuildDir.path, "-lPreviewSetup"]
         let iosResult = SetupBuilder.Result(
-            moduleName: "TestSetup", typeName: "Setup", compilerFlags: iosFlags)
+            moduleName: "TestSetup", typeName: "Setup", compilerFlags: iosFlags,
+            dylibPath: iosDylibPath)
 
         // Store both
         SetupCache.store(

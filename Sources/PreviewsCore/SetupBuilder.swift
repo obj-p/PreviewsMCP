@@ -7,6 +7,9 @@ public enum SetupBuilder {
         public let moduleName: String
         public let typeName: String
         public let compilerFlags: [String]
+        /// Path to the setup dynamic library. Must be loaded with RTLD_GLOBAL
+        /// before any preview dylib so all preview dylibs share the same statics.
+        public let dylibPath: URL
     }
 
     /// Build the setup package and return flags needed to compile bridge code that imports it.
@@ -83,18 +86,21 @@ public enum SetupBuilder {
             )
         }
 
-        // Archive .o files into .a libraries (SPM doesn't create archives for library targets)
-        let archivedLibs = try await archiveTargets(binPath: binPath)
+        // Link .o files into a dynamic library so all preview dylibs share the same statics.
+        // Static linking (.a) gives each preview dylib its own copy of statics, which breaks
+        // setUp() state persistence across hot-reload cycles (see issue #86).
+        let dylibPath = try await linkDynamicLibrary(binPath: binPath, platform: platform)
 
         var flags: [String] = [
             "-I", modulesDir.path,
+            // Link against the setup dylib so the linker resolves setup symbols at link time.
+            // At runtime the host pre-loads the dylib with RTLD_GLOBAL, so dyld reuses it
+            // (matched by install_name). This is preferred over -undefined dynamic_lookup
+            // which suppresses ALL undefined symbol errors, masking genuine problems.
+            "-L", binPath.path, "-lPreviewSetup",
+            // rpath so dyld can find libPreviewSetup.dylib when loading the preview dylib.
+            "-Xlinker", "-rpath", "-Xlinker", binPath.path,
         ]
-        if !archivedLibs.isEmpty {
-            flags += ["-L", binPath.path]
-            for lib in archivedLibs {
-                flags += ["-l\(lib)"]
-            }
-        }
 
         let frameworkNames = collectFrameworks(binPath: binPath)
         if !frameworkNames.isEmpty {
@@ -108,7 +114,8 @@ public enum SetupBuilder {
         let result = Result(
             moduleName: config.moduleName,
             typeName: config.typeName,
-            compilerFlags: flags
+            compilerFlags: flags,
+            dylibPath: dylibPath
         )
 
         SetupCache.store(
@@ -122,48 +129,100 @@ public enum SetupBuilder {
         return result
     }
 
-    /// Archive .o files from each target's build directory into .a static libraries.
-    /// SPM leaves loose .o files under `<binPath>/<Target>.build/` without creating archives.
-    private static func archiveTargets(binPath: URL) async throws -> [String] {
+    /// Link .o files from all target build directories into a single dynamic library.
+    /// This ensures all preview dylibs share the same statics from the setup module.
+    private static func linkDynamicLibrary(
+        binPath: URL,
+        platform: PreviewPlatform
+    ) async throws -> URL {
         let fm = FileManager.default
-        guard
-            let entries = try? fm.contentsOfDirectory(
-                at: binPath, includingPropertiesForKeys: [.isDirectoryKey],
-                options: [.skipsHiddenFiles]
-            )
-        else { return [] }
+        var allObjectFiles: [URL] = []
 
-        let arPath = try await resolveAr()
-        var libs: [String] = []
-
-        for entry in entries {
-            let name = entry.lastPathComponent
-            guard name.hasSuffix(".build") else { continue }
-            var isDir: ObjCBool = false
-            guard fm.fileExists(atPath: entry.path, isDirectory: &isDir), isDir.boolValue else {
-                continue
+        if let entries = try? fm.contentsOfDirectory(
+            at: binPath, includingPropertiesForKeys: [.isDirectoryKey],
+            options: [.skipsHiddenFiles]
+        ) {
+            for entry in entries {
+                let name = entry.lastPathComponent
+                guard name.hasSuffix(".build") else { continue }
+                var isDir: ObjCBool = false
+                guard fm.fileExists(atPath: entry.path, isDirectory: &isDir), isDir.boolValue
+                else { continue }
+                let targetName = String(name.dropLast(".build".count))
+                if targetName.hasPrefix("_") { continue }
+                allObjectFiles.append(contentsOf: collectObjectFiles(in: entry))
             }
-
-            let targetName = String(name.dropLast(".build".count))
-            if targetName.hasPrefix("_") { continue }
-
-            let objectFiles = collectObjectFiles(in: entry)
-            guard !objectFiles.isEmpty else { continue }
-
-            let archivePath = binPath.appendingPathComponent("lib\(targetName).a")
-            try? fm.removeItem(at: archivePath)
-
-            var arArgs = ["rcs", archivePath.path]
-            arArgs.append(contentsOf: objectFiles.map(\.path))
-            let result = try await runAsync(arPath, arguments: arArgs)
-            guard result.exitCode == 0 else {
-                throw SetupBuilderError.buildFailed(
-                    package: targetName, stderr: "ar failed: \(result.stderr)"
-                )
-            }
-            libs.append(targetName)
         }
-        return libs
+
+        guard !allObjectFiles.isEmpty else {
+            throw SetupBuilderError.buildFailed(
+                package: "setup", stderr: "No object files found to link"
+            )
+        }
+
+        // Remove stale static archives from previous builds so they don't confuse the linker.
+        cleanStaleArchives(binPath: binPath)
+
+        let dylibPath = binPath.appendingPathComponent("libPreviewSetup.dylib")
+        try? fm.removeItem(at: dylibPath)
+
+        let swiftcPath = try await resolveSwiftc()
+        var args = ["-emit-library", "-o", dylibPath.path]
+        // Set the install name to the absolute path so dyld recognizes the
+        // already-RTLD_GLOBAL-loaded image when preview dylibs reference it.
+        args += ["-Xlinker", "-install_name", "-Xlinker", dylibPath.path]
+        args += ["-target", platform.targetTriple]
+
+        // Always pass -sdk — swiftc needs it for both macOS and iOS to locate
+        // the Swift runtime and system frameworks.
+        let sdkPath: String
+        switch platform {
+        case .iOS:
+            sdkPath = try await resolveIOSSDK()
+        case .macOS:
+            sdkPath = try await resolveMacOSSDK()
+        }
+        args += ["-sdk", sdkPath]
+
+        let frameworks = collectFrameworks(binPath: binPath)
+        if !frameworks.isEmpty {
+            args += ["-F", binPath.path]
+            for fw in frameworks {
+                args += ["-framework", fw]
+            }
+        }
+
+        args += allObjectFiles.map(\.path)
+
+        let linkResult = try await runAsync(swiftcPath, arguments: args)
+        guard linkResult.exitCode == 0 else {
+            throw SetupBuilderError.buildFailed(
+                package: "setup dylib", stderr: linkResult.stderr
+            )
+        }
+
+        // Ad-hoc codesign (required on Apple Silicon)
+        let codesignPath = try await resolveCodesign()
+        let signResult = try await runAsync(codesignPath, arguments: ["-s", "-", dylibPath.path])
+        guard signResult.exitCode == 0 else {
+            throw SetupBuilderError.buildFailed(
+                package: "setup dylib codesign", stderr: signResult.stderr
+            )
+        }
+
+        return dylibPath
+    }
+
+    /// Remove stale .a files from previous builds that used static linking.
+    private static func cleanStaleArchives(binPath: URL) {
+        guard
+            let entries = try? FileManager.default.contentsOfDirectory(
+                at: binPath, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
+            )
+        else { return }
+        for entry in entries where entry.pathExtension == "a" {
+            try? FileManager.default.removeItem(at: entry)
+        }
     }
 
     private static func collectObjectFiles(in directory: URL) -> [URL] {
@@ -179,12 +238,26 @@ public enum SetupBuilder {
         return files
     }
 
-    private static func resolveAr() async throws -> String {
+    private static func resolveSwiftc() async throws -> String {
         let result = try await runAsync(
-            "/usr/bin/xcrun", arguments: ["--find", "ar"], discardStderr: true
+            "/usr/bin/xcrun", arguments: ["--find", "swiftc"], discardStderr: true
         )
         guard result.exitCode == 0 else {
-            throw SetupBuilderError.buildFailed(package: "ar", stderr: "Could not locate ar via xcrun")
+            throw SetupBuilderError.buildFailed(
+                package: "swiftc", stderr: "Could not locate swiftc via xcrun"
+            )
+        }
+        return result.stdout
+    }
+
+    private static func resolveCodesign() async throws -> String {
+        let result = try await runAsync(
+            "/usr/bin/xcrun", arguments: ["--find", "codesign"], discardStderr: true
+        )
+        guard result.exitCode == 0 else {
+            throw SetupBuilderError.buildFailed(
+                package: "codesign", stderr: "Could not locate codesign via xcrun"
+            )
         }
         return result.stdout
     }
@@ -196,6 +269,18 @@ public enum SetupBuilder {
         guard result.exitCode == 0 else {
             throw SetupBuilderError.buildFailed(
                 package: "iOS SDK", stderr: result.stderr
+            )
+        }
+        return result.stdout
+    }
+
+    private static func resolveMacOSSDK() async throws -> String {
+        let result = try await runAsync(
+            "/usr/bin/xcrun", arguments: ["--show-sdk-path", "--sdk", "macosx"]
+        )
+        guard result.exitCode == 0 else {
+            throw SetupBuilderError.buildFailed(
+                package: "macOS SDK", stderr: result.stderr
             )
         }
         return result.stdout

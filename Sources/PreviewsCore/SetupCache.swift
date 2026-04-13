@@ -107,6 +107,7 @@ public enum SetupCache {
         let moduleName: String
         let typeName: String
         let compilerFlags: [String]
+        let dylibPath: String
         let sourceHash: String
         let swiftVersion: String
         let platform: String
@@ -149,10 +150,14 @@ public enum SetupCache {
             return nil
         }
 
+        let dylibURL = URL(fileURLWithPath: entry.dylibPath)
+        guard FileManager.default.fileExists(atPath: dylibURL.path) else { return nil }
+
         return SetupBuilder.Result(
             moduleName: entry.moduleName,
             typeName: entry.typeName,
-            compilerFlags: entry.compilerFlags
+            compilerFlags: entry.compilerFlags,
+            dylibPath: dylibURL
         )
     }
 
@@ -176,6 +181,7 @@ public enum SetupCache {
                 moduleName: result.moduleName,
                 typeName: result.typeName,
                 compilerFlags: result.compilerFlags,
+                dylibPath: result.dylibPath.path,
                 sourceHash: sourceHash,
                 swiftVersion: swiftVersion,
                 platform: platform.rawValue
@@ -241,10 +247,13 @@ public enum SetupCache {
             guard fm.fileExists(atPath: dir) else { return false }
         }
 
-        // Validate -l libraries resolve to lib<name>.a under -L dirs
+        // Validate -l libraries resolve to lib<name>.dylib or lib<name>.a under -L dirs
         for lib in libs {
             let found = lDirs.contains { dir in
-                fm.fileExists(atPath: (dir as NSString).appendingPathComponent("lib\(lib).a"))
+                fm.fileExists(
+                    atPath: (dir as NSString).appendingPathComponent("lib\(lib).dylib"))
+                    || fm.fileExists(
+                        atPath: (dir as NSString).appendingPathComponent("lib\(lib).a"))
             }
             guard found else { return false }
         }

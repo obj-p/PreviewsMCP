@@ -50,8 +50,8 @@ struct VariantsCommand: ParsableCommand {
     @Option(name: .long, help: "Window height")
     var height: Int = 600
 
-    @Option(name: .long, help: "Target platform: 'macos' (default) or 'ios'")
-    var platform: CLIPlatform = .macos
+    @Option(name: .long, help: "Target platform: 'macos' or 'ios' (auto-detected if omitted)")
+    var platform: CLIPlatform?
 
     @Option(name: .long, help: "Project root path (auto-detected if omitted)")
     var project: String?
@@ -103,9 +103,12 @@ struct VariantsCommand: ParsableCommand {
             at: outputDirURL, withIntermediateDirectories: true)
 
         let resolvedPlatform: CLIPlatform = {
-            if platform != .macos { return platform }
-            if let cp = configResult?.config.platform, cp == "ios" { return .ios }
-            return platform
+            if let explicit = platform { return explicit }
+            if let cp = configResult?.config.platform { return cp == "ios" ? .ios : .macos }
+            if SPMBuildSystem.inferredPlatform(for: fileURL) == .iOS {
+                return .ios
+            }
+            return .macos
         }()
 
         switch resolvedPlatform {
@@ -166,6 +169,7 @@ struct VariantsCommand: ParsableCommand {
             // Setup phase — any failure here is a hard exit (no variants can be captured).
             let session: PreviewSession
             let sessionID: String
+            let setupDylibPath: URL?
             do {
                 let compiler = try await Compiler()
                 let projectRootURL = projectPath.map { URL(fileURLWithPath: $0) }
@@ -174,6 +178,7 @@ struct VariantsCommand: ParsableCommand {
                     progress: progress)
 
                 let setupResult = try await buildSetupFromConfig(configResult, platform: .macOS)
+                setupDylibPath = setupResult?.dylibPath
 
                 session = PreviewSession(
                     sourceFile: fileURL,
@@ -207,7 +212,8 @@ struct VariantsCommand: ParsableCommand {
                             sessionID: sessionID,
                             dylibPath: compileResult.dylibPath,
                             title: "Variant: \(variant.label)",
-                            size: NSSize(width: windowWidth, height: windowHeight)
+                            size: NSSize(width: windowWidth, height: windowHeight),
+                            setupDylibPath: setupDylibPath
                         )
                     }
 
@@ -289,6 +295,7 @@ struct VariantsCommand: ParsableCommand {
                     setupModule: setupResult?.moduleName,
                     setupType: setupResult?.typeName,
                     setupCompilerFlags: setupResult?.compilerFlags ?? [],
+                    setupDylibPath: setupResult?.dylibPath,
                     progress: progress
                 )
 
