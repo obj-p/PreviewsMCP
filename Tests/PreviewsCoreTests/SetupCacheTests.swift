@@ -72,8 +72,8 @@ struct SetupCacheTests {
         #expect(hash1 != hash2)
     }
 
-    @Test("hashSources ignores Tests/, README, and .build/")
-    func hashSources_ignoresTestsAndResources() throws {
+    @Test("hashSources only hashes Package.swift, Package.resolved, and Sources/**/*.swift")
+    func hashSources_onlyHashesPackageAndSources() throws {
         let dir = try makePackageDir()
         defer { try? FileManager.default.removeItem(at: dir) }
 
@@ -107,6 +107,21 @@ struct SetupCacheTests {
         #expect(hashSDK1 != hashSDK2)
     }
 
+    @Test("hashSources changes when swiftVersion differs")
+    func hashSources_sensitiveToSwiftVersion() throws {
+        let dir = try makePackageDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let hash1 = try SetupCache.hashSources(
+            packageDir: dir, swiftVersion: "Swift 6.0")
+        let hash2 = try SetupCache.hashSources(
+            packageDir: dir, swiftVersion: "Swift 6.1")
+        let hashNil = try SetupCache.hashSources(packageDir: dir)
+
+        #expect(hash1 != hash2)
+        #expect(hash1 != hashNil)
+    }
+
     // MARK: - resolveSwiftVersion
 
     @Test("resolveSwiftVersion returns a non-empty string containing Swift")
@@ -125,10 +140,12 @@ struct SetupCacheTests {
         try FileManager.default.createDirectory(
             at: modulesDir, withIntermediateDirectories: true)
 
-        // Create .swiftmodule
+        // Create .swiftmodule with content (validation checks non-empty)
         let swiftmoduleDir = modulesDir.appendingPathComponent("\(moduleName).swiftmodule")
         try FileManager.default.createDirectory(
             at: swiftmoduleDir, withIntermediateDirectories: true)
+        try Data("fake".utf8).write(
+            to: swiftmoduleDir.appendingPathComponent("arm64-apple-macos.swiftmodule"))
 
         // Create static library
         try Data("fake".utf8).write(
@@ -190,12 +207,14 @@ struct SetupCacheTests {
         let dir = try makePackageDir()
         defer { try? FileManager.default.removeItem(at: dir) }
 
-        // Create modules dir + swiftmodule but no .a file
+        // Create modules dir + swiftmodule (with content) but no .a file
         let buildDir = dir.appendingPathComponent(".build/debug")
         let modulesDir = buildDir.appendingPathComponent("Modules")
         let swiftmoduleDir = modulesDir.appendingPathComponent("TestSetup.swiftmodule")
         try FileManager.default.createDirectory(
             at: swiftmoduleDir, withIntermediateDirectories: true)
+        try Data("fake".utf8).write(
+            to: swiftmoduleDir.appendingPathComponent("arm64.swiftmodule"))
 
         let fakeResult = SetupBuilder.Result(
             moduleName: "TestSetup", typeName: "Setup",
@@ -275,6 +294,8 @@ struct SetupCacheTests {
         let iosSwiftmodule = iosModulesDir.appendingPathComponent("TestSetup.swiftmodule")
         try FileManager.default.createDirectory(
             at: iosSwiftmodule, withIntermediateDirectories: true)
+        try Data("fake".utf8).write(
+            to: iosSwiftmodule.appendingPathComponent("arm64.swiftmodule"))
         try Data("fake".utf8).write(
             to: iosBuildDir.appendingPathComponent("libTestSetup.a"))
         let iosFlags = ["-I", iosModulesDir.path, "-L", iosBuildDir.path, "-lTestSetup"]
@@ -361,8 +382,8 @@ struct SetupCacheTests {
 
         #expect(coldResult == warmResult, "Warm result must equal cold result")
         #expect(
-            warmDuration < coldDuration / 10,
-            "Warm build (\(warmDuration)) should be >10x faster than cold (\(coldDuration))")
+            warmDuration < .seconds(1),
+            "Warm build (\(warmDuration)) should complete in under 1s")
     }
 
     @Test("Source change invalidates cache and triggers rebuild")
@@ -400,6 +421,8 @@ struct SetupCacheTests {
         // Different source → different hash → different cache filename
         #expect(filesAfter.count >= 2, "Should have both old and new cache entries")
         #expect(result1.moduleName == result2.moduleName)
-        #expect(result1.compilerFlags != result2.compilerFlags || filesBefore != filesAfter)
+        #expect(
+            Set(filesAfter).isStrictSuperset(of: Set(filesBefore)),
+            "New cache entry should be added alongside old one")
     }
 }

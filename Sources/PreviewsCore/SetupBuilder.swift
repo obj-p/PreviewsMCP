@@ -34,7 +34,7 @@ public enum SetupBuilder {
         let iosSDKPath: String? = platform == .iOS ? try await resolveIOSSDK() : nil
         let swiftVersion = try await SetupCache.resolveSwiftVersion()
         let sourceHash = try SetupCache.hashSources(
-            packageDir: packageDir, sdkPath: iosSDKPath)
+            packageDir: packageDir, sdkPath: iosSDKPath, swiftVersion: swiftVersion)
 
         if let cached = SetupCache.load(
             packageDir: packageDir,

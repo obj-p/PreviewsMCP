@@ -28,16 +28,20 @@ public enum SetupCache {
 
     // MARK: - Source Hashing
 
-    /// SHA256 fingerprint of the setup package's Swift sources, the lockfile, and SDK path.
+    /// SHA256 fingerprint of the setup package's Swift sources, lockfile, SDK path,
+    /// and Swift toolchain version.
     ///
     /// Inputs hashed (in order):
     /// 1. Sorted `(relativePath, SHA256(fileContents))` for `Package.swift`,
     ///    `Package.resolved` (if present), and every `Sources/**/*.swift`.
     /// 2. The `sdkPath` string (non-nil for iOS builds) so Xcode SDK upgrades
     ///    invalidate the cache.
+    /// 3. The `swiftVersion` string so toolchain upgrades invalidate the cache.
     ///
     /// Returns a 64-character lowercase hex string.
-    public static func hashSources(packageDir: URL, sdkPath: String? = nil) throws -> String {
+    public static func hashSources(
+        packageDir: URL, sdkPath: String? = nil, swiftVersion: String? = nil
+    ) throws -> String {
         let fm = FileManager.default
         var files: [(relative: String, url: URL)] = []
 
@@ -88,6 +92,11 @@ public enum SetupCache {
             outerHasher.update(data: Data(sdkPath.utf8))
         }
 
+        // Include Swift version so toolchain upgrades invalidate the cache
+        if let swiftVersion {
+            outerHasher.update(data: Data(swiftVersion.utf8))
+        }
+
         let digest = outerHasher.finalize()
         return digest.map { String(format: "%02x", $0) }.joined()
     }
@@ -129,7 +138,12 @@ public enum SetupCache {
             return nil
         }
 
-        guard entry.swiftVersion == swiftVersion else { return nil }
+        // Defense-in-depth: verify entry metadata matches even though the filename
+        // already encodes platform and sourceHash.
+        guard entry.swiftVersion == swiftVersion,
+            entry.sourceHash == sourceHash,
+            entry.platform == platform.rawValue
+        else { return nil }
 
         guard validateArtifacts(moduleName: entry.moduleName, flags: entry.compilerFlags) else {
             return nil
@@ -211,12 +225,15 @@ public enum SetupCache {
             }
         }
 
-        // Validate -I directories exist and contain the .swiftmodule
+        // Validate -I directories exist and contain a non-empty .swiftmodule
         for dir in iDirs {
             guard fm.fileExists(atPath: dir) else { return false }
             let swiftmodule = (dir as NSString).appendingPathComponent(
                 "\(moduleName).swiftmodule")
             guard fm.fileExists(atPath: swiftmodule) else { return false }
+            // Ensure the .swiftmodule directory has contents (not left empty by partial clean)
+            let contents = try? fm.contentsOfDirectory(atPath: swiftmodule)
+            guard let contents, !contents.isEmpty else { return false }
         }
 
         // Validate -L directories exist
