@@ -858,6 +858,26 @@ struct BuildSystemTests {
         #expect(found?.standardizedFileURL.path == tmpDir.standardizedFileURL.path)
     }
 
+    @Test("findPackageDirectory ignores directory named Package.swift")
+    func findPackageDirectoryIgnoresDirectory() {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-test-\(UUID().uuidString)")
+        let sourcesDir = tmpDir.appendingPathComponent("Sources/MyTarget")
+        try! FileManager.default.createDirectory(at: sourcesDir, withIntermediateDirectories: true)
+
+        // Create a directory named Package.swift instead of a file
+        let packageDir = tmpDir.appendingPathComponent("Package.swift")
+        try! FileManager.default.createDirectory(at: packageDir, withIntermediateDirectories: true)
+
+        let sourceFile = sourcesDir.appendingPathComponent("MyView.swift")
+        try! "import SwiftUI".write(to: sourceFile, atomically: true, encoding: .utf8)
+
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        let found = SPMBuildSystem.findPackageDirectory(from: sourceFile)
+        #expect(found == nil)
+    }
+
     @Test("findPackageDirectory returns nil for standalone file")
     func findPackageDirectoryNilForStandalone() {
         let tmpDir = FileManager.default.temporaryDirectory
