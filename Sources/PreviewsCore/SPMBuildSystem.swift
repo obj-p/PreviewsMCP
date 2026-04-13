@@ -27,11 +27,15 @@ public actor SPMBuildSystem: BuildSystem {
         process.standardError = FileHandle.nullDevice
         do {
             try process.run()
-            process.waitUntilExit()
-            guard process.terminationStatus == 0 else { return nil }
         } catch { return nil }
 
+        // Read pipe data BEFORE waitUntilExit to avoid deadlock.
+        // If the subprocess writes more than the pipe buffer (~64KB),
+        // it blocks until the parent drains the pipe. Calling
+        // waitUntilExit first would deadlock both sides.
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else { return nil }
         return decodePlatforms(from: data)
     }
 
