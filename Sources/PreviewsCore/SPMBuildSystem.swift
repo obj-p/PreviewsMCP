@@ -16,18 +16,7 @@ public actor SPMBuildSystem: BuildSystem {
     /// Returns nil if no SPM package found or platforms can't be determined.
     /// Runs synchronously (short-lived subprocess) for use in CLI resolution.
     public static func detectPlatforms(for sourceFile: URL) -> [String]? {
-        var dir = sourceFile.deletingLastPathComponent().standardizedFileURL
-        let root = URL(fileURLWithPath: "/")
-        var packageDir: URL?
-        while dir.path != root.path {
-            let packageSwift = dir.appendingPathComponent("Package.swift")
-            if FileManager.default.fileExists(atPath: packageSwift.path) {
-                packageDir = dir
-                break
-            }
-            dir = dir.deletingLastPathComponent()
-        }
-        guard let packageDir else { return nil }
+        guard let packageDir = findPackageDirectory(from: sourceFile) else { return nil }
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
@@ -43,6 +32,42 @@ public actor SPMBuildSystem: BuildSystem {
         } catch { return nil }
 
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        return decodePlatforms(from: data)
+    }
+
+    /// Async variant of `detectPlatforms` that avoids blocking the cooperative thread pool.
+    /// Preferred in async contexts like the MCP server.
+    public static func detectPlatformsAsync(for sourceFile: URL) async -> [String]? {
+        guard let packageDir = findPackageDirectory(from: sourceFile) else { return nil }
+
+        guard
+            let output = try? await runAsync(
+                "/usr/bin/env",
+                arguments: ["swift", "package", "describe", "--type", "json"],
+                workingDirectory: packageDir,
+                discardStderr: true
+            ),
+            output.exitCode == 0,
+            let data = output.stdout.data(using: .utf8)
+        else { return nil }
+        return decodePlatforms(from: data)
+    }
+
+    /// Walk up from a source file to find the nearest directory containing Package.swift.
+    public static func findPackageDirectory(from sourceFile: URL) -> URL? {
+        var dir = sourceFile.deletingLastPathComponent().standardizedFileURL
+        let root = URL(fileURLWithPath: "/")
+        while dir.path != root.path {
+            let packageSwift = dir.appendingPathComponent("Package.swift")
+            if FileManager.default.fileExists(atPath: packageSwift.path) {
+                return dir
+            }
+            dir = dir.deletingLastPathComponent()
+        }
+        return nil
+    }
+
+    private static func decodePlatforms(from data: Data) -> [String]? {
         struct PlatformInfo: Decodable {
             let platforms: [PlatformEntry]?
             struct PlatformEntry: Decodable { let name: String }

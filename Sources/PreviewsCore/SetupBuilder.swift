@@ -93,9 +93,11 @@ public enum SetupBuilder {
 
         var flags: [String] = [
             "-I", modulesDir.path,
-            // Let the linker resolve setup symbols at runtime from the RTLD_GLOBAL-loaded
-            // setup dylib rather than statically linking setup code into each preview dylib.
-            "-Xlinker", "-undefined", "-Xlinker", "dynamic_lookup",
+            // Link against the setup dylib so the linker resolves setup symbols at link time.
+            // At runtime the host pre-loads the dylib with RTLD_GLOBAL, so dyld reuses it.
+            // This is preferred over -undefined dynamic_lookup which suppresses ALL undefined
+            // symbol errors, masking genuine missing-dependency problems.
+            "-L", binPath.path, "-lPreviewSetup",
         ]
 
         let frameworkNames = collectFrameworks(binPath: binPath)
@@ -156,16 +158,26 @@ public enum SetupBuilder {
             )
         }
 
+        // Remove stale static archives from previous builds so they don't confuse the linker.
+        cleanStaleArchives(binPath: binPath)
+
         let dylibPath = binPath.appendingPathComponent("libPreviewSetup.dylib")
         try? fm.removeItem(at: dylibPath)
 
         let swiftcPath = try await resolveSwiftc()
         var args = ["-emit-library", "-o", dylibPath.path]
         args += ["-target", platform.targetTriple]
-        if platform == .iOS {
-            let sdkPath = try await resolveIOSSDK()
-            args += ["-sdk", sdkPath]
+
+        // Always pass -sdk — swiftc needs it for both macOS and iOS to locate
+        // the Swift runtime and system frameworks.
+        let sdkPath: String
+        switch platform {
+        case .iOS:
+            sdkPath = try await resolveIOSSDK()
+        case .macOS:
+            sdkPath = try await resolveMacOSSDK()
         }
+        args += ["-sdk", sdkPath]
 
         let frameworks = collectFrameworks(binPath: binPath)
         if !frameworks.isEmpty {
@@ -194,6 +206,18 @@ public enum SetupBuilder {
         }
 
         return dylibPath
+    }
+
+    /// Remove stale .a files from previous builds that used static linking.
+    private static func cleanStaleArchives(binPath: URL) {
+        guard
+            let entries = try? FileManager.default.contentsOfDirectory(
+                at: binPath, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
+            )
+        else { return }
+        for entry in entries where entry.pathExtension == "a" {
+            try? FileManager.default.removeItem(at: entry)
+        }
     }
 
     private static func collectObjectFiles(in directory: URL) -> [URL] {
@@ -240,6 +264,18 @@ public enum SetupBuilder {
         guard result.exitCode == 0 else {
             throw SetupBuilderError.buildFailed(
                 package: "iOS SDK", stderr: result.stderr
+            )
+        }
+        return result.stdout
+    }
+
+    private static func resolveMacOSSDK() async throws -> String {
+        let result = try await runAsync(
+            "/usr/bin/xcrun", arguments: ["--show-sdk-path", "--sdk", "macosx"]
+        )
+        guard result.exitCode == 0 else {
+            throw SetupBuilderError.buildFailed(
+                package: "macOS SDK", stderr: result.stderr
             )
         }
         return result.stdout

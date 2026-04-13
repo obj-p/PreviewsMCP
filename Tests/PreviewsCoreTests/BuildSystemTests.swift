@@ -835,4 +835,90 @@ struct BuildSystemTests {
         #expect(result != nil)
         #expect(result?.lastPathComponent == "ToDo.xcworkspace")
     }
+
+    // MARK: - SPMBuildSystem.findPackageDirectory
+
+    @Test("findPackageDirectory walks up to Package.swift")
+    func findPackageDirectory() {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-test-\(UUID().uuidString)")
+        let sourcesDir = tmpDir.appendingPathComponent("Sources/MyTarget")
+        try! FileManager.default.createDirectory(at: sourcesDir, withIntermediateDirectories: true)
+
+        let packageSwift = tmpDir.appendingPathComponent("Package.swift")
+        try! "// swift-tools-version: 6.0".write(
+            to: packageSwift, atomically: true, encoding: .utf8)
+
+        let sourceFile = sourcesDir.appendingPathComponent("MyView.swift")
+        try! "import SwiftUI".write(to: sourceFile, atomically: true, encoding: .utf8)
+
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        let found = SPMBuildSystem.findPackageDirectory(from: sourceFile)
+        #expect(found?.standardizedFileURL.path == tmpDir.standardizedFileURL.path)
+    }
+
+    @Test("findPackageDirectory returns nil for standalone file")
+    func findPackageDirectoryNilForStandalone() {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-test-\(UUID().uuidString)")
+        try! FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+
+        let sourceFile = tmpDir.appendingPathComponent("Standalone.swift")
+        try! "import SwiftUI".write(to: sourceFile, atomically: true, encoding: .utf8)
+
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        let found = SPMBuildSystem.findPackageDirectory(from: sourceFile)
+        #expect(found == nil)
+    }
+
+    // MARK: - SPMBuildSystem.detectPlatforms
+
+    @Test("detectPlatforms returns platforms from real SPM package")
+    func detectPlatformsFromRealPackage() {
+        // Use the examples/spm package which declares both macOS and iOS
+        let sourceFile = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()  // Tests/PreviewsCoreTests
+            .deletingLastPathComponent()  // Tests
+            .deletingLastPathComponent()  // repo root
+            .appendingPathComponent("examples/spm/Sources/ToDo/ToDoView.swift")
+
+        guard FileManager.default.fileExists(atPath: sourceFile.path) else { return }
+
+        let platforms = SPMBuildSystem.detectPlatforms(for: sourceFile)
+        #expect(platforms != nil)
+        #expect(platforms?.contains("ios") == true)
+        #expect(platforms?.contains("macos") == true)
+    }
+
+    @Test("detectPlatforms returns nil for standalone file with no package")
+    func detectPlatformsNilForStandalone() {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-test-\(UUID().uuidString)")
+        try! FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+
+        let sourceFile = tmpDir.appendingPathComponent("Standalone.swift")
+        try! "import SwiftUI".write(to: sourceFile, atomically: true, encoding: .utf8)
+
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        let platforms = SPMBuildSystem.detectPlatforms(for: sourceFile)
+        #expect(platforms == nil)
+    }
+
+    @Test("detectPlatformsAsync returns same result as sync variant")
+    func detectPlatformsAsync() async {
+        let sourceFile = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("examples/spm/Sources/ToDo/ToDoView.swift")
+
+        guard FileManager.default.fileExists(atPath: sourceFile.path) else { return }
+
+        let asyncPlatforms = await SPMBuildSystem.detectPlatformsAsync(for: sourceFile)
+        let syncPlatforms = SPMBuildSystem.detectPlatforms(for: sourceFile)
+        #expect(asyncPlatforms == syncPlatforms)
+    }
 }

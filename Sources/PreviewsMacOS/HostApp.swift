@@ -27,6 +27,8 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
     private var hasCalledSetUp = false
     /// Retains the setup dylib loaded with RTLD_GLOBAL so all preview dylibs share its statics.
     private var setupDylibLoader: DylibLoader?
+    /// Remembered so the watchFile reload path can pass it to loadPreview.
+    private var setupDylibPath: URL?
 
     /// Callback invoked after NSApplication finishes launching.
     public var onLaunch: (@MainActor () -> Void)?
@@ -81,8 +83,11 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
 
         // Load the setup dylib once before any preview dylib. RTLD_GLOBAL ensures
         // all preview dylibs resolve setup symbols from this shared image.
-        if let setupPath = setupDylibPath, setupDylibLoader == nil {
-            setupDylibLoader = try DylibLoader(path: setupPath.path)
+        if let path = setupDylibPath {
+            self.setupDylibPath = path
+        }
+        if let path = self.setupDylibPath, setupDylibLoader == nil {
+            setupDylibLoader = try DylibLoader(path: path.path)
         }
 
         let loader = try DylibLoader(path: dylibPath.path)
@@ -203,7 +208,8 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
                                 sessionID: sessionID,
                                 dylibPath: compileResult.dylibPath,
                                 title: "Preview: \(fileURL.lastPathComponent)",
-                                size: existingFrame?.size ?? NSSize(width: 400, height: 600)
+                                size: existingFrame?.size ?? NSSize(width: 400, height: 600),
+                                setupDylibPath: self.setupDylibPath
                             )
                             if let frame = existingFrame {
                                 self.windows[sessionID]?.setFrameOrigin(frame.origin)
