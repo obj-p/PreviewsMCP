@@ -381,9 +381,10 @@ struct SetupCacheTests {
         let warmDuration = clock.now - warmStart
 
         #expect(coldResult == warmResult, "Warm result must equal cold result")
+        // Threshold is generous for CI shared runners where subprocess overhead is higher
         #expect(
-            warmDuration < .seconds(1),
-            "Warm build (\(warmDuration)) should complete in under 1s")
+            warmDuration < .seconds(3),
+            "Warm build (\(warmDuration)) should complete in under 3s")
     }
 
     @Test("Source change invalidates cache and triggers rebuild")
