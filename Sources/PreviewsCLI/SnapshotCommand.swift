@@ -80,7 +80,7 @@ struct SnapshotCommand: ParsableCommand {
 
         let resolvedPlatform: CLIPlatform = {
             if let explicit = platform { return explicit }
-            if let cp = projectConfig?.platform, cp == "ios" { return .ios }
+            if let cp = projectConfig?.platform { return cp == "ios" ? .ios : .macos }
             if SPMBuildSystem.inferredPlatform(for: fileURL) == .iOS {
                 return .ios
             }

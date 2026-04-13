@@ -29,6 +29,13 @@ public actor SPMBuildSystem: BuildSystem {
             try process.run()
         } catch { return nil }
 
+        // Kill the process if it doesn't finish in 10 seconds (e.g., network
+        // stall during dependency resolution on CI).
+        let proc = process
+        DispatchQueue.global().asyncAfter(deadline: .now() + 10) {
+            if proc.isRunning { proc.terminate() }
+        }
+
         // Read pipe data BEFORE waitUntilExit to avoid deadlock.
         // If the subprocess writes more than the pipe buffer (~64KB),
         // it blocks until the parent drains the pipe. Calling

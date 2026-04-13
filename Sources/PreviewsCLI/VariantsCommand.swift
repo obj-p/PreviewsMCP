@@ -104,7 +104,7 @@ struct VariantsCommand: ParsableCommand {
 
         let resolvedPlatform: CLIPlatform = {
             if let explicit = platform { return explicit }
-            if let cp = configResult?.config.platform, cp == "ios" { return .ios }
+            if let cp = configResult?.config.platform { return cp == "ios" ? .ios : .macos }
             if SPMBuildSystem.inferredPlatform(for: fileURL) == .iOS {
                 return .ios
             }
