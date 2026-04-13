@@ -105,6 +105,11 @@ struct VariantsCommand: ParsableCommand {
         let resolvedPlatform: CLIPlatform = {
             if platform != .macos { return platform }
             if let cp = configResult?.config.platform, cp == "ios" { return .ios }
+            if let spmPlatforms = SPMBuildSystem.detectPlatforms(for: fileURL),
+                spmPlatforms.contains("ios"), !spmPlatforms.contains("macos")
+            {
+                return .ios
+            }
             return platform
         }()
 
@@ -166,6 +171,7 @@ struct VariantsCommand: ParsableCommand {
             // Setup phase — any failure here is a hard exit (no variants can be captured).
             let session: PreviewSession
             let sessionID: String
+            let setupDylibPath: URL?
             do {
                 let compiler = try await Compiler()
                 let projectRootURL = projectPath.map { URL(fileURLWithPath: $0) }
@@ -174,6 +180,7 @@ struct VariantsCommand: ParsableCommand {
                     progress: progress)
 
                 let setupResult = try await buildSetupFromConfig(configResult, platform: .macOS)
+                setupDylibPath = setupResult?.dylibPath
 
                 session = PreviewSession(
                     sourceFile: fileURL,
@@ -207,7 +214,8 @@ struct VariantsCommand: ParsableCommand {
                             sessionID: sessionID,
                             dylibPath: compileResult.dylibPath,
                             title: "Variant: \(variant.label)",
-                            size: NSSize(width: windowWidth, height: windowHeight)
+                            size: NSSize(width: windowWidth, height: windowHeight),
+                            setupDylibPath: setupDylibPath
                         )
                     }
 
@@ -289,6 +297,7 @@ struct VariantsCommand: ParsableCommand {
                     setupModule: setupResult?.moduleName,
                     setupType: setupResult?.typeName,
                     setupCompilerFlags: setupResult?.compilerFlags ?? [],
+                    setupDylibPath: setupResult?.dylibPath,
                     progress: progress
                 )
 

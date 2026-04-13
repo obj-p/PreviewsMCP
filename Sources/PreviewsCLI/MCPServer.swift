@@ -532,7 +532,18 @@ private func handlePreviewStart(params: CallTool.Parameters, macCompiler: Compil
 
     let configResult = await configCache.load(for: fileURL)
     let config = configResult?.config
-    let platformStr = extractOptionalString("platform", from: params) ?? config?.platform ?? "macos"
+    let platformStr: String
+    if let explicit = extractOptionalString("platform", from: params) {
+        platformStr = explicit
+    } else if let configPlatform = config?.platform {
+        platformStr = configPlatform
+    } else if let spmPlatforms = SPMBuildSystem.detectPlatforms(for: fileURL),
+        spmPlatforms.contains("ios"), !spmPlatforms.contains("macos")
+    {
+        platformStr = "ios"
+    } else {
+        platformStr = "macos"
+    }
 
     let (explicitTraits, traitsError) = parseTraits(from: params)
     if let traitsError { return traitsError }
@@ -645,6 +656,7 @@ private func handleIOSPreviewStart(
         setupModule: setupResult?.moduleName,
         setupType: setupResult?.typeName,
         setupCompilerFlags: setupResult?.compilerFlags ?? [],
+        setupDylibPath: setupResult?.dylibPath,
         progress: progress
     )
 
@@ -731,6 +743,7 @@ private func startMacOSPreview(
 
     let compileResult = try await session.compile()
     let sessionID = session.id
+    let setupDylibPath = setupResult?.dylibPath
 
     await MainActor.run {
         do {
@@ -739,7 +752,8 @@ private func startMacOSPreview(
                 dylibPath: compileResult.dylibPath,
                 title: title,
                 size: NSSize(width: width, height: height),
-                headless: headless
+                headless: headless,
+                setupDylibPath: setupDylibPath
             )
             App.host.watchFile(
                 sessionID: sessionID,

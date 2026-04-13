@@ -10,6 +10,49 @@ public actor SPMBuildSystem: BuildSystem {
         self.sourceFile = sourceFile
     }
 
+    // MARK: - Platform Detection
+
+    /// Detect platforms declared in the SPM package containing this source file.
+    /// Returns nil if no SPM package found or platforms can't be determined.
+    /// Runs synchronously (short-lived subprocess) for use in CLI resolution.
+    public static func detectPlatforms(for sourceFile: URL) -> [String]? {
+        var dir = sourceFile.deletingLastPathComponent().standardizedFileURL
+        let root = URL(fileURLWithPath: "/")
+        var packageDir: URL?
+        while dir.path != root.path {
+            let packageSwift = dir.appendingPathComponent("Package.swift")
+            if FileManager.default.fileExists(atPath: packageSwift.path) {
+                packageDir = dir
+                break
+            }
+            dir = dir.deletingLastPathComponent()
+        }
+        guard let packageDir else { return nil }
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        process.arguments = ["swift", "package", "describe", "--type", "json"]
+        process.currentDirectoryURL = packageDir
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = FileHandle.nullDevice
+        do {
+            try process.run()
+            process.waitUntilExit()
+            guard process.terminationStatus == 0 else { return nil }
+        } catch { return nil }
+
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        struct PlatformInfo: Decodable {
+            let platforms: [PlatformEntry]?
+            struct PlatformEntry: Decodable { let name: String }
+        }
+        guard let info = try? JSONDecoder().decode(PlatformInfo.self, from: data),
+            let platforms = info.platforms, !platforms.isEmpty
+        else { return nil }
+        return platforms.map(\.name)
+    }
+
     // MARK: - Detection
 
     public static func detect(for sourceFile: URL) async throws -> SPMBuildSystem? {

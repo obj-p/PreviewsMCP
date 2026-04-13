@@ -38,6 +38,18 @@ enum IOSHostAppSource {
                 }
 
                 let dylibPath = args[dylibIndex + 1]
+
+                // Load setup dylib with RTLD_GLOBAL before any preview dylib so all
+                // preview dylibs share the same statics (issue #86).
+                if let setupIndex = args.firstIndex(of: "--setup-dylib"),
+                   setupIndex + 1 < args.count {
+                    let setupPath = args[setupIndex + 1]
+                    if dlopen(setupPath, RTLD_NOW | RTLD_GLOBAL) == nil {
+                        let err = String(cString: dlerror())
+                        NSLog("PreviewHost: Failed to load setup dylib: \\(err)")
+                    }
+                }
+
                 loadPreview(dylibPath: dylibPath)
 
                 initTouchInjection()

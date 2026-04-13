@@ -81,6 +81,11 @@ struct SnapshotCommand: ParsableCommand {
         let resolvedPlatform: CLIPlatform = {
             if platform != .macos { return platform }
             if let cp = projectConfig?.platform, cp == "ios" { return .ios }
+            if let spmPlatforms = SPMBuildSystem.detectPlatforms(for: fileURL),
+                spmPlatforms.contains("ios"), !spmPlatforms.contains("macos")
+            {
+                return .ios
+            }
             return platform
         }()
 
@@ -139,13 +144,15 @@ struct SnapshotCommand: ParsableCommand {
                 let compileResult = try await session.compile()
                 let sessionID = session.id
 
+                let setupDylibPath = setupResult?.dylibPath
                 await MainActor.run {
                     do {
                         try App.host.loadPreview(
                             sessionID: sessionID,
                             dylibPath: compileResult.dylibPath,
                             title: "Snapshot",
-                            size: NSSize(width: windowWidth, height: windowHeight)
+                            size: NSSize(width: windowWidth, height: windowHeight),
+                            setupDylibPath: setupDylibPath
                         )
                     } catch {
                         fputs("Failed to load preview: \(error)\n", stderr)
@@ -230,6 +237,7 @@ struct SnapshotCommand: ParsableCommand {
                     setupModule: setupResult?.moduleName,
                     setupType: setupResult?.typeName,
                     setupCompilerFlags: setupResult?.compilerFlags ?? [],
+                    setupDylibPath: setupResult?.dylibPath,
                     progress: progress
                 )
 

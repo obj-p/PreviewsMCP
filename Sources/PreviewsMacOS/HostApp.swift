@@ -25,6 +25,8 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
     private var retainedLoaders: [DylibLoader] = []
     private var retainedViews: [NSView] = []
     private var hasCalledSetUp = false
+    /// Retains the setup dylib loaded with RTLD_GLOBAL so all preview dylibs share its statics.
+    private var setupDylibLoader: DylibLoader?
 
     /// Callback invoked after NSApplication finishes launching.
     public var onLaunch: (@MainActor () -> Void)?
@@ -64,15 +66,24 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
     /// Load a dylib and display its preview view in a window.
     /// If a window already exists for this session, reuses it (swaps content view).
     /// - Parameter headless: If provided, overrides the instance-level default for this window.
+    /// - Parameter setupDylibPath: Path to the setup dynamic library. Loaded once with RTLD_GLOBAL
+    ///   so all preview dylibs share the same statics (see issue #86).
     public func loadPreview(
         sessionID: String,
         dylibPath: URL,
         entryPoint: String = "createPreviewView",
         title: String = "Preview",
         size: NSSize = NSSize(width: 400, height: 600),
-        headless: Bool? = nil
+        headless: Bool? = nil,
+        setupDylibPath: URL? = nil
     ) throws {
         let headless = headless ?? self.headless
+
+        // Load the setup dylib once before any preview dylib. RTLD_GLOBAL ensures
+        // all preview dylibs resolve setup symbols from this shared image.
+        if let setupPath = setupDylibPath, setupDylibLoader == nil {
+            setupDylibLoader = try DylibLoader(path: setupPath.path)
+        }
 
         let loader = try DylibLoader(path: dylibPath.path)
 
