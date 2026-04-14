@@ -6,31 +6,46 @@ import MCP
 struct ServeCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "serve",
-        abstract: "Expose preview tools over MCP (stdio transport)",
+        abstract: "Expose preview tools over MCP",
         discussion: """
-            Runs an MCP server on stdin/stdout that exposes tools for listing,
-            launching, configuring, snapshotting, and interacting with SwiftUI
-            previews. Intended to be launched by an MCP-compatible client — for
-            example, by adding this to `.mcp.json`:
+            Two modes:
 
-              {
-                "mcpServers": {
-                  "previews": {
-                    "command": "/path/to/previewsmcp",
-                    "args": ["serve"]
+              • Stdio (default) — reads MCP JSON-RPC from stdin, writes to stdout.
+                Intended for MCP-compatible clients (Claude Code, Cursor) that
+                launch `previewsmcp serve` as a subprocess. Example `.mcp.json`:
+
+                  {
+                    "mcpServers": {
+                      "previews": {
+                        "command": "/path/to/previewsmcp",
+                        "args": ["serve"]
+                      }
+                    }
                   }
-                }
-              }
 
-            Once connected, the agent can discover the available tools
-            (preview_list, preview_start, preview_snapshot, preview_configure,
-            preview_switch, preview_variants, preview_elements, preview_touch,
-            preview_stop, simulator_list) and their schemas via the standard MCP
-            handshake.
+              • Daemon (`--daemon`) — listens on a Unix domain socket at
+                `~/.previewsmcp/serve.sock`. Multiplexes many concurrent preview
+                sessions. Used by the CLI (run, snapshot, etc.) and by any
+                external MCP client capable of speaking over UDS.
+
+            Both modes expose the same tools: preview_list, preview_start,
+            preview_snapshot, preview_configure, preview_switch, preview_variants,
+            preview_elements, preview_touch, preview_stop, simulator_list.
             """
     )
 
+    @Flag(name: .long, help: "Run as a daemon on a Unix domain socket instead of stdio")
+    var daemon: Bool = false
+
     mutating func run() throws {
+        if daemon {
+            runDaemon()
+        } else {
+            runStdio()
+        }
+    }
+
+    private func runStdio() {
         Task {
             do {
                 let (server, _) = try await configureMCPServer()
@@ -40,6 +55,35 @@ struct ServeCommand: ParsableCommand {
             } catch {
                 fputs("MCP server error: \(error)\n", stderr)
                 await MainActor.run { NSApp.terminate(nil) }
+            }
+        }
+    }
+
+    private func runDaemon() {
+        Task { @MainActor in
+            do {
+                // Refuse to start if another daemon is already running.
+                if let existing = DaemonLifecycle.readPID(),
+                    DaemonLifecycle.isProcessAlive(existing)
+                {
+                    fputs(
+                        "daemon already running (pid \(existing)); "
+                            + "use `previewsmcp kill-daemon` first\n",
+                        stderr
+                    )
+                    Darwin.exit(1)
+                }
+
+                _ = try await DaemonListener.start()
+                try DaemonLifecycle.register()
+                fputs(
+                    "daemon ready (pid \(ProcessInfo.processInfo.processIdentifier))\n",
+                    stderr
+                )
+            } catch {
+                fputs("daemon startup failed: \(error)\n", stderr)
+                DaemonLifecycle.unregister()
+                Darwin.exit(1)
             }
         }
     }

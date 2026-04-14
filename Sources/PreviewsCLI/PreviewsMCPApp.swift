@@ -24,7 +24,7 @@ struct PreviewsMCPApp {
             PreviewsMCPCommand.exit(withError: error)
         }
 
-        // Commands that don't need NSApplication (list, help, etc.)
+        // Commands that don't need NSApplication (list, help, status, kill-daemon)
         if command is ListCommand
             || !(command is RunCommand || command is ServeCommand || command is SnapshotCommand
                 || command is VariantsCommand)
@@ -98,7 +98,7 @@ struct PreviewsMCPCommand: ParsableCommand {
         version: version,
         subcommands: [
             RunCommand.self, ListCommand.self, SnapshotCommand.self, VariantsCommand.self,
-            ServeCommand.self,
+            ServeCommand.self, StatusCommand.self, KillDaemonCommand.self,
         ],
         defaultSubcommand: RunCommand.self
     )
