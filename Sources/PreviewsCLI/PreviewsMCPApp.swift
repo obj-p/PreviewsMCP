@@ -24,11 +24,33 @@ struct PreviewsMCPApp {
             PreviewsMCPCommand.exit(withError: error)
         }
 
-        // Commands that don't need NSApplication (list, help, status, kill-daemon)
+        // Commands that don't need NSApplication (list, help, status, kill-daemon,
+        // and `run` which is now a lightweight daemon client).
         if command is ListCommand
-            || !(command is RunCommand || command is ServeCommand || command is SnapshotCommand
+            || !(command is ServeCommand || command is SnapshotCommand
                 || command is VariantsCommand)
         {
+            // Handle async commands: the MCP SDK's NetworkTransport schedules
+            // NWConnection callbacks on DispatchQueue.main, so we can't just
+            // block main with a semaphore — the callbacks would never fire.
+            // Use dispatchMain() to yield to libdispatch and let the async Task
+            // drive to completion, then exit() explicitly from the Task.
+            if let asyncCommand = command as? any AsyncParsableCommand {
+                Task {
+                    do {
+                        var mutable = asyncCommand
+                        try await mutable.run()
+                        Darwin.exit(0)
+                    } catch let error as ExitCode {
+                        Darwin.exit(error.rawValue)
+                    } catch {
+                        fputs("\(error)\n", stderr)
+                        Darwin.exit(1)
+                    }
+                }
+                dispatchMain()  // never returns; Task exits the process
+            }
+
             do {
                 var mutable = command
                 try mutable.run()
