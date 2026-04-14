@@ -246,15 +246,25 @@ public enum SetupBuilder {
         return dylibPath
     }
 
-    /// Remove stale .a files from previous builds that used static linking.
+    /// Remove stale artifacts from previous builds:
+    /// - `.a` files from pre-dylib static-linking days
+    /// - `libPreviewSetup.<UUID>.dylib.tmp` files leaked when a previous
+    ///   builder crashed between `swiftc -emit-library` and the atomic
+    ///   rename in `linkDynamicLibrary`.
     private static func cleanStaleArchives(binPath: URL) {
         guard
             let entries = try? FileManager.default.contentsOfDirectory(
                 at: binPath, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
             )
         else { return }
-        for entry in entries where entry.pathExtension == "a" {
-            try? FileManager.default.removeItem(at: entry)
+        for entry in entries {
+            let name = entry.lastPathComponent
+            let isLegacyArchive = entry.pathExtension == "a"
+            let isLeakedTempDylib =
+                name.hasPrefix("libPreviewSetup.") && name.hasSuffix(".dylib.tmp")
+            if isLegacyArchive || isLeakedTempDylib {
+                try? FileManager.default.removeItem(at: entry)
+            }
         }
     }
 

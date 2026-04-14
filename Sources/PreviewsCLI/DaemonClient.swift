@@ -54,9 +54,11 @@ enum DaemonClient {
         let selfPath = ProcessInfo.processInfo.arguments[0]
         let binaryURL = URL(fileURLWithPath: selfPath).standardizedFileURL
 
-        // Guard against argv[0] pointing at a missing or non-executable path
-        // (happens if the binary was moved or invoked with a spoofed argv[0]).
-        // Process.run() would surface a generic Posix error otherwise.
+        // Best-effort sanity check so a missing binary surfaces as a clear
+        // error instead of Process.run()'s generic POSIX failure. This is
+        // not a security boundary — a spoofed argv[0] pointing at some
+        // other real executable would still pass this check. See #100 for
+        // authoritative self-path resolution via _NSGetExecutablePath.
         guard FileManager.default.isExecutableFile(atPath: binaryURL.path) else {
             throw DaemonClientError.binaryNotFound(path: binaryURL.path)
         }
