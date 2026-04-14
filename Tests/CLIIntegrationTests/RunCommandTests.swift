@@ -1,13 +1,35 @@
 import Foundation
 import Testing
 
+/// Thread-safe accumulator for a pipe's stderr output. The readabilityHandler
+/// closure runs on a background queue; this class synchronizes writes so the
+/// poll loop can safely read contents().
+private final class StderrBuffer: @unchecked Sendable {
+    private let lock = NSLock()
+    private var text = ""
+
+    func append(_ s: String) {
+        lock.lock(); defer { lock.unlock() }
+        text.append(s)
+    }
+
+    func contents() -> String {
+        lock.lock(); defer { lock.unlock() }
+        return text
+    }
+}
+
 /// Integration tests for the `run` subcommand after its migration to
 /// DaemonClient. Exercises the attached / detached flows end-to-end against
 /// a real daemon and real preview compilation.
+///
+/// These tests share global daemon state (~/.previewsmcp/serve.sock) with
+/// DaemonLifecycleTests in another test target. Swift Testing may run
+/// different suites in parallel even when each is .serialized, which causes
+/// one suite's cleanup to stomp on the other's daemon. Guard with a
+/// filesystem lock so only one daemon-owning test runs at a time.
 @Suite(.serialized)
 struct RunCommandTests {
-
-    // MARK: - Paths (reuse CLIRunner's)
 
     static var socketPath: String {
         FileManager.default.homeDirectoryForCurrentUser
@@ -25,16 +47,42 @@ struct RunCommandTests {
 
     // MARK: - Tests
 
-    /// `run --detach` should auto-start the daemon if needed, start a session,
-    /// print the session UUID to stdout, and exit without blocking.
     @Test(
         "run --detach starts daemon, prints session UUID, exits",
         .timeLimit(.minutes(2))
     )
     func detachStartsSessionAndExits() async throws {
-        try await Self.cleanSlate()
-        defer { Task { try? await Self.cleanSlate() } }
+        try await DaemonTestLock.run {
+            try await Self.cleanSlate()
+            try await Self.runDetachStartsSessionAndExits()
+        }
+    }
 
+    @Test(
+        "run (attached) creates a live session then exits on SIGINT",
+        .timeLimit(.minutes(2))
+    )
+    func attachedBlocksUntilSignal() async throws {
+        try await DaemonTestLock.run {
+            try await Self.cleanSlate()
+            try await Self.runAttachedBlocksUntilSignal()
+        }
+    }
+
+    @Test(
+        "run --detach reuses an already-running daemon",
+        .timeLimit(.minutes(2))
+    )
+    func detachReusesDaemon() async throws {
+        try await DaemonTestLock.run {
+            try await Self.cleanSlate()
+            try await Self.runDetachReusesDaemon()
+        }
+    }
+
+    // MARK: - Test bodies (extracted so @Test wrappers only handle the lock)
+
+    private static func runDetachStartsSessionAndExits() async throws {
         let file = CLIRunner.spmExampleRoot
             .appendingPathComponent("Sources/ToDo/ToDoView.swift").path
         let configPath = CLIRunner.repoRoot
@@ -48,7 +96,6 @@ struct RunCommandTests {
         )
         #expect(result.exitCode == 0, "stderr: \(result.stderr)")
 
-        // stdout should be a bare UUID (scriptable).
         let uuid = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
         let uuidPattern = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/
         #expect(
@@ -56,24 +103,12 @@ struct RunCommandTests {
             "stdout should be a bare UUID, got: '\(uuid)'"
         )
 
-        // Daemon should still be running (detach does not tear it down).
         let status = try await CLIRunner.run("status")
         #expect(status.exitCode == 0, "daemon should be running after detach")
         #expect(status.stdout.contains("daemon running"))
     }
 
-    /// `run` without --detach should block until signalled. Verified by
-    /// spawning the process, waiting briefly for the session to come up,
-    /// sending SIGINT, and checking the client exits within a reasonable
-    /// bound. The daemon must survive; only the client exits.
-    @Test(
-        "run (attached) blocks until SIGINT, then exits cleanly",
-        .timeLimit(.minutes(2))
-    )
-    func attachedBlocksUntilSignal() async throws {
-        try await Self.cleanSlate()
-        defer { Task { try? await Self.cleanSlate() } }
-
+    private static func runAttachedBlocksUntilSignal() async throws {
         let file = CLIRunner.spmExampleRoot
             .appendingPathComponent("Sources/ToDo/ToDoView.swift").path
         let configPath = CLIRunner.repoRoot
@@ -83,27 +118,20 @@ struct RunCommandTests {
         proc.executableURL = URL(fileURLWithPath: CLIRunner.binaryPath)
         proc.arguments = ["run", file, "--platform", "macos", "--config", configPath]
         proc.standardOutput = FileHandle.nullDevice
-        proc.standardError = FileHandle.nullDevice
+        let stderrPipe = Pipe()
+        proc.standardError = stderrPipe
         try proc.run()
 
-        // Wait for the daemon socket to appear and a session to be live.
-        // The daemon is auto-started by the run client, so we check for the
-        // socket file as the readiness signal.
-        let deadline = Date().addingTimeInterval(30)
-        while Date() < deadline,
-            !FileManager.default.fileExists(atPath: Self.socketPath)
-        {
-            try await Task.sleep(nanoseconds: 100_000_000)
-        }
-        #expect(
-            FileManager.default.fileExists(atPath: Self.socketPath),
-            "daemon socket should appear within 30s"
+        let sessionIDPattern = /Session ID: [0-9a-fA-F-]{36}/
+        let sawSession = try await waitForStderrMatch(
+            pipe: stderrPipe,
+            pattern: sessionIDPattern,
+            timeout: 60
         )
+        #expect(sawSession, "daemon should report Session ID within 60s")
 
-        // The run client should still be blocking.
-        #expect(proc.isRunning, "run should block until signal")
+        #expect(proc.isRunning, "run should block after session is established")
 
-        // Send SIGINT; expect a clean exit within a couple of seconds.
         kill(proc.processIdentifier, SIGINT)
         let exitDeadline = Date().addingTimeInterval(10)
         while proc.isRunning && Date() < exitDeadline {
@@ -112,22 +140,11 @@ struct RunCommandTests {
         if proc.isRunning { proc.terminate() }
         #expect(!proc.isRunning, "run should exit within 10s of SIGINT")
 
-        // Daemon should still be running — it outlives the client.
         let status = try await CLIRunner.run("status")
         #expect(status.exitCode == 0, "daemon should stay alive after client exits")
     }
 
-    /// When a daemon is already running, `run --detach` should connect to it
-    /// (not spawn a second) and still create a session.
-    @Test(
-        "run --detach reuses an already-running daemon",
-        .timeLimit(.minutes(2))
-    )
-    func detachReusesDaemon() async throws {
-        try await Self.cleanSlate()
-        defer { Task { try? await Self.cleanSlate() } }
-
-        // Pre-start the daemon manually.
+    private static func runDetachReusesDaemon() async throws {
         let daemonStarter = Process()
         daemonStarter.executableURL = URL(fileURLWithPath: CLIRunner.binaryPath)
         daemonStarter.arguments = ["serve", "--daemon"]
@@ -136,7 +153,6 @@ struct RunCommandTests {
         try daemonStarter.run()
         defer { if daemonStarter.isRunning { daemonStarter.terminate() } }
 
-        // Wait for socket to be ready.
         let readyDeadline = Date().addingTimeInterval(5)
         while Date() < readyDeadline,
             !FileManager.default.fileExists(atPath: Self.socketPath)
@@ -145,14 +161,12 @@ struct RunCommandTests {
         }
         try await Task.sleep(nanoseconds: 100_000_000)
 
-        // Record daemon PID.
         let home = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".previewsmcp")
         let pidBefore =
             (try? String(contentsOf: home.appendingPathComponent("serve.pid"), encoding: .utf8))?
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
-        // Detach should reuse the existing daemon.
         let file = CLIRunner.spmExampleRoot
             .appendingPathComponent("Sources/ToDo/ToDoView.swift").path
         let configPath = CLIRunner.repoRoot
@@ -165,7 +179,6 @@ struct RunCommandTests {
         )
         #expect(result.exitCode == 0, "stderr: \(result.stderr)")
 
-        // Daemon PID must be unchanged.
         let pidAfter =
             (try? String(contentsOf: home.appendingPathComponent("serve.pid"), encoding: .utf8))?
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -173,5 +186,30 @@ struct RunCommandTests {
             pidAfter == pidBefore,
             "daemon should not have been restarted (before=\(pidBefore ?? "nil"), after=\(pidAfter ?? "nil"))"
         )
+    }
+
+    // MARK: - Helpers
+
+    private static func waitForStderrMatch<Output>(
+        pipe: Pipe,
+        pattern: Regex<Output>,
+        timeout: TimeInterval
+    ) async throws -> Bool {
+        let buffer = StderrBuffer()
+        let handle = pipe.fileHandleForReading
+        handle.readabilityHandler = { fileHandle in
+            let data = fileHandle.availableData
+            if !data.isEmpty, let text = String(data: data, encoding: .utf8) {
+                buffer.append(text)
+            }
+        }
+        defer { handle.readabilityHandler = nil }
+
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if buffer.contents().contains(pattern) { return true }
+            try await Task.sleep(nanoseconds: 100_000_000)
+        }
+        return false
     }
 }

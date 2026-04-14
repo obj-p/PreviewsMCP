@@ -126,7 +126,7 @@ struct RunCommand: AsyncParsableCommand {
         if detach {
             // Scriptable: print session ID to stdout, human line to stderr.
             print(sessionID)
-            fputs("session started in daemon; run `previewsmcp stop --session \(sessionID)` to end\n", stderr)
+            fputs("session \(sessionID) started in daemon\n", stderr)
             await client.disconnect()
             return
         }

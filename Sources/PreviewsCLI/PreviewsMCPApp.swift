@@ -34,18 +34,17 @@ struct PreviewsMCPApp {
             // NWConnection callbacks on DispatchQueue.main, so we can't just
             // block main with a semaphore — the callbacks would never fire.
             // Use dispatchMain() to yield to libdispatch and let the async Task
-            // drive to completion, then exit() explicitly from the Task.
+            // drive to completion, then delegate to ParsableCommand.exit()
+            // from the Task so error formatting matches the sync branch
+            // (ArgumentParser formats ValidationError / ExitCode correctly).
             if let asyncCommand = command as? any AsyncParsableCommand {
                 Task {
                     do {
                         var mutable = asyncCommand
                         try await mutable.run()
                         Darwin.exit(0)
-                    } catch let error as ExitCode {
-                        Darwin.exit(error.rawValue)
                     } catch {
-                        fputs("\(error)\n", stderr)
-                        Darwin.exit(1)
+                        PreviewsMCPCommand.exit(withError: error)
                     }
                 }
                 dispatchMain()  // never returns; Task exits the process

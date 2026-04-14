@@ -4,11 +4,20 @@ import Foundation
 /// Installs SIGTERM/SIGINT handlers that trigger cleanup before exiting.
 enum DaemonLifecycle {
 
-    /// Register this process as the running daemon. Writes `serve.pid` and
-    /// installs signal handlers. Call once during daemon startup, after the
+    /// Register this process as the running daemon. Writes `serve.pid`,
+    /// installs signal handlers, and detaches from the parent's process
+    /// group so the daemon survives the client's terminal closing (SIGHUP)
+    /// or the client exiting. Call once during daemon startup, after the
     /// socket is listening.
     static func register() throws {
         try DaemonPaths.ensureDirectory()
+
+        // Detach from the controlling terminal and the parent's process
+        // group so terminal close (SIGHUP) doesn't cascade to the daemon.
+        // setsid returns -1 if this process is already a session leader
+        // (uncommon — typically only true for launchd-started processes),
+        // which is fine; in that case we're already detached.
+        _ = Darwin.setsid()
 
         let pid = ProcessInfo.processInfo.processIdentifier
         try "\(pid)\n".write(to: DaemonPaths.pidFile, atomically: true, encoding: .utf8)
