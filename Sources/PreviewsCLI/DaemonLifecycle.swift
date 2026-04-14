@@ -39,6 +39,16 @@ enum DaemonLifecycle {
         kill(pid, 0) == 0
     }
 
+    /// Returns the PID of the running daemon, or nil if no daemon is running
+    /// *according to the PID file*. Note: the PID file is a management hint,
+    /// not a liveness check — a live daemon with a deleted PID file looks
+    /// "not running" to this function. Use `DaemonProbe.canConnect()` for
+    /// authoritative liveness.
+    static func daemonRunningPID() -> Int32? {
+        guard let pid = readPID(), isProcessAlive(pid) else { return nil }
+        return pid
+    }
+
     private static func installSignalHandlers() {
         // Ignore default Swift signal behavior; handle explicitly.
         signal(SIGTERM, SIG_IGN)

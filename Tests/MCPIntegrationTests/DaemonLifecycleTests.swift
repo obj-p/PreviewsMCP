@@ -171,6 +171,76 @@ struct DaemonLifecycleTests {
         #expect(stderr.contains("already running"))
     }
 
+    /// Catches a race: if the PID file is missing (daemon was started, PID
+    /// write hadn't happened yet, or someone deleted it), a startup check
+    /// based on PID alone lets a second daemon proceed. That second daemon
+    /// would then unlink the still-live daemon's socket file, corrupting the
+    /// running system.
+    ///
+    /// The correct check is a socket `connect()` probe: if anything is
+    /// listening on the socket, refuse to start — regardless of PID file
+    /// state.
+    ///
+    /// Without the fix this test would hang (second daemon rebinds and runs
+    /// indefinitely), so we use a bounded wait and fail fast.
+    @Test("second daemon refuses even when PID file is missing but socket is alive")
+    func secondDaemonRefusesWithMissingPIDFile() async throws {
+        try await Self.cleanSlate()
+        let proc = try await Self.startDaemon()
+        defer { proc.terminate() }
+
+        // Simulate the race: PID file gone, but daemon still running.
+        let pidPath = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".previewsmcp/serve.pid").path
+        try? FileManager.default.removeItem(atPath: pidPath)
+
+        let secondProc = Process()
+        secondProc.executableURL = URL(fileURLWithPath: Self.binaryPath)
+        secondProc.arguments = ["serve", "--daemon"]
+        let errPipe = Pipe()
+        secondProc.standardError = errPipe
+        secondProc.standardOutput = FileHandle.nullDevice
+        try secondProc.run()
+
+        // Bounded wait: the second daemon should refuse and exit within ~2s.
+        // If it doesn't, the race bug has corrupted state — fail the test
+        // (rather than hanging) by terminating it.
+        let deadline = Date().addingTimeInterval(2)
+        while secondProc.isRunning && Date() < deadline {
+            try await Task.sleep(nanoseconds: 50_000_000)
+        }
+        let refusedInTime = !secondProc.isRunning
+        if secondProc.isRunning {
+            secondProc.terminate()
+            secondProc.waitUntilExit()
+        }
+        let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
+        let stderr = String(data: errData, encoding: .utf8) ?? ""
+
+        #expect(refusedInTime, "second daemon should exit quickly, not keep running")
+        #expect(secondProc.terminationStatus != 0, "second daemon should refuse")
+        #expect(
+            stderr.contains("already running"),
+            "should detect live daemon via socket probe: \(stderr)"
+        )
+
+        // Daemon A must still be functional: its socket path must still exist
+        // on disk and MCP clients must still be able to connect.
+        #expect(
+            FileManager.default.fileExists(atPath: Self.socketPath),
+            "daemon A's socket file should not have been removed by failed daemon B"
+        )
+
+        let connection = NWConnection(
+            to: NWEndpoint.unix(path: Self.socketPath),
+            using: .tcp
+        )
+        let transport = NetworkTransport(connection: connection)
+        let client = Client(name: "race-test", version: "1.0")
+        _ = try await client.connect(transport: transport)
+        await client.disconnect()
+    }
+
     @Test("kill-daemon on stale PID file cleans up without error")
     func killDaemonStalePID() async throws {
         try await Self.cleanSlate()

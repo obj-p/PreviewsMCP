@@ -62,12 +62,18 @@ struct ServeCommand: ParsableCommand {
     private func runDaemon() {
         Task { @MainActor in
             do {
-                // Refuse to start if another daemon is already running.
-                if let existing = DaemonLifecycle.readPID(),
-                    DaemonLifecycle.isProcessAlive(existing)
-                {
+                // Liveness check via `connect()` is authoritative — the PID file
+                // alone can be stale (deleted while daemon is still running) or
+                // missing during the brief window between bind and PID write.
+                // Without this check, a second daemon would unlink the first's
+                // socket file and attempt to rebind, corrupting the running
+                // system.
+                if DaemonProbe.canConnect() {
+                    let pidDesc =
+                        DaemonLifecycle.daemonRunningPID().map { "pid \($0)" }
+                        ?? "pid unknown"
                     fputs(
-                        "daemon already running (pid \(existing)); "
+                        "daemon already running (\(pidDesc)); "
                             + "use `previewsmcp kill-daemon` first\n",
                         stderr
                     )

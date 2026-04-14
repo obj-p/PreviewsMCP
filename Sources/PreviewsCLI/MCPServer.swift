@@ -128,11 +128,22 @@ private func mcpReporter(
 }
 
 /// Configures and returns an MCP server with preview tools.
-func configureMCPServer() async throws -> (Server, Compiler) {
+///
+/// - Parameter sharedCompiler: Pass a pre-built `Compiler` to reuse across
+///   multiple server instances (e.g., daemon mode, where each accepted client
+///   connection gets its own `Server` but they all share one compiler). When
+///   nil, a fresh compiler is built — appropriate for single-connection modes
+///   like stdio.
+func configureMCPServer(sharedCompiler: Compiler? = nil) async throws -> (Server, Compiler) {
     // Clean up stale temp directories from previous sessions (older than 24 hours)
     cleanupStaleTempDirs()
 
-    let compiler = try await Compiler()
+    let compiler: Compiler
+    if let sharedCompiler {
+        compiler = sharedCompiler
+    } else {
+        compiler = try await Compiler()
+    }
 
     let server = Server(
         name: "previewsmcp",

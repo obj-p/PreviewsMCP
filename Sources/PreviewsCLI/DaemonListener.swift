@@ -1,78 +1,79 @@
 import Foundation
 import MCP
 import Network
+import PreviewsCore
 
 /// Runs the MCP server daemon on a Unix domain socket.
 ///
 /// Accepts multiple concurrent client connections. Each connection gets its own
 /// `MCP.Server` instance, but all connections share the module-level actors in
-/// `MCPServer.swift` (`IOSState`, `ConfigCache`) — so preview sessions persist
-/// across CLI invocations and simultaneous clients see consistent state.
+/// `MCPServer.swift` (`IOSState`, `ConfigCache`) and a single `Compiler` built
+/// at daemon startup — so preview sessions persist across CLI invocations and
+/// simultaneous clients see consistent state.
 enum DaemonListener {
 
-    /// Start the daemon listener. Returns when the listener is ready.
-    /// Call `runForever` to block the caller until the process is terminated.
-    @MainActor
+    /// Start the daemon listener. Returns once the listener is ready to accept
+    /// connections. Callers hold the process alive via the existing
+    /// `NSApplication` run loop (see `PreviewsMCPApp.main`).
     static func start() async throws -> NWListener {
         try DaemonPaths.ensureDirectory()
 
         // Clean up any stale socket file from a previous crashed daemon.
-        // bind() would fail with EADDRINUSE otherwise.
+        // bind() would fail with EADDRINUSE otherwise. Callers must have
+        // already verified via DaemonProbe that no live daemon is listening.
         try? FileManager.default.removeItem(at: DaemonPaths.socket)
+
+        // Build the shared compiler once. Each accepted connection creates its
+        // own MCP.Server but reuses this compiler (and the module-level
+        // IOSState / ConfigCache), avoiding the ~seconds of per-connection
+        // xcrun / SDK resolution cost.
+        let sharedCompiler = try await Compiler()
 
         let params = NWParameters.tcp
         params.requiredLocalEndpoint = NWEndpoint.unix(path: DaemonPaths.socket.path)
-        // Allow multiple clients; each is handled in its own Task.
         params.allowLocalEndpointReuse = true
 
         let listener = try NWListener(using: params)
 
-        listener.stateUpdateHandler = { state in
-            switch state {
-            case .ready:
-                fputs("previewsmcp daemon listening on \(DaemonPaths.socket.path)\n", stderr)
-            case .failed(let error):
-                fputs("previewsmcp daemon listener failed: \(error)\n", stderr)
-                Darwin.exit(1)
-            default:
-                break
-            }
-        }
-
         listener.newConnectionHandler = { connection in
             Task {
-                await handleConnection(connection)
+                await handleConnection(connection, compiler: sharedCompiler)
             }
         }
 
-        // Wait for listener to become ready before returning.
-        let ready = AsyncStream<Void> { continuation in
-            let original = listener.stateUpdateHandler
+        // Block until the listener reports ready (or fails).
+        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
             listener.stateUpdateHandler = { state in
-                original?(state)
-                if case .ready = state { continuation.yield(); continuation.finish() }
-                if case .failed = state { continuation.finish() }
+                switch state {
+                case .ready:
+                    fputs(
+                        "previewsmcp daemon listening on \(DaemonPaths.socket.path)\n",
+                        stderr
+                    )
+                    cont.resume()
+                    // Clear after resuming so the closure isn't retained.
+                    listener.stateUpdateHandler = nil
+                case .failed(let error):
+                    cont.resume(throwing: error)
+                    listener.stateUpdateHandler = nil
+                default:
+                    break
+                }
             }
+            listener.start(queue: .global(qos: .userInitiated))
         }
-
-        listener.start(queue: .global(qos: .userInitiated))
-        for await _ in ready { break }
 
         return listener
     }
 
-    /// Block the calling thread indefinitely. Used after the daemon is set up
-    /// to keep the NSApplication run loop alive for accepting connections.
-    static func runForever() {
-        dispatchMain()
-    }
-
     /// Handle one client connection. Creates a per-connection MCP Server
-    /// sharing module-level state with other connections.
-    private static func handleConnection(_ connection: NWConnection) async {
+    /// sharing the given compiler and module-level state with other connections.
+    private static func handleConnection(
+        _ connection: NWConnection, compiler: Compiler
+    ) async {
         do {
             let transport = NetworkTransport(connection: connection)
-            let (server, _) = try await configureMCPServer()
+            let (server, _) = try await configureMCPServer(sharedCompiler: compiler)
             try await server.start(transport: transport)
             // `start` returns when the transport closes (client disconnected).
         } catch {
