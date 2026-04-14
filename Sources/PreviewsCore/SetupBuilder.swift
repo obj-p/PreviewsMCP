@@ -33,6 +33,13 @@ public enum SetupBuilder {
             throw SetupBuilderError.packageNotFound(packageDir.path)
         }
 
+        // Concurrent builders of the same package coexist safely because
+        // `linkDynamicLibrary` uses atomic rename — the on-disk
+        // libPreviewSetup.dylib is never missing, so concurrent preview
+        // compiles linking against it always find a valid file. Whichever
+        // builder writes last wins; cache entries are idempotent per
+        // source hash.
+
         // Resolve inputs for the cache key before checking the cache.
         let iosSDKPath: String? = platform == .iOS ? try await resolveIOSSDK() : nil
         let swiftVersion = try await SetupCache.resolveSwiftVersion()
@@ -163,13 +170,24 @@ public enum SetupBuilder {
         // Remove stale static archives from previous builds so they don't confuse the linker.
         cleanStaleArchives(binPath: binPath)
 
+        // Build to a temp path in the same directory, then atomically replace
+        // the final dylib. Concurrent preview compiles that link against the
+        // final path always see a valid file: either the old one (before
+        // rename) or the new one (after rename), never a missing file.
+        //
+        // Keeping the install_name as the final path is critical — dyld
+        // matches on install_name, not the on-disk path it was loaded from.
         let dylibPath = binPath.appendingPathComponent("libPreviewSetup.dylib")
-        try? fm.removeItem(at: dylibPath)
+        let tempDylib = binPath.appendingPathComponent(
+            "libPreviewSetup.\(UUID().uuidString).dylib.tmp"
+        )
+        try? fm.removeItem(at: tempDylib)
 
         let swiftcPath = try await resolveSwiftc()
-        var args = ["-emit-library", "-o", dylibPath.path]
-        // Set the install name to the absolute path so dyld recognizes the
-        // already-RTLD_GLOBAL-loaded image when preview dylibs reference it.
+        var args = ["-emit-library", "-o", tempDylib.path]
+        // Set the install name to the FINAL path (not the temp path). After
+        // atomic rename, preview dylibs linked with this install_name will
+        // find the file where dyld expects it.
         args += ["-Xlinker", "-install_name", "-Xlinker", dylibPath.path]
         args += ["-target", platform.targetTriple]
 
@@ -196,17 +214,32 @@ public enum SetupBuilder {
 
         let linkResult = try await runAsync(swiftcPath, arguments: args)
         guard linkResult.exitCode == 0 else {
+            try? fm.removeItem(at: tempDylib)
             throw SetupBuilderError.buildFailed(
                 package: "setup dylib", stderr: linkResult.stderr
             )
         }
 
-        // Ad-hoc codesign (required on Apple Silicon)
+        // Ad-hoc codesign the temp file before it's visible at the final path
+        // (required on Apple Silicon; dyld refuses unsigned dylibs).
         let codesignPath = try await resolveCodesign()
-        let signResult = try await runAsync(codesignPath, arguments: ["-s", "-", dylibPath.path])
+        let signResult = try await runAsync(codesignPath, arguments: ["-s", "-", tempDylib.path])
         guard signResult.exitCode == 0 else {
+            try? fm.removeItem(at: tempDylib)
             throw SetupBuilderError.buildFailed(
                 package: "setup dylib codesign", stderr: signResult.stderr
+            )
+        }
+
+        // Atomic rename. On Darwin, rename(2) atomically replaces the target
+        // if it exists — concurrent readers see either the old inode or the
+        // new one. Never a window where the file is missing.
+        guard rename(tempDylib.path, dylibPath.path) == 0 else {
+            let reason = String(cString: strerror(errno))
+            try? fm.removeItem(at: tempDylib)
+            throw SetupBuilderError.buildFailed(
+                package: "setup dylib rename",
+                stderr: "rename(\(tempDylib.path) → \(dylibPath.path)) failed: \(reason)"
             )
         }
 
@@ -305,6 +338,7 @@ public enum SetupBuilder {
             return String(name.dropLast(".framework".count))
         }
     }
+
 }
 
 public enum SetupBuilderError: Error, LocalizedError {

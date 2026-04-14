@@ -89,12 +89,13 @@ struct RunCommand: AsyncParsableCommand {
             throw ValidationError(error.localizedDescription)
         }
 
-        let client = try await DaemonClient.connect(clientName: "previewsmcp-run")
-
-        // Relay daemon log messages to stderr so users see build progress.
-        await client.onNotification(LogMessageNotification.self) { message in
-            if case .string(let text) = message.params.data {
-                fputs("\(text)\n", stderr)
+        // Register the log handler *before* the MCP initialize handshake so
+        // we don't miss notifications emitted during early server startup.
+        let client = try await DaemonClient.connect(clientName: "previewsmcp-run") { client in
+            await client.onNotification(LogMessageNotification.self) { message in
+                if case .string(let text) = message.params.data {
+                    fputs("\(text)\n", stderr)
+                }
             }
         }
 
@@ -144,9 +145,16 @@ struct RunCommand: AsyncParsableCommand {
                 arguments: ["sessionID": .string(sessionID)]
             )
         } catch {
-            // Best-effort. If stop fails, the daemon will still have the session;
-            // user can call `kill-daemon` to clean up.
-            fputs("warning: failed to stop session \(sessionID): \(error)\n", stderr)
+            // Best-effort — the session may still be alive in the daemon.
+            // Surface the session ID so the user can target it with `stop`
+            // (once that command ships) or fall back to `kill-daemon` to
+            // wipe everything.
+            fputs(
+                "warning: failed to stop session \(sessionID): \(error)\n"
+                    + "  session may still be running in the daemon; "
+                    + "run `previewsmcp kill-daemon` to clean up.\n",
+                stderr
+            )
         }
         await client.disconnect()
     }

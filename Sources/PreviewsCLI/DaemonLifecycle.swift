@@ -4,20 +4,27 @@ import Foundation
 /// Installs SIGTERM/SIGINT handlers that trigger cleanup before exiting.
 enum DaemonLifecycle {
 
-    /// Register this process as the running daemon. Writes `serve.pid`,
-    /// installs signal handlers, and detaches from the parent's process
-    /// group so the daemon survives the client's terminal closing (SIGHUP)
-    /// or the client exiting. Call once during daemon startup, after the
-    /// socket is listening.
+    /// Detach from the parent's controlling terminal and process group.
+    ///
+    /// Call this as the *first* step of daemon startup — before the socket
+    /// listener binds and starts accepting connections. If setsid() runs
+    /// after the socket is live, a client that observes the socket ready
+    /// and exits during that window can cascade SIGHUP through the shared
+    /// process group and kill the daemon. Doing setsid first eliminates
+    /// that race.
+    ///
+    /// Returns -1 if the process is already a session leader (e.g., when
+    /// launched by launchd), which is fine — we're already detached.
+    static func detachFromTerminal() {
+        _ = Darwin.setsid()
+    }
+
+    /// Register this process as the running daemon. Writes `serve.pid` and
+    /// installs signal handlers. Call after the socket is listening.
+    /// Terminal detachment should have already happened via
+    /// `detachFromTerminal()` earlier in startup.
     static func register() throws {
         try DaemonPaths.ensureDirectory()
-
-        // Detach from the controlling terminal and the parent's process
-        // group so terminal close (SIGHUP) doesn't cascade to the daemon.
-        // setsid returns -1 if this process is already a session leader
-        // (uncommon — typically only true for launchd-started processes),
-        // which is fine; in that case we're already detached.
-        _ = Darwin.setsid()
 
         let pid = ProcessInfo.processInfo.processIdentifier
         try "\(pid)\n".write(to: DaemonPaths.pidFile, atomically: true, encoding: .utf8)

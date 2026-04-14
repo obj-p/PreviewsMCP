@@ -20,9 +20,16 @@ enum DaemonClient {
     ///     handshake (useful in daemon logs).
     ///   - startTimeout: How long to wait for a newly-spawned daemon to become
     ///     reachable on the socket.
+    ///   - configure: Optional setup closure that runs *before* the MCP
+    ///     initialize handshake, so notification handlers registered here
+    ///     will receive all server-emitted notifications including any that
+    ///     arrive during or immediately after the handshake. Register any
+    ///     `onNotification` handlers here rather than on the returned client
+    ///     to avoid dropping early notifications.
     static func connect(
         clientName: String,
-        startTimeout: TimeInterval = 10
+        startTimeout: TimeInterval = 10,
+        configure: ((Client) async -> Void)? = nil
     ) async throws -> Client {
         if !DaemonProbe.canConnect() {
             try spawnDaemon()
@@ -35,6 +42,7 @@ enum DaemonClient {
         )
         let transport = NetworkTransport(connection: connection)
         let client = Client(name: clientName, version: PreviewsMCPCommand.version)
+        await configure?(client)
         _ = try await client.connect(transport: transport)
         return client
     }
@@ -45,6 +53,13 @@ enum DaemonClient {
     private static func spawnDaemon() throws {
         let selfPath = ProcessInfo.processInfo.arguments[0]
         let binaryURL = URL(fileURLWithPath: selfPath).standardizedFileURL
+
+        // Guard against argv[0] pointing at a missing or non-executable path
+        // (happens if the binary was moved or invoked with a spoofed argv[0]).
+        // Process.run() would surface a generic Posix error otherwise.
+        guard FileManager.default.isExecutableFile(atPath: binaryURL.path) else {
+            throw DaemonClientError.binaryNotFound(path: binaryURL.path)
+        }
 
         let proc = Process()
         proc.executableURL = binaryURL
@@ -71,11 +86,14 @@ enum DaemonClient {
 
 enum DaemonClientError: Error, CustomStringConvertible {
     case startupTimedOut
+    case binaryNotFound(path: String)
 
     var description: String {
         switch self {
         case .startupTimedOut:
             return "daemon did not become ready on \(DaemonPaths.socket.path)"
+        case .binaryNotFound(let path):
+            return "previewsmcp binary not found or not executable at \(path)"
         }
     }
 }
