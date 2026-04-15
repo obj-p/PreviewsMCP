@@ -130,6 +130,58 @@ struct ConfigureCommandTests {
         }
     }
 
+    /// `--color-scheme ""` is the documented signal to clear a trait. The
+    /// daemon's response summary lists the session's *active* traits after
+    /// the change, so an empty summary proves the trait actually went from
+    /// set to unset (rather than the old no-op "empty is ignored" bug).
+    @Test(
+        "configure --color-scheme empty-string clears the trait",
+        .timeLimit(.minutes(2))
+    )
+    func configureClearsTrait() async throws {
+        try await DaemonTestLock.run {
+            try await Self.cleanSlate()
+
+            let file = CLIRunner.spmExampleRoot
+                .appendingPathComponent("Sources/ToDo/ToDoView.swift").path
+            let configPath = CLIRunner.repoRoot
+                .appendingPathComponent("examples/.previewsmcp.json").path
+
+            let runResult = try await CLIRunner.run(
+                "run",
+                arguments: [
+                    file, "--platform", "macos", "--config", configPath, "--detach",
+                ]
+            )
+            #expect(runResult.exitCode == 0)
+
+            // Set the trait so there's something non-default to clear.
+            let setResult = try await CLIRunner.run(
+                "configure",
+                arguments: ["--color-scheme", "dark"]
+            )
+            #expect(setResult.exitCode == 0)
+            #expect(
+                setResult.stderr.contains("colorScheme=dark"),
+                "daemon summary should show the set value: \(setResult.stderr)"
+            )
+
+            // Clear it. After, the daemon summary for the session's active
+            // traits should no longer mention colorScheme.
+            let clearResult = try await CLIRunner.run(
+                "configure",
+                arguments: ["--color-scheme", ""]
+            )
+            #expect(clearResult.exitCode == 0, "stderr: \(clearResult.stderr)")
+            #expect(
+                !clearResult.stderr.contains("colorScheme="),
+                "daemon summary should not mention colorScheme after clear: \(clearResult.stderr)"
+            )
+
+            _ = try? await CLIRunner.run("kill-daemon", arguments: ["--timeout", "2"])
+        }
+    }
+
     /// Verifies --session <uuid> takes priority over any file-based lookup
     /// and that the daemon identifies the session in its response.
     @Test(

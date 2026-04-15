@@ -174,8 +174,18 @@ public actor PreviewSession {
     }
 
     /// Update traits and recompile. Returns the new dylib. @State is lost.
-    public func reconfigure(traits: PreviewTraits) async throws -> CompileResult {
-        self.traits = self.traits.merged(with: traits)
+    ///
+    /// - Parameters:
+    ///   - traits: values to set on the session's current traits (merged —
+    ///     non-nil values override, nil leaves the current value alone).
+    ///   - clearing: fields to explicitly null out after the merge. This is
+    ///     the only way to revert a previously-set trait; merging a nil
+    ///     value preserves the old one.
+    public func reconfigure(
+        traits: PreviewTraits,
+        clearing: Set<PreviewTraits.Field> = []
+    ) async throws -> CompileResult {
+        self.traits = self.traits.merged(with: traits).clearing(clearing)
         return try await compile()
     }
 

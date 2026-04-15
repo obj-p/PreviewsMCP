@@ -572,7 +572,9 @@ private func handlePreviewStart(params: CallTool.Parameters, macCompiler: Compil
         platformStr = "macos"
     }
 
-    let (explicitTraits, traitsError) = parseTraits(from: params)
+    // preview_start ignores clearedFields — traits start from empty so there's
+    // nothing to clear. Only preview_configure treats clearing meaningfully.
+    let (explicitTraits, _, traitsError) = parseTraits(from: params)
     if let traitsError { return traitsError }
     let configTraits = config?.traits?.toPreviewTraits() ?? PreviewTraits()
     let resolvedTraits = configTraits.merged(with: explicitTraits)
@@ -986,9 +988,18 @@ private func handleSessionList() async -> CallTool.Result {
 
 // MARK: - Trait Helpers
 
-/// Parse and validate trait parameters. Returns (traits, nil) on success or (default traits, error result) on failure.
-/// Callers should check the second element first; the traits value is meaningless when an error is returned.
-private func parseTraits(from params: CallTool.Parameters) -> (PreviewTraits, CallTool.Result?) {
+/// Parse and validate trait parameters. Returns (traits, clearedFields, nil) on
+/// success or (default traits, [], error result) on failure. Callers should
+/// check the last element first; the other values are meaningless on error.
+///
+/// `clearedFields` names the fields the client explicitly passed as an empty
+/// string (the "clear this trait" signal documented in the MCP tool schema).
+/// Without this, empty strings would be indistinguishable from absent fields
+/// after `PreviewTraits.validated` normalizes them to nil.
+private func parseTraits(
+    from params: CallTool.Parameters
+) -> (PreviewTraits, Set<PreviewTraits.Field>, CallTool.Result?) {
+    let cleared = clearedTraitFields(in: params)
     do {
         let traits = try PreviewTraits.validated(
             colorScheme: extractOptionalString("colorScheme", from: params),
@@ -997,10 +1008,28 @@ private func parseTraits(from params: CallTool.Parameters) -> (PreviewTraits, Ca
             layoutDirection: extractOptionalString("layoutDirection", from: params),
             legibilityWeight: extractOptionalString("legibilityWeight", from: params)
         )
-        return (traits, nil)
+        return (traits, cleared, nil)
     } catch {
-        return (PreviewTraits(), CallTool.Result(content: [.text(error.localizedDescription)], isError: true))
+        return (
+            PreviewTraits(), [],
+            CallTool.Result(content: [.text(error.localizedDescription)], isError: true)
+        )
     }
+}
+
+/// Returns the set of trait fields that the client passed as an empty string
+/// ("" — the documented clear signal). Does not touch fields that were absent
+/// from the params entirely.
+private func clearedTraitFields(
+    in params: CallTool.Parameters
+) -> Set<PreviewTraits.Field> {
+    var cleared: Set<PreviewTraits.Field> = []
+    for field in PreviewTraits.Field.allCases {
+        if case .string("") = params.arguments?[field.rawValue] {
+            cleared.insert(field)
+        }
+    }
+    return cleared
 }
 
 private func traitsSummary(_ traits: PreviewTraits) -> String {
@@ -1020,10 +1049,11 @@ private func handlePreviewConfigure(params: CallTool.Parameters, server: Server)
     }
 
     // Parse and validate traits
-    let (traits, validationError) = parseTraits(from: params)
+    let (traits, clearedFields, validationError) = parseTraits(from: params)
     if let validationError { return validationError }
 
-    if traits.isEmpty {
+    // "No-op" = no fields were set AND no fields were requested to be cleared.
+    if traits.isEmpty && clearedFields.isEmpty {
         return CallTool.Result(content: [.text("No configuration changes specified.")])
     }
 
@@ -1032,7 +1062,7 @@ private func handlePreviewConfigure(params: CallTool.Parameters, server: Server)
     // iOS path
     if let iosSession = await iosState.getSession(sessionID) {
         await progress.report(.compilingBridge, message: "Recompiling with new traits...")
-        try await iosSession.reconfigure(traits: traits)
+        try await iosSession.reconfigure(traits: traits, clearing: clearedFields)
         let activeTraits = await iosSession.currentTraits
         return CallTool.Result(content: [
             .text(
@@ -1048,7 +1078,9 @@ private func handlePreviewConfigure(params: CallTool.Parameters, server: Server)
     }
 
     await progress.report(.compilingBridge, message: "Recompiling with new traits...")
-    let compileResult = try await session.reconfigure(traits: traits)
+    let compileResult = try await session.reconfigure(
+        traits: traits, clearing: clearedFields
+    )
     try await MainActor.run {
         try App.host.loadPreview(sessionID: sessionID, dylibPath: compileResult.dylibPath)
     }
