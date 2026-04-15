@@ -194,6 +194,23 @@ struct MacOSMCPTests {
             fakeStopText.contains("No session found"),
             "Should surface a 'No session found' message: \(fakeStopText)"
         )
+
+        // --- preview_snapshot nonexistent session ---
+        // Before this fix, a typo'd UUID fell through to `window(for:)`
+        // which returned nil and threw `SnapshotError.captureFailed` —
+        // a misleading message that suggested a capture failure rather
+        // than a missing session. Must now be a clean isError with a
+        // clear message.
+        let (fakeSnap, fakeSnapIsError) = try await server.callTool(
+            name: "preview_snapshot",
+            arguments: ["sessionID": .string("00000000-0000-0000-0000-000000000000")]
+        )
+        #expect(fakeSnapIsError == true, "Snapshotting a nonexistent session must return isError")
+        let fakeSnapText = MCPTestServer.extractText(from: fakeSnap)
+        #expect(
+            fakeSnapText.contains("No session found"),
+            "Should surface a 'No session found' message: \(fakeSnapText)"
+        )
     }
 
     // MARK: - preview_variants

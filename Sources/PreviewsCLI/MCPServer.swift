@@ -820,7 +820,19 @@ private func handlePreviewSnapshot(params: CallTool.Parameters) async throws -> 
         ])
     }
 
-    // macOS path
+    // macOS path. Verify existence upfront so a typo'd sessionID
+    // surfaces as a clean "No session found" rather than the misleading
+    // "capture failed" from `window(for:)` returning nil.
+    let isMacOSSession = await MainActor.run {
+        App.host.allSessions[sessionID] != nil
+    }
+    guard isMacOSSession else {
+        return CallTool.Result(
+            content: [.text("No session found for \(sessionID).")],
+            isError: true
+        )
+    }
+
     try await Task.sleep(for: .milliseconds(300))
 
     let format: Snapshot.ImageFormat = usePNG ? .png : .jpeg(quality: quality)
