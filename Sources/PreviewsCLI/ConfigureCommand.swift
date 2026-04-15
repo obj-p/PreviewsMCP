@@ -103,13 +103,13 @@ struct ConfigureCommand: AsyncParsableCommand {
                 name: "preview_configure", arguments: args
             )
             if response.isError == true {
-                let text = textFromContent(response.content)
+                let text = response.content.joinedText()
                 throw ConfigureCommandError.daemonError(text)
             }
 
             // Surface the daemon's response (typically a summary of what
             // changed) to the user.
-            let text = textFromContent(response.content)
+            let text = response.content.joinedText()
             if !text.isEmpty { fputs("\(text)\n", stderr) }
 
             await client.disconnect()
@@ -151,12 +151,6 @@ struct ConfigureCommand: AsyncParsableCommand {
         return value
     }
 
-    private func textFromContent(_ content: [Tool.Content]) -> String {
-        content.compactMap { item in
-            if case .text(let t) = item { return t }
-            return nil
-        }.joined(separator: "\n")
-    }
 }
 
 enum ConfigureCommandError: Error, CustomStringConvertible {
