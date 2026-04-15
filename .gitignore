@@ -4,3 +4,4 @@
 xcuserdata/
 DerivedData/
 .claude/worktrees/
+.claude/scheduled_tasks.lock
