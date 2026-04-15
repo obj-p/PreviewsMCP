@@ -59,11 +59,8 @@ struct PreviewsMCPApp {
         // Commands needing UI: start NSApplication
         let app = NSApplication.shared
 
-        // `serve` is the only command that runs AppKit in-process, so
-        // the mode is always `.serve` here.
-        let mode: PreviewHost.Mode = .serve
-
-        let host = PreviewHost(mode: mode)
+        // `serve` is the only command that runs AppKit in-process.
+        let host = PreviewHost(mode: .serve)
         App.host = host
         app.delegate = host
 

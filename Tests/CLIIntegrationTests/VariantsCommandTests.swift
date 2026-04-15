@@ -173,7 +173,74 @@ struct VariantsCommandTests {
         }
     }
 
+    /// Regression: previously, the CLI parser used a loose ERROR
+    /// substring check that mis-bucketed any variant whose label
+    /// happened to contain "ERROR" as a failure — silently dropping
+    /// the image. Pin the label format so a variant labeled
+    /// "ERROR_STATE" still captures successfully.
+    @Test(
+        "Label containing 'ERROR' is not mis-bucketed as failure",
+        .timeLimit(.minutes(2))
+    )
+    func labelContainingErrorStillCapturesSuccessfully() async throws {
+        try await DaemonTestLock.run {
+            try await Self.cleanSlate()
+            let tempDir = try CLIRunner.makeTempDir()
+            defer { try? FileManager.default.removeItem(at: tempDir) }
+
+            let file = CLIRunner.spmExampleRoot
+                .appendingPathComponent("Sources/ToDo/ToDoView.swift").path
+            let configPath = CLIRunner.repoRoot
+                .appendingPathComponent("examples/.previewsmcp.json").path
+
+            let result = try await CLIRunner.run(
+                "variants",
+                arguments: [
+                    file,
+                    "--variant", #"{"colorScheme":"dark","label":"ERROR_STATE"}"#,
+                    "-o", tempDir.path,
+                    "--platform", "macos",
+                    "--project", CLIRunner.spmExampleRoot.path,
+                    "--config", configPath,
+                ])
+
+            #expect(result.exitCode == 0, "stderr: \(result.stderr)")
+            #expect(
+                result.stderr.contains("Captured 1/1 variants"),
+                "stderr: \(result.stderr)"
+            )
+            try CLIRunner.assertValidJPEG(
+                at: tempDir.appendingPathComponent("ERROR_STATE.jpg").path
+            )
+
+            _ = try? await CLIRunner.run("kill-daemon", arguments: ["--timeout", "2"])
+        }
+    }
+
     // MARK: - Validation errors (local, no daemon required)
+
+    @Test("--format jpeg with --quality 1.0 is rejected")
+    func jpegQualityOneRejected() async throws {
+        try await DaemonTestLock.run {
+            try await Self.cleanSlate()
+            let file = CLIRunner.spmExampleRoot
+                .appendingPathComponent("Sources/ToDo/ToDoView.swift").path
+
+            let result = try await CLIRunner.run(
+                "variants",
+                arguments: [
+                    file, "--variant", "light",
+                    "--format", "jpeg", "--quality", "1.0",
+                ])
+
+            #expect(result.exitCode != 0)
+            #expect(
+                result.stderr.contains("--quality must be < 1.0 when --format jpeg"),
+                "stderr: \(result.stderr)"
+            )
+        }
+    }
+
 
     @Test("Missing --variant returns non-zero exit")
     func missingVariant() async throws {

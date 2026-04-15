@@ -102,6 +102,15 @@ struct VariantsCommand: AsyncParsableCommand {
         guard !variant.isEmpty else {
             throw ValidationError("At least one --variant is required")
         }
+        // Guard the JPEG-quality footgun: the daemon treats quality >=
+        // 1.0 as "emit PNG", which would silently write PNG bytes into
+        // a .jpg file. Reject upfront so the user can either drop
+        // --quality or switch to --format png.
+        if format == .jpeg, let quality, quality >= 1.0 {
+            throw ValidationError(
+                "--quality must be < 1.0 when --format jpeg; use --format png for lossless output."
+            )
+        }
         if file == nil && session == nil {
             throw ValidationError(
                 "Missing file argument. Pass a path or --session <uuid>."
@@ -158,8 +167,7 @@ struct VariantsCommand: AsyncParsableCommand {
                     sessionID: sessionID,
                     labels: resolvedVariants.map(\.label),
                     outputDir: outputDirURL,
-                    client: client,
-                    isEphemeral: false
+                    client: client
                 )
             case .notFound:
                 guard let file else {
@@ -228,8 +236,7 @@ struct VariantsCommand: AsyncParsableCommand {
                 sessionID: sessionID,
                 labels: labels,
                 outputDir: outputDir,
-                client: client,
-                isEphemeral: true
+                client: client
             )
             await stopEphemeralSession(sessionID: sessionID, client: client)
             return code
@@ -245,8 +252,7 @@ struct VariantsCommand: AsyncParsableCommand {
         sessionID: String,
         labels: [String],
         outputDir: URL,
-        client: Client,
-        isEphemeral: Bool
+        client: Client
     ) async throws -> Int32 {
         let requestedQuality = resolvedQuality()
 
@@ -268,17 +274,26 @@ struct VariantsCommand: AsyncParsableCommand {
         for item in response.content {
             switch item {
             case .text(let text):
-                if let label = parseVariantLabel(from: text) {
-                    if text.contains("ERROR") {
-                        fputs("\(text)\n", stderr)
-                        failCount += 1
-                        pendingLabel = nil
-                    } else {
-                        pendingLabel = label
-                    }
+                // Prefer the failure pattern first — it's a strict
+                // superset of the success preamble. A label that happens
+                // to contain the substring "ERROR" (e.g. a JSON variant
+                // labeled "ERROR_STATE") must still bucket as success
+                // unless ` ERROR — ` follows the colon.
+                if parseFailurePreamble(from: text) != nil {
+                    fputs("\(text)\n", stderr)
+                    failCount += 1
+                    pendingLabel = nil
+                } else if let label = parseSuccessPreamble(from: text) {
+                    pendingLabel = label
                 }
             case .image(let base64, _, _):
-                guard let label = pendingLabel else { continue }
+                guard let label = pendingLabel else {
+                    fputs(
+                        "warning: daemon returned image block with no preceding label preamble — dropping\n",
+                        stderr
+                    )
+                    continue
+                }
                 guard let data = Data(base64Encoded: base64) else {
                     fputs("[error] \(label): invalid base64 from daemon\n", stderr)
                     failCount += 1
@@ -312,8 +327,6 @@ struct VariantsCommand: AsyncParsableCommand {
             )
             failCount += missing
         }
-        _ = isEphemeral
-
         return summarize(successCount: successCount, failCount: failCount)
     }
 
@@ -339,10 +352,21 @@ struct VariantsCommand: AsyncParsableCommand {
         return failCount == total ? 2 : 1
     }
 
-    /// Parse a `[N] label:` or `[N] label: ERROR …` prefix into the label.
-    private func parseVariantLabel(from text: String) -> String? {
-        // Accept `[<digits>] <label>:` optionally followed by more text.
-        let pattern = /\[\d+\]\s+(.+?):/
+    /// Match the daemon's success preamble: exactly `[N] <label>:` with
+    /// no trailing content. Labels are sanitized upstream (no path
+    /// traversal, no leading dots) so we don't need to validate them
+    /// here beyond the structural match.
+    private func parseSuccessPreamble(from text: String) -> String? {
+        let pattern = /^\[\d+\]\s+(.+?):\s*$/
+        guard let match = text.firstMatch(of: pattern) else { return nil }
+        return String(match.1)
+    }
+
+    /// Match the daemon's failure text: `[N] <label>: ERROR — <reason>`.
+    /// Anchored to the literal separator so a variant whose *label*
+    /// contains "ERROR" is not mis-bucketed as a failure.
+    private func parseFailurePreamble(from text: String) -> String? {
+        let pattern = /^\[\d+\]\s+(.+?):\s+ERROR\s+—\s/
         guard let match = text.firstMatch(of: pattern) else { return nil }
         return String(match.1)
     }
