@@ -42,8 +42,11 @@ struct SimulatorsCommand: AsyncParsableCommand {
                 throw SimulatorsCommandError.daemonError(response.content.joinedText())
             }
 
-            let text = response.content.joinedText()
-            if !text.isEmpty { print(text) }
+            // Unlike elements (where empty stdout is plausible),
+            // `simulator_list` always returns either device lines or the
+            // sentinel "No available simulator devices found." — so
+            // always surface the daemon's reply verbatim.
+            print(response.content.joinedText())
 
             await client.disconnect()
         } catch {

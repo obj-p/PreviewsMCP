@@ -15,42 +15,49 @@ struct SimulatorsCommandTests {
         try? FileManager.default.removeItem(at: home.appendingPathComponent("serve.pid"))
     }
 
-    /// Happy path: run against the real `simctl`. Gated on a simulator
-    /// actually being available so machines without Xcode simulators
-    /// (e.g. stripped CI runners) don't fail — the daemon would still
-    /// print "No available simulator devices found." in that case.
+    /// Runs on every machine: whether or not any simulators exist, the
+    /// command must succeed with a non-empty payload on stdout. When a
+    /// simulator is available we tighten the assertion to the per-line
+    /// structural format; otherwise we check the daemon's "no devices"
+    /// sentinel. This also implicitly verifies daemon auto-start.
     @Test(
-        "simulators prints one line per available device on stdout",
+        "simulators succeeds with either device lines or the no-devices sentinel",
         .timeLimit(.minutes(2))
     )
-    func simulatorsPrintsAvailableDevices() async throws {
+    func simulatorsAlwaysProducesOutput() async throws {
         try await DaemonTestLock.run {
-            let simResult = try await CLIRunner.runExternal(
-                "/usr/bin/xcrun",
-                arguments: ["simctl", "list", "devices", "available"]
-            )
-            guard simResult.exitCode == 0, simResult.stdout.contains("iPhone") else {
-                print("No available iOS simulator — skipping simulators test")
-                return
-            }
-
             try await Self.cleanSlate()
 
             let result = try await CLIRunner.run("simulators")
             #expect(result.exitCode == 0, "stderr: \(result.stderr)")
+            let stdout = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+            #expect(!stdout.isEmpty, "simulators must emit something on stdout: \(result.stdout)")
 
-            let lines = result.stdout
-                .split(separator: "\n", omittingEmptySubsequences: true)
-                .map(String.init)
-            #expect(!lines.isEmpty, "should list at least one device: \(result.stdout)")
+            let simResult = try await CLIRunner.runExternal(
+                "/usr/bin/xcrun",
+                arguments: ["simctl", "list", "devices", "available"]
+            )
+            let hasSimulator = simResult.exitCode == 0 && simResult.stdout.contains("iPhone")
 
-            // Daemon formats each line as "<name> — <udid> [BOOTED]? (<runtime>)".
-            // The em-dash plus parentheses are the structural markers; require
-            // them so a regression that dropped fields would be caught.
-            for line in lines {
+            if hasSimulator {
+                let lines = stdout
+                    .split(separator: "\n", omittingEmptySubsequences: true)
+                    .map(String.init)
+                #expect(!lines.isEmpty, "should list at least one device: \(stdout)")
+
+                // Daemon formats each line as "<name> — <udid> [BOOTED]? (<runtime>)".
+                // The em-dash plus parentheses are the structural markers; require
+                // them so a regression that dropped fields would be caught.
+                for line in lines {
+                    #expect(
+                        line.contains(" — ") && line.contains("(") && line.contains(")"),
+                        "line should contain name, em-dash, udid and runtime: \(line)"
+                    )
+                }
+            } else {
                 #expect(
-                    line.contains(" — ") && line.contains("(") && line.contains(")"),
-                    "line should contain name, em-dash, udid and runtime: \(line)"
+                    stdout.contains("No available simulator devices found"),
+                    "should surface the no-devices sentinel verbatim: \(stdout)"
                 )
             }
 
