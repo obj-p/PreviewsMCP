@@ -92,18 +92,18 @@ struct StopCommand: AsyncParsableCommand {
             return
         }
 
+        // Sequential rather than parallel: the daemon serializes tool
+        // calls on a single actor anyway, and sequential execution keeps
+        // the per-session log output interleaved predictably.
         var firstFailure: Error?
         for info in sessions {
             do {
                 try await sendStop(sessionID: info.sessionID, client: client)
             } catch {
                 // Keep going — one bad session shouldn't prevent us from
-                // cleaning up the others. Report the first failure after
-                // we've tried them all.
-                fputs(
-                    "Failed to stop \(info.sessionID): \(error)\n",
-                    stderr
-                )
+                // cleaning up the others. Stash the first failure and
+                // throw it once the sweep is done; ArgumentParser's
+                // error path will surface it exactly once.
                 if firstFailure == nil { firstFailure = error }
             }
         }

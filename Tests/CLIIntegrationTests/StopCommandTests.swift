@@ -115,12 +115,36 @@ struct StopCommandTests {
                 "close confirmation should name the session: \(stopResult.stderr)"
             )
 
-            // A follow-up stop should now fail — no session is running.
+            // Prove the session was actually removed from the daemon
+            // (not just absent from SessionResolver's smart-default path)
+            // by calling `stop --all` — that path consults session_list
+            // directly and will report "No active sessions" if the
+            // earlier stop removed the session server-side.
+            let sweep = try await CLIRunner.run("stop", arguments: ["--all"])
+            #expect(sweep.exitCode == 0, "stderr: \(sweep.stderr)")
+            #expect(
+                sweep.stderr.contains("No active sessions to stop"),
+                "daemon should show an empty session list: \(sweep.stderr)"
+            )
+
+            // Stopping again with no flag should also fail cleanly.
             let second = try await CLIRunner.run("stop")
             #expect(second.exitCode != 0)
             #expect(
                 second.stderr.contains("No session found"),
                 "stderr: \(second.stderr)"
+            )
+
+            // Explicitly stopping a nonexistent UUID must surface the
+            // daemon's error, not succeed silently.
+            let ghost = try await CLIRunner.run(
+                "stop",
+                arguments: ["--session", "00000000-0000-0000-0000-000000000000"]
+            )
+            #expect(ghost.exitCode != 0)
+            #expect(
+                ghost.stderr.contains("No session found"),
+                "stderr: \(ghost.stderr)"
             )
 
             _ = try? await CLIRunner.run("kill-daemon", arguments: ["--timeout", "2"])
@@ -170,6 +194,51 @@ struct StopCommandTests {
             #expect(
                 second.stderr.contains("No active sessions to stop"),
                 "stderr: \(second.stderr)"
+            )
+
+            _ = try? await CLIRunner.run("kill-daemon", arguments: ["--timeout", "2"])
+        }
+    }
+
+    /// Exercise the iOS branch of the daemon's `handlePreviewStop`. The
+    /// macOS happy-path tests only touch `App.host.closePreview`; iOS
+    /// routes through `iosState.getSession` + `iosSession.stop()` which
+    /// is a separate code path.
+    @Test(
+        "stop closes an iOS session",
+        .timeLimit(.minutes(5))
+    )
+    func stopIOSSession() async throws {
+        try await DaemonTestLock.run {
+            let simResult = try await CLIRunner.runExternal(
+                "/usr/bin/xcrun",
+                arguments: ["simctl", "list", "devices", "available"]
+            )
+            guard simResult.exitCode == 0, simResult.stdout.contains("iPhone") else {
+                print("No available iOS simulator — skipping iOS stop test")
+                return
+            }
+
+            try await Self.cleanSlate()
+
+            let file = CLIRunner.spmExampleRoot
+                .appendingPathComponent("Sources/ToDo/ToDoView.swift").path
+            let configPath = CLIRunner.repoRoot
+                .appendingPathComponent("examples/.previewsmcp.json").path
+
+            let runResult = try await CLIRunner.run(
+                "run",
+                arguments: [
+                    file, "--platform", "ios", "--config", configPath, "--detach",
+                ]
+            )
+            #expect(runResult.exitCode == 0, "detach stderr: \(runResult.stderr)")
+
+            let stopResult = try await CLIRunner.run("stop")
+            #expect(stopResult.exitCode == 0, "stderr: \(stopResult.stderr)")
+            #expect(
+                stopResult.stderr.contains("iOS preview session"),
+                "daemon should route through the iOS stop path: \(stopResult.stderr)"
             )
 
             _ = try? await CLIRunner.run("kill-daemon", arguments: ["--timeout", "2"])
