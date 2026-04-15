@@ -1142,6 +1142,16 @@ private func resolveVariant(_ value: Value) throws -> PreviewTraits.Variant {
     return try PreviewTraits.parseVariantString(str)
 }
 
+/// Capture a screenshot under each of N trait configurations.
+///
+/// **Concurrent-modification caveat:** `PreviewSession` is an actor so
+/// its state transitions are serialized, but a second client calling
+/// `preview_configure` or `preview_switch` against the same session
+/// while variants is mid-loop will interleave its trait changes into
+/// our capture stream — subsequent variant screenshots would reflect
+/// the other client's mutation. The daemon does not hold a per-session
+/// lock across tool calls. Callers that want deterministic variants
+/// should ensure they own the session for the duration.
 private func handlePreviewVariants(params: CallTool.Parameters, server: Server) async throws -> CallTool.Result {
     let sessionID: String
     let variantValues: [Value]
@@ -1196,9 +1206,15 @@ private func handlePreviewVariants(params: CallTool.Parameters, server: Server) 
             }
         }
 
-        // Restore original traits if they changed
+        // Restore original traits if they changed — but only if the
+        // session is still registered. A concurrent `preview_stop`
+        // during the capture loop will remove the session from
+        // iosState; attempting to setTraits on the stopped simulator
+        // produces a misleading "failed to restore" warning when the
+        // user explicitly asked for the stop.
+        let stillRegistered = await iosState.getSession(sessionID) != nil
         let currentTraits = await iosSession.currentTraits
-        if savedTraits != currentTraits {
+        if stillRegistered, savedTraits != currentTraits {
             do {
                 try await iosSession.setTraits(savedTraits)
             } catch {
@@ -1250,9 +1266,17 @@ private func handlePreviewVariants(params: CallTool.Parameters, server: Server) 
         }
     }
 
-    // Restore original traits if they changed
+    // Restore original traits if they changed — but only if the
+    // session is still registered. A concurrent `preview_stop` during
+    // the capture loop would remove the session from App.host;
+    // `loadPreview` would then throw and the user would see a
+    // misleading "failed to restore" warning when they explicitly
+    // asked for the stop.
+    let stillRegistered = await MainActor.run {
+        App.host.allSessions[sessionID] != nil
+    }
     let currentTraits = await session.currentTraits
-    if savedTraits != currentTraits {
+    if stillRegistered, savedTraits != currentTraits {
         do {
             let restoreResult = try await session.setTraits(savedTraits)
             try await MainActor.run {
