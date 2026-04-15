@@ -57,8 +57,8 @@ struct ElementsCommandTests {
             let result = try await CLIRunner.run("elements")
             #expect(result.exitCode != 0)
             #expect(
-                result.stderr.lowercased().contains("ios"),
-                "macOS session should surface an iOS-only error: \(result.stderr)"
+                result.stderr.contains("only available for iOS simulator previews"),
+                "macOS session should surface the daemon's iOS-only error: \(result.stderr)"
             )
 
             _ = try? await CLIRunner.run("kill-daemon", arguments: ["--timeout", "2"])

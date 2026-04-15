@@ -81,8 +81,11 @@ struct ElementsCommand: AsyncParsableCommand {
             }
 
             // The daemon returns the tree as a single text blob (JSON).
-            // Print to stdout so the caller can pipe into `jq`.
-            print(response.content.joinedText())
+            // Print to stdout so the caller can pipe into `jq`. Skip the
+            // trailing newline when the payload is empty so downstream
+            // parsers don't see a stray `\n`.
+            let text = response.content.joinedText()
+            if !text.isEmpty { print(text) }
 
             await client.disconnect()
         } catch {
