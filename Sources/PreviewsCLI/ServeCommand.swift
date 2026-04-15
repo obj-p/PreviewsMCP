@@ -80,6 +80,12 @@ struct ServeCommand: ParsableCommand {
                     Darwin.exit(1)
                 }
 
+                // Detach before any client can observe us as "ready" via the
+                // socket. Otherwise a SIGHUP during the tiny window between
+                // socket bind and setsid could cascade through the shared
+                // process group and kill the daemon.
+                DaemonLifecycle.detachFromTerminal()
+
                 _ = try await DaemonListener.start()
                 try DaemonLifecycle.register()
                 fputs(

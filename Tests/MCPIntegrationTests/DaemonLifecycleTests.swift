@@ -87,88 +87,98 @@ struct DaemonLifecycleTests {
 
     @Test("status reports 'not running' when no daemon is active")
     func statusNoDaemon() async throws {
-        try await Self.cleanSlate()
-        let (out, exit) = try await Self.runCLI(["status"])
-        #expect(out.contains("not running"))
-        #expect(exit == 1, "status should exit non-zero when daemon is down")
+        try await DaemonTestLock.run {
+            try await Self.cleanSlate()
+            let (out, exit) = try await Self.runCLI(["status"])
+            #expect(out.contains("not running"))
+            #expect(exit == 1, "status should exit non-zero when daemon is down")
+        }
     }
 
     @Test("daemon creates socket and pid file, status reports running")
     func daemonStartAndStatus() async throws {
-        try await Self.cleanSlate()
-        let proc = try await Self.startDaemon()
-        defer { proc.terminate() }
+        try await DaemonTestLock.run {
+            try await Self.cleanSlate()
+            let proc = try await Self.startDaemon()
+            defer { proc.terminate() }
 
-        let (out, exit) = try await Self.runCLI(["status"])
-        #expect(out.contains("daemon running"))
-        #expect(out.contains(Self.socketPath))
-        #expect(exit == 0)
+            let (out, exit) = try await Self.runCLI(["status"])
+            #expect(out.contains("daemon running"))
+            #expect(out.contains(Self.socketPath))
+            #expect(exit == 0)
+        }
     }
 
     @Test("MCP client can connect to daemon and list tools")
     func mcpClientListsTools() async throws {
-        try await Self.cleanSlate()
-        let proc = try await Self.startDaemon()
-        defer { proc.terminate() }
+        try await DaemonTestLock.run {
+            try await Self.cleanSlate()
+            let proc = try await Self.startDaemon()
+            defer { proc.terminate() }
 
-        let connection = NWConnection(
-            to: NWEndpoint.unix(path: Self.socketPath),
-            using: .tcp
-        )
-        let transport = NetworkTransport(connection: connection)
-        let client = Client(name: "daemon-lifecycle-test", version: "1.0")
-        _ = try await client.connect(transport: transport)
-        defer {
-            Task { await client.disconnect() }
+            let connection = NWConnection(
+                to: NWEndpoint.unix(path: Self.socketPath),
+                using: .tcp
+            )
+            let transport = NetworkTransport(connection: connection)
+            let client = Client(name: "daemon-lifecycle-test", version: "1.0")
+            _ = try await client.connect(transport: transport)
+            defer {
+                Task { await client.disconnect() }
+            }
+
+            let response = try await client.listTools()
+            #expect(!response.tools.isEmpty, "daemon should expose MCP tools")
+            let names = Set(response.tools.map { $0.name })
+            #expect(names.contains("preview_list"))
+            #expect(names.contains("preview_snapshot"))
         }
-
-        let response = try await client.listTools()
-        #expect(!response.tools.isEmpty, "daemon should expose MCP tools")
-        let names = Set(response.tools.map { $0.name })
-        #expect(names.contains("preview_list"))
-        #expect(names.contains("preview_snapshot"))
     }
 
     @Test("kill-daemon terminates the daemon and removes socket")
     func killDaemonCleansUp() async throws {
-        try await Self.cleanSlate()
-        let proc = try await Self.startDaemon()
-        defer {
-            // In case kill-daemon failed, force termination so the test doesn't leak.
-            if proc.isRunning { proc.terminate() }
+        try await DaemonTestLock.run {
+            try await Self.cleanSlate()
+            let proc = try await Self.startDaemon()
+            defer {
+                // In case kill-daemon failed, force termination so the test doesn't leak.
+                if proc.isRunning { proc.terminate() }
+            }
+
+            let (out, exit) = try await Self.runCLI(["kill-daemon", "--timeout", "5"])
+            #expect(exit == 0, "kill-daemon should exit 0: \(out)")
+            #expect(out.contains("stopped"))
+
+            // Verify files were cleaned up.
+            #expect(!FileManager.default.fileExists(atPath: Self.socketPath))
+
+            // Verify status reports not running.
+            let (statusOut, statusExit) = try await Self.runCLI(["status"])
+            #expect(statusOut.contains("not running"))
+            #expect(statusExit == 1)
         }
-
-        let (out, exit) = try await Self.runCLI(["kill-daemon", "--timeout", "5"])
-        #expect(exit == 0, "kill-daemon should exit 0: \(out)")
-        #expect(out.contains("stopped"))
-
-        // Verify files were cleaned up.
-        #expect(!FileManager.default.fileExists(atPath: Self.socketPath))
-
-        // Verify status reports not running.
-        let (statusOut, statusExit) = try await Self.runCLI(["status"])
-        #expect(statusOut.contains("not running"))
-        #expect(statusExit == 1)
     }
 
     @Test("starting a second daemon refuses and exits non-zero")
     func secondDaemonRefuses() async throws {
-        try await Self.cleanSlate()
-        let proc = try await Self.startDaemon()
-        defer { proc.terminate() }
+        try await DaemonTestLock.run {
+            try await Self.cleanSlate()
+            let proc = try await Self.startDaemon()
+            defer { proc.terminate() }
 
-        let secondProc = Process()
-        secondProc.executableURL = URL(fileURLWithPath: Self.binaryPath)
-        secondProc.arguments = ["serve", "--daemon"]
-        let errPipe = Pipe()
-        secondProc.standardError = errPipe
-        secondProc.standardOutput = FileHandle.nullDevice
-        try secondProc.run()
-        let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
-        secondProc.waitUntilExit()
-        let stderr = String(data: errData, encoding: .utf8) ?? ""
-        #expect(secondProc.terminationStatus != 0, "second daemon should fail")
-        #expect(stderr.contains("already running"))
+            let secondProc = Process()
+            secondProc.executableURL = URL(fileURLWithPath: Self.binaryPath)
+            secondProc.arguments = ["serve", "--daemon"]
+            let errPipe = Pipe()
+            secondProc.standardError = errPipe
+            secondProc.standardOutput = FileHandle.nullDevice
+            try secondProc.run()
+            let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
+            secondProc.waitUntilExit()
+            let stderr = String(data: errData, encoding: .utf8) ?? ""
+            #expect(secondProc.terminationStatus != 0, "second daemon should fail")
+            #expect(stderr.contains("already running"))
+        }
     }
 
     /// Catches a race: if the PID file is missing (daemon was started, PID
@@ -185,77 +195,79 @@ struct DaemonLifecycleTests {
     /// indefinitely), so we use a bounded wait and fail fast.
     @Test("second daemon refuses even when PID file is missing but socket is alive")
     func secondDaemonRefusesWithMissingPIDFile() async throws {
-        try await Self.cleanSlate()
-        let proc = try await Self.startDaemon()
-        defer { proc.terminate() }
+        try await DaemonTestLock.run {
+            try await Self.cleanSlate()
+            let proc = try await Self.startDaemon()
+            defer { proc.terminate() }
 
-        // Simulate the race: PID file gone, but daemon still running.
-        let pidPath = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".previewsmcp/serve.pid").path
-        try? FileManager.default.removeItem(atPath: pidPath)
+            // Simulate the race: PID file gone, but daemon still running.
+            let pidPath = FileManager.default.homeDirectoryForCurrentUser
+                .appendingPathComponent(".previewsmcp/serve.pid").path
+            try? FileManager.default.removeItem(atPath: pidPath)
 
-        let secondProc = Process()
-        secondProc.executableURL = URL(fileURLWithPath: Self.binaryPath)
-        secondProc.arguments = ["serve", "--daemon"]
-        let errPipe = Pipe()
-        secondProc.standardError = errPipe
-        secondProc.standardOutput = FileHandle.nullDevice
-        try secondProc.run()
+            let secondProc = Process()
+            secondProc.executableURL = URL(fileURLWithPath: Self.binaryPath)
+            secondProc.arguments = ["serve", "--daemon"]
+            let errPipe = Pipe()
+            secondProc.standardError = errPipe
+            secondProc.standardOutput = FileHandle.nullDevice
+            try secondProc.run()
 
-        // Bounded wait: the second daemon should refuse and exit within ~2s.
-        // If it doesn't, the race bug has corrupted state — fail the test
-        // (rather than hanging) by terminating it.
-        let deadline = Date().addingTimeInterval(2)
-        while secondProc.isRunning && Date() < deadline {
-            try await Task.sleep(nanoseconds: 50_000_000)
+            // Bounded wait: the second daemon should refuse and exit within ~2s.
+            // If it doesn't, the race bug has corrupted state — fail the test
+            // (rather than hanging) by terminating it.
+            let deadline = Date().addingTimeInterval(2)
+            while secondProc.isRunning && Date() < deadline {
+                try await Task.sleep(nanoseconds: 50_000_000)
+            }
+            let refusedInTime = !secondProc.isRunning
+            if secondProc.isRunning {
+                secondProc.terminate()
+                secondProc.waitUntilExit()
+            }
+            let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
+            let stderr = String(data: errData, encoding: .utf8) ?? ""
+
+            #expect(refusedInTime, "second daemon should exit quickly, not keep running")
+            #expect(secondProc.terminationStatus != 0, "second daemon should refuse")
+            #expect(
+                stderr.contains("already running"),
+                "should detect live daemon via socket probe: \(stderr)"
+            )
+
+            #expect(
+                FileManager.default.fileExists(atPath: Self.socketPath),
+                "daemon A's socket file should not have been removed by failed daemon B"
+            )
+
+            let connection = NWConnection(
+                to: NWEndpoint.unix(path: Self.socketPath),
+                using: .tcp
+            )
+            let transport = NetworkTransport(connection: connection)
+            let client = Client(name: "race-test", version: "1.0")
+            _ = try await client.connect(transport: transport)
+            await client.disconnect()
         }
-        let refusedInTime = !secondProc.isRunning
-        if secondProc.isRunning {
-            secondProc.terminate()
-            secondProc.waitUntilExit()
-        }
-        let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
-        let stderr = String(data: errData, encoding: .utf8) ?? ""
-
-        #expect(refusedInTime, "second daemon should exit quickly, not keep running")
-        #expect(secondProc.terminationStatus != 0, "second daemon should refuse")
-        #expect(
-            stderr.contains("already running"),
-            "should detect live daemon via socket probe: \(stderr)"
-        )
-
-        // Daemon A must still be functional: its socket path must still exist
-        // on disk and MCP clients must still be able to connect.
-        #expect(
-            FileManager.default.fileExists(atPath: Self.socketPath),
-            "daemon A's socket file should not have been removed by failed daemon B"
-        )
-
-        let connection = NWConnection(
-            to: NWEndpoint.unix(path: Self.socketPath),
-            using: .tcp
-        )
-        let transport = NetworkTransport(connection: connection)
-        let client = Client(name: "race-test", version: "1.0")
-        _ = try await client.connect(transport: transport)
-        await client.disconnect()
     }
 
     @Test("kill-daemon on stale PID file cleans up without error")
     func killDaemonStalePID() async throws {
-        try await Self.cleanSlate()
+        try await DaemonTestLock.run {
+            try await Self.cleanSlate()
 
-        // Write a PID file pointing to a definitely-dead process.
-        let home = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".previewsmcp")
-        try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
-        try "99999\n".write(
-            to: home.appendingPathComponent("serve.pid"),
-            atomically: true, encoding: .utf8
-        )
+            // Write a PID file pointing to a definitely-dead process.
+            let home = FileManager.default.homeDirectoryForCurrentUser
+                .appendingPathComponent(".previewsmcp")
+            try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
+            try "99999\n".write(
+                to: home.appendingPathComponent("serve.pid"),
+                atomically: true, encoding: .utf8
+            )
 
-        let (out, exit) = try await Self.runCLI(["kill-daemon"])
-        #expect(exit == 0)
-        #expect(out.contains("stale"))
+            let (out, exit) = try await Self.runCLI(["kill-daemon"])
+            #expect(exit == 0)
+            #expect(out.contains("stale"))
+        }
     }
 }

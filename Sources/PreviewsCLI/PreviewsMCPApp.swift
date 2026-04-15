@@ -24,11 +24,32 @@ struct PreviewsMCPApp {
             PreviewsMCPCommand.exit(withError: error)
         }
 
-        // Commands that don't need NSApplication (list, help, status, kill-daemon)
-        if command is ListCommand
-            || !(command is RunCommand || command is ServeCommand || command is SnapshotCommand
-                || command is VariantsCommand)
+        // Commands that don't need NSApplication (list, help, status,
+        // kill-daemon, and `run` which is now a lightweight daemon client).
+        // Only serve/snapshot/variants still drive AppKit in-process.
+        if !(command is ServeCommand || command is SnapshotCommand
+            || command is VariantsCommand)
         {
+            // Handle async commands: the MCP SDK's NetworkTransport schedules
+            // NWConnection callbacks on DispatchQueue.main, so we can't just
+            // block main with a semaphore — the callbacks would never fire.
+            // Use dispatchMain() to yield to libdispatch and let the async Task
+            // drive to completion, then delegate to ParsableCommand.exit()
+            // from the Task so error formatting matches the sync branch
+            // (ArgumentParser formats ValidationError / ExitCode correctly).
+            if let asyncCommand = command as? any AsyncParsableCommand {
+                Task {
+                    do {
+                        var mutable = asyncCommand
+                        try await mutable.run()
+                        Darwin.exit(0)
+                    } catch {
+                        PreviewsMCPCommand.exit(withError: error)
+                    }
+                }
+                dispatchMain()  // never returns; Task exits the process
+            }
+
             do {
                 var mutable = command
                 try mutable.run()
