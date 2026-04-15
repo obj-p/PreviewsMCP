@@ -56,17 +56,15 @@ struct PreviewsMCPApp {
             return
         }
 
-        // Commands needing UI: start NSApplication
+        // `serve` is the only command that runs AppKit in-process — every
+        // other subcommand is now a daemon client.
         let app = NSApplication.shared
-
-        // `serve` is the only command that runs AppKit in-process.
-        let host = PreviewHost(mode: .serve)
+        let host = PreviewHost()
         App.host = host
         app.delegate = host
 
-        if host.headless {
-            app.setActivationPolicy(.accessory)
-        }
+        // Always headless: no Dock icon, windows positioned off-screen.
+        app.setActivationPolicy(.accessory)
 
         host.onLaunch = {
             Task { @MainActor in

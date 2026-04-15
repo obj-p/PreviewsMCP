@@ -33,11 +33,7 @@ struct SwitchCommand: AsyncParsableCommand {
     @Argument(help: "0-based index of the #Preview block to render")
     var previewIndex: Int
 
-    @Option(name: .long, help: "Target a specific running session by UUID")
-    var session: String?
-
-    @Option(name: .long, help: "Resolve session by source file path")
-    var file: String?
+    @OptionGroup var target: SessionTargetingOptions
 
     mutating func run() async throws {
         guard previewIndex >= 0 else {
@@ -46,8 +42,8 @@ struct SwitchCommand: AsyncParsableCommand {
 
         try await DaemonClient.withDaemonClient(name: "previewsmcp-switch") { client in
             let resolution = try await SessionResolver.resolve(
-                session: session,
-                file: file,
+                session: target.session,
+                file: target.file,
                 client: client
             )
 

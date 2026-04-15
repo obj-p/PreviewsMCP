@@ -44,11 +44,7 @@ struct TouchCommand: AsyncParsableCommand {
     @Option(name: .long, help: "Swipe duration in seconds (default: 0.3)")
     var duration: Double?
 
-    @Option(name: .long, help: "Target a specific running session by UUID")
-    var session: String?
-
-    @Option(name: .long, help: "Resolve session by source file path")
-    var file: String?
+    @OptionGroup var target: SessionTargetingOptions
 
     mutating func run() async throws {
         // Validate swipe endpoints before opening a daemon connection.
@@ -70,8 +66,8 @@ struct TouchCommand: AsyncParsableCommand {
 
         try await DaemonClient.withDaemonClient(name: "previewsmcp-touch") { client in
             let resolution = try await SessionResolver.resolve(
-                session: session,
-                file: file,
+                session: target.session,
+                file: target.file,
                 client: client
             )
 

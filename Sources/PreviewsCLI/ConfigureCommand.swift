@@ -34,11 +34,7 @@ struct ConfigureCommand: AsyncParsableCommand {
             """
     )
 
-    @Option(name: .long, help: "Target a specific running session by UUID")
-    var session: String?
-
-    @Option(name: .long, help: "Resolve session by source file path")
-    var file: String?
+    @OptionGroup var target: SessionTargetingOptions
 
     @Option(name: .long, help: "Color scheme: 'light' or 'dark' (empty to clear)")
     var colorScheme: String?
@@ -71,8 +67,8 @@ struct ConfigureCommand: AsyncParsableCommand {
 
         try await DaemonClient.withDaemonClient(name: "previewsmcp-configure") { client in
             let resolution = try await SessionResolver.resolve(
-                session: session,
-                file: file,
+                session: target.session,
+                file: target.file,
                 client: client
             )
 
