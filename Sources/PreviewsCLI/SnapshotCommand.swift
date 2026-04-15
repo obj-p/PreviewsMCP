@@ -117,15 +117,7 @@ struct SnapshotCommand: AsyncParsableCommand {
             }
         }
 
-        let client = try await DaemonClient.connect(clientName: "previewsmcp-snapshot") { client in
-            await client.onNotification(LogMessageNotification.self) { message in
-                if case .string(let text) = message.params.data {
-                    fputs("\(text)\n", stderr)
-                }
-            }
-        }
-
-        do {
+        try await DaemonClient.withDaemonClient(name: "previewsmcp-snapshot") { client in
             let resolution = try await SessionResolver.resolve(
                 session: session,
                 file: file,
@@ -144,10 +136,6 @@ struct SnapshotCommand: AsyncParsableCommand {
                 }
                 try await snapshotEphemeral(file: file, client: client)
             }
-            await client.disconnect()
-        } catch {
-            await client.disconnect()
-            throw error
         }
     }
 

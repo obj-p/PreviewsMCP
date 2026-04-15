@@ -68,15 +68,7 @@ struct TouchCommand: AsyncParsableCommand {
             throw ValidationError("--duration must be positive.")
         }
 
-        let client = try await DaemonClient.connect(clientName: "previewsmcp-touch") { client in
-            await client.onNotification(LogMessageNotification.self) { message in
-                if case .string(let text) = message.params.data {
-                    fputs("\(text)\n", stderr)
-                }
-            }
-        }
-
-        do {
+        try await DaemonClient.withDaemonClient(name: "previewsmcp-touch") { client in
             let resolution = try await SessionResolver.resolve(
                 session: session,
                 file: file,
@@ -113,11 +105,6 @@ struct TouchCommand: AsyncParsableCommand {
 
             let text = response.content.joinedText()
             if !text.isEmpty { fputs("\(text)\n", stderr) }
-
-            await client.disconnect()
-        } catch {
-            await client.disconnect()
-            throw error
         }
     }
 }

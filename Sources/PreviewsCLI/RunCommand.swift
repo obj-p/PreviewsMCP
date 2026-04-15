@@ -89,74 +89,60 @@ struct RunCommand: AsyncParsableCommand {
             throw ValidationError(error.localizedDescription)
         }
 
-        // Register the log handler *before* the MCP initialize handshake so
-        // we don't miss notifications emitted during early server startup.
-        let client = try await DaemonClient.connect(clientName: "previewsmcp-run") { client in
-            await client.onNotification(LogMessageNotification.self) { message in
-                if case .string(let text) = message.params.data {
-                    fputs("\(text)\n", stderr)
-                }
+        try await DaemonClient.withDaemonClient(name: "previewsmcp-run") { client in
+            let arguments = buildPreviewStartArguments(fileURL: fileURL)
+
+            let response: (content: [Tool.Content], isError: Bool?)
+            do {
+                response = try await client.callTool(name: "preview_start", arguments: arguments)
+            } catch {
+                fputs("Failed to start preview: \(error)\n", stderr)
+                throw ExitCode(1)
+            }
+
+            if response.isError == true {
+                fputs("Preview start failed: \(response.content.joinedText())\n", stderr)
+                throw ExitCode(1)
+            }
+
+            let text = response.content.joinedText()
+            guard let sessionID = extractSessionID(from: text) else {
+                fputs("Unexpected daemon response (no session ID): \(text)\n", stderr)
+                throw ExitCode(1)
+            }
+
+            if detach {
+                // Scriptable: print session ID to stdout, human line to stderr.
+                print(sessionID)
+                fputs("session \(sessionID) started in daemon\n", stderr)
+                return
+            }
+
+            // Attached: print the daemon's response once for user feedback,
+            // then block until Ctrl+C. On signal, stop the session and
+            // exit cleanly.
+            fputs("\(text)\n", stderr)
+            fputs("Press Ctrl+C to stop the preview.\n", stderr)
+
+            await blockUntilSignal()
+
+            do {
+                _ = try await client.callTool(
+                    name: "preview_stop",
+                    arguments: ["sessionID": .string(sessionID)]
+                )
+            } catch {
+                // Best-effort — the session may still be alive in the daemon.
+                // Surface the session ID so the user can target it with `stop`
+                // or fall back to `kill-daemon` to wipe everything.
+                fputs(
+                    "warning: failed to stop session \(sessionID): \(error)\n"
+                        + "  session may still be running in the daemon; "
+                        + "run `previewsmcp kill-daemon` to clean up.\n",
+                    stderr
+                )
             }
         }
-
-        let arguments = buildPreviewStartArguments(fileURL: fileURL)
-
-        let response: (content: [Tool.Content], isError: Bool?)
-        do {
-            response = try await client.callTool(name: "preview_start", arguments: arguments)
-        } catch {
-            fputs("Failed to start preview: \(error)\n", stderr)
-            await client.disconnect()
-            throw ExitCode(1)
-        }
-
-        if response.isError == true {
-            let text = response.content.joinedText()
-            fputs("Preview start failed: \(text)\n", stderr)
-            await client.disconnect()
-            throw ExitCode(1)
-        }
-
-        let text = response.content.joinedText()
-        guard let sessionID = extractSessionID(from: text) else {
-            fputs("Unexpected daemon response (no session ID): \(text)\n", stderr)
-            await client.disconnect()
-            throw ExitCode(1)
-        }
-
-        if detach {
-            // Scriptable: print session ID to stdout, human line to stderr.
-            print(sessionID)
-            fputs("session \(sessionID) started in daemon\n", stderr)
-            await client.disconnect()
-            return
-        }
-
-        // Attached: print the daemon's response once for user feedback, then
-        // block until Ctrl+C. On signal, stop the session and exit cleanly.
-        fputs("\(text)\n", stderr)
-        fputs("Press Ctrl+C to stop the preview.\n", stderr)
-
-        await blockUntilSignal()
-
-        do {
-            _ = try await client.callTool(
-                name: "preview_stop",
-                arguments: ["sessionID": .string(sessionID)]
-            )
-        } catch {
-            // Best-effort — the session may still be alive in the daemon.
-            // Surface the session ID so the user can target it with `stop`
-            // (once that command ships) or fall back to `kill-daemon` to
-            // wipe everything.
-            fputs(
-                "warning: failed to stop session \(sessionID): \(error)\n"
-                    + "  session may still be running in the daemon; "
-                    + "run `previewsmcp kill-daemon` to clean up.\n",
-                stderr
-            )
-        }
-        await client.disconnect()
     }
 
     // MARK: - Helpers

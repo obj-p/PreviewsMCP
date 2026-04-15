@@ -47,6 +47,49 @@ enum DaemonClient {
         return client
     }
 
+    /// Connect, register the default stderr log-forwarder, run `body`, and
+    /// disconnect — regardless of whether the body returns or throws.
+    ///
+    /// Every CLI subcommand that talks to the daemon needs the same three
+    /// things: connect + forward `LogMessageNotification` to stderr +
+    /// disconnect on both success and error paths. Skipping any of these
+    /// is a subtle footgun (notifications registered after `connect()`
+    /// miss handshake-phase messages, a missed `disconnect()` leaks the
+    /// transport). This helper enforces the right shape in one place.
+    ///
+    /// Extra handlers can be registered via `configure`; they run before
+    /// the handshake alongside the default log forwarder.
+    static func withDaemonClient<T>(
+        name: String,
+        configure: ((Client) async -> Void)? = nil,
+        body: (Client) async throws -> T
+    ) async throws -> T {
+        let client = try await connect(clientName: name) { client in
+            await registerStderrLogForwarder(on: client)
+            await configure?(client)
+        }
+        do {
+            let result = try await body(client)
+            await client.disconnect()
+            return result
+        } catch {
+            await client.disconnect()
+            throw error
+        }
+    }
+
+    /// Register the MCP LogMessageNotification → stderr bridge that every
+    /// CLI command shares. Daemon-side progress messages and warnings
+    /// are surfaced as MCP notifications; without this bridge they'd be
+    /// silently dropped on the client.
+    private static func registerStderrLogForwarder(on client: Client) async {
+        await client.onNotification(LogMessageNotification.self) { message in
+            if case .string(let text) = message.params.data {
+                fputs("\(text)\n", stderr)
+            }
+        }
+    }
+
     /// Spawn the daemon as an independent child process. We don't wait for it —
     /// the daemon keeps running after this function returns and after the
     /// parent CLI exits.
