@@ -104,7 +104,7 @@ struct ConfigureCommand: AsyncParsableCommand {
             )
             if response.isError == true {
                 let text = response.content.joinedText()
-                throw ConfigureCommandError.daemonError(text)
+                throw DaemonToolError.daemonError(text)
             }
 
             // Surface the daemon's response (typically a summary of what
@@ -153,12 +153,3 @@ struct ConfigureCommand: AsyncParsableCommand {
 
 }
 
-enum ConfigureCommandError: Error, CustomStringConvertible {
-    case daemonError(String)
-
-    var description: String {
-        switch self {
-        case .daemonError(let text): return text
-        }
-    }
-}

@@ -228,7 +228,7 @@ struct SnapshotCommand: AsyncParsableCommand {
         let startResponse = try await client.callTool(name: "preview_start", arguments: startArgs)
         if startResponse.isError == true {
             let text = startResponse.content.joinedText()
-            throw SnapshotCommandError.daemonError("Failed to start preview: \(text)")
+            throw DaemonToolError.daemonError("Failed to start preview: \(text)")
         }
 
         let sessionID = try extractSessionID(from: startResponse.content.joinedText())
@@ -313,7 +313,7 @@ struct SnapshotCommand: AsyncParsableCommand {
     private func handleSnapshotResponse(_ response: (content: [Tool.Content], isError: Bool?)) throws {
         if response.isError == true {
             let text = response.content.joinedText()
-            throw SnapshotCommandError.daemonError("snapshot failed: \(text)")
+            throw DaemonToolError.daemonError("snapshot failed: \(text)")
         }
 
         for item in response.content {
@@ -333,7 +333,7 @@ struct SnapshotCommand: AsyncParsableCommand {
     private func extractSessionID(from text: String) throws -> String {
         let pattern = /Session ID: ([0-9a-fA-F-]{36})/
         guard let match = text.firstMatch(of: pattern) else {
-            throw SnapshotCommandError.daemonError(
+            throw DaemonToolError.daemonError(
                 "no session ID in daemon response: \(text)"
             )
         }
@@ -342,13 +342,11 @@ struct SnapshotCommand: AsyncParsableCommand {
 }
 
 enum SnapshotCommandError: Error, CustomStringConvertible {
-    case daemonError(String)
     case invalidImageData
     case noImageContent(String)
 
     var description: String {
         switch self {
-        case .daemonError(let text): return text
         case .invalidImageData: return "daemon returned invalid (non-base64) image data"
         case .noImageContent(let text):
             return "daemon response contained no image content: \(text)"

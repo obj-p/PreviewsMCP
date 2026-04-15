@@ -83,7 +83,7 @@ struct StopCommand: AsyncParsableCommand {
     private func stopAll(client: Client) async throws {
         let response = try await client.callTool(name: "session_list", arguments: [:])
         if response.isError == true {
-            throw StopCommandError.daemonError(response.content.joinedText())
+            throw DaemonToolError.daemonError(response.content.joinedText())
         }
         let sessions = SessionResolver.parseSessionList(response.content.joinedText())
 
@@ -117,19 +117,10 @@ struct StopCommand: AsyncParsableCommand {
             arguments: ["sessionID": .string(sessionID)]
         )
         if response.isError == true {
-            throw StopCommandError.daemonError(response.content.joinedText())
+            throw DaemonToolError.daemonError(response.content.joinedText())
         }
         let text = response.content.joinedText()
         if !text.isEmpty { fputs("\(text)\n", stderr) }
     }
 }
 
-enum StopCommandError: Error, CustomStringConvertible {
-    case daemonError(String)
-
-    var description: String {
-        switch self {
-        case .daemonError(let text): return text
-        }
-    }
-}
