@@ -182,12 +182,18 @@ struct MacOSMCPTests {
         #expect(stopText.contains("closed"), "Stop should confirm closure")
 
         // --- preview_stop nonexistent session ---
-        let (fakeStop, _) = try await server.callTool(
+        // Must be rejected with isError so stop --session <typo> surfaces
+        // a real error instead of a phantom "closed" success.
+        let (fakeStop, fakeIsError) = try await server.callTool(
             name: "preview_stop",
             arguments: ["sessionID": .string("00000000-0000-0000-0000-000000000000")]
         )
+        #expect(fakeIsError == true, "Stopping a nonexistent session must return isError")
         let fakeStopText = MCPTestServer.extractText(from: fakeStop)
-        #expect(fakeStopText.contains("closed"), "Should return closed message")
+        #expect(
+            fakeStopText.contains("No session found"),
+            "Should surface a 'No session found' message: \(fakeStopText)"
+        )
     }
 
     // MARK: - preview_variants

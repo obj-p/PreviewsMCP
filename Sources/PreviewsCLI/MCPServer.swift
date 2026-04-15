@@ -851,7 +851,19 @@ private func handlePreviewStop(params: CallTool.Parameters) async throws -> Call
         return CallTool.Result(content: [.text("iOS preview session \(sessionID) closed.")])
     }
 
-    // macOS path
+    // macOS path. Verify existence before calling `closePreview` — which
+    // otherwise silently succeeds for unknown IDs — so typos and races
+    // surface as real errors rather than phantom successes.
+    let isMacOSSession = await MainActor.run {
+        App.host.allSessions[sessionID] != nil
+    }
+    guard isMacOSSession else {
+        return CallTool.Result(
+            content: [.text("No session found for \(sessionID).")],
+            isError: true
+        )
+    }
+
     await MainActor.run {
         App.host.closePreview(sessionID: sessionID)
     }
