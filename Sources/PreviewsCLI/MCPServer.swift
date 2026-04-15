@@ -978,11 +978,9 @@ private func handleSessionList() async -> CallTool.Result {
     }
 
     // Stable ordering so clients parsing the output get consistent results.
+    // An empty lines array joins to "" — the expected "no active sessions"
+    // response for session_list.
     lines.sort()
-
-    if lines.isEmpty {
-        return CallTool.Result(content: [.text("")])
-    }
     return CallTool.Result(content: [.text(lines.joined(separator: "\n"))])
 }
 

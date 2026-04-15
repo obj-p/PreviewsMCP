@@ -24,9 +24,25 @@ enum SessionResolver {
         if let session {
             return .found(sessionID: session)
         }
-
         let activeSessions = try await listSessions(client: client)
+        return try resolveAgainst(
+            sessions: activeSessions, file: file
+        )
+    }
 
+    /// Pure resolution policy, extracted so it can be tested without an MCP
+    /// client. Given a snapshot of active sessions and an optional file
+    /// filter, apply the same "smart default" rules as `resolve(session:file:client:)`:
+    /// - `file` matches exactly one session → that session
+    /// - `file` matches none → `.notFound`
+    /// - `file` matches multiple → `.multipleMatches` error
+    /// - no `file`, one session → that session
+    /// - no `file`, no sessions → `.notFound`
+    /// - no `file`, multiple sessions → `.ambiguous` error
+    static func resolveAgainst(
+        sessions activeSessions: [SessionInfo],
+        file: String?
+    ) throws -> Resolution {
         if let file {
             let targetPath = URL(fileURLWithPath: file).standardizedFileURL.path
             let matches = activeSessions.filter { $0.sourceFilePath == targetPath }
@@ -43,7 +59,6 @@ enum SessionResolver {
             }
         }
 
-        // No flag: use the sole session if exactly one is running.
         switch activeSessions.count {
         case 0:
             return .notFound

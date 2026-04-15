@@ -366,4 +366,56 @@ struct SnapshotCommandTests {
             try CLIRunner.assertValidPNG(at: outputPath)
         }
     }
+
+    /// Verifies the "magical reuse" behavior: when a `run` session is already
+    /// live for the target file, `snapshot` captures *that* session's window
+    /// instead of creating an ephemeral one. The observable proof is speed —
+    /// reuse skips compile + render and completes in well under a second,
+    /// whereas an ephemeral cold-start takes several seconds.
+    @Test(
+        "Snapshot reuses an already-running session instead of ephemeral",
+        .timeLimit(.minutes(2))
+    )
+    func snapshotReusesLiveSession() async throws {
+        try await DaemonTestLock.run {
+            let tempDir = try CLIRunner.makeTempDir()
+            defer { try? FileManager.default.removeItem(at: tempDir) }
+
+            let file = CLIRunner.spmExampleRoot
+                .appendingPathComponent("Sources/ToDo/ToDoView.swift").path
+            let configPath = CLIRunner.repoRoot
+                .appendingPathComponent("examples/.previewsmcp.json").path
+
+            // Start a long-running session in the daemon.
+            let runResult = try await CLIRunner.run(
+                "run",
+                arguments: [
+                    file, "--platform", "macos", "--config", configPath, "--detach",
+                ]
+            )
+            #expect(runResult.exitCode == 0, "detach stderr: \(runResult.stderr)")
+
+            // Snapshot. Reuse should be fast because no compile is needed.
+            let outputPath = tempDir.appendingPathComponent("reuse.png").path
+            let start = Date()
+            let snapResult = try await CLIRunner.run(
+                "snapshot",
+                arguments: [file, "-o", outputPath, "--platform", "macos"]
+            )
+            let elapsed = Date().timeIntervalSince(start)
+
+            #expect(snapResult.exitCode == 0, "stderr: \(snapResult.stderr)")
+            try CLIRunner.assertValidPNG(at: outputPath)
+
+            // Ephemeral snapshots take several seconds (compile + render).
+            // Reuse of a live session should complete in under 2 s on any
+            // reasonable machine — generous bound to tolerate CI load.
+            #expect(
+                elapsed < 2.0,
+                "snapshot should reuse live session (took \(elapsed)s; ephemeral would take >3s)"
+            )
+
+            _ = try? await CLIRunner.run("kill-daemon", arguments: ["--timeout", "2"])
+        }
+    }
 }

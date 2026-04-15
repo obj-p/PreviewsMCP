@@ -244,18 +244,31 @@ struct SnapshotCommand: AsyncParsableCommand {
             let snapResponse = try await client.callTool(
                 name: "preview_snapshot", arguments: snapshotArgs
             )
-            _ = try? await client.callTool(
-                name: "preview_stop",
-                arguments: ["sessionID": .string(sessionID)]
-            )
+            await stopEphemeralSession(sessionID: sessionID, client: client)
             try handleSnapshotResponse(snapResponse)
         } catch {
             // Best-effort cleanup if the snapshot call itself threw.
-            _ = try? await client.callTool(
+            await stopEphemeralSession(sessionID: sessionID, client: client)
+            throw error
+        }
+    }
+
+    /// Tear down an ephemeral session. Best-effort — logs a warning if the
+    /// stop RPC fails so the session leak is visible instead of silent.
+    /// The session would still be cleaned up when the daemon exits, but a
+    /// long-lived daemon with many leaked sessions could confuse future
+    /// snapshot reuse.
+    private func stopEphemeralSession(sessionID: String, client: Client) async {
+        do {
+            _ = try await client.callTool(
                 name: "preview_stop",
                 arguments: ["sessionID": .string(sessionID)]
             )
-            throw error
+        } catch {
+            fputs(
+                "warning: failed to stop ephemeral session \(sessionID): \(error)\n",
+                stderr
+            )
         }
     }
 
