@@ -64,14 +64,28 @@ public actor SPMBuildSystem: BuildSystem {
         return decodePlatforms(from: data)
     }
 
-    /// Walk up from a source file to find the nearest directory containing Package.swift.
+    /// Walk up from a source file to find the nearest directory containing
+    /// Package.swift — but only if the source file is genuinely part of that
+    /// SPM package. If the walk crosses an `.xcodeproj`, `.xcworkspace`, or
+    /// Bazel workspace first, the source belongs to that non-SPM project and
+    /// we return nil rather than falsely attributing it to an outer SPM
+    /// package (which for a repo containing `examples/xcodeproj/...` would
+    /// incorrectly pick the repo's own Package.swift and then run
+    /// `swift package describe` on it — expensive and pointless).
     public static func findPackageDirectory(from sourceFile: URL) -> URL? {
+        let fm = FileManager.default
         var dir = sourceFile.deletingLastPathComponent().standardizedFileURL
         let root = URL(fileURLWithPath: "/")
         while dir.path != root.path {
+            // If this directory looks like (or sits inside) a non-SPM project,
+            // stop before finding an outer Package.swift.
+            if directoryContainsNonSPMProject(dir, fm: fm) {
+                return nil
+            }
+
             let packageSwift = dir.appendingPathComponent("Package.swift")
             var isDir: ObjCBool = false
-            if FileManager.default.fileExists(atPath: packageSwift.path, isDirectory: &isDir),
+            if fm.fileExists(atPath: packageSwift.path, isDirectory: &isDir),
                 !isDir.boolValue
             {
                 return dir
@@ -79,6 +93,31 @@ public actor SPMBuildSystem: BuildSystem {
             dir = dir.deletingLastPathComponent()
         }
         return nil
+    }
+
+    /// True if the given directory contains a file/folder that marks it as a
+    /// non-SPM project (xcodeproj, xcworkspace, Bazel WORKSPACE/BUILD).
+    private static func directoryContainsNonSPMProject(
+        _ dir: URL, fm: FileManager
+    ) -> Bool {
+        guard
+            let entries = try? fm.contentsOfDirectory(
+                at: dir, includingPropertiesForKeys: nil,
+                options: [.skipsHiddenFiles]
+            )
+        else { return false }
+        for entry in entries {
+            let name = entry.lastPathComponent
+            if name.hasSuffix(".xcodeproj") || name.hasSuffix(".xcworkspace") {
+                return true
+            }
+            if name == "WORKSPACE" || name == "WORKSPACE.bazel"
+                || name == "MODULE.bazel"
+            {
+                return true
+            }
+        }
+        return false
     }
 
     /// Returns .iOS if the SPM package declares iOS but not macOS; nil otherwise.

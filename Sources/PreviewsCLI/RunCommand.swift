@@ -169,9 +169,9 @@ struct RunCommand: AsyncParsableCommand {
             "height": .int(height),
         ]
         if let platform { args["platform"] = .string(platform.rawValue) }
-        if let project { args["project"] = .string(project) }
+        if let project { args["projectPath"] = .string(project) }
         if let scheme { args["scheme"] = .string(scheme) }
-        if let device { args["device"] = .string(device) }
+        if let device { args["deviceUDID"] = .string(device) }
         if let colorScheme { args["colorScheme"] = .string(colorScheme) }
         if let dynamicTypeSize { args["dynamicTypeSize"] = .string(dynamicTypeSize) }
         if let locale { args["locale"] = .string(locale) }

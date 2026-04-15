@@ -292,6 +292,11 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
         sessions[sessionID]
     }
 
+    /// All active macOS sessions, keyed by session ID. Used by session
+    /// discovery (e.g., `snapshot <file>` looking for an existing session
+    /// that matches the target source file).
+    public var allSessions: [String: PreviewSession] { sessions }
+
     /// Get the window for a session (for snapshotting).
     public func window(for sessionID: String) -> NSWindow? {
         windows[sessionID]

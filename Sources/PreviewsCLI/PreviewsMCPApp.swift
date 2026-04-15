@@ -25,11 +25,9 @@ struct PreviewsMCPApp {
         }
 
         // Commands that don't need NSApplication (list, help, status,
-        // kill-daemon, and `run` which is now a lightweight daemon client).
-        // Only serve/snapshot/variants still drive AppKit in-process.
-        if !(command is ServeCommand || command is SnapshotCommand
-            || command is VariantsCommand)
-        {
+        // kill-daemon, run, and snapshot — all now daemon clients).
+        // Only serve and variants still drive AppKit in-process.
+        if !(command is ServeCommand || command is VariantsCommand) {
             // Handle async commands: the MCP SDK's NetworkTransport schedules
             // NWConnection callbacks on DispatchQueue.main, so we can't just
             // block main with a semaphore — the callbacks would never fire.

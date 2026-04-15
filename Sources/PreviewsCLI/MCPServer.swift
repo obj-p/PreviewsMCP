@@ -17,6 +17,7 @@ private enum ToolName: String {
     case previewTouch = "preview_touch"
     case previewVariants = "preview_variants"
     case simulatorList = "simulator_list"
+    case sessionList = "session_list"
 }
 
 /// Tracks active iOS preview sessions and lazily creates shared iOS resources.
@@ -61,6 +62,12 @@ private actor IOSState {
 
     func allSessionIDs() -> [String] {
         Array(sessions.keys)
+    }
+
+    /// Pairs of (sessionID, sourceFile) for every active iOS session.
+    /// Used by the `session_list` MCP tool for session discovery.
+    func allSessionsInfo() -> [(id: String, sourceFile: URL)] {
+        sessions.map { ($0.key, $0.value.sourceFile) }
     }
 }
 
@@ -464,6 +471,15 @@ func configureMCPServer(sharedCompiler: Compiler? = nil) async throws -> (Server
                     "properties": .object([:]),
                 ])
             ),
+            Tool(
+                name: ToolName.sessionList.rawValue,
+                description:
+                    "List all active preview sessions in the daemon, with their source file paths and platforms. Used by CLI commands to resolve --file to --session, and for diagnostic tooling.",
+                inputSchema: .object([
+                    "type": .string("object"),
+                    "properties": .object([:]),
+                ])
+            ),
         ])
     }
 
@@ -492,6 +508,8 @@ func configureMCPServer(sharedCompiler: Compiler? = nil) async throws -> (Server
             return try await handlePreviewVariants(params: params, server: server)
         case .simulatorList:
             return try await handleSimulatorList()
+        case .sessionList:
+            return await handleSessionList()
         }
     }
 
@@ -940,6 +958,31 @@ private func handleSimulatorList() async throws -> CallTool.Result {
         lines.append("\(device.name) — \(device.udid)\(state) (\(device.runtimeName ?? "unknown runtime"))")
     }
 
+    return CallTool.Result(content: [.text(lines.joined(separator: "\n"))])
+}
+
+/// List all active sessions (iOS + macOS). Output is one line per session in
+/// the format `<sessionID>\t<platform>\t<sourceFilePath>` — tab-delimited for
+/// simple client-side parsing. Empty result when no sessions are active.
+private func handleSessionList() async -> CallTool.Result {
+    var lines: [String] = []
+
+    let iosSessions = await iosState.allSessionsInfo()
+    for session in iosSessions {
+        lines.append("\(session.id)\tios\t\(session.sourceFile.path)")
+    }
+
+    let macSessions = await MainActor.run { App.host?.allSessions ?? [:] }
+    for (id, session) in macSessions {
+        lines.append("\(id)\tmacos\t\(session.sourceFile.path)")
+    }
+
+    // Stable ordering so clients parsing the output get consistent results.
+    lines.sort()
+
+    if lines.isEmpty {
+        return CallTool.Result(content: [.text("")])
+    }
     return CallTool.Result(content: [.text(lines.joined(separator: "\n"))])
 }
 
