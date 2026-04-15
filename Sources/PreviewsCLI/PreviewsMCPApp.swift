@@ -117,6 +117,7 @@ struct PreviewsMCPCommand: ParsableCommand {
         version: version,
         subcommands: [
             RunCommand.self, ListCommand.self, SnapshotCommand.self, VariantsCommand.self,
+            ConfigureCommand.self,
             ServeCommand.self, StatusCommand.self, KillDaemonCommand.self,
         ],
         defaultSubcommand: RunCommand.self
