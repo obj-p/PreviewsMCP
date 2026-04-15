@@ -64,6 +64,9 @@ struct TouchCommand: AsyncParsableCommand {
         if !isSwipe, duration != nil {
             throw ValidationError("--duration only applies to swipes (provide --to-x and --to-y).")
         }
+        if let duration, duration <= 0 {
+            throw ValidationError("--duration must be positive.")
+        }
 
         let client = try await DaemonClient.connect(clientName: "previewsmcp-touch") { client in
             await client.onNotification(LogMessageNotification.self) { message in

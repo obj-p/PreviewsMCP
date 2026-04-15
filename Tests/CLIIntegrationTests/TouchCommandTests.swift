@@ -33,6 +33,25 @@ struct TouchCommandTests {
         }
     }
 
+    @Test("touch rejects non-positive --duration")
+    func touchRejectsNonPositiveDuration() async throws {
+        try await DaemonTestLock.run {
+            try await Self.cleanSlate()
+
+            let result = try await CLIRunner.run(
+                "touch",
+                arguments: [
+                    "100", "200", "--to-x", "300", "--to-y", "400", "--duration", "0",
+                ]
+            )
+            #expect(result.exitCode != 0)
+            #expect(
+                result.stderr.contains("--duration must be positive"),
+                "stderr: \(result.stderr)"
+            )
+        }
+    }
+
     @Test("touch rejects --duration without swipe endpoints")
     func touchRejectsDurationWithoutSwipe() async throws {
         try await DaemonTestLock.run {
@@ -135,17 +154,19 @@ struct TouchCommandTests {
             )
             #expect(runResult.exitCode == 0, "detach stderr: \(runResult.stderr)")
 
-            // Tap.
+            // Tap. Pin the assertion to the full coordinate string so
+            // that a regression mis-wiring x/y still fails.
             let tapResult = try await CLIRunner.run(
                 "touch", arguments: ["120", "200"]
             )
             #expect(tapResult.exitCode == 0, "tap stderr: \(tapResult.stderr)")
             #expect(
-                tapResult.stderr.contains("Tap sent"),
-                "daemon should report tap: \(tapResult.stderr)"
+                tapResult.stderr.contains("Tap sent at (120, 200)"),
+                "daemon should echo the tap coordinates: \(tapResult.stderr)"
             )
 
-            // Swipe.
+            // Swipe. Same: require the endpoints so a lost toX/toY wiring
+            // can't slip through.
             let swipeResult = try await CLIRunner.run(
                 "touch",
                 arguments: [
@@ -154,8 +175,8 @@ struct TouchCommandTests {
             )
             #expect(swipeResult.exitCode == 0, "swipe stderr: \(swipeResult.stderr)")
             #expect(
-                swipeResult.stderr.contains("Swipe"),
-                "daemon should report swipe: \(swipeResult.stderr)"
+                swipeResult.stderr.contains("Swipe from (40,300) to (300,300)"),
+                "daemon should echo the full swipe endpoints: \(swipeResult.stderr)"
             )
 
             _ = try? await CLIRunner.run("kill-daemon", arguments: ["--timeout", "2"])
