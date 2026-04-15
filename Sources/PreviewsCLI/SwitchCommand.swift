@@ -75,10 +75,10 @@ struct SwitchCommand: AsyncParsableCommand {
                 ]
             )
             if response.isError == true {
-                throw SwitchCommandError.daemonError(textFromContent(response.content))
+                throw SwitchCommandError.daemonError(response.content.joinedText())
             }
 
-            let text = textFromContent(response.content)
+            let text = response.content.joinedText()
             if !text.isEmpty { fputs("\(text)\n", stderr) }
 
             await client.disconnect()
@@ -88,12 +88,6 @@ struct SwitchCommand: AsyncParsableCommand {
         }
     }
 
-    private func textFromContent(_ content: [Tool.Content]) -> String {
-        content.compactMap { item in
-            if case .text(let t) = item { return t }
-            return nil
-        }.joined(separator: "\n")
-    }
 }
 
 enum SwitchCommandError: Error, CustomStringConvertible {

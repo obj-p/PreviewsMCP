@@ -111,13 +111,13 @@ struct RunCommand: AsyncParsableCommand {
         }
 
         if response.isError == true {
-            let text = textFromContent(response.content)
+            let text = response.content.joinedText()
             fputs("Preview start failed: \(text)\n", stderr)
             await client.disconnect()
             throw ExitCode(1)
         }
 
-        let text = textFromContent(response.content)
+        let text = response.content.joinedText()
         guard let sessionID = extractSessionID(from: text) else {
             fputs("Unexpected daemon response (no session ID): \(text)\n", stderr)
             await client.disconnect()
@@ -180,13 +180,6 @@ struct RunCommand: AsyncParsableCommand {
         if headless { args["headless"] = .bool(true) }
         if let config { args["config"] = .string(config) }
         return args
-    }
-
-    private func textFromContent(_ content: [Tool.Content]) -> String {
-        content.compactMap { item in
-            if case .text(let t) = item { return t }
-            return nil
-        }.joined(separator: "\n")
     }
 
     private func extractSessionID(from text: String) -> String? {

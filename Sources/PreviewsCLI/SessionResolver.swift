@@ -74,10 +74,10 @@ enum SessionResolver {
         let response = try await client.callTool(name: "session_list", arguments: [:])
         if response.isError == true {
             throw SessionResolverError.daemonError(
-                textFromContent(response.content)
+                response.content.joinedText()
             )
         }
-        let text = textFromContent(response.content)
+        let text = response.content.joinedText()
         return parseSessionList(text)
     }
 
@@ -95,12 +95,6 @@ enum SessionResolver {
         }
     }
 
-    private static func textFromContent(_ content: [Tool.Content]) -> String {
-        content.compactMap { item in
-            if case .text(let t) = item { return t }
-            return nil
-        }.joined(separator: "\n")
-    }
 }
 
 extension SessionResolver {

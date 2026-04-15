@@ -227,11 +227,11 @@ struct SnapshotCommand: AsyncParsableCommand {
 
         let startResponse = try await client.callTool(name: "preview_start", arguments: startArgs)
         if startResponse.isError == true {
-            let text = textFromContent(startResponse.content)
+            let text = startResponse.content.joinedText()
             throw SnapshotCommandError.daemonError("Failed to start preview: \(text)")
         }
 
-        let sessionID = try extractSessionID(from: textFromContent(startResponse.content))
+        let sessionID = try extractSessionID(from: startResponse.content.joinedText())
 
         var snapshotArgs: [String: Value] = ["sessionID": .string(sessionID)]
         snapshotArgs["quality"] = .double(resolvedQuality())
@@ -312,7 +312,7 @@ struct SnapshotCommand: AsyncParsableCommand {
     /// Prints the output path to stdout (scriptable) on success.
     private func handleSnapshotResponse(_ response: (content: [Tool.Content], isError: Bool?)) throws {
         if response.isError == true {
-            let text = textFromContent(response.content)
+            let text = response.content.joinedText()
             throw SnapshotCommandError.daemonError("snapshot failed: \(text)")
         }
 
@@ -327,14 +327,7 @@ struct SnapshotCommand: AsyncParsableCommand {
                 return
             }
         }
-        throw SnapshotCommandError.noImageContent(textFromContent(response.content))
-    }
-
-    private func textFromContent(_ content: [Tool.Content]) -> String {
-        content.compactMap { item in
-            if case .text(let t) = item { return t }
-            return nil
-        }.joined(separator: "\n")
+        throw SnapshotCommandError.noImageContent(response.content.joinedText())
     }
 
     private func extractSessionID(from text: String) throws -> String {
