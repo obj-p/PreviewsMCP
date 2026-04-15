@@ -44,15 +44,7 @@ struct SwitchCommand: AsyncParsableCommand {
             throw ValidationError("Preview index must be non-negative.")
         }
 
-        let client = try await DaemonClient.connect(clientName: "previewsmcp-switch") { client in
-            await client.onNotification(LogMessageNotification.self) { message in
-                if case .string(let text) = message.params.data {
-                    fputs("\(text)\n", stderr)
-                }
-            }
-        }
-
-        do {
+        try await DaemonClient.withDaemonClient(name: "previewsmcp-switch") { client in
             let resolution = try await SessionResolver.resolve(
                 session: session,
                 file: file,
@@ -80,11 +72,6 @@ struct SwitchCommand: AsyncParsableCommand {
 
             let text = response.content.joinedText()
             if !text.isEmpty { fputs("\(text)\n", stderr) }
-
-            await client.disconnect()
-        } catch {
-            await client.disconnect()
-            throw error
         }
     }
 

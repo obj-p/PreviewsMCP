@@ -28,15 +28,7 @@ struct SimulatorsCommand: AsyncParsableCommand {
     )
 
     mutating func run() async throws {
-        let client = try await DaemonClient.connect(clientName: "previewsmcp-simulators") { client in
-            await client.onNotification(LogMessageNotification.self) { message in
-                if case .string(let text) = message.params.data {
-                    fputs("\(text)\n", stderr)
-                }
-            }
-        }
-
-        do {
+        try await DaemonClient.withDaemonClient(name: "previewsmcp-simulators") { client in
             let response = try await client.callTool(name: "simulator_list", arguments: [:])
             if response.isError == true {
                 throw DaemonToolError.daemonError(response.content.joinedText())
@@ -47,11 +39,6 @@ struct SimulatorsCommand: AsyncParsableCommand {
             // sentinel "No available simulator devices found." — so
             // always surface the daemon's reply verbatim.
             print(response.content.joinedText())
-
-            await client.disconnect()
-        } catch {
-            await client.disconnect()
-            throw error
         }
     }
 }

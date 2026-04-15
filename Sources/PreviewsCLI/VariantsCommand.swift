@@ -145,16 +145,9 @@ struct VariantsCommand: AsyncParsableCommand {
         try FileManager.default.createDirectory(
             at: outputDirURL, withIntermediateDirectories: true)
 
-        let client = try await DaemonClient.connect(clientName: "previewsmcp-variants") { client in
-            await client.onNotification(LogMessageNotification.self) { message in
-                if case .string(let text) = message.params.data {
-                    fputs("\(text)\n", stderr)
-                }
-            }
-        }
-
-        let exitCode: Int32
-        do {
+        let exitCode: Int32 = try await DaemonClient.withDaemonClient(
+            name: "previewsmcp-variants"
+        ) { client in
             let resolution = try await SessionResolver.resolve(
                 session: session,
                 file: file,
@@ -163,7 +156,7 @@ struct VariantsCommand: AsyncParsableCommand {
 
             switch resolution {
             case .found(let sessionID):
-                exitCode = try await captureVariants(
+                return try await captureVariants(
                     sessionID: sessionID,
                     labels: resolvedVariants.map(\.label),
                     outputDir: outputDirURL,
@@ -176,17 +169,13 @@ struct VariantsCommand: AsyncParsableCommand {
                             + "Pass a file path to create a new ephemeral session."
                     )
                 }
-                exitCode = try await captureEphemeral(
+                return try await captureEphemeral(
                     file: file,
                     labels: resolvedVariants.map(\.label),
                     outputDir: outputDirURL,
                     client: client
                 )
             }
-            await client.disconnect()
-        } catch {
-            await client.disconnect()
-            throw error
         }
 
         if exitCode != 0 { throw ExitCode(exitCode) }

@@ -46,15 +46,7 @@ struct ElementsCommand: AsyncParsableCommand {
     }
 
     mutating func run() async throws {
-        let client = try await DaemonClient.connect(clientName: "previewsmcp-elements") { client in
-            await client.onNotification(LogMessageNotification.self) { message in
-                if case .string(let text) = message.params.data {
-                    fputs("\(text)\n", stderr)
-                }
-            }
-        }
-
-        do {
+        try await DaemonClient.withDaemonClient(name: "previewsmcp-elements") { client in
             let resolution = try await SessionResolver.resolve(
                 session: session,
                 file: file,
@@ -86,11 +78,6 @@ struct ElementsCommand: AsyncParsableCommand {
             // parsers don't see a stray `\n`.
             let text = response.content.joinedText()
             if !text.isEmpty { print(text) }
-
-            await client.disconnect()
-        } catch {
-            await client.disconnect()
-            throw error
         }
     }
 }

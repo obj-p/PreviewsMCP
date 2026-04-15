@@ -41,24 +41,12 @@ struct StopCommand: AsyncParsableCommand {
             throw ValidationError("--all cannot be combined with --session or --file.")
         }
 
-        let client = try await DaemonClient.connect(clientName: "previewsmcp-stop") { client in
-            await client.onNotification(LogMessageNotification.self) { message in
-                if case .string(let text) = message.params.data {
-                    fputs("\(text)\n", stderr)
-                }
-            }
-        }
-
-        do {
+        try await DaemonClient.withDaemonClient(name: "previewsmcp-stop") { client in
             if all {
                 try await stopAll(client: client)
             } else {
                 try await stopOne(client: client)
             }
-            await client.disconnect()
-        } catch {
-            await client.disconnect()
-            throw error
         }
     }
 
