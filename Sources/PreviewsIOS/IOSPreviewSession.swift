@@ -302,8 +302,14 @@ public actor IOSPreviewSession {
     }
 
     /// Update traits and recompile. Signals the host app to reload. @State is lost.
-    public func reconfigure(traits: PreviewTraits) async throws {
-        self.traits = self.traits.merged(with: traits)
+    ///
+    /// See `PreviewSession.reconfigure(traits:clearing:)` for the semantics
+    /// of `clearing`.
+    public func reconfigure(
+        traits: PreviewTraits,
+        clearing: Set<PreviewTraits.Field> = []
+    ) async throws {
+        self.traits = self.traits.merged(with: traits).clearing(clearing)
         try await reload()
     }
 
