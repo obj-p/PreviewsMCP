@@ -19,7 +19,7 @@ struct PreviewHostTests {
     /// should go red.
     @Test("retainFileWatcher keeps a watcher alive past the creating scope")
     func retainFileWatcherKeepsWatcherAlive() async throws {
-        let host = PreviewHost(mode: .interactive)
+        let host = PreviewHost()
 
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("preview-host-test-\(UUID().uuidString)")

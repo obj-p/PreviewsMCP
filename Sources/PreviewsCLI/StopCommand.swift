@@ -27,17 +27,13 @@ struct StopCommand: AsyncParsableCommand {
             """
     )
 
-    @Option(name: .long, help: "Target a specific running session by UUID")
-    var session: String?
-
-    @Option(name: .long, help: "Resolve session by source file path")
-    var file: String?
+    @OptionGroup var target: SessionTargetingOptions
 
     @Flag(name: .long, help: "Stop every active session in the daemon")
     var all: Bool = false
 
     mutating func run() async throws {
-        if all, session != nil || file != nil {
+        if all, target.session != nil || target.file != nil {
             throw ValidationError("--all cannot be combined with --session or --file.")
         }
 
@@ -52,8 +48,8 @@ struct StopCommand: AsyncParsableCommand {
 
     private func stopOne(client: Client) async throws {
         let resolution = try await SessionResolver.resolve(
-            session: session,
-            file: file,
+            session: target.session,
+            file: target.file,
             client: client
         )
 
