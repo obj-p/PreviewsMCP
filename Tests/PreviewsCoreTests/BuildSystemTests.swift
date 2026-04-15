@@ -893,6 +893,62 @@ struct BuildSystemTests {
         #expect(found == nil)
     }
 
+    /// Regression guard: before the fix, a source file inside an xcodeproj
+    /// directory tree would cause `findPackageDirectory` to walk past the
+    /// xcodeproj boundary and attribute the file to whatever outer
+    /// Package.swift it eventually hit (typically the repo's own). This
+    /// triggered a hang where `swift package describe` ran against the
+    /// wrong package. The fix short-circuits when the walk crosses an
+    /// xcodeproj/xcworkspace/WORKSPACE marker before finding Package.swift.
+    @Test("findPackageDirectory returns nil when walk crosses xcodeproj before Package.swift")
+    func findPackageDirectoryStopsAtXcodeproj() throws {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-test-\(UUID().uuidString)")
+        // Layout:
+        //   tmpDir/Package.swift                   ← outer SPM package
+        //   tmpDir/xcodeproj-child/                ← contains xcodeproj
+        //     Foo.xcodeproj
+        //     Sources/MyTarget/MyView.swift        ← source we test
+        let outerPackageSwift = tmpDir.appendingPathComponent("Package.swift")
+        let projectDir = tmpDir.appendingPathComponent("xcodeproj-child")
+        let xcodeproj = projectDir.appendingPathComponent("Foo.xcodeproj")
+        let sourceDir = projectDir.appendingPathComponent("Sources/MyTarget")
+        try FileManager.default.createDirectory(at: xcodeproj, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: sourceDir, withIntermediateDirectories: true)
+        try "// swift-tools-version: 6.0".write(
+            to: outerPackageSwift, atomically: true, encoding: .utf8)
+        let sourceFile = sourceDir.appendingPathComponent("MyView.swift")
+        try "import SwiftUI".write(to: sourceFile, atomically: true, encoding: .utf8)
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        // Without the xcodeproj-boundary check, this would walk up from
+        // MyTarget → Sources → xcodeproj-child → tmpDir and return tmpDir
+        // (because tmpDir/Package.swift exists). With the fix, it hits
+        // xcodeproj-child/Foo.xcodeproj first and returns nil.
+        let found = SPMBuildSystem.findPackageDirectory(from: sourceFile)
+        #expect(found == nil, "xcodeproj sibling should stop the walk")
+    }
+
+    @Test("findPackageDirectory returns nil when walk crosses WORKSPACE (Bazel)")
+    func findPackageDirectoryStopsAtBazelWorkspace() throws {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-test-\(UUID().uuidString)")
+        let outerPackageSwift = tmpDir.appendingPathComponent("Package.swift")
+        let bazelDir = tmpDir.appendingPathComponent("bazel-child")
+        let workspace = bazelDir.appendingPathComponent("WORKSPACE")
+        let sourceDir = bazelDir.appendingPathComponent("lib")
+        try FileManager.default.createDirectory(at: sourceDir, withIntermediateDirectories: true)
+        try "// swift-tools-version: 6.0".write(
+            to: outerPackageSwift, atomically: true, encoding: .utf8)
+        try "".write(to: workspace, atomically: true, encoding: .utf8)
+        let sourceFile = sourceDir.appendingPathComponent("lib.swift")
+        try "import SwiftUI".write(to: sourceFile, atomically: true, encoding: .utf8)
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        let found = SPMBuildSystem.findPackageDirectory(from: sourceFile)
+        #expect(found == nil, "Bazel WORKSPACE should stop the walk")
+    }
+
     // MARK: - SPMBuildSystem.detectPlatforms
 
     @Test("detectPlatforms returns platforms from real SPM package")
