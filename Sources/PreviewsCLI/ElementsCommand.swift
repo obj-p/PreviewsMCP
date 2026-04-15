@@ -77,7 +77,7 @@ struct ElementsCommand: AsyncParsableCommand {
                 ]
             )
             if response.isError == true {
-                throw ElementsCommandError.daemonError(response.content.joinedText())
+                throw DaemonToolError.daemonError(response.content.joinedText())
             }
 
             // The daemon returns the tree as a single text blob (JSON).
@@ -95,12 +95,3 @@ struct ElementsCommand: AsyncParsableCommand {
     }
 }
 
-enum ElementsCommandError: Error, CustomStringConvertible {
-    case daemonError(String)
-
-    var description: String {
-        switch self {
-        case .daemonError(let text): return text
-        }
-    }
-}

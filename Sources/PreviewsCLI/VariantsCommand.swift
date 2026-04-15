@@ -225,7 +225,7 @@ struct VariantsCommand: AsyncParsableCommand {
 
         let startResponse = try await client.callTool(name: "preview_start", arguments: startArgs)
         if startResponse.isError == true {
-            throw VariantsCommandError.daemonError(
+            throw DaemonToolError.daemonError(
                 "Failed to start preview: \(startResponse.content.joinedText())"
             )
         }
@@ -374,7 +374,7 @@ struct VariantsCommand: AsyncParsableCommand {
     private func extractSessionID(from text: String) throws -> String {
         let pattern = /Session ID: ([0-9a-fA-F-]{36})/
         guard let match = text.firstMatch(of: pattern) else {
-            throw VariantsCommandError.daemonError(
+            throw DaemonToolError.daemonError(
                 "no session ID in daemon response: \(text)"
             )
         }
@@ -396,12 +396,3 @@ struct VariantsCommand: AsyncParsableCommand {
     }
 }
 
-enum VariantsCommandError: Error, CustomStringConvertible {
-    case daemonError(String)
-
-    var description: String {
-        switch self {
-        case .daemonError(let text): return text
-        }
-    }
-}

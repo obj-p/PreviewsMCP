@@ -108,7 +108,7 @@ struct TouchCommand: AsyncParsableCommand {
                 arguments: arguments
             )
             if response.isError == true {
-                throw TouchCommandError.daemonError(response.content.joinedText())
+                throw DaemonToolError.daemonError(response.content.joinedText())
             }
 
             let text = response.content.joinedText()
@@ -122,12 +122,3 @@ struct TouchCommand: AsyncParsableCommand {
     }
 }
 
-enum TouchCommandError: Error, CustomStringConvertible {
-    case daemonError(String)
-
-    var description: String {
-        switch self {
-        case .daemonError(let text): return text
-        }
-    }
-}

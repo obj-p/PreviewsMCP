@@ -39,7 +39,7 @@ struct SimulatorsCommand: AsyncParsableCommand {
         do {
             let response = try await client.callTool(name: "simulator_list", arguments: [:])
             if response.isError == true {
-                throw SimulatorsCommandError.daemonError(response.content.joinedText())
+                throw DaemonToolError.daemonError(response.content.joinedText())
             }
 
             // Unlike elements (where empty stdout is plausible),
@@ -56,12 +56,3 @@ struct SimulatorsCommand: AsyncParsableCommand {
     }
 }
 
-enum SimulatorsCommandError: Error, CustomStringConvertible {
-    case daemonError(String)
-
-    var description: String {
-        switch self {
-        case .daemonError(let text): return text
-        }
-    }
-}
