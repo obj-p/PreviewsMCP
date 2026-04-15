@@ -329,16 +329,26 @@ struct VariantsCommand: AsyncParsableCommand {
         return 0.85
     }
 
+    /// Map (success, fail) counts to the documented exit codes.
+    ///   * 0 — all variants captured
+    ///   * 1 — partial failure (at least one success, at least one fail)
+    ///   * 2 — total failure (every variant failed)
+    /// Pure + `static` so it can be unit-tested without a daemon round-trip.
+    static func exitCode(successCount: Int, failCount: Int) -> Int32 {
+        if failCount == 0 { return 0 }
+        return failCount == (successCount + failCount) ? 2 : 1
+    }
+
     private func summarize(successCount: Int, failCount: Int) -> Int32 {
         let total = successCount + failCount
         if failCount == 0 {
             fputs("Captured \(successCount)/\(total) variants.\n", stderr)
-            return 0
+        } else {
+            fputs(
+                "Captured \(successCount)/\(total) variants (\(failCount) failed). "
+                    + "See stderr for details.\n", stderr)
         }
-        fputs(
-            "Captured \(successCount)/\(total) variants (\(failCount) failed). "
-                + "See stderr for details.\n", stderr)
-        return failCount == total ? 2 : 1
+        return Self.exitCode(successCount: successCount, failCount: failCount)
     }
 
     /// Match the daemon's success preamble: exactly `[N] <label>:` with
