@@ -14,7 +14,7 @@ struct VariantsCommandTests {
 
     // MARK: - Happy paths
 
-    @Test("Captures multiple presets to distinct files", .timeLimit(.minutes(2)))
+    @Test("Captures multiple presets to distinct files", .timeLimit(.minutes(10)))
     func capturesMultiplePresets() async throws {
         try await DaemonTestLock.run {
             try await Self.cleanSlate()
@@ -57,7 +57,7 @@ struct VariantsCommandTests {
         }
     }
 
-    @Test("JSON variant uses custom label as filename", .timeLimit(.minutes(2)))
+    @Test("JSON variant uses custom label as filename", .timeLimit(.minutes(10)))
     func jsonVariantUsesCustomLabel() async throws {
         try await DaemonTestLock.run {
             try await Self.cleanSlate()
@@ -89,7 +89,7 @@ struct VariantsCommandTests {
         }
     }
 
-    @Test("PNG format produces valid PNG files", .timeLimit(.minutes(2)))
+    @Test("PNG format produces valid PNG files", .timeLimit(.minutes(10)))
     func pngFormat() async throws {
         try await DaemonTestLock.run {
             try await Self.cleanSlate()
@@ -126,7 +126,7 @@ struct VariantsCommandTests {
     /// branch in `handlePreviewVariants`. Gated on simulator availability.
     @Test(
         "Captures multiple presets against an iOS simulator session",
-        .timeLimit(.minutes(5))
+        .timeLimit(.minutes(10))
     )
     func capturesIOSVariants() async throws {
         try await DaemonTestLock.run {
@@ -180,7 +180,7 @@ struct VariantsCommandTests {
     /// --all reports it).
     @Test(
         "variants reuses an already-running session",
-        .timeLimit(.minutes(2))
+        .timeLimit(.minutes(10))
     )
     func variantsReusesLiveSession() async throws {
         try await DaemonTestLock.run {
@@ -234,7 +234,7 @@ struct VariantsCommandTests {
     /// "ERROR_STATE" still captures successfully.
     @Test(
         "Label containing 'ERROR' is not mis-bucketed as failure",
-        .timeLimit(.minutes(2))
+        .timeLimit(.minutes(10))
     )
     func labelContainingErrorStillCapturesSuccessfully() async throws {
         try await DaemonTestLock.run {

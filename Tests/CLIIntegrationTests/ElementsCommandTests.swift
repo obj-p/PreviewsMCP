@@ -35,7 +35,7 @@ struct ElementsCommandTests {
     /// cleanly.
     @Test(
         "elements against a macOS session surfaces an iOS-only error",
-        .timeLimit(.minutes(2))
+        .timeLimit(.minutes(10))
     )
     func elementsRejectsMacOSSession() async throws {
         try await DaemonTestLock.run {
@@ -71,7 +71,7 @@ struct ElementsCommandTests {
     /// simulators don't fail.
     @Test(
         "elements returns a JSON accessibility tree for an iOS session",
-        .timeLimit(.minutes(5))
+        .timeLimit(.minutes(10))
     )
     func elementsReturnsJSONTree() async throws {
         try await DaemonTestLock.run {

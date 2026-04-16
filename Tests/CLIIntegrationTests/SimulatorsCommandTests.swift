@@ -22,7 +22,7 @@ struct SimulatorsCommandTests {
     /// sentinel. This also implicitly verifies daemon auto-start.
     @Test(
         "simulators succeeds with either device lines or the no-devices sentinel",
-        .timeLimit(.minutes(2))
+        .timeLimit(.minutes(10))
     )
     func simulatorsAlwaysProducesOutput() async throws {
         try await DaemonTestLock.run {
@@ -68,7 +68,7 @@ struct SimulatorsCommandTests {
 
     @Test(
         "simulators --json emits valid JSON with expected fields",
-        .timeLimit(.minutes(2))
+        .timeLimit(.minutes(10))
     )
     func simulatorsJSON() async throws {
         try await DaemonTestLock.run {

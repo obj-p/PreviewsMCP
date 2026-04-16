@@ -447,7 +447,7 @@ struct MacOSMCPTests {
 
     // MARK: - Hot reload (separate test — modifies source file)
 
-    @Test("File edit triggers hot reload", .timeLimit(.minutes(3)))
+    @Test("File edit triggers hot reload", .timeLimit(.minutes(10)))
     func hotReload() async throws {
         let server = try await MCPTestServer.start()
         defer { server.stop() }

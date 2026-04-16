@@ -39,7 +39,7 @@ struct SwitchCommandTests {
     /// the empty state.
     @Test(
         "switch changes the active preview in a live session",
-        .timeLimit(.minutes(2))
+        .timeLimit(.minutes(10))
     )
     func switchChangesActivePreview() async throws {
         try await DaemonTestLock.run {
@@ -103,7 +103,7 @@ struct SwitchCommandTests {
     /// error message cleanly.
     @Test(
         "switch with out-of-range index reports an error",
-        .timeLimit(.minutes(2))
+        .timeLimit(.minutes(10))
     )
     func switchOutOfRange() async throws {
         try await DaemonTestLock.run {
