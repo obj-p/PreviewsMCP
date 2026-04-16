@@ -2,6 +2,7 @@ import ArgumentParser
 import Foundation
 import MCP
 import PreviewsCore
+import PreviewsEngine
 
 /// Capture a screenshot of a preview.
 ///
