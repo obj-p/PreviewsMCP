@@ -61,13 +61,13 @@ struct VariantsCommand: AsyncParsableCommand {
     @Option(name: .long, help: "JPEG quality 0.0–1.0 (ignored for PNG; default from config or 0.85)")
     var quality: Double?
 
-    @Option(name: .long, help: "Which preview to capture (0-based index, ephemeral only)")
+    @Option(name: .long, help: "Which preview to capture (0-based index, new session only)")
     var preview: Int = 0
 
-    @Option(name: .long, help: "Window width (ephemeral session only)")
+    @Option(name: .long, help: "Window width (new session only)")
     var width: Int = 400
 
-    @Option(name: .long, help: "Window height (ephemeral session only)")
+    @Option(name: .long, help: "Window height (new session only)")
     var height: Int = 600
 
     @Option(name: .long, help: "Target platform: 'macos' or 'ios' (auto-detected if omitted)")

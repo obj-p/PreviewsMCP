@@ -79,19 +79,74 @@ The binary is at `.build/release/previewsmcp`.
 
 ### CLI
 
+Every CLI subcommand talks to a daemon process over a Unix socket. The daemon auto-starts on first use (ADB-style) and stays alive across invocations — no manual lifecycle management needed.
+
 ```bash
 previewsmcp help                   # top-level overview
-previewsmcp help <subcommand>      # full options for run / snapshot / variants / list / serve
+previewsmcp help <subcommand>      # full options for any command
 ```
 
-A few common invocations:
+#### Previewing
 
 ```bash
 previewsmcp MyView.swift                           # live macOS preview window
 previewsmcp MyView.swift --platform ios            # iOS simulator
-previewsmcp snapshot MyView.swift -o preview.png   # one-shot screenshot
-previewsmcp list MyView.swift                      # enumerate #Preview blocks
+previewsmcp run MyView.swift --detach              # start in background, print session ID
 ```
+
+#### Snapshotting
+
+```bash
+previewsmcp snapshot MyView.swift -o preview.png   # one-shot screenshot
+previewsmcp variants MyView.swift \
+  --variant light --variant dark -o ./shots         # multi-trait sweep
+```
+
+If a session is already running for the target file, `snapshot` and `variants` reuse it (fast — no recompile) and fall back to an ephemeral session otherwise.
+
+#### Inspecting and interacting (iOS)
+
+```bash
+previewsmcp elements                               # dump accessibility tree as JSON
+previewsmcp touch 120 200                           # tap at (120, 200)
+previewsmcp touch 40 300 --to-x 300 --to-y 300     # swipe
+```
+
+#### Session management
+
+```bash
+previewsmcp configure --color-scheme dark           # change traits on a live session
+previewsmcp switch 1                                # switch to the 2nd #Preview block
+previewsmcp stop                                    # close the sole running session
+previewsmcp stop --all                              # close every session
+```
+
+Commands that target a session resolve it automatically: `--session <uuid>` > `--file <path>` > the sole running session.
+
+#### Enumeration and diagnostics
+
+```bash
+previewsmcp list MyView.swift                       # enumerate #Preview blocks
+previewsmcp simulators                              # list available iOS simulators
+previewsmcp status                                  # daemon alive?
+previewsmcp kill-daemon                             # stop the daemon process
+```
+
+#### Structured output
+
+Read-oriented commands support `--json` for scripts and agent consumption:
+
+```bash
+previewsmcp run MyView.swift --detach --json | jq .sessionID
+previewsmcp simulators --json | jq '.simulators[] | select(.state == "Booted")'
+previewsmcp list MyView.swift --json
+previewsmcp snapshot MyView.swift -o out.png --json
+previewsmcp variants MyView.swift --variant light --variant dark -o ./shots --json
+previewsmcp status --json
+previewsmcp elements --json
+```
+
+### Project config
 
 Drop a `.previewsmcp.json` at your project root to set defaults for every CLI command and MCP tool call (see [`examples/.previewsmcp.json`](examples/.previewsmcp.json) for the canonical shape):
 
@@ -121,5 +176,13 @@ Add to your agent's MCP config — same `mcpServers` shape whether it lands in `
 ```
 
 Once connected, ask your agent *"what `previews` tools are available?"* — it will describe them directly from the server's registered schemas, including snapshotting, variant capture, accessibility-tree inspection, and touch injection.
+
+### Daemon model
+
+The CLI uses an auto-started background daemon that manages preview sessions. On first CLI invocation, `previewsmcp serve --daemon` launches in the background and listens on `~/.previewsmcp/serve.sock`. Subsequent commands connect to the existing daemon — no cold start. The daemon stays alive until explicitly killed (`previewsmcp kill-daemon`) or the machine reboots.
+
+- `previewsmcp status` — check if the daemon is running and its PID.
+- `previewsmcp kill-daemon` — stop the daemon and clean up the socket.
+- Sessions persist across CLI invocations. `run --detach` starts one, `stop` closes it, and `configure` / `switch` / `snapshot` / `elements` / `touch` operate on it.
 
 
