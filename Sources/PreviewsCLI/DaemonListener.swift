@@ -8,9 +8,9 @@ import PreviewsMacOS
 /// Runs the MCP server daemon on a Unix domain socket.
 ///
 /// Accepts multiple concurrent client connections. Each connection gets its own
-/// `MCP.Server` instance, but all connections share the module-level actors in
-/// `MCPServer.swift` (`IOSState`, `ConfigCache`) and a single `Compiler` built
-/// at daemon startup — so preview sessions persist across CLI invocations and
+/// `MCP.Server` instance, but all connections share a single
+/// `IOSSessionManager`, `ConfigCache`, and `Compiler` created at daemon
+/// startup — so preview sessions persist across CLI invocations and
 /// simultaneous clients see consistent state.
 enum DaemonListener {
 

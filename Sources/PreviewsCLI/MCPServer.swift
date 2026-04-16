@@ -1537,5 +1537,3 @@ private func extractArray(_ key: String, from params: CallTool.Parameters) throw
     guard case .array(let arr) = value else { throw ParamError.wrongType(key: key, expected: "an array") }
     return arr
 }
-
-/// Remove stale previewsmcp temp directories older than 24 hours.

@@ -93,6 +93,6 @@ public func resolveDeviceUDID(
     }
 }
 
-public struct NoSimulatorError: Error, CustomStringConvertible {
-    public var description: String { "No available iOS simulator devices found" }
+public struct NoSimulatorError: LocalizedError {
+    public var errorDescription: String? { "No available iOS simulator devices found" }
 }
