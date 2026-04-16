@@ -60,4 +60,3 @@ struct SimulatorsCommand: AsyncParsableCommand {
         }
     }
 }
-

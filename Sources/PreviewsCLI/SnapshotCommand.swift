@@ -73,7 +73,8 @@ struct SnapshotCommand: AsyncParsableCommand {
     @Option(name: .long, help: "Simulator device UDID (for ios; auto-selects if omitted)")
     var device: String?
 
-    @Option(name: .long, help: "Color scheme: 'light' or 'dark' (new session only; ignored when reusing a live session)")
+    @Option(
+        name: .long, help: "Color scheme: 'light' or 'dark' (new session only; ignored when reusing a live session)")
     var colorScheme: String?
 
     @Option(name: .long, help: "Dynamic Type size (e.g., 'large', 'accessibility3')")
@@ -233,7 +234,8 @@ struct SnapshotCommand: AsyncParsableCommand {
                 "preview_start response missing structuredContent"
             )
         }
-        let sessionID = try structured
+        let sessionID =
+            try structured
             .decode(DaemonProtocol.PreviewStartResult.self).sessionID
 
         var snapshotArgs: [String: Value] = ["sessionID": .string(sessionID)]

@@ -8,7 +8,6 @@ enum CLIPlatform: String, ExpressibleByArgument, CaseIterable {
     case ios
 }
 
-
 @main
 struct PreviewsMCPApp {
     static func main() {

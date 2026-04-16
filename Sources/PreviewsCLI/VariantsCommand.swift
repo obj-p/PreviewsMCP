@@ -232,7 +232,8 @@ struct VariantsCommand: AsyncParsableCommand {
                 "preview_start response missing structuredContent"
             )
         }
-        let sessionID = try startStructured
+        let sessionID =
+            try startStructured
             .decode(DaemonProtocol.PreviewStartResult.self).sessionID
 
         do {
@@ -439,5 +440,3 @@ struct VariantsJSONOutput: Encodable {
     let successCount: Int
     let failCount: Int
 }
-
-

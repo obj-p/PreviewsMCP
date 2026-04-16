@@ -60,7 +60,6 @@ func emitJSON<T: Encodable>(_ value: T) throws {
     }
 }
 
-
 extension Value {
     /// Decode a `Value` (the MCP SDK's JSON type) into a `Codable` Swift
     /// type. Used by CLI commands to consume daemon `structuredContent`

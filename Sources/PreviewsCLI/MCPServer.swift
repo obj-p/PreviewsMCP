@@ -1475,7 +1475,6 @@ private func handlePreviewSwitch(params: CallTool.Parameters, server: Server) as
     )
 }
 
-
 // MARK: - Parameter Extraction Helpers
 
 private enum ParamError: Error, LocalizedError {

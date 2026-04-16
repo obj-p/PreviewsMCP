@@ -107,4 +107,3 @@ struct StopCommand: AsyncParsableCommand {
         if !text.isEmpty { fputs("\(text)\n", stderr) }
     }
 }
-

@@ -40,7 +40,8 @@ struct SimulatorsCommandTests {
             let hasSimulator = simResult.exitCode == 0 && simResult.stdout.contains("iPhone")
 
             if hasSimulator {
-                let lines = stdout
+                let lines =
+                    stdout
                     .split(separator: "\n", omittingEmptySubsequences: true)
                     .map(String.init)
                 #expect(!lines.isEmpty, "should list at least one device: \(stdout)")

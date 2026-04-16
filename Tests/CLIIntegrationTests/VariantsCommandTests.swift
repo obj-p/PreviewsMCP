@@ -295,7 +295,6 @@ struct VariantsCommandTests {
         }
     }
 
-
     @Test("Missing --variant returns non-zero exit")
     func missingVariant() async throws {
         try await DaemonTestLock.run {
