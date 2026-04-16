@@ -8,11 +8,6 @@ enum CLIPlatform: String, ExpressibleByArgument, CaseIterable {
     case ios
 }
 
-/// Shared state, accessible from commands. Initialized in main() after command parsing.
-@MainActor
-enum App {
-    static var host: PreviewHost!
-}
 
 @main
 struct PreviewsMCPApp {
@@ -60,7 +55,7 @@ struct PreviewsMCPApp {
         // other subcommand is now a daemon client.
         let app = NSApplication.shared
         let host = PreviewHost()
-        App.host = host
+        ServeCommand.sharedHost = host
         app.delegate = host
 
         // Always headless: no Dock icon, windows positioned off-screen.

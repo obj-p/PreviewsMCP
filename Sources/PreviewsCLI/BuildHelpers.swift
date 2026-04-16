@@ -74,6 +74,7 @@ func detectAndBuild(
 
 /// Compile and display a macOS SwiftUI preview window with file watching.
 func launchMacOSPreview(
+    host: PreviewHost,
     fileURL: URL,
     previewIndex: Int,
     title: String,
@@ -103,14 +104,14 @@ func launchMacOSPreview(
 
     await MainActor.run {
         do {
-            try App.host.loadPreview(
+            try host.loadPreview(
                 sessionID: session.id,
                 dylibPath: compileResult.dylibPath,
                 title: title,
                 size: NSSize(width: width, height: height),
                 setupDylibPath: setupDylibPath
             )
-            App.host.watchFile(
+            host.watchFile(
                 sessionID: session.id,
                 session: session,
                 filePath: fileURL.path,
@@ -128,6 +129,7 @@ func launchMacOSPreview(
 
 /// Launch an iOS simulator preview with file watching.
 func launchIOSPreview(
+    host: PreviewHost,
     fileURL: URL,
     previewIndex: Int,
     deviceUDID: String?,
@@ -187,7 +189,7 @@ func launchIOSPreview(
     // watcher keeps the session alive transitively.
     if let watcher {
         await MainActor.run {
-            App.host.retainFileWatcher(watcher)
+            host.retainFileWatcher(watcher)
         }
     }
 }
