@@ -2,6 +2,7 @@ import AppKit
 import ArgumentParser
 import Foundation
 import MCP
+import PreviewsMacOS
 
 struct ServeCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
@@ -37,6 +38,13 @@ struct ServeCommand: ParsableCommand {
     @Flag(name: .long, help: "Run as a daemon on a Unix domain socket instead of stdio")
     var daemon: Bool = false
 
+    /// Set by `PreviewsMCPApp.main()` before `run()` is called. This is
+    /// the only handoff point between the entry point (which creates the
+    /// PreviewHost) and the serve command (which passes it to the MCP
+    /// server). ParsableCommand's `run()` can't take parameters, so a
+    /// static is the minimal shared-state mechanism.
+    @MainActor static var sharedHost: PreviewHost!
+
     mutating func run() throws {
         if daemon {
             runDaemon()
@@ -46,9 +54,10 @@ struct ServeCommand: ParsableCommand {
     }
 
     private func runStdio() {
-        Task {
+        Task { @MainActor in
+            let host = Self.sharedHost!
             do {
-                let (server, _) = try await configureMCPServer()
+                let (server, _) = try await configureMCPServer(host: host)
                 fputs("MCP server starting on stdio...\n", stderr)
                 let transport = StdioTransport()
                 try await server.start(transport: transport)
@@ -86,7 +95,8 @@ struct ServeCommand: ParsableCommand {
                 // process group and kill the daemon.
                 DaemonLifecycle.detachFromTerminal()
 
-                _ = try await DaemonListener.start()
+                let host = Self.sharedHost!
+                _ = try await DaemonListener.start(host: host)
                 try DaemonLifecycle.register()
                 fputs(
                     "daemon ready (pid \(ProcessInfo.processInfo.processIdentifier))\n",

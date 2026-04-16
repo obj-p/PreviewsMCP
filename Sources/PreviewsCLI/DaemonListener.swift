@@ -2,6 +2,7 @@ import Foundation
 import MCP
 import Network
 import PreviewsCore
+import PreviewsMacOS
 
 /// Runs the MCP server daemon on a Unix domain socket.
 ///
@@ -15,7 +16,7 @@ enum DaemonListener {
     /// Start the daemon listener. Returns once the listener is ready to accept
     /// connections. Callers hold the process alive via the existing
     /// `NSApplication` run loop (see `PreviewsMCPApp.main`).
-    static func start() async throws -> NWListener {
+    static func start(host: PreviewHost) async throws -> NWListener {
         try DaemonPaths.ensureDirectory()
 
         // Clean up any stale socket file from a previous crashed daemon.
@@ -37,7 +38,7 @@ enum DaemonListener {
 
         listener.newConnectionHandler = { connection in
             Task {
-                await handleConnection(connection, compiler: sharedCompiler)
+                await handleConnection(connection, compiler: sharedCompiler, host: host)
             }
         }
 
@@ -69,11 +70,11 @@ enum DaemonListener {
     /// Handle one client connection. Creates a per-connection MCP Server
     /// sharing the given compiler and module-level state with other connections.
     private static func handleConnection(
-        _ connection: NWConnection, compiler: Compiler
+        _ connection: NWConnection, compiler: Compiler, host: PreviewHost
     ) async {
         do {
             let transport = NetworkTransport(connection: connection)
-            let (server, _) = try await configureMCPServer(sharedCompiler: compiler)
+            let (server, _) = try await configureMCPServer(host: host, sharedCompiler: compiler)
             try await server.start(transport: transport)
             // `start` returns when the transport closes (client disconnected).
         } catch {

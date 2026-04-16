@@ -74,6 +74,12 @@ private actor IOSState {
 private let iosState = IOSState()
 private let configCache = ConfigCache()
 
+/// The macOS preview host, injected by `configureMCPServer(host:)`.
+/// Replaces the previous cross-file `App.host` global. File-private
+/// so only MCPServer.swift handler functions can access it. Set once
+/// per daemon lifetime before any tool calls can arrive.
+@MainActor private var host: PreviewHost!
+
 private actor ConfigCache {
     private var cache: [String: ProjectConfigLoader.Result?] = [:]
 
@@ -141,7 +147,11 @@ private func mcpReporter(
 ///   connection gets its own `Server` but they all share one compiler). When
 ///   nil, a fresh compiler is built — appropriate for single-connection modes
 ///   like stdio.
-func configureMCPServer(sharedCompiler: Compiler? = nil) async throws -> (Server, Compiler) {
+func configureMCPServer(host previewHost: PreviewHost, sharedCompiler: Compiler? = nil) async throws -> (Server, Compiler) {
+    await MainActor.run {
+        if host == nil { host = previewHost }
+    }
+
     // Clean up stale temp directories from previous sessions (older than 24 hours)
     cleanupStaleTempDirs()
 
@@ -793,7 +803,7 @@ private func configQualityForSession(_ sessionID: String) async -> Double? {
     if let iosSession = await iosState.getSession(sessionID) {
         return await configCache.load(for: iosSession.sourceFile)?.config.quality
     }
-    if let macSession: PreviewSession = await MainActor.run(body: { App.host.session(for: sessionID) }) {
+    if let macSession: PreviewSession = await MainActor.run(body: { host.session(for: sessionID) }) {
         return await configCache.load(for: macSession.sourceFile)?.config.quality
     }
     return nil
@@ -824,7 +834,7 @@ private func startMacOSPreview(
 
     await MainActor.run {
         do {
-            try App.host.loadPreview(
+            try host.loadPreview(
                 sessionID: sessionID,
                 dylibPath: compileResult.dylibPath,
                 title: title,
@@ -832,7 +842,7 @@ private func startMacOSPreview(
                 headless: headless,
                 setupDylibPath: setupDylibPath
             )
-            App.host.watchFile(
+            host.watchFile(
                 sessionID: sessionID,
                 session: session,
                 filePath: fileURL.path,
@@ -872,7 +882,7 @@ private func handlePreviewSnapshot(params: CallTool.Parameters) async throws -> 
     // surfaces as a clean "No session found" rather than the misleading
     // "capture failed" from `window(for:)` returning nil.
     let isMacOSSession = await MainActor.run {
-        App.host.allSessions[sessionID] != nil
+        host.allSessions[sessionID] != nil
     }
     guard isMacOSSession else {
         return CallTool.Result(
@@ -885,7 +895,7 @@ private func handlePreviewSnapshot(params: CallTool.Parameters) async throws -> 
 
     let format: Snapshot.ImageFormat = usePNG ? .png : .jpeg(quality: quality)
     let imageData: Data = try await MainActor.run {
-        guard let window = App.host.window(for: sessionID) else {
+        guard let window = host.window(for: sessionID) else {
             throw SnapshotError.captureFailed
         }
         return try Snapshot.capture(window: window, format: format)
@@ -915,7 +925,7 @@ private func handlePreviewStop(params: CallTool.Parameters) async throws -> Call
     // otherwise silently succeeds for unknown IDs — so typos and races
     // surface as real errors rather than phantom successes.
     let isMacOSSession = await MainActor.run {
-        App.host.allSessions[sessionID] != nil
+        host.allSessions[sessionID] != nil
     }
     guard isMacOSSession else {
         return CallTool.Result(
@@ -925,7 +935,7 @@ private func handlePreviewStop(params: CallTool.Parameters) async throws -> Call
     }
 
     await MainActor.run {
-        App.host.closePreview(sessionID: sessionID)
+        host.closePreview(sessionID: sessionID)
     }
 
     return CallTool.Result(content: [.text("Preview session \(sessionID) closed.")])
@@ -1090,7 +1100,7 @@ private func handleSessionList() async -> CallTool.Result {
         )
     }
 
-    let macSessions = await MainActor.run { App.host?.allSessions ?? [:] }
+    let macSessions = await MainActor.run { host?.allSessions ?? [:] }
     for (id, session) in macSessions {
         sessions.append(
             DaemonProtocol.SessionDTO(
@@ -1209,7 +1219,7 @@ private func handlePreviewConfigure(params: CallTool.Parameters, server: Server)
     }
 
     // macOS path
-    let session: PreviewSession? = await MainActor.run { App.host.session(for: sessionID) }
+    let session: PreviewSession? = await MainActor.run { host.session(for: sessionID) }
     guard let session else {
         return CallTool.Result(content: [.text("No session found for \(sessionID)")], isError: true)
     }
@@ -1219,7 +1229,7 @@ private func handlePreviewConfigure(params: CallTool.Parameters, server: Server)
         traits: traits, clearing: clearedFields
     )
     try await MainActor.run {
-        try App.host.loadPreview(sessionID: sessionID, dylibPath: compileResult.dylibPath)
+        try host.loadPreview(sessionID: sessionID, dylibPath: compileResult.dylibPath)
     }
 
     let activeTraits = await session.currentTraits
@@ -1370,7 +1380,7 @@ private func handlePreviewVariants(params: CallTool.Parameters, server: Server) 
     }
 
     // macOS path
-    let session: PreviewSession? = await MainActor.run { App.host.session(for: sessionID) }
+    let session: PreviewSession? = await MainActor.run { host.session(for: sessionID) }
     guard let session else {
         return CallTool.Result(content: [.text("No session found for \(sessionID)")], isError: true)
     }
@@ -1387,14 +1397,14 @@ private func handlePreviewVariants(params: CallTool.Parameters, server: Server) 
                 .compilingBridge, message: "Recompiling for variant \"\(variant.label)\"...")
             let compileResult = try await session.setTraits(variant.traits)
             try await MainActor.run {
-                try App.host.loadPreview(sessionID: sessionID, dylibPath: compileResult.dylibPath)
+                try host.loadPreview(sessionID: sessionID, dylibPath: compileResult.dylibPath)
             }
             try await Task.sleep(for: .milliseconds(300))
             await progress.report(
                 .capturingSnapshot,
                 message: "Capturing variant \(index + 1)/\(resolved.count) \"\(variant.label)\"...")
             let imageData: Data = try await MainActor.run {
-                guard let window = App.host.window(for: sessionID) else {
+                guard let window = host.window(for: sessionID) else {
                     throw SnapshotError.captureFailed
                 }
                 return try Snapshot.capture(window: window, format: format)
@@ -1429,19 +1439,19 @@ private func handlePreviewVariants(params: CallTool.Parameters, server: Server) 
 
     // Restore original traits if they changed — but only if the
     // session is still registered. A concurrent `preview_stop` during
-    // the capture loop would remove the session from App.host;
+    // the capture loop would remove the session from host;
     // `loadPreview` would then throw and the user would see a
     // misleading "failed to restore" warning when they explicitly
     // asked for the stop.
     let stillRegistered = await MainActor.run {
-        App.host.allSessions[sessionID] != nil
+        host.allSessions[sessionID] != nil
     }
     let currentTraits = await session.currentTraits
     if stillRegistered, savedTraits != currentTraits {
         do {
             let restoreResult = try await session.setTraits(savedTraits)
             try await MainActor.run {
-                try App.host.loadPreview(sessionID: sessionID, dylibPath: restoreResult.dylibPath)
+                try host.loadPreview(sessionID: sessionID, dylibPath: restoreResult.dylibPath)
             }
         } catch {
             contentBlocks.append(
@@ -1501,7 +1511,7 @@ private func handlePreviewSwitch(params: CallTool.Parameters, server: Server) as
     }
 
     // macOS path
-    let session: PreviewSession? = await MainActor.run { App.host.session(for: sessionID) }
+    let session: PreviewSession? = await MainActor.run { host.session(for: sessionID) }
     guard let session else {
         return CallTool.Result(content: [.text("No session found for \(sessionID)")], isError: true)
     }
@@ -1509,7 +1519,7 @@ private func handlePreviewSwitch(params: CallTool.Parameters, server: Server) as
     await progress.report(.compilingBridge, message: "Switching to preview \(newIndex)...")
     let compileResult = try await session.switchPreview(to: newIndex)
     try await MainActor.run {
-        try App.host.loadPreview(sessionID: sessionID, dylibPath: compileResult.dylibPath)
+        try host.loadPreview(sessionID: sessionID, dylibPath: compileResult.dylibPath)
     }
 
     let activeTraits = await session.currentTraits
