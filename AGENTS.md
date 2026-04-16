@@ -48,7 +48,7 @@ SwiftLint complements swift-format: formatting rules are disabled (swift-format 
 Sources/
 ├── SimulatorBridge/     # ObjC — runtime-loads CoreSimulator.framework (no build-time linking)
 ├── PreviewsCore/        # Platform-agnostic: parser, compiler, bridge gen, differ, file watcher
-├── PreviewsMacOS/       # macOS host: NSApplication + NSWindow + Snapshot (only used by `serve`)
+├── PreviewsMacOS/       # macOS host: NSApplication + NSWindow + Snapshot (runs inside the daemon)
 ├── PreviewsIOS/         # iOS simulator: SimulatorManager, IOSHostBuilder, IOSPreviewSession
 ├── PreviewsCLI/         # CLI (ArgumentParser) + daemon + MCP server (swift-sdk)
 └── PreviewsSetupKit/    # Setup plugin protocol (PreviewSetup) — zero-dependency SwiftUI-only library
