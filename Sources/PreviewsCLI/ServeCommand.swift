@@ -2,6 +2,7 @@ import AppKit
 import ArgumentParser
 import Foundation
 import MCP
+import PreviewsEngine
 import PreviewsMacOS
 
 struct ServeCommand: ParsableCommand {
@@ -57,7 +58,10 @@ struct ServeCommand: ParsableCommand {
         Task { @MainActor in
             let host = Self.sharedHost!
             do {
-                let (server, _) = try await configureMCPServer(host: host)
+                let (server, _) = try await configureMCPServer(
+                    host: host, iosManager: IOSSessionManager(),
+                    configCache: ConfigCache()
+                )
                 fputs("MCP server starting on stdio...\n", stderr)
                 let transport = StdioTransport()
                 try await server.start(transport: transport)

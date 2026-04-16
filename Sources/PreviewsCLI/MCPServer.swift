@@ -1,6 +1,7 @@
 import Foundation
 import MCP
 import PreviewsCore
+import PreviewsEngine
 import PreviewsIOS
 import PreviewsMacOS
 import os
@@ -20,79 +21,12 @@ private enum ToolName: String {
     case sessionList = "session_list"
 }
 
-/// Tracks active iOS preview sessions and lazily creates shared iOS resources.
-private actor IOSState {
-    let simulatorManager = SimulatorManager()
-    private var compiler: Compiler?
-    private var hostBuilder: IOSHostBuilder?
-    private var sessions: [String: IOSPreviewSession] = [:]
-    private var fileWatchers: [String: FileWatcher] = [:]
-
-    func getCompiler() async throws -> Compiler {
-        if let c = compiler { return c }
-        let c = try await Compiler(platform: .iOS)
-        compiler = c
-        return c
-    }
-
-    func getHostBuilder() async throws -> IOSHostBuilder {
-        if let b = hostBuilder { return b }
-        let b = try await IOSHostBuilder()
-        hostBuilder = b
-        return b
-    }
-
-    func addSession(_ session: IOSPreviewSession) {
-        sessions[session.id] = session
-    }
-
-    func getSession(_ id: String) -> IOSPreviewSession? {
-        sessions[id]
-    }
-
-    func removeSession(_ id: String) {
-        sessions.removeValue(forKey: id)
-        fileWatchers[id]?.stop()
-        fileWatchers.removeValue(forKey: id)
-    }
-
-    func setFileWatcher(_ id: String, _ watcher: FileWatcher) {
-        fileWatchers[id] = watcher
-    }
-
-    func allSessionIDs() -> [String] {
-        Array(sessions.keys)
-    }
-
-    /// Pairs of (sessionID, sourceFile) for every active iOS session.
-    /// Used by the `session_list` MCP tool for session discovery.
-    func allSessionsInfo() -> [(id: String, sourceFile: URL)] {
-        sessions.map { ($0.key, $0.value.sourceFile) }
-    }
-}
-
-private let iosState = IOSState()
-private let configCache = ConfigCache()
-
-/// The macOS preview host, injected by `configureMCPServer(host:)`.
-/// Replaces the previous cross-file `App.host` global. File-private
-/// so only MCPServer.swift handler functions can access it. Set once
-/// per daemon lifetime before any tool calls can arrive.
+/// File-private references to the shared engine-layer instances.
+/// Set once per daemon lifetime by `configureMCPServer(host:iosManager:configCache:)`.
+/// All handler functions reference these instead of globals.
 @MainActor private var host: PreviewHost!
-
-private actor ConfigCache {
-    private var cache: [String: ProjectConfigLoader.Result?] = [:]
-
-    func load(for fileURL: URL) -> ProjectConfigLoader.Result? {
-        let dir = fileURL.deletingLastPathComponent().standardizedFileURL.path
-        if let cached = cache[dir] {
-            return cached
-        }
-        let result = ProjectConfigLoader.find(from: fileURL.deletingLastPathComponent())
-        cache[dir] = result
-        return result
-    }
-}
+nonisolated(unsafe) private var iosState: IOSSessionManager!
+nonisolated(unsafe) private var configCache: ConfigCache!
 
 /// MCP progress reporter that sends progress notifications and log messages to the client.
 final class MCPProgressReporter: ProgressReporter, @unchecked Sendable {
@@ -147,12 +81,18 @@ private func mcpReporter(
 ///   connection gets its own `Server` but they all share one compiler). When
 ///   nil, a fresh compiler is built — appropriate for single-connection modes
 ///   like stdio.
-func configureMCPServer(host previewHost: PreviewHost, sharedCompiler: Compiler? = nil) async throws -> (Server, Compiler) {
+func configureMCPServer(
+    host previewHost: PreviewHost,
+    iosManager: IOSSessionManager,
+    configCache cache: ConfigCache,
+    sharedCompiler: Compiler? = nil
+) async throws -> (Server, Compiler) {
     await MainActor.run {
         if host == nil { host = previewHost }
     }
+    if iosState == nil { iosState = iosManager }
+    if configCache == nil { configCache = cache }
 
-    // Clean up stale temp directories from previous sessions (older than 24 hours)
     cleanupStaleTempDirs()
 
     let compiler: Compiler
@@ -691,14 +631,14 @@ private func handleIOSPreviewStart(
     let deviceUDID: String
     let providedUDID = extractOptionalString("deviceUDID", from: params) ?? config?.device
     do {
-        deviceUDID = try await resolveDeviceUDID(provided: providedUDID, using: iosState.simulatorManager)
+        deviceUDID = try await resolveDeviceUDID(provided: providedUDID, using: await iosState.simulatorManager)
     } catch {
         return CallTool.Result(content: [.text(error.localizedDescription)], isError: true)
     }
 
     let iosCompiler = try await iosState.getCompiler()
     let hostBuilder = try await iosState.getHostBuilder()
-    let simulatorManager = iosState.simulatorManager
+    let simulatorManager = await iosState.simulatorManager
 
     let headless = extractOptionalBool("headless", from: params) ?? true
 
@@ -1048,7 +988,7 @@ private func detectBuildContext(
 }
 
 private func handleSimulatorList() async throws -> CallTool.Result {
-    let manager = iosState.simulatorManager
+    let manager = await iosState.simulatorManager
     let devices = try await manager.listDevices()
     let available = devices.filter { $0.isAvailable }
 
@@ -1177,16 +1117,6 @@ private func clearedTraitFields(
         }
     }
     return cleared
-}
-
-private func traitsSummary(_ traits: PreviewTraits) -> String {
-    var parts: [String] = []
-    if let cs = traits.colorScheme { parts.append("colorScheme=\(cs)") }
-    if let dts = traits.dynamicTypeSize { parts.append("dynamicTypeSize=\(dts)") }
-    if let loc = traits.locale { parts.append("locale=\(loc)") }
-    if let ld = traits.layoutDirection { parts.append("layoutDirection=\(ld)") }
-    if let lw = traits.legibilityWeight { parts.append("legibilityWeight=\(lw)") }
-    return parts.joined(separator: ", ")
 }
 
 private func handlePreviewConfigure(params: CallTool.Parameters, server: Server) async throws -> CallTool.Result {
@@ -1545,15 +1475,6 @@ private func handlePreviewSwitch(params: CallTool.Parameters, server: Server) as
     )
 }
 
-private func formatPreviewList(previews: [PreviewInfo], activeIndex: Int) -> String {
-    var lines: [String] = ["Available previews:"]
-    for preview in previews {
-        let name = preview.name ?? "Preview"
-        let marker = preview.index == activeIndex ? " <- active" : ""
-        lines.append("  [\(preview.index)] \(name) (line \(preview.line)): \(preview.snippet)\(marker)")
-    }
-    return lines.joined(separator: "\n")
-}
 
 // MARK: - Parameter Extraction Helpers
 
@@ -1618,20 +1539,3 @@ private func extractArray(_ key: String, from params: CallTool.Parameters) throw
 }
 
 /// Remove stale previewsmcp temp directories older than 24 hours.
-private func cleanupStaleTempDirs() {
-    let tempBase = FileManager.default.temporaryDirectory.appendingPathComponent("previewsmcp")
-    guard
-        let contents = try? FileManager.default.contentsOfDirectory(
-            at: tempBase, includingPropertiesForKeys: [.contentModificationDateKey])
-    else { return }
-
-    let cutoff = Date().addingTimeInterval(-24 * 60 * 60)
-    for dir in contents {
-        guard let attrs = try? dir.resourceValues(forKeys: [.contentModificationDateKey]),
-            let modDate = attrs.contentModificationDate,
-            modDate < cutoff
-        else { continue }
-        try? FileManager.default.removeItem(at: dir)
-        fputs("MCP: Cleaned up stale temp dir: \(dir.lastPathComponent)\n", stderr)
-    }
-}

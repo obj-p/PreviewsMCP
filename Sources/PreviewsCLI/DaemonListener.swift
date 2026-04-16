@@ -2,6 +2,7 @@ import Foundation
 import MCP
 import Network
 import PreviewsCore
+import PreviewsEngine
 import PreviewsMacOS
 
 /// Runs the MCP server daemon on a Unix domain socket.
@@ -24,11 +25,13 @@ enum DaemonListener {
         // already verified via DaemonProbe that no live daemon is listening.
         try? FileManager.default.removeItem(at: DaemonPaths.socket)
 
-        // Build the shared compiler once. Each accepted connection creates its
-        // own MCP.Server but reuses this compiler (and the module-level
-        // IOSState / ConfigCache), avoiding the ~seconds of per-connection
-        // xcrun / SDK resolution cost.
+        // Build shared resources once. Each accepted connection creates its
+        // own MCP.Server but reuses these instances, avoiding per-connection
+        // xcrun / SDK resolution cost and ensuring sessions persist across
+        // CLI invocations.
         let sharedCompiler = try await Compiler()
+        let iosManager = IOSSessionManager()
+        let configCache = ConfigCache()
 
         let params = NWParameters.tcp
         params.requiredLocalEndpoint = NWEndpoint.unix(path: DaemonPaths.socket.path)
@@ -38,7 +41,10 @@ enum DaemonListener {
 
         listener.newConnectionHandler = { connection in
             Task {
-                await handleConnection(connection, compiler: sharedCompiler, host: host)
+                await handleConnection(
+                    connection, compiler: sharedCompiler,
+                    host: host, iosManager: iosManager, configCache: configCache
+                )
             }
         }
 
@@ -70,11 +76,15 @@ enum DaemonListener {
     /// Handle one client connection. Creates a per-connection MCP Server
     /// sharing the given compiler and module-level state with other connections.
     private static func handleConnection(
-        _ connection: NWConnection, compiler: Compiler, host: PreviewHost
+        _ connection: NWConnection, compiler: Compiler,
+        host: PreviewHost, iosManager: IOSSessionManager, configCache: ConfigCache
     ) async {
         do {
             let transport = NetworkTransport(connection: connection)
-            let (server, _) = try await configureMCPServer(host: host, sharedCompiler: compiler)
+            let (server, _) = try await configureMCPServer(
+                host: host, iosManager: iosManager,
+                configCache: configCache, sharedCompiler: compiler
+            )
             try await server.start(transport: transport)
             // `start` returns when the transport closes (client disconnected).
         } catch {

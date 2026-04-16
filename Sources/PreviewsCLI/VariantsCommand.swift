@@ -2,6 +2,7 @@ import ArgumentParser
 import Foundation
 import MCP
 import PreviewsCore
+import PreviewsEngine
 
 /// Capture multiple snapshots of a SwiftUI preview under different trait
 /// configurations by delegating to the daemon's `preview_variants` MCP

@@ -1,15 +1,18 @@
-import ArgumentParser
 import Foundation
 import PreviewsCore
 import PreviewsIOS
 import os
 
 /// CLI progress reporter that prints `[X/Y] message` to stderr.
-struct StderrProgressReporter: ProgressReporter {
-    let totalSteps: Int
+public struct StderrProgressReporter: ProgressReporter {
+    public let totalSteps: Int
     private let counter = OSAllocatedUnfairLock(initialState: 0)
 
-    func report(_ phase: BuildPhase, message: String) async {
+    public init(totalSteps: Int) {
+        self.totalSteps = totalSteps
+    }
+
+    public func report(_ phase: BuildPhase, message: String) async {
         let step = counter.withLock { value -> Int in
             value += 1
             return value
@@ -19,7 +22,7 @@ struct StderrProgressReporter: ProgressReporter {
 }
 
 /// Load project config from explicit path or auto-discover from source file directory.
-func loadProjectConfig(explicit configPath: String?, fileURL: URL) -> ProjectConfigLoader.Result? {
+public func loadProjectConfig(explicit configPath: String?, fileURL: URL) -> ProjectConfigLoader.Result? {
     if let configPath {
         let url = URL(fileURLWithPath: configPath)
         let dir = url.deletingLastPathComponent()
@@ -35,7 +38,7 @@ func loadProjectConfig(explicit configPath: String?, fileURL: URL) -> ProjectCon
 }
 
 /// Build the setup package if configured in a ProjectConfig.
-func buildSetupFromConfig(
+public func buildSetupFromConfig(
     _ configResult: ProjectConfigLoader.Result?,
     platform: PreviewPlatform
 ) async throws -> SetupBuilder.Result? {
@@ -47,7 +50,7 @@ func buildSetupFromConfig(
 }
 
 /// Detect the build system for a source file and build it, reporting progress.
-func detectAndBuild(
+public func detectAndBuild(
     for fileURL: URL,
     projectRoot projectRootURL: URL?,
     platform: PreviewPlatform,
@@ -71,7 +74,7 @@ func detectAndBuild(
 }
 
 /// Resolve a simulator device UDID: provided > booted > first available.
-func resolveDeviceUDID(
+public func resolveDeviceUDID(
     provided: String?,
     using simulatorManager: SimulatorManager
 ) async throws -> String {
@@ -84,8 +87,12 @@ func resolveDeviceUDID(
     } catch {
         let devices = try await simulatorManager.listDevices()
         guard let first = devices.first(where: { $0.isAvailable }) else {
-            throw ValidationError("No available iOS simulator devices found")
+            throw NoSimulatorError()
         }
         return first.udid
     }
+}
+
+public struct NoSimulatorError: Error, CustomStringConvertible {
+    public var description: String { "No available iOS simulator devices found" }
 }
