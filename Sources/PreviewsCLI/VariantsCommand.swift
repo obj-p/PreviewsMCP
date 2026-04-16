@@ -94,6 +94,12 @@ struct VariantsCommand: AsyncParsableCommand {
     @Option(name: .long, help: "Path to .previewsmcp.json config file (auto-discovered if omitted)")
     var config: String?
 
+    @Flag(
+        name: .long,
+        help: "Emit a JSON summary on stdout instead of per-variant paths (files are still written)"
+    )
+    var json: Bool = false
+
     enum ImageFormat: String, ExpressibleByArgument, CaseIterable {
         case jpeg, png
     }
@@ -212,13 +218,21 @@ struct VariantsCommand: AsyncParsableCommand {
         if let device { startArgs["deviceUDID"] = .string(device) }
         if let config { startArgs["config"] = .string(config) }
 
-        let startResponse = try await client.callTool(name: "preview_start", arguments: startArgs)
+        let startResponse = try await client.callToolStructured(
+            name: "preview_start", arguments: startArgs
+        )
         if startResponse.isError == true {
             throw DaemonToolError.daemonError(
                 "Failed to start preview: \(startResponse.content.joinedText())"
             )
         }
-        let sessionID = try extractSessionID(from: startResponse.content.joinedText())
+        guard let startStructured = startResponse.structuredContent else {
+            throw DaemonToolError.daemonError(
+                "preview_start response missing structuredContent"
+            )
+        }
+        let sessionID = try startStructured
+            .decode(DaemonProtocol.PreviewStartResult.self).sessionID
 
         do {
             let code = try await captureVariants(
@@ -235,8 +249,9 @@ struct VariantsCommand: AsyncParsableCommand {
         }
     }
 
-    /// Call `preview_variants`, decode each image block, write to disk,
-    /// and surface any per-variant error text to stderr.
+    /// Call `preview_variants`, decode each variant's outcome from the
+    /// daemon's `structuredContent`, write successful images to disk, and
+    /// surface per-variant errors to stderr.
     private func captureVariants(
         sessionID: String,
         labels: [String],
@@ -250,63 +265,94 @@ struct VariantsCommand: AsyncParsableCommand {
             "variants": .array(variant.map { .string($0) }),
             "quality": .double(requestedQuality),
         ]
-        let response = try await client.callTool(name: "preview_variants", arguments: arguments)
+        let response = try await client.callToolStructured(
+            name: "preview_variants", arguments: arguments
+        )
 
-        // Walk content items in order. The daemon emits, per variant,
-        // either `[N] <label>:` followed by an image block (success) or
-        // a single `[N] <label>: ERROR — <reason>` text block (failure).
+        guard let structured = response.structuredContent else {
+            throw DaemonToolError.daemonError(
+                "preview_variants response missing structuredContent"
+            )
+        }
+        let result = try structured.decode(DaemonProtocol.VariantsResult.self)
+
+        let ext = format == .png ? "png" : "jpg"
         var successCount = 0
         var failCount = 0
-        var pendingLabel: String?
-        let ext = format == .png ? "png" : "jpg"
+        var outputEntries: [JSONVariantEntry] = []
 
-        for item in response.content {
-            switch item {
-            case .text(let text):
-                // Prefer the failure pattern first — it's a strict
-                // superset of the success preamble. A label that happens
-                // to contain the substring "ERROR" (e.g. a JSON variant
-                // labeled "ERROR_STATE") must still bucket as success
-                // unless ` ERROR — ` follows the colon.
-                if parseFailurePreamble(from: text) != nil {
-                    fputs("\(text)\n", stderr)
-                    failCount += 1
-                    pendingLabel = nil
-                } else if let label = parseSuccessPreamble(from: text) {
-                    pendingLabel = label
-                }
-            case .image(let base64, _, _):
-                guard let label = pendingLabel else {
+        for outcome in result.variants {
+            switch outcome.status {
+            case "ok":
+                guard let imageIndex = outcome.imageIndex,
+                    imageIndex < response.content.count,
+                    case .image(let base64, _, _) = response.content[imageIndex]
+                else {
                     fputs(
-                        "warning: daemon returned image block with no preceding label preamble — dropping\n",
+                        "[error] \(outcome.label): daemon reported ok but imageIndex is invalid\n",
                         stderr
+                    )
+                    failCount += 1
+                    outputEntries.append(
+                        JSONVariantEntry(
+                            label: outcome.label, status: "error",
+                            path: nil, error: "invalid imageIndex"
+                        )
                     )
                     continue
                 }
                 guard let data = Data(base64Encoded: base64) else {
-                    fputs("[error] \(label): invalid base64 from daemon\n", stderr)
+                    fputs("[error] \(outcome.label): invalid base64 from daemon\n", stderr)
                     failCount += 1
-                    pendingLabel = nil
+                    outputEntries.append(
+                        JSONVariantEntry(
+                            label: outcome.label, status: "error",
+                            path: nil, error: "invalid base64"
+                        )
+                    )
                     continue
                 }
-                let outURL = outputDir.appendingPathComponent("\(label).\(ext)")
+                let outURL = outputDir.appendingPathComponent("\(outcome.label).\(ext)")
                 do {
                     try data.write(to: outURL)
-                    print(outURL.path)
+                    if !json { print(outURL.path) }
                     successCount += 1
+                    outputEntries.append(
+                        JSONVariantEntry(
+                            label: outcome.label, status: "ok",
+                            path: outURL.path, error: nil
+                        )
+                    )
                 } catch {
-                    fputs("[error] \(label): \(error.localizedDescription)\n", stderr)
+                    fputs("[error] \(outcome.label): \(error.localizedDescription)\n", stderr)
                     failCount += 1
+                    outputEntries.append(
+                        JSONVariantEntry(
+                            label: outcome.label, status: "error",
+                            path: nil, error: error.localizedDescription
+                        )
+                    )
                 }
-                pendingLabel = nil
             default:
-                continue
+                // Anything other than "ok" is treated as a failure. Surface the
+                // daemon's error message to stderr for the user.
+                if !json {
+                    let msg = outcome.error ?? "unknown error"
+                    fputs("[\(outcome.index)] \(outcome.label): ERROR — \(msg)\n", stderr)
+                }
+                failCount += 1
+                outputEntries.append(
+                    JSONVariantEntry(
+                        label: outcome.label, status: "error",
+                        path: nil, error: outcome.error
+                    )
+                )
             }
         }
 
-        // Labels expected but never matched imply the daemon dropped a
-        // variant entirely — count them as failures so the exit code
-        // reflects reality.
+        // Defensive check: daemon is supposed to return one outcome per
+        // requested variant. If it returned fewer, count the missing as
+        // failures so the exit code reflects reality.
         let accounted = successCount + failCount
         if accounted < labels.count {
             let missing = labels.count - accounted
@@ -316,6 +362,17 @@ struct VariantsCommand: AsyncParsableCommand {
             )
             failCount += missing
         }
+
+        if json {
+            try emitJSON(
+                VariantsJSONOutput(
+                    variants: outputEntries,
+                    successCount: successCount,
+                    failCount: failCount
+                )
+            )
+        }
+
         return summarize(successCount: successCount, failCount: failCount)
     }
 
@@ -351,35 +408,6 @@ struct VariantsCommand: AsyncParsableCommand {
         return Self.exitCode(successCount: successCount, failCount: failCount)
     }
 
-    /// Match the daemon's success preamble: exactly `[N] <label>:` with
-    /// no trailing content. Labels are sanitized upstream (no path
-    /// traversal, no leading dots) so we don't need to validate them
-    /// here beyond the structural match.
-    private func parseSuccessPreamble(from text: String) -> String? {
-        let pattern = /^\[\d+\]\s+(.+?):\s*$/
-        guard let match = text.firstMatch(of: pattern) else { return nil }
-        return String(match.1)
-    }
-
-    /// Match the daemon's failure text: `[N] <label>: ERROR — <reason>`.
-    /// Anchored to the literal separator so a variant whose *label*
-    /// contains "ERROR" is not mis-bucketed as a failure.
-    private func parseFailurePreamble(from text: String) -> String? {
-        let pattern = /^\[\d+\]\s+(.+?):\s+ERROR\s+—\s/
-        guard let match = text.firstMatch(of: pattern) else { return nil }
-        return String(match.1)
-    }
-
-    private func extractSessionID(from text: String) throws -> String {
-        let pattern = /Session ID: ([0-9a-fA-F-]{36})/
-        guard let match = text.firstMatch(of: pattern) else {
-            throw DaemonToolError.daemonError(
-                "no session ID in daemon response: \(text)"
-            )
-        }
-        return String(match.1)
-    }
-
     private func stopEphemeralSession(sessionID: String, client: Client) async {
         do {
             _ = try await client.callTool(
@@ -394,4 +422,21 @@ struct VariantsCommand: AsyncParsableCommand {
         }
     }
 }
+
+/// One variant's outcome in the `--json` mode output.
+struct JSONVariantEntry: Encodable {
+    let label: String
+    /// "ok" or "error".
+    let status: String
+    let path: String?
+    let error: String?
+}
+
+/// `variants --json` mode top-level document.
+struct VariantsJSONOutput: Encodable {
+    let variants: [JSONVariantEntry]
+    let successCount: Int
+    let failCount: Int
+}
+
 

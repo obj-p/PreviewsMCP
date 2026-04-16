@@ -72,6 +72,12 @@ struct RunCommand: AsyncParsableCommand {
     )
     var detach: Bool = false
 
+    @Flag(
+        name: .long,
+        help: "Emit the daemon's structured response as JSON on stdout (--detach only)"
+    )
+    var json: Bool = false
+
     mutating func run() async throws {
         let fileURL = URL(fileURLWithPath: file).standardizedFileURL
         guard FileManager.default.fileExists(atPath: fileURL.path) else {
@@ -89,12 +95,18 @@ struct RunCommand: AsyncParsableCommand {
             throw ValidationError(error.localizedDescription)
         }
 
+        if json, !detach {
+            throw ValidationError("--json requires --detach (attached mode exits on Ctrl+C).")
+        }
+
         try await DaemonClient.withDaemonClient(name: "previewsmcp-run") { client in
             let arguments = buildPreviewStartArguments(fileURL: fileURL)
 
-            let response: (content: [Tool.Content], isError: Bool?)
+            let response: CallTool.Result
             do {
-                response = try await client.callTool(name: "preview_start", arguments: arguments)
+                response = try await client.callToolStructured(
+                    name: "preview_start", arguments: arguments
+                )
             } catch {
                 fputs("Failed to start preview: \(error)\n", stderr)
                 throw ExitCode(1)
@@ -105,15 +117,27 @@ struct RunCommand: AsyncParsableCommand {
                 throw ExitCode(1)
             }
 
-            let text = response.content.joinedText()
-            guard let sessionID = extractSessionID(from: text) else {
-                fputs("Unexpected daemon response (no session ID): \(text)\n", stderr)
+            guard let structured = response.structuredContent else {
+                fputs("Unexpected daemon response (no structuredContent)\n", stderr)
                 throw ExitCode(1)
             }
+            let start: DaemonProtocol.PreviewStartResult
+            do {
+                start = try structured.decode(DaemonProtocol.PreviewStartResult.self)
+            } catch {
+                fputs("Failed to decode daemon response: \(error)\n", stderr)
+                throw ExitCode(1)
+            }
+            let sessionID = start.sessionID
+            let text = response.content.joinedText()
 
             if detach {
-                // Scriptable: print session ID to stdout, human line to stderr.
-                print(sessionID)
+                if json {
+                    try emitJSON(structured)
+                } else {
+                    // Scriptable: print session ID to stdout, human line to stderr.
+                    print(sessionID)
+                }
                 fputs("session \(sessionID) started in daemon\n", stderr)
                 return
             }
@@ -168,11 +192,6 @@ struct RunCommand: AsyncParsableCommand {
         return args
     }
 
-    private func extractSessionID(from text: String) -> String? {
-        let pattern = /Session ID: ([0-9a-fA-F-]{36})/
-        guard let match = text.firstMatch(of: pattern) else { return nil }
-        return String(match.1)
-    }
 }
 
 /// Block the calling task until the process receives SIGINT or SIGTERM.

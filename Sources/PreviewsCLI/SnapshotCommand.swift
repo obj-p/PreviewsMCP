@@ -90,6 +90,12 @@ struct SnapshotCommand: AsyncParsableCommand {
     @Option(name: .long, help: "Path to .previewsmcp.json config file (auto-discovered if omitted)")
     var config: String?
 
+    @Flag(
+        name: .long,
+        help: "Emit a JSON document (sessionID, outputPath, format, bytes) on stdout instead of the bare path"
+    )
+    var json: Bool = false
+
     mutating func run() async throws {
         // Validate traits locally so bad flags fail before hitting the daemon.
         do {
@@ -158,7 +164,7 @@ struct SnapshotCommand: AsyncParsableCommand {
         args["quality"] = .double(resolvedQuality())
 
         let response = try await client.callTool(name: "preview_snapshot", arguments: args)
-        try handleSnapshotResponse(response)
+        try handleSnapshotResponse(response, sessionID: sessionID)
     }
 
     /// Pick the quality value to request from the daemon.
@@ -213,13 +219,21 @@ struct SnapshotCommand: AsyncParsableCommand {
         if let legibilityWeight { startArgs["legibilityWeight"] = .string(legibilityWeight) }
         if let config { startArgs["config"] = .string(config) }
 
-        let startResponse = try await client.callTool(name: "preview_start", arguments: startArgs)
+        let startResponse = try await client.callToolStructured(
+            name: "preview_start", arguments: startArgs
+        )
         if startResponse.isError == true {
             let text = startResponse.content.joinedText()
             throw DaemonToolError.daemonError("Failed to start preview: \(text)")
         }
 
-        let sessionID = try extractSessionID(from: startResponse.content.joinedText())
+        guard let structured = startResponse.structuredContent else {
+            throw DaemonToolError.daemonError(
+                "preview_start response missing structuredContent"
+            )
+        }
+        let sessionID = try structured
+            .decode(DaemonProtocol.PreviewStartResult.self).sessionID
 
         var snapshotArgs: [String: Value] = ["sessionID": .string(sessionID)]
         snapshotArgs["quality"] = .double(resolvedQuality())
@@ -233,7 +247,7 @@ struct SnapshotCommand: AsyncParsableCommand {
                 name: "preview_snapshot", arguments: snapshotArgs
             )
             await stopEphemeralSession(sessionID: sessionID, client: client)
-            try handleSnapshotResponse(snapResponse)
+            try handleSnapshotResponse(snapResponse, sessionID: sessionID)
         } catch {
             // Best-effort cleanup if the snapshot call itself threw.
             await stopEphemeralSession(sessionID: sessionID, client: client)
@@ -297,36 +311,60 @@ struct SnapshotCommand: AsyncParsableCommand {
     }
 
     /// Write the image returned in the snapshot response to the output path.
-    /// Prints the output path to stdout (scriptable) on success.
-    private func handleSnapshotResponse(_ response: (content: [Tool.Content], isError: Bool?)) throws {
+    /// Prints either a bare path or a JSON document (when `--json` is set) to
+    /// stdout on success.
+    private func handleSnapshotResponse(
+        _ response: (content: [Tool.Content], isError: Bool?),
+        sessionID: String
+    ) throws {
         if response.isError == true {
             let text = response.content.joinedText()
             throw DaemonToolError.daemonError("snapshot failed: \(text)")
         }
 
         for item in response.content {
-            if case .image(let base64, _, _) = item {
+            if case .image(let base64, let mimeType, _) = item {
                 guard let data = Data(base64Encoded: base64) else {
                     throw SnapshotCommandError.invalidImageData
                 }
                 let outputURL = URL(fileURLWithPath: output)
                 try data.write(to: outputURL)
-                print(outputURL.path)
+                if json {
+                    try emitJSON(
+                        SnapshotJSONOutput(
+                            sessionID: sessionID,
+                            outputPath: outputURL.path,
+                            format: format(for: mimeType),
+                            bytes: data.count
+                        )
+                    )
+                } else {
+                    print(outputURL.path)
+                }
                 return
             }
         }
         throw SnapshotCommandError.noImageContent(response.content.joinedText())
     }
 
-    private func extractSessionID(from text: String) throws -> String {
-        let pattern = /Session ID: ([0-9a-fA-F-]{36})/
-        guard let match = text.firstMatch(of: pattern) else {
-            throw DaemonToolError.daemonError(
-                "no session ID in daemon response: \(text)"
-            )
+    private func format(for mimeType: String) -> String {
+        switch mimeType {
+        case "image/png": return "png"
+        case "image/jpeg": return "jpeg"
+        default: return mimeType
         }
-        return String(match.1)
     }
+}
+
+/// `--json` mode output for snapshot. Synthesized client-side; the daemon's
+/// `preview_snapshot` tool does not return a structuredContent payload
+/// (its "result" is the image bytes, already carried on the content array).
+struct SnapshotJSONOutput: Encodable {
+    let sessionID: String
+    let outputPath: String
+    let format: String
+    let bytes: Int
+
 }
 
 enum SnapshotCommandError: Error, CustomStringConvertible {
