@@ -51,10 +51,10 @@ struct SnapshotCommand: AsyncParsableCommand {
     @Option(name: .long, help: "Which preview to snapshot (0-based index)")
     var preview: Int = 0
 
-    @Option(name: .long, help: "Window width (ephemeral session only)")
+    @Option(name: .long, help: "Window width (new session only; ignored when reusing a live session)")
     var width: Int = 400
 
-    @Option(name: .long, help: "Window height (ephemeral session only)")
+    @Option(name: .long, help: "Window height (new session only; ignored when reusing a live session)")
     var height: Int = 600
 
     @Option(name: .long, help: "Target platform: 'macos' or 'ios' (auto-detected if omitted)")
@@ -72,7 +72,7 @@ struct SnapshotCommand: AsyncParsableCommand {
     @Option(name: .long, help: "Simulator device UDID (for ios; auto-selects if omitted)")
     var device: String?
 
-    @Option(name: .long, help: "Color scheme: 'light' or 'dark' (ephemeral session only)")
+    @Option(name: .long, help: "Color scheme: 'light' or 'dark' (new session only; ignored when reusing a live session)")
     var colorScheme: String?
 
     @Option(name: .long, help: "Dynamic Type size (e.g., 'large', 'accessibility3')")

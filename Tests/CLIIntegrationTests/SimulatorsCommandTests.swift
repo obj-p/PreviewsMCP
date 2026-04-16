@@ -64,4 +64,33 @@ struct SimulatorsCommandTests {
             _ = try? await CLIRunner.run("kill-daemon", arguments: ["--timeout", "2"])
         }
     }
+
+    @Test(
+        "simulators --json emits valid JSON with expected fields",
+        .timeLimit(.minutes(2))
+    )
+    func simulatorsJSON() async throws {
+        try await DaemonTestLock.run {
+            try await Self.cleanSlate()
+
+            let result = try await CLIRunner.run(
+                "simulators", arguments: ["--json"]
+            )
+            #expect(result.exitCode == 0, "stderr: \(result.stderr)")
+
+            let stdout = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let data = stdout.data(using: .utf8) else {
+                Issue.record("stdout was not UTF-8")
+                return
+            }
+            let parsed = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+            #expect(parsed != nil, "stdout should be a JSON object")
+            #expect(
+                parsed?["simulators"] is [Any],
+                "should contain a 'simulators' array: \(stdout.prefix(200))"
+            )
+
+            _ = try? await CLIRunner.run("kill-daemon", arguments: ["--timeout", "2"])
+        }
+    }
 }
