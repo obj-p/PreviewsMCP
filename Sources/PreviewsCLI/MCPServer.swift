@@ -531,8 +531,21 @@ private func handlePreviewList(params: CallTool.Parameters) async throws -> Call
 
     let previews = try PreviewParser.parse(fileAt: fileURL)
 
+    // Structured payload — always safe to emit, even for empty lists.
+    // No session is active here so `activeIndex: -1` sentinel means
+    // no `.active == true` entries.
+    let structured = DaemonProtocol.PreviewListResult(
+        file: fileURL.path,
+        previews: previews.map {
+            DaemonProtocol.PreviewInfoDTO(from: $0, activeIndex: -1)
+        }
+    )
+
     if previews.isEmpty {
-        return CallTool.Result(content: [.text("No #Preview blocks found in \(fileURL.lastPathComponent)")])
+        return try CallTool.Result(
+            content: [.text("No #Preview blocks found in \(fileURL.lastPathComponent)")],
+            structuredContent: structured
+        )
     }
 
     var lines: [String] = []
@@ -541,7 +554,10 @@ private func handlePreviewList(params: CallTool.Parameters) async throws -> Call
         lines.append("[\(preview.index)] \(name) (line \(preview.line)): \(preview.snippet)")
     }
 
-    return CallTool.Result(content: [.text(lines.joined(separator: "\n"))])
+    return try CallTool.Result(
+        content: [.text(lines.joined(separator: "\n"))],
+        structuredContent: structured
+    )
 }
 
 private func handlePreviewStart(params: CallTool.Parameters, macCompiler: Compiler, server: Server) async throws
@@ -629,11 +645,27 @@ private func handlePreviewStart(params: CallTool.Parameters, macCompiler: Compil
     let previews = try PreviewParser.parse(fileAt: fileURL)
     let previewList = formatPreviewList(previews: previews, activeIndex: previewIndex)
     let switchHint = previews.count > 1 ? "\nUse preview_switch to change the active preview." : ""
-    return CallTool.Result(content: [
-        .text(
-            "macOS preview started. Session ID: \(sessionID).\(traitInfo)\(standaloneSetupWarning) File is being watched for changes.\n\(previewList)\(switchHint)"
-        )
-    ])
+    let structured = DaemonProtocol.PreviewStartResult(
+        sessionID: sessionID,
+        platform: "macos",
+        sourceFilePath: fileURL.path,
+        deviceUDID: nil,
+        pid: nil,
+        traits: DaemonProtocol.TraitsDTO.orNil(resolvedTraits),
+        previews: previews.map {
+            DaemonProtocol.PreviewInfoDTO(from: $0, activeIndex: previewIndex)
+        },
+        activeIndex: previewIndex,
+        setupWarning: standaloneSetupWarning.isEmpty ? nil : standaloneSetupWarning
+    )
+    return try CallTool.Result(
+        content: [
+            .text(
+                "macOS preview started. Session ID: \(sessionID).\(traitInfo)\(standaloneSetupWarning) File is being watched for changes.\n\(previewList)\(switchHint)"
+            )
+        ],
+        structuredContent: structured
+    )
 }
 
 private func handleIOSPreviewStart(
@@ -721,11 +753,27 @@ private func handleIOSPreviewStart(
     let previews = try PreviewParser.parse(fileAt: fileURL)
     let previewList = formatPreviewList(previews: previews, activeIndex: previewIndex)
     let switchHint = previews.count > 1 ? "\nUse preview_switch to change the active preview." : ""
-    return CallTool.Result(content: [
-        .text(
-            "iOS simulator preview started on device \(deviceUDID). Session ID: \(sessionID). PID: \(pid).\(traitInfo) File is being watched for changes.\n\(previewList)\(switchHint)"
-        )
-    ])
+    let structured = DaemonProtocol.PreviewStartResult(
+        sessionID: sessionID,
+        platform: "ios",
+        sourceFilePath: fileURL.path,
+        deviceUDID: deviceUDID,
+        pid: Int(pid),
+        traits: DaemonProtocol.TraitsDTO.orNil(traits),
+        previews: previews.map {
+            DaemonProtocol.PreviewInfoDTO(from: $0, activeIndex: previewIndex)
+        },
+        activeIndex: previewIndex,
+        setupWarning: nil
+    )
+    return try CallTool.Result(
+        content: [
+            .text(
+                "iOS simulator preview started on device \(deviceUDID). Session ID: \(sessionID). PID: \(pid).\(traitInfo) File is being watched for changes.\n\(previewList)\(switchHint)"
+            )
+        ],
+        structuredContent: structured
+    )
 }
 
 /// Build the setup package if configured. Returns nil if no setup or standalone mode.
@@ -904,7 +952,27 @@ private func handlePreviewElements(params: CallTool.Parameters) async throws -> 
     }
 
     let elementsJSON = try await iosSession.fetchElements(filter: filter)
-    return CallTool.Result(content: [.text(elementsJSON)])
+
+    // Parse WDA's JSON into a `Value` so the structured payload carries
+    // the tree natively rather than as an opaque string. The text block
+    // keeps the raw JSON for agents that don't consume
+    // `structuredContent`.
+    let structured: Value?
+    if let data = elementsJSON.data(using: .utf8),
+        let tree = try? JSONDecoder().decode(Value.self, from: data)
+    {
+        structured = .object([
+            "sessionID": .string(sessionID),
+            "elements": tree,
+        ])
+    } else {
+        structured = nil
+    }
+
+    return CallTool.Result(
+        content: [.text(elementsJSON)],
+        structuredContent: structured
+    )
 }
 
 private func handlePreviewTouch(params: CallTool.Parameters) async throws -> CallTool.Result {
@@ -974,8 +1042,23 @@ private func handleSimulatorList() async throws -> CallTool.Result {
     let devices = try await manager.listDevices()
     let available = devices.filter { $0.isAvailable }
 
+    let structured = DaemonProtocol.SimulatorListResult(
+        simulators: available.map { device in
+            DaemonProtocol.SimulatorDTO(
+                udid: device.udid,
+                name: device.name,
+                runtime: device.runtimeName,
+                state: device.stateString,
+                isAvailable: device.isAvailable
+            )
+        }
+    )
+
     if available.isEmpty {
-        return CallTool.Result(content: [.text("No available simulator devices found.")])
+        return try CallTool.Result(
+            content: [.text("No available simulator devices found.")],
+            structuredContent: structured
+        )
     }
 
     var lines: [String] = []
@@ -984,30 +1067,60 @@ private func handleSimulatorList() async throws -> CallTool.Result {
         lines.append("\(device.name) — \(device.udid)\(state) (\(device.runtimeName ?? "unknown runtime"))")
     }
 
-    return CallTool.Result(content: [.text(lines.joined(separator: "\n"))])
+    return try CallTool.Result(
+        content: [.text(lines.joined(separator: "\n"))],
+        structuredContent: structured
+    )
 }
 
 /// List all active sessions (iOS + macOS). Output is one line per session in
 /// the format `<sessionID>\t<platform>\t<sourceFilePath>` — tab-delimited for
 /// simple client-side parsing. Empty result when no sessions are active.
 private func handleSessionList() async -> CallTool.Result {
-    var lines: [String] = []
+    var sessions: [DaemonProtocol.SessionDTO] = []
 
     let iosSessions = await iosState.allSessionsInfo()
     for session in iosSessions {
-        lines.append("\(session.id)\tios\t\(session.sourceFile.path)")
+        sessions.append(
+            DaemonProtocol.SessionDTO(
+                sessionID: session.id,
+                platform: "ios",
+                sourceFilePath: session.sourceFile.path
+            )
+        )
     }
 
     let macSessions = await MainActor.run { App.host?.allSessions ?? [:] }
     for (id, session) in macSessions {
-        lines.append("\(id)\tmacos\t\(session.sourceFile.path)")
+        sessions.append(
+            DaemonProtocol.SessionDTO(
+                sessionID: id,
+                platform: "macos",
+                sourceFilePath: session.sourceFile.path
+            )
+        )
     }
 
     // Stable ordering so clients parsing the output get consistent results.
-    // An empty lines array joins to "" — the expected "no active sessions"
-    // response for session_list.
-    lines.sort()
-    return CallTool.Result(content: [.text(lines.joined(separator: "\n"))])
+    sessions.sort { $0.sessionID < $1.sessionID }
+    let lines = sessions.map { "\($0.sessionID)\t\($0.platform)\t\($0.sourceFilePath)" }
+
+    // An empty lines array joins to "" — matches the legacy "no active
+    // sessions" response that SessionResolver.parseSessionList handles.
+    let textBlock: [Tool.Content] = [.text(lines.joined(separator: "\n"))]
+
+    // Use do/try and fall back to the text-only response if Codable
+    // encoding somehow throws; handleSessionList is non-throwing so we
+    // can't propagate. Encoding [SessionDTO] is trivial and won't fail
+    // in practice.
+    do {
+        return try CallTool.Result(
+            content: textBlock,
+            structuredContent: DaemonProtocol.SessionListResult(sessions: sessions)
+        )
+    } catch {
+        return CallTool.Result(content: textBlock)
+    }
 }
 
 // MARK: - Trait Helpers
@@ -1185,6 +1298,7 @@ private func handlePreviewVariants(params: CallTool.Parameters, server: Server) 
     if let iosSession = await iosState.getSession(sessionID) {
         let savedTraits = await iosSession.currentTraits
         var contentBlocks: [Tool.Content] = []
+        var outcomes: [DaemonProtocol.VariantOutcomeDTO] = []
         var failCount = 0
 
         for (index, variant) in resolved.enumerated() {
@@ -1199,10 +1313,29 @@ private func handlePreviewVariants(params: CallTool.Parameters, server: Server) 
                 let base64 = imageData.base64EncodedString()
                 contentBlocks.append(.text("[\(index)] \(variant.label):"))
                 contentBlocks.append(.image(data: base64, mimeType: mimeType, metadata: nil))
+                // imageIndex addresses the .image block we just appended.
+                outcomes.append(
+                    DaemonProtocol.VariantOutcomeDTO(
+                        status: "ok",
+                        index: index,
+                        label: variant.label,
+                        imageIndex: contentBlocks.count - 1,
+                        error: nil
+                    )
+                )
             } catch {
                 failCount += 1
                 contentBlocks.append(
                     .text("[\(index)] \(variant.label): ERROR — \(error.localizedDescription)"))
+                outcomes.append(
+                    DaemonProtocol.VariantOutcomeDTO(
+                        status: "error",
+                        index: index,
+                        label: variant.label,
+                        imageIndex: nil,
+                        error: error.localizedDescription
+                    )
+                )
             }
         }
 
@@ -1224,7 +1357,16 @@ private func handlePreviewVariants(params: CallTool.Parameters, server: Server) 
             }
         }
 
-        return CallTool.Result(content: contentBlocks, isError: failCount == resolved.count)
+        let structured = DaemonProtocol.VariantsResult(
+            variants: outcomes,
+            successCount: outcomes.count - failCount,
+            failCount: failCount
+        )
+        return try CallTool.Result(
+            content: contentBlocks,
+            structuredContent: structured,
+            isError: failCount == resolved.count
+        )
     }
 
     // macOS path
@@ -1235,6 +1377,7 @@ private func handlePreviewVariants(params: CallTool.Parameters, server: Server) 
 
     let savedTraits = await session.currentTraits
     var contentBlocks: [Tool.Content] = []
+    var outcomes: [DaemonProtocol.VariantOutcomeDTO] = []
     var failCount = 0
     let format: Snapshot.ImageFormat = usePNG ? .png : .jpeg(quality: quality)
 
@@ -1259,10 +1402,28 @@ private func handlePreviewVariants(params: CallTool.Parameters, server: Server) 
             let base64 = imageData.base64EncodedString()
             contentBlocks.append(.text("[\(index)] \(variant.label):"))
             contentBlocks.append(.image(data: base64, mimeType: mimeType, metadata: nil))
+            outcomes.append(
+                DaemonProtocol.VariantOutcomeDTO(
+                    status: "ok",
+                    index: index,
+                    label: variant.label,
+                    imageIndex: contentBlocks.count - 1,
+                    error: nil
+                )
+            )
         } catch {
             failCount += 1
             contentBlocks.append(
                 .text("[\(index)] \(variant.label): ERROR — \(error.localizedDescription)"))
+            outcomes.append(
+                DaemonProtocol.VariantOutcomeDTO(
+                    status: "error",
+                    index: index,
+                    label: variant.label,
+                    imageIndex: nil,
+                    error: error.localizedDescription
+                )
+            )
         }
     }
 
@@ -1288,7 +1449,16 @@ private func handlePreviewVariants(params: CallTool.Parameters, server: Server) 
         }
     }
 
-    return CallTool.Result(content: contentBlocks, isError: failCount == resolved.count)
+    let structured = DaemonProtocol.VariantsResult(
+        variants: outcomes,
+        successCount: outcomes.count - failCount,
+        failCount: failCount
+    )
+    return try CallTool.Result(
+        content: contentBlocks,
+        structuredContent: structured,
+        isError: failCount == resolved.count
+    )
 }
 
 private func handlePreviewSwitch(params: CallTool.Parameters, server: Server) async throws -> CallTool.Result {
@@ -1312,11 +1482,22 @@ private func handlePreviewSwitch(params: CallTool.Parameters, server: Server) as
 
         let previews = try PreviewParser.parse(fileAt: iosSession.sourceFile)
         let previewList = formatPreviewList(previews: previews, activeIndex: newIndex)
-        return CallTool.Result(content: [
-            .text(
-                "Switched to preview \(newIndex) in session \(sessionID).\(traitInfo) View recompiled (@State was reset).\n\(previewList)"
-            )
-        ])
+        let structured = DaemonProtocol.SwitchResult(
+            sessionID: sessionID,
+            activeIndex: newIndex,
+            traits: DaemonProtocol.TraitsDTO.orNil(activeTraits),
+            previews: previews.map {
+                DaemonProtocol.PreviewInfoDTO(from: $0, activeIndex: newIndex)
+            }
+        )
+        return try CallTool.Result(
+            content: [
+                .text(
+                    "Switched to preview \(newIndex) in session \(sessionID).\(traitInfo) View recompiled (@State was reset).\n\(previewList)"
+                )
+            ],
+            structuredContent: structured
+        )
     }
 
     // macOS path
@@ -1336,11 +1517,22 @@ private func handlePreviewSwitch(params: CallTool.Parameters, server: Server) as
 
     let previews = try PreviewParser.parse(fileAt: session.sourceFile)
     let previewList = formatPreviewList(previews: previews, activeIndex: newIndex)
-    return CallTool.Result(content: [
-        .text(
-            "Switched to preview \(newIndex) in session \(sessionID).\(traitInfo) View recompiled (@State was reset).\n\(previewList)"
-        )
-    ])
+    let structured = DaemonProtocol.SwitchResult(
+        sessionID: sessionID,
+        activeIndex: newIndex,
+        traits: DaemonProtocol.TraitsDTO.orNil(activeTraits),
+        previews: previews.map {
+            DaemonProtocol.PreviewInfoDTO(from: $0, activeIndex: newIndex)
+        }
+    )
+    return try CallTool.Result(
+        content: [
+            .text(
+                "Switched to preview \(newIndex) in session \(sessionID).\(traitInfo) View recompiled (@State was reset).\n\(previewList)"
+            )
+        ],
+        structuredContent: structured
+    )
 }
 
 private func formatPreviewList(previews: [PreviewInfo], activeIndex: Int) -> String {

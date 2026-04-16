@@ -135,6 +135,38 @@ final class MCPTestServer: @unchecked Sendable {
         try await client.callTool(name: name, arguments: arguments)
     }
 
+    /// Call an MCP tool and return the full `CallTool.Result` including
+    /// the `structuredContent` field that the tuple-returning `callTool`
+    /// overload drops. Needed for tests that assert structured payload
+    /// shape.
+    func callToolResult(
+        name: String,
+        arguments: [String: Value]? = nil
+    ) async throws -> CallTool.Result {
+        let context: RequestContext<CallTool.Result> = try await client.callTool(
+            name: name, arguments: arguments
+        )
+        return try await context.value
+    }
+
+    /// Decode `result.structuredContent` into a Codable DTO.
+    static func decodeStructured<T: Decodable>(
+        _: T.Type,
+        from result: CallTool.Result,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws -> T {
+        guard let structured = result.structuredContent else {
+            Issue.record(
+                "Expected structuredContent on tool result, got nil",
+                sourceLocation: SourceLocation(fileID: "\(file)", filePath: "\(file)", line: Int(line), column: 1)
+            )
+            throw MCPTestError.noStructuredContent
+        }
+        let data = try JSONEncoder().encode(structured)
+        return try JSONDecoder().decode(T.self, from: data)
+    }
+
     // MARK: - Response helpers
 
     /// Extract all text content from a tool result, joined by newlines.
@@ -220,12 +252,14 @@ enum MCPTestError: Error, LocalizedError {
     case noSessionID(String)
     case invalidBase64
     case noImageContent
+    case noStructuredContent
 
     var errorDescription: String? {
         switch self {
         case .noSessionID(let text): "No session ID found in: \(text)"
         case .invalidBase64: "Invalid base64 image data"
         case .noImageContent: "No image content in tool result"
+        case .noStructuredContent: "No structuredContent in tool result"
         }
     }
 }
