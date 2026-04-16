@@ -27,11 +27,29 @@ struct SimulatorsCommand: AsyncParsableCommand {
             """
     )
 
+    @Flag(
+        name: .long,
+        help: "Emit the simulator list as a JSON array on stdout instead of human text"
+    )
+    var json: Bool = false
+
     mutating func run() async throws {
         try await DaemonClient.withDaemonClient(name: "previewsmcp-simulators") { client in
-            let response = try await client.callTool(name: "simulator_list", arguments: [:])
+            let response = try await client.callToolStructured(
+                name: "simulator_list", arguments: [:]
+            )
             if response.isError == true {
                 throw DaemonToolError.daemonError(response.content.joinedText())
+            }
+
+            if json {
+                guard let structured = response.structuredContent else {
+                    throw DaemonToolError.daemonError(
+                        "simulator_list response missing structuredContent"
+                    )
+                }
+                try emitJSON(structured)
+                return
             }
 
             // Unlike elements (where empty stdout is plausible),

@@ -35,6 +35,12 @@ struct ElementsCommand: AsyncParsableCommand {
     )
     var filter: Filter = .all
 
+    @Flag(
+        name: .long,
+        help: "Wrap the tree in a `{ sessionID, elements }` envelope (default is the bare tree)"
+    )
+    var json: Bool = false
+
     enum Filter: String, ExpressibleByArgument, CaseIterable {
         case all
         case interactable
@@ -57,7 +63,7 @@ struct ElementsCommand: AsyncParsableCommand {
                 )
             }
 
-            let response = try await client.callTool(
+            let response = try await client.callToolStructured(
                 name: "preview_elements",
                 arguments: [
                     "sessionID": .string(sessionID),
@@ -68,10 +74,18 @@ struct ElementsCommand: AsyncParsableCommand {
                 throw DaemonToolError.daemonError(response.content.joinedText())
             }
 
-            // The daemon returns the tree as a single text blob (JSON).
-            // Print to stdout so the caller can pipe into `jq`. Skip the
-            // trailing newline when the payload is empty so downstream
-            // parsers don't see a stray `\n`.
+            if json {
+                guard let structured = response.structuredContent else {
+                    throw DaemonToolError.daemonError(
+                        "preview_elements response missing structuredContent"
+                    )
+                }
+                try emitJSON(structured)
+                return
+            }
+
+            // Default: write the bare accessibility tree JSON to stdout
+            // so existing scripts piping into `jq` keep working.
             let text = response.content.joinedText()
             if !text.isEmpty { print(text) }
         }
