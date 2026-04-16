@@ -25,8 +25,8 @@ private enum ToolName: String {
 /// Set once per daemon lifetime by `configureMCPServer(host:iosManager:configCache:)`.
 /// All handler functions reference these instead of globals.
 @MainActor private var host: PreviewHost!
-nonisolated(unsafe) private var iosState: IOSSessionManager!
-nonisolated(unsafe) private var configCache: ConfigCache!
+@MainActor private var iosState: IOSSessionManager!
+@MainActor private var configCache: ConfigCache!
 
 /// MCP progress reporter that sends progress notifications and log messages to the client.
 final class MCPProgressReporter: ProgressReporter, @unchecked Sendable {
@@ -89,9 +89,9 @@ func configureMCPServer(
 ) async throws -> (Server, Compiler) {
     await MainActor.run {
         if host == nil { host = previewHost }
+        if iosState == nil { iosState = iosManager }
+        if configCache == nil { configCache = cache }
     }
-    if iosState == nil { iosState = iosManager }
-    if configCache == nil { configCache = cache }
 
     cleanupStaleTempDirs()
 

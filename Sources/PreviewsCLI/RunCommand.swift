@@ -174,7 +174,7 @@ struct RunCommand: AsyncParsableCommand {
     private func buildPreviewStartArguments(fileURL: URL) -> [String: Value] {
         var args: [String: Value] = [
             "filePath": .string(fileURL.path),
-            "preview": .int(preview),
+            "previewIndex": .int(preview),
             "width": .int(width),
             "height": .int(height),
         ]
@@ -188,7 +188,6 @@ struct RunCommand: AsyncParsableCommand {
         if let layoutDirection { args["layoutDirection"] = .string(layoutDirection) }
         if let legibilityWeight { args["legibilityWeight"] = .string(legibilityWeight) }
         if headless { args["headless"] = .bool(true) }
-        if let config { args["config"] = .string(config) }
         return args
     }
 

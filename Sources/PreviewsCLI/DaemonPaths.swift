@@ -32,10 +32,14 @@ enum DaemonPaths {
         directory.appendingPathComponent("serve.log")
     }
 
-    /// Ensure the directory exists. Call before reading or writing any daemon file.
+    /// Ensure the directory exists with owner-only permissions. Call
+    /// before reading or writing any daemon file. The 0700 mode
+    /// restricts the socket (which inherits parent directory
+    /// permissions) to the current user on shared-user machines.
     static func ensureDirectory() throws {
         try FileManager.default.createDirectory(
-            at: directory, withIntermediateDirectories: true
+            at: directory, withIntermediateDirectories: true,
+            attributes: [.posixPermissions: 0o700]
         )
     }
 }
