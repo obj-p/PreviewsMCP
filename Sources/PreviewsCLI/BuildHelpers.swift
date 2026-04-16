@@ -1,9 +1,7 @@
-import AppKit
 import ArgumentParser
 import Foundation
 import PreviewsCore
 import PreviewsIOS
-import PreviewsMacOS
 import os
 
 /// CLI progress reporter that prints `[X/Y] message` to stderr.
@@ -70,128 +68,6 @@ func detectAndBuild(
 
     let context = try await buildSystem.build(platform: platform)
     return context
-}
-
-/// Compile and display a macOS SwiftUI preview window with file watching.
-func launchMacOSPreview(
-    host: PreviewHost,
-    fileURL: URL,
-    previewIndex: Int,
-    title: String,
-    width: Int,
-    height: Int,
-    buildContext: BuildContext?,
-    traits: PreviewTraits = PreviewTraits(),
-    setupResult: SetupBuilder.Result? = nil,
-    progress: (any ProgressReporter)? = nil
-) async throws {
-    let compiler = try await Compiler()
-
-    let session = PreviewSession(
-        sourceFile: fileURL,
-        previewIndex: previewIndex,
-        compiler: compiler,
-        buildContext: buildContext,
-        traits: traits,
-        setupModule: setupResult?.moduleName,
-        setupType: setupResult?.typeName,
-        setupCompilerFlags: setupResult?.compilerFlags ?? []
-    )
-
-    await progress?.report(.compilingBridge, message: "Compiling \(fileURL.lastPathComponent)...")
-    let compileResult = try await session.compile()
-    let setupDylibPath = setupResult?.dylibPath
-
-    await MainActor.run {
-        do {
-            try host.loadPreview(
-                sessionID: session.id,
-                dylibPath: compileResult.dylibPath,
-                title: title,
-                size: NSSize(width: width, height: height),
-                setupDylibPath: setupDylibPath
-            )
-            host.watchFile(
-                sessionID: session.id,
-                session: session,
-                filePath: fileURL.path,
-                compiler: compiler,
-                additionalPaths: buildContext?.sourceFiles?.map(\.path) ?? [],
-                buildContext: buildContext
-            )
-            fputs("Preview is live! Watching for changes...\n", stderr)
-        } catch {
-            fputs("Failed to load preview: \(error)\n", stderr)
-            NSApp.terminate(nil)
-        }
-    }
-}
-
-/// Launch an iOS simulator preview with file watching.
-func launchIOSPreview(
-    host: PreviewHost,
-    fileURL: URL,
-    previewIndex: Int,
-    deviceUDID: String?,
-    headless: Bool = false,
-    buildContext: BuildContext?,
-    traits: PreviewTraits = PreviewTraits(),
-    setupResult: SetupBuilder.Result? = nil,
-    progress: (any ProgressReporter)? = nil
-) async throws {
-    let compiler = try await Compiler(platform: .iOS)
-    let hostBuilder = try await IOSHostBuilder()
-    let simulatorManager = SimulatorManager()
-
-    let udid = try await resolveDeviceUDID(provided: deviceUDID, using: simulatorManager)
-
-    let session = IOSPreviewSession(
-        sourceFile: fileURL,
-        previewIndex: previewIndex,
-        deviceUDID: udid,
-        compiler: compiler,
-        hostBuilder: hostBuilder,
-        simulatorManager: simulatorManager,
-        headless: headless,
-        buildContext: buildContext,
-        traits: traits,
-        setupModule: setupResult?.moduleName,
-        setupType: setupResult?.typeName,
-        setupCompilerFlags: setupResult?.compilerFlags ?? [],
-        setupDylibPath: setupResult?.dylibPath,
-        progress: progress
-    )
-
-    _ = try await session.start()
-    fputs("Preview is live! Watching for changes...\n", stderr)
-
-    let allPaths = [fileURL.path] + (buildContext?.sourceFiles?.map(\.path) ?? [])
-    let watcher = try? FileWatcher(paths: allPaths) {
-        Task {
-            do {
-                let wasLiteralOnly = try await session.handleSourceChange()
-                if wasLiteralOnly {
-                    fputs("Literal-only change applied (state preserved)\n", stderr)
-                } else {
-                    fputs("Structural change — recompiled\n", stderr)
-                }
-            } catch {
-                fputs("Reload failed: \(error)\n", stderr)
-            }
-        }
-    }
-
-    // Hand the watcher off to PreviewHost so it survives past the end of
-    // this function. The watcher's timer closure captures self weakly;
-    // without an external retain it would deinit the moment
-    // launchIOSPreview returns and hot reload would silently stop firing.
-    // The closure also captures `session` strongly, so retaining the
-    // watcher keeps the session alive transitively.
-    if let watcher {
-        await MainActor.run {
-            host.retainFileWatcher(watcher)
-        }
-    }
 }
 
 /// Resolve a simulator device UDID: provided > booted > first available.

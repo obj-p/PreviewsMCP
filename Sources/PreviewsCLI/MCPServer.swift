@@ -148,7 +148,9 @@ private func mcpReporter(
 ///   nil, a fresh compiler is built — appropriate for single-connection modes
 ///   like stdio.
 func configureMCPServer(host previewHost: PreviewHost, sharedCompiler: Compiler? = nil) async throws -> (Server, Compiler) {
-    await MainActor.run { host = previewHost }
+    await MainActor.run {
+        if host == nil { host = previewHost }
+    }
 
     // Clean up stale temp directories from previous sessions (older than 24 hours)
     cleanupStaleTempDirs()
