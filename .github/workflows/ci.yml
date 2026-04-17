@@ -90,9 +90,15 @@ jobs:
       - name: Unit tests
         run: swift test --filter "PreviewsCoreTests"
 
+      - name: Kill stale daemons
+        run: .build/debug/previewsmcp kill-daemon --timeout 5 || true
+
       - name: CLI integration tests
         timeout-minutes: 60
         run: swift test --filter "CLIIntegrationTests" --skip "snapshotIOS"
+
+      - name: Kill stale daemons (pre-MCP)
+        run: .build/debug/previewsmcp kill-daemon --timeout 5 || true
 
       - name: MCP integration tests
         timeout-minutes: 10
