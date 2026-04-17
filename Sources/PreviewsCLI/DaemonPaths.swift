@@ -2,27 +2,31 @@ import Foundation
 
 /// Filesystem paths for the daemon.
 ///
-/// All daemon state lives under `~/.previewsmcp/`. Sessions themselves are held
-/// in the daemon's memory (not on disk) — this directory only holds IPC
-/// primitives and lifecycle metadata.
+/// All daemon state lives under `~/.previewsmcp/` by default. Sessions
+/// themselves are held in the daemon's memory (not on disk) — this
+/// directory only holds IPC primitives and lifecycle metadata.
+///
+/// Set `PREVIEWSMCP_SOCKET_DIR` to override the directory. This is used
+/// by integration tests to run per-suite daemons on isolated sockets
+/// so test suites execute in parallel without a global lock.
 enum DaemonPaths {
 
-    /// The `~/.previewsmcp/` directory. Created on first use.
+    /// The daemon state directory. Defaults to `~/.previewsmcp/`;
+    /// overridden by the `PREVIEWSMCP_SOCKET_DIR` environment variable.
     static var directory: URL {
-        FileManager.default.homeDirectoryForCurrentUser
+        if let override = ProcessInfo.processInfo.environment["PREVIEWSMCP_SOCKET_DIR"] {
+            return URL(fileURLWithPath: override, isDirectory: true)
+        }
+        return FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".previewsmcp", isDirectory: true)
     }
 
     /// Unix domain socket the daemon listens on.
-    /// Clients connect here to issue MCP JSON-RPC calls.
     static var socket: URL {
         directory.appendingPathComponent("serve.sock")
     }
 
     /// PID file for the running daemon.
-    /// Written on startup, removed on graceful shutdown.
-    /// Used by `kill-daemon` and `status` for process targeting and display.
-    /// Not used for liveness — that's determined by trying to connect the socket.
     static var pidFile: URL {
         directory.appendingPathComponent("serve.pid")
     }
@@ -32,10 +36,7 @@ enum DaemonPaths {
         directory.appendingPathComponent("serve.log")
     }
 
-    /// Ensure the directory exists with owner-only permissions. Call
-    /// before reading or writing any daemon file. The 0700 mode
-    /// restricts the socket (which inherits parent directory
-    /// permissions) to the current user on shared-user machines.
+    /// Ensure the directory exists with owner-only permissions.
     static func ensureDirectory() throws {
         try FileManager.default.createDirectory(
             at: directory, withIntermediateDirectories: true,

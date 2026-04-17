@@ -21,21 +21,20 @@ struct DaemonLifecycleTests {
     static let binaryPath: String =
         repoRoot.appendingPathComponent(".build/debug/previewsmcp").path
 
-    static let socketPath: String =
-        FileManager.default.homeDirectoryForCurrentUser
-        .appendingPathComponent(".previewsmcp/serve.sock").path
+    /// Socket path for the current test's isolated daemon.
+    static var socketPath: String {
+        let dir =
+            DaemonTestLock.socketDir
+            ?? FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".previewsmcp").path
+        return (dir as NSString).appendingPathComponent("serve.sock")
+    }
 
     // MARK: - Test helpers
 
-    /// Remove any daemon state from previous runs and kill any running daemon.
+    /// Kill any daemon running in the current test's socket directory.
     private static func cleanSlate() async throws {
-        // Best-effort kill. Ignore errors — daemon may not be running.
         _ = try? await runCLI(["kill-daemon", "--timeout", "2"])
-        // Remove any leftover files.
-        let home = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".previewsmcp")
-        try? FileManager.default.removeItem(at: home.appendingPathComponent("serve.sock"))
-        try? FileManager.default.removeItem(at: home.appendingPathComponent("serve.pid"))
     }
 
     /// Start a daemon in the background. Returns the Process; caller must
@@ -46,33 +45,38 @@ struct DaemonLifecycleTests {
         proc.arguments = ["serve", "--daemon"]
         proc.standardOutput = FileHandle.nullDevice
         proc.standardError = FileHandle.nullDevice
+        if let dir = DaemonTestLock.socketDir {
+            var env = ProcessInfo.processInfo.environment
+            env["PREVIEWSMCP_SOCKET_DIR"] = dir
+            proc.environment = env
+        }
         try proc.run()
 
-        // Wait for the socket to appear (daemon is ready when it binds).
+        let currentSocketPath = socketPath
         let deadline = Date().addingTimeInterval(5)
         while Date() < deadline {
-            if FileManager.default.fileExists(atPath: socketPath) { break }
+            if FileManager.default.fileExists(atPath: currentSocketPath) { break }
             try await Task.sleep(nanoseconds: 50_000_000)
         }
         #expect(
-            FileManager.default.fileExists(atPath: socketPath),
+            FileManager.default.fileExists(atPath: currentSocketPath),
             "daemon did not create socket within 5s"
         )
-        // Small additional grace period for the listener to actually be accepting.
         try await Task.sleep(nanoseconds: 100_000_000)
         return proc
     }
 
-    /// Run a CLI subcommand and return stdout + exit code.
-    ///
-    /// Drains stdout *before* waitUntilExit to avoid pipe-buffer deadlock if
-    /// output exceeds ~64KB. These commands produce tiny output in practice,
-    /// but the safe ordering is cheap.
+    /// Run a CLI subcommand with the current test's socket directory.
     @discardableResult
     private static func runCLI(_ args: [String]) async throws -> (stdout: String, exit: Int32) {
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: binaryPath)
         proc.arguments = args
+        if let dir = DaemonTestLock.socketDir {
+            var env = ProcessInfo.processInfo.environment
+            env["PREVIEWSMCP_SOCKET_DIR"] = dir
+            proc.environment = env
+        }
         let out = Pipe()
         proc.standardOutput = out
         proc.standardError = FileHandle.nullDevice
@@ -169,6 +173,11 @@ struct DaemonLifecycleTests {
             let secondProc = Process()
             secondProc.executableURL = URL(fileURLWithPath: Self.binaryPath)
             secondProc.arguments = ["serve", "--daemon"]
+            if let dir = DaemonTestLock.socketDir {
+                var env = ProcessInfo.processInfo.environment
+                env["PREVIEWSMCP_SOCKET_DIR"] = dir
+                secondProc.environment = env
+            }
             let errPipe = Pipe()
             secondProc.standardError = errPipe
             secondProc.standardOutput = FileHandle.nullDevice
@@ -201,13 +210,19 @@ struct DaemonLifecycleTests {
             defer { proc.terminate() }
 
             // Simulate the race: PID file gone, but daemon still running.
-            let pidPath = FileManager.default.homeDirectoryForCurrentUser
-                .appendingPathComponent(".previewsmcp/serve.pid").path
+            let pidPath = (Self.socketPath as NSString)
+                .deletingLastPathComponent
+                .appending("/serve.pid")
             try? FileManager.default.removeItem(atPath: pidPath)
 
             let secondProc = Process()
             secondProc.executableURL = URL(fileURLWithPath: Self.binaryPath)
             secondProc.arguments = ["serve", "--daemon"]
+            if let dir = DaemonTestLock.socketDir {
+                var env = ProcessInfo.processInfo.environment
+                env["PREVIEWSMCP_SOCKET_DIR"] = dir
+                secondProc.environment = env
+            }
             let errPipe = Pipe()
             secondProc.standardError = errPipe
             secondProc.standardOutput = FileHandle.nullDevice
@@ -256,12 +271,13 @@ struct DaemonLifecycleTests {
         try await DaemonTestLock.run {
             try await Self.cleanSlate()
 
-            // Write a PID file pointing to a definitely-dead process.
-            let home = FileManager.default.homeDirectoryForCurrentUser
-                .appendingPathComponent(".previewsmcp")
-            try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
+            // Write a PID file pointing to a definitely-dead process
+            // in the current test's isolated socket directory.
+            let dir = URL(fileURLWithPath: Self.socketPath)
+                .deletingLastPathComponent()
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
             try "99999\n".write(
-                to: home.appendingPathComponent("serve.pid"),
+                to: dir.appendingPathComponent("serve.pid"),
                 atomically: true, encoding: .utf8
             )
 
