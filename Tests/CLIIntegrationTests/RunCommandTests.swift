@@ -32,17 +32,17 @@ private final class StderrBuffer: @unchecked Sendable {
 @Suite(.serialized)
 struct RunCommandTests {
 
-    static var socketPath: String {
-        if let dir = CLIRunner.socketDir {
-            return (dir as NSString).appendingPathComponent("serve.sock")
-        }
-        return FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".previewsmcp/serve.sock").path
-    }
+    static let socketPath: String =
+        FileManager.default.homeDirectoryForCurrentUser
+        .appendingPathComponent(".previewsmcp/serve.sock").path
 
     /// Kill any running daemon between tests so we start from a known state.
     private static func cleanSlate() async throws {
         _ = try? await CLIRunner.run("kill-daemon", arguments: ["--timeout", "2"])
+        let home = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".previewsmcp")
+        try? FileManager.default.removeItem(at: home.appendingPathComponent("serve.sock"))
+        try? FileManager.default.removeItem(at: home.appendingPathComponent("serve.pid"))
     }
 
     // MARK: - Tests
@@ -111,7 +111,6 @@ struct RunCommandTests {
             proc.standardOutput = FileHandle.nullDevice
             let stderrPipe = Pipe()
             proc.standardError = stderrPipe
-            CLIRunner.applySocketDir(to: proc)
             try proc.run()
 
             let sessionIDPattern = /Session ID: [0-9a-fA-F-]{36}/
@@ -162,7 +161,6 @@ struct RunCommandTests {
             proc.standardOutput = FileHandle.nullDevice
             let stderrPipe = Pipe()
             proc.standardError = stderrPipe
-            CLIRunner.applySocketDir(to: proc)
             try proc.run()
 
             // Wait for the session to be live (same signal as the SIGINT test).
@@ -204,7 +202,6 @@ struct RunCommandTests {
             daemonStarter.arguments = ["serve", "--daemon"]
             daemonStarter.standardOutput = FileHandle.nullDevice
             daemonStarter.standardError = FileHandle.nullDevice
-            CLIRunner.applySocketDir(to: daemonStarter)
             try daemonStarter.run()
             defer { if daemonStarter.isRunning { daemonStarter.terminate() } }
 
@@ -216,11 +213,11 @@ struct RunCommandTests {
             }
             try await Task.sleep(nanoseconds: 100_000_000)
 
-            let pidDir = URL(fileURLWithPath: Self.socketPath)
-                .deletingLastPathComponent()
+            let home = FileManager.default.homeDirectoryForCurrentUser
+                .appendingPathComponent(".previewsmcp")
             let pidBefore =
                 (try? String(
-                    contentsOf: pidDir.appendingPathComponent("serve.pid"),
+                    contentsOf: home.appendingPathComponent("serve.pid"),
                     encoding: .utf8
                 ))?
                 .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -239,7 +236,7 @@ struct RunCommandTests {
 
             let pidAfter =
                 (try? String(
-                    contentsOf: pidDir.appendingPathComponent("serve.pid"),
+                    contentsOf: home.appendingPathComponent("serve.pid"),
                     encoding: .utf8
                 ))?
                 .trimmingCharacters(in: .whitespacesAndNewlines)

@@ -9,6 +9,10 @@ struct TouchCommandTests {
 
     private static func cleanSlate() async throws {
         _ = try? await CLIRunner.run("kill-daemon", arguments: ["--timeout", "2"])
+        let home = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".previewsmcp")
+        try? FileManager.default.removeItem(at: home.appendingPathComponent("serve.sock"))
+        try? FileManager.default.removeItem(at: home.appendingPathComponent("serve.pid"))
     }
 
     // MARK: - Local validation (no daemon required)

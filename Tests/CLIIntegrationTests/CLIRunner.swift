@@ -27,23 +27,6 @@ enum CLIRunner {
     static let xcworkspaceExampleRoot: URL = repoRoot.appendingPathComponent("examples/xcworkspace")
     static let bazelExampleRoot: URL = repoRoot.appendingPathComponent("examples/bazel")
 
-    /// Per-suite socket directory. Set by each test suite to isolate
-    /// its daemon from other suites. When set, all spawned `previewsmcp`
-    /// subprocesses inherit `PREVIEWSMCP_SOCKET_DIR` so the daemon
-    /// binds to a suite-specific socket instead of the shared default.
-    @TaskLocal static var socketDir: String?
-
-    /// Apply the current test's socket directory to a Process that will
-    /// be run directly (not through CLIRunner.run). Call this before
-    /// `proc.run()` so the subprocess uses the isolated daemon.
-    static func applySocketDir(to process: Process) {
-        if let dir = socketDir {
-            var env = process.environment ?? ProcessInfo.processInfo.environment
-            env["PREVIEWSMCP_SOCKET_DIR"] = dir
-            process.environment = env
-        }
-    }
-
     // MARK: - Process runner
 
     /// Run `previewsmcp` with the given subcommand and arguments.
@@ -126,18 +109,12 @@ enum CLIRunner {
         arguments: [String] = [],
         workingDirectory: URL? = nil
     ) async throws -> CLIResult {
-        let envSocketDir = socketDir
-        return try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { continuation in
             let process = Process()
             process.executableURL = URL(fileURLWithPath: executable)
             process.arguments = arguments
             if let wd = workingDirectory {
                 process.currentDirectoryURL = wd
-            }
-            if let dir = envSocketDir {
-                var env = ProcessInfo.processInfo.environment
-                env["PREVIEWSMCP_SOCKET_DIR"] = dir
-                process.environment = env
             }
 
             let stdoutPipe = Pipe()
