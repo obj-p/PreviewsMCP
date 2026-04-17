@@ -33,6 +33,17 @@ enum CLIRunner {
     /// binds to a suite-specific socket instead of the shared default.
     @TaskLocal static var socketDir: String?
 
+    /// Apply the current test's socket directory to a Process that will
+    /// be run directly (not through CLIRunner.run). Call this before
+    /// `proc.run()` so the subprocess uses the isolated daemon.
+    static func applySocketDir(to process: Process) {
+        if let dir = socketDir {
+            var env = process.environment ?? ProcessInfo.processInfo.environment
+            env["PREVIEWSMCP_SOCKET_DIR"] = dir
+            process.environment = env
+        }
+    }
+
     // MARK: - Process runner
 
     /// Run `previewsmcp` with the given subcommand and arguments.

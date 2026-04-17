@@ -33,7 +33,10 @@ private final class StderrBuffer: @unchecked Sendable {
 struct RunCommandTests {
 
     static var socketPath: String {
-        FileManager.default.homeDirectoryForCurrentUser
+        if let dir = CLIRunner.socketDir {
+            return (dir as NSString).appendingPathComponent("serve.sock")
+        }
+        return FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".previewsmcp/serve.sock").path
     }
 
@@ -108,6 +111,7 @@ struct RunCommandTests {
             proc.standardOutput = FileHandle.nullDevice
             let stderrPipe = Pipe()
             proc.standardError = stderrPipe
+            CLIRunner.applySocketDir(to: proc)
             try proc.run()
 
             let sessionIDPattern = /Session ID: [0-9a-fA-F-]{36}/
@@ -158,6 +162,7 @@ struct RunCommandTests {
             proc.standardOutput = FileHandle.nullDevice
             let stderrPipe = Pipe()
             proc.standardError = stderrPipe
+            CLIRunner.applySocketDir(to: proc)
             try proc.run()
 
             // Wait for the session to be live (same signal as the SIGINT test).
@@ -199,6 +204,7 @@ struct RunCommandTests {
             daemonStarter.arguments = ["serve", "--daemon"]
             daemonStarter.standardOutput = FileHandle.nullDevice
             daemonStarter.standardError = FileHandle.nullDevice
+            CLIRunner.applySocketDir(to: daemonStarter)
             try daemonStarter.run()
             defer { if daemonStarter.isRunning { daemonStarter.terminate() } }
 
@@ -210,10 +216,13 @@ struct RunCommandTests {
             }
             try await Task.sleep(nanoseconds: 100_000_000)
 
-            let home = FileManager.default.homeDirectoryForCurrentUser
-                .appendingPathComponent(".previewsmcp")
+            let pidDir = URL(fileURLWithPath: Self.socketPath)
+                .deletingLastPathComponent()
             let pidBefore =
-                (try? String(contentsOf: home.appendingPathComponent("serve.pid"), encoding: .utf8))?
+                (try? String(
+                    contentsOf: pidDir.appendingPathComponent("serve.pid"),
+                    encoding: .utf8
+                ))?
                 .trimmingCharacters(in: .whitespacesAndNewlines)
 
             let file = CLIRunner.spmExampleRoot
@@ -229,7 +238,10 @@ struct RunCommandTests {
             #expect(result.exitCode == 0, "stderr: \(result.stderr)")
 
             let pidAfter =
-                (try? String(contentsOf: home.appendingPathComponent("serve.pid"), encoding: .utf8))?
+                (try? String(
+                    contentsOf: pidDir.appendingPathComponent("serve.pid"),
+                    encoding: .utf8
+                ))?
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             #expect(
                 pidAfter == pidBefore,
