@@ -61,6 +61,8 @@ jobs:
     needs: changes
     if: needs.changes.outputs.src == 'true'
     runs-on: macos-15
+    env:
+      PREVIEWSMCP_SOCKET_DIR: /tmp/previewsmcp-ci-build
     steps:
       - uses: actions/checkout@v4
 
@@ -90,15 +92,9 @@ jobs:
       - name: Unit tests
         run: swift test --filter "PreviewsCoreTests"
 
-      - name: Kill stale daemons
-        run: .build/debug/previewsmcp kill-daemon --timeout 5 || true
-
       - name: CLI integration tests
         timeout-minutes: 60
         run: swift test --filter "CLIIntegrationTests" --skip "snapshotIOS"
-
-      - name: Kill stale daemons (pre-MCP)
-        run: .build/debug/previewsmcp kill-daemon --timeout 5 || true
 
       - name: MCP integration tests
         timeout-minutes: 10
@@ -110,6 +106,8 @@ jobs:
     needs: changes
     if: needs.changes.outputs.ios == 'true'
     runs-on: macos-15
+    env:
+      PREVIEWSMCP_SOCKET_DIR: /tmp/previewsmcp-ci-ios
     steps:
       - uses: actions/checkout@v4
 
