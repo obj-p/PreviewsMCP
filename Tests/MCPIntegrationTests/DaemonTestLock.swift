@@ -1,14 +1,42 @@
 import Foundation
 
-/// Per-suite daemon isolation for MCP integration tests.
-///
-/// Each test gets its own temp socket directory. Cleanup is
-/// aggressive: SIGTERM via CLI, then SIGKILL via PID file fallback.
+/// Per-test daemon isolation with cross-suite serialization.
+/// See CLIIntegrationTests/DaemonTestLock.swift for rationale.
 enum DaemonTestLock {
 
     @TaskLocal static var socketDir: String?
 
+    private static let lockPath: String =
+        FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-daemon-test.lock").path
+
     static func run<T>(body: () async throws -> T) async throws -> T {
+        let fd = open(lockPath, O_CREAT | O_RDWR, 0o644)
+        guard fd >= 0 else {
+            throw NSError(
+                domain: NSPOSIXErrorDomain, code: Int(errno),
+                userInfo: [
+                    NSLocalizedDescriptionKey:
+                        "open(\(lockPath)) failed: \(String(cString: strerror(errno)))"
+                ]
+            )
+        }
+        defer { close(fd) }
+
+        while flock(fd, LOCK_EX | LOCK_NB) != 0 {
+            if errno != EWOULDBLOCK {
+                throw NSError(
+                    domain: NSPOSIXErrorDomain, code: Int(errno),
+                    userInfo: [
+                        NSLocalizedDescriptionKey:
+                            "flock failed: \(String(cString: strerror(errno)))"
+                    ]
+                )
+            }
+            try await Task.sleep(nanoseconds: 50_000_000)
+        }
+        defer { _ = flock(fd, LOCK_UN) }
+
         let id = UUID().uuidString.prefix(8)
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent("pmcp-\(id)")
@@ -27,7 +55,7 @@ enum DaemonTestLock {
             result = .failure(error)
         }
 
-        // Kill daemon via CLI.
+        // Kill daemon.
         do {
             let proc = Process()
             proc.executableURL = URL(
@@ -47,13 +75,10 @@ enum DaemonTestLock {
         if let pidStr = try? String(contentsOf: pidFile, encoding: .utf8),
             let pid = Int32(pidStr.trimmingCharacters(in: .whitespacesAndNewlines))
         {
-            if kill(pid, 0) == 0 {
-                kill(pid, SIGKILL)
-            }
+            if kill(pid, 0) == 0 { kill(pid, SIGKILL) }
         }
 
         try? FileManager.default.removeItem(at: dir)
-
         return try result.get()
     }
 }
