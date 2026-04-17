@@ -13,7 +13,7 @@ enum DaemonTestLock {
 
     private static let lockPath: String =
         FileManager.default.temporaryDirectory
-            .appendingPathComponent("previewsmcp-daemon-test.lock").path
+        .appendingPathComponent("previewsmcp-daemon-test.lock").path
 
     static func run<T>(body: () async throws -> T) async throws -> T {
         let fd = open(lockPath, O_CREAT | O_RDWR, 0o644)

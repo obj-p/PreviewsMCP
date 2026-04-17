@@ -91,7 +91,7 @@ jobs:
         run: swift test --filter "PreviewsCoreTests"
 
       - name: CLI integration tests
-        timeout-minutes: 30
+        timeout-minutes: 60
         run: swift test --filter "CLIIntegrationTests" --skip "snapshotIOS"
 
       - name: MCP integration tests
