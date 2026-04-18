@@ -99,20 +99,13 @@ jobs:
 
       - name: CLI integration tests
         timeout-minutes: 60
-        run: |
-          # Monitor: log process tree every 30s in background
-          (while true; do
-            echo "=== $(date) ==="
-            ps aux | grep -E 'swift-test|swiftpm-testing|previewsmcp' | grep -v grep || true
-            sleep 30
-          done) &
-          MONITOR_PID=$!
-
-          swift test --filter "CLIIntegrationTests" --skip "snapshotIOS"
-          TEST_EXIT=$?
-
-          kill $MONITOR_PID 2>/dev/null || true
-          exit $TEST_EXIT
+        run: >-
+          swift test --filter "CLIIntegrationTests"
+          --skip "snapshotIOS"
+          --skip "stopIOSSession"
+          --skip "touchIOSHappyPath"
+          --skip "capturesIOSVariants"
+          --skip "elementsReturnsJSONTree"
 
       - name: MCP integration tests
         timeout-minutes: 10

@@ -1,6 +1,5 @@
 import AppKit
 import ArgumentParser
-import CoreGraphics
 import PreviewsMacOS
 
 /// Target platform for CLI commands.
@@ -53,23 +52,6 @@ struct PreviewsMCPApp {
 
         // `serve` is the only command that runs AppKit in-process — every
         // other subcommand is now a daemon client.
-        //
-        // Guard against headless CI environments where the window server
-        // is unavailable. NSApplication.shared blocks indefinitely
-        // waiting for a CGSDefaultConnection when no Quartz session
-        // exists (e.g., daemon subprocess spawned via setsid on CI).
-        // Fail fast so the calling test sees an error instead of hanging.
-        if CGMainDisplayID() == 0 {
-            fputs(
-                "fatal: no window server available — "
-                    + "NSApplication requires a Quartz display session. "
-                    + "If running on headless CI, ensure the runner has "
-                    + "a display or use the MCP stdio transport instead.\n",
-                stderr
-            )
-            Darwin.exit(78)  // EX_CONFIG
-        }
-
         let app = NSApplication.shared
         let host = PreviewHost()
         ServeCommand.sharedHost = host
