@@ -23,18 +23,23 @@ private final class StderrBuffer: @unchecked Sendable {
 /// DaemonClient. Exercises the attached / detached flows end-to-end against
 /// a real daemon and real preview compilation.
 ///
-/// These tests share global daemon state (~/.previewsmcp/serve.sock) with
-/// DaemonLifecycleTests in another test target. Swift Testing may run
-/// different suites in parallel even when each is .serialized, which causes
-/// one suite's cleanup to stomp on the other's daemon. Guard with a
-/// filesystem lock (DaemonTestLock) so only one daemon-owning test runs at
-/// a time.
+/// These tests share global daemon state with DaemonLifecycleTests in
+/// another test target. Swift Testing may run different suites in parallel
+/// even when each is .serialized, which causes one suite's cleanup to stomp
+/// on the other's daemon. Guard with a filesystem lock (DaemonTestLock) so
+/// only one daemon-owning test runs at a time.
 @Suite(.serialized)
 struct RunCommandTests {
 
-    static let socketPath: String =
-        FileManager.default.homeDirectoryForCurrentUser
-        .appendingPathComponent(".previewsmcp/serve.sock").path
+    static var daemonDir: URL {
+        if let dir = ProcessInfo.processInfo.environment["PREVIEWSMCP_SOCKET_DIR"] {
+            return URL(fileURLWithPath: dir, isDirectory: true)
+        }
+        return FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".previewsmcp")
+    }
+
+    static var socketPath: String { daemonDir.appendingPathComponent("serve.sock").path }
 
     /// Kill any running daemon between tests so we start from a known state.
     private static func cleanSlate() async throws {
@@ -209,11 +214,9 @@ struct RunCommandTests {
             }
             try await Task.sleep(nanoseconds: 100_000_000)
 
-            let home = FileManager.default.homeDirectoryForCurrentUser
-                .appendingPathComponent(".previewsmcp")
             let pidBefore =
                 (try? String(
-                    contentsOf: home.appendingPathComponent("serve.pid"),
+                    contentsOf: Self.daemonDir.appendingPathComponent("serve.pid"),
                     encoding: .utf8
                 ))?
                 .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -232,7 +235,7 @@ struct RunCommandTests {
 
             let pidAfter =
                 (try? String(
-                    contentsOf: home.appendingPathComponent("serve.pid"),
+                    contentsOf: Self.daemonDir.appendingPathComponent("serve.pid"),
                     encoding: .utf8
                 ))?
                 .trimmingCharacters(in: .whitespacesAndNewlines)

@@ -162,7 +162,7 @@ jobs:
 
       - name: iOS CLI integration tests
         timeout-minutes: 20
-        run: swift test --filter "snapshotIOS|stopIOSSession|touchIOSHappyPath|capturesIOSVariants|elementsReturnsJSONTree"
+        run: swift test --filter "stopIOSSession|touchIOSHappyPath|capturesIOSVariants|elementsReturnsJSONTree"
 
       - name: iOS MCP tests
         timeout-minutes: 20

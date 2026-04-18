@@ -10,9 +10,12 @@ import Foundation
 /// completion handlers from firing.
 enum DaemonTestLock {
 
-    private static let lockPath: String =
-        FileManager.default.temporaryDirectory
-        .appendingPathComponent("previewsmcp-daemon-test.lock").path
+    private static var lockPath: String {
+        let dir =
+            ProcessInfo.processInfo.environment["PREVIEWSMCP_SOCKET_DIR"]
+            ?? FileManager.default.temporaryDirectory.path
+        return (dir as NSString).appendingPathComponent("previewsmcp-daemon-test.lock")
+    }
 
     static func run<T: Sendable>(body: @Sendable () async throws -> T) async throws -> T {
         // Acquire the lock on a non-cooperative thread so we don't

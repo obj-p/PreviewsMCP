@@ -58,6 +58,7 @@ private final class ConnectResult: @unchecked Sendable {
         return _value
     }
     func set(_ v: Bool) {
-        lock.lock(); _value = v; lock.unlock()
+        lock.lock(); defer { lock.unlock() }
+        _value = v
     }
 }

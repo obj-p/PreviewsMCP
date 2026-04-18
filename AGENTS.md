@@ -99,6 +99,14 @@ Seven read-oriented commands support `--json` for scripts and agent consumption:
 
 The daemon also populates `CallTool.Result.structuredContent` alongside text content blocks on 7 MCP tool handlers. CLI commands decode `structuredContent` via `Value.decode(T.self)` using the DTOs from `DaemonProtocol.swift` — no regex parsing of prose.
 
+### Output streams
+
+CLI commands follow a stdout-for-data, stderr-for-side-effects convention:
+
+- **Read-oriented** commands (`list`, `status`, `simulators`, `elements`, `snapshot`, `variants`, `run --detach`) write their primary output (data, JSON, session ID) to **stdout**. Progress and log messages go to stderr.
+- **Imperative** commands (`configure`, `switch`, `touch`, `stop`) write confirmation messages to **stderr** only, keeping stdout clean for piping.
+- Daemon log forwarding (`LogMessageNotification` → stderr) applies to all daemon-client commands.
+
 ## Key Conventions
 
 - Swift 6.0 strict concurrency — actors for shared state, Sendable structs for cross-isolation data
