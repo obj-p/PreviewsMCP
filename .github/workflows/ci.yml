@@ -92,11 +92,6 @@ jobs:
       - name: Unit tests
         run: swift test --filter "PreviewsCoreTests"
 
-      - name: Check window server
-        run: |
-          swift -e 'import CoreGraphics; print("CGMainDisplayID:", CGMainDisplayID())'
-        continue-on-error: true
-
       - name: CLI integration tests
         timeout-minutes: 60
         run: >-
@@ -164,6 +159,10 @@ jobs:
       - name: iOS CLI snapshot test
         timeout-minutes: 10
         run: swift test --filter "snapshotIOS"
+
+      - name: iOS CLI integration tests
+        timeout-minutes: 20
+        run: swift test --filter "snapshotIOS|stopIOSSession|touchIOSHappyPath|capturesIOSVariants|elementsReturnsJSONTree"
 
       - name: iOS MCP tests
         timeout-minutes: 20
