@@ -28,7 +28,7 @@ enum DaemonClient {
     ///     to avoid dropping early notifications.
     static func connect(
         clientName: String,
-        startTimeout: TimeInterval = 10,
+        startTimeout: TimeInterval = 30,
         configure: ((Client) async -> Void)? = nil
     ) async throws -> Client {
         if !DaemonProbe.canConnect() {
@@ -114,7 +114,16 @@ enum DaemonClient {
         // redirect to ~/.previewsmcp/serve.log).
         proc.standardInput = FileHandle.nullDevice
         proc.standardOutput = FileHandle.nullDevice
-        proc.standardError = FileHandle.nullDevice
+        // Route daemon stderr to its log file so startup failures
+        // are diagnosable (previously went to /dev/null).
+        if let logHandle = try? FileHandle(forWritingTo: DaemonPaths.logFile) {
+            logHandle.seekToEndOfFile()
+            proc.standardError = logHandle
+        } else {
+            FileManager.default.createFile(atPath: DaemonPaths.logFile.path, contents: nil)
+            proc.standardError =
+                (try? FileHandle(forWritingTo: DaemonPaths.logFile)) ?? FileHandle.nullDevice
+        }
         try proc.run()
     }
 
