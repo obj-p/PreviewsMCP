@@ -2,48 +2,62 @@ import Foundation
 
 /// Cross-suite serialization for daemon-touching integration tests.
 ///
-/// Swift Testing's `.serialized` trait only orders tests within a
-/// suite. Two suites can run in parallel and stomp on each other's
-/// daemon. The flock serializes all daemon-touching tests across
-/// suites and test targets.
-///
-/// Tests share one daemon at `~/.previewsmcp/serve.sock`. Each suite
-/// calls `cleanSlate()` once at the start to kill any leftover daemon
-/// from a previous suite; the daemon auto-starts on the first CLI
-/// command and persists for the rest of the suite.
+/// Uses a blocking flock on a detached thread to avoid starving
+/// Swift's cooperative thread pool. The previous approach (non-
+/// blocking flock + Task.sleep polling) caused deadlocks on CI
+/// runners with small thread pools: N-1 polling tasks consumed all
+/// threads, preventing the lock-holding task's subprocess
+/// completion handlers from firing.
 enum DaemonTestLock {
 
     private static let lockPath: String =
         FileManager.default.temporaryDirectory
         .appendingPathComponent("previewsmcp-daemon-test.lock").path
 
-    static func run<T>(body: () async throws -> T) async throws -> T {
-        let fd = open(lockPath, O_CREAT | O_RDWR, 0o644)
-        guard fd >= 0 else {
-            throw NSError(
-                domain: NSPOSIXErrorDomain, code: Int(errno),
-                userInfo: [
-                    NSLocalizedDescriptionKey:
-                        "open(\(lockPath)) failed: \(String(cString: strerror(errno)))"
-                ]
-            )
-        }
-        defer { close(fd) }
-
-        while flock(fd, LOCK_EX | LOCK_NB) != 0 {
-            if errno != EWOULDBLOCK {
-                throw NSError(
-                    domain: NSPOSIXErrorDomain, code: Int(errno),
-                    userInfo: [
-                        NSLocalizedDescriptionKey:
-                            "flock failed: \(String(cString: strerror(errno)))"
-                    ]
-                )
+    static func run<T: Sendable>(body: @Sendable () async throws -> T) async throws -> T {
+        // Acquire the lock on a non-cooperative thread so we don't
+        // block the Swift concurrency thread pool.
+        let fd = try await withCheckedThrowingContinuation {
+            (cont: CheckedContinuation<Int32, Error>) in
+            DispatchQueue.global(qos: .userInitiated).async {
+                let fd = open(lockPath, O_CREAT | O_RDWR, 0o644)
+                guard fd >= 0 else {
+                    cont.resume(
+                        throwing: NSError(
+                            domain: NSPOSIXErrorDomain, code: Int(errno),
+                            userInfo: [
+                                NSLocalizedDescriptionKey:
+                                    "open(\(lockPath)) failed"
+                            ]))
+                    return
+                }
+                // Blocking flock — this thread sleeps in the kernel
+                // until the lock is available. Does NOT consume a
+                // cooperative thread.
+                if flock(fd, LOCK_EX) != 0 {
+                    close(fd)
+                    cont.resume(
+                        throwing: NSError(
+                            domain: NSPOSIXErrorDomain, code: Int(errno),
+                            userInfo: [
+                                NSLocalizedDescriptionKey:
+                                    "flock failed"
+                            ]))
+                    return
+                }
+                cont.resume(returning: fd)
             }
-            try await Task.sleep(nanoseconds: 50_000_000)
         }
-        defer { _ = flock(fd, LOCK_UN) }
 
-        return try await body()
+        let result: Swift.Result<T, Error>
+        do {
+            result = .success(try await body())
+        } catch {
+            result = .failure(error)
+        }
+
+        _ = flock(fd, LOCK_UN)
+        close(fd)
+        return try result.get()
     }
 }
