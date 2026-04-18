@@ -92,6 +92,9 @@ jobs:
       - name: Unit tests
         run: swift test --filter "PreviewsCoreTests"
 
+      - name: Check window server
+        run: python3 -c "import Quartz; print('CGMainDisplayID:', Quartz.CGMainDisplayID())"
+
       - name: CLI integration tests
         timeout-minutes: 60
         run: |
