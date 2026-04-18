@@ -21,10 +21,11 @@ struct DaemonLifecycleTests {
     static let binaryPath: String =
         repoRoot.appendingPathComponent(".build/debug/previewsmcp").path
 
-    /// Socket path for the current test's isolated daemon.
+    /// Socket path for the current test's daemon.
     static var socketPath: String {
         let dir =
             DaemonTestLock.socketDir
+            ?? ProcessInfo.processInfo.environment["PREVIEWSMCP_SOCKET_DIR"]
             ?? FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".previewsmcp").path
         return (dir as NSString).appendingPathComponent("serve.sock")
