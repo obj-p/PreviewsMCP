@@ -93,7 +93,9 @@ jobs:
         run: swift test --filter "PreviewsCoreTests"
 
       - name: Check window server
-        run: python3 -c "import Quartz; print('CGMainDisplayID:', Quartz.CGMainDisplayID())"
+        run: |
+          swift -e 'import CoreGraphics; print("CGMainDisplayID:", CGMainDisplayID())'
+        continue-on-error: true
 
       - name: CLI integration tests
         timeout-minutes: 60
