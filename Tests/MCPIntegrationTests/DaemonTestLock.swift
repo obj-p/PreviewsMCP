@@ -14,16 +14,20 @@ enum DaemonTestLock {
     }
 
     static func run<T: Sendable>(body: @Sendable () async throws -> T) async throws -> T {
+        let path = lockPath
         let fd = try await withCheckedThrowingContinuation {
             (cont: CheckedContinuation<Int32, Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
-                let fd = open(lockPath, O_CREAT | O_RDWR, 0o644)
+                let dir = (path as NSString).deletingLastPathComponent
+                try? FileManager.default.createDirectory(
+                    atPath: dir, withIntermediateDirectories: true)
+                let fd = open(path, O_CREAT | O_RDWR, 0o644)
                 guard fd >= 0 else {
                     cont.resume(
                         throwing: NSError(
                             domain: NSPOSIXErrorDomain, code: Int(errno),
                             userInfo: [
-                                NSLocalizedDescriptionKey: "open(\(lockPath)) failed"
+                                NSLocalizedDescriptionKey: "open(\(path)) failed"
                             ]))
                     return
                 }
