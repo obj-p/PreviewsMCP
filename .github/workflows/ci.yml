@@ -104,7 +104,9 @@ jobs:
           --skip "iosCLIWorkflow"
 
       - name: MCP integration tests
-        timeout-minutes: 10
+        # 15m > per-test .timeLimit(.minutes(10)) so test-level timeouts fire first
+        # with a source-located Testing error instead of a bare GHA step kill.
+        timeout-minutes: 15
         env:
           NSUnbufferedIO: "YES"
         run: swift test --filter "MCPIntegrationTests" --skip "IOSMCPTests"

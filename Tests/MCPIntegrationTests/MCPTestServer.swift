@@ -30,15 +30,20 @@ final class MCPTestServer: @unchecked Sendable {
     private let client: Client
     private let stdinPipe: Pipe
     private let stdoutPipe: Pipe
+    /// Path to the per-instance log file that captures the server subprocess's stderr.
+    /// Persists on disk after `stop()` so post-mortem inspection is possible.
+    let stderrLogPath: URL
 
     private init(
         process: Process, client: Client,
-        stdinPipe: Pipe, stdoutPipe: Pipe
+        stdinPipe: Pipe, stdoutPipe: Pipe,
+        stderrLogPath: URL
     ) {
         self.process = process
         self.client = client
         self.stdinPipe = stdinPipe
         self.stdoutPipe = stdoutPipe
+        self.stderrLogPath = stderrLogPath
     }
 
     // MARK: - Lifecycle
@@ -58,15 +63,24 @@ final class MCPTestServer: @unchecked Sendable {
         let stdoutPipe = Pipe()
         process.standardInput = stdinPipe
         process.standardOutput = stdoutPipe
-        // Discard server stderr. Two earlier approaches both caused CI hangs on macOS 15:
+        // Capture server stderr to a per-instance file. Two earlier approaches caused
+        // CI hangs on macOS 15:
         //  1. Pipe + readabilityHandler — the dispatch source persisted in the test
         //     binary's CFRunLoop after the subprocess died, blocking process exit.
         //  2. Sharing FileHandle.standardError with the child — caused previewsmcp's
         //     own startup to hang on subsequent test runs (cause unclear; possibly
         //     related to NSApplication's stderr handling).
-        // /dev/null is the only configuration that avoids both bugs. We lose visibility
-        // into server diagnostics but gain reliable test cleanup.
-        process.standardError = FileHandle.nullDevice
+        // Writing to a plain file handle avoids both: no dispatch source (so nothing
+        // to persist in the parent's CFRunLoop) and an isolated fd (so the child
+        // doesn't inherit the parent's stderr). This restores the diagnostics that
+        // were previously lost to /dev/null.
+        let stderrLogPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-test-\(UUID().uuidString).log")
+        FileManager.default.createFile(atPath: stderrLogPath.path, contents: nil)
+        guard let stderrHandle = FileHandle(forWritingAtPath: stderrLogPath.path) else {
+            throw MCPTestError.cannotCreateStderrLog(stderrLogPath.path)
+        }
+        process.standardError = stderrHandle
 
         try process.run()
 
@@ -79,7 +93,8 @@ final class MCPTestServer: @unchecked Sendable {
 
         let server = MCPTestServer(
             process: process, client: client,
-            stdinPipe: stdinPipe, stdoutPipe: stdoutPipe
+            stdinPipe: stdinPipe, stdoutPipe: stdoutPipe,
+            stderrLogPath: stderrLogPath
         )
 
         // Detect unexpected server termination so pending callTool requests fail fast
@@ -133,6 +148,24 @@ final class MCPTestServer: @unchecked Sendable {
         arguments: [String: Value]? = nil
     ) async throws -> (content: [Tool.Content], isError: Bool?) {
         try await client.callTool(name: name, arguments: arguments)
+    }
+
+    /// Call an MCP tool bounded by `timeout`. On timeout, dumps the captured
+    /// server stderr via `Issue.record` so the hang has diagnostic context,
+    /// then rethrows `MCPTestError.timedOut`.
+    func callToolWithTimeout(
+        name: String,
+        arguments: [String: Value]? = nil,
+        timeout: Duration = .seconds(30)
+    ) async throws -> (content: [Tool.Content], isError: Bool?) {
+        do {
+            return try await Self.withTimeout(timeout) { [self] in
+                try await client.callTool(name: name, arguments: arguments)
+            }
+        } catch is TestTimeoutSentinel {
+            Issue.record("callTool(\(name)) timed out after \(timeout). Server stderr:\n\(stderrLog())")
+            throw MCPTestError.timedOut(operation: "callTool(\(name))", duration: timeout)
+        }
     }
 
     /// Call an MCP tool and return the full `CallTool.Result` including
@@ -246,13 +279,103 @@ final class MCPTestServer: @unchecked Sendable {
         return (w, h)
     }
 
+    // MARK: - Stderr capture
+
+    /// Return the current contents of the server's captured stderr log.
+    /// Safe to call at any time; reads may trail in-flight writes slightly.
+    func stderrLog() -> String {
+        (try? String(contentsOfFile: stderrLogPath.path, encoding: .utf8)) ?? ""
+    }
+
+    /// Poll the server's stderr log until it contains `needle`, up to `timeout`.
+    /// On timeout, dumps the log via `Issue.record` and throws.
+    /// Poll cadence mirrors CLIIntegrationTests/RunCommandTests.waitForStderrMatch (100ms).
+    func awaitStderrContains(
+        _ needle: String,
+        timeout: Duration
+    ) async throws {
+        let deadline = ContinuousClock.now + timeout
+        while ContinuousClock.now < deadline {
+            if stderrLog().contains(needle) { return }
+            try await Task.sleep(for: .milliseconds(100))
+        }
+        Issue.record(
+            "Stderr did not contain \(needle.debugDescription) within \(timeout). Server stderr:\n\(stderrLog())")
+        throw MCPTestError.timedOut(operation: "awaitStderrContains(\(needle.debugDescription))", duration: timeout)
+    }
+
+    // MARK: - Snapshot helpers
+
+    /// Capture a snapshot and return its raw image bytes. Decodes via the existing
+    /// `extractImageData` helper; ignores mimeType (JPEG/PNG differ naturally across
+    /// quality settings, but byte equality is sufficient for change-detection).
+    func snapshotBytes(sessionID: String, timeout: Duration = .seconds(30)) async throws -> Data {
+        let (content, isError) = try await callToolWithTimeout(
+            name: "preview_snapshot",
+            arguments: ["sessionID": .string(sessionID)],
+            timeout: timeout
+        )
+        if isError == true {
+            Issue.record("preview_snapshot returned an error. Content: \(Self.extractText(from: content))")
+            throw MCPTestError.snapshotFailed
+        }
+        return try Self.extractImageData(from: content).data
+    }
+
+    /// Poll `preview_snapshot` until the returned bytes differ from `baseline`, up to `timeout`.
+    /// Guards against false-positive passing tests where a reload silently no-ops and the
+    /// pre-edit window pixels are returned unchanged.
+    func awaitSnapshotChange(
+        sessionID: String,
+        baseline: Data,
+        timeout: Duration
+    ) async throws -> Data {
+        let deadline = ContinuousClock.now + timeout
+        while ContinuousClock.now < deadline {
+            let current = try await snapshotBytes(sessionID: sessionID)
+            if current != baseline { return current }
+            try await Task.sleep(for: .milliseconds(200))
+        }
+        Issue.record("Snapshot bytes did not change within \(timeout). Server stderr:\n\(stderrLog())")
+        throw MCPTestError.timedOut(operation: "awaitSnapshotChange(sessionID: \(sessionID))", duration: timeout)
+    }
+
+    // MARK: - Timeout primitive
+
+    /// Race `body` against a timer; throw `TestTimeoutSentinel` if the timer wins.
+    /// Caller is expected to catch the sentinel and add operation-specific context.
+    static func withTimeout<T: Sendable>(
+        _ duration: Duration,
+        _ body: @Sendable @escaping () async throws -> T
+    ) async throws -> T {
+        try await withThrowingTaskGroup(of: T.self) { group in
+            group.addTask { try await body() }
+            group.addTask {
+                try await Task.sleep(for: duration)
+                throw TestTimeoutSentinel()
+            }
+            defer { group.cancelAll() }
+            guard let result = try await group.next() else {
+                throw TestTimeoutSentinel()
+            }
+            return result
+        }
+    }
+
 }
+
+/// Internal sentinel thrown by `MCPTestServer.withTimeout`. Callers catch and
+/// rethrow `MCPTestError.timedOut` with their own operation string.
+private struct TestTimeoutSentinel: Error {}
 
 enum MCPTestError: Error, LocalizedError {
     case noSessionID(String)
     case invalidBase64
     case noImageContent
     case noStructuredContent
+    case cannotCreateStderrLog(String)
+    case timedOut(operation: String, duration: Duration)
+    case snapshotFailed
 
     var errorDescription: String? {
         switch self {
@@ -260,6 +383,9 @@ enum MCPTestError: Error, LocalizedError {
         case .invalidBase64: "Invalid base64 image data"
         case .noImageContent: "No image content in tool result"
         case .noStructuredContent: "No structuredContent in tool result"
+        case .cannotCreateStderrLog(let path): "Could not open stderr log for writing at \(path)"
+        case .timedOut(let operation, let duration): "\(operation) timed out after \(duration)"
+        case .snapshotFailed: "preview_snapshot returned isError=true"
         }
     }
 }
