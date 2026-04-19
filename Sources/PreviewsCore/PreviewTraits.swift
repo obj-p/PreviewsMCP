@@ -39,6 +39,30 @@ public struct PreviewTraits: Sendable, Equatable {
         )
     }
 
+    /// Identifies a single trait field. Used with `clearing(_:)` to null out
+    /// a specific override without touching the others.
+    public enum Field: String, Sendable, CaseIterable {
+        case colorScheme
+        case dynamicTypeSize
+        case locale
+        case layoutDirection
+        case legibilityWeight
+    }
+
+    /// Return a copy with the given fields set to nil. Needed because
+    /// `merged(with:)` alone can't clear — `other.x ?? self.x` preserves
+    /// `self.x` when `other.x` is nil. Callers (e.g., the daemon's
+    /// `preview_configure` handler) must explicitly ask to clear.
+    public func clearing(_ fields: Set<Field>) -> PreviewTraits {
+        PreviewTraits(
+            colorScheme: fields.contains(.colorScheme) ? nil : colorScheme,
+            dynamicTypeSize: fields.contains(.dynamicTypeSize) ? nil : dynamicTypeSize,
+            locale: fields.contains(.locale) ? nil : locale,
+            layoutDirection: fields.contains(.layoutDirection) ? nil : layoutDirection,
+            legibilityWeight: fields.contains(.legibilityWeight) ? nil : legibilityWeight
+        )
+    }
+
     public static let validColorSchemes: Set<String> = ["light", "dark"]
 
     public static let validDynamicTypeSizes: Set<String> = [

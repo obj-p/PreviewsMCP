@@ -8,12 +8,6 @@ enum CLIPlatform: String, ExpressibleByArgument, CaseIterable {
     case ios
 }
 
-/// Shared state, accessible from commands. Initialized in main() after command parsing.
-@MainActor
-enum App {
-    static var host: PreviewHost!
-}
-
 @main
 struct PreviewsMCPApp {
     static func main() {
@@ -24,11 +18,29 @@ struct PreviewsMCPApp {
             PreviewsMCPCommand.exit(withError: error)
         }
 
-        // Commands that don't need NSApplication (list, help, etc.)
-        if command is ListCommand
-            || !(command is RunCommand || command is ServeCommand || command is SnapshotCommand
-                || command is VariantsCommand)
-        {
+        // Every CLI subcommand except `serve` is now a daemon client.
+        // Only `serve` drives AppKit directly (it *is* the daemon).
+        if !(command is ServeCommand) {
+            // Handle async commands: the MCP SDK's NetworkTransport schedules
+            // NWConnection callbacks on DispatchQueue.main, so we can't just
+            // block main with a semaphore — the callbacks would never fire.
+            // Use dispatchMain() to yield to libdispatch and let the async Task
+            // drive to completion, then delegate to ParsableCommand.exit()
+            // from the Task so error formatting matches the sync branch
+            // (ArgumentParser formats ValidationError / ExitCode correctly).
+            if let asyncCommand = command as? any AsyncParsableCommand {
+                Task {
+                    do {
+                        var mutable = asyncCommand
+                        try await mutable.run()
+                        Darwin.exit(0)
+                    } catch {
+                        PreviewsMCPCommand.exit(withError: error)
+                    }
+                }
+                dispatchMain()  // never returns; Task exits the process
+            }
+
             do {
                 var mutable = command
                 try mutable.run()
@@ -38,25 +50,15 @@ struct PreviewsMCPApp {
             return
         }
 
-        // Commands needing UI: start NSApplication
+        // `serve` is the only command that runs AppKit in-process — every
+        // other subcommand is now a daemon client.
         let app = NSApplication.shared
-
-        let mode: PreviewHost.Mode
-        if command is ServeCommand {
-            mode = .serve
-        } else if command is SnapshotCommand || command is VariantsCommand {
-            mode = .snapshot
-        } else {
-            mode = .interactive
-        }
-
-        let host = PreviewHost(mode: mode)
-        App.host = host
+        let host = PreviewHost()
+        ServeCommand.sharedHost = host
         app.delegate = host
 
-        if host.headless {
-            app.setActivationPolicy(.accessory)
-        }
+        // Always headless: no Dock icon, windows positioned off-screen.
+        app.setActivationPolicy(.accessory)
 
         host.onLaunch = {
             Task { @MainActor in
@@ -98,7 +100,9 @@ struct PreviewsMCPCommand: ParsableCommand {
         version: version,
         subcommands: [
             RunCommand.self, ListCommand.self, SnapshotCommand.self, VariantsCommand.self,
-            ServeCommand.self,
+            ConfigureCommand.self, SwitchCommand.self, ElementsCommand.self,
+            TouchCommand.self, SimulatorsCommand.self, StopCommand.self,
+            ServeCommand.self, StatusCommand.self, KillDaemonCommand.self,
         ],
         defaultSubcommand: RunCommand.self
     )

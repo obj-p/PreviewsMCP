@@ -43,12 +43,17 @@ let package = Package(
             dependencies: ["PreviewsCore", "SimulatorBridge"],
             resources: [.copy("AppIcon.png")]
         ),
+        .target(
+            name: "PreviewsEngine",
+            dependencies: ["PreviewsCore", "PreviewsIOS"]
+        ),
         .executableTarget(
             name: "PreviewsCLI",
             dependencies: [
                 "PreviewsCore",
                 "PreviewsMacOS",
                 "PreviewsIOS",
+                "PreviewsEngine",
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 .product(name: "MCP", package: "swift-sdk"),
             ],
@@ -79,9 +84,14 @@ let package = Package(
             dependencies: []
         ),
         .testTarget(
+            name: "PreviewsCLITests",
+            dependencies: ["PreviewsCLI"]
+        ),
+        .testTarget(
             name: "MCPIntegrationTests",
             dependencies: [
-                .product(name: "MCP", package: "swift-sdk")
+                "PreviewsCLI",
+                .product(name: "MCP", package: "swift-sdk"),
             ]
         ),
     ]

@@ -61,6 +61,8 @@ jobs:
     needs: changes
     if: needs.changes.outputs.src == 'true'
     runs-on: macos-15
+    env:
+      PREVIEWSMCP_SOCKET_DIR: /tmp/previewsmcp-ci-build
     steps:
       - uses: actions/checkout@v4
 
@@ -88,10 +90,18 @@ jobs:
         run: swift build --package-path examples/spm
 
       - name: Unit tests
+        env:
+          NSUnbufferedIO: "YES"
         run: swift test --filter "PreviewsCoreTests"
 
       - name: CLI integration tests
-        run: swift test --filter "CLIIntegrationTests" --skip "snapshotIOS"
+        timeout-minutes: 60
+        env:
+          NSUnbufferedIO: "YES"
+        run: >-
+          swift test --filter "CLIIntegrationTests"
+          --skip "snapshotIOS"
+          --skip "iosCLIWorkflow"
 
       - name: MCP integration tests
         timeout-minutes: 10
@@ -103,6 +113,8 @@ jobs:
     needs: changes
     if: needs.changes.outputs.ios == 'true'
     runs-on: macos-15
+    env:
+      PREVIEWSMCP_SOCKET_DIR: /tmp/previewsmcp-ci-ios
     steps:
       - uses: actions/checkout@v4
 
@@ -147,7 +159,26 @@ jobs:
 
       - name: iOS CLI snapshot test
         timeout-minutes: 10
+        env:
+          NSUnbufferedIO: "YES"
         run: swift test --filter "snapshotIOS"
+
+      - name: Kill stale daemon before iOS CLI tests
+        run: .build/debug/previewsmcp kill-daemon --timeout 3 || true
+
+      - name: iOS CLI integration tests
+        timeout-minutes: 20
+        env:
+          NSUnbufferedIO: "YES"
+        run: swift test --filter "iosCLIWorkflow"
+
+      - name: Dump daemon log on failure
+        if: failure()
+        run: |
+          echo "--- daemon log ($PREVIEWSMCP_SOCKET_DIR/serve.log) ---"
+          cat "$PREVIEWSMCP_SOCKET_DIR/serve.log" 2>/dev/null || echo "(no log file)"
+          echo "--- socket dir listing ---"
+          ls -la "$PREVIEWSMCP_SOCKET_DIR/" 2>/dev/null || echo "(dir not found)"
 
       - name: iOS MCP tests
         timeout-minutes: 20

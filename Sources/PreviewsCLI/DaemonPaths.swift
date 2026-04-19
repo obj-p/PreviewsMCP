@@ -1,0 +1,46 @@
+import Foundation
+
+/// Filesystem paths for the daemon.
+///
+/// All daemon state lives under `~/.previewsmcp/` by default. Sessions
+/// themselves are held in the daemon's memory (not on disk) — this
+/// directory only holds IPC primitives and lifecycle metadata.
+///
+/// Set `PREVIEWSMCP_SOCKET_DIR` to override the directory. This is used
+/// by integration tests to run per-suite daemons on isolated sockets
+/// so test suites execute in parallel without a global lock.
+enum DaemonPaths {
+
+    /// The daemon state directory. Defaults to `~/.previewsmcp/`;
+    /// overridden by the `PREVIEWSMCP_SOCKET_DIR` environment variable.
+    static var directory: URL {
+        if let override = ProcessInfo.processInfo.environment["PREVIEWSMCP_SOCKET_DIR"] {
+            return URL(fileURLWithPath: override, isDirectory: true)
+        }
+        return FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".previewsmcp", isDirectory: true)
+    }
+
+    /// Unix domain socket the daemon listens on.
+    static var socket: URL {
+        directory.appendingPathComponent("serve.sock")
+    }
+
+    /// PID file for the running daemon.
+    static var pidFile: URL {
+        directory.appendingPathComponent("serve.pid")
+    }
+
+    /// Log file for daemon stdout/stderr when running detached.
+    static var logFile: URL {
+        directory.appendingPathComponent("serve.log")
+    }
+
+    /// Ensure the directory exists with owner-only permissions.
+    static func ensureDirectory() throws {
+        try FileManager.default.createDirectory(
+            at: directory, withIntermediateDirectories: true,
+            attributes: [.posixPermissions: 0o700]
+        )
+    }
+}

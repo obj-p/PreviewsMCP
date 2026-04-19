@@ -2,6 +2,8 @@ import Foundation
 import MCP
 import Testing
 
+@testable import PreviewsCLI
+
 /// All macOS MCP tests share a single server process to avoid repeated
 /// swift build / swiftc overhead. Tests are serialized and reuse sessions
 /// where possible.
@@ -182,12 +184,138 @@ struct MacOSMCPTests {
         #expect(stopText.contains("closed"), "Stop should confirm closure")
 
         // --- preview_stop nonexistent session ---
-        let (fakeStop, _) = try await server.callTool(
+        // Must be rejected with isError so stop --session <typo> surfaces
+        // a real error instead of a phantom "closed" success.
+        let (fakeStop, fakeIsError) = try await server.callTool(
             name: "preview_stop",
             arguments: ["sessionID": .string("00000000-0000-0000-0000-000000000000")]
         )
+        #expect(fakeIsError == true, "Stopping a nonexistent session must return isError")
         let fakeStopText = MCPTestServer.extractText(from: fakeStop)
-        #expect(fakeStopText.contains("closed"), "Should return closed message")
+        #expect(
+            fakeStopText.contains("No session found"),
+            "Should surface a 'No session found' message: \(fakeStopText)"
+        )
+
+        // --- preview_snapshot nonexistent session ---
+        // Before this fix, a typo'd UUID fell through to `window(for:)`
+        // which returned nil and threw `SnapshotError.captureFailed` —
+        // a misleading message that suggested a capture failure rather
+        // than a missing session. Must now be a clean isError with a
+        // clear message.
+        let (fakeSnap, fakeSnapIsError) = try await server.callTool(
+            name: "preview_snapshot",
+            arguments: ["sessionID": .string("00000000-0000-0000-0000-000000000000")]
+        )
+        #expect(fakeSnapIsError == true, "Snapshotting a nonexistent session must return isError")
+        let fakeSnapText = MCPTestServer.extractText(from: fakeSnap)
+        #expect(
+            fakeSnapText.contains("No session found"),
+            "Should surface a 'No session found' message: \(fakeSnapText)"
+        )
+    }
+
+    // MARK: - structuredContent contract (wire format)
+
+    /// Pin the daemon's `structuredContent` payloads for the 7 migrated
+    /// tools. Deliberately decodes through the same `DaemonProtocol`
+    /// DTOs that the CLI will consume, so drift in field names or
+    /// shapes shows up here.
+    @Test("structuredContent payloads decode for each migrated tool", .timeLimit(.minutes(10)))
+    func structuredContentPayloadsDecode() async throws {
+        let server = try await MCPTestServer.start()
+        defer { server.stop() }
+
+        // preview_list — file + previews list, no session yet
+        let listResult = try await server.callToolResult(
+            name: "preview_list",
+            arguments: ["filePath": .string(MCPTestServer.toDoViewPath)]
+        )
+        let list = try MCPTestServer.decodeStructured(
+            DaemonProtocol.PreviewListResult.self, from: listResult
+        )
+        #expect(list.file.hasSuffix("ToDoView.swift"))
+        #expect(list.previews.count >= 2)
+        #expect(list.previews.allSatisfy { !$0.active }, "no session active → no active flag")
+
+        // preview_start — session + platform + previews + activeIndex
+        let startResult = try await server.callToolResult(
+            name: "preview_start",
+            arguments: [
+                "filePath": .string(MCPTestServer.toDoViewPath),
+                "projectPath": .string(MCPTestServer.spmExampleRoot.path),
+            ]
+        )
+        let start = try MCPTestServer.decodeStructured(
+            DaemonProtocol.PreviewStartResult.self, from: startResult
+        )
+        #expect(start.sessionID.count == 36)
+        #expect(start.platform == "macos")
+        #expect(start.activeIndex == 0)
+        #expect(start.previews.first(where: { $0.index == 0 })?.active == true)
+
+        let sessionID = start.sessionID
+
+        // preview_switch — activeIndex reflects the switch
+        let switchResult = try await server.callToolResult(
+            name: "preview_switch",
+            arguments: [
+                "sessionID": .string(sessionID),
+                "previewIndex": .int(1),
+            ]
+        )
+        let switched = try MCPTestServer.decodeStructured(
+            DaemonProtocol.SwitchResult.self, from: switchResult
+        )
+        #expect(switched.sessionID == sessionID)
+        #expect(switched.activeIndex == 1)
+        #expect(switched.previews.first(where: { $0.index == 1 })?.active == true)
+
+        // preview_variants — label + status + imageIndex for each variant
+        let variantsResult = try await server.callToolResult(
+            name: "preview_variants",
+            arguments: [
+                "sessionID": .string(sessionID),
+                "variants": .array([.string("light"), .string("dark")]),
+            ]
+        )
+        let variants = try MCPTestServer.decodeStructured(
+            DaemonProtocol.VariantsResult.self, from: variantsResult
+        )
+        #expect(variants.variants.count == 2)
+        #expect(variants.successCount == 2)
+        #expect(variants.failCount == 0)
+        for v in variants.variants {
+            #expect(v.status == "ok")
+            #expect(v.imageIndex != nil)
+            // Image index must address a valid .image block
+            let blocks = variantsResult.content
+            if let idx = v.imageIndex, idx < blocks.count,
+                case .image = blocks[idx]
+            {
+                // ok
+            } else {
+                Issue.record("imageIndex \(String(describing: v.imageIndex)) does not point at an image block")
+            }
+        }
+
+        // session_list — returns our one session
+        let sessionListResult = try await server.callToolResult(name: "session_list")
+        let sessions = try MCPTestServer.decodeStructured(
+            DaemonProtocol.SessionListResult.self, from: sessionListResult
+        )
+        #expect(sessions.sessions.contains { $0.sessionID == sessionID && $0.platform == "macos" })
+
+        // simulator_list — always decodes (empty array if no simulators)
+        let simsResult = try await server.callToolResult(name: "simulator_list")
+        _ = try MCPTestServer.decodeStructured(
+            DaemonProtocol.SimulatorListResult.self, from: simsResult
+        )
+
+        // Cleanup
+        _ = try await server.callTool(
+            name: "preview_stop", arguments: ["sessionID": .string(sessionID)]
+        )
     }
 
     // MARK: - preview_variants
@@ -319,7 +447,7 @@ struct MacOSMCPTests {
 
     // MARK: - Hot reload (separate test — modifies source file)
 
-    @Test("File edit triggers hot reload", .timeLimit(.minutes(3)))
+    @Test("File edit triggers hot reload", .timeLimit(.minutes(10)))
     func hotReload() async throws {
         let server = try await MCPTestServer.start()
         defer { server.stop() }

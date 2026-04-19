@@ -1,85 +1,17 @@
 import Foundation
 import MCP
 import PreviewsCore
+import PreviewsEngine
 import PreviewsIOS
 import PreviewsMacOS
 import os
 
-/// Tool names for MCP server. Used in both schema definitions and dispatch.
-private enum ToolName: String {
-    case previewList = "preview_list"
-    case previewStart = "preview_start"
-    case previewSnapshot = "preview_snapshot"
-    case previewStop = "preview_stop"
-    case previewConfigure = "preview_configure"
-    case previewSwitch = "preview_switch"
-    case previewElements = "preview_elements"
-    case previewTouch = "preview_touch"
-    case previewVariants = "preview_variants"
-    case simulatorList = "simulator_list"
-}
-
-/// Tracks active iOS preview sessions and lazily creates shared iOS resources.
-private actor IOSState {
-    let simulatorManager = SimulatorManager()
-    private var compiler: Compiler?
-    private var hostBuilder: IOSHostBuilder?
-    private var sessions: [String: IOSPreviewSession] = [:]
-    private var fileWatchers: [String: FileWatcher] = [:]
-
-    func getCompiler() async throws -> Compiler {
-        if let c = compiler { return c }
-        let c = try await Compiler(platform: .iOS)
-        compiler = c
-        return c
-    }
-
-    func getHostBuilder() async throws -> IOSHostBuilder {
-        if let b = hostBuilder { return b }
-        let b = try await IOSHostBuilder()
-        hostBuilder = b
-        return b
-    }
-
-    func addSession(_ session: IOSPreviewSession) {
-        sessions[session.id] = session
-    }
-
-    func getSession(_ id: String) -> IOSPreviewSession? {
-        sessions[id]
-    }
-
-    func removeSession(_ id: String) {
-        sessions.removeValue(forKey: id)
-        fileWatchers[id]?.stop()
-        fileWatchers.removeValue(forKey: id)
-    }
-
-    func setFileWatcher(_ id: String, _ watcher: FileWatcher) {
-        fileWatchers[id] = watcher
-    }
-
-    func allSessionIDs() -> [String] {
-        Array(sessions.keys)
-    }
-}
-
-private let iosState = IOSState()
-private let configCache = ConfigCache()
-
-private actor ConfigCache {
-    private var cache: [String: ProjectConfigLoader.Result?] = [:]
-
-    func load(for fileURL: URL) -> ProjectConfigLoader.Result? {
-        let dir = fileURL.deletingLastPathComponent().standardizedFileURL.path
-        if let cached = cache[dir] {
-            return cached
-        }
-        let result = ProjectConfigLoader.find(from: fileURL.deletingLastPathComponent())
-        cache[dir] = result
-        return result
-    }
-}
+/// File-private references to the shared engine-layer instances.
+/// Set once per daemon lifetime by `configureMCPServer(host:iosManager:configCache:)`.
+/// All handler functions reference these instead of globals.
+@MainActor private var host: PreviewHost!
+@MainActor private var iosState: IOSSessionManager!
+@MainActor private var configCache: ConfigCache!
 
 /// MCP progress reporter that sends progress notifications and log messages to the client.
 final class MCPProgressReporter: ProgressReporter, @unchecked Sendable {
@@ -128,11 +60,32 @@ private func mcpReporter(
 }
 
 /// Configures and returns an MCP server with preview tools.
-func configureMCPServer() async throws -> (Server, Compiler) {
-    // Clean up stale temp directories from previous sessions (older than 24 hours)
+///
+/// - Parameter sharedCompiler: Pass a pre-built `Compiler` to reuse across
+///   multiple server instances (e.g., daemon mode, where each accepted client
+///   connection gets its own `Server` but they all share one compiler). When
+///   nil, a fresh compiler is built — appropriate for single-connection modes
+///   like stdio.
+func configureMCPServer(
+    host previewHost: PreviewHost,
+    iosManager: IOSSessionManager,
+    configCache cache: ConfigCache,
+    sharedCompiler: Compiler? = nil
+) async throws -> (Server, Compiler) {
+    await MainActor.run {
+        if host == nil { host = previewHost }
+        if iosState == nil { iosState = iosManager }
+        if configCache == nil { configCache = cache }
+    }
+
     cleanupStaleTempDirs()
 
-    let compiler = try await Compiler()
+    let compiler: Compiler
+    if let sharedCompiler {
+        compiler = sharedCompiler
+    } else {
+        compiler = try await Compiler()
+    }
 
     let server = Server(
         name: "previewsmcp",
@@ -141,319 +94,7 @@ func configureMCPServer() async throws -> (Server, Compiler) {
     )
 
     await server.withMethodHandler(ListTools.self) { _ in
-        ListTools.Result(tools: [
-            Tool(
-                name: ToolName.previewList.rawValue,
-                description: "List #Preview blocks in a Swift source file",
-                inputSchema: .object([
-                    "type": .string("object"),
-                    "properties": .object([
-                        "filePath": .object([
-                            "type": .string("string"),
-                            "description": .string("Absolute path to a Swift source file"),
-                        ])
-                    ]),
-                    "required": .array([.string("filePath")]),
-                ])
-            ),
-            Tool(
-                name: ToolName.previewStart.rawValue,
-                description:
-                    "Compile and launch a live SwiftUI preview. Returns a session ID. Supports macOS (default) and iOS simulator.",
-                inputSchema: .object([
-                    "type": .string("object"),
-                    "properties": .object([
-                        "filePath": .object([
-                            "type": .string("string"),
-                            "description": .string("Absolute path to a Swift source file containing #Preview"),
-                        ]),
-                        "previewIndex": .object([
-                            "type": .string("integer"),
-                            "description": .string("0-based index of which #Preview to show (default: 0)"),
-                        ]),
-                        "platform": .object([
-                            "type": .string("string"),
-                            "description": .string("Target platform: 'macos' (default) or 'ios'"),
-                        ]),
-                        "deviceUDID": .object([
-                            "type": .string("string"),
-                            "description": .string(
-                                "Simulator device UDID (for ios; auto-selects if omitted)"),
-                        ]),
-                        "headless": .object([
-                            "type": .string("boolean"),
-                            "description": .string("If false, shows the preview window (default: true)"),
-                        ]),
-                        "width": .object([
-                            "type": .string("integer"),
-                            "description": .string("Window width in points (macOS only, default: 400)"),
-                        ]),
-                        "height": .object([
-                            "type": .string("integer"),
-                            "description": .string("Window height in points (macOS only, default: 600)"),
-                        ]),
-                        "projectPath": .object([
-                            "type": .string("string"),
-                            "description": .string(
-                                "Project root path (auto-detected if omitted). Enables importing project types from SPM packages, Bazel swift_library targets, or Xcode projects (.xcodeproj / .xcworkspace)."
-                            ),
-                        ]),
-                        "scheme": .object([
-                            "type": .string("string"),
-                            "description": .string(
-                                "Xcode scheme name (only used for .xcodeproj / .xcworkspace projects). Required when the project contains more than one scheme and none of them match the source file's directory."
-                            ),
-                        ]),
-                        "colorScheme": .object([
-                            "type": .string("string"),
-                            "enum": .array([.string("light"), .string("dark")]),
-                            "description": .string("Color scheme override: 'light' or 'dark'"),
-                        ]),
-                        "dynamicTypeSize": .object([
-                            "type": .string("string"),
-                            "enum": .array([
-                                .string("xSmall"), .string("small"), .string("medium"),
-                                .string("large"),
-                                .string("xLarge"), .string("xxLarge"), .string("xxxLarge"),
-                                .string("accessibility1"), .string("accessibility2"),
-                                .string("accessibility3"),
-                                .string("accessibility4"), .string("accessibility5"),
-                            ]),
-                            "description": .string(
-                                "Dynamic Type size (e.g., 'large', 'accessibility3')"),
-                        ]),
-                        "locale": .object([
-                            "type": .string("string"),
-                            "description": .string(
-                                "BCP 47 locale identifier (e.g., 'en', 'ar', 'ja-JP')"),
-                        ]),
-                        "layoutDirection": .object([
-                            "type": .string("string"),
-                            "enum": .array([
-                                .string("leftToRight"), .string("rightToLeft"),
-                            ]),
-                            "description": .string(
-                                "Layout direction: 'leftToRight' or 'rightToLeft'"),
-                        ]),
-                        "legibilityWeight": .object([
-                            "type": .string("string"),
-                            "enum": .array([
-                                .string("regular"), .string("bold"),
-                            ]),
-                            "description": .string(
-                                "Legibility weight: 'regular' or 'bold' (Bold Text accessibility)"
-                            ),
-                        ]),
-                    ]),
-                    "required": .array([.string("filePath")]),
-                ])
-            ),
-            Tool(
-                name: ToolName.previewSnapshot.rawValue,
-                description: "Capture a screenshot of a running preview. Returns the image as JPEG (default) or PNG.",
-                inputSchema: .object([
-                    "type": .string("object"),
-                    "properties": .object([
-                        "sessionID": .object([
-                            "type": .string("string"),
-                            "description": .string("Session ID from preview_start"),
-                        ]),
-                        "quality": .object([
-                            "type": .string("number"),
-                            "description": .string(
-                                "JPEG quality 0.0–1.0 (default: 0.85). Values >= 1.0 produce PNG output."),
-                        ]),
-                    ]),
-                    "required": .array([.string("sessionID")]),
-                ])
-            ),
-            Tool(
-                name: ToolName.previewStop.rawValue,
-                description: "Close a preview and clean up the session.",
-                inputSchema: .object([
-                    "type": .string("object"),
-                    "properties": .object([
-                        "sessionID": .object([
-                            "type": .string("string"),
-                            "description": .string("Session ID from preview_start"),
-                        ])
-                    ]),
-                    "required": .array([.string("sessionID")]),
-                ])
-            ),
-            Tool(
-                name: ToolName.previewConfigure.rawValue,
-                description:
-                    "Change rendering traits (color scheme, dynamic type, locale, layout direction, legibility weight) for a running preview. Triggers recompile; @State is reset. Pass empty string to clear a trait. Note: dynamicTypeSize only has a visible effect on iOS simulator — macOS does not scale fonts in response to this modifier.",
-                inputSchema: .object([
-                    "type": .string("object"),
-                    "properties": .object([
-                        "sessionID": .object([
-                            "type": .string("string"),
-                            "description": .string("Session ID from preview_start"),
-                        ]),
-                        "colorScheme": .object([
-                            "type": .string("string"),
-                            "enum": .array([.string("light"), .string("dark")]),
-                            "description": .string("Color scheme override"),
-                        ]),
-                        "dynamicTypeSize": .object([
-                            "type": .string("string"),
-                            "enum": .array([
-                                .string("xSmall"), .string("small"), .string("medium"),
-                                .string("large"),
-                                .string("xLarge"), .string("xxLarge"), .string("xxxLarge"),
-                                .string("accessibility1"), .string("accessibility2"),
-                                .string("accessibility3"),
-                                .string("accessibility4"), .string("accessibility5"),
-                            ]),
-                            "description": .string("Dynamic Type size override"),
-                        ]),
-                        "locale": .object([
-                            "type": .string("string"),
-                            "description": .string(
-                                "BCP 47 locale identifier (e.g., 'en', 'ar', 'ja-JP'). Pass empty string to clear."
-                            ),
-                        ]),
-                        "layoutDirection": .object([
-                            "type": .string("string"),
-                            "description": .string(
-                                "Layout direction: 'leftToRight' or 'rightToLeft'. Pass empty string to clear."
-                            ),
-                        ]),
-                        "legibilityWeight": .object([
-                            "type": .string("string"),
-                            "description": .string(
-                                "Legibility weight: 'regular' or 'bold'. Pass empty string to clear."
-                            ),
-                        ]),
-                    ]),
-                    "required": .array([.string("sessionID")]),
-                ])
-            ),
-            Tool(
-                name: ToolName.previewSwitch.rawValue,
-                description:
-                    "Switch which #Preview block is rendered in a running session. Triggers recompile; @State is reset. Traits persist across switches.",
-                inputSchema: .object([
-                    "type": .string("object"),
-                    "properties": .object([
-                        "sessionID": .object([
-                            "type": .string("string"),
-                            "description": .string("Session ID from preview_start"),
-                        ]),
-                        "previewIndex": .object([
-                            "type": .string("integer"),
-                            "description": .string(
-                                "0-based index of the #Preview block to switch to"),
-                        ]),
-                    ]),
-                    "required": .array([.string("sessionID"), .string("previewIndex")]),
-                ])
-            ),
-            Tool(
-                name: ToolName.previewElements.rawValue,
-                description:
-                    "Get the accessibility tree of an iOS simulator preview. Returns elements with labels, frames, and traits for targeted interaction.",
-                inputSchema: .object([
-                    "type": .string("object"),
-                    "properties": .object([
-                        "sessionID": .object([
-                            "type": .string("string"),
-                            "description": .string("Session ID from preview_start (iOS simulator only)"),
-                        ]),
-                        "filter": .object([
-                            "type": .string("string"),
-                            "enum": .array([.string("all"), .string("interactable"), .string("labeled")]),
-                            "description": .string(
-                                "Filter mode: 'all' (default) returns the full tree, 'interactable' returns only buttons/links/toggles, 'labeled' returns only elements with label/value/identifier"
-                            ),
-                        ]),
-                    ]),
-                    "required": .array([.string("sessionID")]),
-                ])
-            ),
-            Tool(
-                name: ToolName.previewTouch.rawValue,
-                description:
-                    "Send a touch event to an iOS simulator preview. Coordinates are in device points. For swipe, x/y is the start point.",
-                inputSchema: .object([
-                    "type": .string("object"),
-                    "properties": .object([
-                        "sessionID": .object([
-                            "type": .string("string"),
-                            "description": .string("Session ID from preview_start (iOS simulator only)"),
-                        ]),
-                        "x": .object([
-                            "type": .string("number"),
-                            "description": .string("X coordinate in points (start point for swipe)"),
-                        ]),
-                        "y": .object([
-                            "type": .string("number"),
-                            "description": .string("Y coordinate in points (start point for swipe)"),
-                        ]),
-                        "action": .object([
-                            "type": .string("string"),
-                            "description": .string("'tap' (default) or 'swipe'"),
-                        ]),
-                        "toX": .object([
-                            "type": .string("number"),
-                            "description": .string("End X for swipe"),
-                        ]),
-                        "toY": .object([
-                            "type": .string("number"),
-                            "description": .string("End Y for swipe"),
-                        ]),
-                        "duration": .object([
-                            "type": .string("number"),
-                            "description": .string("Swipe duration in seconds (default: 0.3)"),
-                        ]),
-                    ]),
-                    "required": .array([.string("sessionID"), .string("x"), .string("y")]),
-                ])
-            ),
-            Tool(
-                name: ToolName.previewVariants.rawValue,
-                description:
-                    "Capture screenshots under multiple trait configurations in a single call. Renders each variant, snapshots it, then restores original traits. Accepts preset names or JSON trait objects.",
-                inputSchema: .object([
-                    "type": .string("object"),
-                    "properties": .object([
-                        "sessionID": .object([
-                            "type": .string("string"),
-                            "description": .string("Session ID from preview_start"),
-                        ]),
-                        "variants": .object([
-                            "type": .string("array"),
-                            "items": .object([
-                                "type": .string("string"),
-                                "description": .string(
-                                    "Preset name ('light', 'dark', 'xSmall'…'accessibility5', 'rtl', 'ltr', 'boldText') or a JSON object string with any combination of colorScheme, dynamicTypeSize, locale, layoutDirection, legibilityWeight, and an optional label."
-                                ),
-                            ]),
-                            "description": .string(
-                                "Array of trait variants to snapshot. Example: [\"light\", \"dark\", \"accessibility3\"]"
-                            ),
-                        ]),
-                        "quality": .object([
-                            "type": .string("number"),
-                            "description": .string(
-                                "JPEG quality 0.0-1.0 (default: 0.85). Values >= 1.0 produce PNG output."
-                            ),
-                        ]),
-                    ]),
-                    "required": .array([.string("sessionID"), .string("variants")]),
-                ])
-            ),
-            Tool(
-                name: ToolName.simulatorList.rawValue,
-                description: "List available iOS simulator devices with their UDIDs and states.",
-                inputSchema: .object([
-                    "type": .string("object"),
-                    "properties": .object([:]),
-                ])
-            ),
-        ])
+        ListTools.Result(tools: mcpToolSchemas())
     }
 
     await server.withMethodHandler(CallTool.self) { [server] params in
@@ -481,6 +122,8 @@ func configureMCPServer() async throws -> (Server, Compiler) {
             return try await handlePreviewVariants(params: params, server: server)
         case .simulatorList:
             return try await handleSimulatorList()
+        case .sessionList:
+            return await handleSessionList()
         }
     }
 
@@ -502,8 +145,21 @@ private func handlePreviewList(params: CallTool.Parameters) async throws -> Call
 
     let previews = try PreviewParser.parse(fileAt: fileURL)
 
+    // Structured payload — always safe to emit, even for empty lists.
+    // No session is active here so `activeIndex: -1` sentinel means
+    // no `.active == true` entries.
+    let structured = DaemonProtocol.PreviewListResult(
+        file: fileURL.path,
+        previews: previews.map {
+            DaemonProtocol.PreviewInfoDTO(from: $0, activeIndex: -1)
+        }
+    )
+
     if previews.isEmpty {
-        return CallTool.Result(content: [.text("No #Preview blocks found in \(fileURL.lastPathComponent)")])
+        return try CallTool.Result(
+            content: [.text("No #Preview blocks found in \(fileURL.lastPathComponent)")],
+            structuredContent: structured
+        )
     }
 
     var lines: [String] = []
@@ -512,7 +168,10 @@ private func handlePreviewList(params: CallTool.Parameters) async throws -> Call
         lines.append("[\(preview.index)] \(name) (line \(preview.line)): \(preview.snippet)")
     }
 
-    return CallTool.Result(content: [.text(lines.joined(separator: "\n"))])
+    return try CallTool.Result(
+        content: [.text(lines.joined(separator: "\n"))],
+        structuredContent: structured
+    )
 }
 
 private func handlePreviewStart(params: CallTool.Parameters, macCompiler: Compiler, server: Server) async throws
@@ -543,7 +202,9 @@ private func handlePreviewStart(params: CallTool.Parameters, macCompiler: Compil
         platformStr = "macos"
     }
 
-    let (explicitTraits, traitsError) = parseTraits(from: params)
+    // preview_start ignores clearedFields — traits start from empty so there's
+    // nothing to clear. Only preview_configure treats clearing meaningfully.
+    let (explicitTraits, _, traitsError) = parseTraits(from: params)
     if let traitsError { return traitsError }
     let configTraits = config?.traits?.toPreviewTraits() ?? PreviewTraits()
     let resolvedTraits = configTraits.merged(with: explicitTraits)
@@ -598,11 +259,27 @@ private func handlePreviewStart(params: CallTool.Parameters, macCompiler: Compil
     let previews = try PreviewParser.parse(fileAt: fileURL)
     let previewList = formatPreviewList(previews: previews, activeIndex: previewIndex)
     let switchHint = previews.count > 1 ? "\nUse preview_switch to change the active preview." : ""
-    return CallTool.Result(content: [
-        .text(
-            "macOS preview started. Session ID: \(sessionID).\(traitInfo)\(standaloneSetupWarning) File is being watched for changes.\n\(previewList)\(switchHint)"
-        )
-    ])
+    let structured = DaemonProtocol.PreviewStartResult(
+        sessionID: sessionID,
+        platform: "macos",
+        sourceFilePath: fileURL.path,
+        deviceUDID: nil,
+        pid: nil,
+        traits: DaemonProtocol.TraitsDTO.orNil(resolvedTraits),
+        previews: previews.map {
+            DaemonProtocol.PreviewInfoDTO(from: $0, activeIndex: previewIndex)
+        },
+        activeIndex: previewIndex,
+        setupWarning: standaloneSetupWarning.isEmpty ? nil : standaloneSetupWarning
+    )
+    return try CallTool.Result(
+        content: [
+            .text(
+                "macOS preview started. Session ID: \(sessionID).\(traitInfo)\(standaloneSetupWarning) File is being watched for changes.\n\(previewList)\(switchHint)"
+            )
+        ],
+        structuredContent: structured
+    )
 }
 
 private func handleIOSPreviewStart(
@@ -618,14 +295,14 @@ private func handleIOSPreviewStart(
     let deviceUDID: String
     let providedUDID = extractOptionalString("deviceUDID", from: params) ?? config?.device
     do {
-        deviceUDID = try await resolveDeviceUDID(provided: providedUDID, using: iosState.simulatorManager)
+        deviceUDID = try await resolveDeviceUDID(provided: providedUDID, using: await iosState.simulatorManager)
     } catch {
         return CallTool.Result(content: [.text(error.localizedDescription)], isError: true)
     }
 
     let iosCompiler = try await iosState.getCompiler()
     let hostBuilder = try await iosState.getHostBuilder()
-    let simulatorManager = iosState.simulatorManager
+    let simulatorManager = await iosState.simulatorManager
 
     let headless = extractOptionalBool("headless", from: params) ?? true
 
@@ -690,11 +367,27 @@ private func handleIOSPreviewStart(
     let previews = try PreviewParser.parse(fileAt: fileURL)
     let previewList = formatPreviewList(previews: previews, activeIndex: previewIndex)
     let switchHint = previews.count > 1 ? "\nUse preview_switch to change the active preview." : ""
-    return CallTool.Result(content: [
-        .text(
-            "iOS simulator preview started on device \(deviceUDID). Session ID: \(sessionID). PID: \(pid).\(traitInfo) File is being watched for changes.\n\(previewList)\(switchHint)"
-        )
-    ])
+    let structured = DaemonProtocol.PreviewStartResult(
+        sessionID: sessionID,
+        platform: "ios",
+        sourceFilePath: fileURL.path,
+        deviceUDID: deviceUDID,
+        pid: Int(pid),
+        traits: DaemonProtocol.TraitsDTO.orNil(traits),
+        previews: previews.map {
+            DaemonProtocol.PreviewInfoDTO(from: $0, activeIndex: previewIndex)
+        },
+        activeIndex: previewIndex,
+        setupWarning: nil
+    )
+    return try CallTool.Result(
+        content: [
+            .text(
+                "iOS simulator preview started on device \(deviceUDID). Session ID: \(sessionID). PID: \(pid).\(traitInfo) File is being watched for changes.\n\(previewList)\(switchHint)"
+            )
+        ],
+        structuredContent: structured
+    )
 }
 
 /// Build the setup package if configured. Returns nil if no setup or standalone mode.
@@ -714,7 +407,7 @@ private func configQualityForSession(_ sessionID: String) async -> Double? {
     if let iosSession = await iosState.getSession(sessionID) {
         return await configCache.load(for: iosSession.sourceFile)?.config.quality
     }
-    if let macSession: PreviewSession = await MainActor.run(body: { App.host.session(for: sessionID) }) {
+    if let macSession: PreviewSession = await MainActor.run(body: { host.session(for: sessionID) }) {
         return await configCache.load(for: macSession.sourceFile)?.config.quality
     }
     return nil
@@ -745,7 +438,7 @@ private func startMacOSPreview(
 
     await MainActor.run {
         do {
-            try App.host.loadPreview(
+            try host.loadPreview(
                 sessionID: sessionID,
                 dylibPath: compileResult.dylibPath,
                 title: title,
@@ -753,7 +446,7 @@ private func startMacOSPreview(
                 headless: headless,
                 setupDylibPath: setupDylibPath
             )
-            App.host.watchFile(
+            host.watchFile(
                 sessionID: sessionID,
                 session: session,
                 filePath: fileURL.path,
@@ -789,12 +482,24 @@ private func handlePreviewSnapshot(params: CallTool.Parameters) async throws -> 
         ])
     }
 
-    // macOS path
+    // macOS path. Verify existence upfront so a typo'd sessionID
+    // surfaces as a clean "No session found" rather than the misleading
+    // "capture failed" from `window(for:)` returning nil.
+    let isMacOSSession = await MainActor.run {
+        host.allSessions[sessionID] != nil
+    }
+    guard isMacOSSession else {
+        return CallTool.Result(
+            content: [.text("No session found for \(sessionID).")],
+            isError: true
+        )
+    }
+
     try await Task.sleep(for: .milliseconds(300))
 
     let format: Snapshot.ImageFormat = usePNG ? .png : .jpeg(quality: quality)
     let imageData: Data = try await MainActor.run {
-        guard let window = App.host.window(for: sessionID) else {
+        guard let window = host.window(for: sessionID) else {
             throw SnapshotError.captureFailed
         }
         return try Snapshot.capture(window: window, format: format)
@@ -820,9 +525,21 @@ private func handlePreviewStop(params: CallTool.Parameters) async throws -> Call
         return CallTool.Result(content: [.text("iOS preview session \(sessionID) closed.")])
     }
 
-    // macOS path
+    // macOS path. Verify existence before calling `closePreview` — which
+    // otherwise silently succeeds for unknown IDs — so typos and races
+    // surface as real errors rather than phantom successes.
+    let isMacOSSession = await MainActor.run {
+        host.allSessions[sessionID] != nil
+    }
+    guard isMacOSSession else {
+        return CallTool.Result(
+            content: [.text("No session found for \(sessionID).")],
+            isError: true
+        )
+    }
+
     await MainActor.run {
-        App.host.closePreview(sessionID: sessionID)
+        host.closePreview(sessionID: sessionID)
     }
 
     return CallTool.Result(content: [.text("Preview session \(sessionID) closed.")])
@@ -849,7 +566,27 @@ private func handlePreviewElements(params: CallTool.Parameters) async throws -> 
     }
 
     let elementsJSON = try await iosSession.fetchElements(filter: filter)
-    return CallTool.Result(content: [.text(elementsJSON)])
+
+    // Parse WDA's JSON into a `Value` so the structured payload carries
+    // the tree natively rather than as an opaque string. The text block
+    // keeps the raw JSON for agents that don't consume
+    // `structuredContent`.
+    let structured: Value?
+    if let data = elementsJSON.data(using: .utf8),
+        let tree = try? JSONDecoder().decode(Value.self, from: data)
+    {
+        structured = .object([
+            "sessionID": .string(sessionID),
+            "elements": tree,
+        ])
+    } else {
+        structured = nil
+    }
+
+    return CallTool.Result(
+        content: [.text(elementsJSON)],
+        structuredContent: structured
+    )
 }
 
 private func handlePreviewTouch(params: CallTool.Parameters) async throws -> CallTool.Result {
@@ -915,12 +652,27 @@ private func detectBuildContext(
 }
 
 private func handleSimulatorList() async throws -> CallTool.Result {
-    let manager = iosState.simulatorManager
+    let manager = await iosState.simulatorManager
     let devices = try await manager.listDevices()
     let available = devices.filter { $0.isAvailable }
 
+    let structured = DaemonProtocol.SimulatorListResult(
+        simulators: available.map { device in
+            DaemonProtocol.SimulatorDTO(
+                udid: device.udid,
+                name: device.name,
+                runtime: device.runtimeName,
+                state: device.stateString,
+                isAvailable: device.isAvailable
+            )
+        }
+    )
+
     if available.isEmpty {
-        return CallTool.Result(content: [.text("No available simulator devices found.")])
+        return try CallTool.Result(
+            content: [.text("No available simulator devices found.")],
+            structuredContent: structured
+        )
     }
 
     var lines: [String] = []
@@ -929,14 +681,76 @@ private func handleSimulatorList() async throws -> CallTool.Result {
         lines.append("\(device.name) — \(device.udid)\(state) (\(device.runtimeName ?? "unknown runtime"))")
     }
 
-    return CallTool.Result(content: [.text(lines.joined(separator: "\n"))])
+    return try CallTool.Result(
+        content: [.text(lines.joined(separator: "\n"))],
+        structuredContent: structured
+    )
+}
+
+/// List all active sessions (iOS + macOS). Output is one line per session in
+/// the format `<sessionID>\t<platform>\t<sourceFilePath>` — tab-delimited for
+/// simple client-side parsing. Empty result when no sessions are active.
+private func handleSessionList() async -> CallTool.Result {
+    var sessions: [DaemonProtocol.SessionDTO] = []
+
+    let iosSessions = await iosState.allSessionsInfo()
+    for session in iosSessions {
+        sessions.append(
+            DaemonProtocol.SessionDTO(
+                sessionID: session.id,
+                platform: "ios",
+                sourceFilePath: session.sourceFile.path
+            )
+        )
+    }
+
+    let macSessions = await MainActor.run { host?.allSessions ?? [:] }
+    for (id, session) in macSessions {
+        sessions.append(
+            DaemonProtocol.SessionDTO(
+                sessionID: id,
+                platform: "macos",
+                sourceFilePath: session.sourceFile.path
+            )
+        )
+    }
+
+    // Stable ordering so clients parsing the output get consistent results.
+    sessions.sort { $0.sessionID < $1.sessionID }
+    let lines = sessions.map { "\($0.sessionID)\t\($0.platform)\t\($0.sourceFilePath)" }
+
+    // An empty lines array joins to "" — matches the legacy "no active
+    // sessions" response that SessionResolver.parseSessionList handles.
+    let textBlock: [Tool.Content] = [.text(lines.joined(separator: "\n"))]
+
+    // Use do/try and fall back to the text-only response if Codable
+    // encoding somehow throws; handleSessionList is non-throwing so we
+    // can't propagate. Encoding [SessionDTO] is trivial and won't fail
+    // in practice.
+    do {
+        return try CallTool.Result(
+            content: textBlock,
+            structuredContent: DaemonProtocol.SessionListResult(sessions: sessions)
+        )
+    } catch {
+        return CallTool.Result(content: textBlock)
+    }
 }
 
 // MARK: - Trait Helpers
 
-/// Parse and validate trait parameters. Returns (traits, nil) on success or (default traits, error result) on failure.
-/// Callers should check the second element first; the traits value is meaningless when an error is returned.
-private func parseTraits(from params: CallTool.Parameters) -> (PreviewTraits, CallTool.Result?) {
+/// Parse and validate trait parameters. Returns (traits, clearedFields, nil) on
+/// success or (default traits, [], error result) on failure. Callers should
+/// check the last element first; the other values are meaningless on error.
+///
+/// `clearedFields` names the fields the client explicitly passed as an empty
+/// string (the "clear this trait" signal documented in the MCP tool schema).
+/// Without this, empty strings would be indistinguishable from absent fields
+/// after `PreviewTraits.validated` normalizes them to nil.
+private func parseTraits(
+    from params: CallTool.Parameters
+) -> (PreviewTraits, Set<PreviewTraits.Field>, CallTool.Result?) {
+    let cleared = clearedTraitFields(in: params)
     do {
         let traits = try PreviewTraits.validated(
             colorScheme: extractOptionalString("colorScheme", from: params),
@@ -945,20 +759,28 @@ private func parseTraits(from params: CallTool.Parameters) -> (PreviewTraits, Ca
             layoutDirection: extractOptionalString("layoutDirection", from: params),
             legibilityWeight: extractOptionalString("legibilityWeight", from: params)
         )
-        return (traits, nil)
+        return (traits, cleared, nil)
     } catch {
-        return (PreviewTraits(), CallTool.Result(content: [.text(error.localizedDescription)], isError: true))
+        return (
+            PreviewTraits(), [],
+            CallTool.Result(content: [.text(error.localizedDescription)], isError: true)
+        )
     }
 }
 
-private func traitsSummary(_ traits: PreviewTraits) -> String {
-    var parts: [String] = []
-    if let cs = traits.colorScheme { parts.append("colorScheme=\(cs)") }
-    if let dts = traits.dynamicTypeSize { parts.append("dynamicTypeSize=\(dts)") }
-    if let loc = traits.locale { parts.append("locale=\(loc)") }
-    if let ld = traits.layoutDirection { parts.append("layoutDirection=\(ld)") }
-    if let lw = traits.legibilityWeight { parts.append("legibilityWeight=\(lw)") }
-    return parts.joined(separator: ", ")
+/// Returns the set of trait fields that the client passed as an empty string
+/// ("" — the documented clear signal). Does not touch fields that were absent
+/// from the params entirely.
+private func clearedTraitFields(
+    in params: CallTool.Parameters
+) -> Set<PreviewTraits.Field> {
+    var cleared: Set<PreviewTraits.Field> = []
+    for field in PreviewTraits.Field.allCases {
+        if case .string("") = params.arguments?[field.rawValue] {
+            cleared.insert(field)
+        }
+    }
+    return cleared
 }
 
 private func handlePreviewConfigure(params: CallTool.Parameters, server: Server) async throws -> CallTool.Result {
@@ -968,10 +790,11 @@ private func handlePreviewConfigure(params: CallTool.Parameters, server: Server)
     }
 
     // Parse and validate traits
-    let (traits, validationError) = parseTraits(from: params)
+    let (traits, clearedFields, validationError) = parseTraits(from: params)
     if let validationError { return validationError }
 
-    if traits.isEmpty {
+    // "No-op" = no fields were set AND no fields were requested to be cleared.
+    if traits.isEmpty && clearedFields.isEmpty {
         return CallTool.Result(content: [.text("No configuration changes specified.")])
     }
 
@@ -980,7 +803,7 @@ private func handlePreviewConfigure(params: CallTool.Parameters, server: Server)
     // iOS path
     if let iosSession = await iosState.getSession(sessionID) {
         await progress.report(.compilingBridge, message: "Recompiling with new traits...")
-        try await iosSession.reconfigure(traits: traits)
+        try await iosSession.reconfigure(traits: traits, clearing: clearedFields)
         let activeTraits = await iosSession.currentTraits
         return CallTool.Result(content: [
             .text(
@@ -990,15 +813,17 @@ private func handlePreviewConfigure(params: CallTool.Parameters, server: Server)
     }
 
     // macOS path
-    let session: PreviewSession? = await MainActor.run { App.host.session(for: sessionID) }
+    let session: PreviewSession? = await MainActor.run { host.session(for: sessionID) }
     guard let session else {
         return CallTool.Result(content: [.text("No session found for \(sessionID)")], isError: true)
     }
 
     await progress.report(.compilingBridge, message: "Recompiling with new traits...")
-    let compileResult = try await session.reconfigure(traits: traits)
+    let compileResult = try await session.reconfigure(
+        traits: traits, clearing: clearedFields
+    )
     try await MainActor.run {
-        try App.host.loadPreview(sessionID: sessionID, dylibPath: compileResult.dylibPath)
+        try host.loadPreview(sessionID: sessionID, dylibPath: compileResult.dylibPath)
     }
 
     let activeTraits = await session.currentTraits
@@ -1034,6 +859,16 @@ private func resolveVariant(_ value: Value) throws -> PreviewTraits.Variant {
     return try PreviewTraits.parseVariantString(str)
 }
 
+/// Capture a screenshot under each of N trait configurations.
+///
+/// **Concurrent-modification caveat:** `PreviewSession` is an actor so
+/// its state transitions are serialized, but a second client calling
+/// `preview_configure` or `preview_switch` against the same session
+/// while variants is mid-loop will interleave its trait changes into
+/// our capture stream — subsequent variant screenshots would reflect
+/// the other client's mutation. The daemon does not hold a per-session
+/// lock across tool calls. Callers that want deterministic variants
+/// should ensure they own the session for the duration.
 private func handlePreviewVariants(params: CallTool.Parameters, server: Server) async throws -> CallTool.Result {
     let sessionID: String
     let variantValues: [Value]
@@ -1067,6 +902,7 @@ private func handlePreviewVariants(params: CallTool.Parameters, server: Server) 
     if let iosSession = await iosState.getSession(sessionID) {
         let savedTraits = await iosSession.currentTraits
         var contentBlocks: [Tool.Content] = []
+        var outcomes: [DaemonProtocol.VariantOutcomeDTO] = []
         var failCount = 0
 
         for (index, variant) in resolved.enumerated() {
@@ -1081,16 +917,41 @@ private func handlePreviewVariants(params: CallTool.Parameters, server: Server) 
                 let base64 = imageData.base64EncodedString()
                 contentBlocks.append(.text("[\(index)] \(variant.label):"))
                 contentBlocks.append(.image(data: base64, mimeType: mimeType, metadata: nil))
+                // imageIndex addresses the .image block we just appended.
+                outcomes.append(
+                    DaemonProtocol.VariantOutcomeDTO(
+                        status: "ok",
+                        index: index,
+                        label: variant.label,
+                        imageIndex: contentBlocks.count - 1,
+                        error: nil
+                    )
+                )
             } catch {
                 failCount += 1
                 contentBlocks.append(
                     .text("[\(index)] \(variant.label): ERROR — \(error.localizedDescription)"))
+                outcomes.append(
+                    DaemonProtocol.VariantOutcomeDTO(
+                        status: "error",
+                        index: index,
+                        label: variant.label,
+                        imageIndex: nil,
+                        error: error.localizedDescription
+                    )
+                )
             }
         }
 
-        // Restore original traits if they changed
+        // Restore original traits if they changed — but only if the
+        // session is still registered. A concurrent `preview_stop`
+        // during the capture loop will remove the session from
+        // iosState; attempting to setTraits on the stopped simulator
+        // produces a misleading "failed to restore" warning when the
+        // user explicitly asked for the stop.
+        let stillRegistered = await iosState.getSession(sessionID) != nil
         let currentTraits = await iosSession.currentTraits
-        if savedTraits != currentTraits {
+        if stillRegistered, savedTraits != currentTraits {
             do {
                 try await iosSession.setTraits(savedTraits)
             } catch {
@@ -1100,17 +961,27 @@ private func handlePreviewVariants(params: CallTool.Parameters, server: Server) 
             }
         }
 
-        return CallTool.Result(content: contentBlocks, isError: failCount == resolved.count)
+        let structured = DaemonProtocol.VariantsResult(
+            variants: outcomes,
+            successCount: outcomes.count - failCount,
+            failCount: failCount
+        )
+        return try CallTool.Result(
+            content: contentBlocks,
+            structuredContent: structured,
+            isError: failCount == resolved.count
+        )
     }
 
     // macOS path
-    let session: PreviewSession? = await MainActor.run { App.host.session(for: sessionID) }
+    let session: PreviewSession? = await MainActor.run { host.session(for: sessionID) }
     guard let session else {
         return CallTool.Result(content: [.text("No session found for \(sessionID)")], isError: true)
     }
 
     let savedTraits = await session.currentTraits
     var contentBlocks: [Tool.Content] = []
+    var outcomes: [DaemonProtocol.VariantOutcomeDTO] = []
     var failCount = 0
     let format: Snapshot.ImageFormat = usePNG ? .png : .jpeg(quality: quality)
 
@@ -1120,14 +991,14 @@ private func handlePreviewVariants(params: CallTool.Parameters, server: Server) 
                 .compilingBridge, message: "Recompiling for variant \"\(variant.label)\"...")
             let compileResult = try await session.setTraits(variant.traits)
             try await MainActor.run {
-                try App.host.loadPreview(sessionID: sessionID, dylibPath: compileResult.dylibPath)
+                try host.loadPreview(sessionID: sessionID, dylibPath: compileResult.dylibPath)
             }
             try await Task.sleep(for: .milliseconds(300))
             await progress.report(
                 .capturingSnapshot,
                 message: "Capturing variant \(index + 1)/\(resolved.count) \"\(variant.label)\"...")
             let imageData: Data = try await MainActor.run {
-                guard let window = App.host.window(for: sessionID) else {
+                guard let window = host.window(for: sessionID) else {
                     throw SnapshotError.captureFailed
                 }
                 return try Snapshot.capture(window: window, format: format)
@@ -1135,20 +1006,46 @@ private func handlePreviewVariants(params: CallTool.Parameters, server: Server) 
             let base64 = imageData.base64EncodedString()
             contentBlocks.append(.text("[\(index)] \(variant.label):"))
             contentBlocks.append(.image(data: base64, mimeType: mimeType, metadata: nil))
+            outcomes.append(
+                DaemonProtocol.VariantOutcomeDTO(
+                    status: "ok",
+                    index: index,
+                    label: variant.label,
+                    imageIndex: contentBlocks.count - 1,
+                    error: nil
+                )
+            )
         } catch {
             failCount += 1
             contentBlocks.append(
                 .text("[\(index)] \(variant.label): ERROR — \(error.localizedDescription)"))
+            outcomes.append(
+                DaemonProtocol.VariantOutcomeDTO(
+                    status: "error",
+                    index: index,
+                    label: variant.label,
+                    imageIndex: nil,
+                    error: error.localizedDescription
+                )
+            )
         }
     }
 
-    // Restore original traits if they changed
+    // Restore original traits if they changed — but only if the
+    // session is still registered. A concurrent `preview_stop` during
+    // the capture loop would remove the session from host;
+    // `loadPreview` would then throw and the user would see a
+    // misleading "failed to restore" warning when they explicitly
+    // asked for the stop.
+    let stillRegistered = await MainActor.run {
+        host.allSessions[sessionID] != nil
+    }
     let currentTraits = await session.currentTraits
-    if savedTraits != currentTraits {
+    if stillRegistered, savedTraits != currentTraits {
         do {
             let restoreResult = try await session.setTraits(savedTraits)
             try await MainActor.run {
-                try App.host.loadPreview(sessionID: sessionID, dylibPath: restoreResult.dylibPath)
+                try host.loadPreview(sessionID: sessionID, dylibPath: restoreResult.dylibPath)
             }
         } catch {
             contentBlocks.append(
@@ -1156,7 +1053,16 @@ private func handlePreviewVariants(params: CallTool.Parameters, server: Server) 
         }
     }
 
-    return CallTool.Result(content: contentBlocks, isError: failCount == resolved.count)
+    let structured = DaemonProtocol.VariantsResult(
+        variants: outcomes,
+        successCount: outcomes.count - failCount,
+        failCount: failCount
+    )
+    return try CallTool.Result(
+        content: contentBlocks,
+        structuredContent: structured,
+        isError: failCount == resolved.count
+    )
 }
 
 private func handlePreviewSwitch(params: CallTool.Parameters, server: Server) async throws -> CallTool.Result {
@@ -1180,15 +1086,26 @@ private func handlePreviewSwitch(params: CallTool.Parameters, server: Server) as
 
         let previews = try PreviewParser.parse(fileAt: iosSession.sourceFile)
         let previewList = formatPreviewList(previews: previews, activeIndex: newIndex)
-        return CallTool.Result(content: [
-            .text(
-                "Switched to preview \(newIndex) in session \(sessionID).\(traitInfo) View recompiled (@State was reset).\n\(previewList)"
-            )
-        ])
+        let structured = DaemonProtocol.SwitchResult(
+            sessionID: sessionID,
+            activeIndex: newIndex,
+            traits: DaemonProtocol.TraitsDTO.orNil(activeTraits),
+            previews: previews.map {
+                DaemonProtocol.PreviewInfoDTO(from: $0, activeIndex: newIndex)
+            }
+        )
+        return try CallTool.Result(
+            content: [
+                .text(
+                    "Switched to preview \(newIndex) in session \(sessionID).\(traitInfo) View recompiled (@State was reset).\n\(previewList)"
+                )
+            ],
+            structuredContent: structured
+        )
     }
 
     // macOS path
-    let session: PreviewSession? = await MainActor.run { App.host.session(for: sessionID) }
+    let session: PreviewSession? = await MainActor.run { host.session(for: sessionID) }
     guard let session else {
         return CallTool.Result(content: [.text("No session found for \(sessionID)")], isError: true)
     }
@@ -1196,7 +1113,7 @@ private func handlePreviewSwitch(params: CallTool.Parameters, server: Server) as
     await progress.report(.compilingBridge, message: "Switching to preview \(newIndex)...")
     let compileResult = try await session.switchPreview(to: newIndex)
     try await MainActor.run {
-        try App.host.loadPreview(sessionID: sessionID, dylibPath: compileResult.dylibPath)
+        try host.loadPreview(sessionID: sessionID, dylibPath: compileResult.dylibPath)
     }
 
     let activeTraits = await session.currentTraits
@@ -1204,100 +1121,20 @@ private func handlePreviewSwitch(params: CallTool.Parameters, server: Server) as
 
     let previews = try PreviewParser.parse(fileAt: session.sourceFile)
     let previewList = formatPreviewList(previews: previews, activeIndex: newIndex)
-    return CallTool.Result(content: [
-        .text(
-            "Switched to preview \(newIndex) in session \(sessionID).\(traitInfo) View recompiled (@State was reset).\n\(previewList)"
-        )
-    ])
-}
-
-private func formatPreviewList(previews: [PreviewInfo], activeIndex: Int) -> String {
-    var lines: [String] = ["Available previews:"]
-    for preview in previews {
-        let name = preview.name ?? "Preview"
-        let marker = preview.index == activeIndex ? " <- active" : ""
-        lines.append("  [\(preview.index)] \(name) (line \(preview.line)): \(preview.snippet)\(marker)")
-    }
-    return lines.joined(separator: "\n")
-}
-
-// MARK: - Parameter Extraction Helpers
-
-private enum ParamError: Error, LocalizedError {
-    case missing(String)
-    case wrongType(key: String, expected: String)
-
-    var errorDescription: String? {
-        switch self {
-        case .missing(let key): return "Missing \(key) parameter"
-        case .wrongType(let key, let expected): return "Parameter \(key) must be \(expected)"
+    let structured = DaemonProtocol.SwitchResult(
+        sessionID: sessionID,
+        activeIndex: newIndex,
+        traits: DaemonProtocol.TraitsDTO.orNil(activeTraits),
+        previews: previews.map {
+            DaemonProtocol.PreviewInfoDTO(from: $0, activeIndex: newIndex)
         }
-    }
-}
-
-private func extractString(_ key: String, from params: CallTool.Parameters) throws -> String {
-    guard let value = params.arguments?[key] else { throw ParamError.missing(key) }
-    guard case .string(let str) = value else { throw ParamError.wrongType(key: key, expected: "a string") }
-    return str
-}
-
-private func extractOptionalString(_ key: String, from params: CallTool.Parameters) -> String? {
-    if case .string(let value) = params.arguments?[key] { return value }
-    return nil
-}
-
-private func extractInt(_ key: String, from params: CallTool.Parameters) throws -> Int {
-    guard let value = params.arguments?[key] else { throw ParamError.missing(key) }
-    if case .int(let n) = value { return n }
-    if case .double(let n) = value, let int = Int(exactly: n) { return int }
-    throw ParamError.wrongType(key: key, expected: "an integer")
-}
-
-private func extractOptionalInt(_ key: String, from params: CallTool.Parameters) -> Int? {
-    if case .int(let value) = params.arguments?[key] { return value }
-    if case .double(let value) = params.arguments?[key], let int = Int(exactly: value) { return int }
-    return nil
-}
-
-private func extractDouble(_ key: String, from params: CallTool.Parameters) throws -> Double {
-    guard let value = params.arguments?[key] else { throw ParamError.missing(key) }
-    if case .double(let n) = value { return n }
-    if case .int(let n) = value { return Double(n) }
-    throw ParamError.wrongType(key: key, expected: "a number")
-}
-
-private func extractOptionalDouble(_ key: String, from params: CallTool.Parameters) -> Double? {
-    if case .double(let value) = params.arguments?[key] { return value }
-    if case .int(let value) = params.arguments?[key] { return Double(value) }
-    return nil
-}
-
-private func extractOptionalBool(_ key: String, from params: CallTool.Parameters) -> Bool? {
-    if case .bool(let value) = params.arguments?[key] { return value }
-    return nil
-}
-
-private func extractArray(_ key: String, from params: CallTool.Parameters) throws -> [Value] {
-    guard let value = params.arguments?[key] else { throw ParamError.missing(key) }
-    guard case .array(let arr) = value else { throw ParamError.wrongType(key: key, expected: "an array") }
-    return arr
-}
-
-/// Remove stale previewsmcp temp directories older than 24 hours.
-private func cleanupStaleTempDirs() {
-    let tempBase = FileManager.default.temporaryDirectory.appendingPathComponent("previewsmcp")
-    guard
-        let contents = try? FileManager.default.contentsOfDirectory(
-            at: tempBase, includingPropertiesForKeys: [.contentModificationDateKey])
-    else { return }
-
-    let cutoff = Date().addingTimeInterval(-24 * 60 * 60)
-    for dir in contents {
-        guard let attrs = try? dir.resourceValues(forKeys: [.contentModificationDateKey]),
-            let modDate = attrs.contentModificationDate,
-            modDate < cutoff
-        else { continue }
-        try? FileManager.default.removeItem(at: dir)
-        fputs("MCP: Cleaned up stale temp dir: \(dir.lastPathComponent)\n", stderr)
-    }
+    )
+    return try CallTool.Result(
+        content: [
+            .text(
+                "Switched to preview \(newIndex) in session \(sessionID).\(traitInfo) View recompiled (@State was reset).\n\(previewList)"
+            )
+        ],
+        structuredContent: structured
+    )
 }

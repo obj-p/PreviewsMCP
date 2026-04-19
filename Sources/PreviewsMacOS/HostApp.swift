@@ -3,20 +3,15 @@ import PreviewsCore
 import SwiftUI
 
 /// Manages preview windows. Loads compiled dylibs and displays views in NSWindows.
+///
+/// Only one runtime shape remains since the CLI/MCP parity migration:
+/// `serve` is the sole subcommand that ever constructs a PreviewHost, and
+/// it always wants headless windows plus a daemon that stays alive after
+/// the last window closes. Earlier `.interactive` and `.snapshot` modes
+/// were removed once every non-`serve` CLI command moved to the daemon
+/// client path.
 @MainActor
 public class PreviewHost: NSObject, NSApplicationDelegate {
-
-    /// How the host app presents itself.
-    public enum Mode: Sendable {
-        /// Interactive window with Dock icon (run command).
-        case interactive
-        /// Headless background service that stays alive (MCP serve).
-        case serve
-        /// Headless one-shot capture (snapshot command).
-        case snapshot
-    }
-
-    public let mode: Mode
 
     private var windows: [String: NSWindow] = [:]
     private var loaders: [String: DylibLoader] = [:]
@@ -33,16 +28,12 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
     /// Callback invoked after NSApplication finishes launching.
     public var onLaunch: (@MainActor () -> Void)?
 
-    public init(mode: Mode = .interactive) {
-        self.mode = mode
+    public override init() {
         super.init()
     }
 
-    /// Whether windows are positioned off-screen with no Dock icon.
-    public var headless: Bool { mode != .interactive }
-
-    /// Whether the app stays alive after all windows close.
-    public var keepAliveWithoutWindows: Bool { mode == .serve }
+    /// Windows are positioned off-screen with no Dock icon.
+    public let headless: Bool = true
 
     private var fileWatchers: [String: FileWatcher] = [:]
     private var retainedFileWatchers: [FileWatcher] = []
@@ -62,7 +53,9 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
     }
 
     public func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-        return !keepAliveWithoutWindows
+        // The daemon must stay alive after all preview windows close so
+        // it can accept new session requests without a cold restart.
+        return false
     }
 
     /// Load a dylib and display its preview view in a window.
@@ -291,6 +284,11 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
     public func session(for sessionID: String) -> PreviewSession? {
         sessions[sessionID]
     }
+
+    /// All active macOS sessions, keyed by session ID. Used by session
+    /// discovery (e.g., `snapshot <file>` looking for an existing session
+    /// that matches the target source file).
+    public var allSessions: [String: PreviewSession] { sessions }
 
     /// Get the window for a session (for snapshotting).
     public func window(for sessionID: String) -> NSWindow? {

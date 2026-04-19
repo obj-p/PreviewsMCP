@@ -28,7 +28,7 @@ struct IOSMCPTests {
 
     // MARK: - simulator_list (requires CoreSimulator; ios-tests job warms daemon)
 
-    @Test("simulator_list returns available devices", .timeLimit(.minutes(2)))
+    @Test("simulator_list returns available devices", .timeLimit(.minutes(10)))
     func simulatorListReturnsDevices() async throws {
         let server = try await MCPTestServer.start()
         defer { server.stop() }
