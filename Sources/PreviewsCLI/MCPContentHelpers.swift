@@ -41,7 +41,7 @@ extension Client {
         name: String,
         arguments: [String: Value]? = nil
     ) async throws -> CallTool.Result {
-        let context: RequestContext<CallTool.Result> = try await callTool(
+        let context: RequestContext<CallTool.Result> = try callTool(
             name: name, arguments: arguments
         )
         return try await context.value
