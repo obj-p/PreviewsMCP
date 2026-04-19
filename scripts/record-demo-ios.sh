@@ -73,13 +73,15 @@ fi
 EXAMPLE_FILE="examples/spm/Sources/ToDo/ToDoView.swift"
 trap 'git checkout -- "$EXAMPLE_FILE" 2>/dev/null || true; \
       [[ -n "${SIM_PID:-}" ]] && kill -INT "$SIM_PID" 2>/dev/null || true; \
-      pkill -f "previewsmcp run $EXAMPLE_FILE" 2>/dev/null || true' EXIT
+      previewsmcp stop --all 2>/dev/null || true; \
+      previewsmcp kill-daemon 2>/dev/null || true' EXIT
 
 # Warm the iOS host app + dylib caches so the recorded `run` is as fast
 # as possible, then uninstall so the recording starts clean and the
 # re-install picks up any updated AppIcon.png.
 echo "Warming iOS caches..."
 previewsmcp snapshot "$EXAMPLE_FILE" --platform ios -o /tmp/pmcp-demo/warmup.png >/dev/null 2>&1
+previewsmcp stop --all 2>/dev/null || true
 xcrun simctl terminate booted com.obj-p.previewsmcp.host 2>/dev/null || true
 xcrun simctl uninstall booted com.obj-p.previewsmcp.host 2>/dev/null || true
 

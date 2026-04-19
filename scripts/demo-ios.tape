@@ -26,7 +26,7 @@ Sleep 400ms
 Enter
 Sleep 3s
 
-Type "previewsmcp run examples/spm/Sources/ToDo/ToDoView.swift --platform ios --headless &"
+Type "previewsmcp run examples/spm/Sources/ToDo/ToDoView.swift --platform ios --headless --detach"
 Sleep 400ms
 Enter
 Sleep 12s
@@ -48,6 +48,6 @@ Enter
 Sleep 14s
 
 Hide
-Type "kill %1 2>/dev/null; wait 2>/dev/null"
+Type "previewsmcp stop 2>/dev/null; previewsmcp kill-daemon 2>/dev/null"
 Enter
 Show
