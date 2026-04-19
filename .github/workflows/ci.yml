@@ -160,8 +160,13 @@ jobs:
         timeout-minutes: 10
         run: swift test --filter "snapshotIOS"
 
+      - name: Kill stale daemon before iOS CLI tests
+        run: .build/debug/previewsmcp kill-daemon --timeout 3 || true
+
       - name: iOS CLI integration tests
-        timeout-minutes: 20
+        timeout-minutes: 30
+        env:
+          NSUnbufferedIO: "YES"
         run: swift test --filter "stopIOSSession|touchIOSHappyPath|capturesIOSVariants|elementsReturnsJSONTree"
 
       - name: iOS MCP tests
