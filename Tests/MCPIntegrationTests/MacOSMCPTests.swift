@@ -445,10 +445,13 @@ struct MacOSMCPTests {
         )
     }
 
-    // MARK: - Hot reload (separate test — modifies source file)
+    // MARK: - Hot reload (separate tests — modify source file)
 
-    @Test("File edit triggers hot reload", .timeLimit(.minutes(10)))
-    func hotReload() async throws {
+    /// Literal-only fast path: change a string literal, which the DesignTimeStore
+    /// tracker in PreviewSession.tryLiteralUpdate applies without recompiling.
+    /// Sync target: "Literal-only change:" log line from HostApp.swift.
+    @Test("File edit triggers hot reload (literal-only fast path)", .timeLimit(.minutes(10)))
+    func hotReloadLiteralOnly() async throws {
         let server = try await MCPTestServer.start()
         defer { server.stop() }
 
@@ -458,7 +461,7 @@ struct MacOSMCPTests {
             try? originalContent.write(toFile: filePath, atomically: true, encoding: .utf8)
         }
 
-        let (startContent, _) = try await server.callTool(
+        let (startContent, _) = try await server.callToolWithTimeout(
             name: "preview_start",
             arguments: [
                 "filePath": .string(filePath),
@@ -467,25 +470,67 @@ struct MacOSMCPTests {
         )
         let sessionID = try MCPTestServer.extractSessionID(from: startContent)
 
-        try await Task.sleep(for: .milliseconds(500))
+        let baseline = try await server.snapshotBytes(sessionID: sessionID)
 
-        // Edit source file
-        let modified = originalContent.replacingOccurrences(of: "\"My Items\"", with: "\"Tasks\"")
+        // "Progress" is in the first SummaryCard (page 0 of the TabView), visibly
+        // rendered in headless NSHostingView — required for the byte-diff assertion.
+        let modified = originalContent.replacingOccurrences(of: "\"Progress\"", with: "\"Totals\"")
         #expect(modified != originalContent, "Replacement should have changed the content")
         try modified.write(
             to: URL(fileURLWithPath: filePath), atomically: false, encoding: .utf8)
 
-        // Wait for file watcher to detect change and reload.
-        // File watcher polls every 0.5s; recompilation takes a few seconds.
-        try await Task.sleep(for: .seconds(5))
-        let (snapshotContent, snapshotError) = try await server.callTool(
-            name: "preview_snapshot",
+        try await server.awaitStderrContains("Literal-only change:", timeout: .seconds(30))
+        _ = try await server.awaitSnapshotChange(
+            sessionID: sessionID, baseline: baseline, timeout: .seconds(10)
+        )
+
+        _ = try await server.callToolWithTimeout(
+            name: "preview_stop",
             arguments: ["sessionID": .string(sessionID)]
         )
-        #expect(snapshotError != true, "Snapshot should succeed after hot reload")
-        try MCPTestServer.assertValidImage(snapshotContent)
+    }
 
-        _ = try await server.callTool(
+    /// Structural slow path: add a new view modifier call, which the literal differ
+    /// cannot fast-path, forcing a full swiftc recompile and dylib reload.
+    /// Sync target: "Compiled:" log line from HostApp.swift after swiftc finishes.
+    @Test("File edit triggers hot reload (structural recompile path)", .timeLimit(.minutes(10)))
+    func hotReloadStructural() async throws {
+        let server = try await MCPTestServer.start()
+        defer { server.stop() }
+
+        let filePath = MCPTestServer.toDoViewPath
+        let originalContent = try String(contentsOfFile: filePath, encoding: .utf8)
+        defer {
+            try? originalContent.write(toFile: filePath, atomically: true, encoding: .utf8)
+        }
+
+        let (startContent, _) = try await server.callToolWithTimeout(
+            name: "preview_start",
+            arguments: [
+                "filePath": .string(filePath),
+                "projectPath": .string(MCPTestServer.spmExampleRoot.path),
+            ]
+        )
+        let sessionID = try MCPTestServer.extractSessionID(from: startContent)
+
+        let baseline = try await server.snapshotBytes(sessionID: sessionID)
+
+        // Add a new view modifier — adding a call node forces .structural from LiteralDiffer.
+        let modified = originalContent.replacingOccurrences(
+            of: ".navigationTitle(\"My Items\")",
+            with: ".navigationTitle(\"My Items\").padding(32)"
+        )
+        #expect(modified != originalContent, "Replacement should have changed the content")
+        try modified.write(
+            to: URL(fileURLWithPath: filePath), atomically: false, encoding: .utf8)
+
+        // CI swiftc on cold caches is slow; AGENTS.md notes daemon startup alone is 5–10s.
+        try await server.awaitStderrContains("Compiled:", timeout: .seconds(90))
+        _ = try await server.awaitSnapshotChange(
+            sessionID: sessionID, baseline: baseline, timeout: .seconds(15)
+        )
+
+        _ = try await server.callToolWithTimeout(
             name: "preview_stop",
             arguments: ["sessionID": .string(sessionID)]
         )
