@@ -97,10 +97,7 @@ jobs:
         run: >-
           swift test --filter "CLIIntegrationTests"
           --skip "snapshotIOS"
-          --skip "stopIOSSession"
-          --skip "touchIOSHappyPath"
-          --skip "capturesIOSVariants"
-          --skip "elementsReturnsJSONTree"
+          --skip "iosCLIWorkflow"
 
       - name: MCP integration tests
         timeout-minutes: 10
@@ -164,10 +161,10 @@ jobs:
         run: .build/debug/previewsmcp kill-daemon --timeout 3 || true
 
       - name: iOS CLI integration tests
-        timeout-minutes: 30
+        timeout-minutes: 20
         env:
           NSUnbufferedIO: "YES"
-        run: swift test --filter "stopIOSSession|touchIOSHappyPath|capturesIOSVariants|elementsReturnsJSONTree"
+        run: swift test --filter "iosCLIWorkflow"
 
       - name: iOS MCP tests
         timeout-minutes: 20

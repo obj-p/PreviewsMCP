@@ -116,59 +116,8 @@ struct VariantsCommandTests {
         }
     }
 
-    /// Happy path against an iOS simulator session. The macOS tests exercise
-    /// the `App.host.session(for:)` + AppKit render path; this one exercises
-    /// `iosState.getSession` + simulator screenshots, which is a separate
-    /// branch in `handlePreviewVariants`. Gated on simulator availability.
-    @Test(
-        "Captures multiple presets against an iOS simulator session",
-        .timeLimit(.minutes(20))
-    )
-    func capturesIOSVariants() async throws {
-        try await DaemonTestLock.run {
-            let simResult = try await CLIRunner.runExternal(
-                "/usr/bin/xcrun",
-                arguments: ["simctl", "list", "devices", "available"]
-            )
-            guard simResult.exitCode == 0, simResult.stdout.contains("iPhone") else {
-                print("No available iOS simulator — skipping iOS variants test")
-                return
-            }
-
-            try await Self.cleanSlate()
-            let tempDir = try CLIRunner.makeTempDir()
-            defer { try? FileManager.default.removeItem(at: tempDir) }
-
-            let file = CLIRunner.spmExampleRoot
-                .appendingPathComponent("Sources/ToDo/ToDoView.swift").path
-            let configPath = CLIRunner.repoRoot
-                .appendingPathComponent("examples/.previewsmcp.json").path
-
-            let result = try await CLIRunner.run(
-                "variants",
-                arguments: [
-                    file,
-                    "--variant", "light",
-                    "--variant", "dark",
-                    "-o", tempDir.path,
-                    "--platform", "ios",
-                    "--project", CLIRunner.spmExampleRoot.path,
-                    "--config", configPath,
-                ])
-
-            #expect(result.exitCode == 0, "stderr: \(result.stderr)")
-            #expect(
-                result.stderr.contains("Captured 2/2 variants"),
-                "stderr: \(result.stderr)"
-            )
-            try CLIRunner.assertValidJPEG(
-                at: tempDir.appendingPathComponent("light.jpg").path)
-            try CLIRunner.assertValidJPEG(
-                at: tempDir.appendingPathComponent("dark.jpg").path)
-
-            _ = try? await CLIRunner.run("kill-daemon", arguments: ["--timeout", "2"])
-        }
-    }
+    // iOS variants path is tested in IOSCLIWorkflowTests.iosCLIWorkflow
+    // to avoid redundant daemon + simulator setup.
 
     /// When a session is already running for the target file, `variants`
     /// should reuse it rather than spinning up an ephemeral one. Observable

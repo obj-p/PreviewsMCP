@@ -118,64 +118,6 @@ struct TouchCommandTests {
         }
     }
 
-    /// Happy path: start an iOS session, send a tap and a swipe, assert
-    /// the daemon reports both as successful.
-    @Test(
-        "touch sends tap and swipe to an iOS session",
-        .timeLimit(.minutes(20))
-    )
-    func touchIOSHappyPath() async throws {
-        try await DaemonTestLock.run {
-            let simResult = try await CLIRunner.runExternal(
-                "/usr/bin/xcrun",
-                arguments: ["simctl", "list", "devices", "available"]
-            )
-            guard simResult.exitCode == 0, simResult.stdout.contains("iPhone") else {
-                print("No available iOS simulator — skipping touch iOS test")
-                return
-            }
-
-            try await Self.cleanSlate()
-
-            let file = CLIRunner.spmExampleRoot
-                .appendingPathComponent("Sources/ToDo/ToDoView.swift").path
-            let configPath = CLIRunner.repoRoot
-                .appendingPathComponent("examples/.previewsmcp.json").path
-
-            let runResult = try await CLIRunner.run(
-                "run",
-                arguments: [
-                    file, "--platform", "ios", "--config", configPath, "--detach",
-                ]
-            )
-            #expect(runResult.exitCode == 0, "detach stderr: \(runResult.stderr)")
-
-            // Tap. Pin the assertion to the full coordinate string so
-            // that a regression mis-wiring x/y still fails.
-            let tapResult = try await CLIRunner.run(
-                "touch", arguments: ["120", "200"]
-            )
-            #expect(tapResult.exitCode == 0, "tap stderr: \(tapResult.stderr)")
-            #expect(
-                tapResult.stderr.contains("Tap sent at (120, 200)"),
-                "daemon should echo the tap coordinates: \(tapResult.stderr)"
-            )
-
-            // Swipe. Same: require the endpoints so a lost toX/toY wiring
-            // can't slip through.
-            let swipeResult = try await CLIRunner.run(
-                "touch",
-                arguments: [
-                    "40", "300", "--to-x", "300", "--to-y", "300", "--duration", "0.4",
-                ]
-            )
-            #expect(swipeResult.exitCode == 0, "swipe stderr: \(swipeResult.stderr)")
-            #expect(
-                swipeResult.stderr.contains("Swipe from (40,300) to (300,300)"),
-                "daemon should echo the full swipe endpoints: \(swipeResult.stderr)"
-            )
-
-            _ = try? await CLIRunner.run("kill-daemon", arguments: ["--timeout", "2"])
-        }
-    }
+    // iOS happy path is tested in IOSCLIWorkflowTests.iosCLIWorkflow
+    // to avoid redundant daemon + simulator setup.
 }

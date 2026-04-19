@@ -196,50 +196,8 @@ struct StopCommandTests {
         }
     }
 
-    /// Exercise the iOS branch of the daemon's `handlePreviewStop`. The
-    /// macOS happy-path tests only touch `App.host.closePreview`; iOS
-    /// routes through `iosState.getSession` + `iosSession.stop()` which
-    /// is a separate code path.
-    @Test(
-        "stop closes an iOS session",
-        .timeLimit(.minutes(20))
-    )
-    func stopIOSSession() async throws {
-        try await DaemonTestLock.run {
-            let simResult = try await CLIRunner.runExternal(
-                "/usr/bin/xcrun",
-                arguments: ["simctl", "list", "devices", "available"]
-            )
-            guard simResult.exitCode == 0, simResult.stdout.contains("iPhone") else {
-                print("No available iOS simulator — skipping iOS stop test")
-                return
-            }
-
-            try await Self.cleanSlate()
-
-            let file = CLIRunner.spmExampleRoot
-                .appendingPathComponent("Sources/ToDo/ToDoView.swift").path
-            let configPath = CLIRunner.repoRoot
-                .appendingPathComponent("examples/.previewsmcp.json").path
-
-            let runResult = try await CLIRunner.run(
-                "run",
-                arguments: [
-                    file, "--platform", "ios", "--config", configPath, "--detach",
-                ]
-            )
-            #expect(runResult.exitCode == 0, "detach stderr: \(runResult.stderr)")
-
-            let stopResult = try await CLIRunner.run("stop")
-            #expect(stopResult.exitCode == 0, "stderr: \(stopResult.stderr)")
-            #expect(
-                stopResult.stderr.contains("iOS preview session"),
-                "daemon should route through the iOS stop path: \(stopResult.stderr)"
-            )
-
-            _ = try? await CLIRunner.run("kill-daemon", arguments: ["--timeout", "2"])
-        }
-    }
+    // iOS stop path is tested in IOSCLIWorkflowTests.iosCLIWorkflow
+    // to avoid redundant daemon + simulator setup.
 
     /// Explicit --session bypasses the session-list lookup. Verifies the
     /// daemon accepts the UUID and references it in its response.
