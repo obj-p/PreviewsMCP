@@ -122,7 +122,7 @@ struct VariantsCommandTests {
     /// branch in `handlePreviewVariants`. Gated on simulator availability.
     @Test(
         "Captures multiple presets against an iOS simulator session",
-        .timeLimit(.minutes(10))
+        .timeLimit(.minutes(20))
     )
     func capturesIOSVariants() async throws {
         try await DaemonTestLock.run {

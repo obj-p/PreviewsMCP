@@ -67,7 +67,7 @@ struct ElementsCommandTests {
     /// simulators don't fail.
     @Test(
         "elements returns a JSON accessibility tree for an iOS session",
-        .timeLimit(.minutes(10))
+        .timeLimit(.minutes(20))
     )
     func elementsReturnsJSONTree() async throws {
         try await DaemonTestLock.run {

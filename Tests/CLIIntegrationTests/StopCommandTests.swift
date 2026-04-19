@@ -202,7 +202,7 @@ struct StopCommandTests {
     /// is a separate code path.
     @Test(
         "stop closes an iOS session",
-        .timeLimit(.minutes(10))
+        .timeLimit(.minutes(20))
     )
     func stopIOSSession() async throws {
         try await DaemonTestLock.run {

@@ -122,7 +122,7 @@ struct TouchCommandTests {
     /// the daemon reports both as successful.
     @Test(
         "touch sends tap and swipe to an iOS session",
-        .timeLimit(.minutes(10))
+        .timeLimit(.minutes(20))
     )
     func touchIOSHappyPath() async throws {
         try await DaemonTestLock.run {
