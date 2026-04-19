@@ -26,10 +26,10 @@ Sleep 400ms
 Enter
 Sleep 3s
 
-Type "previewsmcp run examples/spm/Sources/ToDo/ToDoView.swift --platform ios --headless &"
+Type "previewsmcp run examples/spm/Sources/ToDo/ToDoView.swift --platform ios --detach"
 Sleep 400ms
 Enter
-Sleep 12s
+Sleep 10s
 
 Type "# grow the summary card"
 Enter
@@ -37,17 +37,17 @@ Sleep 500ms
 Type "sed -i '' 's/.frame(height: 120)/.frame(height: 220)/' examples/spm/Sources/ToDo/ToDoView.swift"
 Sleep 400ms
 Enter
-Sleep 5s
+Sleep 8s
 
-Type "# recolor on-brand"
+Type "# change the card color"
 Enter
 Sleep 500ms
 Type "sed -i '' 's/color: .blue/color: .pink/' examples/spm/Sources/ToDo/ToDoView.swift"
 Sleep 400ms
 Enter
-Sleep 14s
+Sleep 8s
 
 Hide
-Type "kill %1 2>/dev/null; wait 2>/dev/null"
+Type "previewsmcp stop 2>/dev/null; previewsmcp kill-daemon 2>/dev/null"
 Enter
 Show

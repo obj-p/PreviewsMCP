@@ -4,17 +4,15 @@
 #
 # Pipeline:
 #   1. warm the iOS host app + dylib caches with a throwaway snapshot
-#   2. start `xcrun simctl io recordVideo` against the booted simulator
-#      in the background (captures the phone screen as it updates)
-#   3. run `vhs scripts/demo-ios.tape`, which drives the terminal:
-#        previewsmcp list … → previewsmcp run … --platform ios & →
-#        two sed edits that trigger literal/structural hot reload
-#   4. stop the simulator recording, composite the two streams
-#      side-by-side with ffmpeg (`hstack` + `tpad` so both final frames
-#      are held visible — simctl recordVideo is variable-framerate and
-#      only samples on screen changes, so the naive composite would cut
-#      off at the exact transition), render to gif with a generated
-#      palette
+#   2. capture simulator screenshots at each state (home, preview,
+#      after height edit, after color edit)
+#   3. run `vhs scripts/demo-ios.tape` to record the terminal half
+#   4. build a fake sim video from the stills with frame-accurate
+#      timing that matches the terminal events, then hstack + gif
+#
+# The fake-sim approach guarantees perfect sync — the old live-
+# recording method had inherent drift because simctl recordVideo is
+# VFR and can't be frame-aligned with the terminal tape.
 #
 # The script is idempotent: it reverts the example source file on exit
 # (trap) so git stays clean even if anything fails partway through.
@@ -25,10 +23,8 @@
 # Then:
 #   scripts/record-demo-ios.sh
 #
-# Tweaking the demo: edit scripts/demo-ios.tape. Timings (the `Sleep`
-# directives after each sed) need to stay long enough for the simulator
-# to render the post-reload frame — simctl's sparse sampling means
-# cutting close is risky. 10s after the final edit is a safe minimum.
+# Tweaking the demo: edit scripts/demo-ios.tape and adjust the
+# SIM_*_AT / SIM_*_DUR timing constants below to match.
 
 set -euo pipefail
 
@@ -72,77 +68,110 @@ fi
 # Always leave the example file pristine on exit, even if we crash.
 EXAMPLE_FILE="examples/spm/Sources/ToDo/ToDoView.swift"
 trap 'git checkout -- "$EXAMPLE_FILE" 2>/dev/null || true; \
-      [[ -n "${SIM_PID:-}" ]] && kill -INT "$SIM_PID" 2>/dev/null || true; \
-      pkill -f "previewsmcp run $EXAMPLE_FILE" 2>/dev/null || true' EXIT
+      previewsmcp stop --all 2>/dev/null || true; \
+      previewsmcp kill-daemon 2>/dev/null || true' EXIT
 
-# Warm the iOS host app + dylib caches so the recorded `run` is as fast
-# as possible, then uninstall so the recording starts clean and the
-# re-install picks up any updated AppIcon.png.
+# -------------------------------------------------------------------
+# Phase 1: capture simulator screenshots at each demo state
+# -------------------------------------------------------------------
+
 echo "Warming iOS caches..."
 previewsmcp snapshot "$EXAMPLE_FILE" --platform ios -o /tmp/pmcp-demo/warmup.png >/dev/null 2>&1
+previewsmcp stop --all 2>/dev/null || true
 xcrun simctl terminate booted com.obj-p.previewsmcp.host 2>/dev/null || true
 xcrun simctl uninstall booted com.obj-p.previewsmcp.host 2>/dev/null || true
 
-# Drive the simulator to a clean home screen. `simctl terminate` +
-# `simctl uninstall` alone don't return to home — iOS preserves a
-# snapshot of the last foreground app. Kicking SpringBoard forces a
-# fresh home screen (the warning about the service identifier is
-# benign — the command still works).
+# Return to home screen for the "before" screenshot.
 xcrun simctl spawn booted launchctl kickstart -k system/com.apple.SpringBoard 2>/dev/null || true
 sleep 10
 
-# Start simulator video capture in the background.
-rm -f /tmp/pmcp-demo/sim.mp4 /tmp/pmcp-demo/terminal.mp4
-echo "Starting simulator recording..."
-xcrun simctl io booted recordVideo --codec=h264 /tmp/pmcp-demo/sim.mp4 &
-SIM_PID=$!
-sleep 1
+echo "Capturing home screen..."
+xcrun simctl io booted screenshot /tmp/pmcp-demo/state_home.png
 
-# Run the tape. vhs drives the shell and records the terminal to mp4.
+echo "Starting preview session..."
+previewsmcp run "$EXAMPLE_FILE" --platform ios --detach >/dev/null 2>&1
+sleep 4
+echo "Capturing original preview..."
+xcrun simctl io booted screenshot /tmp/pmcp-demo/state_original.png
+
+echo "Applying height edit..."
+sed -i '' 's/.frame(height: 120)/.frame(height: 220)/' "$EXAMPLE_FILE"
+sleep 4
+echo "Capturing height change..."
+xcrun simctl io booted screenshot /tmp/pmcp-demo/state_height.png
+
+echo "Applying color edit..."
+sed -i '' 's/color: .blue/color: .pink/' "$EXAMPLE_FILE"
+sleep 4
+echo "Capturing color change..."
+xcrun simctl io booted screenshot /tmp/pmcp-demo/state_color.png
+
+# Clean up the session — the example file gets reverted by the trap.
+previewsmcp stop --all 2>/dev/null || true
+previewsmcp kill-daemon 2>/dev/null || true
+
+# -------------------------------------------------------------------
+# Phase 2: record the terminal tape
+# -------------------------------------------------------------------
+
+# Revert so the tape's sed commands actually produce changes.
+git checkout -- "$EXAMPLE_FILE"
+
+rm -f /tmp/pmcp-demo/terminal.mp4
 echo "Running vhs tape..."
 vhs scripts/demo-ios.tape
 
-# Stop simulator recording cleanly.
-echo "Stopping simulator recording..."
-kill -INT "$SIM_PID" 2>/dev/null || true
-wait "$SIM_PID" 2>/dev/null || true
-SIM_PID=""
+# -------------------------------------------------------------------
+# Phase 3: build a fake sim video from stills and composite
+# -------------------------------------------------------------------
 
-# Trim sim to match the terminal's duration (plus a small tail buffer).
-# Two tricks:
-#  - Trimming discards the 1s lead-in where simctl was recording but
-#    vhs hadn't started typing yet.
-#  - Trimming the tail cuts simctl's post-SIGINT activity — simctl
-#    tends to capture a ghost frame at a much later timestamp when
-#    the app is torn down, which would otherwise stretch the composite.
-# `-ss`/`-to` don't cooperate with VFR sources, so we trim inside the
-# filtergraph via the `trim` filter (order matters: `fps` before `trim`
-# on VFR input).
-term_dur=$(ffprobe -v error -show_entries stream=duration -of csv=p=0 \
-  /tmp/pmcp-demo/terminal.mp4)
-sim_end=$(awk -v t="$term_dur" 'BEGIN {printf "%.3f", t + 1.5}')
+# Timing constants — seconds into the terminal video when each sim
+# state should appear. Derived from the tape's typing speed + sleeps.
+# Tweak these if you change the tape.
+#
+# Terminal timeline (approximate):
+#   0s      typing `list`
+#   5.3s    typing `run --detach`
+#   8.3s    run enters → daemon starts
+#  10.0s    app appears on sim (daemon + install takes ~2s)
+#  18.3s    typing height comment
+#  23.0s    height sed executes
+#  24.0s    sim shows height change (~1s reload)
+#  31.0s    typing color comment
+#  35.0s    color sed executes
+#  36.0s    sim shows color change (~1s reload)
+#  43.0s    end
+SIM_HOME_DUR=15      # home screen for first 15s (run --detach enters at ~8s, app appears ~7s later)
+SIM_ORIGINAL_DUR=9   # original preview from 15s to 24s
+SIM_HEIGHT_DUR=12    # taller card from 24s to 36s
+SIM_COLOR_DUR=10     # pink card from 36s to end (+ tpad holds it)
 
-# Composite: trim the sim lead-in and tail, force both inputs to a
-# constant 15fps, scale both to 960 tall, tpad 3s of the last frame so
-# the post-reload state is held visible, then hstack. CFR + tpad are
-# both required because `simctl io recordVideo` is variable-framerate
-# and only samples on screen changes — without CFR the simulator half
-# drifts out of sync with the terminal, and without tpad the transition
-# frame gets cut at the right edge. Height 960 keeps the iPhone screen
-# large enough to read text in the gif.
+echo "Building sim video from stills..."
+ffmpeg -y \
+  -loop 1 -t "$SIM_HOME_DUR"     -i /tmp/pmcp-demo/state_home.png \
+  -loop 1 -t "$SIM_ORIGINAL_DUR" -i /tmp/pmcp-demo/state_original.png \
+  -loop 1 -t "$SIM_HEIGHT_DUR"   -i /tmp/pmcp-demo/state_height.png \
+  -loop 1 -t "$SIM_COLOR_DUR"    -i /tmp/pmcp-demo/state_color.png \
+  -filter_complex "\
+    [0:v]fps=15,scale=-2:960,setsar=1[a];\
+    [1:v]fps=15,scale=-2:960,setsar=1[b];\
+    [2:v]fps=15,scale=-2:960,setsar=1[c];\
+    [3:v]fps=15,scale=-2:960,setsar=1[d];\
+    [a][b][c][d]concat=n=4:v=1:a=0[sim]" \
+  -map "[sim]" -c:v libx264 -pix_fmt yuv420p -r 15 \
+  /tmp/pmcp-demo/sim_fake.mp4 >/dev/null 2>&1
+
 echo "Compositing..."
 ffmpeg -y \
   -i /tmp/pmcp-demo/terminal.mp4 \
-  -i /tmp/pmcp-demo/sim.mp4 \
+  -i /tmp/pmcp-demo/sim_fake.mp4 \
   -filter_complex "\
     [0:v]fps=15,tpad=stop_mode=clone:stop_duration=3,scale=-2:960,setsar=1[t];\
-    [1:v]fps=15,trim=start=1:end=${sim_end},setpts=PTS-STARTPTS,tpad=stop_mode=clone:stop_duration=3,scale=-2:960,setsar=1[s];\
+    [1:v]fps=15,tpad=stop_mode=clone:stop_duration=3,scale=-2:960,setsar=1[s];\
     [t][s]hstack=inputs=2" \
   -c:v libx264 -pix_fmt yuv420p -r 15 \
   /tmp/pmcp-demo/composite.mp4 >/dev/null 2>&1
 
-# Render the gif with a generated palette for quality. Keep the gif at
-# the composite's framerate (15) so playback feels smooth.
 echo "Rendering gif..."
 ffmpeg -y -i /tmp/pmcp-demo/composite.mp4 \
   -vf "fps=15,scale=1600:-2:flags=lanczos,palettegen=stats_mode=diff" \
