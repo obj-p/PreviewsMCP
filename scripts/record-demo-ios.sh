@@ -141,8 +141,8 @@ vhs scripts/demo-ios.tape
 #  35.0s    color sed executes
 #  36.0s    sim shows color change (~1s reload)
 #  43.0s    end
-SIM_HOME_DUR=10      # home screen for first 10s
-SIM_ORIGINAL_DUR=14  # original preview from 10s to 24s
+SIM_HOME_DUR=12      # home screen for first 12s (run --detach enters at ~8s, app appears ~4s later)
+SIM_ORIGINAL_DUR=12  # original preview from 12s to 24s
 SIM_HEIGHT_DUR=12    # taller card from 24s to 36s
 SIM_COLOR_DUR=10     # pink card from 36s to end (+ tpad holds it)
 
