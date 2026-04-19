@@ -208,14 +208,14 @@ The `main` branch has branch protections — all changes must go through a pull 
 
 ### Test architecture
 
-- **DaemonTestLock** serializes daemon-touching tests across suites via `flock`. Uses blocking `flock(LOCK_EX)` on `DispatchQueue.global` — NOT non-blocking polling with `Task.sleep`, which starves Swift's cooperative thread pool on CI runners with small pools (~3-4 threads) and causes deadlocks.
+- **DaemonTestLock** serializes daemon-touching tests across suites via `flock`. Uses blocking `flock(LOCK_EX)` on `DispatchQueue.global` — NOT non-blocking polling with `Task.sleep`, which starves Swift's cooperative thread pool on CI runners with small pools (~3-4 threads) and causes deadlocks. The lock file path incorporates `PREVIEWSMCP_SOCKET_DIR` so concurrent CI jobs get separate locks.
 - **`@Suite(.serialized)`** only orders tests within a single suite. It does NOT serialize across suites or test targets. DaemonTestLock exists to fill that gap.
 - All daemon-touching tests share one daemon at `~/.previewsmcp/serve.sock` (or `PREVIEWSMCP_SOCKET_DIR` if set). Each suite calls `cleanSlate()` at the start to kill any leftover daemon; the daemon auto-starts on the first CLI command and persists within the suite.
 
 ### CI-specific concerns
 
 - **`build-and-test` and `ios-tests` run concurrently** on the same macOS runner. They MUST use different socket directories (`PREVIEWSMCP_SOCKET_DIR`) or they stomp on each other's daemon. Currently: `/tmp/previewsmcp-ci-build` and `/tmp/previewsmcp-ci-ios`.
-- **iOS CLI tests are split across jobs**: macOS-only tests run in `build-and-test`, iOS-specific tests (`snapshotIOS`, `stopIOSSession`, `touchIOSHappyPath`, `capturesIOSVariants`, `elementsReturnsJSONTree`) run in `ios-tests`. Don't add new iOS tests without adding a corresponding `--skip` in `build-and-test`.
+- **iOS CLI tests are split across jobs**: macOS-only tests run in `build-and-test`, iOS-specific tests run in `ios-tests`. The iOS-specific CLI tests (`snapshotIOS` and `iosCLIWorkflow`) are skipped in `build-and-test` via `--skip` flags. `IOSCLIWorkflowTests` combines touch, elements, variants, and stop into a single workflow test to avoid paying daemon + simulator setup costs four times.
 - **The daemon requires a window server** (`NSApplication.shared` + `NSHostingView` for rendering). GitHub Actions macOS runners have one, but the daemon must not be spawned in a context that loses display access (e.g., certain `launchd` contexts). If tests hang with zero output, check whether `CGMainDisplayID()` returns 0.
 - **Daemon startup is slow on CI** (~5-10s vs ~500ms locally). The `DaemonClient.connect(startTimeout:)` default is 30s to accommodate this.
 
