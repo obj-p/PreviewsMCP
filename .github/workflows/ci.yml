@@ -94,6 +94,8 @@ jobs:
 
       - name: CLI integration tests
         timeout-minutes: 60
+        env:
+          NSUnbufferedIO: "YES"
         run: >-
           swift test --filter "CLIIntegrationTests"
           --skip "snapshotIOS"
