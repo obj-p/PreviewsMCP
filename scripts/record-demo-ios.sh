@@ -98,7 +98,7 @@ rm -f /tmp/pmcp-demo/sim.mp4 /tmp/pmcp-demo/terminal.mp4
 echo "Starting simulator recording..."
 xcrun simctl io booted recordVideo --codec=h264 /tmp/pmcp-demo/sim.mp4 &
 SIM_PID=$!
-sleep 1
+sleep 2
 
 # Run the tape. vhs drives the shell and records the terminal to mp4.
 echo "Running vhs tape..."
@@ -138,7 +138,7 @@ ffmpeg -y \
   -i /tmp/pmcp-demo/sim.mp4 \
   -filter_complex "\
     [0:v]fps=15,tpad=stop_mode=clone:stop_duration=3,scale=-2:960,setsar=1[t];\
-    [1:v]fps=15,trim=start=1:end=${sim_end},setpts=PTS-STARTPTS,tpad=stop_mode=clone:stop_duration=3,scale=-2:960,setsar=1[s];\
+    [1:v]fps=15,trim=start=2:end=${sim_end},setpts=PTS-STARTPTS,tpad=stop_mode=clone:stop_duration=3,scale=-2:960,setsar=1[s];\
     [t][s]hstack=inputs=2" \
   -c:v libx264 -pix_fmt yuv420p -r 15 \
   /tmp/pmcp-demo/composite.mp4 >/dev/null 2>&1
