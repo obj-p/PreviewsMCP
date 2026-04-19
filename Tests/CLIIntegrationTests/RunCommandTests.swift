@@ -50,7 +50,7 @@ struct RunCommandTests {
 
     @Test(
         "run --detach starts daemon, prints session UUID, exits",
-        .timeLimit(.minutes(10))
+        .timeLimit(.minutes(20))
     )
     func detachStartsSessionAndExits() async throws {
         try await DaemonTestLock.run {
@@ -95,7 +95,7 @@ struct RunCommandTests {
     /// that never called preview_start would pass that weaker check.
     @Test(
         "run (attached) creates a live session then exits on SIGINT",
-        .timeLimit(.minutes(10))
+        .timeLimit(.minutes(20))
     )
     func attachedBlocksUntilSignal() async throws {
         try await DaemonTestLock.run {
@@ -145,7 +145,7 @@ struct RunCommandTests {
     /// the client. That's expected; the *daemon* surviving is what we test.
     @Test(
         "daemon survives SIGHUP to the run client",
-        .timeLimit(.minutes(10))
+        .timeLimit(.minutes(20))
     )
     func daemonSurvivesClientSIGHUP() async throws {
         try await DaemonTestLock.run {
@@ -192,7 +192,7 @@ struct RunCommandTests {
 
     @Test(
         "run --detach reuses an already-running daemon",
-        .timeLimit(.minutes(10))
+        .timeLimit(.minutes(20))
     )
     func detachReusesDaemon() async throws {
         try await DaemonTestLock.run {

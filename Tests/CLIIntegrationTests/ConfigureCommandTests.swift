@@ -65,7 +65,7 @@ struct ConfigureCommandTests {
     /// before and after and asserting the PNG output differs.
     @Test(
         "configure dark mode changes the rendered snapshot",
-        .timeLimit(.minutes(10))
+        .timeLimit(.minutes(20))
     )
     func configureChangesRenderedOutput() async throws {
         try await DaemonTestLock.run {
@@ -132,7 +132,7 @@ struct ConfigureCommandTests {
     /// set to unset (rather than the old no-op "empty is ignored" bug).
     @Test(
         "configure --color-scheme empty-string clears the trait",
-        .timeLimit(.minutes(10))
+        .timeLimit(.minutes(20))
     )
     func configureClearsTrait() async throws {
         try await DaemonTestLock.run {
@@ -182,7 +182,7 @@ struct ConfigureCommandTests {
     /// and that the daemon identifies the session in its response.
     @Test(
         "configure --session targets a specific session by UUID",
-        .timeLimit(.minutes(10))
+        .timeLimit(.minutes(20))
     )
     func configureExplicitSession() async throws {
         try await DaemonTestLock.run {

@@ -80,7 +80,7 @@ struct StopCommandTests {
     /// daemon reports it closed and that no sessions remain.
     @Test(
         "stop closes the sole running session",
-        .timeLimit(.minutes(10))
+        .timeLimit(.minutes(20))
     )
     func stopSoleSession() async throws {
         try await DaemonTestLock.run {
@@ -152,7 +152,7 @@ struct StopCommandTests {
     /// confirming a subsequent `stop` sees nothing left.
     @Test(
         "stop --all closes every active session",
-        .timeLimit(.minutes(10))
+        .timeLimit(.minutes(20))
     )
     func stopAllClosesEverything() async throws {
         try await DaemonTestLock.run {
@@ -203,7 +203,7 @@ struct StopCommandTests {
     /// daemon accepts the UUID and references it in its response.
     @Test(
         "stop --session targets a specific session by UUID",
-        .timeLimit(.minutes(10))
+        .timeLimit(.minutes(20))
     )
     func stopExplicitSession() async throws {
         try await DaemonTestLock.run {

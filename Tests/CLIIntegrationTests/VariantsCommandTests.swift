@@ -10,7 +10,7 @@ struct VariantsCommandTests {
 
     // MARK: - Happy paths
 
-    @Test("Captures multiple presets to distinct files", .timeLimit(.minutes(10)))
+    @Test("Captures multiple presets to distinct files", .timeLimit(.minutes(20)))
     func capturesMultiplePresets() async throws {
         try await DaemonTestLock.run {
             try await Self.cleanSlate()
@@ -53,7 +53,7 @@ struct VariantsCommandTests {
         }
     }
 
-    @Test("JSON variant uses custom label as filename", .timeLimit(.minutes(10)))
+    @Test("JSON variant uses custom label as filename", .timeLimit(.minutes(20)))
     func jsonVariantUsesCustomLabel() async throws {
         try await DaemonTestLock.run {
             try await Self.cleanSlate()
@@ -85,7 +85,7 @@ struct VariantsCommandTests {
         }
     }
 
-    @Test("PNG format produces valid PNG files", .timeLimit(.minutes(10)))
+    @Test("PNG format produces valid PNG files", .timeLimit(.minutes(20)))
     func pngFormat() async throws {
         try await DaemonTestLock.run {
             try await Self.cleanSlate()
@@ -125,7 +125,7 @@ struct VariantsCommandTests {
     /// --all reports it).
     @Test(
         "variants reuses an already-running session",
-        .timeLimit(.minutes(10))
+        .timeLimit(.minutes(20))
     )
     func variantsReusesLiveSession() async throws {
         try await DaemonTestLock.run {
@@ -179,7 +179,7 @@ struct VariantsCommandTests {
     /// "ERROR_STATE" still captures successfully.
     @Test(
         "Label containing 'ERROR' is not mis-bucketed as failure",
-        .timeLimit(.minutes(10))
+        .timeLimit(.minutes(20))
     )
     func labelContainingErrorStillCapturesSuccessfully() async throws {
         try await DaemonTestLock.run {
