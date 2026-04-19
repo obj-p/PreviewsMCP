@@ -90,6 +90,8 @@ jobs:
         run: swift build --package-path examples/spm
 
       - name: Unit tests
+        env:
+          NSUnbufferedIO: "YES"
         run: swift test --filter "PreviewsCoreTests"
 
       - name: CLI integration tests
@@ -157,6 +159,8 @@ jobs:
 
       - name: iOS CLI snapshot test
         timeout-minutes: 10
+        env:
+          NSUnbufferedIO: "YES"
         run: swift test --filter "snapshotIOS"
 
       - name: Kill stale daemon before iOS CLI tests
