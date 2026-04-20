@@ -4,11 +4,20 @@ import Testing
 @Suite("CLI snapshot command", .serialized)
 struct SnapshotCommandTests {
 
+    /// Kill any leftover daemon so each test starts from a known state.
+    /// Parity with `SwitchCommandTests.cleanSlate` — without this, a
+    /// prior test that left the daemon in a wedged session state can
+    /// corrupt subsequent snapshot tests (see issue #127 cascade).
+    private static func cleanSlate() async throws {
+        _ = try? await CLIRunner.run("kill-daemon", arguments: ["--timeout", "2"])
+    }
+
     // MARK: - macOS snapshot tests (SPM example)
 
-    @Test("Basic macOS snapshot produces valid PNG", .timeLimit(.minutes(20)))
+    @Test("Basic macOS snapshot produces valid PNG", .timeLimit(.minutes(5)))
     func basicMacOSSnapshot() async throws {
         try await DaemonTestLock.run {
+            try await Self.cleanSlate()
             let tempDir = try CLIRunner.makeTempDir()
             defer { try? FileManager.default.removeItem(at: tempDir) }
 
@@ -29,9 +38,10 @@ struct SnapshotCommandTests {
         }
     }
 
-    @Test("Snapshot with --preview 1 produces different image", .timeLimit(.minutes(20)))
+    @Test("Snapshot with --preview 1 produces different image", .timeLimit(.minutes(5)))
     func snapshotPreviewIndex1() async throws {
         try await DaemonTestLock.run {
+            try await Self.cleanSlate()
             let tempDir = try CLIRunner.makeTempDir()
             defer { try? FileManager.default.removeItem(at: tempDir) }
 
@@ -67,9 +77,10 @@ struct SnapshotCommandTests {
         }
     }
 
-    @Test("Snapshot with --color-scheme dark produces different image", .timeLimit(.minutes(20)))
+    @Test("Snapshot with --color-scheme dark produces different image", .timeLimit(.minutes(5)))
     func snapshotDarkMode() async throws {
         try await DaemonTestLock.run {
+            try await Self.cleanSlate()
             let tempDir = try CLIRunner.makeTempDir()
             defer { try? FileManager.default.removeItem(at: tempDir) }
 
@@ -104,10 +115,11 @@ struct SnapshotCommandTests {
 
     @Test(
         "Snapshot with --dynamic-type-size accessibility3 produces image",
-        .timeLimit(.minutes(20))
+        .timeLimit(.minutes(5))
     )
     func snapshotDynamicTypeSize() async throws {
         try await DaemonTestLock.run {
+            try await Self.cleanSlate()
             let tempDir = try CLIRunner.makeTempDir()
             defer { try? FileManager.default.removeItem(at: tempDir) }
 
@@ -128,9 +140,10 @@ struct SnapshotCommandTests {
         }
     }
 
-    @Test("Snapshot with JPEG output produces valid JPEG", .timeLimit(.minutes(20)))
+    @Test("Snapshot with JPEG output produces valid JPEG", .timeLimit(.minutes(5)))
     func snapshotJPEGOutput() async throws {
         try await DaemonTestLock.run {
+            try await Self.cleanSlate()
             let tempDir = try CLIRunner.makeTempDir()
             defer { try? FileManager.default.removeItem(at: tempDir) }
 
@@ -149,9 +162,10 @@ struct SnapshotCommandTests {
         }
     }
 
-    @Test("Snapshot of PreviewProvider file produces valid PNG", .timeLimit(.minutes(20)))
+    @Test("Snapshot of PreviewProvider file produces valid PNG", .timeLimit(.minutes(5)))
     func snapshotPreviewProvider() async throws {
         try await DaemonTestLock.run {
+            try await Self.cleanSlate()
             let tempDir = try CLIRunner.makeTempDir()
             defer { try? FileManager.default.removeItem(at: tempDir) }
 
@@ -172,9 +186,10 @@ struct SnapshotCommandTests {
 
     // MARK: - Error cases
 
-    @Test("Snapshot with invalid --preview 99 returns non-zero exit", .timeLimit(.minutes(20)))
+    @Test("Snapshot with invalid --preview 99 returns non-zero exit", .timeLimit(.minutes(5)))
     func snapshotInvalidPreviewIndex() async throws {
         try await DaemonTestLock.run {
+            try await Self.cleanSlate()
             let tempDir = try CLIRunner.makeTempDir()
             defer { try? FileManager.default.removeItem(at: tempDir) }
 
@@ -197,6 +212,7 @@ struct SnapshotCommandTests {
     @Test("Snapshot with invalid --dynamic-type-size returns non-zero exit")
     func snapshotInvalidDynamicTypeSize() async throws {
         try await DaemonTestLock.run {
+            try await Self.cleanSlate()
             let tempDir = try CLIRunner.makeTempDir()
             defer { try? FileManager.default.removeItem(at: tempDir) }
 
@@ -218,6 +234,7 @@ struct SnapshotCommandTests {
     @Test("Snapshot of nonexistent file returns non-zero exit")
     func snapshotNonexistentFile() async throws {
         try await DaemonTestLock.run {
+            try await Self.cleanSlate()
             let tempDir = try CLIRunner.makeTempDir()
             defer { try? FileManager.default.removeItem(at: tempDir) }
 
@@ -235,9 +252,10 @@ struct SnapshotCommandTests {
 
     // MARK: - Build system tests (gated)
 
-    @Test("Snapshot of xcodeproj example with --project", .timeLimit(.minutes(20)))
+    @Test("Snapshot of xcodeproj example with --project", .timeLimit(.minutes(5)))
     func snapshotXcodeproj() async throws {
         try await DaemonTestLock.run {
+            try await Self.cleanSlate()
             guard await CLIRunner.toolAvailable("mint") else {
                 print("Mint not available — skipping xcodeproj snapshot test")
                 return
@@ -271,9 +289,10 @@ struct SnapshotCommandTests {
         }
     }
 
-    @Test("Snapshot of xcworkspace example with --project", .timeLimit(.minutes(20)))
+    @Test("Snapshot of xcworkspace example with --project", .timeLimit(.minutes(5)))
     func snapshotXcworkspace() async throws {
         try await DaemonTestLock.run {
+            try await Self.cleanSlate()
             guard await CLIRunner.toolAvailable("mint") else {
                 print("Mint not available — skipping xcworkspace snapshot test")
                 return
@@ -306,9 +325,10 @@ struct SnapshotCommandTests {
         }
     }
 
-    @Test("Snapshot of Bazel example with --project", .timeLimit(.minutes(20)))
+    @Test("Snapshot of Bazel example with --project", .timeLimit(.minutes(5)))
     func snapshotBazel() async throws {
         try await DaemonTestLock.run {
+            try await Self.cleanSlate()
             var hasBazel = await CLIRunner.toolAvailable("bazelisk")
             if !hasBazel { hasBazel = await CLIRunner.toolAvailable("bazel") }
             guard hasBazel else {
@@ -336,9 +356,10 @@ struct SnapshotCommandTests {
 
     // MARK: - iOS snapshot (gated)
 
-    @Test("Snapshot with --platform ios produces valid image", .timeLimit(.minutes(20)))
+    @Test("Snapshot with --platform ios produces valid image", .timeLimit(.minutes(10)))
     func snapshotIOS() async throws {
         try await DaemonTestLock.run {
+            try await Self.cleanSlate()
             let simResult = try await CLIRunner.runExternal(
                 "/usr/bin/xcrun",
                 arguments: ["simctl", "list", "devices", "available"]
@@ -374,10 +395,11 @@ struct SnapshotCommandTests {
     /// whereas an ephemeral cold-start takes several seconds.
     @Test(
         "Snapshot reuses an already-running session instead of ephemeral",
-        .timeLimit(.minutes(20))
+        .timeLimit(.minutes(5))
     )
     func snapshotReusesLiveSession() async throws {
         try await DaemonTestLock.run {
+            try await Self.cleanSlate()
             let tempDir = try CLIRunner.makeTempDir()
             defer { try? FileManager.default.removeItem(at: tempDir) }
 

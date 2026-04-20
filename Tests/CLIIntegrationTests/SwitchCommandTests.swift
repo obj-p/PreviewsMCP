@@ -35,7 +35,7 @@ struct SwitchCommandTests {
     /// the empty state.
     @Test(
         "switch changes the active preview in a live session",
-        .timeLimit(.minutes(20))
+        .timeLimit(.minutes(5))
     )
     func switchChangesActivePreview() async throws {
         try await DaemonTestLock.run {
@@ -99,7 +99,7 @@ struct SwitchCommandTests {
     /// error message cleanly.
     @Test(
         "switch with out-of-range index reports an error",
-        .timeLimit(.minutes(20))
+        .timeLimit(.minutes(5))
     )
     func switchOutOfRange() async throws {
         try await DaemonTestLock.run {
@@ -121,6 +121,15 @@ struct SwitchCommandTests {
             // ToDoView only has 2 previews (indices 0 and 1).
             let result = try await CLIRunner.run("switch", arguments: ["99"])
             #expect(result.exitCode != 0)
+            // Assert on the exact daemon-side bounds-check message. If this
+            // substring stops appearing (e.g., validation moves earlier or
+            // an upstream hang prevents the check from being reached), the
+            // test fails loud rather than silently passing on any non-zero
+            // exit. See issue #127 for context.
+            #expect(
+                result.stderr.contains("out of range (available: 0..<2)"),
+                "expected daemon out-of-range error, got: \(result.stderr)"
+            )
 
             _ = try? await CLIRunner.run("kill-daemon", arguments: ["--timeout", "2"])
         }
