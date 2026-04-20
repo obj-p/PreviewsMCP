@@ -792,7 +792,7 @@ struct BridgeGeneratorTraitsTests {
         }
         """
 
-    @Test("generateCombinedSource wraps if #available body in a @ViewBuilder function")
+    @Test("generateCombinedSource routes if #available body through __PreviewBridge.wrap")
     func combinedSourceWrapsAvailable() {
         let (source, _) = BridgeGenerator.generateCombinedSource(
             originalSource: Self.availablePreviewSource,
@@ -805,25 +805,29 @@ struct BridgeGeneratorTraitsTests {
                 """
         )
         let bridge = bridgeSlice(source)
-        let vbRange = bridge.range(of: "@ViewBuilder func __previewBody()")
+        let wrapRange = bridge.range(of: "__PreviewBridge.wrap")
         let ifRange = bridge.range(of: "if #available")
-        #expect(vbRange != nil, "Bridge must declare @ViewBuilder __previewBody()")
+        #expect(wrapRange != nil, "Bridge must call __PreviewBridge.wrap")
         #expect(ifRange != nil)
         #expect(
-            vbRange!.lowerBound < ifRange!.lowerBound,
-            "@ViewBuilder function must be declared before the if #available body it contains"
+            wrapRange!.lowerBound < ifRange!.lowerBound,
+            "__PreviewBridge.wrap call must appear before the if #available body it contains"
         )
         #expect(
-            bridge.contains("AnyView(__previewBody()"),
-            "Bridge must call __previewBody() from AnyView(...)"
+            bridge.contains("SwiftUI.AnyView(__PreviewBridge.wrap"),
+            "Bridge must wrap __PreviewBridge.wrap result in SwiftUI.AnyView(...)"
         )
         #expect(
             !bridge.contains("Group {"),
             "Bridge must not use Group (to avoid confusion with Xcode's canvas Group-enumeration)"
         )
+        #expect(
+            !bridge.contains("__previewBody"),
+            "Legacy __previewBody wrapper must not appear in generated bridge"
+        )
     }
 
-    @Test("generateBridgeOnlySource wraps if #available body in a @ViewBuilder function")
+    @Test("generateBridgeOnlySource routes if #available body through __PreviewBridge.wrap")
     func bridgeOnlySourceWrapsAvailable() {
         let source = BridgeGenerator.generateBridgeOnlySource(
             moduleName: "MyTarget",
@@ -835,12 +839,12 @@ struct BridgeGeneratorTraitsTests {
                 }
                 """
         )
-        #expect(source.contains("@ViewBuilder func __previewBody()"))
+        #expect(source.contains("__PreviewBridge.wrap"))
         #expect(source.contains("if #available"))
-        #expect(source.contains("AnyView(__previewBody()"))
+        #expect(source.contains("SwiftUI.AnyView(__PreviewBridge.wrap"))
     }
 
-    @Test("generateBridgeOnlySource wraps if #unavailable body in a @ViewBuilder function")
+    @Test("generateBridgeOnlySource routes if #unavailable body through __PreviewBridge.wrap")
     func bridgeOnlySourceWrapsUnavailable() {
         let source = BridgeGenerator.generateBridgeOnlySource(
             moduleName: "MyTarget",
@@ -852,25 +856,25 @@ struct BridgeGeneratorTraitsTests {
                 }
                 """
         )
-        #expect(source.contains("@ViewBuilder func __previewBody()"))
+        #expect(source.contains("__PreviewBridge.wrap"))
         #expect(source.contains("if #unavailable"))
     }
 
-    @Test("generateCombinedSource wraps simple bodies in @ViewBuilder too (matches Xcode semantics)")
+    @Test("generateCombinedSource routes simple bodies through __PreviewBridge.wrap too")
     func combinedSourceWrapsSimpleBody() {
         let (source, _) = BridgeGenerator.generateCombinedSource(
             originalSource: Self.testSource,
             closureBody: "TestView()"
         )
         let bridge = bridgeSlice(source)
-        // Simple bodies go through the @ViewBuilder function too — the wrapping
-        // is unconditional so every @ViewBuilder-accepted pattern works.
-        #expect(bridge.contains("@ViewBuilder func __previewBody()"))
+        // Simple bodies go through __PreviewBridge.wrap too — dispatch is unconditional
+        // so every supported body shape (SwiftUI or UIKit) resolves via overload lookup.
+        #expect(bridge.contains("__PreviewBridge.wrap"))
         #expect(bridge.contains("TestView()"))
-        #expect(bridge.contains("AnyView(__previewBody()"))
+        #expect(bridge.contains("SwiftUI.AnyView(__PreviewBridge.wrap"))
     }
 
-    @Test("generateCombinedSource wraps multi-statement body (leading let) in @ViewBuilder")
+    @Test("generateCombinedSource routes multi-statement body (leading let) through __PreviewBridge.wrap")
     func combinedSourceWrapsMultiStatement() {
         let multiStmtSource = """
             import SwiftUI
@@ -893,16 +897,16 @@ struct BridgeGeneratorTraitsTests {
             closureBody: previews[0].closureBody
         )
         let bridge = bridgeSlice(source)
-        let vbRange = bridge.range(of: "@ViewBuilder func __previewBody()")
+        let wrapRange = bridge.range(of: "__PreviewBridge.wrap")
         let letRange = bridge.range(of: "let label")
-        #expect(vbRange != nil && letRange != nil)
+        #expect(wrapRange != nil && letRange != nil)
         #expect(
-            vbRange!.lowerBound < letRange!.lowerBound,
-            "@ViewBuilder function must wrap the multi-statement body so `let` is not a bare expression"
+            wrapRange!.lowerBound < letRange!.lowerBound,
+            "__PreviewBridge.wrap call must precede the multi-statement body so `let` isn't a bare expression"
         )
     }
 
-    @Test("if #available body with traits applies modifiers on the __previewBody() call")
+    @Test("if #available body with traits applies modifiers on the __PreviewBridge.wrap call")
     func availableBodyWithTraits() {
         let traits = PreviewTraits(colorScheme: "dark")
         let source = BridgeGenerator.generateBridgeOnlySource(
@@ -916,19 +920,19 @@ struct BridgeGeneratorTraitsTests {
                 """,
             traits: traits
         )
-        #expect(source.contains("@ViewBuilder func __previewBody()"))
+        #expect(source.contains("__PreviewBridge.wrap"))
         #expect(source.contains(".preferredColorScheme(.dark)"))
-        // The modifier must be chained onto __previewBody(), inside the AnyView(...) call.
+        // The modifier must be chained onto the wrap() result, inside SwiftUI.AnyView(...).
         #expect(
-            source.contains("AnyView(__previewBody()"),
-            "Bridge must call AnyView on the __previewBody() result"
+            source.contains("SwiftUI.AnyView(__PreviewBridge.wrap"),
+            "Bridge must wrap __PreviewBridge.wrap result in SwiftUI.AnyView(...)"
         )
-        // And the modifier must come after __previewBody(), not inside its body.
-        let callRange = source.range(of: "__previewBody()")!
-        let modifierRange = source.range(of: ".preferredColorScheme(.dark)")!
+        // The closure body's closing `}` must come before the modifier — i.e. the modifier
+        // chains on the wrap() call's result, not on something inside the body.
+        let closingBraceRange = source.range(of: "}\n            .preferredColorScheme(.dark)")
         #expect(
-            callRange.upperBound <= modifierRange.lowerBound,
-            "Modifier must be applied to the __previewBody() result, not inside its body"
+            closingBraceRange != nil,
+            "Modifier must be applied to the __PreviewBridge.wrap { ... } result, not inside its body"
         )
     }
 
@@ -1010,6 +1014,160 @@ struct BridgeGeneratorTraitsTests {
         let attrs = try FileManager.default.attributesOfItem(atPath: result.dylibPath.path)
         let size = attrs[.size] as? Int ?? 0
         #expect(size > 0, "Dylib should be non-empty")
+    }
+
+    // MARK: - UIKit body compile pipeline (iOS)
+
+    @Test("Full pipeline with UIView body compiles for iOS")
+    func fullPipelineUIViewBody() async throws {
+        let uiViewSource = """
+            import SwiftUI
+            import UIKit
+
+            final class ExampleUIView: UIView {
+                init() {
+                    super.init(frame: .zero)
+                    backgroundColor = .systemRed
+                }
+                required init?(coder: NSCoder) { fatalError() }
+            }
+
+            #Preview { ExampleUIView() }
+            """
+
+        let previews = PreviewParser.parse(source: uiViewSource)
+        #expect(previews.count == 1)
+
+        let (combined, _) = BridgeGenerator.generateCombinedSource(
+            originalSource: uiViewSource,
+            closureBody: previews[0].closureBody,
+            platform: .iOS
+        )
+        #expect(combined.contains("__PreviewBridge.wrap"))
+        #expect(combined.contains("UIViewRepresentable"))
+
+        let compiler = try await Compiler(platform: .iOS)
+        let result = try await compiler.compileCombined(
+            source: combined,
+            moduleName: "UIViewTest_\(Int.random(in: 0...999999))"
+        )
+
+        let attrs = try FileManager.default.attributesOfItem(atPath: result.dylibPath.path)
+        let size = attrs[.size] as? Int ?? 0
+        #expect(size > 0, "iOS dylib with UIView body should be non-empty")
+    }
+
+    @Test("Full pipeline with parameterized UIView init compiles for iOS")
+    func fullPipelineUIViewWithInitArgs() async throws {
+        // Mirrors the reported failure form: `#Preview { ExampleUIView(deps: deps) }`
+        // wrapped inside a helper closure (here: a trivial `make(...)` instead of
+        // `withDependencies`, which would require pulling in swift-dependencies).
+        let uiViewSource = """
+            import SwiftUI
+            import UIKit
+
+            final class ExampleUIView: UIView {
+                init(label: String) {
+                    super.init(frame: .zero)
+                    backgroundColor = .systemGreen
+                    accessibilityLabel = label
+                }
+                required init?(coder: NSCoder) { fatalError() }
+            }
+
+            func make<T>(_ build: () -> T) -> T { build() }
+
+            #Preview { make { ExampleUIView(label: "hi") } }
+            """
+
+        let previews = PreviewParser.parse(source: uiViewSource)
+        #expect(previews.count == 1)
+
+        let (combined, _) = BridgeGenerator.generateCombinedSource(
+            originalSource: uiViewSource,
+            closureBody: previews[0].closureBody,
+            platform: .iOS
+        )
+
+        let compiler = try await Compiler(platform: .iOS)
+        let result = try await compiler.compileCombined(
+            source: combined,
+            moduleName: "UIViewInitArgsTest_\(Int.random(in: 0...999999))"
+        )
+
+        let attrs = try FileManager.default.attributesOfItem(atPath: result.dylibPath.path)
+        let size = attrs[.size] as? Int ?? 0
+        #expect(size > 0, "iOS dylib with parameterized UIView init should be non-empty")
+    }
+
+    @Test("Full pipeline with UIViewController body compiles for iOS")
+    func fullPipelineUIViewControllerBody() async throws {
+        let vcSource = """
+            import SwiftUI
+            import UIKit
+
+            final class ExampleVC: UIViewController {
+                override func viewDidLoad() {
+                    super.viewDidLoad()
+                    view.backgroundColor = .systemBlue
+                }
+            }
+
+            #Preview { ExampleVC() }
+            """
+
+        let previews = PreviewParser.parse(source: vcSource)
+        #expect(previews.count == 1)
+
+        let (combined, _) = BridgeGenerator.generateCombinedSource(
+            originalSource: vcSource,
+            closureBody: previews[0].closureBody,
+            platform: .iOS
+        )
+        #expect(combined.contains("__PreviewBridge.wrap"))
+        #expect(combined.contains("UIViewControllerRepresentable"))
+
+        let compiler = try await Compiler(platform: .iOS)
+        let result = try await compiler.compileCombined(
+            source: combined,
+            moduleName: "UIVCTest_\(Int.random(in: 0...999999))"
+        )
+
+        let attrs = try FileManager.default.attributesOfItem(atPath: result.dylibPath.path)
+        let size = attrs[.size] as? Int ?? 0
+        #expect(size > 0, "iOS dylib with UIViewController body should be non-empty")
+    }
+
+    @Test("Full pipeline with SwiftUI body on iOS still compiles (regression guard)")
+    func fullPipelineSwiftUIBodyIOS() async throws {
+        let swiftUISource = """
+            import SwiftUI
+
+            struct IOSView: View {
+                var body: some View { Text("ios") }
+            }
+
+            #Preview { IOSView() }
+            """
+
+        let previews = PreviewParser.parse(source: swiftUISource)
+        #expect(previews.count == 1)
+
+        let (combined, _) = BridgeGenerator.generateCombinedSource(
+            originalSource: swiftUISource,
+            closureBody: previews[0].closureBody,
+            platform: .iOS
+        )
+
+        let compiler = try await Compiler(platform: .iOS)
+        let result = try await compiler.compileCombined(
+            source: combined,
+            moduleName: "SwiftUIiOSTest_\(Int.random(in: 0...999999))"
+        )
+
+        let attrs = try FileManager.default.attributesOfItem(atPath: result.dylibPath.path)
+        let size = attrs[.size] as? Int ?? 0
+        #expect(size > 0, "iOS dylib with SwiftUI body should still be non-empty")
     }
 
     // MARK: - Equatable
