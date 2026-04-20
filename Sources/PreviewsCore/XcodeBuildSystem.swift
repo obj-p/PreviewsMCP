@@ -289,7 +289,8 @@ public actor XcodeBuildSystem: BuildSystem {
         else {
             return []
         }
-        return entries
+        return
+            entries
             .filter { $0.pathExtension == "swift" }
             .map { $0.standardizedFileURL }
     }

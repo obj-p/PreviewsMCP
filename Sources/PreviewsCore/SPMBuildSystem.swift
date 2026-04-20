@@ -283,7 +283,8 @@ public actor SPMBuildSystem: BuildSystem {
     nonisolated static func collectGeneratedSources(
         binPath: URL, targetName: String
     ) -> [URL] {
-        let derivedDir = binPath
+        let derivedDir =
+            binPath
             .appendingPathComponent("\(targetName).build")
             .appendingPathComponent("DerivedSources")
         guard
@@ -295,7 +296,8 @@ public actor SPMBuildSystem: BuildSystem {
         else {
             return []
         }
-        return entries
+        return
+            entries
             .filter { $0.pathExtension == "swift" }
             .map { $0.standardizedFileURL }
     }
