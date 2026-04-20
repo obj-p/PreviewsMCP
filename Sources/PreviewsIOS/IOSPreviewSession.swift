@@ -383,28 +383,44 @@ public actor IOSPreviewSession {
     private func acceptConnection(timeout: Duration) async throws {
         try await withThrowingTaskGroup(of: Int32.self) { group in
             group.addTask { [listenFD] in
-                try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Int32, Error>) in
-                    let source = DispatchSource.makeReadSource(
-                        fileDescriptor: listenFD, queue: .global())
-                    var resumed = false
-                    source.setEventHandler {
-                        source.cancel()
-                        guard !resumed else { return }
-                        resumed = true
-                        let clientFD = Darwin.accept(listenFD, nil, nil)
-                        if clientFD >= 0 {
-                            cont.resume(returning: clientFD)
-                        } else {
-                            cont.resume(throwing: IOSPreviewSessionError.socketAcceptFailed)
+                // The dispatch source is owned by the continuation closure
+                // but must also be cancellable from the task-cancellation
+                // handler when the timeout task throws. Without this path,
+                // `withCheckedThrowingContinuation` ignores cancellation
+                // and Task 1 stays suspended forever on the source — the
+                // 10s timer throws, the group waits for Task 1 to
+                // terminate, and the whole acceptConnection hangs until
+                // some upstream kills the caller (see iOS CI regression
+                // where a flaky host-app connection turned into a 20-min
+                // step timeout instead of a 10s clean failure).
+                let sourceBox = DispatchSourceBox()
+                return try await withTaskCancellationHandler {
+                    try await withCheckedThrowingContinuation {
+                        (cont: CheckedContinuation<Int32, Error>) in
+                        let source = DispatchSource.makeReadSource(
+                            fileDescriptor: listenFD, queue: .global())
+                        sourceBox.store(source)
+                        var resumed = false
+                        source.setEventHandler {
+                            source.cancel()
+                            guard !resumed else { return }
+                            resumed = true
+                            let clientFD = Darwin.accept(listenFD, nil, nil)
+                            if clientFD >= 0 {
+                                cont.resume(returning: clientFD)
+                            } else {
+                                cont.resume(throwing: IOSPreviewSessionError.socketAcceptFailed)
+                            }
                         }
+                        source.setCancelHandler {
+                            guard !resumed else { return }
+                            resumed = true
+                            cont.resume(throwing: IOSPreviewSessionError.socketAcceptTimeout)
+                        }
+                        source.resume()
                     }
-                    source.setCancelHandler {
-                        // Clean up on timeout: cancel fires when task group cancels this task
-                        guard !resumed else { return }
-                        resumed = true
-                        cont.resume(throwing: IOSPreviewSessionError.socketAcceptTimeout)
-                    }
-                    source.resume()
+                } onCancel: {
+                    sourceBox.cancel()
                 }
             }
             group.addTask {
@@ -608,4 +624,28 @@ public enum IOSPreviewSessionError: Error, LocalizedError, CustomStringConvertib
     }
 
     public var errorDescription: String? { description }
+}
+
+/// Thread-safe holder for a `DispatchSourceRead` that needs to be
+/// cancelled from outside the continuation that owns it. Used by
+/// `acceptConnection` to bridge task-cancellation into dispatch-source
+/// lifecycle — DispatchSource is not Sendable, so a plain closure
+/// capture won't compile under Swift 6 strict concurrency.
+private final class DispatchSourceBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var source: DispatchSourceRead?
+
+    func store(_ s: DispatchSourceRead) {
+        lock.lock()
+        defer { lock.unlock() }
+        source = s
+    }
+
+    func cancel() {
+        lock.lock()
+        let s = source
+        source = nil
+        lock.unlock()
+        s?.cancel()
+    }
 }

@@ -18,7 +18,7 @@ struct IOSCLIWorkflowTests {
 
     @Test(
         "iOS CLI workflow: touch, elements, variants, stop",
-        .timeLimit(.minutes(20))
+        .timeLimit(.minutes(10))
     )
     func iosCLIWorkflow() async throws {
         try await DaemonTestLock.run {

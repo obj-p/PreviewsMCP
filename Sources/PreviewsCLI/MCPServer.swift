@@ -1079,12 +1079,19 @@ private func handlePreviewSwitch(params: CallTool.Parameters, server: Server) as
 
     // iOS path
     if let iosSession = await iosState.getSession(sessionID) {
+        // Bounds-check before delegating. The compile path will also
+        // validate (PreviewSession.compile throws previewNotFound) but
+        // an early structured error guarantees a fast, deterministic
+        // failure regardless of any upstream transport state. See #127.
+        let previews = try PreviewParser.parse(fileAt: iosSession.sourceFile)
+        if let outOfRange = previewIndexOutOfRangeError(newIndex, count: previews.count) {
+            return outOfRange
+        }
         await progress.report(.compilingBridge, message: "Switching to preview \(newIndex)...")
         try await iosSession.switchPreview(to: newIndex)
         let activeTraits = await iosSession.currentTraits
         let traitInfo = activeTraits.isEmpty ? "" : " Traits: \(traitsSummary(activeTraits))."
 
-        let previews = try PreviewParser.parse(fileAt: iosSession.sourceFile)
         let previewList = formatPreviewList(previews: previews, activeIndex: newIndex)
         let structured = DaemonProtocol.SwitchResult(
             sessionID: sessionID,
@@ -1110,6 +1117,11 @@ private func handlePreviewSwitch(params: CallTool.Parameters, server: Server) as
         return CallTool.Result(content: [.text("No session found for \(sessionID)")], isError: true)
     }
 
+    let previews = try PreviewParser.parse(fileAt: session.sourceFile)
+    if let outOfRange = previewIndexOutOfRangeError(newIndex, count: previews.count) {
+        return outOfRange
+    }
+
     await progress.report(.compilingBridge, message: "Switching to preview \(newIndex)...")
     let compileResult = try await session.switchPreview(to: newIndex)
     try await MainActor.run {
@@ -1119,7 +1131,6 @@ private func handlePreviewSwitch(params: CallTool.Parameters, server: Server) as
     let activeTraits = await session.currentTraits
     let traitInfo = activeTraits.isEmpty ? "" : " Traits: \(traitsSummary(activeTraits))."
 
-    let previews = try PreviewParser.parse(fileAt: session.sourceFile)
     let previewList = formatPreviewList(previews: previews, activeIndex: newIndex)
     let structured = DaemonProtocol.SwitchResult(
         sessionID: sessionID,
@@ -1136,5 +1147,20 @@ private func handlePreviewSwitch(params: CallTool.Parameters, server: Server) as
             )
         ],
         structuredContent: structured
+    )
+}
+
+/// Validate `previewIndex` against the parsed preview count. Returns a
+/// structured error result if out of range, or `nil` if the index is
+/// valid. Centralized so the iOS and macOS switch paths return identical
+/// error messages — `SwitchCommandTests.switchOutOfRange` asserts on the
+/// exact "out of range" substring.
+private func previewIndexOutOfRangeError(_ newIndex: Int, count: Int) -> CallTool.Result? {
+    guard newIndex < 0 || newIndex >= count else { return nil }
+    return CallTool.Result(
+        content: [
+            .text("Preview index \(newIndex) out of range (available: 0..<\(count))")
+        ],
+        isError: true
     )
 }

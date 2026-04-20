@@ -31,7 +31,7 @@ struct ElementsCommandTests {
     /// cleanly.
     @Test(
         "elements against a macOS session surfaces an iOS-only error",
-        .timeLimit(.minutes(20))
+        .timeLimit(.minutes(5))
     )
     func elementsRejectsMacOSSession() async throws {
         try await DaemonTestLock.run {
