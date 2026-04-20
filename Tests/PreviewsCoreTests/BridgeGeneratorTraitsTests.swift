@@ -1057,6 +1057,49 @@ struct BridgeGeneratorTraitsTests {
         #expect(size > 0, "iOS dylib with UIView body should be non-empty")
     }
 
+    @Test("Full pipeline with parameterized UIView init compiles for iOS")
+    func fullPipelineUIViewWithInitArgs() async throws {
+        // Mirrors the reported failure form: `#Preview { ExampleUIView(deps: deps) }`
+        // wrapped inside a helper closure (here: a trivial `make(...)` instead of
+        // `withDependencies`, which would require pulling in swift-dependencies).
+        let uiViewSource = """
+            import SwiftUI
+            import UIKit
+
+            final class ExampleUIView: UIView {
+                init(label: String) {
+                    super.init(frame: .zero)
+                    backgroundColor = .systemGreen
+                    accessibilityLabel = label
+                }
+                required init?(coder: NSCoder) { fatalError() }
+            }
+
+            func make<T>(_ build: () -> T) -> T { build() }
+
+            #Preview { make { ExampleUIView(label: "hi") } }
+            """
+
+        let previews = PreviewParser.parse(source: uiViewSource)
+        #expect(previews.count == 1)
+
+        let (combined, _) = BridgeGenerator.generateCombinedSource(
+            originalSource: uiViewSource,
+            closureBody: previews[0].closureBody,
+            platform: .iOS
+        )
+
+        let compiler = try await Compiler(platform: .iOS)
+        let result = try await compiler.compileCombined(
+            source: combined,
+            moduleName: "UIViewInitArgsTest_\(Int.random(in: 0...999999))"
+        )
+
+        let attrs = try FileManager.default.attributesOfItem(atPath: result.dylibPath.path)
+        let size = attrs[.size] as? Int ?? 0
+        #expect(size > 0, "iOS dylib with parameterized UIView init should be non-empty")
+    }
+
     @Test("Full pipeline with UIViewController body compiles for iOS")
     func fullPipelineUIViewControllerBody() async throws {
         let vcSource = """
