@@ -52,12 +52,13 @@ enum CLIRunner {
         switch subcommand {
         case "start", "run", "snapshot", "variants":
             // Commands that can trigger compile + (iOS) simulator boot +
-            // host-app build + render in a single invocation. Cold iOS
-            // snapshot observed at ~200s (compile + build host app + boot
-            // + install + launch + capture). Cold Bazel/SPM first-build
-            // can exceed 60s even on macOS. 240s covers both with
-            // headroom.
-            .seconds(240)
+            // host-app build + render in a single invocation. Last-known-
+            // green iosCLIWorkflow took 274s total for run + touch×2 +
+            // elements×2 + variants + stop — meaning the `run` step alone
+            // consumed ~200-230s on that particular CI runner. 360s gives
+            // ~50% headroom over the observed time. Cold Bazel/SPM
+            // first-build can exceed 60s even on macOS, also covered.
+            .seconds(360)
         case "kill-daemon":
             .seconds(10)
         default:
