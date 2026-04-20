@@ -44,25 +44,30 @@ public enum SPMBuildRecovery {
             return result
         }
 
-        // Best-effort clean — if removal fails (e.g. permissions), let the
-        // retry surface the original error.
-        //
-        // Two things must go:
-        //   1. The per-triple build directory whose state SPM is stuck on.
-        //   2. The shared `.build/build.db` (llbuild's task database). It
-        //      lives ONE level above the triple directory and aggregates
-        //      command registrations across triples, so a stale entry
-        //      registered for one triple can corrupt builds at another.
-        //      Without removing it, the retry hits the same error.
-        try? FileManager.default.removeItem(at: tripleDir)
-        let buildDB = tripleDir.deletingLastPathComponent().appendingPathComponent("build.db")
-        try? FileManager.default.removeItem(at: buildDB)
+        cleanStaleArtifacts(tripleDir: tripleDir)
 
         return try await runAsync(
             "/usr/bin/env",
             arguments: ["swift"] + arguments,
             workingDirectory: workingDirectory
         )
+    }
+
+    /// Remove the two artifacts that hold the inconsistent llbuild state:
+    ///
+    ///   1. The per-triple build directory whose state SPM is stuck on.
+    ///   2. The shared `.build/build.db` (llbuild's task database). It
+    ///      lives ONE level above the triple directory and aggregates
+    ///      command registrations across triples, so a stale entry
+    ///      registered for one triple can corrupt builds at another.
+    ///      Without removing it, the retry hits the same error.
+    ///
+    /// Best-effort: if removal fails (e.g. permissions), the caller's retry
+    /// will surface the original error.
+    static func cleanStaleArtifacts(tripleDir: URL) {
+        try? FileManager.default.removeItem(at: tripleDir)
+        let buildDB = tripleDir.deletingLastPathComponent().appendingPathComponent("build.db")
+        try? FileManager.default.removeItem(at: buildDB)
     }
 
     /// Parse the affected `<...>.build/<triple>/` directory from an SPM
