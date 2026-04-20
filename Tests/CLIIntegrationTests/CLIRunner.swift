@@ -50,8 +50,13 @@ enum CLIRunner {
     /// suite — see issue #127.
     private static func defaultTimeout(for subcommand: String) -> Duration {
         switch subcommand {
-        case "start", "run":
-            // Cold first-build on Bazel/SPM examples can exceed 60s.
+        case "start", "run", "snapshot", "variants":
+            // Commands that can trigger compile + (iOS) simulator boot +
+            // host-app build + render in a single invocation. Cold iOS
+            // snapshot observed at ~200s (compile + build host app + boot
+            // + install + launch + capture). Cold Bazel/SPM first-build
+            // can exceed 60s even on macOS. 240s covers both with
+            // headroom.
             .seconds(240)
         case "kill-daemon":
             .seconds(10)
