@@ -55,12 +55,14 @@ public enum SetupBuilder {
             return cached
         }
 
-        var buildArgs = ["swift", "build", "--package-path", packageDir.path]
+        var buildArgs = ["build", "--package-path", packageDir.path]
         if let sdkPath = iosSDKPath {
             buildArgs += ["--triple", PreviewPlatform.iOS.targetTriple, "--sdk", sdkPath]
         }
 
-        let buildResult = try await runAsync("/usr/bin/env", arguments: buildArgs)
+        let buildResult = try await SPMBuildRecovery.runSwift(
+            arguments: buildArgs, workingDirectory: nil
+        )
         guard buildResult.exitCode == 0 else {
             throw SetupBuilderError.buildFailed(
                 package: config.moduleName,

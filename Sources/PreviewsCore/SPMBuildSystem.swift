@@ -347,13 +347,21 @@ public actor SPMBuildSystem: BuildSystem {
     // MARK: - Private: Build
 
     private func runSwiftBuild(platform: PreviewPlatform, iosSDKPath: String?) async throws {
-        var args = ["swift", "build"]
+        var args = ["build"]
 
         if platform == .iOS, let sdkPath = iosSDKPath {
             args += ["--triple", PreviewPlatform.iOS.targetTriple, "--sdk", sdkPath]
         }
 
-        try await runProcess("/usr/bin/env", args: args, workingDirectory: projectRoot)
+        let result = try await SPMBuildRecovery.runSwift(
+            arguments: args, workingDirectory: projectRoot
+        )
+        guard result.exitCode == 0 else {
+            throw BuildSystemError.buildFailed(
+                stderr: result.stderr.isEmpty ? result.stdout : result.stderr,
+                exitCode: result.exitCode
+            )
+        }
     }
 
     private func showBinPath(platform: PreviewPlatform, iosSDKPath: String?) async throws -> URL {
