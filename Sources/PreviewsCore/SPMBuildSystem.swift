@@ -249,10 +249,21 @@ public actor SPMBuildSystem: BuildSystem {
         }
 
         // 8. Collect Tier 2 data: other source files in the target
-        let otherSourceFiles = try collectSourceFiles(
+        var otherSourceFiles = try collectSourceFiles(
             targetName: targetName,
             in: description
         )
+
+        // 8b. Union SPM-generated sources (e.g. resource_bundle_accessor.swift
+        //     for targets with .process/.copy resources, which defines
+        //     Bundle.module). Without these, previews that use Bundle.module
+        //     fail to compile with "type 'Bundle' has no member 'module'".
+        let generated = Self.collectGeneratedSources(
+            binPath: binPath, targetName: targetName
+        )
+        if !generated.isEmpty {
+            otherSourceFiles = (otherSourceFiles ?? []) + generated
+        }
 
         return BuildContext(
             moduleName: targetName,
@@ -261,6 +272,32 @@ public actor SPMBuildSystem: BuildSystem {
             targetName: targetName,
             sourceFiles: otherSourceFiles
         )
+    }
+
+    /// Collect SPM-generated Swift sources that swiftc would normally compile into
+    /// the target. SPM writes these (currently `resource_bundle_accessor.swift` for
+    /// targets with resources) to `<binPath>/<Target>.build/DerivedSources/` and
+    /// never co-locates user sources there, so a shallow glob is safe. No filename
+    /// whitelist — SPM has renamed the accessor across Swift versions and may add
+    /// more generated files in the future.
+    nonisolated static func collectGeneratedSources(
+        binPath: URL, targetName: String
+    ) -> [URL] {
+        let derivedDir = binPath
+            .appendingPathComponent("\(targetName).build")
+            .appendingPathComponent("DerivedSources")
+        guard
+            let entries = try? FileManager.default.contentsOfDirectory(
+                at: derivedDir,
+                includingPropertiesForKeys: nil,
+                options: [.skipsHiddenFiles]
+            )
+        else {
+            return []
+        }
+        return entries
+            .filter { $0.pathExtension == "swift" }
+            .map { $0.standardizedFileURL }
     }
 
     // MARK: - Private: Package Description

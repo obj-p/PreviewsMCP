@@ -14,6 +14,11 @@ struct SnapshotCommandTests {
 
     // MARK: - macOS snapshot tests (SPM example)
 
+    /// Regression guard for SPM-generated-source handling: the ToDo target
+    /// declares `resources: [.process("Resources")]` and ToDoView.swift
+    /// references `Bundle.module`, so this test fails at compile time if
+    /// `SPMBuildSystem.collectGeneratedSources` stops including
+    /// `<binPath>/ToDo.build/DerivedSources/resource_bundle_accessor.swift`.
     @Test("Basic macOS snapshot produces valid PNG", .timeLimit(.minutes(5)))
     func basicMacOSSnapshot() async throws {
         try await DaemonTestLock.run {

@@ -997,4 +997,33 @@ struct BuildSystemTests {
         let syncPlatforms = SPMBuildSystem.detectPlatforms(for: sourceFile)
         #expect(asyncPlatforms == syncPlatforms)
     }
+
+    // MARK: - SPMBuildSystem.collectGeneratedSources
+
+    @Test("SPMBuildSystem finds SPM-generated resource accessor under <Target>.build/DerivedSources")
+    func collectGeneratedSources_spm_findsResourceAccessor() throws {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-test-\(UUID().uuidString)")
+        let derivedDir = tmpDir.appendingPathComponent("Foo.build/DerivedSources")
+        try FileManager.default.createDirectory(at: derivedDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        let accessor = derivedDir.appendingPathComponent("resource_bundle_accessor.swift")
+        try "extension Foundation.Bundle { static var module: Bundle { .main } }"
+            .write(to: accessor, atomically: true, encoding: .utf8)
+
+        let found = SPMBuildSystem.collectGeneratedSources(binPath: tmpDir, targetName: "Foo")
+        #expect(found.map(\.lastPathComponent) == ["resource_bundle_accessor.swift"])
+    }
+
+    @Test("SPMBuildSystem returns empty when no generated sources exist")
+    func collectGeneratedSources_spm_emptyWhenMissing() throws {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        let found = SPMBuildSystem.collectGeneratedSources(binPath: tmpDir, targetName: "Missing")
+        #expect(found.isEmpty)
+    }
 }

@@ -24,7 +24,8 @@ let package = Package(
                 .product(name: "LocalDep", package: "LocalDep"),
                 .product(name: "Lottie", package: "lottie-spm"),
             ],
-            path: "Sources/ToDo"
+            path: "Sources/ToDo",
+            resources: [.process("Resources")]
         ),
     ]
 )
