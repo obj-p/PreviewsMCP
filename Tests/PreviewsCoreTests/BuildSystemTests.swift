@@ -1026,4 +1026,37 @@ struct BuildSystemTests {
         let found = SPMBuildSystem.collectGeneratedSources(binPath: tmpDir, targetName: "Missing")
         #expect(found.isEmpty)
     }
+
+    // MARK: - XcodeBuildSystem.collectGeneratedSources
+
+    @Test("XcodeBuildSystem finds Xcode-generated swift under DERIVED_FILE_DIR/DerivedSources")
+    func collectGeneratedSources_xcode_findsDerivedSwift() throws {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-test-\(UUID().uuidString)")
+        let derivedSources = tmpDir.appendingPathComponent("DerivedSources")
+        try FileManager.default.createDirectory(at: derivedSources, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        let assets = derivedSources.appendingPathComponent("GeneratedAssetSymbols.swift")
+        try "extension ColorResource { }".write(to: assets, atomically: true, encoding: .utf8)
+        let strings = derivedSources.appendingPathComponent("GeneratedStringSymbols.swift")
+        try "extension String { }".write(to: strings, atomically: true, encoding: .utf8)
+
+        let found = XcodeBuildSystem.collectGeneratedSources(derivedFileDir: tmpDir)
+        #expect(
+            Set(found.map(\.lastPathComponent))
+                == Set(["GeneratedAssetSymbols.swift", "GeneratedStringSymbols.swift"])
+        )
+    }
+
+    @Test("XcodeBuildSystem returns empty when DerivedSources is missing")
+    func collectGeneratedSources_xcode_emptyWhenMissing() throws {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        let found = XcodeBuildSystem.collectGeneratedSources(derivedFileDir: tmpDir)
+        #expect(found.isEmpty)
+    }
 }

@@ -112,7 +112,23 @@ public actor XcodeBuildSystem: BuildSystem {
         }
 
         // 5. Collect source files for Tier 2 (from OutputFileMap.json)
-        let sourceFiles = collectSourceFiles(settings: settings, targetName: targetName)
+        var sourceFiles = collectSourceFiles(settings: settings, targetName: targetName)
+
+        // 5b. Union Xcode-generated Swift sources from DERIVED_FILE_DIR.
+        //     OutputFileMap lists the swift-driver's input files only — it does
+        //     NOT include files Xcode generates during the build (asset
+        //     symbols, string catalog symbols, plist symbols, Core Data
+        //     NSManagedObject subclasses, etc.). Without these, previews that
+        //     reference Color.brandPrimary / Image.foo and friends fail to
+        //     compile with "type 'Color' has no member 'brandPrimary'".
+        if let derivedFileDir = settings["DERIVED_FILE_DIR"] {
+            let generated = Self.collectGeneratedSources(
+                derivedFileDir: URL(fileURLWithPath: derivedFileDir)
+            )
+            if !generated.isEmpty {
+                sourceFiles = (sourceFiles ?? []) + generated
+            }
+        }
 
         // 6. Build compiler flags
         let compilerFlags = buildCompilerFlags(settings: settings)
@@ -254,6 +270,28 @@ public actor XcodeBuildSystem: BuildSystem {
         }
 
         return sourceFiles.isEmpty ? nil : sourceFiles
+    }
+
+    /// Collect Xcode-generated Swift sources that the Xcode driver would
+    /// normally feed to swiftc. Xcode writes these to
+    /// `<DERIVED_FILE_DIR>/DerivedSources/` — `GeneratedAssetSymbols.swift`
+    /// (asset catalog symbols), `GeneratedStringSymbols.swift` (string
+    /// catalogs), `GeneratedPlistSymbols.swift`, and similar. No filename
+    /// whitelist — Xcode's generator set changes across releases.
+    nonisolated static func collectGeneratedSources(derivedFileDir: URL) -> [URL] {
+        let derivedSources = derivedFileDir.appendingPathComponent("DerivedSources")
+        guard
+            let entries = try? FileManager.default.contentsOfDirectory(
+                at: derivedSources,
+                includingPropertiesForKeys: nil,
+                options: [.skipsHiddenFiles]
+            )
+        else {
+            return []
+        }
+        return entries
+            .filter { $0.pathExtension == "swift" }
+            .map { $0.standardizedFileURL }
     }
 
     // MARK: - Private: Compiler Flags

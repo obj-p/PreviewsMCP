@@ -257,6 +257,11 @@ struct SnapshotCommandTests {
 
     // MARK: - Build system tests (gated)
 
+    /// Regression guard for Xcode-generated-source handling: the ToDo target
+    /// ships an Assets.xcassets with a BrandPrimary color and ToDoView.swift
+    /// references `Color(.brandPrimary)`, so this test fails at compile time
+    /// if `XcodeBuildSystem.collectGeneratedSources` stops including
+    /// `<DERIVED_FILE_DIR>/DerivedSources/GeneratedAssetSymbols.swift`.
     @Test("Snapshot of xcodeproj example with --project", .timeLimit(.minutes(5)))
     func snapshotXcodeproj() async throws {
         try await DaemonTestLock.run {

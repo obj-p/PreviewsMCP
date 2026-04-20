@@ -25,7 +25,7 @@ struct ToDoView: View {
                             title: "Progress",
                             value: "\(completedCount)/\(items.count)",
                             detail: "\(remainingCount) remaining",
-                            color: .blue
+                            color: Color(.brandPrimary)
                         ).tag(0)
                         SummaryCard(
                             title: "Next Up",
