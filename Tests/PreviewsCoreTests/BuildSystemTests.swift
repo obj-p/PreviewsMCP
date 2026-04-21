@@ -997,4 +997,87 @@ struct BuildSystemTests {
         let syncPlatforms = SPMBuildSystem.detectPlatforms(for: sourceFile)
         #expect(asyncPlatforms == syncPlatforms)
     }
+
+    // MARK: - SPMBuildSystem.collectGeneratedSources
+
+    @Test("SPMBuildSystem finds SPM-generated resource accessor under <Target>.build/DerivedSources")
+    func collectGeneratedSources_spm_findsResourceAccessor() throws {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-test-\(UUID().uuidString)")
+        let derivedDir = tmpDir.appendingPathComponent("Foo.build/DerivedSources")
+        try FileManager.default.createDirectory(at: derivedDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        let accessor = derivedDir.appendingPathComponent("resource_bundle_accessor.swift")
+        try "extension Foundation.Bundle { static var module: Bundle { .main } }"
+            .write(to: accessor, atomically: true, encoding: .utf8)
+
+        let found = SPMBuildSystem.collectGeneratedSources(binPath: tmpDir, targetName: "Foo")
+        #expect(found.map(\.lastPathComponent) == ["resource_bundle_accessor.swift"])
+    }
+
+    @Test("SPMBuildSystem returns empty when no generated sources exist")
+    func collectGeneratedSources_spm_emptyWhenMissing() throws {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        let found = SPMBuildSystem.collectGeneratedSources(binPath: tmpDir, targetName: "Missing")
+        #expect(found.isEmpty)
+    }
+
+    @Test("SPMBuildSystem.collectGeneratedSources only returns .swift files")
+    func collectGeneratedSources_spm_filtersByExtension() throws {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-test-\(UUID().uuidString)")
+        let derivedDir = tmpDir.appendingPathComponent("Foo.build/DerivedSources")
+        try FileManager.default.createDirectory(at: derivedDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        try "// swift".write(
+            to: derivedDir.appendingPathComponent("accessor.swift"), atomically: true,
+            encoding: .utf8)
+        try "{}".write(
+            to: derivedDir.appendingPathComponent("accessor.json"), atomically: true,
+            encoding: .utf8)
+        try "data".write(
+            to: derivedDir.appendingPathComponent("accessor.d"), atomically: true, encoding: .utf8)
+
+        let found = SPMBuildSystem.collectGeneratedSources(binPath: tmpDir, targetName: "Foo")
+        #expect(found.map(\.lastPathComponent) == ["accessor.swift"])
+    }
+
+    // MARK: - XcodeBuildSystem.collectGeneratedSources
+
+    @Test("XcodeBuildSystem finds Xcode-generated swift under DERIVED_FILE_DIR/DerivedSources")
+    func collectGeneratedSources_xcode_findsDerivedSwift() throws {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-test-\(UUID().uuidString)")
+        let derivedSources = tmpDir.appendingPathComponent("DerivedSources")
+        try FileManager.default.createDirectory(at: derivedSources, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        let assets = derivedSources.appendingPathComponent("GeneratedAssetSymbols.swift")
+        try "extension ColorResource { }".write(to: assets, atomically: true, encoding: .utf8)
+        let strings = derivedSources.appendingPathComponent("GeneratedStringSymbols.swift")
+        try "extension String { }".write(to: strings, atomically: true, encoding: .utf8)
+
+        let found = XcodeBuildSystem.collectGeneratedSources(derivedFileDir: tmpDir)
+        #expect(
+            Set(found.map(\.lastPathComponent))
+                == Set(["GeneratedAssetSymbols.swift", "GeneratedStringSymbols.swift"])
+        )
+    }
+
+    @Test("XcodeBuildSystem returns empty when DerivedSources is missing")
+    func collectGeneratedSources_xcode_emptyWhenMissing() throws {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        let found = XcodeBuildSystem.collectGeneratedSources(derivedFileDir: tmpDir)
+        #expect(found.isEmpty)
+    }
 }

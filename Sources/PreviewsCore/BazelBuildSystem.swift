@@ -225,6 +225,18 @@ public actor BazelBuildSystem: BuildSystem {
     // MARK: - Private: Source Files (Tier 2)
 
     /// Collect all source files for the target, excluding the preview file.
+    ///
+    /// Unlike SPM and Xcode, we do not walk a "DerivedSources" directory for
+    /// auto-generated Swift files. rules_swift's `swift_library` does not
+    /// synthesize a `Bundle.module` accessor for resources — `apple_resource_bundle`
+    /// yields a separate bundle reached via `Bundle(identifier:)` or a
+    /// hand-written accessor. Known gaps this method does not cover:
+    ///   * `swift_proto_library` / `swift_grpc_library` emit `.swift` under
+    ///     `bazel-bin/<pkg>/<name>.proto_library/`.
+    ///   * Consumer macros that produce adjacent `.swift` outputs.
+    /// If those cases need to be previewed, extend by querying
+    /// `labels(outs, <target>)` or `bazel cquery --output=files <target>` and
+    /// unioning any `.swift` outputs with the `srcs` result below.
     private func collectSourceFiles(target: String) async throws -> [URL]? {
         let output: String
         do {

@@ -30,7 +30,11 @@ struct ToDoView: View {
                         ).tag(0)
                         SummaryCard(
                             title: "Next Up",
-                            value: items.first { !$0.isComplete }?.title ?? "All done!",
+                            value: items.first { !$0.isComplete }?.title
+                                ?? Bundle.module.localizedString(
+                                    forKey: "todo.empty.title",
+                                    value: "All done!",
+                                    table: nil),
                             detail: "Top priority",
                             color: .orange
                         ).tag(1)
