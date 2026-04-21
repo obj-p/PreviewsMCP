@@ -34,6 +34,8 @@ final class MCPTestServer: @unchecked Sendable {
     /// Path to the per-instance log file that captures the server subprocess's stderr.
     /// Persists on disk after `stop()` so post-mortem inspection is possible.
     let stderrLogPath: URL
+    private let startedAt: ContinuousClock.Instant
+    private let watchdog: DispatchSourceTimer
 
     /// Backing counter for `observedHeartbeatCount()`. Incremented from a
     /// background notification handler; read under the lock.
@@ -50,13 +52,17 @@ final class MCPTestServer: @unchecked Sendable {
     private init(
         process: Process, client: Client,
         stdinPipe: Pipe, stdoutPipe: Pipe,
-        stderrLogPath: URL
+        stderrLogPath: URL,
+        watchdog: DispatchSourceTimer,
+        startedAt: ContinuousClock.Instant
     ) {
         self.process = process
         self.client = client
         self.stdinPipe = stdinPipe
         self.stdoutPipe = stdoutPipe
         self.stderrLogPath = stderrLogPath
+        self.watchdog = watchdog
+        self.startedAt = startedAt
     }
 
     // MARK: - Lifecycle
@@ -104,10 +110,26 @@ final class MCPTestServer: @unchecked Sendable {
         let client = Client(name: "mcp-integration-test", version: "1.0")
         _ = try await client.connect(transport: transport)
 
+        // Watchdog: fires every 60s on a libdispatch queue (NOT Swift
+        // concurrency) so CI hangs caused by cooperative-pool starvation
+        // still produce diagnostic output. Without this, tests that hang
+        // in a non-yielding await die silently when Swift Testing's
+        // .timeLimit fires, and we lose the server stderr that would
+        // tell us what the daemon was actually doing. See AGENTS.md
+        // "Test Notes" and the comment on stop() for prior occurrences
+        // of this class of failure.
+        let watchdog = DispatchSource.makeTimerSource(
+            queue: DispatchQueue.global(qos: .utility))
+        watchdog.schedule(deadline: .now() + 60, repeating: 60)
+
+        let startedAt = ContinuousClock.now
+
         let server = MCPTestServer(
             process: process, client: client,
             stdinPipe: stdinPipe, stdoutPipe: stdoutPipe,
-            stderrLogPath: stderrLogPath
+            stderrLogPath: stderrLogPath,
+            watchdog: watchdog,
+            startedAt: startedAt
         )
 
         // Tally `logger: "heartbeat"` notifications so tests can assert
@@ -120,6 +142,11 @@ final class MCPTestServer: @unchecked Sendable {
                 server?.heartbeatCounter.withLock { $0 += 1 }
             }
         }
+
+        watchdog.setEventHandler { [weak server] in
+            server?.emitWatchdogHeartbeat()
+        }
+        watchdog.resume()
 
         // Detect unexpected server termination so pending callTool requests fail fast
         // instead of hanging forever on the MCP client's continuation, and so the SDK's
@@ -150,6 +177,7 @@ final class MCPTestServer: @unchecked Sendable {
     /// Safe from deadlock because Client.disconnect() runs on the client actor's
     /// executor, which is independent of any thread held by the calling defer.
     func stop() {
+        watchdog.cancel()
         process.terminationHandler = nil
         if process.isRunning {
             process.terminate()
@@ -309,6 +337,35 @@ final class MCPTestServer: @unchecked Sendable {
     /// Safe to call at any time; reads may trail in-flight writes slightly.
     func stderrLog() -> String {
         (try? String(contentsOfFile: stderrLogPath.path, encoding: .utf8)) ?? ""
+    }
+
+    /// Periodic diagnostic emitted by the watchdog timer. Writes the server
+    /// subprocess's elapsed runtime and the tail of its captured stderr to
+    /// the test process's own stderr via a blocking fputs, bypassing both
+    /// Issue.record (which requires Swift concurrency to be making forward
+    /// progress) and Swift's stdout caching.
+    ///
+    /// Silent on the happy path — tests that complete in under 60s never
+    /// trigger a heartbeat. A test that hangs produces one line per minute
+    /// with the server's most recent stderr lines, so the next CI failure
+    /// has enough context to localize the hang.
+    private func emitWatchdogHeartbeat() {
+        let elapsed = ContinuousClock.now - startedAt
+        let elapsedSeconds = Int(elapsed.components.seconds)
+        let log = stderrLog()
+        let tailLines = log
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .suffix(5)
+            .joined(separator: "\n")
+        let tailDescription = tailLines.isEmpty ? "(server stderr empty)" : String(tailLines)
+        let message = """
+            [MCPTestServer watchdog t=\(elapsedSeconds)s] alive — server stderr tail:
+            \(tailDescription)
+            [/watchdog]
+
+            """
+        fputs(message, stderr)
+        fflush(stderr)
     }
 
     /// Poll the server's stderr log until it contains `needle`, up to `timeout`.

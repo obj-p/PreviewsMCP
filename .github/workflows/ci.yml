@@ -124,6 +124,19 @@ jobs:
           NSUnbufferedIO: "YES"
         run: swift test --filter "MCPIntegrationTests" --skip "IOSMCPTests"
 
+      - name: Dump MCP server stderr on failure
+        if: failure()
+        run: |
+          echo "--- MCPTestServer per-instance stderr logs ---"
+          for f in "$TMPDIR"/previewsmcp-test-*.log /tmp/previewsmcp-test-*.log; do
+            [ -f "$f" ] || continue
+            echo "=== $f ==="
+            cat "$f"
+            echo
+          done
+          echo "--- daemon log ($PREVIEWSMCP_SOCKET_DIR/serve.log) ---"
+          cat "$PREVIEWSMCP_SOCKET_DIR/serve.log" 2>/dev/null || echo "(no log file)"
+
   ios-tests:
     needs: changes
     if: needs.changes.outputs.ios == 'true'
