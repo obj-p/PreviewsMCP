@@ -94,6 +94,21 @@ struct PreviewSessionBuildContextTests {
             flags.contains("-rpath"),
             "SPMBuildSystem should add -rpath for framework dlopen; flags were: \(flags)"
         )
+        // Package-access: SPM passes `-package-name <identity>` to every
+        // swiftc invocation in the package. The dylib recompile must carry
+        // the same flag for `package`-scoped symbols to remain visible
+        // across module boundaries. For `examples/spm/` SPM derives the
+        // identity as "spm" (lowercased directory basename).
+        #expect(
+            flags.contains("-package-name"),
+            "SPMBuildSystem should forward -package-name from .build/debug.yaml; flags were: \(flags)"
+        )
+        if let idx = flags.firstIndex(of: "-package-name") {
+            #expect(
+                idx + 1 < flags.count && flags[idx + 1] == "spm",
+                "Expected -package-name spm; flags were: \(flags)"
+            )
+        }
     }
 
     @Test("Tier 2 compile: dylib + populated literals + DesignTimeStore symbols")

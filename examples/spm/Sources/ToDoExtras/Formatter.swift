@@ -10,3 +10,13 @@ public enum ProgressFormatter {
         return "\(completed)/\(total) (\(percent)%)"
     }
 }
+
+/// Package-scoped helper exercised from `ToDo`. `package` access requires the
+/// consumer to be compiled with the same `-package-name` as this module —
+/// without that flag on the dylib recompile, the preview build fails with
+/// "cannot find 'PackageScopedLabel' in scope".
+package enum PackageScopedLabel {
+    package static func remaining(_ count: Int) -> String {
+        count == 1 ? "1 item remaining" : "\(count) items remaining"
+    }
+}
