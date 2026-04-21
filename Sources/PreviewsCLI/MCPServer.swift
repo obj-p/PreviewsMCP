@@ -150,6 +150,11 @@ func configureMCPServer(
 /// `logger` discriminator lets clients filter these out of human-visible
 /// log surfaces (see `DaemonClient.registerStderrLogForwarder`) while
 /// still receiving them as liveness-timer bumps.
+///
+/// Timing contract for downstream consumers (Phase 2 stall detector): the
+/// first ping fires at T+2s relative to `server.start`, not T+0. A
+/// client-side liveness timer should grant at least one full heartbeat
+/// interval of grace on connect before declaring the daemon wedged.
 func runMCPServer(_ server: Server, transport: any Transport) async throws {
     let heartbeat = Task.detached {
         while !Task.isCancelled {

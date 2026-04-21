@@ -35,11 +35,17 @@ final class MCPTestServer: @unchecked Sendable {
     /// Persists on disk after `stop()` so post-mortem inspection is possible.
     let stderrLogPath: URL
 
-    /// Count of `LogMessageNotification`s with `logger == "heartbeat"`
-    /// received since `start()`. Used by tests verifying the daemon's
-    /// unconditional 2s liveness ping contract.
+    /// Backing counter for `observedHeartbeatCount()`. Incremented from a
+    /// background notification handler; read under the lock.
     private let heartbeatCounter = OSAllocatedUnfairLock<Int>(initialState: 0)
-    var heartbeatCount: Int { heartbeatCounter.withLock { $0 } }
+
+    /// Snapshot count of `LogMessageNotification`s with `logger == "heartbeat"`
+    /// received since `start()`. Method (not property) to signal that the
+    /// value is racy — consecutive calls may return different values as
+    /// more pings arrive asynchronously.
+    func observedHeartbeatCount() -> Int {
+        heartbeatCounter.withLock { $0 }
+    }
 
     private init(
         process: Process, client: Client,

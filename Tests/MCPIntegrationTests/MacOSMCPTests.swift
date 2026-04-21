@@ -545,10 +545,10 @@ struct MacOSMCPTests {
     /// important for the FileWatcher hot-reload path where today's silence
     /// spans the full swiftc recompile with no other MCP traffic.
     ///
-    /// This test idles for ~5s and asserts at least 2 heartbeats arrive.
-    /// Cadence over that window should produce 2–3 hits; the lower bound
-    /// tolerates a dropped first ping if it arrives before the client's
-    /// handler registration, plus ±100ms scheduling jitter.
+    /// This test idles for 6s and asserts at least 2 heartbeats arrive.
+    /// The first heartbeat fires at T+2s relative to `server.start` (not
+    /// subprocess spawn), so a 6s idle window guarantees a two-ping
+    /// margin even if subprocess boot eats half a second.
     @Test(
         "daemon emits unconditional 2s heartbeat notifications",
         .timeLimit(.minutes(1))
@@ -559,11 +559,12 @@ struct MacOSMCPTests {
 
         // Idle, without issuing any tool calls. Heartbeats must fire
         // regardless of request activity.
-        try await Task.sleep(for: .seconds(5))
+        try await Task.sleep(for: .seconds(6))
 
+        let observed = server.observedHeartbeatCount()
         #expect(
-            server.heartbeatCount >= 2,
-            "expected ≥2 heartbeats in a 5s idle window (got \(server.heartbeatCount))"
+            observed >= 2,
+            "expected ≥2 heartbeats in a 6s idle window (got \(observed))"
         )
     }
 
