@@ -1,24 +1,6 @@
 import Foundation
 import Testing
 
-/// Thread-safe accumulator for a pipe's output. `readabilityHandler` runs
-/// on a background queue; writes here are synchronized so the poll loop can
-/// safely read `contents()`.
-private final class StdoutBuffer: @unchecked Sendable {
-    private let lock = NSLock()
-    private var text = ""
-
-    func append(_ s: String) {
-        lock.lock(); defer { lock.unlock() }
-        text.append(s)
-    }
-
-    func contents() -> String {
-        lock.lock(); defer { lock.unlock() }
-        return text
-    }
-}
-
 /// Integration tests for the `logs` subcommand — the debugging ergonomic
 /// wrapper over `tail` on `~/.previewsmcp/serve.log`.
 ///
@@ -78,10 +60,15 @@ struct LogsCommandTests {
     }
 
     /// Follow mode is the command's only non-trivial runtime path — tail
-    /// streams, then SIGINT must propagate via the shared process group so
-    /// the CLI doesn't leave orphaned tail processes. CLIRunner.run can't
-    /// exercise this (it captures stdout end-to-end), so drive a raw
-    /// Process the way RunCommandTests does for its SIGINT test.
+    /// streams, then SIGINT must propagate to the child so the CLI doesn't
+    /// leave orphaned tail processes. `CLIRunner.run` can't exercise this
+    /// (it captures stdout end-to-end), so drive a raw Process the way
+    /// RunCommandTests does for its SIGINT test.
+    ///
+    /// Uses `-n 0` so the initial-content print doesn't race with our
+    /// sentinel append; we poke the log on every poll iteration until the
+    /// stream observes the sentinel, avoiding a magic "wait for tail to
+    /// arm its watcher" sleep.
     @Test(
         "logs --follow streams new lines and exits on SIGINT",
         .timeLimit(.minutes(1))
@@ -89,8 +76,7 @@ struct LogsCommandTests {
     func followStreamsAndExitsOnSIGINT() async throws {
         try await DaemonTestLock.run {
             let logURL = CLIRunner.daemonLogFile
-            // Reset to a known state so our appended sentinel is uniquely
-            // identifiable in the stream.
+            // Reset to a known state so our sentinel is uniquely identifiable.
             try? Data().write(to: logURL)
 
             let proc = Process()
@@ -104,20 +90,19 @@ struct LogsCommandTests {
             proc.standardError = FileHandle.nullDevice
             try proc.run()
 
-            // Give tail a moment to open the file before we append, so the
-            // append lands as a fresh fs event rather than being read as
-            // initial content.
-            try await Task.sleep(nanoseconds: 300_000_000)
-
             let sentinel = "logs-follow-sentinel-\(UUID().uuidString)"
-            if let handle = try? FileHandle(forWritingTo: logURL) {
-                _ = try? handle.seekToEnd()
-                try? handle.write(contentsOf: Data((sentinel + "\n").utf8))
-                try? handle.close()
-            }
-
             let sawSentinel = try await Self.waitForStdoutMatch(
-                pipe: stdoutPipe, substring: sentinel, timeout: 10)
+                pipe: stdoutPipe, substring: sentinel, timeout: 10
+            ) {
+                // Rewrite the sentinel on every poll. One of these writes
+                // will land after tail has opened the file and armed its
+                // watcher, at which point the stream picks it up.
+                if let handle = try? FileHandle(forWritingTo: logURL) {
+                    _ = try? handle.seekToEnd()
+                    try? handle.write(contentsOf: Data((sentinel + "\n").utf8))
+                    try? handle.close()
+                }
+            }
             #expect(sawSentinel, "sentinel '\(sentinel)' should stream to stdout within 10s")
             #expect(proc.isRunning, "follow mode should not exit on its own")
 
@@ -133,10 +118,17 @@ struct LogsCommandTests {
 
     // MARK: - Helpers
 
+    /// Polls `pipe` for `substring` until the deadline. `poke` runs on each
+    /// iteration before the sleep — use it to re-trigger the event the
+    /// stream is supposed to observe, so the test doesn't depend on
+    /// subprocess-startup timing.
     private static func waitForStdoutMatch(
-        pipe: Pipe, substring: String, timeout: TimeInterval
+        pipe: Pipe,
+        substring: String,
+        timeout: TimeInterval,
+        poke: () async throws -> Void = {}
     ) async throws -> Bool {
-        let buffer = StdoutBuffer()
+        let buffer = PipeBuffer()
         let handle = pipe.fileHandleForReading
         handle.readabilityHandler = { fh in
             let data = fh.availableData
@@ -149,7 +141,8 @@ struct LogsCommandTests {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
             if buffer.contents().contains(substring) { return true }
-            try await Task.sleep(nanoseconds: 100_000_000)
+            try await poke()
+            try await Task.sleep(nanoseconds: 200_000_000)
         }
         return false
     }

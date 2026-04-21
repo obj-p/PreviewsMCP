@@ -205,7 +205,7 @@ Other levers:
 
 - `previewsmcp status --json` — confirm the daemon is still alive (`running` / `transitional` / `stopped`) while a command is blocked.
 - `previewsmcp kill-daemon` followed by re-running the command — gives a clean daemon and a fresh `serve.log` worth of context.
-- `PREVIEWSMCP_SOCKET_DIR=/tmp/previewsmcp-debug previewsmcp …` — relocates the socket, PID, and log files so you can isolate a debug run from an existing daemon.
+- `PREVIEWSMCP_SOCKET_DIR=/tmp/previewsmcp-debug previewsmcp …` — relocates the socket, PID, and log files so you can isolate a debug run from an existing daemon. Export the variable (or prefix both invocations) so `previewsmcp logs` targets the same isolated dir rather than falling back to the default `~/.previewsmcp/serve.log`.
 - Subprocess failures (`xcodebuild`, `swiftc`, `codesign`) surface their captured stderr in the error returned to the CLI; a hang, however, won't — so if the last phase logged is a build phase and the command isn't progressing, check for a live `xcodebuild` or `swiftc` process with `ps -ef | grep -E 'xcodebuild|swiftc'`.
 
 

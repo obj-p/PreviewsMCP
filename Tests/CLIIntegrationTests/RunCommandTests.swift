@@ -1,24 +1,6 @@
 import Foundation
 import Testing
 
-/// Thread-safe accumulator for a pipe's stderr output. The readabilityHandler
-/// closure runs on a background queue; this class synchronizes writes so the
-/// poll loop can safely read contents().
-private final class StderrBuffer: @unchecked Sendable {
-    private let lock = NSLock()
-    private var text = ""
-
-    func append(_ s: String) {
-        lock.lock(); defer { lock.unlock() }
-        text.append(s)
-    }
-
-    func contents() -> String {
-        lock.lock(); defer { lock.unlock() }
-        return text
-    }
-}
-
 /// Integration tests for the `run` subcommand after its migration to
 /// DaemonClient. Exercises the attached / detached flows end-to-end against
 /// a real daemon and real preview compilation.
@@ -253,7 +235,7 @@ struct RunCommandTests {
         pattern: Regex<Output>,
         timeout: TimeInterval
     ) async throws -> Bool {
-        let buffer = StderrBuffer()
+        let buffer = PipeBuffer()
         let handle = pipe.fileHandleForReading
         handle.readabilityHandler = { fileHandle in
             let data = fileHandle.availableData

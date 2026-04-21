@@ -70,7 +70,16 @@ struct LogsCommand: ParsableCommand {
         //   - `kill -INT <parent-pid>` from a script or supervisor: the
         //     signal arrives only at the parent. Without forwarding,
         //     tail would outlive us and be reparented to launchd.
-        // The sources run on a background queue because waitUntilExit
+        //
+        // There is a narrow race between process.run() above and the
+        // first signal() call below where the parent still has default
+        // SIGINT/SIGTERM disposition. It's benign: in the tty case the
+        // pgroup delivery kills both parent and child at once (same
+        // observable result); in the direct-kill case the window is a
+        // handful of instructions wide, no worse than the equivalent
+        // gap in RunCommand.blockUntilSignal.
+        //
+        // Sources run on a background queue because waitUntilExit
         // blocks the calling thread (main for sync ParsableCommand).
         let signalQueue = DispatchQueue.global(qos: .userInitiated)
         var signalSources: [DispatchSourceSignal] = []
@@ -82,6 +91,11 @@ struct LogsCommand: ParsableCommand {
             signalSources.append(src)
         }
         defer {
+            // LogsCommand is a CLI leaf — no earlier code on this path
+            // installs a SIGINT/SIGTERM handler — so restoring SIG_DFL
+            // rather than the prior disposition is safe. If a future
+            // pre-run hook at the app layer installs one, revisit this
+            // and RunCommand.blockUntilSignal together.
             for src in signalSources { src.cancel() }
             signal(SIGINT, SIG_DFL)
             signal(SIGTERM, SIG_DFL)
