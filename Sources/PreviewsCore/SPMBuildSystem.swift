@@ -248,6 +248,20 @@ public actor SPMBuildSystem: BuildSystem {
             flags += ["-I", includeDir.path]
         }
 
+        // Forward SPM's -package-name so package-access symbols from sibling
+        // targets in the same package stay visible when the dylib recompiles.
+        // The identity cannot be derived from Package.swift's `name:` — for
+        // path packages SPM uses the directory basename lowercased — so we
+        // read the exact value out of the LLBuild manifest that `swift build`
+        // just wrote. Deriving the manifest path from `binPath` also covers
+        // users who relocate `.build` via --scratch-path / SWIFTPM_BUILD_DIR.
+        if let manifestPath = Self.manifestPath(forBinPath: binPath),
+            let packageName = Self.readPackageName(
+                fromManifestAt: manifestPath, forTarget: targetName)
+        {
+            flags += ["-package-name", packageName]
+        }
+
         // 8. Collect Tier 2 data: other source files in the target
         var otherSourceFiles = try collectSourceFiles(
             targetName: targetName,
@@ -504,6 +518,48 @@ public actor SPMBuildSystem: BuildSystem {
             files.append(url)
         }
         return files
+    }
+
+    // MARK: - Private: Package Name (from build manifest)
+
+    /// Locate SPM's LLBuild manifest given the build's bin path.
+    /// Bin path is `<scratch>/<triple>/<config>/`; the manifest lives at
+    /// `<scratch>/<config>.yaml`.
+    static func manifestPath(forBinPath binPath: URL) -> URL? {
+        let config = binPath.lastPathComponent
+        guard !config.isEmpty else { return nil }
+        let scratchDir = binPath.deletingLastPathComponent().deletingLastPathComponent()
+        return scratchDir.appendingPathComponent("\(config).yaml")
+    }
+
+    /// Read the `-package-name` value SPM passed to swiftc for a given target
+    /// out of the LLBuild manifest. Returns nil when the file is missing, the
+    /// target's compile command can't be found, or the target has no
+    /// `-package-name` flag (older toolchains).
+    ///
+    /// The manifest encodes each compile command on a single line like
+    ///     args: [..., "-module-name","ToDo", ..., "-package-name","spm"]
+    /// so we scan line-by-line for the one that matches our target and pull
+    /// the adjacent package-name out. Anchoring the module-name match with
+    /// surrounding quotes/commas is what keeps `ToDo` from colliding with
+    /// `ToDoExtras`.
+    static func readPackageName(fromManifestAt url: URL, forTarget target: String) -> String? {
+        guard let data = try? Data(contentsOf: url),
+            let contents = String(data: data, encoding: .utf8)
+        else { return nil }
+
+        let moduleNeedle = "\"-module-name\",\"\(target)\""
+        let packageFlag = "\"-package-name\",\""
+
+        for rawLine in contents.split(separator: "\n", omittingEmptySubsequences: true) {
+            let line = rawLine.trimmingCharacters(in: .whitespaces)
+            guard line.hasPrefix("args: ["), line.contains(moduleNeedle) else { continue }
+            guard let flagRange = line.range(of: packageFlag) else { return nil }
+            let tail = line[flagRange.upperBound...]
+            guard let endQuote = tail.firstIndex(of: "\"") else { return nil }
+            return String(tail[..<endQuote])
+        }
+        return nil
     }
 
     private static func resolvedArPath() async throws -> String {

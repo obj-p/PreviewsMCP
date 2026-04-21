@@ -1080,4 +1080,106 @@ struct BuildSystemTests {
         let found = XcodeBuildSystem.collectGeneratedSources(derivedFileDir: tmpDir)
         #expect(found.isEmpty)
     }
+
+    // MARK: - SPMBuildSystem.readPackageName
+
+    /// Minimal LLBuild manifest fixture covering the three cases the parser
+    /// must handle: target with -package-name, target without it, and two
+    /// targets sharing a common prefix (ToDo / ToDoExtras) that must not
+    /// collide with each other.
+    private static let fixtureManifest = """
+        client:
+          name: basic
+        commands:
+          "<ToDo-debug.module>":
+            tool: swift-compiler
+            module-name: ToDo
+            description: "Compiling Swift Module 'ToDo' (5 sources)"
+            args: ["/path/swiftc","-module-name","ToDo","-emit-module","-Onone","-package-name","spm"]
+
+          "<ToDoExtras-debug.module>":
+            tool: swift-compiler
+            module-name: ToDoExtras
+            description: "Compiling Swift Module 'ToDoExtras' (1 sources)"
+            args: ["/path/swiftc","-module-name","ToDoExtras","-emit-module","-Onone","-package-name","spm"]
+
+          "<LegacyTarget-debug.module>":
+            tool: swift-compiler
+            module-name: LegacyTarget
+            description: "Compiling Swift Module 'LegacyTarget' (1 sources)"
+            args: ["/path/swiftc","-module-name","LegacyTarget","-emit-module","-Onone"]
+        """
+
+    private func writeManifest(_ contents: String) throws -> URL {
+        let tmp = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-manifest-\(UUID().uuidString).yaml")
+        try contents.write(to: tmp, atomically: true, encoding: .utf8)
+        return tmp
+    }
+
+    @Test("readPackageName extracts -package-name for matching target")
+    func readPackageNameFindsTarget() throws {
+        let manifest = try writeManifest(Self.fixtureManifest)
+        defer { try? FileManager.default.removeItem(at: manifest) }
+
+        let name = SPMBuildSystem.readPackageName(
+            fromManifestAt: manifest, forTarget: "ToDo")
+        #expect(name == "spm")
+    }
+
+    @Test("readPackageName distinguishes targets with shared prefix")
+    func readPackageNameAvoidsPrefixCollision() throws {
+        // ToDoExtras starts with "ToDo"; a naive substring match would
+        // return ToDoExtras's args when asked about ToDo (or vice versa).
+        // Anchoring the match with surrounding quotes/commas prevents this.
+        let manifest = try writeManifest(Self.fixtureManifest)
+        defer { try? FileManager.default.removeItem(at: manifest) }
+
+        let todo = SPMBuildSystem.readPackageName(
+            fromManifestAt: manifest, forTarget: "ToDo")
+        let todoExtras = SPMBuildSystem.readPackageName(
+            fromManifestAt: manifest, forTarget: "ToDoExtras")
+        #expect(todo == "spm")
+        #expect(todoExtras == "spm")
+    }
+
+    @Test("readPackageName returns nil when target has no -package-name flag")
+    func readPackageNameNilWhenFlagAbsent() throws {
+        let manifest = try writeManifest(Self.fixtureManifest)
+        defer { try? FileManager.default.removeItem(at: manifest) }
+
+        let name = SPMBuildSystem.readPackageName(
+            fromManifestAt: manifest, forTarget: "LegacyTarget")
+        #expect(name == nil)
+    }
+
+    @Test("readPackageName returns nil when target is not in the manifest")
+    func readPackageNameNilForUnknownTarget() throws {
+        let manifest = try writeManifest(Self.fixtureManifest)
+        defer { try? FileManager.default.removeItem(at: manifest) }
+
+        let name = SPMBuildSystem.readPackageName(
+            fromManifestAt: manifest, forTarget: "DoesNotExist")
+        #expect(name == nil)
+    }
+
+    @Test("readPackageName returns nil when manifest file is missing")
+    func readPackageNameNilForMissingFile() {
+        let missing = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-missing-\(UUID().uuidString).yaml")
+        let name = SPMBuildSystem.readPackageName(
+            fromManifestAt: missing, forTarget: "ToDo")
+        #expect(name == nil)
+    }
+
+    @Test("manifestPath derives <scratch>/<config>.yaml from bin path")
+    func manifestPathFromBinPath() {
+        let bin = URL(fileURLWithPath: "/tmp/pkg/.build/arm64-apple-macosx/debug")
+        let manifest = SPMBuildSystem.manifestPath(forBinPath: bin)
+        #expect(manifest?.path == "/tmp/pkg/.build/debug.yaml")
+
+        let releaseBin = URL(fileURLWithPath: "/tmp/pkg/.build/arm64-apple-macosx/release")
+        let releaseManifest = SPMBuildSystem.manifestPath(forBinPath: releaseBin)
+        #expect(releaseManifest?.path == "/tmp/pkg/.build/release.yaml")
+    }
 }
