@@ -353,7 +353,8 @@ final class MCPTestServer: @unchecked Sendable {
         let elapsed = ContinuousClock.now - startedAt
         let elapsedSeconds = Int(elapsed.components.seconds)
         let log = stderrLog()
-        let tailLines = log
+        let tailLines =
+            log
             .split(separator: "\n", omittingEmptySubsequences: false)
             .suffix(5)
             .joined(separator: "\n")
