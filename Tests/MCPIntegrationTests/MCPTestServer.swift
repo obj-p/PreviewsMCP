@@ -2,6 +2,7 @@ import Foundation
 import MCP
 import System
 import Testing
+import os
 
 /// Manages a `previewsmcp serve` subprocess with an MCP Client connected via stdio pipes.
 /// Thread safety: instances are only used within serialized test suites — never shared across
@@ -159,7 +160,7 @@ final class MCPTestServer: @unchecked Sendable {
         timeout: Duration = .seconds(30)
     ) async throws -> (content: [Tool.Content], isError: Bool?) {
         do {
-            return try await Self.withTimeout(timeout) { [self] in
+            return try await Self.withTimeout(timeout, process: process) { [self] in
                 try await client.callTool(name: name, arguments: arguments)
             }
         } catch is TestTimeoutSentinel {
@@ -342,23 +343,74 @@ final class MCPTestServer: @unchecked Sendable {
 
     // MARK: - Timeout primitive
 
-    /// Race `body` against a timer; throw `TestTimeoutSentinel` if the timer wins.
-    /// Caller is expected to catch the sentinel and add operation-specific context.
+    /// Race `body` against a timer; throw `TestTimeoutSentinel` if the timer
+    /// wins. Caller is expected to catch the sentinel and add operation-
+    /// specific context.
+    ///
+    /// The timer runs on a detached kernel `Thread` (not Swift concurrency,
+    /// not libdispatch), so it fires even when the cooperative thread pool
+    /// is starved by a busy-spin elsewhere in the test process. The prior
+    /// implementation used `withThrowingTaskGroup` + `Task.sleep(for:)` and
+    /// went silent in exactly that scenario — see CI runs 72323677364 /
+    /// 72328816376 (PR #133) and 72345678664 (PR #134) where a wedged
+    /// daemon's `preview_snapshot` callTool continuation never resumed and
+    /// the 30s internal timeout never threw, because the pool was pegged
+    /// in the MCP SDK's AsyncThrowingStream loop.
+    ///
+    /// On timeout we terminate the server subprocess so the daemon-side
+    /// state doesn't persist across tests. The body Task may remain
+    /// suspended forever if its pending MCP continuation is never drained
+    /// (the SDK's transport EOF doesn't resume `pendingRequests`, only
+    /// explicit `disconnect()` does — see swift-sdk `Client.swift:234-276`
+    /// vs `:304-342`). That's acceptable: the caller has already been
+    /// resumed via `CheckedContinuation`, which is a synchronous primitive
+    /// with no cooperative-pool dependency; the leaked Task dies with the
+    /// test process. An exactly-once guard via `OSAllocatedUnfairLock`
+    /// serializes the body vs. timeout race.
     static func withTimeout<T: Sendable>(
         _ duration: Duration,
+        process: Process,
         _ body: @Sendable @escaping () async throws -> T
     ) async throws -> T {
-        try await withThrowingTaskGroup(of: T.self) { group in
-            group.addTask { try await body() }
-            group.addTask {
-                try await Task.sleep(for: duration)
-                throw TestTimeoutSentinel()
+        let resumed = OSAllocatedUnfairLock<Bool>(initialState: false)
+        return try await withCheckedThrowingContinuation {
+            (continuation: CheckedContinuation<T, Error>) in
+
+            // Body path.
+            Task {
+                do {
+                    let result = try await body()
+                    resumed.withLock { done in
+                        guard !done else { return }
+                        done = true
+                        continuation.resume(returning: result)
+                    }
+                } catch {
+                    resumed.withLock { done in
+                        guard !done else { return }
+                        done = true
+                        continuation.resume(throwing: error)
+                    }
+                }
             }
-            defer { group.cancelAll() }
-            guard let result = try await group.next() else {
-                throw TestTimeoutSentinel()
+
+            // Timeout path — detached kernel thread, starvation-immune.
+            let durationSeconds =
+                Double(duration.components.seconds)
+                + Double(duration.components.attoseconds) / 1e18
+            Thread.detachNewThread {
+                Thread.current.name = "MCPTestServer.withTimeout"
+                Thread.sleep(forTimeInterval: durationSeconds)
+                resumed.withLock { done in
+                    guard !done else { return }
+                    done = true
+                    // Kill the subprocess so subsequent tests aren't polluted
+                    // by a wedged daemon. `Process.terminate()` is a plain
+                    // kill(2) syscall; safe from any thread.
+                    process.terminate()
+                    continuation.resume(throwing: TestTimeoutSentinel())
+                }
             }
-            return result
         }
     }
 
