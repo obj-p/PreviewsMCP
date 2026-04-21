@@ -1027,6 +1027,27 @@ struct BuildSystemTests {
         #expect(found.isEmpty)
     }
 
+    @Test("SPMBuildSystem.collectGeneratedSources only returns .swift files")
+    func collectGeneratedSources_spm_filtersByExtension() throws {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-test-\(UUID().uuidString)")
+        let derivedDir = tmpDir.appendingPathComponent("Foo.build/DerivedSources")
+        try FileManager.default.createDirectory(at: derivedDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        try "// swift".write(
+            to: derivedDir.appendingPathComponent("accessor.swift"), atomically: true,
+            encoding: .utf8)
+        try "{}".write(
+            to: derivedDir.appendingPathComponent("accessor.json"), atomically: true,
+            encoding: .utf8)
+        try "data".write(
+            to: derivedDir.appendingPathComponent("accessor.d"), atomically: true, encoding: .utf8)
+
+        let found = SPMBuildSystem.collectGeneratedSources(binPath: tmpDir, targetName: "Foo")
+        #expect(found.map(\.lastPathComponent) == ["accessor.swift"])
+    }
+
     // MARK: - XcodeBuildSystem.collectGeneratedSources
 
     @Test("XcodeBuildSystem finds Xcode-generated swift under DERIVED_FILE_DIR/DerivedSources")

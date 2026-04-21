@@ -37,6 +37,28 @@ struct SPMBuildRecoveryTests {
         #expect(SPMBuildRecovery.parseStaleTripleDirectory(stderr: stderr) == nil)
     }
 
+    @Test("parseStaleTripleDirectory rejects non-triple-shaped child of .build")
+    func rejectsNonTripleChildOfBuild() {
+        // Path is inside .build/ but the child of .build is not a triple
+        // (e.g. a workspace-level helper dir). Without the triple guard we
+        // would walk up and return `/x/.build/workspace-state`, then nuke
+        // it AND build.db.
+        let stderr =
+            "error: command /x/.build/workspace-state/dependencies-state.json not registered\n"
+        #expect(SPMBuildRecovery.parseStaleTripleDirectory(stderr: stderr) == nil)
+    }
+
+    @Test("looksLikeTriple accepts known triples and rejects everything else")
+    func tripleShapeChecker() {
+        #expect(SPMBuildRecovery.looksLikeTriple("arm64-apple-macosx"))
+        #expect(SPMBuildRecovery.looksLikeTriple("arm64-apple-ios-simulator"))
+        #expect(SPMBuildRecovery.looksLikeTriple("x86_64-unknown-linux-gnu"))
+        #expect(!SPMBuildRecovery.looksLikeTriple("workspace-state"))  // not a triple
+        #expect(!SPMBuildRecovery.looksLikeTriple("checkouts"))  // SPM internal
+        #expect(!SPMBuildRecovery.looksLikeTriple("build.db"))  // file, not dir
+        #expect(!SPMBuildRecovery.looksLikeTriple("Some/Path"))  // contains slash
+    }
+
     @Test("cleanStaleArtifacts removes both <triple>/ and sibling build.db, leaves peer dirs")
     func cleanStaleArtifactsRemovesBoth() throws {
         let fm = FileManager.default

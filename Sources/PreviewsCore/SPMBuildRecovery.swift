@@ -72,7 +72,14 @@ public enum SPMBuildRecovery {
 
     /// Parse the affected `<...>.build/<triple>/` directory from an SPM
     /// "not registered" error message. Returns nil if the message doesn't
-    /// match the known pattern.
+    /// match the known pattern OR if the resolved directory doesn't look
+    /// like an Apple/Linux target triple.
+    ///
+    /// The triple-shape guard matters: cleanup also nukes `.build/build.db`,
+    /// so we must be confident the resolved directory really is a per-triple
+    /// build dir. Without the guard, an SPM error mentioning a non-triple
+    /// path under `.build/` (e.g. a workspace-level artifact) would cause us
+    /// to delete the wrong directory plus the shared database.
     ///
     /// Example input line:
     ///     error: command /pkg/.build/arm64-apple-ios-simulator/debug/swift-version--ABC.txt not registered
@@ -83,7 +90,8 @@ public enum SPMBuildRecovery {
             guard line.contains("not registered") else { continue }
             // Extract the path between "command " and " not registered".
             guard let cmdRange = line.range(of: "command "),
-                let endRange = line.range(of: " not registered", range: cmdRange.upperBound..<line.endIndex)
+                let endRange = line.range(
+                    of: " not registered", range: cmdRange.upperBound..<line.endIndex)
             else { continue }
             let pathSubstring = line[cmdRange.upperBound..<endRange.lowerBound]
             let path = String(pathSubstring).trimmingCharacters(in: .whitespaces)
@@ -93,10 +101,27 @@ public enum SPMBuildRecovery {
             var url = URL(fileURLWithPath: path).standardizedFileURL
             while url.path != "/" {
                 let parent = url.deletingLastPathComponent()
-                if parent.lastPathComponent == ".build" { return url }
+                if parent.lastPathComponent == ".build" {
+                    return looksLikeTriple(url.lastPathComponent) ? url : nil
+                }
                 url = parent
             }
         }
         return nil
+    }
+
+    /// Whether a directory name looks like a SPM/Apple/Linux target triple,
+    /// e.g. `arm64-apple-macosx`, `arm64-apple-ios-simulator`,
+    /// `x86_64-unknown-linux-gnu`. Triples are 3+ hyphen-separated tokens
+    /// of `[a-z0-9_]`. The 3-token floor rejects SPM internal directories
+    /// like `workspace-state`, `manifests-cache`, etc. that share `.build/`
+    /// with the per-triple build dirs.
+    static func looksLikeTriple(_ name: String) -> Bool {
+        let tokens = name.split(separator: "-", omittingEmptySubsequences: false)
+        guard tokens.count >= 3 else { return false }
+        let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyz0123456789_")
+        return tokens.allSatisfy { token in
+            !token.isEmpty && token.unicodeScalars.allSatisfy { allowed.contains($0) }
+        }
     }
 }
