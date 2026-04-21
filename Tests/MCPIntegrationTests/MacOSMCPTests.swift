@@ -564,9 +564,17 @@ struct MacOSMCPTests {
         // long-running subprocess gives it a real target without pulling
         // in the full MCPTestServer lifecycle (which would entangle this
         // test with MCP-client state that isn't under test here).
+        //
+        // Route stdio to /dev/null to match MCPTestServer.start()'s hardened
+        // pattern (see its comment on inherited stderr wedging CI runners
+        // on macOS 15). `/bin/sleep` is silent in practice, but leaking
+        // child handles has bitten this codebase before.
         let dummy = Process()
         dummy.executableURL = URL(fileURLWithPath: "/bin/sleep")
         dummy.arguments = ["60"]
+        dummy.standardInput = FileHandle.nullDevice
+        dummy.standardOutput = FileHandle.nullDevice
+        dummy.standardError = FileHandle.nullDevice
         try dummy.run()
         defer {
             if dummy.isRunning { dummy.terminate() }
@@ -582,17 +590,14 @@ struct MacOSMCPTests {
                 return ()
             }
         }
-        let elapsed = ContinuousClock.now - start
-        let elapsedSeconds =
-            Double(elapsed.components.seconds)
-            + Double(elapsed.components.attoseconds) / 1e18
+        let elapsed = (ContinuousClock.now - start).asTimeInterval
 
         // Upper bound absorbs thread-creation + continuation-resume
         // overhead. If the timer doesn't fire at all, the enclosing
         // `.timeLimit(.minutes(1))` catches it.
         #expect(
-            elapsedSeconds >= 2 && elapsedSeconds < 5,
-            "expected timeout within 2–5s (got \(elapsedSeconds)s)"
+            elapsed >= 2 && elapsed < 5,
+            "expected timeout within 2–5s (got \(elapsed)s)"
         )
         #expect(
             !dummy.isRunning,

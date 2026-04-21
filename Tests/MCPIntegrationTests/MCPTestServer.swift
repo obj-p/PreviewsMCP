@@ -360,9 +360,9 @@ final class MCPTestServer: @unchecked Sendable {
     /// On timeout we terminate the server subprocess so the daemon-side
     /// state doesn't persist across tests. The body Task may remain
     /// suspended forever if its pending MCP continuation is never drained
-    /// (the SDK's transport EOF doesn't resume `pendingRequests`, only
-    /// explicit `disconnect()` does — see swift-sdk `Client.swift:234-276`
-    /// vs `:304-342`). That's acceptable: the caller has already been
+    /// — the SDK's `Client.handleMessage(_:)` loop does not resume
+    /// `pendingRequests` on transport EOF; only `Client.disconnect()`
+    /// drains them. That's acceptable: the caller has already been
     /// resumed via `CheckedContinuation`, which is a synchronous primitive
     /// with no cooperative-pool dependency; the leaked Task dies with the
     /// test process. An exactly-once guard via `OSAllocatedUnfairLock`
@@ -395,9 +395,7 @@ final class MCPTestServer: @unchecked Sendable {
             }
 
             // Timeout path — detached kernel thread, starvation-immune.
-            let durationSeconds =
-                Double(duration.components.seconds)
-                + Double(duration.components.attoseconds) / 1e18
+            let durationSeconds = duration.asTimeInterval
             Thread.detachNewThread {
                 Thread.current.name = "MCPTestServer.withTimeout"
                 Thread.sleep(forTimeInterval: durationSeconds)
@@ -439,5 +437,13 @@ enum MCPTestError: Error, LocalizedError {
         case .timedOut(let operation, let duration): "\(operation) timed out after \(duration)"
         case .snapshotFailed: "preview_snapshot returned isError=true"
         }
+    }
+}
+
+extension Duration {
+    /// Seconds as a `TimeInterval`, for interop with Foundation APIs that
+    /// predate `Duration` (`Thread.sleep(forTimeInterval:)`, timing math).
+    var asTimeInterval: TimeInterval {
+        Double(components.seconds) + Double(components.attoseconds) / 1e18
     }
 }
