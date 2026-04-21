@@ -35,7 +35,9 @@ final class MCPTestServer: @unchecked Sendable {
     /// Persists on disk after `stop()` so post-mortem inspection is possible.
     let stderrLogPath: URL
     private let startedAt: ContinuousClock.Instant
-    private let watchdog: DispatchSourceTimer
+    /// Flag the watchdog thread polls between sleeps. Mutated from `stop()`
+    /// via the lock; the thread reads it once per iteration.
+    private let watchdogShouldStop = OSAllocatedUnfairLock<Bool>(initialState: false)
 
     /// Backing counter for `observedHeartbeatCount()`. Incremented from a
     /// background notification handler; read under the lock.
@@ -53,7 +55,6 @@ final class MCPTestServer: @unchecked Sendable {
         process: Process, client: Client,
         stdinPipe: Pipe, stdoutPipe: Pipe,
         stderrLogPath: URL,
-        watchdog: DispatchSourceTimer,
         startedAt: ContinuousClock.Instant
     ) {
         self.process = process
@@ -61,7 +62,6 @@ final class MCPTestServer: @unchecked Sendable {
         self.stdinPipe = stdinPipe
         self.stdoutPipe = stdoutPipe
         self.stderrLogPath = stderrLogPath
-        self.watchdog = watchdog
         self.startedAt = startedAt
     }
 
@@ -110,25 +110,12 @@ final class MCPTestServer: @unchecked Sendable {
         let client = Client(name: "mcp-integration-test", version: "1.0")
         _ = try await client.connect(transport: transport)
 
-        // Watchdog: fires every 60s on a libdispatch queue (NOT Swift
-        // concurrency) so CI hangs caused by cooperative-pool starvation
-        // still produce diagnostic output. Without this, tests that hang
-        // in a non-yielding await die silently when Swift Testing's
-        // .timeLimit fires, and we lose the server stderr that would
-        // tell us what the daemon was actually doing. See AGENTS.md
-        // "Test Notes" and the comment on stop() for prior occurrences
-        // of this class of failure.
-        let watchdog = DispatchSource.makeTimerSource(
-            queue: DispatchQueue.global(qos: .utility))
-        watchdog.schedule(deadline: .now() + 60, repeating: 60)
-
         let startedAt = ContinuousClock.now
 
         let server = MCPTestServer(
             process: process, client: client,
             stdinPipe: stdinPipe, stdoutPipe: stdoutPipe,
             stderrLogPath: stderrLogPath,
-            watchdog: watchdog,
             startedAt: startedAt
         )
 
@@ -143,10 +130,26 @@ final class MCPTestServer: @unchecked Sendable {
             }
         }
 
-        watchdog.setEventHandler { [weak server] in
-            server?.emitWatchdogHeartbeat()
+        // Watchdog: a detached kernel thread (not GCD, not Swift
+        // concurrency) emits a heartbeat every 60s so hangs caused by
+        // 100%-CPU busy-spins still produce diagnostic output. An
+        // earlier attempt with `DispatchSource.makeTimerSource(qos:
+        // .utility)` produced no heartbeats in a real CI hang (PR #134
+        // run 72345678664): libdispatch's utility-QoS worker threads
+        // were starved by whatever was burning the cores. Detaching a
+        // raw pthread via `Thread.detachNewThread` sidesteps QoS
+        // scheduling and Swift concurrency entirely, and `Thread.sleep`
+        // blocks in the kernel rather than suspending a cooperative
+        // task.
+        Thread.detachNewThread { [weak server] in
+            Thread.current.name = "MCPTestServer.watchdog"
+            while true {
+                Thread.sleep(forTimeInterval: 60)
+                guard let server else { return }
+                if server.watchdogShouldStop.withLock({ $0 }) { return }
+                server.emitWatchdogHeartbeat()
+            }
         }
-        watchdog.resume()
 
         // Detect unexpected server termination so pending callTool requests fail fast
         // instead of hanging forever on the MCP client's continuation, and so the SDK's
@@ -177,7 +180,11 @@ final class MCPTestServer: @unchecked Sendable {
     /// Safe from deadlock because Client.disconnect() runs on the client actor's
     /// executor, which is independent of any thread held by the calling defer.
     func stop() {
-        watchdog.cancel()
+        // Signal the watchdog thread to exit on its next poll. It may
+        // sleep up to 60s past stop() before noticing — that's fine,
+        // the thread is lightweight and holds nothing but a weak
+        // reference to self.
+        watchdogShouldStop.withLock { $0 = true }
         process.terminationHandler = nil
         if process.isRunning {
             process.terminate()
