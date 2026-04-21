@@ -536,6 +536,37 @@ struct MacOSMCPTests {
         )
     }
 
+    // MARK: - Liveness heartbeat
+
+    /// The daemon emits a `LogMessageNotification` with `logger: "heartbeat"`
+    /// every 2s, unconditional of whether any tool call is in flight. This
+    /// gives client-side stall detectors (Phase 2, future PR) a liveness
+    /// signal that distinguishes "busy" from "wedged" — particularly
+    /// important for the FileWatcher hot-reload path where today's silence
+    /// spans the full swiftc recompile with no other MCP traffic.
+    ///
+    /// This test idles for ~5s and asserts at least 2 heartbeats arrive.
+    /// Cadence over that window should produce 2–3 hits; the lower bound
+    /// tolerates a dropped first ping if it arrives before the client's
+    /// handler registration, plus ±100ms scheduling jitter.
+    @Test(
+        "daemon emits unconditional 2s heartbeat notifications",
+        .timeLimit(.minutes(1))
+    )
+    func daemonEmitsHeartbeat() async throws {
+        let server = try await MCPTestServer.start()
+        defer { server.stop() }
+
+        // Idle, without issuing any tool calls. Heartbeats must fire
+        // regardless of request activity.
+        try await Task.sleep(for: .seconds(5))
+
+        #expect(
+            server.heartbeatCount >= 2,
+            "expected ≥2 heartbeats in a 5s idle window (got \(server.heartbeatCount))"
+        )
+    }
+
     // MARK: - Timeout primitive
 
     /// Regression guard for `MCPTestServer.withTimeout`. The prior

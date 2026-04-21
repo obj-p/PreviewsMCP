@@ -82,8 +82,15 @@ enum DaemonClient {
     /// CLI command shares. Daemon-side progress messages and warnings
     /// are surfaced as MCP notifications; without this bridge they'd be
     /// silently dropped on the client.
+    ///
+    /// Silently drops `logger == "heartbeat"` — those are the daemon's
+    /// unconditional 2s liveness pings (see `runMCPServer` in
+    /// `MCPServer.swift`). They exist so a future stall-detection layer
+    /// can tell "server is busy" apart from "server is wedged", but they
+    /// aren't intended for humans reading the CLI's stderr.
     private static func registerStderrLogForwarder(on client: Client) async {
         await client.onNotification(LogMessageNotification.self) { message in
+            if message.params.logger == "heartbeat" { return }
             if case .string(let text) = message.params.data {
                 fputs("\(text)\n", stderr)
             }

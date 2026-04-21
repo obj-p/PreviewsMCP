@@ -130,6 +130,42 @@ func configureMCPServer(
     return (server, compiler)
 }
 
+/// Run the MCP server's event loop on `transport`, emitting a periodic
+/// heartbeat log notification that clients can use as a liveness signal.
+/// Returns when the transport closes (client disconnected or server
+/// shutdown). The heartbeat Task is cancelled on return.
+///
+/// Why the heartbeat: daemon handlers can be legitimately silent for
+/// long stretches (swiftc recompiles, simulator boot), and stall-
+/// detection layers downstream have no way to distinguish that from a
+/// genuinely wedged daemon. A 2s unconditional ping fires regardless of
+/// whether any tool call is in flight, covering both the
+/// request-scoped silence and the between-request silence (e.g., the
+/// FileWatcher reload path — see issue #135).
+///
+/// Why `LogMessageNotification` with `logger: "heartbeat"` rather than
+/// `ProgressNotification`: per the MCP spec, progress notifications
+/// require a `progressToken` from an in-flight request. An unsolicited
+/// heartbeat has no such token. `LogMessageNotification`'s optional
+/// `logger` discriminator lets clients filter these out of human-visible
+/// log surfaces (see `DaemonClient.registerStderrLogForwarder`) while
+/// still receiving them as liveness-timer bumps.
+func runMCPServer(_ server: Server, transport: any Transport) async throws {
+    let heartbeat = Task.detached {
+        while !Task.isCancelled {
+            try? await Task.sleep(for: .seconds(2))
+            try? await server.log(
+                level: .debug, logger: "heartbeat", data: .string("alive"))
+        }
+    }
+    defer { heartbeat.cancel() }
+    try await server.start(transport: transport)
+    // `server.start` returns once its internal receive Task is spawned,
+    // NOT when the transport closes. Wait explicitly so the heartbeat's
+    // defer-cancel fires only after the server is actually done serving.
+    await server.waitUntilCompleted()
+}
+
 // MARK: - Tool Handlers
 
 private func handlePreviewList(params: CallTool.Parameters) async throws -> CallTool.Result {
