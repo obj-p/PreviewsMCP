@@ -552,11 +552,15 @@ public actor SPMBuildSystem: BuildSystem {
         let packageFlag = "\"-package-name\",\""
 
         for rawLine in contents.split(separator: "\n", omittingEmptySubsequences: true) {
-            let line = rawLine.trimmingCharacters(in: .whitespaces)
+            let line = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
             guard line.hasPrefix("args: ["), line.contains(moduleNeedle) else { continue }
-            guard let flagRange = line.range(of: packageFlag) else { return nil }
+            // Fall through (not bail) when the matched line lacks -package-name:
+            // SPM may emit more than one compile command per module (e.g. a
+            // wrapper plus the real args line), and only the args line carries
+            // the flag.
+            guard let flagRange = line.range(of: packageFlag) else { continue }
             let tail = line[flagRange.upperBound...]
-            guard let endQuote = tail.firstIndex(of: "\"") else { return nil }
+            guard let endQuote = tail.firstIndex(of: "\"") else { continue }
             return String(tail[..<endQuote])
         }
         return nil
