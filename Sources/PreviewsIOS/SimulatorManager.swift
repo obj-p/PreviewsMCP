@@ -198,18 +198,44 @@ public actor SimulatorManager {
     ///   - udid: Device UDID.
     ///   - jpegQuality: JPEG quality 0.0–1.0. Values >= 1.0 produce PNG. Default: 0.85.
     /// - Returns: Image data (JPEG or PNG).
+    ///
+    /// Implementation note: display attach is asynchronous vs. the
+    /// `simctl bootstatus`-reported "boot complete" state. On CI runners,
+    /// `SBCaptureFramebuffer` can report "No IOSurface found on any
+    /// display port" for several seconds after SpringBoard is up —
+    /// display subsystem is still wiring ports. We retry direct capture
+    /// up to `iosurfaceRetryCount` times with a short backoff before
+    /// conceding to the simctl fallback (which itself needs a display
+    /// and can hang if one never attaches). Observed on GHA runners:
+    /// display typically attaches within 2–8s after bootstatus returns.
     public func screenshotData(udid: String, jpegQuality: Double = 0.85) async throws -> Data {
         let sbDevice = try findSBDevice(udid: udid)
 
-        // Try direct framebuffer capture first
-        var fbError: NSError?
-        if let data = SBCaptureFramebuffer(sbDevice, jpegQuality, &fbError) {
-            return data as Data
+        // Retry direct IOSurface capture — absorbs the display-attach race.
+        let iosurfaceRetryCount = 5
+        let iosurfaceBackoff = Duration.seconds(2)
+        var lastFBError: NSError?
+        for attempt in 1...iosurfaceRetryCount {
+            var fbError: NSError?
+            if let data = SBCaptureFramebuffer(sbDevice, jpegQuality, &fbError) {
+                if attempt > 1 {
+                    fputs(
+                        "SimulatorBridge: IOSurface capture succeeded on attempt \(attempt)/\(iosurfaceRetryCount)\n",
+                        stderr)
+                }
+                return data as Data
+            }
+            lastFBError = fbError
+            if attempt < iosurfaceRetryCount {
+                try? await Task.sleep(for: iosurfaceBackoff)
+            }
         }
 
-        // Fall back to simctl subprocess
+        // Fall back to simctl subprocess (itself bounded by a timeout — see
+        // screenshotDataViaSimctl — so a display that never attaches fails
+        // fast with actionable context instead of hanging indefinitely).
         fputs(
-            "SimulatorBridge: IOSurface capture failed (\(fbError?.localizedDescription ?? "unknown")), falling back to simctl\n",
+            "SimulatorBridge: IOSurface capture failed after \(iosurfaceRetryCount) attempts (\(lastFBError?.localizedDescription ?? "unknown")), falling back to simctl\n",
             stderr)
         let imageType = jpegQuality >= 1.0 ? "png" : "jpeg"
         return try await screenshotDataViaSimctl(udid: udid, imageType: imageType)
