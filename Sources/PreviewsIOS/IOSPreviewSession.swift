@@ -101,8 +101,10 @@ public actor IOSPreviewSession {
             do {
                 let device = try await simulatorManager.findDevice(udid: deviceUDID)
                 if device.state != .booted {
+                    // `bootDevice` now blocks via `simctl bootstatus -b` until
+                    // the device is fully booted (SpringBoard ready), so the
+                    // prior 5s post-boot sleep is no longer needed.
                     try await simulatorManager.bootDevice(udid: deviceUDID)
-                    try await Task.sleep(for: .seconds(5))
                 }
                 try await simulatorManager.installApp(udid: deviceUDID, appPath: appPath.path)
                 lastError = nil

@@ -25,6 +25,12 @@ struct IOSPreviewSessionTests {
 
     @Test("End-to-end: compile, boot, install, launch, screenshot")
     func endToEnd() async throws {
+        try await SimulatorTestLock.run {
+            try await Self.endToEndBody()
+        }
+    }
+
+    private static func endToEndBody() async throws {
         // Write test source
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("previews-mcp-ios-e2e-\(UUID().uuidString)")

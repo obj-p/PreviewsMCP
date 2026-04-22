@@ -100,14 +100,41 @@ public actor SimulatorManager {
 
     // MARK: - Device Operations
 
-    /// Boot a simulator device.
-    public func bootDevice(udid: String) throws {
+    /// Boot a simulator device and block until it's fully booted (SpringBoard
+    /// ready, IOSurface available).
+    ///
+    /// `SBDevice.boot()` alone returns as soon as boot *starts* — state is
+    /// often `.booting` or even briefly `.booted`-but-display-not-ready for
+    /// a few seconds after. Callers that screenshot immediately race that
+    /// window; on slow CI runners the race loses, `SBCaptureFramebuffer`
+    /// reports "No IOSurface found on any display port," and the simctl
+    /// fallback itself blocks on the same pending display (see
+    /// `screenshotDataViaSimctl`).
+    ///
+    /// Fix: after initiating boot, delegate to `xcrun simctl bootstatus -b`,
+    /// Apple's documented primitive that blocks "until the device finishes
+    /// booting" — including SpringBoard launch. 60s timeout catches the
+    /// rare truly-stuck boot without masking the common case (typical CI
+    /// boot completes in 5–15s).
+    public func bootDevice(udid: String, timeout: Duration = .seconds(60)) async throws {
         try ensureLoaded()
         let sbDevice = try findSBDevice(udid: udid)
         do {
             try sbDevice.boot()
         } catch {
             throw SimulatorError.bootFailed(error.localizedDescription)
+        }
+
+        do {
+            _ = try await runAsync(
+                "/usr/bin/xcrun",
+                arguments: ["simctl", "bootstatus", udid, "-b"],
+                timeout: timeout
+            )
+        } catch let t as AsyncProcessTimeout {
+            throw SimulatorError.bootFailed(
+                "simctl bootstatus did not complete within \(t.duration) for \(udid)"
+            )
         }
     }
 
