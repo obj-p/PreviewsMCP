@@ -182,13 +182,18 @@ public actor SimulatorManager {
 
     /// Capture a screenshot via simctl and return image data (fallback path).
     ///
-    /// Bounded by a 15s timeout. `simctl io screenshot` hangs indefinitely
+    /// Bounded by a 60s timeout. `simctl io screenshot` can hang indefinitely
     /// when the simulator has no display attached (e.g., headless boots on
     /// CI runners where `SBCaptureFramebuffer` already failed with
-    /// "No IOSurface found on any display port"). Observed in CI run
-    /// 72501335737: watchdog heartbeats confirmed the daemon was alive for
-    /// 15+ minutes while this subprocess never returned. Without a bound,
-    /// the test hits its outer `.timeLimit` with no actionable signal.
+    /// "No IOSurface found on any display port"). Without a bound, the
+    /// caller hits its outer `.timeLimit` after 10 minutes with no
+    /// actionable signal.
+    ///
+    /// 60s is chosen to be well above the observed P99 (simctl normally
+    /// completes in <1s; prior green CI runs where the IOSurface→simctl
+    /// fallback path completed show ~30s worst case on slow CI runners)
+    /// and well below the enclosing test `.timeLimit` so a real hang
+    /// fails fast with actionable context.
     private func screenshotDataViaSimctl(udid: String, imageType: String = "png") async throws -> Data {
         let ext = imageType == "jpeg" ? "jpg" : imageType
         let tempPath = FileManager.default.temporaryDirectory
@@ -202,7 +207,7 @@ public actor SimulatorManager {
                     "simctl", "io", udid, "screenshot",
                     "--type=\(imageType)", tempPath.path,
                 ],
-                timeout: .seconds(15)
+                timeout: .seconds(60)
             )
         } catch let timeout as AsyncProcessTimeout {
             throw SimulatorError.screenshotFailed(
