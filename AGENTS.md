@@ -225,6 +225,10 @@ The `main` branch has branch protections — all changes must go through a pull 
 
 ### iOS simulator tests
 
-- Boot/shutdown real devices — can be slow (~10-20s)
-- May flake from CoreSimulator daemon state after rapid boot/shutdown cycles — retry logic is built into IOSPreviewSession
-- The `bootAndShutdown` and `endToEnd` tests always clean up (shutdown device) even on failure
+- **`SimulatorManager.bootDevice` blocks until the device is actually booted.** `SBDevice.boot()` alone returns as soon as boot *starts*; `bootDevice` wraps it and then awaits `xcrun simctl bootstatus <udid> -b` (Apple's "block until SpringBoard is up" primitive). Callers can stop sleep-then-hoping. Default timeout is 180s — typical CI boot is 5-15s but P95 on busy GHA runners has been observed at 60-90s.
+- **Display attach is async vs. bootstatus.** The display subsystem wires ports AFTER SpringBoard is up. On CI this race typically closes within 2-8s. `SimulatorManager.screenshotData` retries direct `SBCaptureFramebuffer` capture up to 5× with 2s backoff before falling back to `xcrun simctl io <udid> screenshot` (which has its own 60s timeout — it can hang indefinitely if the display never attaches).
+- **Each iOS test picks a distinct simulator via `IOSSimulatorPicker`.** Three test suites (`SimulatorManagerTests`, `IOSPreviewSessionTests`, `IOSMCPTests`) boot simulators; Swift Testing runs them in parallel. Before the picker, all three selected "first available" from the same `xcrun simctl list` pool and stomped on each other (one shutting down what another was screenshotting). Now each test passes a distinct index (0, 1, 2) to `IOSSimulatorPicker.pick(index:)` / `pickUDID(index:)` and gets its own iPhone. Add a new index for any new iOS test that boots a device.
+- **iPhone-class only, not iPads.** Picker filters by name contains "iPhone". M-chip iPads (Air/Pro with M2+) on GHA runners have been observed exceeding 60s bootstatus — iPhones are reliable in the <15s window.
+- **`AsyncProcessTimeout` carries pre-kill `capturedStdout` / `capturedStderr`.** When `runAsync(timeout:)` fires, the subprocess is SIGTERM'd and its pipes drained before the error is thrown, so CI logs show *which* stage the subprocess stalled at (e.g., `Waiting on <SpringBoard>`) rather than just "it hung."
+- **CoreSimulator daemon state can still flake** after rapid boot/shutdown cycles — retry logic is built into `IOSPreviewSession.start()` for transient boot failures.
+- The `bootAndShutdown` and `endToEnd` tests always clean up (shutdown device) even on failure.
