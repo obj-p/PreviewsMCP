@@ -34,6 +34,10 @@ final class MCPTestServer: @unchecked Sendable {
     /// Path to the per-instance log file that captures the server subprocess's stderr.
     /// Persists on disk after `stop()` so post-mortem inspection is possible.
     let stderrLogPath: URL
+    private let startedAt: ContinuousClock.Instant
+    /// Flag the watchdog thread polls between sleeps. Mutated from `stop()`
+    /// via the lock; the thread reads it once per iteration.
+    private let watchdogShouldStop = OSAllocatedUnfairLock<Bool>(initialState: false)
 
     /// Backing counter for `observedHeartbeatCount()`. Incremented from a
     /// background notification handler; read under the lock.
@@ -50,13 +54,15 @@ final class MCPTestServer: @unchecked Sendable {
     private init(
         process: Process, client: Client,
         stdinPipe: Pipe, stdoutPipe: Pipe,
-        stderrLogPath: URL
+        stderrLogPath: URL,
+        startedAt: ContinuousClock.Instant
     ) {
         self.process = process
         self.client = client
         self.stdinPipe = stdinPipe
         self.stdoutPipe = stdoutPipe
         self.stderrLogPath = stderrLogPath
+        self.startedAt = startedAt
     }
 
     // MARK: - Lifecycle
@@ -104,10 +110,13 @@ final class MCPTestServer: @unchecked Sendable {
         let client = Client(name: "mcp-integration-test", version: "1.0")
         _ = try await client.connect(transport: transport)
 
+        let startedAt = ContinuousClock.now
+
         let server = MCPTestServer(
             process: process, client: client,
             stdinPipe: stdinPipe, stdoutPipe: stdoutPipe,
-            stderrLogPath: stderrLogPath
+            stderrLogPath: stderrLogPath,
+            startedAt: startedAt
         )
 
         // Tally `logger: "heartbeat"` notifications so tests can assert
@@ -118,6 +127,27 @@ final class MCPTestServer: @unchecked Sendable {
         await client.onNotification(LogMessageNotification.self) { [weak server] message in
             if message.params.logger == "heartbeat" {
                 server?.heartbeatCounter.withLock { $0 += 1 }
+            }
+        }
+
+        // Watchdog: a detached kernel thread (not GCD, not Swift
+        // concurrency) emits a heartbeat every 60s so hangs caused by
+        // 100%-CPU busy-spins still produce diagnostic output. An
+        // earlier attempt with `DispatchSource.makeTimerSource(qos:
+        // .utility)` produced no heartbeats in a real CI hang (PR #134
+        // run 72345678664): libdispatch's utility-QoS worker threads
+        // were starved by whatever was burning the cores. Detaching a
+        // raw pthread via `Thread.detachNewThread` sidesteps QoS
+        // scheduling and Swift concurrency entirely, and `Thread.sleep`
+        // blocks in the kernel rather than suspending a cooperative
+        // task.
+        Thread.detachNewThread { [weak server] in
+            Thread.current.name = "MCPTestServer.watchdog"
+            while true {
+                Thread.sleep(forTimeInterval: 60)
+                guard let server else { return }
+                if server.watchdogShouldStop.withLock({ $0 }) { return }
+                server.emitWatchdogHeartbeat()
             }
         }
 
@@ -150,6 +180,11 @@ final class MCPTestServer: @unchecked Sendable {
     /// Safe from deadlock because Client.disconnect() runs on the client actor's
     /// executor, which is independent of any thread held by the calling defer.
     func stop() {
+        // Signal the watchdog thread to exit on its next poll. It may
+        // sleep up to 60s past stop() before noticing — that's fine,
+        // the thread is lightweight and holds nothing but a weak
+        // reference to self.
+        watchdogShouldStop.withLock { $0 = true }
         process.terminationHandler = nil
         if process.isRunning {
             process.terminate()
@@ -309,6 +344,36 @@ final class MCPTestServer: @unchecked Sendable {
     /// Safe to call at any time; reads may trail in-flight writes slightly.
     func stderrLog() -> String {
         (try? String(contentsOfFile: stderrLogPath.path, encoding: .utf8)) ?? ""
+    }
+
+    /// Periodic diagnostic emitted by the watchdog timer. Writes the server
+    /// subprocess's elapsed runtime and the tail of its captured stderr to
+    /// the test process's own stderr via a blocking fputs, bypassing both
+    /// Issue.record (which requires Swift concurrency to be making forward
+    /// progress) and Swift's stdout caching.
+    ///
+    /// Silent on the happy path — tests that complete in under 60s never
+    /// trigger a heartbeat. A test that hangs produces one line per minute
+    /// with the server's most recent stderr lines, so the next CI failure
+    /// has enough context to localize the hang.
+    private func emitWatchdogHeartbeat() {
+        let elapsed = ContinuousClock.now - startedAt
+        let elapsedSeconds = Int(elapsed.components.seconds)
+        let log = stderrLog()
+        let tailLines =
+            log
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .suffix(5)
+            .joined(separator: "\n")
+        let tailDescription = tailLines.isEmpty ? "(server stderr empty)" : String(tailLines)
+        let message = """
+            [MCPTestServer watchdog t=\(elapsedSeconds)s] alive — server stderr tail:
+            \(tailDescription)
+            [/watchdog]
+
+            """
+        fputs(message, stderr)
+        fflush(stderr)
     }
 
     /// Poll the server's stderr log until it contains `needle`, up to `timeout`.
