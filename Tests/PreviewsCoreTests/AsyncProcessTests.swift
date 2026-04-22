@@ -72,4 +72,32 @@ struct AsyncProcessTests {
         #expect(output.stdout == "hello")
         #expect(output.exitCode == 0)
     }
+
+    @Test("timeout captures the child's pre-kill stdout and stderr")
+    func timeoutCapturesOutput() async throws {
+        // Child emits a marker to both streams (important: fflush so the
+        // bytes actually leave the child's stdio buffer before we kill it),
+        // then blocks forever. Timeout must surface both strings on the
+        // error — that's the observability contract the simctl bootstatus
+        // caller depends on to tell "stuck on SpringBoard" apart from
+        // "stuck on data migration."
+        do {
+            _ = try await runAsync(
+                "/bin/sh",
+                arguments: [
+                    "-c",
+                    "printf 'booting SpringBoard\\n' ; printf 'stage=kickoff\\n' >&2 ; sleep 30",
+                ],
+                timeout: .milliseconds(500)
+            )
+            Issue.record("expected AsyncProcessTimeout, got success")
+        } catch let t as AsyncProcessTimeout {
+            #expect(
+                t.capturedStdout.contains("booting SpringBoard"),
+                "expected pre-kill stdout, got: \(t.capturedStdout.debugDescription)")
+            #expect(
+                t.capturedStderr.contains("stage=kickoff"),
+                "expected pre-kill stderr, got: \(t.capturedStderr.debugDescription)")
+        }
+    }
 }

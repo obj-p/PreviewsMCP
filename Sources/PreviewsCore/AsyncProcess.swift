@@ -2,12 +2,25 @@ import Foundation
 import os
 
 /// Raised by `runAsync` when a `timeout` is set and the subprocess outlives it.
-/// The subprocess is SIGTERM'd before this error is thrown.
+/// The subprocess is SIGTERM'd and its pipes drained before this error is
+/// thrown, so `capturedStdout` / `capturedStderr` contain whatever the child
+/// managed to write before it was killed — useful for diagnosing *why* the
+/// subprocess was stalled.
 public struct AsyncProcessTimeout: Error, CustomStringConvertible {
     public let executable: String
     public let duration: Duration
+    public let capturedStdout: String
+    public let capturedStderr: String
+
     public var description: String {
-        "\(executable) exceeded timeout of \(duration)"
+        var parts = ["\(executable) exceeded timeout of \(duration)"]
+        if !capturedStdout.isEmpty {
+            parts.append("stdout before kill:\n\(capturedStdout)")
+        }
+        if !capturedStderr.isEmpty {
+            parts.append("stderr before kill:\n\(capturedStderr)")
+        }
+        return parts.joined(separator: "; ")
     }
 }
 
@@ -98,9 +111,14 @@ public func runAsync(
 
         // Timeout timer runs on a GCD queue (not the Swift cooperative pool),
         // so it fires even when the calling process's concurrency is under
-        // heavy load. When it fires, we SIGTERM the subprocess; the
-        // subprocess's terminationHandler then runs but sees `resumed == true`
-        // and no-ops.
+        // heavy load. When it fires, we SIGTERM the subprocess, wait for the
+        // pipe drains to finish (so whatever the child wrote before being
+        // killed lands in the captured stdout/stderr), then resume with the
+        // captured data attached to the error. That lets callers diagnose
+        // *why* the subprocess was stalled instead of just "it hung."
+        //
+        // The subprocess's terminationHandler also fires from the terminate
+        // below, but sees `resumed == true` and no-ops.
         let timeoutSource: DispatchSourceTimer? = timeout.map { duration in
             let source = DispatchSource.makeTimerSource(
                 queue: DispatchQueue.global(qos: .userInitiated))
@@ -116,9 +134,22 @@ public func runAsync(
                 }
                 guard shouldResume else { return }
                 process.terminate()
+                // Terminating the child closes its pipe-write fds, which
+                // unblocks the readDataToEndOfFile calls on our background
+                // threads; pipeGroup.wait() then returns promptly with the
+                // drained data. This is a short wait (just the pipe drain,
+                // not the child's exit), so doing it from the timer's GCD
+                // queue is fine.
+                pipeGroup.wait()
+                let capturedStdout = (String(data: stdoutData.value, encoding: .utf8) ?? "")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                let capturedStderr = String(data: stderrData.value, encoding: .utf8) ?? ""
                 continuation.resume(
                     throwing: AsyncProcessTimeout(
-                        executable: executable, duration: duration))
+                        executable: executable,
+                        duration: duration,
+                        capturedStdout: capturedStdout,
+                        capturedStderr: capturedStderr))
             }
             source.resume()
             return source

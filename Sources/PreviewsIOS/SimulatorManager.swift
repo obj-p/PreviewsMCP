@@ -111,12 +111,18 @@ public actor SimulatorManager {
     /// fallback itself blocks on the same pending display (see
     /// `screenshotDataViaSimctl`).
     ///
-    /// Fix: after initiating boot, delegate to `xcrun simctl bootstatus -b`,
+    /// After initiating boot, delegate to `xcrun simctl bootstatus -b`,
     /// Apple's documented primitive that blocks "until the device finishes
-    /// booting" — including SpringBoard launch. 60s timeout catches the
-    /// rare truly-stuck boot without masking the common case (typical CI
-    /// boot completes in 5–15s).
-    public func bootDevice(udid: String, timeout: Duration = .seconds(60)) async throws {
+    /// booting" — including SpringBoard launch. On timeout, we surface
+    /// simctl's own captured stdout/stderr in the error so a reader can
+    /// tell *which* stage of boot stalled (`Waiting on <SpringBoard>` vs.
+    /// `Data Migration` vs. silent hang).
+    ///
+    /// Default timeout is 180s. Typical CI boots complete in 5–15s but
+    /// the 95th percentile on busy GHA runners has been observed at
+    /// 60–90s — a tighter bound produces false failures while everything
+    /// was actually making progress.
+    public func bootDevice(udid: String, timeout: Duration = .seconds(180)) async throws {
         try ensureLoaded()
         let sbDevice = try findSBDevice(udid: udid)
         do {
@@ -133,7 +139,9 @@ public actor SimulatorManager {
             )
         } catch let t as AsyncProcessTimeout {
             throw SimulatorError.bootFailed(
-                "simctl bootstatus did not complete within \(t.duration) for \(udid)"
+                "simctl bootstatus did not complete within \(t.duration) for \(udid). "
+                    + "simctl stdout: \(t.capturedStdout.isEmpty ? "(empty)" : t.capturedStdout). "
+                    + "simctl stderr: \(t.capturedStderr.isEmpty ? "(empty)" : t.capturedStderr)"
             )
         }
     }
