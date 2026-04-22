@@ -75,7 +75,17 @@ public actor IOSPreviewSession {
     /// Start the iOS preview: compile, boot sim, install host, launch, connect socket.
     /// Returns the PID of the launched host app.
     public func start() async throws -> Int {
+        // Mirror stage transitions to stderr so operators running
+        // `previewsmcp logs` (or scraping CI capture files) can see where a
+        // stall occurred. MCP LogMessageNotifications go over stdout and
+        // aren't visible unless the client subscribes; stderr is always
+        // captured by the parent process. Kept intentionally terse.
+        func stage(_ s: String) {
+            fputs("iOS preview: \(s) [\(deviceUDID.prefix(8))]\n", stderr)
+        }
+
         // 1. Compile preview dylib for iOS simulator
+        stage("compiling dylib")
         await progress?.report(.compilingBridge, message: "Compiling \(sourceFile.lastPathComponent)...")
         let previewSession = PreviewSession(
             sourceFile: sourceFile,
@@ -92,24 +102,34 @@ public actor IOSPreviewSession {
         let compileResult = try await previewSession.compile()
 
         // 2. Build host app, boot simulator, install.
+        stage("building host app")
         await progress?.report(.compilingHostApp, message: "Building iOS host app...")
         let appPath = try await hostBuilder.ensureHostApp()
+        stage("host app ready; booting + installing")
         await progress?.report(.bootingSimulator, message: "Booting simulator (\(deviceUDID.prefix(8))...)...")
         await progress?.report(.installingApp, message: "Installing host app...")
         var lastError: Error?
         for attempt in 1...3 {
             do {
+                stage("boot/install attempt \(attempt)/3")
                 let device = try await simulatorManager.findDevice(udid: deviceUDID)
                 if device.state != .booted {
                     // `bootDevice` now blocks via `simctl bootstatus -b` until
                     // the device is fully booted (SpringBoard ready), so the
                     // prior 5s post-boot sleep is no longer needed.
+                    stage("attempt \(attempt): bootDevice")
                     try await simulatorManager.bootDevice(udid: deviceUDID)
+                    stage("attempt \(attempt): boot complete")
+                } else {
+                    stage("attempt \(attempt): already booted")
                 }
+                stage("attempt \(attempt): installApp")
                 try await simulatorManager.installApp(udid: deviceUDID, appPath: appPath.path)
+                stage("attempt \(attempt): install ok")
                 lastError = nil
                 break
             } catch {
+                stage("attempt \(attempt) failed: \(error)")
                 lastError = error
                 if attempt < 3 {
                     try await Task.sleep(for: .seconds(3))
@@ -170,6 +190,7 @@ public actor IOSPreviewSession {
         listenFD = serverFD
 
         // 5. Launch host app with dylib path and port
+        stage("launching host app")
         await progress?.report(.launchingApp, message: "Launching host app...")
         var launchArgs = [
             "--dylib", compileResult.dylibPath.path,
@@ -185,9 +206,11 @@ public actor IOSPreviewSession {
         )
 
         // 6. Accept connection from host app (up to 10 seconds)
+        stage("launched pid=\(pid); awaiting socket connection")
         await progress?.report(.connectingToApp, message: "Waiting for host app connection...")
         try await acceptConnection(timeout: .seconds(10))
         setupReadLoop()
+        stage("connected; start complete")
 
         return pid
     }
