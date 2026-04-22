@@ -555,8 +555,24 @@ private func handlePreviewSnapshot(params: CallTool.Parameters) async throws -> 
         )
     }
 
-    try await Task.sleep(for: .milliseconds(300))
-    fputs("[snapshot] post 300ms sleep\n", stderr); fflush(stderr)
+    // Previously: `try await Task.sleep(for: .milliseconds(300))` with
+    // the comment "Wait briefly for SwiftUI to finish layout" (present
+    // since the initial commit, line 820b0cd). CI evidence in PR #139
+    // (run 72439165932) showed the handler wedging here under
+    // cooperative-pool starvation: the `[snapshot] post session-check`
+    // marker fired but the subsequent `[snapshot] post 300ms sleep`
+    // never did, across many snapshot cycles of `hotReloadLiteralOnly`.
+    // `Task.sleep` ultimately depends on the Swift concurrency
+    // scheduler to resume; accumulating load from rapid polling
+    // snapshots (the literal-only path doesn't have swiftc breaks to
+    // let the pool drain) left the timer's continuation unscheduled.
+    //
+    // The sleep is unnecessary in practice: `Snapshot.capture` calls
+    // `NSView.cacheDisplay(in:to:)`, which forces layout synchronously
+    // when the view is dirty. The network round-trip from client to
+    // daemon already gives the UI plenty of time to settle. All 7
+    // MacOSMCPTests pass without the sleep, including the two that
+    // verify image bytes actually change after a reload.
 
     let format: Snapshot.ImageFormat = usePNG ? .png : .jpeg(quality: quality)
     let imageData: Data
