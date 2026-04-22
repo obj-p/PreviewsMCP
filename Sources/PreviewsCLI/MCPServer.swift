@@ -504,6 +504,23 @@ private func startMacOSPreview(
 }
 
 private func handlePreviewSnapshot(params: CallTool.Parameters) async throws -> CallTool.Result {
+    // TODO(#135-4B): remove these markers once the actual post-reload
+    // wedge fix lands. Instrumentation for issue #135 Phase 4A — the
+    // post-reload wedge observed in CI (PRs #133/#134 history) manifests
+    // as the daemon logging "Reloaded!" and then never responding to the
+    // next `preview_snapshot`. Stderr goes silent at that point, so we
+    // can't tell whether the handler entered at all, hung on the main
+    // actor, or wedged inside `Snapshot.capture`. These prints let
+    // the next CI failure (captured by the PR #134 post-failure dump
+    // step) localize the hang to a specific await point.
+    //
+    // Cheap (fputs + fflush, no Swift concurrency), additive (all
+    // go to the same stderr the tests already capture), and not
+    // user-visible — `DaemonClient.registerStderrLogForwarder`
+    // forwards MCP `LogMessageNotification` payloads, not raw daemon
+    // stderr. macOS snapshot handler only; iOS returns early above.
+    fputs("[snapshot] enter\n", stderr); fflush(stderr)
+
     let sessionID: String
     do { sessionID = try extractString("sessionID", from: params) } catch {
         return CallTool.Result(content: [.text(error.localizedDescription)], isError: true)
@@ -526,9 +543,11 @@ private func handlePreviewSnapshot(params: CallTool.Parameters) async throws -> 
     // macOS path. Verify existence upfront so a typo'd sessionID
     // surfaces as a clean "No session found" rather than the misleading
     // "capture failed" from `window(for:)` returning nil.
+    fputs("[snapshot] pre session-check\n", stderr); fflush(stderr)
     let isMacOSSession = await MainActor.run {
         host.allSessions[sessionID] != nil
     }
+    fputs("[snapshot] post session-check\n", stderr); fflush(stderr)
     guard isMacOSSession else {
         return CallTool.Result(
             content: [.text("No session found for \(sessionID).")],
@@ -536,18 +555,50 @@ private func handlePreviewSnapshot(params: CallTool.Parameters) async throws -> 
         )
     }
 
-    try await Task.sleep(for: .milliseconds(300))
+    // Previously: `try await Task.sleep(for: .milliseconds(300))` with
+    // the comment "Wait briefly for SwiftUI to finish layout" (present
+    // since the initial commit, line 820b0cd). CI evidence in PR #139
+    // (run 72439165932) showed the handler wedging here under
+    // cooperative-pool starvation: the `[snapshot] post session-check`
+    // marker fired but the subsequent `[snapshot] post 300ms sleep`
+    // never did, across many snapshot cycles of `hotReloadLiteralOnly`.
+    // `Task.sleep` ultimately depends on the Swift concurrency
+    // scheduler to resume; accumulating load from rapid polling
+    // snapshots (the literal-only path doesn't have swiftc breaks to
+    // let the pool drain) left the timer's continuation unscheduled.
+    //
+    // The sleep is unnecessary in practice: `Snapshot.capture` calls
+    // `NSView.cacheDisplay(in:to:)`, which forces layout synchronously
+    // when the view is dirty. The network round-trip from client to
+    // daemon already gives the UI plenty of time to settle. All 7
+    // MacOSMCPTests pass without the sleep, including the two that
+    // verify image bytes actually change after a reload.
 
     let format: Snapshot.ImageFormat = usePNG ? .png : .jpeg(quality: quality)
-    let imageData: Data = try await MainActor.run {
-        guard let window = host.window(for: sessionID) else {
-            throw SnapshotError.captureFailed
+    let imageData: Data
+    do {
+        imageData = try await MainActor.run {
+            fputs("[snapshot] main-actor capture enter\n", stderr); fflush(stderr)
+            guard let window = host.window(for: sessionID) else {
+                throw SnapshotError.captureFailed
+            }
+            let data = try Snapshot.capture(window: window, format: format)
+            fputs("[snapshot] main-actor capture done (\(data.count) bytes)\n", stderr)
+            fflush(stderr)
+            return data
         }
-        return try Snapshot.capture(window: window, format: format)
+    } catch {
+        // Marker fires on both the `captureFailed` and any other throw
+        // from the MainActor block so the dump shows "we exited the
+        // block one way or another" — not just the happy path.
+        fputs("[snapshot] main-actor capture threw: \(error)\n", stderr); fflush(stderr)
+        throw error
     }
+    fputs("[snapshot] encoding\n", stderr); fflush(stderr)
 
     let base64 = imageData.base64EncodedString()
 
+    fputs("[snapshot] returning\n", stderr); fflush(stderr)
     return CallTool.Result(content: [
         .image(data: base64, mimeType: mimeType, metadata: nil)
     ])
