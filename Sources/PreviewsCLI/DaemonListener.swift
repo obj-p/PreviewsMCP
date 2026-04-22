@@ -85,8 +85,8 @@ enum DaemonListener {
                 host: host, iosManager: iosManager,
                 configCache: configCache, sharedCompiler: compiler
             )
-            try await server.start(transport: transport)
-            // `start` returns when the transport closes (client disconnected).
+            try await runMCPServer(server, transport: transport)
+            // `runMCPServer` returns when the transport closes (client disconnected).
         } catch {
             fputs("daemon connection error: \(error)\n", stderr)
             connection.cancel()

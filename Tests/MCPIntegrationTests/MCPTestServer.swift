@@ -35,6 +35,18 @@ final class MCPTestServer: @unchecked Sendable {
     /// Persists on disk after `stop()` so post-mortem inspection is possible.
     let stderrLogPath: URL
 
+    /// Backing counter for `observedHeartbeatCount()`. Incremented from a
+    /// background notification handler; read under the lock.
+    private let heartbeatCounter = OSAllocatedUnfairLock<Int>(initialState: 0)
+
+    /// Snapshot count of `LogMessageNotification`s with `logger == "heartbeat"`
+    /// received since `start()`. Method (not property) to signal that the
+    /// value is racy — consecutive calls may return different values as
+    /// more pings arrive asynchronously.
+    func observedHeartbeatCount() -> Int {
+        heartbeatCounter.withLock { $0 }
+    }
+
     private init(
         process: Process, client: Client,
         stdinPipe: Pipe, stdoutPipe: Pipe,
@@ -97,6 +109,17 @@ final class MCPTestServer: @unchecked Sendable {
             stdinPipe: stdinPipe, stdoutPipe: stdoutPipe,
             stderrLogPath: stderrLogPath
         )
+
+        // Tally `logger: "heartbeat"` notifications so tests can assert
+        // the daemon's 2s liveness ping contract. The first few heartbeats
+        // may arrive before this handler is registered depending on how
+        // the SDK buffers early messages, but cadence over a ≥5s window is
+        // reliable enough for an assertion.
+        await client.onNotification(LogMessageNotification.self) { [weak server] message in
+            if message.params.logger == "heartbeat" {
+                server?.heartbeatCounter.withLock { $0 += 1 }
+            }
+        }
 
         // Detect unexpected server termination so pending callTool requests fail fast
         // instead of hanging forever on the MCP client's continuation, and so the SDK's

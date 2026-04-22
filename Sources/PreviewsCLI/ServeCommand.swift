@@ -64,7 +64,7 @@ struct ServeCommand: ParsableCommand {
                 )
                 fputs("MCP server starting on stdio...\n", stderr)
                 let transport = StdioTransport()
-                try await server.start(transport: transport)
+                try await runMCPServer(server, transport: transport)
             } catch {
                 fputs("MCP server error: \(error)\n", stderr)
                 await MainActor.run { NSApp.terminate(nil) }
