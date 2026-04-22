@@ -59,20 +59,58 @@ enum DaemonClient {
     ///
     /// Extra handlers can be registered via `configure`; they run before
     /// the handshake alongside the default log forwarder.
+    ///
+    /// A `StallTimer` watches the transport for inactivity. Any incoming
+    /// notification (log or progress) resets the timer; if `stallThreshold`
+    /// elapses with no activity, the client force-disconnects, which
+    /// drains pending `callTool` continuations with a transport error
+    /// instead of hanging forever. The daemon emits a `logger: "heartbeat"`
+    /// ping every 2s (see `runMCPServer`), so a 30s threshold absorbs ~15
+    /// missed pings before declaring stall. See issue #135 for the full
+    /// context on why this matters (daemon can become non-responsive
+    /// after hot-reload; `Client.callTool` has no built-in timeout).
     static func withDaemonClient<T>(
         name: String,
+        stallThreshold: Duration = .seconds(30),
         configure: ((Client) async -> Void)? = nil,
         body: (Client) async throws -> T
     ) async throws -> T {
+        let timer = StallTimer()
+
         let client = try await connect(clientName: name) { client in
             await registerStderrLogForwarder(on: client)
+            await registerStallBumpers(on: client, timer: timer)
             await configure?(client)
         }
+
+        // Subscribe to `.debug`-level logs so the daemon's heartbeat
+        // notifications (emitted at `.debug`) actually reach our bumper.
+        // Without this, many MCP clients default to filtering below
+        // `.info` and the stall timer would immediately trip because
+        // zero heartbeats ever arrive. See the Phase 2 gotchas comment
+        // on issue #135 for the full rationale. `try?` tolerates
+        // servers that don't advertise logging capability.
+        try? await client.setLoggingLevel(.debug)
+
+        let stallWatcher = Task {
+            if await timer.waitForStall(threshold: stallThreshold) {
+                // Disconnect drains `pendingRequests` and resumes each
+                // waiting continuation with `MCPError.internalError`
+                // ("Client disconnected"), per swift-sdk `Client.swift`'s
+                // `disconnect()` implementation. The body's `await
+                // client.callTool(...)` throws; the caller's catch sees
+                // the transport error instead of an infinite wait.
+                await client.disconnect()
+            }
+        }
+
         do {
             let result = try await body(client)
+            stallWatcher.cancel()
             await client.disconnect()
             return result
         } catch {
+            stallWatcher.cancel()
             await client.disconnect()
             throw error
         }
@@ -85,15 +123,30 @@ enum DaemonClient {
     ///
     /// Silently drops `logger == "heartbeat"` — those are the daemon's
     /// unconditional 2s liveness pings (see `runMCPServer` in
-    /// `MCPServer.swift`). They exist so a future stall-detection layer
-    /// can tell "server is busy" apart from "server is wedged", but they
-    /// aren't intended for humans reading the CLI's stderr.
+    /// `MCPServer.swift`). They're consumed by the stall timer (see
+    /// `registerStallBumpers`) but aren't intended for humans reading
+    /// the CLI's stderr.
     private static func registerStderrLogForwarder(on client: Client) async {
         await client.onNotification(LogMessageNotification.self) { message in
             if message.params.logger == "heartbeat" { return }
             if case .string(let text) = message.params.data {
                 fputs("\(text)\n", stderr)
             }
+        }
+    }
+
+    /// Register handlers that bump `timer` on every incoming MCP
+    /// notification. Log messages and progress notifications both count
+    /// as "the server is alive and talking to us." Registered in
+    /// `withDaemonClient`'s configure closure so handlers are live
+    /// before the initialize handshake — early notifications shouldn't
+    /// be dropped.
+    private static func registerStallBumpers(on client: Client, timer: StallTimer) async {
+        await client.onNotification(LogMessageNotification.self) { _ in
+            await timer.bump()
+        }
+        await client.onNotification(ProgressNotification.self) { _ in
+            await timer.bump()
         }
     }
 
