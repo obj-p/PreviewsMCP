@@ -37,4 +37,39 @@ struct AsyncProcessTests {
         // /tmp may resolve to /private/tmp on macOS
         #expect(output.stdout == "/tmp" || output.stdout == "/private/tmp")
     }
+
+    @Test("timeout SIGTERMs the subprocess and throws AsyncProcessTimeout")
+    func timeoutFiresOnHungChild() async throws {
+        // /bin/sleep 30 would exceed a 500ms timeout by a lot. With the
+        // timer set, the call must return within ~1s (timer + terminate
+        // propagation). This is the regression guard for the simctl
+        // screenshot hang — see CI run 72501335737 on PR #140.
+        let start = ContinuousClock.now
+        await #expect(throws: AsyncProcessTimeout.self) {
+            _ = try await runAsync(
+                "/bin/sleep", arguments: ["30"],
+                timeout: .milliseconds(500)
+            )
+        }
+        let elapsed = ContinuousClock.now - start
+        let elapsedSeconds =
+            Double(elapsed.components.seconds)
+            + Double(elapsed.components.attoseconds) / 1e18
+        #expect(
+            elapsedSeconds >= 0.5 && elapsedSeconds < 3,
+            "expected timeout in 0.5-3s (got \(elapsedSeconds)s)"
+        )
+    }
+
+    @Test("timeout does not fire on a fast subprocess")
+    func timeoutDoesNotFirePrematurely() async throws {
+        // Generous 5s timeout against a subprocess that exits immediately;
+        // must return with the normal exit code, not an AsyncProcessTimeout.
+        let output = try await runAsync(
+            "/bin/echo", arguments: ["hello"],
+            timeout: .seconds(5)
+        )
+        #expect(output.stdout == "hello")
+        #expect(output.exitCode == 0)
+    }
 }

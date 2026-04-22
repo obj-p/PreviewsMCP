@@ -181,15 +181,36 @@ public actor SimulatorManager {
     }
 
     /// Capture a screenshot via simctl and return image data (fallback path).
+    ///
+    /// Bounded by a 15s timeout. `simctl io screenshot` hangs indefinitely
+    /// when the simulator has no display attached (e.g., headless boots on
+    /// CI runners where `SBCaptureFramebuffer` already failed with
+    /// "No IOSurface found on any display port"). Observed in CI run
+    /// 72501335737: watchdog heartbeats confirmed the daemon was alive for
+    /// 15+ minutes while this subprocess never returned. Without a bound,
+    /// the test hits its outer `.timeLimit` with no actionable signal.
     private func screenshotDataViaSimctl(udid: String, imageType: String = "png") async throws -> Data {
         let ext = imageType == "jpeg" ? "jpg" : imageType
         let tempPath = FileManager.default.temporaryDirectory
             .appendingPathComponent("sim_screenshot_\(UUID().uuidString).\(ext)")
         defer { try? FileManager.default.removeItem(at: tempPath) }
-        let result = try await runAsync(
-            "/usr/bin/xcrun",
-            arguments: ["simctl", "io", udid, "screenshot", "--type=\(imageType)", tempPath.path]
-        )
+        let result: ProcessOutput
+        do {
+            result = try await runAsync(
+                "/usr/bin/xcrun",
+                arguments: [
+                    "simctl", "io", udid, "screenshot",
+                    "--type=\(imageType)", tempPath.path,
+                ],
+                timeout: .seconds(15)
+            )
+        } catch let timeout as AsyncProcessTimeout {
+            throw SimulatorError.screenshotFailed(
+                "simctl io screenshot hung (exceeded \(timeout.duration)); "
+                    + "likely a simulator with no attached display "
+                    + "(see IOSurface fallback above)"
+            )
+        }
         if result.exitCode != 0 {
             throw SimulatorError.screenshotFailed("simctl screenshot failed: \(result.stderr)")
         }
