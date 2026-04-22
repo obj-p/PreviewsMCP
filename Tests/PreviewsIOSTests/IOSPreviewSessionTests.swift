@@ -70,12 +70,19 @@ struct IOSPreviewSessionTests {
             // Wait for the app to render
             try await Task.sleep(for: .seconds(3))
 
-            // Screenshot
-            let pngData = try await session.screenshot()
-            #expect(pngData.count > 0)
-            print("Screenshot captured: \(pngData.count) bytes")
+            // Default quality → JPEG (0xFF 0xD8 SOI marker).
+            let jpegData = try await session.screenshot()
+            #expect(jpegData.count > 0)
+            #expect(jpegData[0] == 0xFF && jpegData[1] == 0xD8)
+            print("JPEG screenshot captured: \(jpegData.count) bytes")
 
-            // Save screenshot for manual inspection
+            // Quality 1.0 → PNG (0x89 'P' header).
+            let pngData = try await session.screenshot(jpegQuality: 1.0)
+            #expect(pngData.count > 0)
+            #expect(pngData[0] == 0x89 && pngData[1] == 0x50)
+            print("PNG screenshot captured: \(pngData.count) bytes")
+
+            // Save PNG for manual inspection.
             let screenshotPath = tempDir.appendingPathComponent("ios_preview.png")
             try pngData.write(to: screenshotPath)
             print("Saved to: \(screenshotPath.path)")
