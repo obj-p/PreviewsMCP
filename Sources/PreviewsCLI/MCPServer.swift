@@ -504,6 +504,20 @@ private func startMacOSPreview(
 }
 
 private func handlePreviewSnapshot(params: CallTool.Parameters) async throws -> CallTool.Result {
+    // Instrumentation for issue #135 Phase 4A. The post-reload wedge
+    // observed in CI (PRs #133/#134 history) manifests as the daemon
+    // logging "Reloaded!" and then never responding to the next
+    // `preview_snapshot`. Stderr goes silent at that point, so we
+    // can't tell whether the handler entered at all, hung on the main
+    // actor, or wedged inside `Snapshot.capture`. These prints let
+    // the next CI failure (captured by the PR #134 post-failure dump
+    // step) localize the hang to a specific await point.
+    //
+    // Cheap (fputs + fflush, no Swift concurrency), additive (all
+    // go to the same stderr the tests already capture), and easy to
+    // remove once 4B lands with the actual fix.
+    fputs("[snapshot] enter\n", stderr); fflush(stderr)
+
     let sessionID: String
     do { sessionID = try extractString("sessionID", from: params) } catch {
         return CallTool.Result(content: [.text(error.localizedDescription)], isError: true)
@@ -526,9 +540,11 @@ private func handlePreviewSnapshot(params: CallTool.Parameters) async throws -> 
     // macOS path. Verify existence upfront so a typo'd sessionID
     // surfaces as a clean "No session found" rather than the misleading
     // "capture failed" from `window(for:)` returning nil.
+    fputs("[snapshot] pre session-check\n", stderr); fflush(stderr)
     let isMacOSSession = await MainActor.run {
         host.allSessions[sessionID] != nil
     }
+    fputs("[snapshot] post session-check\n", stderr); fflush(stderr)
     guard isMacOSSession else {
         return CallTool.Result(
             content: [.text("No session found for \(sessionID).")],
@@ -537,17 +553,23 @@ private func handlePreviewSnapshot(params: CallTool.Parameters) async throws -> 
     }
 
     try await Task.sleep(for: .milliseconds(300))
+    fputs("[snapshot] post 300ms sleep\n", stderr); fflush(stderr)
 
     let format: Snapshot.ImageFormat = usePNG ? .png : .jpeg(quality: quality)
     let imageData: Data = try await MainActor.run {
+        fputs("[snapshot] main-actor capture enter\n", stderr); fflush(stderr)
         guard let window = host.window(for: sessionID) else {
             throw SnapshotError.captureFailed
         }
-        return try Snapshot.capture(window: window, format: format)
+        let data = try Snapshot.capture(window: window, format: format)
+        fputs("[snapshot] main-actor capture done (\(data.count) bytes)\n", stderr); fflush(stderr)
+        return data
     }
+    fputs("[snapshot] encoding\n", stderr); fflush(stderr)
 
     let base64 = imageData.base64EncodedString()
 
+    fputs("[snapshot] returning\n", stderr); fflush(stderr)
     return CallTool.Result(content: [
         .image(data: base64, mimeType: mimeType, metadata: nil)
     ])
