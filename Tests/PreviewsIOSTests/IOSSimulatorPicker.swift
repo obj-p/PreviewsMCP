@@ -37,16 +37,25 @@ enum IOSSimulatorPicker {
     static func pick(index: Int) async throws -> SimulatorManager.Device? {
         let manager = SimulatorManager()
         let devices = try await manager.listDevices()
-        let ios =
+        // Filter to iPhone-class devices only. iPad boots (particularly
+        // iPad Air / Pro M2+) can exceed 60s on GHA CI runners, which
+        // blows through our `simctl bootstatus` timeout; iPhones
+        // typically boot in <15s. All three iOS tests are SwiftUI
+        // previews that don't care which iPhone class they run on.
+        let iPhones =
             devices
-            .filter { $0.isAvailable && ($0.runtimeName ?? "").contains("iOS") }
+            .filter { d in
+                let runtime = d.runtimeName ?? ""
+                let name = d.name
+                return d.isAvailable && runtime.contains("iOS") && name.contains("iPhone")
+            }
             .sorted { a, b in
                 let aRuntime = a.runtimeName ?? ""
                 let bRuntime = b.runtimeName ?? ""
                 if aRuntime != bRuntime { return aRuntime < bRuntime }
                 return a.udid < b.udid
             }
-        guard index < ios.count else { return nil }
-        return ios[index]
+        guard index < iPhones.count else { return nil }
+        return iPhones[index]
     }
 }

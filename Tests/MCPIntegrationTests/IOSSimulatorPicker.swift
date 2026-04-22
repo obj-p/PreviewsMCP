@@ -46,17 +46,26 @@ enum IOSSimulatorPicker {
             let devicesByRuntime = json["devices"] as? [String: [[String: Any]]]
         else { return nil }
 
-        // Flatten iOS runtimes in a stable order: runtime alphabetical,
-        // UDID alphabetical within each runtime. Matches the
-        // PreviewsIOSTests-target sibling so tests across targets get the
-        // same device for the same index.
-        var iosUDIDs: [String] = []
+        // Filter to iPhone-class devices only. iPad boots (particularly
+        // iPad Air / Pro M2+) can exceed 60s on GHA CI runners, which
+        // blows through our `simctl bootstatus` timeout; iPhones
+        // typically boot in <15s. All three iOS tests are SwiftUI
+        // previews that don't care which iPhone class they run on.
+        //
+        // Stable order: runtime alphabetical, UDID alphabetical within
+        // each runtime. Matches the PreviewsIOSTests-target sibling so
+        // tests across targets get the same device for the same index.
+        var iPhoneUDIDs: [String] = []
         for runtime in devicesByRuntime.keys.sorted() where runtime.contains("iOS") {
             guard let list = devicesByRuntime[runtime] else { continue }
-            let udids = list.compactMap { $0["udid"] as? String }.sorted()
-            iosUDIDs.append(contentsOf: udids)
+            let udids =
+                list
+                .filter { ($0["name"] as? String)?.contains("iPhone") == true }
+                .compactMap { $0["udid"] as? String }
+                .sorted()
+            iPhoneUDIDs.append(contentsOf: udids)
         }
-        guard index < iosUDIDs.count else { return nil }
-        return iosUDIDs[index]
+        guard index < iPhoneUDIDs.count else { return nil }
+        return iPhoneUDIDs[index]
     }
 }
