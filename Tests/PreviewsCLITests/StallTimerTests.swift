@@ -47,6 +47,9 @@ struct StallTimerTests {
         #expect(
             elapsed >= .milliseconds(300),
             "bump at +100ms should push stall to >=300ms (got \(elapsed))")
+        #expect(
+            elapsed < .milliseconds(600),
+            "waitForStall overshot by too much (got \(elapsed))")
     }
 
     @Test("waitForStall returns false when containing Task is cancelled")

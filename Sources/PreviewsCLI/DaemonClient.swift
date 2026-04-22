@@ -92,7 +92,7 @@ enum DaemonClient {
         // servers that don't advertise logging capability.
         try? await client.setLoggingLevel(.debug)
 
-        let stallWatcher = Task { [client] in
+        let stallWatcher = Task {
             if await timer.waitForStall(threshold: stallThreshold) {
                 // Disconnect drains `pendingRequests` and resumes each
                 // waiting continuation with `MCPError.internalError`

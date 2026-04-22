@@ -39,18 +39,26 @@ actor StallTimer {
     /// The poll sleeps for the remaining time until the deadline, so a
     /// freshly bumped timer waits close to the full `threshold` rather
     /// than busy-looping on a short tick.
+    ///
+    /// Cancellation must be checked *before* the elapsed/threshold compare
+    /// on every iteration. Otherwise a Task cancelled at or after the
+    /// threshold boundary would return `true` (stall) instead of `false`
+    /// (cancelled), violating the contract on paths where the bump loop
+    /// and cancellation race.
     func waitForStall(threshold: Duration) async -> Bool {
-        while !Task.isCancelled {
+        while true {
+            if Task.isCancelled { return false }
             let elapsed = ContinuousClock.now - lastActivity
             if elapsed >= threshold { return true }
             let remaining = threshold - elapsed
             do {
                 try await Task.sleep(for: remaining)
             } catch {
-                // Cancellation interrupts sleep; loop condition catches it.
-                continue
+                // `Task.sleep` only throws on cancellation; short-circuit
+                // rather than re-entering the loop (where the elapsed
+                // check might win ahead of the cancellation check).
+                return false
             }
         }
-        return false
     }
 }
