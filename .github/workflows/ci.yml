@@ -213,3 +213,18 @@ jobs:
         env:
           NSUnbufferedIO: "YES"
         run: swift test --filter "IOSMCPTests"
+
+      - name: Dump iOS MCP server stderr on failure
+        if: failure()
+        run: |
+          echo "--- MCPTestServer per-instance stderr logs ---"
+          for f in "$TMPDIR"/previewsmcp-test-*.log /tmp/previewsmcp-test-*.log; do
+            [ -f "$f" ] || continue
+            echo "=== $f ==="
+            cat "$f"
+            echo
+          done
+          echo "--- booted simulators ---"
+          xcrun simctl list devices booted 2>/dev/null || true
+          echo "--- orphan simctl/previewsmcp procs ---"
+          ps -o pid,command -ax | grep -E "(simctl|previewsmcp)" | grep -v grep || true
