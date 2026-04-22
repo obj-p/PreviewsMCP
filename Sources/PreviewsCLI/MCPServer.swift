@@ -504,18 +504,21 @@ private func startMacOSPreview(
 }
 
 private func handlePreviewSnapshot(params: CallTool.Parameters) async throws -> CallTool.Result {
-    // Instrumentation for issue #135 Phase 4A. The post-reload wedge
-    // observed in CI (PRs #133/#134 history) manifests as the daemon
-    // logging "Reloaded!" and then never responding to the next
-    // `preview_snapshot`. Stderr goes silent at that point, so we
+    // TODO(#135-4B): remove these markers once the actual post-reload
+    // wedge fix lands. Instrumentation for issue #135 Phase 4A — the
+    // post-reload wedge observed in CI (PRs #133/#134 history) manifests
+    // as the daemon logging "Reloaded!" and then never responding to the
+    // next `preview_snapshot`. Stderr goes silent at that point, so we
     // can't tell whether the handler entered at all, hung on the main
     // actor, or wedged inside `Snapshot.capture`. These prints let
     // the next CI failure (captured by the PR #134 post-failure dump
     // step) localize the hang to a specific await point.
     //
     // Cheap (fputs + fflush, no Swift concurrency), additive (all
-    // go to the same stderr the tests already capture), and easy to
-    // remove once 4B lands with the actual fix.
+    // go to the same stderr the tests already capture), and not
+    // user-visible — `DaemonClient.registerStderrLogForwarder`
+    // forwards MCP `LogMessageNotification` payloads, not raw daemon
+    // stderr. macOS snapshot handler only; iOS returns early above.
     fputs("[snapshot] enter\n", stderr); fflush(stderr)
 
     let sessionID: String
@@ -556,14 +559,24 @@ private func handlePreviewSnapshot(params: CallTool.Parameters) async throws -> 
     fputs("[snapshot] post 300ms sleep\n", stderr); fflush(stderr)
 
     let format: Snapshot.ImageFormat = usePNG ? .png : .jpeg(quality: quality)
-    let imageData: Data = try await MainActor.run {
-        fputs("[snapshot] main-actor capture enter\n", stderr); fflush(stderr)
-        guard let window = host.window(for: sessionID) else {
-            throw SnapshotError.captureFailed
+    let imageData: Data
+    do {
+        imageData = try await MainActor.run {
+            fputs("[snapshot] main-actor capture enter\n", stderr); fflush(stderr)
+            guard let window = host.window(for: sessionID) else {
+                throw SnapshotError.captureFailed
+            }
+            let data = try Snapshot.capture(window: window, format: format)
+            fputs("[snapshot] main-actor capture done (\(data.count) bytes)\n", stderr)
+            fflush(stderr)
+            return data
         }
-        let data = try Snapshot.capture(window: window, format: format)
-        fputs("[snapshot] main-actor capture done (\(data.count) bytes)\n", stderr); fflush(stderr)
-        return data
+    } catch {
+        // Marker fires on both the `captureFailed` and any other throw
+        // from the MainActor block so the dump shows "we exited the
+        // block one way or another" — not just the happy path.
+        fputs("[snapshot] main-actor capture threw: \(error)\n", stderr); fflush(stderr)
+        throw error
     }
     fputs("[snapshot] encoding\n", stderr); fflush(stderr)
 
