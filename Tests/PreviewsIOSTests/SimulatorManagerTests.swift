@@ -64,22 +64,15 @@ struct SimulatorManagerTests {
 
     @Test("Boot and shutdown a device")
     func bootAndShutdown() async throws {
-        try await SimulatorTestLock.run {
-            try await Self.bootAndShutdownBody()
-        }
-    }
-
-    private static func bootAndShutdownBody() async throws {
-        let manager = SimulatorManager()
-        let devices = try await manager.listDevices()
-        guard
-            let target = devices.first(where: {
-                $0.isAvailable && $0.state == .shutdown
-            })
-        else {
-            print("No available shutdown device to test boot/shutdown")
+        // Each test that boots a simulator gets its OWN device (distinct
+        // IOSSimulatorPicker index) so the three iOS test suites don't
+        // contend for the same device when Swift Testing runs them in
+        // parallel. See IOSSimulatorPicker for the assignments.
+        guard let target = try await IOSSimulatorPicker.pick(index: 0) else {
+            print("No iOS simulator at picker index 0 — skipping")
             return
         }
+        let manager = SimulatorManager()
 
         // Boot, test, then always shutdown — even if assertions fail.
         print("Booting \(target.name) (\(target.udid))...")
@@ -92,7 +85,7 @@ struct SimulatorManagerTests {
             // `bootDevice` blocks until the device is fully booted (via
             // `simctl bootstatus -b`), so the state must be `.booted` by
             // the time we get here — no more `.booting` tolerance.
-            #expect(booted.state == .booted)
+            #expect(booted.state == SimulatorManager.DeviceState.booted)
             print("State after boot: \(booted.stateString)")
 
             // Take a screenshot (direct IOSurface capture with simctl fallback)
@@ -115,9 +108,12 @@ struct SimulatorManagerTests {
         print("Shutting down...")
         try await manager.shutdownDevice(udid: target.udid)
 
-        let shutdown = try await manager.findDevice(udid: target.udid)
-        #expect(shutdown.state == .shutdown || shutdown.state == .shuttingDown)
-        print("State after shutdown: \(shutdown.stateString)")
+        let afterShutdown = try await manager.findDevice(udid: target.udid)
+        #expect(
+            afterShutdown.state == SimulatorManager.DeviceState.shutdown
+                || afterShutdown.state == SimulatorManager.DeviceState.shuttingDown
+        )
+        print("State after shutdown: \(afterShutdown.stateString)")
 
         if let testError { throw testError }
     }

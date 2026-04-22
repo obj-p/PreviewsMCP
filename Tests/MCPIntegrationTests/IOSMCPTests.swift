@@ -49,14 +49,12 @@ struct IOSMCPTests {
         "iOS preview workflow: start, snapshot, elements, tap, swipe, switch",
         .timeLimit(.minutes(10)))
     func fullIOSWorkflow() async throws {
-        try await SimulatorTestLock.run {
-            try await Self.fullIOSWorkflowBody()
-        }
-    }
-
-    private static func fullIOSWorkflowBody() async throws {
-        guard await Self.hasIOSSimulator() else {
-            print("No iOS simulator available — skipping iOS MCP tests")
+        // Pick this test's assigned device (index 2) so we don't contend
+        // with SimulatorManagerTests (index 0) or IOSPreviewSessionTests
+        // (index 1) when Swift Testing runs the iOS suites in parallel.
+        // See IOSSimulatorPicker for the full assignment table.
+        guard let deviceUDID = try await IOSSimulatorPicker.pickUDID(index: 2) else {
+            print("No iOS simulator at picker index 2 — skipping iOS MCP tests")
             return
         }
 
@@ -69,6 +67,7 @@ struct IOSMCPTests {
             arguments: [
                 "filePath": .string(MCPTestServer.toDoViewPath),
                 "platform": .string("ios"),
+                "deviceUDID": .string(deviceUDID),
                 "headless": .bool(true),
                 "projectPath": .string(MCPTestServer.spmExampleRoot.path),
             ]

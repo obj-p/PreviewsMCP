@@ -25,12 +25,6 @@ struct IOSPreviewSessionTests {
 
     @Test("End-to-end: compile, boot, install, launch, screenshot")
     func endToEnd() async throws {
-        try await SimulatorTestLock.run {
-            try await Self.endToEndBody()
-        }
-    }
-
-    private static func endToEndBody() async throws {
         // Write test source
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("previews-mcp-ios-e2e-\(UUID().uuidString)")
@@ -40,17 +34,15 @@ struct IOSPreviewSessionTests {
         let sourceFile = tempDir.appendingPathComponent("HelloView.swift")
         try Self.testViewSource.write(to: sourceFile, atomically: true, encoding: .utf8)
 
-        // Find an available device — prefer already-booted to avoid sim cycling issues
-        let simulatorManager = SimulatorManager()
-        let devices = try await simulatorManager.listDevices()
-        let available = devices.filter { $0.isAvailable }
-        guard
-            let target = available.first(where: { $0.state == .booted })
-                ?? available.first
-        else {
-            print("No available simulator devices — skipping e2e test")
+        // Pick the picker's assigned device (index 1) — distinct from
+        // SimulatorManagerTests.bootAndShutdown (index 0) and
+        // IOSMCPTests.fullIOSWorkflow (index 2) so the three iOS suites
+        // can run in parallel without contending for the same simulator.
+        guard let target = try await IOSSimulatorPicker.pick(index: 1) else {
+            print("No iOS simulator at picker index 1 — skipping e2e test")
             return
         }
+        let simulatorManager = SimulatorManager()
 
         // Create session with isolated work dirs to avoid conflicts with other tests
         let hostWorkDir = FileManager.default.temporaryDirectory
