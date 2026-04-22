@@ -212,11 +212,6 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
                             fputs("Reload failed: \(error)\n", stderr); fflush(stderr)
                         }
                     }
-                    // Phase 4A instrumentation (issue #135): marks the end
-                    // of the MainActor.run block so we can tell in the CI
-                    // stderr dump whether the wedge happens inside the
-                    // reload or in the handler that runs after it.
-                    fputs("[reload] main-actor block returned\n", stderr); fflush(stderr)
                 } catch {
                     fputs("Recompilation failed: \(error)\n", stderr)
                 }
