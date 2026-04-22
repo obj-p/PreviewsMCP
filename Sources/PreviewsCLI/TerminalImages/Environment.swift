@@ -21,12 +21,3 @@ struct ProcessTerminalEnvironment: TerminalEnvironment {
     var tmux: String? { env["TMUX"] }
     var previewsmcpInline: String? { env["PREVIEWSMCP_INLINE"] }
 }
-
-struct MockTerminalEnvironment: TerminalEnvironment {
-    var term: String?
-    var termProgram: String?
-    var lcTerminal: String?
-    var kittyWindowID: String?
-    var tmux: String?
-    var previewsmcpInline: String?
-}

@@ -66,6 +66,18 @@ struct CapabilityDecision: Sendable, Equatable {
 }
 
 enum TerminalCapabilityDetector {
+    /// Surfaced on stderr when a user is inside tmux with a supported outer
+    /// terminal but `allow-passthrough` is off, so they know why their image
+    /// didn't render and how to fix it.
+    static let tmuxPassthroughOffHint =
+        "note: running inside tmux; enable with `tmux set -g allow-passthrough on`"
+
+    /// Surfaced when `--inline always` forces output on a terminal we can't
+    /// classify as supporting iTerm2 protocol — the bytes will show as
+    /// garbage on Terminal.app or Alacritty, but at least the user knows why.
+    static let forcedOnUnsupportedHint =
+        "note: emitting inline image on an unrecognized terminal because --inline always"
+
     static func detect(
         env: TerminalEnvironment,
         tmuxProbe: TmuxProbe = ProcessTmuxProbe()
@@ -89,7 +101,7 @@ enum TerminalCapabilityDetector {
             return CapabilityDecision(
                 capability: .unsupported,
                 needsTmuxWrap: false,
-                hint: "note: running inside tmux; enable with `tmux set -g allow-passthrough on`"
+                hint: tmuxPassthroughOffHint
             )
         case .unknown:
             return CapabilityDecision(capability: .unsupported, needsTmuxWrap: false, hint: nil)

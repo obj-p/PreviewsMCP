@@ -357,6 +357,8 @@ struct SnapshotCommand: AsyncParsableCommand {
         throw SnapshotCommandError.noImageContent(response.content.joinedText())
     }
 
+    private static let newline = Data([0x0A])
+
     /// Try to render the snapshot inline in the terminal. Suppressed
     /// automatically when stdout is not a TTY, when `--inline never` is set,
     /// or when the terminal doesn't speak a protocol we support. Any stderr
@@ -371,9 +373,10 @@ struct SnapshotCommand: AsyncParsableCommand {
             stdoutIsTTY: isTTY
         )
         switch decision {
-        case .emit(let bytes):
+        case .emit(let bytes, let hint):
             FileHandle.standardOutput.write(bytes)
-            FileHandle.standardOutput.write(Data([0x0A]))
+            FileHandle.standardOutput.write(Self.newline)
+            if let hint { fputs(hint + "\n", stderr) }
         case .skip(let hint):
             if let hint { fputs(hint + "\n", stderr) }
         }

@@ -7,9 +7,10 @@ enum InlineMode: String, Sendable, Equatable, CaseIterable, ExpressibleByArgumen
 
 enum InlineDecision: Sendable, Equatable {
     /// Emit these bytes to stdout (already protocol-framed and, if needed,
-    /// tmux-wrapped). Caller is responsible for adding a trailing newline
-    /// before printing the path.
-    case emit(Data)
+    /// tmux-wrapped). `hint` is an optional stderr warning — used when the
+    /// user forced `--inline always` on a terminal we can't classify, so
+    /// the output doesn't feel like a silent failure.
+    case emit(Data, hint: String?)
     /// Skip inline output. `hint` is a short stderr message to surface, if any.
     case skip(hint: String?)
 }
@@ -41,8 +42,16 @@ enum TerminalImages {
 
         let decision = TerminalCapabilityDetector.detect(env: env, tmuxProbe: tmuxProbe)
 
-        if decision.capability.supportsInlineV1 || effectiveMode == .always {
-            return .emit(encode(imageData, wrap: decision.needsTmuxWrap))
+        if decision.capability.supportsInlineV1 {
+            return .emit(encode(imageData, wrap: decision.needsTmuxWrap), hint: nil)
+        }
+        if effectiveMode == .always {
+            // User forced it on an unknown terminal — emit iTerm2 bytes but
+            // surface a hint so garbled output doesn't look like a bug.
+            return .emit(
+                encode(imageData, wrap: decision.needsTmuxWrap),
+                hint: TerminalCapabilityDetector.forcedOnUnsupportedHint
+            )
         }
         return .skip(hint: decision.hint)
     }

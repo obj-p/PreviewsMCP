@@ -3,6 +3,16 @@ import Testing
 
 @testable import PreviewsCLI
 
+/// Deterministic test environment — avoids touching the real process env.
+struct MockTerminalEnvironment: TerminalEnvironment {
+    var term: String?
+    var termProgram: String?
+    var lcTerminal: String?
+    var kittyWindowID: String?
+    var tmux: String?
+    var previewsmcpInline: String?
+}
+
 /// Test double for `tmux show-options` — avoids spawning a real tmux process
 /// so capability tests run deterministically in any environment (CI, local,
 /// in/out of tmux).
@@ -108,7 +118,7 @@ struct TerminalCapabilityDetectorTests {
         let decision = TerminalCapabilityDetector.detect(env: env, tmuxProbe: StubTmuxProbe(state: .off))
         #expect(decision.capability == .unsupported)
         #expect(decision.needsTmuxWrap == false)
-        #expect(decision.hint?.contains("allow-passthrough") == true)
+        #expect(decision.hint == TerminalCapabilityDetector.tmuxPassthroughOffHint)
     }
 
     @Test("tmux + supported outer + probe unknown → unsupported, no hint")
@@ -177,7 +187,7 @@ struct TerminalImagesRenderInlineTests {
             env: MockTerminalEnvironment(termProgram: "iTerm.app"),
             tmuxProbe: StubTmuxProbe(state: .unknown)
         )
-        guard case .emit(let bytes) = d else { Issue.record("expected .emit"); return }
+        guard case .emit(let bytes, _) = d else { Issue.record("expected .emit"); return }
         let s = String(data: bytes, encoding: .utf8) ?? ""
         #expect(s.hasPrefix("\u{1B}]1337;"))
         #expect(!s.hasPrefix("\u{1B}Ptmux;"))
@@ -191,7 +201,7 @@ struct TerminalImagesRenderInlineTests {
             env: MockTerminalEnvironment(termProgram: "iTerm.app", tmux: "/tmp/tmux/default"),
             tmuxProbe: StubTmuxProbe(state: .on)
         )
-        guard case .emit(let bytes) = d else { Issue.record("expected .emit"); return }
+        guard case .emit(let bytes, _) = d else { Issue.record("expected .emit"); return }
         let s = String(data: bytes, encoding: .utf8) ?? ""
         #expect(s.hasPrefix("\u{1B}Ptmux;"))
         #expect(s.hasSuffix("\u{1B}\\"))
@@ -205,11 +215,10 @@ struct TerminalImagesRenderInlineTests {
             env: MockTerminalEnvironment(termProgram: "iTerm.app", tmux: "/tmp/tmux/default"),
             tmuxProbe: StubTmuxProbe(state: .off)
         )
-        guard case .skip(let hint) = d else { Issue.record("expected .skip"); return }
-        #expect(hint?.contains("allow-passthrough") == true)
+        #expect(d == .skip(hint: TerminalCapabilityDetector.tmuxPassthroughOffHint))
     }
 
-    @Test("always overrides unsupported terminal and emits")
+    @Test("always overrides unsupported terminal and emits with stderr hint")
     func alwaysOverridesUnsupported() {
         let d = TerminalImages.renderInline(
             imageData: pixel, mode: .always, jsonOutput: false,
@@ -217,8 +226,9 @@ struct TerminalImagesRenderInlineTests {
             env: MockTerminalEnvironment(term: "xterm-256color"),
             tmuxProbe: StubTmuxProbe(state: .unknown)
         )
-        guard case .emit(let bytes) = d else { Issue.record("expected .emit"); return }
+        guard case .emit(let bytes, let hint) = d else { Issue.record("expected .emit"); return }
         #expect(!bytes.isEmpty)
+        #expect(hint == TerminalCapabilityDetector.forcedOnUnsupportedHint)
     }
 
     @Test("always overrides non-TTY stdout and emits")
@@ -252,6 +262,31 @@ struct TerminalImagesRenderInlineTests {
             tmuxProbe: StubTmuxProbe(state: .unknown)
         )
         guard case .emit = d else { Issue.record("expected .emit"); return }
+    }
+
+    @Test(
+        "PREVIEWSMCP_INLINE string variants resolved correctly under mode=auto",
+        arguments: [
+            ("0", false), ("false", false), ("never", false),
+            ("1", true), ("true", true), ("always", true),
+            ("auto", true), ("", true), ("garbage", true),
+        ] as [(String, Bool)]
+    )
+    func envVarVariants(raw: String, shouldEmit: Bool) {
+        let env = MockTerminalEnvironment(
+            termProgram: "iTerm.app",
+            previewsmcpInline: raw
+        )
+        let d = TerminalImages.renderInline(
+            imageData: pixel, mode: .auto, jsonOutput: false,
+            stdoutIsTTY: true,
+            env: env,
+            tmuxProbe: StubTmuxProbe(state: .unknown)
+        )
+        switch d {
+        case .emit: #expect(shouldEmit, "expected skip for PREVIEWSMCP_INLINE=\(raw)")
+        case .skip: #expect(!shouldEmit, "expected emit for PREVIEWSMCP_INLINE=\(raw)")
+        }
     }
 
     @Test("explicit --inline never wins over PREVIEWSMCP_INLINE=1")

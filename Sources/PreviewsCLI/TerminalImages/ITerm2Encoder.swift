@@ -11,11 +11,10 @@ enum ITerm2Encoder {
     static func encode(imageData: Data) -> Data {
         let base64 = imageData.base64EncodedString()
         let header = "\u{1B}]1337;File=inline=1;size=\(imageData.count):"
-        let terminator = "\u{07}"
         var out = Data()
-        out.append(header.data(using: .utf8)!)
-        out.append(base64.data(using: .utf8)!)
-        out.append(terminator.data(using: .utf8)!)
+        out.append(Data(header.utf8))
+        out.append(Data(base64.utf8))
+        out.append(0x07)
         return out
     }
 }

@@ -20,13 +20,13 @@ enum DownscaleCG {
         targetMaxPixel: Int = defaultTargetMaxPixel
     ) -> Data {
         guard let source = CGImageSourceCreateWithData(data as CFData, nil) else {
-            return data
+            return failSilently(data, reason: "CGImageSource creation failed")
         }
         guard let props = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
               let width = props[kCGImagePropertyPixelWidth] as? Int,
               let height = props[kCGImagePropertyPixelHeight] as? Int
         else {
-            return data
+            return failSilently(data, reason: "pixel dimensions unavailable")
         }
         guard max(width, height) > threshold else { return data }
 
@@ -36,15 +36,25 @@ enum DownscaleCG {
             kCGImageSourceThumbnailMaxPixelSize: targetMaxPixel,
         ]
         guard let thumb = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else {
-            return data
+            return failSilently(data, reason: "CGImageSourceCreateThumbnailAtIndex returned nil")
         }
 
         let outData = NSMutableData()
         guard let dest = CGImageDestinationCreateWithData(outData, UTType.png.identifier as CFString, 1, nil) else {
-            return data
+            return failSilently(data, reason: "CGImageDestination creation failed")
         }
         CGImageDestinationAddImage(dest, thumb, nil)
-        guard CGImageDestinationFinalize(dest) else { return data }
+        guard CGImageDestinationFinalize(dest) else {
+            return failSilently(data, reason: "CGImageDestinationFinalize returned false")
+        }
         return outData as Data
+    }
+
+    private static func failSilently(_ original: Data, reason: String) -> Data {
+        fputs(
+            "note: inline downscale failed (\(reason)); emitting full-resolution image\n",
+            stderr
+        )
+        return original
     }
 }
