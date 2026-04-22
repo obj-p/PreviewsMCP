@@ -36,6 +36,15 @@ enum DaemonPaths {
         directory.appendingPathComponent("serve.log")
     }
 
+    /// Advisory lock serializing version-mismatch restarts across
+    /// concurrent CLI invocations. Held by the client doing the
+    /// kill+respawn; the daemon itself never touches it. Kept separate
+    /// from `pidFile` (which the daemon owns) so the two concerns don't
+    /// race. See issue #142.
+    static var restartLock: URL {
+        directory.appendingPathComponent("restart.lock")
+    }
+
     /// Ensure the directory exists with owner-only permissions.
     static func ensureDirectory() throws {
         try FileManager.default.createDirectory(

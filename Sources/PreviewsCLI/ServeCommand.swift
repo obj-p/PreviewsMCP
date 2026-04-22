@@ -102,6 +102,15 @@ struct ServeCommand: ParsableCommand {
                 _ = try await DaemonListener.start(host: host)
                 try DaemonLifecycle.register()
                 Log.info("daemon ready (pid \(ProcessInfo.processInfo.processIdentifier))")
+                // One-line breadcrumb so `serve.log` records when the
+                // daemon was (re)spawned because of a version-mismatch
+                // restart. Diagnoses repeated restart loops in bug
+                // reports without any persistent state. See issue #142.
+                if let reason = ProcessInfo.processInfo.environment[
+                    "_PREVIEWSMCP_DAEMON_RESTART_REASON"], !reason.isEmpty
+                {
+                    Log.info("daemon: started after version-mismatch restart (\(reason))")
+                }
             } catch {
                 Log.error("daemon startup failed: \(error)")
                 DaemonLifecycle.unregister()

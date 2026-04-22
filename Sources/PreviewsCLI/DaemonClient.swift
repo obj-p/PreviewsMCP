@@ -39,11 +39,58 @@ enum DaemonClient {
         startTimeout: TimeInterval = 60,
         configure: ((Client) async -> Void)? = nil
     ) async throws -> Client {
+        // When no daemon is running we spawn one ourselves. By
+        // construction its binary matches argv[0], so the MCP
+        // `serverInfo.version` must equal our own compile-time
+        // version — no handshake check needed on this branch.
+        let weJustSpawned: Bool
         if !DaemonProbe.canConnect() {
             try spawnDaemon()
             try await waitForSocket(timeout: startTimeout)
+            weJustSpawned = true
+        } else {
+            weJustSpawned = false
         }
 
+        let (client, initResult) = try await openClient(
+            clientName: clientName, configure: configure)
+
+        if weJustSpawned {
+            return client
+        }
+
+        let serverVersion = initResult.serverInfo.version
+        let clientVersion = PreviewsMCPCommand.version
+        if versionsMatch(clientVersion, serverVersion) {
+            return client
+        }
+
+        // Version mismatch: the daemon was spawned by a prior CLI
+        // binary that no longer matches ours (e.g., `brew upgrade`
+        // moved the binary without touching the running daemon).
+        // Drop this connection, take the restart lock, kill the
+        // stale daemon, respawn, and reconnect. See issue #142.
+        await client.disconnect()
+        return try await restartDaemonAndReconnect(
+            staleVersion: serverVersion,
+            currentVersion: clientVersion,
+            clientName: clientName,
+            startTimeout: startTimeout,
+            configure: configure
+        )
+    }
+
+    /// Open one MCP connection to the running daemon and return the
+    /// initialize response alongside the live client. Factored out of
+    /// `connect(...)` so the version-mismatch recovery path can reuse
+    /// the same setup (including `configure`) against the respawned
+    /// daemon. `configure` runs once per invocation; callers register
+    /// notification handlers there rather than on the returned client
+    /// to avoid dropping early notifications.
+    private static func openClient(
+        clientName: String,
+        configure: ((Client) async -> Void)?
+    ) async throws -> (Client, Initialize.Result) {
         let connection = NWConnection(
             to: NWEndpoint.unix(path: DaemonPaths.socket.path),
             using: .tcp
@@ -51,8 +98,151 @@ enum DaemonClient {
         let transport = NetworkTransport(connection: connection)
         let client = Client(name: clientName, version: PreviewsMCPCommand.version)
         await configure?(client)
-        _ = try await client.connect(transport: transport)
+        let initResult = try await client.connect(transport: transport)
+        return (client, initResult)
+    }
+
+    /// Kill the stale daemon and bring up a fresh one matching the
+    /// current CLI binary. Serialized across concurrent CLIs via
+    /// `flock` on `DaemonPaths.restartLock` so two upgraded CLIs
+    /// don't stampede (both SIGTERM, both spawn, one wins the socket
+    /// and the other's respawn collides with `ServeCommand`'s
+    /// "already running" guard). After acquiring the lock we re-probe
+    /// — a sibling CLI may have already fixed the mismatch, in which
+    /// case our initial handshake is stale and we should just use
+    /// the sibling's fresh daemon. See issue #142.
+    private static func restartDaemonAndReconnect(
+        staleVersion: String,
+        currentVersion: String,
+        clientName: String,
+        startTimeout: TimeInterval,
+        configure: ((Client) async -> Void)?
+    ) async throws -> Client {
+        let lockFd = try await acquireRestartLock()
+        defer {
+            _ = flock(lockFd, LOCK_UN)
+            close(lockFd)
+        }
+
+        // A sibling CLI may have restarted the daemon between our
+        // mismatch detection and our lock acquisition, making our
+        // cached server version stale. Always re-probe under the
+        // lock — one extra initialize round-trip, cheap, avoids
+        // killing a freshly-spawned daemon. Drop the probe client
+        // if it still mismatches; the kill+respawn below needs the
+        // socket free of our own connection.
+        let (probeClient, probeInit) = try await openClient(
+            clientName: clientName, configure: configure)
+        if versionsMatch(currentVersion, probeInit.serverInfo.version) {
+            return probeClient
+        }
+        await probeClient.disconnect()
+
+        fputs(
+            "previewsmcp: daemon was \(staleVersion), CLI is \(currentVersion) — restarting\n",
+            stderr
+        )
+
+        if let pid = DaemonLifecycle.readPID() {
+            try killDaemonAndWait(pid: pid, timeout: 5.0)
+        }
+
+        let reason =
+            "prev=\(staleVersion),now=\(currentVersion),"
+            + "by=pid\(ProcessInfo.processInfo.processIdentifier)"
+        try spawnDaemon(restartReason: reason)
+        try await waitForSocket(timeout: startTimeout)
+
+        let (client, initResult) = try await openClient(
+            clientName: clientName, configure: configure)
+        if !versionsMatch(currentVersion, initResult.serverInfo.version) {
+            await client.disconnect()
+            throw DaemonClientError.versionStillMismatched(
+                reported: initResult.serverInfo.version)
+        }
         return client
+    }
+
+    /// SIGTERM the given pid and poll until it's gone, or throw on
+    /// timeout. Swallows ESRCH — the daemon may have exited on its
+    /// own between our read and our signal.
+    private static func killDaemonAndWait(pid: Int32, timeout: TimeInterval) throws {
+        if kill(pid, SIGTERM) != 0 && errno != ESRCH {
+            throw DaemonClientError.couldNotSignalDaemon(pid: pid, errno: errno)
+        }
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if !DaemonLifecycle.isProcessAlive(pid) { return }
+            Thread.sleep(forTimeInterval: 0.1)
+        }
+        throw DaemonClientError.restartTimedOut(pid: pid)
+    }
+
+    /// Acquire the cross-process restart lock. Blocking `flock` runs
+    /// on a dispatch-global thread so it doesn't starve Swift's
+    /// cooperative pool — same pattern as `DaemonTestLock.run` (see
+    /// its comment for context on the starvation we saw before).
+    private static func acquireRestartLock() async throws -> Int32 {
+        let path = DaemonPaths.restartLock.path
+        return try await withCheckedThrowingContinuation {
+            (cont: CheckedContinuation<Int32, Error>) in
+            DispatchQueue.global(qos: .userInitiated).async {
+                try? DaemonPaths.ensureDirectory()
+                let fd = open(path, O_CREAT | O_RDWR, 0o644)
+                guard fd >= 0 else {
+                    cont.resume(throwing: DaemonClientError.lockFailed(errno: errno))
+                    return
+                }
+                if flock(fd, LOCK_EX) != 0 {
+                    let err = errno
+                    close(fd)
+                    cont.resume(throwing: DaemonClientError.lockFailed(errno: err))
+                    return
+                }
+                cont.resume(returning: fd)
+            }
+        }
+    }
+
+    /// Decide whether two `serverInfo.version` strings are compatible
+    /// enough to skip a daemon restart.
+    ///
+    /// Rules:
+    ///   • Both have the git-describe suffix `-<N>-g<SHA>` (both are
+    ///     dev builds) — strict equality. Different SHAs can carry
+    ///     different protocol-affecting changes, and the whole
+    ///     purpose of the handshake is to catch those during
+    ///     development iteration.
+    ///   • Otherwise — strip the suffix from whichever side has it
+    ///     and compare. So `0.12.0` (release) matches `0.12.0-5-gabc`
+    ///     (dev build atop that release) without a pointless restart.
+    ///
+    /// Pre-release tags like `-rc.1` are preserved and compare as
+    /// distinct — the regex only matches the numeric-distance-plus-
+    /// SHA pattern git-describe produces. See issue #142.
+    static func versionsMatch(_ a: String, _ b: String) -> Bool {
+        let aHasSuffix = gitDescribeRange(in: a) != nil
+        let bHasSuffix = gitDescribeRange(in: b) != nil
+        if aHasSuffix && bHasSuffix {
+            return a == b
+        }
+        return baseVersion(a) == baseVersion(b)
+    }
+
+    /// Strip the git-describe suffix `-<N>-g<SHA>`, if present.
+    static func baseVersion(_ version: String) -> String {
+        guard let range = gitDescribeRange(in: version) else { return version }
+        return String(version[..<range.lowerBound])
+    }
+
+    /// Match `-<N>-g<SHA>$` where SHA is at least 4 hex chars (git's
+    /// minimum short-sha length). Narrow on purpose so hand-crafted
+    /// strings like `0.12.0-1-gz` don't accidentally match.
+    private static func gitDescribeRange(in version: String) -> Range<String.Index>? {
+        version.range(
+            of: "-[0-9]+-g[0-9a-f]{4,}$",
+            options: .regularExpression
+        )
     }
 
     /// Connect, register the default stderr log-forwarder, run `body`, and
@@ -161,7 +351,11 @@ enum DaemonClient {
     /// Spawn the daemon as an independent child process. We don't wait for it —
     /// the daemon keeps running after this function returns and after the
     /// parent CLI exits.
-    private static func spawnDaemon() throws {
+    ///
+    /// `restartReason` is propagated via `_PREVIEWSMCP_DAEMON_RESTART_REASON`
+    /// so the new daemon logs a diagnostic breadcrumb to `serve.log` on
+    /// startup. Only set when this spawn is a version-mismatch recovery.
+    private static func spawnDaemon(restartReason: String? = nil) throws {
         let selfPath = ProcessInfo.processInfo.arguments[0]
         let binaryURL = URL(fileURLWithPath: selfPath).standardizedFileURL
 
@@ -192,6 +386,39 @@ enum DaemonClient {
             proc.standardError =
                 (try? FileHandle(forWritingTo: DaemonPaths.logFile)) ?? FileHandle.nullDevice
         }
+
+        // Filter the child env:
+        //   • `_PREVIEWSMCP_TEST_DAEMON_VERSION` — integration-test hook
+        //     that makes the daemon advertise a fake version. Always
+        //     strip it so a stray export in a shell rc can't cause
+        //     respawn loops, and so tests that set it on a manual
+        //     daemon don't leak it into the respawned daemon's env
+        //     (which would re-trip the mismatch path immediately).
+        //   • `_PREVIEWSMCP_DAEMON_RESTART_REASON` — opt-in breadcrumb
+        //     set only on version-mismatch respawns; clear it on every
+        //     other spawn so stale values from a parent CLI don't
+        //     masquerade as a restart event.
+        var env = ProcessInfo.processInfo.environment
+        env.removeValue(forKey: "_PREVIEWSMCP_TEST_DAEMON_VERSION")
+        if let reason = restartReason {
+            env["_PREVIEWSMCP_DAEMON_RESTART_REASON"] = reason
+        } else {
+            env.removeValue(forKey: "_PREVIEWSMCP_DAEMON_RESTART_REASON")
+        }
+        proc.environment = env
+
+        // Log the binary path on a restart spawn so a user diagnosing
+        // a respawn loop can see whether argv[0] still points at the
+        // stale binary (see issue #100). No-op for normal startup
+        // spawns — the daemon's own "daemon ready (pid ...)" line is
+        // enough for those.
+        if restartReason != nil {
+            fputs(
+                "previewsmcp: respawning daemon from \(binaryURL.path)\n",
+                stderr
+            )
+        }
+
         try proc.run()
     }
 
@@ -209,6 +436,10 @@ enum DaemonClient {
 enum DaemonClientError: Error, CustomStringConvertible {
     case startupTimedOut
     case binaryNotFound(path: String)
+    case couldNotSignalDaemon(pid: Int32, errno: Int32)
+    case restartTimedOut(pid: Int32)
+    case lockFailed(errno: Int32)
+    case versionStillMismatched(reported: String)
 
     var description: String {
         switch self {
@@ -216,6 +447,20 @@ enum DaemonClientError: Error, CustomStringConvertible {
             return "daemon did not become ready on \(DaemonPaths.socket.path)"
         case .binaryNotFound(let path):
             return "previewsmcp binary not found or not executable at \(path)"
+        case .couldNotSignalDaemon(let pid, let err):
+            let reason = String(cString: strerror(err))
+            return "could not signal daemon (pid \(pid)): \(reason)"
+        case .restartTimedOut(let pid):
+            return
+                "stale daemon (pid \(pid)) did not exit within the restart timeout; "
+                + "try `previewsmcp kill-daemon` and retry"
+        case .lockFailed(let err):
+            let reason = String(cString: strerror(err))
+            return "could not acquire daemon restart lock: \(reason)"
+        case .versionStillMismatched(let reported):
+            return
+                "daemon still reports version \(reported) after restart; "
+                + "check `_PREVIEWSMCP_TEST_DAEMON_VERSION` in your shell environment"
         }
     }
 }
