@@ -117,9 +117,13 @@ jobs:
           ls -la "$PREVIEWSMCP_SOCKET_DIR/" 2>/dev/null || echo "(dir not found)"
 
       - name: MCP integration tests
-        # 15m > per-test .timeLimit(.minutes(10)) so test-level timeouts fire first
-        # with a source-located Testing error instead of a bare GHA step kill.
-        timeout-minutes: 15
+        # 30m > longest per-test .timeLimit (.minutes(20), previewVariants)
+        # so test-level timeouts fire first with source-located Testing
+        # errors instead of bare GHA step kills. previewVariants was
+        # bumped from 10m → 20m to absorb observed CI variance where
+        # parallel macos-15 runners slowed swift build + variant renders
+        # enough to blow through the old 10m budget.
+        timeout-minutes: 30
         env:
           NSUnbufferedIO: "YES"
         run: swift test --filter "MCPIntegrationTests" --skip "IOSMCPTests"

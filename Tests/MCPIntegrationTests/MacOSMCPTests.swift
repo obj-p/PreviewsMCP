@@ -320,7 +320,7 @@ struct MacOSMCPTests {
 
     // MARK: - preview_variants
 
-    @Test("preview_variants captures multiple configurations", .timeLimit(.minutes(10)))
+    @Test("preview_variants captures multiple configurations", .timeLimit(.minutes(20)))
     func previewVariants() async throws {
         let server = try await MCPTestServer.start()
         defer { server.stop() }
