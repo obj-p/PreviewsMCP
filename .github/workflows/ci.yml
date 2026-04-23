@@ -213,10 +213,13 @@ jobs:
           ls -la "$PREVIEWSMCP_SOCKET_DIR/" 2>/dev/null || echo "(dir not found)"
 
       - name: iOS MCP tests
-        # 25m > per-test .timeLimit(.minutes(20)) so Swift Testing's
-        # time-limit issue fires first with a source-located error
-        # rather than GHA killing the step with just "action timed out".
-        timeout-minutes: 25
+        # 35m = 5m build + 25.5m tests (simulator_list 25s + fullIOS 20m
+        # .timeLimit + 5m buffer). The previous 25m budget was 14
+        # seconds too tight on PR #141 CI: swift test compile ate 5m
+        # and the step killed fullIOSWorkflow mid-run at t=19:46,
+        # before Swift Testing's 20m .timeLimit could fire a
+        # source-located issue.
+        timeout-minutes: 35
         env:
           NSUnbufferedIO: "YES"
         run: swift test --filter "IOSMCPTests"
