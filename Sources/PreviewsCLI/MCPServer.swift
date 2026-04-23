@@ -218,6 +218,8 @@ private func handlePreviewList(params: CallTool.Parameters) async throws -> Call
 private func handlePreviewStart(params: CallTool.Parameters, macCompiler: Compiler, server: Server) async throws
     -> CallTool.Result
 {
+    fputs("preview_start: enter\n", stderr)
+
     let filePath: String
     do { filePath = try extractString("filePath", from: params) } catch {
         return CallTool.Result(content: [.text(error.localizedDescription)], isError: true)
@@ -230,7 +232,9 @@ private func handlePreviewStart(params: CallTool.Parameters, macCompiler: Compil
 
     let previewIndex = extractOptionalInt("previewIndex", from: params) ?? 0
 
+    fputs("preview_start: loading config\n", stderr)
     let configResult = await configCache.load(for: fileURL)
+    fputs("preview_start: config loaded\n", stderr)
     let config = configResult?.config
     let platformStr: String
     if let explicit = extractOptionalString("platform", from: params) {
@@ -249,6 +253,8 @@ private func handlePreviewStart(params: CallTool.Parameters, macCompiler: Compil
     if let traitsError { return traitsError }
     let configTraits = config?.traits?.toPreviewTraits() ?? PreviewTraits()
     let resolvedTraits = configTraits.merged(with: explicitTraits)
+
+    fputs("preview_start: platform=\(platformStr)\n", stderr)
 
     // iOS simulator path
     if platformStr == "ios" {
