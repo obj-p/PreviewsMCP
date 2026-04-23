@@ -8,6 +8,8 @@ import Foundation
 /// To regenerate after replacing `Sources/PreviewsIOS/AppIcon.png`, paste
 /// the output of `base64 -i Sources/PreviewsIOS/AppIcon.png | fold -w 76`
 /// between the triple quotes in `base64` below (indented to match).
+/// Expected SHA-256 of the current embedded PNG:
+///   c03004834159136c59b63080f297a8de9a35f549f3e1b76d1bf58f683e5f2076
 enum IOSAppIconData {
     static let bytes: Data = {
         guard let data = Data(base64Encoded: base64, options: .ignoreUnknownCharacters) else {
