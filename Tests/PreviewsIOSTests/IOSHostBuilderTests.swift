@@ -42,25 +42,14 @@ struct IOSHostBuilderTests {
         // Guard against silent mis-escaping in the embedded `"""…"""` host-app
         // source: the error screen's title should survive round-tripping into
         // the compiled binary as a literal string. If someone double-escapes
-        // or drops a character, grep misses and the test fails before a user
-        // hits a broken error screen in the simulator.
+        // or drops a character, the byte search misses and the test fails
+        // before a user hits a broken error screen in the simulator.
         let binaryData = try Data(contentsOf: binaryPath)
-        let titleBytes = Array("Preview host error".utf8)
-        let containsTitle = binaryData.withUnsafeBytes { buf -> Bool in
-            guard let base = buf.baseAddress else { return false }
-            let haystack = UnsafeBufferPointer(start: base.assumingMemoryBound(to: UInt8.self), count: buf.count)
-            guard haystack.count >= titleBytes.count else { return false }
-            for i in 0...(haystack.count - titleBytes.count) {
-                var match = true
-                for j in 0..<titleBytes.count where haystack[i + j] != titleBytes[j] {
-                    match = false
-                    break
-                }
-                if match { return true }
-            }
-            return false
-        }
-        #expect(containsTitle, "compiled host binary should embed the error-screen title verbatim")
+        let title = Data("Preview host error".utf8)
+        #expect(
+            binaryData.range(of: title) != nil,
+            "compiled host binary should embed the error-screen title verbatim"
+        )
 
         print("Built iOS host app at: \(appPath.path)")
         print("Binary info: \(output.trimmingCharacters(in: .whitespacesAndNewlines))")

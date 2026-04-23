@@ -1102,8 +1102,12 @@ struct BuildSystemTests {
         defer { try? FileManager.default.removeItem(at: tmpDir) }
 
         // Simulate SPM emitting a .dylib for a `.library(type: .dynamic)` product.
+        // The predicate only checks `fileExists`, so an empty file would pass
+        // today — but write a 64-bit Mach-O dylib magic header (MH_MAGIC_64,
+        // 0xFEEDFACF, little-endian) so if the check ever tightens to "is a
+        // real Mach-O" the fixture keeps being shaped like a dylib.
         let dylibPath = tmpDir.appendingPathComponent("libIssueReportingTestSupport.dylib")
-        try Data().write(to: dylibPath)
+        try Data([0xCF, 0xFA, 0xED, 0xFE]).write(to: dylibPath)
 
         #expect(
             SPMBuildSystem.shouldSkipDependencyTarget(
