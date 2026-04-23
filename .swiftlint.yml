@@ -6,6 +6,8 @@ excluded:
   - examples
   # Embedded iOS host app source — a string constant compiled at runtime, not regular Swift
   - Sources/PreviewsIOS/IOSHostAppSource.swift
+  # Embedded AppIcon.png bytes as a base64 literal — data, not regular Swift
+  - Sources/PreviewsIOS/IOSAppIconData.swift
 
 # Disable rules that overlap with swift-format or conflict with project conventions
 disabled_rules:
