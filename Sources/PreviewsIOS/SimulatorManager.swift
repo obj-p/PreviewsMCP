@@ -118,11 +118,13 @@ public actor SimulatorManager {
     /// tell *which* stage of boot stalled (`Waiting on <SpringBoard>` vs.
     /// `Data Migration` vs. silent hang).
     ///
-    /// Default timeout is 180s. Typical CI boots complete in 5–15s but
-    /// the 95th percentile on busy GHA runners has been observed at
-    /// 60–90s — a tighter bound produces false failures while everything
-    /// was actually making progress.
-    public func bootDevice(udid: String, timeout: Duration = .seconds(180)) async throws {
+    /// Default timeout is 600s. Typical CI boots complete in 5–15s, but
+    /// observed P99 on combined-load GHA macos-15 runners (build +
+    /// multi-test + warm-sim concurrently) has exceeded 180s while the
+    /// simulator was genuinely still making progress — subsequent retries
+    /// saw the device already booted. 600s keeps a dead-hung boot bounded
+    /// without flaking healthy-but-slow boots.
+    public func bootDevice(udid: String, timeout: Duration = .seconds(600)) async throws {
         try ensureLoaded()
         let sbDevice = try findSBDevice(udid: udid)
         do {
