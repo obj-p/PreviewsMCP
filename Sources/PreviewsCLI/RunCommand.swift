@@ -187,7 +187,11 @@ struct RunCommand: AsyncParsableCommand {
         if let locale { args["locale"] = .string(locale) }
         if let layoutDirection { args["layoutDirection"] = .string(layoutDirection) }
         if let legibilityWeight { args["legibilityWeight"] = .string(legibilityWeight) }
-        if headless { args["headless"] = .bool(true) }
+        // Always send headless — both the macOS and iOS daemon paths default
+        // `extractOptionalBool("headless") ?? true` when the key is absent, so
+        // dropping the key on `--headless=false` would silently force a headless
+        // window and a CLI user would never see a visible simulator.
+        args["headless"] = .bool(headless)
         return args
     }
 
