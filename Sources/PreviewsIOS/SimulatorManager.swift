@@ -170,6 +170,26 @@ public actor SimulatorManager {
         }
     }
 
+    /// Best-effort terminate of `bundleID` on `udid` via `simctl terminate`.
+    ///
+    /// Observed on PR #141 CI: when a prior test left the same bundle
+    /// running, `SBDevice.launchApp` would hang indefinitely with no
+    /// timeout on the private-API path. Terminating any existing
+    /// instance first lets `launchApp` proceed cleanly.
+    ///
+    /// - Non-fatal: returns normally on non-zero exit (app was not
+    ///   running) or on timeout (simctl itself wedged).
+    /// - 30s timeout bounds any genuine simctl hang; the normal path
+    ///   completes in <1s.
+    public func terminateAppIfRunning(udid: String, bundleID: String) async {
+        _ = try? await runAsync(
+            "/usr/bin/xcrun",
+            arguments: ["simctl", "terminate", udid, bundleID],
+            discardStderr: true,
+            timeout: .seconds(30)
+        )
+    }
+
     /// Launch an app on a booted device. Returns the PID.
     public func launchApp(
         udid: String,

@@ -189,7 +189,19 @@ public actor IOSPreviewSession {
         let port = Int(UInt16(bigEndian: boundAddr.sin_port))
         listenFD = serverFD
 
-        // 5. Launch host app with dylib path and port
+        // 5. Launch host app with dylib path and port.
+        //
+        // Terminate any stale host instance first. Observed on PR #141 CI:
+        // a prior test (iosCLIWorkflow via the daemon) sometimes leaves an
+        // orphan PreviewsMCPHost running on the simulator, and the next
+        // SBDevice.launchApp call for the same bundle hangs indefinitely
+        // with no timeout on the private-API path. simctl terminate is a
+        // no-op when the app isn't running and bounds any genuine hang at
+        // 30s (see terminateAppIfRunning).
+        stage("pre-launch terminate stale host")
+        await simulatorManager.terminateAppIfRunning(
+            udid: deviceUDID, bundleID: Self.hostBundleID)
+
         stage("launching host app")
         await progress?.report(.launchingApp, message: "Launching host app...")
         var launchArgs = [
