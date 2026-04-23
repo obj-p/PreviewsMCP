@@ -52,13 +52,16 @@ enum CLIRunner {
         switch subcommand {
         case "start", "run", "snapshot", "variants":
             // Commands that can trigger compile + (iOS) simulator boot +
-            // host-app build + render in a single invocation. Last-known-
-            // green iosCLIWorkflow took 274s total for run + touch×2 +
-            // elements×2 + variants + stop — meaning the `run` step alone
-            // consumed ~200-230s on that particular CI runner. 360s gives
-            // ~50% headroom over the observed time. Cold Bazel/SPM
-            // first-build can exceed 60s even on macOS, also covered.
-            .seconds(360)
+            // host-app build + render in a single invocation.
+            //
+            // Observed on PR #141 CI (macos-15 GHA runner under combined
+            // build+test+warm-sim load): the iOS host swiftc build alone
+            // varied from 76s (historical) up to 121s on a slow day;
+            // bootstatus added ~60s on top of an async boot; install +
+            // launch + first-snapshot added ~30s. Combined run step hit
+            // ~380s. Bump to 600s so CI variance doesn't flake the test.
+            // Still bounded — a hung child fails the individual call.
+            .seconds(600)
         case "kill-daemon":
             .seconds(10)
         default:
