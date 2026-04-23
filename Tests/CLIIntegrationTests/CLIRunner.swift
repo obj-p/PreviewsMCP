@@ -65,7 +65,12 @@ enum CLIRunner {
         case "kill-daemon":
             .seconds(10)
         default:
-            .seconds(60)
+            // 180s for everything else (touch, elements, stop, etc.).
+            // These normally complete in <1s but route through the
+            // daemon → iOS session → simulator, and PR #141 CI has
+            // shown the simulator stalling under combined load — 60s
+            // was too tight for `touch` during iosCLIWorkflow.
+            .seconds(180)
         }
     }
 
