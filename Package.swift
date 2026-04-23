@@ -41,7 +41,7 @@ let package = Package(
         .target(
             name: "PreviewsIOS",
             dependencies: ["PreviewsCore", "SimulatorBridge"],
-            resources: [.copy("AppIcon.png")]
+            exclude: ["AppIcon.png"]
         ),
         .target(
             name: "PreviewsEngine",
