@@ -98,6 +98,8 @@ func configureMCPServer(
     }
 
     await server.withMethodHandler(CallTool.self) { [server] params in
+        fputs("mcp: callTool \(params.name)\n", stderr)
+        fflush(stderr)
         guard let tool = ToolName(rawValue: params.name) else {
             return CallTool.Result(content: [.text("Unknown tool: \(params.name)")], isError: true)
         }
