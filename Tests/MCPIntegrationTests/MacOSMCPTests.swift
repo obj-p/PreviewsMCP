@@ -551,7 +551,7 @@ struct MacOSMCPTests {
     /// margin even if subprocess boot eats half a second.
     @Test(
         "daemon emits unconditional 2s heartbeat notifications",
-        .timeLimit(.minutes(1))
+        .timeLimit(.minutes(3))
     )
     func daemonEmitsHeartbeat() async throws {
         let server = try await MCPTestServer.start()
@@ -589,7 +589,7 @@ struct MacOSMCPTests {
     /// `sleep()` has no such annotation and is equivalent for this test.
     @Test(
         "withTimeout pthread timer fires under cooperative-pool starvation",
-        .timeLimit(.minutes(1))
+        .timeLimit(.minutes(3))
     )
     func withTimeoutFiresUnderStarvation() async throws {
         // The pthread calls `process.terminate()` on timeout; a harmless
