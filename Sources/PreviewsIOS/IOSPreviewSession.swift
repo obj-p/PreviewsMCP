@@ -101,50 +101,11 @@ public actor IOSPreviewSession {
         self.session = previewSession
         let compileResult = try await previewSession.compile()
 
-        // 2. Build host app, boot simulator, install.
+        // 2. Build host app.
         stage("building host app")
         await progress?.report(.compilingHostApp, message: "Building iOS host app...")
         let appPath = try await hostBuilder.ensureHostApp()
-        stage("host app ready; booting + installing")
-        await progress?.report(.bootingSimulator, message: "Booting simulator (\(deviceUDID.prefix(8))...)...")
-        await progress?.report(.installingApp, message: "Installing host app...")
-        var lastError: Error?
-        for attempt in 1...3 {
-            do {
-                stage("boot/install attempt \(attempt)/3")
-                let device = try await simulatorManager.findDevice(udid: deviceUDID)
-                if device.state != .booted {
-                    // `bootDevice` now blocks via `simctl bootstatus -b` until
-                    // the device is fully booted (SpringBoard ready), so the
-                    // prior 5s post-boot sleep is no longer needed.
-                    stage("attempt \(attempt): bootDevice")
-                    try await simulatorManager.bootDevice(udid: deviceUDID)
-                    stage("attempt \(attempt): boot complete")
-                } else {
-                    stage("attempt \(attempt): already booted")
-                }
-                stage("attempt \(attempt): installApp")
-                try await simulatorManager.installApp(udid: deviceUDID, appPath: appPath.path)
-                stage("attempt \(attempt): install ok")
-                lastError = nil
-                break
-            } catch {
-                stage("attempt \(attempt) failed: \(error)")
-                lastError = error
-                if attempt < 3 {
-                    try await Task.sleep(for: .seconds(3))
-                }
-            }
-        }
-        if let lastError { throw lastError }
-
-        // 3. Open Simulator.app GUI if not headless
-        if !headless {
-            _ = try? await runAsync(
-                "/usr/bin/open",
-                arguments: ["-a", "Simulator", "--args", "-CurrentDeviceUDID", deviceUDID]
-            )
-        }
+        stage("host app ready")
 
         // 4. Create TCP server on loopback, bind to ephemeral port
         let serverFD = Darwin.socket(AF_INET, SOCK_STREAM, 0)
@@ -189,21 +150,18 @@ public actor IOSPreviewSession {
         let port = Int(UInt16(bigEndian: boundAddr.sin_port))
         listenFD = serverFD
 
-        // 5. Launch host app with dylib path and port.
-        //
-        // Terminate any stale host instance first. Observed on PR #141 CI:
-        // a prior test (iosCLIWorkflow via the daemon) sometimes leaves an
-        // orphan PreviewsMCPHost running on the simulator, and the next
-        // SBDevice.launchApp call for the same bundle hangs indefinitely
-        // with no timeout on the private-API path. simctl terminate is a
-        // no-op when the app isn't running and bounds any genuine hang at
-        // 30s (see terminateAppIfRunning).
-        stage("pre-launch terminate stale host")
-        await simulatorManager.terminateAppIfRunning(
-            udid: deviceUDID, bundleID: Self.hostBundleID)
-
-        stage("launching host app")
+        // 5. Boot + install + launch with retry. The whole sequence is
+        // retried because PR #141 CI has shown the iOS simulator
+        // occasionally getting into an "intermediate-booted" state
+        // where bootstatus reports booted but launchApp hangs. Simply
+        // retrying the launch doesn't help — we need to shutdown the
+        // device and reboot to get a clean state. Hence the full
+        // boot→install→launch cycle inside the retry loop, with a
+        // shutdown between attempts.
+        await progress?.report(.bootingSimulator, message: "Booting simulator (\(deviceUDID.prefix(8))...)...")
+        await progress?.report(.installingApp, message: "Installing host app...")
         await progress?.report(.launchingApp, message: "Launching host app...")
+
         var launchArgs = [
             "--dylib", compileResult.dylibPath.path,
             "--port", String(port),
@@ -211,11 +169,64 @@ public actor IOSPreviewSession {
         if let setupPath = setupDylibPath {
             launchArgs += ["--setup-dylib", setupPath.path]
         }
-        let pid = try await simulatorManager.launchApp(
-            udid: deviceUDID,
-            bundleID: Self.hostBundleID,
-            arguments: launchArgs
-        )
+
+        var launchedPid: Int?
+        var lastError: Error?
+        for attempt in 1...3 {
+            do {
+                stage("boot/install/launch attempt \(attempt)/3")
+                let device = try await simulatorManager.findDevice(udid: deviceUDID)
+                if device.state != .booted {
+                    stage("attempt \(attempt): bootDevice")
+                    try await simulatorManager.bootDevice(udid: deviceUDID)
+                    stage("attempt \(attempt): boot complete")
+                } else {
+                    stage("attempt \(attempt): already booted")
+                }
+                stage("attempt \(attempt): installApp")
+                try await simulatorManager.installApp(udid: deviceUDID, appPath: appPath.path)
+                stage("attempt \(attempt): install ok")
+
+                // Open Simulator.app GUI if not headless (only on successful
+                // path; no point opening the GUI for a failing retry).
+                if !headless {
+                    _ = try? await runAsync(
+                        "/usr/bin/open",
+                        arguments: ["-a", "Simulator", "--args", "-CurrentDeviceUDID", deviceUDID]
+                    )
+                }
+
+                // Terminate any stale host instance first (orphan from a
+                // prior test or retry). simctl terminate is a no-op when
+                // the app isn't running and bounds any hang at 30s.
+                stage("attempt \(attempt): pre-launch terminate stale host")
+                await simulatorManager.terminateAppIfRunning(
+                    udid: deviceUDID, bundleID: Self.hostBundleID)
+
+                stage("attempt \(attempt): launching host app")
+                launchedPid = try await simulatorManager.launchApp(
+                    udid: deviceUDID,
+                    bundleID: Self.hostBundleID,
+                    arguments: launchArgs
+                )
+                lastError = nil
+                break
+            } catch {
+                stage("attempt \(attempt) failed: \(error)")
+                lastError = error
+                if attempt < 3 {
+                    // Shut down the device to clear any stuck kernel/backend
+                    // state before the next boot attempt. Best-effort — if
+                    // shutdown itself fails or hangs, the next findDevice +
+                    // bootDevice will handle whatever state we end up in.
+                    stage("attempt \(attempt): shutting down for clean reboot")
+                    try? await simulatorManager.shutdownDevice(udid: deviceUDID)
+                    try await Task.sleep(for: .seconds(3))
+                }
+            }
+        }
+        if let lastError { throw lastError }
+        guard let pid = launchedPid else { throw lastError ?? IOSPreviewSessionError.socketCreateFailed }
 
         // 6. Accept connection from host app (up to 10 seconds)
         stage("launched pid=\(pid); awaiting socket connection")
