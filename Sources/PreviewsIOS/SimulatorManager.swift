@@ -1,6 +1,7 @@
 import Foundation
 import PreviewsCore
 import SimulatorBridge
+import os
 
 /// Manages iOS simulator devices via CoreSimulator.framework (loaded at runtime).
 public actor SimulatorManager {
@@ -234,20 +235,39 @@ public actor SimulatorManager {
         let sbDevice = try findSBDevice(udid: udid)
 
         // Retry direct IOSurface capture — absorbs the display-attach race.
+        //
+        // Each attempt is bounded by a wall-clock timeout because
+        // `SBCaptureFramebuffer` is a synchronous private-API C call that
+        // can block indefinitely inside the kernel on a display that
+        // never attaches — observed on PR #141 CI. Swift concurrency
+        // cancellation can't preempt a sync C call, so we race it
+        // against a Dispatch-based deadline and abandon the blocked
+        // thread if it doesn't return (the thread leaks but the async
+        // task unblocks and we fall through to simctl).
         let iosurfaceRetryCount = 5
         let iosurfaceBackoff = Duration.seconds(2)
+        let iosurfacePerAttemptTimeout: TimeInterval = 5
         var lastFBError: NSError?
         for attempt in 1...iosurfaceRetryCount {
-            var fbError: NSError?
-            if let data = SBCaptureFramebuffer(sbDevice, jpegQuality, &fbError) {
+            let result = await captureFramebufferWithTimeout(
+                sbDevice: sbDevice,
+                jpegQuality: jpegQuality,
+                timeout: iosurfacePerAttemptTimeout)
+            switch result {
+            case .success(let data):
                 if attempt > 1 {
                     fputs(
                         "SimulatorBridge: IOSurface capture succeeded on attempt \(attempt)/\(iosurfaceRetryCount)\n",
                         stderr)
                 }
-                return data as Data
+                return data
+            case .failure(let err):
+                lastFBError = err
+            case .timedOut:
+                fputs(
+                    "SimulatorBridge: IOSurface capture attempt \(attempt)/\(iosurfaceRetryCount) hung, abandoning\n",
+                    stderr)
             }
-            lastFBError = fbError
             if attempt < iosurfaceRetryCount {
                 try? await Task.sleep(for: iosurfaceBackoff)
             }
@@ -257,10 +277,64 @@ public actor SimulatorManager {
         // screenshotDataViaSimctl — so a display that never attaches fails
         // fast with actionable context instead of hanging indefinitely).
         fputs(
-            "SimulatorBridge: IOSurface capture failed after \(iosurfaceRetryCount) attempts (\(lastFBError?.localizedDescription ?? "unknown")), falling back to simctl\n",
+            "SimulatorBridge: IOSurface capture failed after \(iosurfaceRetryCount) attempts (\(lastFBError?.localizedDescription ?? "unknown/timed-out")), falling back to simctl\n",
             stderr)
         let imageType = jpegQuality >= 1.0 ? "png" : "jpeg"
         return try await screenshotDataViaSimctl(udid: udid, imageType: imageType)
+    }
+
+    /// Wall-clock-bounded wrapper around `SBCaptureFramebuffer`.
+    ///
+    /// `SBCaptureFramebuffer` is a synchronous private-API C function that
+    /// on PR #141 CI has been observed to block indefinitely inside the
+    /// kernel when the simulator's display subsystem is in a bad state.
+    /// Swift `Task` cancellation can't preempt a synchronous C call, so
+    /// we dispatch the call onto a background thread and race it against
+    /// a semaphore-based deadline. If the deadline wins, we abandon the
+    /// blocked thread (it will eventually unblock or leak with the
+    /// process) and report `.timedOut` so the caller can retry or fall
+    /// back to the simctl path.
+    private enum FramebufferCaptureResult {
+        case success(Data)
+        case failure(NSError?)
+        case timedOut
+    }
+
+    private func captureFramebufferWithTimeout(
+        sbDevice: SBDevice,
+        jpegQuality: Double,
+        timeout: TimeInterval
+    ) async -> FramebufferCaptureResult {
+        await withCheckedContinuation { (cont: CheckedContinuation<FramebufferCaptureResult, Never>) in
+            let resumed = OSAllocatedUnfairLock<Bool>(initialState: false)
+            let queue = DispatchQueue.global(qos: .userInitiated)
+
+            queue.async {
+                var err: NSError?
+                let data = SBCaptureFramebuffer(sbDevice, jpegQuality, &err)
+                let didResume = resumed.withLock { done -> Bool in
+                    guard !done else { return false }
+                    done = true
+                    return true
+                }
+                guard didResume else { return }
+                if let data {
+                    cont.resume(returning: .success(data as Data))
+                } else {
+                    cont.resume(returning: .failure(err))
+                }
+            }
+
+            queue.asyncAfter(deadline: .now() + timeout) {
+                let didResume = resumed.withLock { done -> Bool in
+                    guard !done else { return false }
+                    done = true
+                    return true
+                }
+                guard didResume else { return }
+                cont.resume(returning: .timedOut)
+            }
+        }
     }
 
     /// Capture a screenshot via simctl and return image data (fallback path).
