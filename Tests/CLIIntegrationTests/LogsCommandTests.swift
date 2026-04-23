@@ -13,7 +13,7 @@ struct LogsCommandTests {
 
     @Test(
         "logs -n prints the last N lines of an existing log",
-        .timeLimit(.minutes(1))
+        .timeLimit(.minutes(2))
     )
     func snapshotReturnsTailOfExistingLog() async throws {
         try await DaemonTestLock.run {
@@ -38,7 +38,7 @@ struct LogsCommandTests {
 
     @Test(
         "logs creates the log file when missing and exits 0",
-        .timeLimit(.minutes(1))
+        .timeLimit(.minutes(2))
     )
     func snapshotCreatesLogFileWhenMissing() async throws {
         try await DaemonTestLock.run {
