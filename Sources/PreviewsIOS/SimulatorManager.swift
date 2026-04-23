@@ -252,11 +252,15 @@ public actor SimulatorManager {
     /// caller hits its outer `.timeLimit` after 10 minutes with no
     /// actionable signal.
     ///
-    /// 60s is chosen to be well above the observed P99 (simctl normally
-    /// completes in <1s; prior green CI runs where the IOSurface→simctl
-    /// fallback path completed show ~30s worst case on slow CI runners)
-    /// and well below the enclosing test `.timeLimit` so a real hang
-    /// fails fast with actionable context.
+    /// 180s chosen empirically: local completes in <1s; prior green
+    /// CI showed ~30s worst case; on PR #141 CI the MCP workflow saw
+    /// simctl hang >60s and surface
+    /// `simctl io screenshot hung (exceeded 60.0 seconds); likely a
+    /// simulator with no attached display`. The sibling PreviewsIOSTests
+    /// E2E on the same runner completed simctl screenshot in ~22s, so
+    /// this isn't a dead hang — the display just attaches slowly under
+    /// load. 180s absorbs that variance while still bounded well below
+    /// the enclosing 20-minute `.timeLimit`.
     private func screenshotDataViaSimctl(udid: String, imageType: String = "png") async throws -> Data {
         let ext = imageType == "jpeg" ? "jpg" : imageType
         let tempPath = FileManager.default.temporaryDirectory
@@ -270,7 +274,7 @@ public actor SimulatorManager {
                     "simctl", "io", udid, "screenshot",
                     "--type=\(imageType)", tempPath.path,
                 ],
-                timeout: .seconds(60)
+                timeout: .seconds(180)
             )
         } catch let timeout as AsyncProcessTimeout {
             throw SimulatorError.screenshotFailed(
