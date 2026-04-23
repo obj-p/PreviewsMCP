@@ -245,9 +245,13 @@ public actor SimulatorManager {
         }
         // Output format: `<bundleID>: <pid>\n`
         let trimmed = output.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let colonIdx = trimmed.lastIndex(of: ":"),
-              let pid = Int(trimmed[trimmed.index(after: colonIdx)...].trimmingCharacters(in: .whitespaces))
-        else {
+        guard let colonIdx = trimmed.lastIndex(of: ":") else {
+            throw SimulatorError.launchFailed(
+                "simctl launch returned unexpected stdout: \(trimmed.debugDescription)")
+        }
+        let pidPart = trimmed[trimmed.index(after: colonIdx)...]
+            .trimmingCharacters(in: .whitespaces)
+        guard let pid = Int(pidPart) else {
             throw SimulatorError.launchFailed(
                 "simctl launch returned unexpected stdout: \(trimmed.debugDescription)")
         }
