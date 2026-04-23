@@ -1,4 +1,5 @@
 import Foundation
+import PreviewsCore
 
 /// Helpers to eliminate cross-test simulator contention (MCP target copy).
 ///
@@ -30,18 +31,30 @@ enum IOSSimulatorPicker {
     /// - index 1: `IOSPreviewSessionTests.endToEnd`
     /// - index 2: `IOSMCPTests.fullIOSWorkflow`
     static func pickUDID(index: Int) async throws -> String? {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
-        process.arguments = ["simctl", "list", "devices", "available", "--json"]
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = FileHandle.nullDevice
-        try process.run()
-        process.waitUntilExit()
-        guard process.terminationStatus == 0 else { return nil }
+        // Must drain stdout concurrently: `simctl list devices --json` on a
+        // CI runner with 100+ simulators produces >64KB of JSON, filling
+        // the OS pipe buffer. A naked `Process.run() + waitUntilExit()`
+        // without reading the pipe deadlocks — simctl blocks on write,
+        // waitUntilExit blocks forever. `runAsync` drains the pipe on a
+        // background thread while the child runs (see AsyncProcess.swift).
+        //
+        // A 60s timeout bounds a truly hung simctl (observed on PR #141
+        // CI); normal runs complete in <5s.
+        let output: ProcessOutput
+        do {
+            output = try await runAsync(
+                "/usr/bin/xcrun",
+                arguments: ["simctl", "list", "devices", "available", "--json"],
+                discardStderr: true,
+                timeout: .seconds(60)
+            )
+        } catch {
+            return nil
+        }
+        guard output.exitCode == 0 else { return nil }
 
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
         guard
+            let data = output.stdout.data(using: .utf8),
             let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
             let devicesByRuntime = json["devices"] as? [String: [[String: Any]]]
         else { return nil }
