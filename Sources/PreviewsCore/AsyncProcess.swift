@@ -133,14 +133,30 @@ public func runAsync(
                     return true
                 }
                 guard shouldResume else { return }
+                // SIGTERM first — gives the child a chance to flush stdio
+                // buffers on its way out.
                 process.terminate()
-                // Terminating the child closes its pipe-write fds, which
-                // unblocks the readDataToEndOfFile calls on our background
-                // threads; pipeGroup.wait() then returns promptly with the
-                // drained data. This is a short wait (just the pipe drain,
-                // not the child's exit), so doing it from the timer's GCD
-                // queue is fine.
-                pipeGroup.wait()
+
+                // Escalate to SIGKILL if SIGTERM doesn't bring the child down
+                // within 2s. Observed on PR #141 CI: `simctl io screenshot`
+                // stuck in a kernel syscall ignored SIGTERM entirely — the
+                // child's pipe-write fds stayed open, the background
+                // readDataToEndOfFile threads blocked on EOF that never came,
+                // and pipeGroup.wait() below hung indefinitely. SIGKILL is
+                // unignorable; the kernel reaps the process and closes its
+                // fds, which unblocks the readers.
+                DispatchQueue.global(qos: .userInitiated).asyncAfter(
+                    deadline: .now() + 2
+                ) {
+                    if process.isRunning {
+                        Foundation.kill(process.processIdentifier, SIGKILL)
+                    }
+                }
+
+                // Also bound the pipe drain itself so a totally-stuck fd
+                // doesn't strand the continuation. Whatever we have captured
+                // so far is attached to the AsyncProcessTimeout error.
+                _ = pipeGroup.wait(timeout: .now() + .seconds(10))
                 let capturedStdout = (String(data: stdoutData.value, encoding: .utf8) ?? "")
                     .trimmingCharacters(in: .whitespacesAndNewlines)
                 let capturedStderr = String(data: stderrData.value, encoding: .utf8) ?? ""
