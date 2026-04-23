@@ -28,7 +28,14 @@ enum DaemonClient {
     ///     to avoid dropping early notifications.
     static func connect(
         clientName: String,
-        startTimeout: TimeInterval = 30,
+        // 60s absorbs combined CI load where the spawned `previewsmcp
+        // serve --daemon` child needs to cold-start AppKit, resolve
+        // xcrun paths, bind the socket, etc. Observed on PR #141 CI:
+        // daemon startup sometimes exceeded 30s while the runner was
+        // saturated with parallel test suites. 60s keeps interactive
+        // CLI UX fast on the common path (<5s) while still failing
+        // fast on a genuine wedged child.
+        startTimeout: TimeInterval = 60,
         configure: ((Client) async -> Void)? = nil
     ) async throws -> Client {
         if !DaemonProbe.canConnect() {
