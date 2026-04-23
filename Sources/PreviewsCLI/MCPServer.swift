@@ -331,18 +331,30 @@ private func handleIOSPreviewStart(
     traits: PreviewTraits = PreviewTraits(),
     server: Server
 ) async throws -> CallTool.Result {
+    // Stage markers on stderr so CI diagnostic dumps show where a hang
+    // occurred before session.start() gets a chance to log anything.
+    // Progress reported via `progress` goes over the MCP stdio protocol
+    // and is invisible in the captured stderr log.
+    func stage(_ s: String) { fputs("preview_start/ios: \(s)\n", stderr) }
+    stage("enter")
+
     let config = configResult?.config
     // Resolve device UDID — use provided, config, or auto-select
     let deviceUDID: String
     let providedUDID = extractOptionalString("deviceUDID", from: params) ?? config?.device
     do {
+        stage("resolving device (provided=\(providedUDID?.prefix(8).description ?? "nil"))")
         deviceUDID = try await resolveDeviceUDID(provided: providedUDID, using: await iosState.simulatorManager)
+        stage("resolved device \(deviceUDID.prefix(8))")
     } catch {
         return CallTool.Result(content: [.text(error.localizedDescription)], isError: true)
     }
 
+    stage("getting compiler")
     let iosCompiler = try await iosState.getCompiler()
+    stage("getting hostBuilder")
     let hostBuilder = try await iosState.getHostBuilder()
+    stage("getting simulatorManager")
     let simulatorManager = await iosState.simulatorManager
 
     let headless = extractOptionalBool("headless", from: params) ?? true
@@ -351,13 +363,18 @@ private func handleIOSPreviewStart(
     let progress = mcpReporter(server: server, params: params, totalSteps: 8)
     let buildContext: BuildContext?
     do {
+        stage("detectBuildContext begin")
         buildContext = try await detectBuildContext(for: fileURL, params: params, platform: .iOS, progress: progress)
+        stage("detectBuildContext done (\(buildContext == nil ? "nil" : "ok"))")
     } catch {
+        stage("detectBuildContext failed: \(error)")
         return CallTool.Result(content: [.text("Project build failed: \(error.localizedDescription)")], isError: true)
     }
 
+    stage("buildSetupIfConfigured begin")
     let setupResult = try await buildSetupIfConfigured(
         config: config, configDirectory: configResult?.directory, platform: .iOS)
+    stage("buildSetupIfConfigured done (\(setupResult == nil ? "nil" : "ok"))")
 
     let session = IOSPreviewSession(
         sourceFile: fileURL,
@@ -376,7 +393,9 @@ private func handleIOSPreviewStart(
         progress: progress
     )
 
+    stage("session.start begin")
     let pid = try await session.start()
+    stage("session.start done pid=\(pid)")
     await iosState.addSession(session)
 
     // Set up file watching for hot-reload
