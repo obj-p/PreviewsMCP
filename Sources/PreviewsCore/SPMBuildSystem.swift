@@ -412,6 +412,17 @@ public actor SPMBuildSystem: BuildSystem {
     /// Binary-target XCFramework artifacts that land as bare `lib<X>.dylib`
     /// without a matching `<X>.build/` directory don't reach this predicate —
     /// the outer loop gates on `.build/` existing.
+    ///
+    /// Assumes the SPM product name equals the target name (so the dylib SPM
+    /// emits is `lib<Target>.dylib`). Covers the real-world repro
+    /// (`IssueReportingTestSupport` is declared with matching product+target
+    /// names) and every swift-issue-reporting-style layout we've seen. If a
+    /// renamed dynamic product ever shows up here — `.library(name: "Foo",
+    /// type: .dynamic, targets: ["Bar"])` — the predicate won't fire and the
+    /// archive-then-link fallback runs against `Bar.build/`'s `.o` files,
+    /// which is what happened before this fix; the original bug is specific
+    /// to blanket `-l<Target>` resolving to `lib<Target>.dylib`, so the
+    /// rename-mismatch case was always safe.
     nonisolated static func shouldSkipDependencyTarget(
         targetName: String,
         consumerTargetName: String,
