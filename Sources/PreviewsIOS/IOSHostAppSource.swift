@@ -103,13 +103,41 @@ enum IOSHostAppSource {
             private func showError(_ message: String) {
                 let vc = UIViewController()
                 vc.view.backgroundColor = .systemRed
-                let label = UILabel()
-                label.text = message
-                label.textAlignment = .center
-                label.numberOfLines = 0
-                label.frame = vc.view.bounds.insetBy(dx: 20, dy: 20)
-                label.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-                vc.view.addSubview(label)
+                vc.view.accessibilityLabel = "Preview host error"
+
+                let title = UILabel()
+                title.translatesAutoresizingMaskIntoConstraints = false
+                title.text = "Preview host error"
+                title.font = UIFont.preferredFont(forTextStyle: .headline)
+                title.adjustsFontForContentSizeCategory = true
+                title.textColor = .white
+                title.numberOfLines = 0
+
+                let textView = UITextView()
+                textView.translatesAutoresizingMaskIntoConstraints = false
+                textView.text = message
+                textView.font = UIFont.monospacedSystemFont(ofSize: 14, weight: .regular)
+                textView.textColor = .white
+                textView.backgroundColor = .clear
+                textView.isEditable = false
+                textView.isSelectable = true
+                textView.isScrollEnabled = true
+                textView.alwaysBounceVertical = true
+
+                vc.view.addSubview(title)
+                vc.view.addSubview(textView)
+
+                let guide = vc.view.safeAreaLayoutGuide
+                NSLayoutConstraint.activate([
+                    title.topAnchor.constraint(equalTo: guide.topAnchor, constant: 20),
+                    title.leadingAnchor.constraint(equalTo: guide.leadingAnchor, constant: 20),
+                    title.trailingAnchor.constraint(equalTo: guide.trailingAnchor, constant: -20),
+
+                    textView.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 12),
+                    textView.leadingAnchor.constraint(equalTo: guide.leadingAnchor, constant: 20),
+                    textView.trailingAnchor.constraint(equalTo: guide.trailingAnchor, constant: -20),
+                    textView.bottomAnchor.constraint(equalTo: guide.bottomAnchor, constant: -20),
+                ])
 
                 if let oldVC = window?.rootViewController {
                     retainedControllers.append(oldVC)
