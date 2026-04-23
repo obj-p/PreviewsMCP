@@ -47,7 +47,14 @@ struct IOSMCPTests {
 
     @Test(
         "iOS preview workflow: start, snapshot, elements, tap, swipe, switch",
-        .timeLimit(.minutes(10)))
+        // 20 minutes matches the ios-tests step timeout (ci.yml). The
+        // workflow does compile-dylib + build-host-app + boot (up to
+        // 600s under CI load) + install + launch + 6 more tool calls
+        // end-to-end in a single test. Observed on PR #141 CI: the
+        // pre-launch preamble alone consumed 300–500s when the GHA
+        // macos-15 runner was under combined build+multi-test load;
+        // the prior 10-minute limit truncated before boot completed.
+        .timeLimit(.minutes(20)))
     func fullIOSWorkflow() async throws {
         // Pick this test's assigned device (index 2) so we don't contend
         // with SimulatorManagerTests (index 0) or IOSPreviewSessionTests
