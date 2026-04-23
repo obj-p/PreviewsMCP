@@ -193,63 +193,65 @@ public actor SimulatorManager {
 
     /// Launch an app on a booted device. Returns the PID.
     ///
-    /// `SBDevice.launchApp` is a synchronous private-API C call. On
-    /// PR #141 CI it has been observed to block indefinitely when the
-    /// simulator is in an intermediate-booted state where simctl
-    /// bootstatus reports ready but other backend services haven't
-    /// finished coming up. We race the call against a 60s wall-clock
-    /// deadline; if it hangs, the blocked thread is abandoned and we
-    /// throw `launchFailed("launch hung >60s")` so the caller can
-    /// retry or surface a clear error rather than hang indefinitely.
+    /// Uses `xcrun simctl launch` instead of the SBDevice private API.
+    /// The private-API path (`SBDevice.launchApp`) has been observed
+    /// on PR #141 CI to hang indefinitely when the simulator is in an
+    /// intermediate-booted state; even a wall-clock-bounded wrapper
+    /// around it leaves the blocked thread orphaned and doesn't
+    /// actually succeed. simctl launch runs as a subprocess we can
+    /// properly bound with SIGTERM → SIGKILL via runAsync's timeout
+    /// infrastructure, and fails fast with a diagnostic stderr from
+    /// simctl instead of wedging.
+    ///
+    /// Args are passed after the bundle ID. Environment vars are
+    /// forwarded via SIMCTL_CHILD_ prefixes per simctl(1). Stdout
+    /// of the successful case is `<bundleID>: <pid>` which we parse.
     public func launchApp(
         udid: String,
         bundleID: String,
         arguments: [String] = [],
         environment: [String: String] = [:]
     ) async throws -> Int {
-        try ensureLoaded()
-        let sbDevice = try findSBDevice(udid: udid)
-        let timeout: TimeInterval = 60
-        return try await withCheckedThrowingContinuation { cont in
-            let resumed = OSAllocatedUnfairLock<Bool>(initialState: false)
-            let queue = DispatchQueue.global(qos: .userInitiated)
-
-            queue.async {
-                var launchError: NSError?
-                let pid = sbDevice.launchApp(
-                    withBundleID: bundleID,
-                    arguments: arguments,
-                    environment: environment,
-                    error: &launchError
-                )
-                let didResume = resumed.withLock { done -> Bool in
-                    guard !done else { return false }
-                    done = true
-                    return true
-                }
-                guard didResume else { return }
-                if pid >= 0 {
-                    cont.resume(returning: Int(pid))
-                } else {
-                    cont.resume(
-                        throwing: SimulatorError.launchFailed(
-                            launchError?.localizedDescription ?? "unknown error"))
-                }
-            }
-
-            queue.asyncAfter(deadline: .now() + timeout) {
-                let didResume = resumed.withLock { done -> Bool in
-                    guard !done else { return false }
-                    done = true
-                    return true
-                }
-                guard didResume else { return }
-                cont.resume(
-                    throwing: SimulatorError.launchFailed(
-                        "SBDevice.launchApp hung >\(Int(timeout))s; "
-                            + "simulator likely in intermediate-booted state"))
+        // simctl forwards any env vars prefixed with SIMCTL_CHILD_ to
+        // the launched app with the prefix stripped. Our callers pass
+        // a small dictionary (usually empty); we pre-set them in the
+        // current process env before running simctl, then restore.
+        for (k, v) in environment {
+            setenv("SIMCTL_CHILD_\(k)", v, 1)
+        }
+        defer {
+            for k in environment.keys {
+                unsetenv("SIMCTL_CHILD_\(k)")
             }
         }
+
+        let args = ["simctl", "launch", udid, bundleID] + arguments
+        let output: ProcessOutput
+        do {
+            output = try await runAsync(
+                "/usr/bin/xcrun",
+                arguments: args,
+                timeout: .seconds(60)
+            )
+        } catch let timeout as AsyncProcessTimeout {
+            throw SimulatorError.launchFailed(
+                "simctl launch hung (exceeded \(timeout.duration)); "
+                    + "stderr: \(timeout.capturedStderr.isEmpty ? "(empty)" : timeout.capturedStderr)"
+            )
+        }
+        guard output.exitCode == 0 else {
+            throw SimulatorError.launchFailed(
+                "simctl launch failed (exit \(output.exitCode)): \(output.stderr)")
+        }
+        // Output format: `<bundleID>: <pid>\n`
+        let trimmed = output.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let colonIdx = trimmed.lastIndex(of: ":"),
+              let pid = Int(trimmed[trimmed.index(after: colonIdx)...].trimmingCharacters(in: .whitespaces))
+        else {
+            throw SimulatorError.launchFailed(
+                "simctl launch returned unexpected stdout: \(trimmed.debugDescription)")
+        }
+        return pid
     }
 
     // MARK: - Screenshots
