@@ -7,25 +7,6 @@ import Testing
 @Suite("MCP iOS integration", .serialized)
 struct IOSMCPTests {
 
-    private static func hasIOSSimulator() async -> Bool {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
-        process.arguments = ["simctl", "list", "devices", "available"]
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = FileHandle.nullDevice
-        do {
-            try process.run()
-            process.waitUntilExit()
-            let output =
-                String(
-                    data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-            return output.contains("iPhone")
-        } catch {
-            return false
-        }
-    }
-
     // MARK: - simulator_list (requires CoreSimulator; ios-tests job warms daemon)
 
     @Test("simulator_list returns available devices", .timeLimit(.minutes(10)))
