@@ -182,13 +182,22 @@ enum DaemonClient {
     /// on a dispatch-global thread so it doesn't starve Swift's
     /// cooperative pool — same pattern as `DaemonTestLock.run` (see
     /// its comment for context on the starvation we saw before).
+    ///
+    /// `O_CLOEXEC` is load-bearing: during the respawn we `Process`-
+    /// spawn a daemon, which inherits all of our open fds by default.
+    /// Without CLOEXEC, the daemon grandchild holds a dup of the
+    /// flock fd, so closing our end in `defer` does NOT release the
+    /// kernel-level flock — flocks only drop when *every* dup of the
+    /// fd is closed. The next CLI then blocks on `flock(LOCK_EX)`
+    /// until the daemon dies. CI saw a 50s stall here before this
+    /// flag was added. See issue #142.
     private static func acquireRestartLock() async throws -> Int32 {
         let path = DaemonPaths.restartLock.path
         return try await withCheckedThrowingContinuation {
             (cont: CheckedContinuation<Int32, Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 try? DaemonPaths.ensureDirectory()
-                let fd = open(path, O_CREAT | O_RDWR, 0o644)
+                let fd = open(path, O_CREAT | O_RDWR | O_CLOEXEC, 0o644)
                 guard fd >= 0 else {
                     cont.resume(throwing: DaemonClientError.lockFailed(errno: errno))
                     return
@@ -289,6 +298,16 @@ enum DaemonClient {
         // on issue #135 for the full rationale. `try?` tolerates
         // servers that don't advertise logging capability.
         try? await client.setLoggingLevel(.debug)
+
+        // Reset the timer so the window starts now, not at `withDaemonClient`
+        // entry. A long `connect()` (e.g., version-mismatch restart that
+        // waited on a sibling's lock + spawned a fresh daemon with a slow
+        // Compiler init — seen at ~25s on CI) consumes most of the
+        // threshold before the watcher even starts, and the first heartbeat
+        // (T+2s post-connect) can land right on the stall boundary.
+        // Bumping here guarantees the watcher observes a full
+        // `stallThreshold` of grace. See issue #142.
+        await timer.bump()
 
         let stallWatcher = Task {
             if await timer.waitForStall(threshold: stallThreshold) {
