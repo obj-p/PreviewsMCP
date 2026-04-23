@@ -11,6 +11,16 @@ enum CLIPlatform: String, ExpressibleByArgument, CaseIterable {
 @main
 struct PreviewsMCPApp {
     static func main() {
+        // Force line-buffered stderr. When previewsmcp runs as a subprocess
+        // with stderr redirected to a file (e.g., MCPTestServer captures,
+        // or the daemon's ~/.previewsmcp/serve.log), libc stdio switches
+        // from line-buffered (TTY default) to fully-buffered (4K blocks).
+        // Diagnostic `fputs(..., stderr)` lines then never reach disk
+        // until the buffer fills or the process exits cleanly — and if
+        // the subprocess is killed (test time-limit, daemon stop), the
+        // stage markers we rely on for CI post-mortems are lost.
+        setlinebuf(stderr)
+
         let command: ParsableCommand
         do {
             command = try PreviewsMCPCommand.parseAsRoot()
