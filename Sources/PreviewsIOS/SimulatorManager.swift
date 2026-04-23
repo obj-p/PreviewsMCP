@@ -192,25 +192,64 @@ public actor SimulatorManager {
     }
 
     /// Launch an app on a booted device. Returns the PID.
+    ///
+    /// `SBDevice.launchApp` is a synchronous private-API C call. On
+    /// PR #141 CI it has been observed to block indefinitely when the
+    /// simulator is in an intermediate-booted state where simctl
+    /// bootstatus reports ready but other backend services haven't
+    /// finished coming up. We race the call against a 60s wall-clock
+    /// deadline; if it hangs, the blocked thread is abandoned and we
+    /// throw `launchFailed("launch hung >60s")` so the caller can
+    /// retry or surface a clear error rather than hang indefinitely.
     public func launchApp(
         udid: String,
         bundleID: String,
         arguments: [String] = [],
         environment: [String: String] = [:]
-    ) throws -> Int {
+    ) async throws -> Int {
         try ensureLoaded()
         let sbDevice = try findSBDevice(udid: udid)
-        var launchError: NSError?
-        let pid = sbDevice.launchApp(
-            withBundleID: bundleID,
-            arguments: arguments,
-            environment: environment,
-            error: &launchError
-        )
-        guard pid >= 0 else {
-            throw SimulatorError.launchFailed(launchError?.localizedDescription ?? "unknown error")
+        let timeout: TimeInterval = 60
+        return try await withCheckedThrowingContinuation { cont in
+            let resumed = OSAllocatedUnfairLock<Bool>(initialState: false)
+            let queue = DispatchQueue.global(qos: .userInitiated)
+
+            queue.async {
+                var launchError: NSError?
+                let pid = sbDevice.launchApp(
+                    withBundleID: bundleID,
+                    arguments: arguments,
+                    environment: environment,
+                    error: &launchError
+                )
+                let didResume = resumed.withLock { done -> Bool in
+                    guard !done else { return false }
+                    done = true
+                    return true
+                }
+                guard didResume else { return }
+                if pid >= 0 {
+                    cont.resume(returning: Int(pid))
+                } else {
+                    cont.resume(
+                        throwing: SimulatorError.launchFailed(
+                            launchError?.localizedDescription ?? "unknown error"))
+                }
+            }
+
+            queue.asyncAfter(deadline: .now() + timeout) {
+                let didResume = resumed.withLock { done -> Bool in
+                    guard !done else { return false }
+                    done = true
+                    return true
+                }
+                guard didResume else { return }
+                cont.resume(
+                    throwing: SimulatorError.launchFailed(
+                        "SBDevice.launchApp hung >\(Int(timeout))s; "
+                            + "simulator likely in intermediate-booted state"))
+            }
         }
-        return Int(pid)
     }
 
     // MARK: - Screenshots
