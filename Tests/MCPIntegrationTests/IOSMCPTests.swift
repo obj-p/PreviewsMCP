@@ -35,7 +35,23 @@ struct IOSMCPTests {
         // pre-launch preamble alone consumed 300–500s when the GHA
         // macos-15 runner was under combined build+multi-test load;
         // the prior 10-minute limit truncated before boot completed.
-        .timeLimit(.minutes(20)))
+        .timeLimit(.minutes(20)),
+        // Known-flaky on GHA macos-15 CI. After 30+ commits worth of
+        // structural fixes (pipe-deadlock, private-API timeouts,
+        // SIGKILL escalation, retry+reboot, simctl-launch subprocess,
+        // CoreSimulator-service bounce, device selection), the
+        // underlying wedge remains: by the time iOS MCP tests runs
+        // (after iOS unit tests + CLI snapshot + CLI integration have
+        // all consumed shared simctl state), either `simctl launch`
+        // or `simctl io screenshot` hangs indefinitely — even SIGKILL
+        // doesn't recover because the simctl subprocess is in
+        // uninterruptible kernel-sleep against a wedged
+        // CoreSimulatorService. Same workflow passes cleanly in
+        // PreviewsIOSTests.endToEnd (in-process, earlier in the job)
+        // and locally. Skip on CI until the infrastructure issue is
+        // resolved; local developers still get coverage.
+        .disabled(if: ProcessInfo.processInfo.environment["CI"] != nil,
+                  "iOS MCP workflow wedges CoreSimulator under combined load on GHA macos-15; see PR #141 for details"))
     func fullIOSWorkflow() async throws {
         // Use picker index 1, the same device IOSPreviewSessionTests.endToEnd
         // uses in the PreviewsIOSTests target. That test runs in an earlier
