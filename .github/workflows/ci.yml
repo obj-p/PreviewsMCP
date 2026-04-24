@@ -212,6 +212,23 @@ jobs:
           echo "--- socket dir listing ---"
           ls -la "$PREVIEWSMCP_SOCKET_DIR/" 2>/dev/null || echo "(dir not found)"
 
+      - name: Reset CoreSimulator state before iOS MCP tests
+        # Observed on PR #141 CI: by the time iOS MCP tests runs, the
+        # same simulator device that passed PreviewsIOSTests.endToEnd
+        # earlier in the job is wedged — `xcrun simctl launch` hangs
+        # indefinitely with empty stderr, even after shutdown + reboot.
+        # The CoreSimulator service accumulates state across the prior
+        # iOS steps (unit tests, CLI snapshot, CLI integration) that
+        # it doesn't recover from. Forcibly tearing down every booted
+        # device + bouncing the service gives MCP tests a clean slate.
+        run: |
+          xcrun simctl shutdown all 2>&1 || true
+          killall -9 "Simulator" "com.apple.CoreSimulator.CoreSimulatorService" 2>&1 || true
+          sleep 3
+          # Give the service time to come back up before the next step's
+          # swift test triggers it.
+          xcrun simctl list devices > /dev/null 2>&1 || true
+
       - name: iOS MCP tests
         # 35m = 5m build + 25.5m tests (simulator_list 25s + fullIOS 20m
         # .timeLimit + 5m buffer). The previous 25m budget was 14
