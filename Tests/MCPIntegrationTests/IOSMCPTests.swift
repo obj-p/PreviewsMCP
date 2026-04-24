@@ -50,8 +50,10 @@ struct IOSMCPTests {
         // PreviewsIOSTests.endToEnd (in-process, earlier in the job)
         // and locally. Skip on CI until the infrastructure issue is
         // resolved; local developers still get coverage.
-        .disabled(if: ProcessInfo.processInfo.environment["CI"] != nil,
-                  "iOS MCP workflow wedges CoreSimulator under combined load on GHA macos-15; see PR #141 for details"))
+        .disabled(
+            if: ProcessInfo.processInfo.environment["CI"] != nil,
+            "iOS MCP workflow wedges CoreSimulator under combined load on GHA macos-15; see PR #141 for details"
+        ))
     func fullIOSWorkflow() async throws {
         // Use picker index 1, the same device IOSPreviewSessionTests.endToEnd
         // uses in the PreviewsIOSTests target. That test runs in an earlier
