@@ -12,13 +12,20 @@ import Foundation
 ///
 /// Three levels, intentionally lightweight:
 /// - ``info(_:)`` — stage markers, progress, normal operational output.
-///   No prefix; preserves the existing serve.log format that consumers
-///   already grep against.
+///   No level prefix; preserves the existing serve.log content that
+///   consumers already grep against.
 /// - ``warn(_:)`` — recoverable conditions worth flagging (retries,
 ///   fallbacks, slow paths). Prefixed `WARN:` so they stand out in
 ///   mixed log output.
 /// - ``error(_:)`` — hard failures the caller surfaces up. Prefixed
 ///   `ERROR:`.
+///
+/// Every line is prefixed with a local wall-clock `[HH:MM:SS.mmm] `
+/// stamp so post-mortem analysis of `serve.log` after a CI hang can
+/// order interleaved subprocess output and correlate stage markers
+/// (e.g. `preview_start/ios:`) against CI step timestamps. The prefix
+/// is fixed-width; line-anchored greps should match `^\[[^\]]+\] `
+/// before the message body.
 ///
 /// This is a diagnostic surface, not a structured logging framework. If
 /// you need structured fields, embed them in the message (`"…
@@ -38,7 +45,16 @@ public enum Log {
         write("ERROR: \(message)")
     }
 
+    private static let timestampFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "HH:mm:ss.SSS"
+        f.locale = Locale(identifier: "en_US_POSIX")
+        return f
+    }()
+
     private static func write(_ line: String) {
-        fputs("\(line)\n", stderr)
+        let stamp = timestampFormatter.string(from: Date())
+        let data = Data("[\(stamp)] \(line)\n".utf8)
+        try? FileHandle.standardError.write(contentsOf: data)
     }
 }
