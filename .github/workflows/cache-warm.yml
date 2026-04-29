@@ -1,0 +1,98 @@
+name: Cache warmer
+
+# Refreshes the SPM build caches that `ci.yml` reads on every PR.
+# GitHub evicts cache entries 7 days after their last access; for
+# branches that go quiet over a long weekend or holiday, the cache
+# can expire between PR pushes, forcing a cold rebuild that has been
+# observed pushing the `MCP integration tests` step past its 30-min
+# step cap (see PR #141).
+#
+# The schedule is intentionally weekly with a manual `workflow_dispatch`
+# valve. Weekly + 7-day TTL is tight margin; the dispatch button on the
+# Actions page is the safety net if a holiday delay or runner queue
+# pushes the next scheduled fire past the eviction deadline.
+
+on:
+  schedule:
+    # Sunday 05:00 UTC (10pm Saturday Pacific). Off-peak GHA window;
+    # picks up before Monday morning PR activity.
+    - cron: "0 5 * * 0"
+  workflow_dispatch:
+
+# A manual dispatch racing the scheduled fire would just duplicate
+# work; collapse to one run at a time.
+concurrency:
+  group: cache-warm
+  cancel-in-progress: true
+
+jobs:
+  warm-build-cache:
+    name: Warm spm-macOS-build cache
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache Homebrew
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/Library/Caches/Homebrew/downloads
+            ~/Library/Caches/Homebrew/Cask
+          key: brew-${{ runner.os }}-${{ hashFiles('Brewfile') }}
+          restore-keys: brew-${{ runner.os }}-
+
+      - name: Install tools
+        run: brew bundle
+
+      - name: Cache SPM build (build-and-test variant)
+        uses: actions/cache@v4
+        with:
+          path: |
+            .build
+            examples/spm/.build
+          key: spm-${{ runner.os }}-build-${{ hashFiles('Package.resolved') }}
+          restore-keys: |
+            spm-${{ runner.os }}-build-
+            spm-${{ runner.os }}-
+
+      - name: Build (mirrors build-and-test job's first build steps)
+        run: |
+          swift build
+          swift build --package-path examples/spm
+
+  warm-ios-cache:
+    name: Warm spm-macOS-ios cache
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_26.3.app
+
+      - name: Cache Homebrew
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/Library/Caches/Homebrew/downloads
+            ~/Library/Caches/Homebrew/Cask
+          key: brew-${{ runner.os }}-${{ hashFiles('Brewfile') }}
+          restore-keys: brew-${{ runner.os }}-
+
+      - name: Install tools
+        run: brew bundle
+
+      - name: Cache SPM build (ios variant)
+        uses: actions/cache@v4
+        with:
+          path: |
+            .build
+            examples/spm/.build
+          key: spm-${{ runner.os }}-ios-${{ hashFiles('Package.resolved') }}
+          restore-keys: |
+            spm-${{ runner.os }}-ios-
+            spm-${{ runner.os }}-
+
+      - name: Build (mirrors ios-tests job's build step)
+        run: |
+          swift build
+          swift build --package-path examples/spm
