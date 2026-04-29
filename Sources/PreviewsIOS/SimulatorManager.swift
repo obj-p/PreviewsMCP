@@ -298,17 +298,17 @@ public actor SimulatorManager {
             switch result {
             case .success(let data):
                 if attempt > 1 {
-                    fputs(
-                        "SimulatorBridge: IOSurface capture succeeded on attempt \(attempt)/\(iosurfaceRetryCount)\n",
-                        stderr)
+                    Log.info(
+                        "SimulatorBridge: IOSurface capture succeeded on attempt \(attempt)/\(iosurfaceRetryCount)"
+                    )
                 }
                 return data
             case .failure(let err):
                 lastFBError = err
             case .timedOut:
-                fputs(
-                    "SimulatorBridge: IOSurface capture attempt \(attempt)/\(iosurfaceRetryCount) hung, abandoning\n",
-                    stderr)
+                Log.warn(
+                    "SimulatorBridge: IOSurface capture attempt \(attempt)/\(iosurfaceRetryCount) hung, abandoning"
+                )
             }
             if attempt < iosurfaceRetryCount {
                 try? await Task.sleep(for: iosurfaceBackoff)
@@ -318,9 +318,9 @@ public actor SimulatorManager {
         // Fall back to simctl subprocess (itself bounded by a timeout — see
         // screenshotDataViaSimctl — so a display that never attaches fails
         // fast with actionable context instead of hanging indefinitely).
-        fputs(
-            "SimulatorBridge: IOSurface capture failed after \(iosurfaceRetryCount) attempts (\(lastFBError?.localizedDescription ?? "unknown/timed-out")), falling back to simctl\n",
-            stderr)
+        Log.warn(
+            "SimulatorBridge: IOSurface capture failed after \(iosurfaceRetryCount) attempts (\(lastFBError?.localizedDescription ?? "unknown/timed-out")), falling back to simctl"
+        )
         let imageType = jpegQuality >= 1.0 ? "png" : "jpeg"
         return try await screenshotDataViaSimctl(udid: udid, imageType: imageType)
     }

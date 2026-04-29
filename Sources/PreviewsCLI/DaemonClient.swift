@@ -1,6 +1,7 @@
 import Foundation
 import MCP
 import Network
+import PreviewsCore
 
 /// Client-side handle to the previewsmcp daemon.
 ///
@@ -137,7 +138,7 @@ enum DaemonClient {
         await client.onNotification(LogMessageNotification.self) { message in
             if message.params.logger == "heartbeat" { return }
             if case .string(let text) = message.params.data {
-                fputs("\(text)\n", stderr)
+                Log.info(text)
             }
         }
     }

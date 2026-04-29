@@ -98,8 +98,7 @@ func configureMCPServer(
     }
 
     await server.withMethodHandler(CallTool.self) { [server] params in
-        fputs("mcp: callTool \(params.name)\n", stderr)
-        fflush(stderr)
+        Log.info("mcp: callTool \(params.name)")
         guard let tool = ToolName(rawValue: params.name) else {
             return CallTool.Result(content: [.text("Unknown tool: \(params.name)")], isError: true)
         }
@@ -220,7 +219,7 @@ private func handlePreviewList(params: CallTool.Parameters) async throws -> Call
 private func handlePreviewStart(params: CallTool.Parameters, macCompiler: Compiler, server: Server) async throws
     -> CallTool.Result
 {
-    fputs("preview_start: enter\n", stderr)
+    Log.info("preview_start: enter")
 
     let filePath: String
     do { filePath = try extractString("filePath", from: params) } catch {
@@ -234,9 +233,9 @@ private func handlePreviewStart(params: CallTool.Parameters, macCompiler: Compil
 
     let previewIndex = extractOptionalInt("previewIndex", from: params) ?? 0
 
-    fputs("preview_start: loading config\n", stderr)
+    Log.info("preview_start: loading config")
     let configResult = await configCache.load(for: fileURL)
-    fputs("preview_start: config loaded\n", stderr)
+    Log.info("preview_start: config loaded")
     let config = configResult?.config
     let platformStr: String
     if let explicit = extractOptionalString("platform", from: params) {
@@ -256,7 +255,7 @@ private func handlePreviewStart(params: CallTool.Parameters, macCompiler: Compil
     let configTraits = config?.traits?.toPreviewTraits() ?? PreviewTraits()
     let resolvedTraits = configTraits.merged(with: explicitTraits)
 
-    fputs("preview_start: platform=\(platformStr)\n", stderr)
+    Log.info("preview_start: platform=\(platformStr)")
 
     // iOS simulator path
     if platformStr == "ios" {
@@ -343,7 +342,7 @@ private func handleIOSPreviewStart(
     // occurred before session.start() gets a chance to log anything.
     // Progress reported via `progress` goes over the MCP stdio protocol
     // and is invisible in the captured stderr log.
-    func stage(_ s: String) { fputs("preview_start/ios: \(s)\n", stderr) }
+    func stage(_ s: String) { Log.info("preview_start/ios: \(s)") }
     stage("enter")
 
     let config = configResult?.config
@@ -411,16 +410,16 @@ private func handleIOSPreviewStart(
     let allPaths = [fileURL.path] + (buildContext?.sourceFiles?.map(\.path) ?? [])
     let watcher = try? FileWatcher(paths: allPaths) {
         Task {
-            fputs("MCP: iOS file change detected, reloading session \(sessionID)...\n", stderr)
+            Log.info("MCP: iOS file change detected, reloading session \(sessionID)...")
             do {
                 let wasLiteralOnly = try await session.handleSourceChange()
                 if wasLiteralOnly {
-                    fputs("MCP: iOS literal-only change applied (state preserved)\n", stderr)
+                    Log.info("MCP: iOS literal-only change applied (state preserved)")
                 } else {
-                    fputs("MCP: iOS structural change — recompiled and signalled reload\n", stderr)
+                    Log.info("MCP: iOS structural change — recompiled and signalled reload")
                 }
             } catch {
-                fputs("MCP: iOS reload failed for session \(sessionID): \(error)\n", stderr)
+                Log.error("MCP: iOS reload failed for session \(sessionID): \(error)")
             }
         }
     }
@@ -523,7 +522,7 @@ private func startMacOSPreview(
                 buildContext: buildContext
             )
         } catch {
-            fputs("MCP: Failed to load preview: \(error)\n", stderr)
+            Log.error("MCP: Failed to load preview: \(error)")
         }
     }
 

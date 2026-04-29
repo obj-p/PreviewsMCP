@@ -75,13 +75,13 @@ public actor IOSPreviewSession {
     /// Start the iOS preview: compile, boot sim, install host, launch, connect socket.
     /// Returns the PID of the launched host app.
     public func start() async throws -> Int {
-        // Mirror stage transitions to stderr so operators running
-        // `previewsmcp logs` (or scraping CI capture files) can see where a
-        // stall occurred. MCP LogMessageNotifications go over stdout and
-        // aren't visible unless the client subscribes; stderr is always
-        // captured by the parent process. Kept intentionally terse.
+        // Mirror stage transitions to the diagnostic log so operators
+        // running `previewsmcp logs` (or scraping CI capture files) can
+        // see where a stall occurred. MCP LogMessageNotifications go
+        // over stdout and aren't visible unless the client subscribes;
+        // stderr is always captured by the parent process. Kept terse.
         func stage(_ s: String) {
-            fputs("iOS preview: \(s) [\(deviceUDID.prefix(8))]\n", stderr)
+            Log.info("iOS preview: \(s) [\(deviceUDID.prefix(8))]")
         }
 
         // 1. Compile preview dylib for iOS simulator

@@ -2,6 +2,7 @@ import AppKit
 import ArgumentParser
 import Foundation
 import MCP
+import PreviewsCore
 import PreviewsEngine
 import PreviewsMacOS
 
@@ -62,11 +63,11 @@ struct ServeCommand: ParsableCommand {
                     host: host, iosManager: IOSSessionManager(),
                     configCache: ConfigCache()
                 )
-                fputs("MCP server starting on stdio...\n", stderr)
+                Log.info("MCP server starting on stdio...")
                 let transport = StdioTransport()
                 try await runMCPServer(server, transport: transport)
             } catch {
-                fputs("MCP server error: \(error)\n", stderr)
+                Log.error("MCP server error: \(error)")
                 await MainActor.run { NSApp.terminate(nil) }
             }
         }
@@ -85,10 +86,8 @@ struct ServeCommand: ParsableCommand {
                     let pidDesc =
                         DaemonLifecycle.daemonRunningPID().map { "pid \($0)" }
                         ?? "pid unknown"
-                    fputs(
-                        "daemon already running (\(pidDesc)); "
-                            + "use `previewsmcp kill-daemon` first\n",
-                        stderr
+                    Log.error(
+                        "daemon already running (\(pidDesc)); use `previewsmcp kill-daemon` first"
                     )
                     Darwin.exit(1)
                 }
@@ -102,12 +101,9 @@ struct ServeCommand: ParsableCommand {
                 let host = Self.sharedHost!
                 _ = try await DaemonListener.start(host: host)
                 try DaemonLifecycle.register()
-                fputs(
-                    "daemon ready (pid \(ProcessInfo.processInfo.processIdentifier))\n",
-                    stderr
-                )
+                Log.info("daemon ready (pid \(ProcessInfo.processInfo.processIdentifier))")
             } catch {
-                fputs("daemon startup failed: \(error)\n", stderr)
+                Log.error("daemon startup failed: \(error)")
                 DaemonLifecycle.unregister()
                 Darwin.exit(1)
             }
