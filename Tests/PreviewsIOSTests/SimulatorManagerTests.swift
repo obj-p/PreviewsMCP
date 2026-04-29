@@ -64,16 +64,25 @@ struct SimulatorManagerTests {
 
     @Test("Boot and shutdown a device")
     func bootAndShutdown() async throws {
-        let manager = SimulatorManager()
-        let devices = try await manager.listDevices()
-        guard
-            let target = devices.first(where: {
-                $0.isAvailable && $0.state == .shutdown
-            })
-        else {
-            print("No available shutdown device to test boot/shutdown")
+        // Each test that boots a simulator gets its OWN device (distinct
+        // IOSSimulatorPicker index) so the three iOS test suites don't
+        // contend for the same device when Swift Testing runs them in
+        // parallel. See IOSSimulatorPicker for the assignments.
+        //
+        // Scope: this test covers the boot→shutdown lifecycle only.
+        // Screenshot coverage lives in IOSPreviewSessionTests.endToEnd,
+        // which launches an app after boot. A screenshot here would be
+        // testing capture against a freshly-booted sim with nothing
+        // launched — on headless CI the display subsystem doesn't wire
+        // up until an app launches, so both IOSurface and the simctl
+        // fallback legitimately fail. That's fine as a product
+        // contract (screenshotData surfaces a clear error after ~70s),
+        // but not a scenario this test is trying to validate.
+        guard let target = try await IOSSimulatorPicker.pick(index: 0) else {
+            print("No iOS simulator at picker index 0 — skipping")
             return
         }
+        let manager = SimulatorManager()
 
         // Boot, test, then always shutdown — even if assertions fail.
         print("Booting \(target.name) (\(target.udid))...")
@@ -83,22 +92,11 @@ struct SimulatorManagerTests {
         var testError: (any Error)?
         do {
             let booted = try await manager.findDevice(udid: target.udid)
-            #expect(booted.state == .booted || booted.state == .booting)
+            // `bootDevice` blocks until the device is fully booted (via
+            // `simctl bootstatus -b`), so the state must be `.booted` by
+            // the time we get here — no more `.booting` tolerance.
+            #expect(booted.state == SimulatorManager.DeviceState.booted)
             print("State after boot: \(booted.stateString)")
-
-            // Take a screenshot (direct IOSurface capture with simctl fallback)
-            try await Task.sleep(for: .seconds(5))
-            let screenshotData = try await manager.screenshotData(udid: target.udid)
-            #expect(screenshotData.count > 0)
-            // Verify JPEG header (0xFF 0xD8) since default quality is < 1.0
-            #expect(screenshotData[0] == 0xFF && screenshotData[1] == 0xD8)
-            print("Screenshot captured: \(screenshotData.count) bytes (JPEG)")
-
-            // Verify PNG output when quality >= 1.0
-            let pngData = try await manager.screenshotData(udid: target.udid, jpegQuality: 1.0)
-            #expect(pngData.count > 0)
-            #expect(pngData[0] == 0x89 && pngData[1] == 0x50)  // PNG header
-            print("PNG screenshot captured: \(pngData.count) bytes")
         } catch {
             testError = error
         }
@@ -107,9 +105,12 @@ struct SimulatorManagerTests {
         print("Shutting down...")
         try await manager.shutdownDevice(udid: target.udid)
 
-        let shutdown = try await manager.findDevice(udid: target.udid)
-        #expect(shutdown.state == .shutdown || shutdown.state == .shuttingDown)
-        print("State after shutdown: \(shutdown.stateString)")
+        let afterShutdown = try await manager.findDevice(udid: target.udid)
+        #expect(
+            afterShutdown.state == SimulatorManager.DeviceState.shutdown
+                || afterShutdown.state == SimulatorManager.DeviceState.shuttingDown
+        )
+        print("State after shutdown: \(afterShutdown.stateString)")
 
         if let testError { throw testError }
     }

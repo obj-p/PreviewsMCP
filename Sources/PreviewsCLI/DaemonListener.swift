@@ -53,10 +53,7 @@ enum DaemonListener {
             listener.stateUpdateHandler = { state in
                 switch state {
                 case .ready:
-                    fputs(
-                        "previewsmcp daemon listening on \(DaemonPaths.socket.path)\n",
-                        stderr
-                    )
+                    Log.info("previewsmcp daemon listening on \(DaemonPaths.socket.path)")
                     cont.resume()
                     // Clear after resuming so the closure isn't retained.
                     listener.stateUpdateHandler = nil
@@ -88,7 +85,7 @@ enum DaemonListener {
             try await runMCPServer(server, transport: transport)
             // `runMCPServer` returns when the transport closes (client disconnected).
         } catch {
-            fputs("daemon connection error: \(error)\n", stderr)
+            Log.error("daemon connection error: \(error)")
             connection.cancel()
         }
     }

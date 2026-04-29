@@ -98,6 +98,7 @@ func configureMCPServer(
     }
 
     await server.withMethodHandler(CallTool.self) { [server] params in
+        Log.info("mcp: callTool \(params.name)")
         guard let tool = ToolName(rawValue: params.name) else {
             return CallTool.Result(content: [.text("Unknown tool: \(params.name)")], isError: true)
         }
@@ -218,6 +219,8 @@ private func handlePreviewList(params: CallTool.Parameters) async throws -> Call
 private func handlePreviewStart(params: CallTool.Parameters, macCompiler: Compiler, server: Server) async throws
     -> CallTool.Result
 {
+    Log.info("preview_start: enter")
+
     let filePath: String
     do { filePath = try extractString("filePath", from: params) } catch {
         return CallTool.Result(content: [.text(error.localizedDescription)], isError: true)
@@ -230,7 +233,9 @@ private func handlePreviewStart(params: CallTool.Parameters, macCompiler: Compil
 
     let previewIndex = extractOptionalInt("previewIndex", from: params) ?? 0
 
+    Log.info("preview_start: loading config")
     let configResult = await configCache.load(for: fileURL)
+    Log.info("preview_start: config loaded")
     let config = configResult?.config
     let platformStr: String
     if let explicit = extractOptionalString("platform", from: params) {
@@ -249,6 +254,8 @@ private func handlePreviewStart(params: CallTool.Parameters, macCompiler: Compil
     if let traitsError { return traitsError }
     let configTraits = config?.traits?.toPreviewTraits() ?? PreviewTraits()
     let resolvedTraits = configTraits.merged(with: explicitTraits)
+
+    Log.info("preview_start: platform=\(platformStr)")
 
     // iOS simulator path
     if platformStr == "ios" {
@@ -331,18 +338,30 @@ private func handleIOSPreviewStart(
     traits: PreviewTraits = PreviewTraits(),
     server: Server
 ) async throws -> CallTool.Result {
+    // Stage markers on stderr so CI diagnostic dumps show where a hang
+    // occurred before session.start() gets a chance to log anything.
+    // Progress reported via `progress` goes over the MCP stdio protocol
+    // and is invisible in the captured stderr log.
+    func stage(_ s: String) { Log.info("preview_start/ios: \(s)") }
+    stage("enter")
+
     let config = configResult?.config
     // Resolve device UDID — use provided, config, or auto-select
     let deviceUDID: String
     let providedUDID = extractOptionalString("deviceUDID", from: params) ?? config?.device
     do {
+        stage("resolving device (provided=\(providedUDID?.prefix(8).description ?? "nil"))")
         deviceUDID = try await resolveDeviceUDID(provided: providedUDID, using: await iosState.simulatorManager)
+        stage("resolved device \(deviceUDID.prefix(8))")
     } catch {
         return CallTool.Result(content: [.text(error.localizedDescription)], isError: true)
     }
 
+    stage("getting compiler")
     let iosCompiler = try await iosState.getCompiler()
+    stage("getting hostBuilder")
     let hostBuilder = try await iosState.getHostBuilder()
+    stage("getting simulatorManager")
     let simulatorManager = await iosState.simulatorManager
 
     let headless = extractOptionalBool("headless", from: params) ?? true
@@ -351,13 +370,18 @@ private func handleIOSPreviewStart(
     let progress = mcpReporter(server: server, params: params, totalSteps: 8)
     let buildContext: BuildContext?
     do {
+        stage("detectBuildContext begin")
         buildContext = try await detectBuildContext(for: fileURL, params: params, platform: .iOS, progress: progress)
+        stage("detectBuildContext done (\(buildContext == nil ? "nil" : "ok"))")
     } catch {
+        stage("detectBuildContext failed: \(error)")
         return CallTool.Result(content: [.text("Project build failed: \(error.localizedDescription)")], isError: true)
     }
 
+    stage("buildSetupIfConfigured begin")
     let setupResult = try await buildSetupIfConfigured(
         config: config, configDirectory: configResult?.directory, platform: .iOS)
+    stage("buildSetupIfConfigured done (\(setupResult == nil ? "nil" : "ok"))")
 
     let session = IOSPreviewSession(
         sourceFile: fileURL,
@@ -376,7 +400,9 @@ private func handleIOSPreviewStart(
         progress: progress
     )
 
+    stage("session.start begin")
     let pid = try await session.start()
+    stage("session.start done pid=\(pid)")
     await iosState.addSession(session)
 
     // Set up file watching for hot-reload
@@ -384,16 +410,16 @@ private func handleIOSPreviewStart(
     let allPaths = [fileURL.path] + (buildContext?.sourceFiles?.map(\.path) ?? [])
     let watcher = try? FileWatcher(paths: allPaths) {
         Task {
-            fputs("MCP: iOS file change detected, reloading session \(sessionID)...\n", stderr)
+            Log.info("MCP: iOS file change detected, reloading session \(sessionID)...")
             do {
                 let wasLiteralOnly = try await session.handleSourceChange()
                 if wasLiteralOnly {
-                    fputs("MCP: iOS literal-only change applied (state preserved)\n", stderr)
+                    Log.info("MCP: iOS literal-only change applied (state preserved)")
                 } else {
-                    fputs("MCP: iOS structural change — recompiled and signalled reload\n", stderr)
+                    Log.info("MCP: iOS structural change — recompiled and signalled reload")
                 }
             } catch {
-                fputs("MCP: iOS reload failed for session \(sessionID): \(error)\n", stderr)
+                Log.error("MCP: iOS reload failed for session \(sessionID): \(error)")
             }
         }
     }
@@ -496,7 +522,7 @@ private func startMacOSPreview(
                 buildContext: buildContext
             )
         } catch {
-            fputs("MCP: Failed to load preview: \(error)\n", stderr)
+            Log.error("MCP: Failed to load preview: \(error)")
         }
     }
 

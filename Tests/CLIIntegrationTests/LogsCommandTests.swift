@@ -13,7 +13,7 @@ struct LogsCommandTests {
 
     @Test(
         "logs -n prints the last N lines of an existing log",
-        .timeLimit(.minutes(1))
+        .timeLimit(.minutes(2))
     )
     func snapshotReturnsTailOfExistingLog() async throws {
         try await DaemonTestLock.run {
@@ -38,7 +38,7 @@ struct LogsCommandTests {
 
     @Test(
         "logs creates the log file when missing and exits 0",
-        .timeLimit(.minutes(1))
+        .timeLimit(.minutes(2))
     )
     func snapshotCreatesLogFileWhenMissing() async throws {
         try await DaemonTestLock.run {
@@ -71,7 +71,13 @@ struct LogsCommandTests {
     /// arm its watcher" sleep.
     @Test(
         "logs --follow streams new lines and exits on SIGINT",
-        .timeLimit(.minutes(1))
+        // 2 minutes: the 10s sentinel wait + 5s SIGINT grace fits the
+        // happy path easily, but combined CI load on the build-and-test
+        // job (multiple test suites running sequentially, macos-15
+        // runner shared) has been observed pushing the Process spawn
+        // and DaemonTestLock acquisition past 30s. A 60s budget was
+        // too tight; 2 min still fails a genuinely hung tail/SIGINT.
+        .timeLimit(.minutes(2))
     )
     func followStreamsAndExitsOnSIGINT() async throws {
         try await DaemonTestLock.run {

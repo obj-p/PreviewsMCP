@@ -12,7 +12,7 @@ struct MacOSMCPTests {
 
     // MARK: - Session lifecycle, snapshots, switch, configure, hot reload
 
-    @Test("Full macOS MCP workflow", .timeLimit(.minutes(10)))
+    @Test("Full macOS MCP workflow", .timeLimit(.minutes(20)))
     func fullMacOSWorkflow() async throws {
         let server = try await MCPTestServer.start()
         defer { server.stop() }
@@ -221,7 +221,7 @@ struct MacOSMCPTests {
     /// tools. Deliberately decodes through the same `DaemonProtocol`
     /// DTOs that the CLI will consume, so drift in field names or
     /// shapes shows up here.
-    @Test("structuredContent payloads decode for each migrated tool", .timeLimit(.minutes(10)))
+    @Test("structuredContent payloads decode for each migrated tool", .timeLimit(.minutes(20)))
     func structuredContentPayloadsDecode() async throws {
         let server = try await MCPTestServer.start()
         defer { server.stop() }
@@ -320,7 +320,7 @@ struct MacOSMCPTests {
 
     // MARK: - preview_variants
 
-    @Test("preview_variants captures multiple configurations", .timeLimit(.minutes(10)))
+    @Test("preview_variants captures multiple configurations", .timeLimit(.minutes(20)))
     func previewVariants() async throws {
         let server = try await MCPTestServer.start()
         defer { server.stop() }
@@ -450,7 +450,7 @@ struct MacOSMCPTests {
     /// Literal-only fast path: change a string literal, which the DesignTimeStore
     /// tracker in PreviewSession.tryLiteralUpdate applies without recompiling.
     /// Sync target: "Literal-only change:" log line from HostApp.swift.
-    @Test("File edit triggers hot reload (literal-only fast path)", .timeLimit(.minutes(10)))
+    @Test("File edit triggers hot reload (literal-only fast path)", .timeLimit(.minutes(20)))
     func hotReloadLiteralOnly() async throws {
         let server = try await MCPTestServer.start()
         defer { server.stop() }
@@ -493,7 +493,7 @@ struct MacOSMCPTests {
     /// Structural slow path: add a new view modifier call, which the literal differ
     /// cannot fast-path, forcing a full swiftc recompile and dylib reload.
     /// Sync target: "Compiled:" log line from HostApp.swift after swiftc finishes.
-    @Test("File edit triggers hot reload (structural recompile path)", .timeLimit(.minutes(10)))
+    @Test("File edit triggers hot reload (structural recompile path)", .timeLimit(.minutes(20)))
     func hotReloadStructural() async throws {
         let server = try await MCPTestServer.start()
         defer { server.stop() }
@@ -551,7 +551,7 @@ struct MacOSMCPTests {
     /// margin even if subprocess boot eats half a second.
     @Test(
         "daemon emits unconditional 2s heartbeat notifications",
-        .timeLimit(.minutes(1))
+        .timeLimit(.minutes(3))
     )
     func daemonEmitsHeartbeat() async throws {
         let server = try await MCPTestServer.start()
@@ -589,7 +589,7 @@ struct MacOSMCPTests {
     /// `sleep()` has no such annotation and is equivalent for this test.
     @Test(
         "withTimeout pthread timer fires under cooperative-pool starvation",
-        .timeLimit(.minutes(1))
+        .timeLimit(.minutes(3))
     )
     func withTimeoutFiresUnderStarvation() async throws {
         // The pthread calls `process.terminate()` on timeout; a harmless

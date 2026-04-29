@@ -1,4 +1,5 @@
 import Foundation
+import PreviewsCore
 
 /// Writes the daemon PID on startup and removes it on graceful shutdown.
 /// Installs SIGTERM/SIGINT handlers that trigger cleanup before exiting.
@@ -72,7 +73,7 @@ enum DaemonLifecycle {
 
         let termSource = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .main)
         termSource.setEventHandler {
-            fputs("daemon: received SIGTERM, shutting down\n", stderr)
+            Log.info("daemon: received SIGTERM, shutting down")
             unregister()
             Darwin.exit(0)
         }
@@ -80,7 +81,7 @@ enum DaemonLifecycle {
 
         let intSource = DispatchSource.makeSignalSource(signal: SIGINT, queue: .main)
         intSource.setEventHandler {
-            fputs("daemon: received SIGINT, shutting down\n", stderr)
+            Log.info("daemon: received SIGINT, shutting down")
             unregister()
             Darwin.exit(0)
         }

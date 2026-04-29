@@ -34,17 +34,15 @@ struct IOSPreviewSessionTests {
         let sourceFile = tempDir.appendingPathComponent("HelloView.swift")
         try Self.testViewSource.write(to: sourceFile, atomically: true, encoding: .utf8)
 
-        // Find an available device — prefer already-booted to avoid sim cycling issues
-        let simulatorManager = SimulatorManager()
-        let devices = try await simulatorManager.listDevices()
-        let available = devices.filter { $0.isAvailable }
-        guard
-            let target = available.first(where: { $0.state == .booted })
-                ?? available.first
-        else {
-            print("No available simulator devices — skipping e2e test")
+        // Pick the picker's assigned device (index 1) — distinct from
+        // SimulatorManagerTests.bootAndShutdown (index 0) and
+        // IOSMCPTests.fullIOSWorkflow (index 2) so the three iOS suites
+        // can run in parallel without contending for the same simulator.
+        guard let target = try await IOSSimulatorPicker.pick(index: 1) else {
+            print("No iOS simulator at picker index 1 — skipping e2e test")
             return
         }
+        let simulatorManager = SimulatorManager()
 
         // Create session with isolated work dirs to avoid conflicts with other tests
         let hostWorkDir = FileManager.default.temporaryDirectory
@@ -72,12 +70,19 @@ struct IOSPreviewSessionTests {
             // Wait for the app to render
             try await Task.sleep(for: .seconds(3))
 
-            // Screenshot
-            let pngData = try await session.screenshot()
-            #expect(pngData.count > 0)
-            print("Screenshot captured: \(pngData.count) bytes")
+            // Default quality → JPEG (0xFF 0xD8 SOI marker).
+            let jpegData = try await session.screenshot()
+            #expect(jpegData.count > 0)
+            #expect(jpegData[0] == 0xFF && jpegData[1] == 0xD8)
+            print("JPEG screenshot captured: \(jpegData.count) bytes")
 
-            // Save screenshot for manual inspection
+            // Quality 1.0 → PNG (0x89 'P' header).
+            let pngData = try await session.screenshot(jpegQuality: 1.0)
+            #expect(pngData.count > 0)
+            #expect(pngData[0] == 0x89 && pngData[1] == 0x50)
+            print("PNG screenshot captured: \(pngData.count) bytes")
+
+            // Save PNG for manual inspection.
             let screenshotPath = tempDir.appendingPathComponent("ios_preview.png")
             try pngData.write(to: screenshotPath)
             print("Saved to: \(screenshotPath.path)")
