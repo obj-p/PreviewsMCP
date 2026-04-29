@@ -173,10 +173,11 @@ public actor SimulatorManager {
 
     /// Best-effort terminate of `bundleID` on `udid` via `simctl terminate`.
     ///
-    /// Observed on PR #141 CI: when a prior test left the same bundle
-    /// running, `SBDevice.launchApp` would hang indefinitely with no
-    /// timeout on the private-API path. Terminating any existing
-    /// instance first lets `launchApp` proceed cleanly.
+    /// Defensive cleanup before re-launching the host: a prior test or
+    /// retry can leave the same bundle running on the simulator, and a
+    /// fresh launch on top of it has been observed to wedge the
+    /// simulator backend on PR #141 CI. simctl terminate is a no-op
+    /// when the app isn't running.
     ///
     /// - Non-fatal: returns normally on non-zero exit (app was not
     ///   running) or on timeout (simctl itself wedged).
@@ -245,13 +246,9 @@ public actor SimulatorManager {
         }
         // Output format: `<bundleID>: <pid>\n`
         let trimmed = output.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let colonIdx = trimmed.lastIndex(of: ":") else {
-            throw SimulatorError.launchFailed(
-                "simctl launch returned unexpected stdout: \(trimmed.debugDescription)")
-        }
-        let pidPart = trimmed[trimmed.index(after: colonIdx)...]
-            .trimmingCharacters(in: .whitespaces)
-        guard let pid = Int(pidPart) else {
+        guard let pidPart = trimmed.split(separator: ":").last,
+            let pid = Int(pidPart.trimmingCharacters(in: .whitespaces))
+        else {
             throw SimulatorError.launchFailed(
                 "simctl launch returned unexpected stdout: \(trimmed.debugDescription)")
         }
