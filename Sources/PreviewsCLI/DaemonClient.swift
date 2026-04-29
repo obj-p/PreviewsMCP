@@ -43,13 +43,10 @@ enum DaemonClient {
         // construction its binary matches argv[0], so the MCP
         // `serverInfo.version` must equal our own compile-time
         // version — no handshake check needed on this branch.
-        let weJustSpawned: Bool
-        if !DaemonProbe.canConnect() {
+        let weJustSpawned = !DaemonProbe.canConnect()
+        if weJustSpawned {
             try spawnDaemon()
             try await waitForSocket(timeout: startTimeout)
-            weJustSpawned = true
-        } else {
-            weJustSpawned = false
         }
 
         let (client, initResult) = try await openClient(
@@ -229,7 +226,7 @@ enum DaemonClient {
     /// Pre-release tags like `-rc.1` are preserved and compare as
     /// distinct — the regex only matches the numeric-distance-plus-
     /// SHA pattern git-describe produces. See issue #142.
-    static func versionsMatch(_ a: String, _ b: String) -> Bool {
+    private static func versionsMatch(_ a: String, _ b: String) -> Bool {
         let aHasSuffix = gitDescribeRange(in: a) != nil
         let bHasSuffix = gitDescribeRange(in: b) != nil
         if aHasSuffix && bHasSuffix {
@@ -239,7 +236,7 @@ enum DaemonClient {
     }
 
     /// Strip the git-describe suffix `-<N>-g<SHA>`, if present.
-    static func baseVersion(_ version: String) -> String {
+    private static func baseVersion(_ version: String) -> String {
         guard let range = gitDescribeRange(in: version) else { return version }
         return String(version[..<range.lowerBound])
     }
@@ -418,12 +415,8 @@ enum DaemonClient {
         //     other spawn so stale values from a parent CLI don't
         //     masquerade as a restart event.
         var env = ProcessInfo.processInfo.environment
-        env.removeValue(forKey: "_PREVIEWSMCP_TEST_DAEMON_VERSION")
-        if let reason = restartReason {
-            env["_PREVIEWSMCP_DAEMON_RESTART_REASON"] = reason
-        } else {
-            env.removeValue(forKey: "_PREVIEWSMCP_DAEMON_RESTART_REASON")
-        }
+        env["_PREVIEWSMCP_TEST_DAEMON_VERSION"] = nil
+        env["_PREVIEWSMCP_DAEMON_RESTART_REASON"] = restartReason
         proc.environment = env
 
         // Log the binary path on a restart spawn so a user diagnosing
