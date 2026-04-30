@@ -9,34 +9,42 @@ import Testing
 /// Serialized because `captureStderr` rebinds the process-global fd 2
 /// for the duration of `body` — running these in parallel would race
 /// on whose `dup2` was most recent.
+///
+/// Within-suite serialization is not enough: `dup2(fileno(stderr))`
+/// captures fd 2 process-wide, so any concurrent test in another suite
+/// (and swift-testing's own `◇ Test "…" started.` progress markers)
+/// can leak into the capture. We assert that *some line* in the
+/// captured stderr matches the format, rather than that the capture
+/// is exclusively the log line — keeps the format pinned without
+/// flaking on cross-suite stderr interleaving.
 @Suite("Log", .serialized)
 struct LogTests {
 
     @Test("info writes timestamped plain message to stderr")
     func infoFormat() {
-        let line = captureStderr { Log.info("hello world") }
-        let pattern = #"^\[\d{2}:\d{2}:\d{2}\.\d{3}\] hello world\n$"#
+        let captured = captureStderr { Log.info("hello world") }
+        let pattern = #"^\[\d{2}:\d{2}:\d{2}\.\d{3}\] hello world$"#
         #expect(
-            line.range(of: pattern, options: .regularExpression) != nil,
-            "got: \(line.debugDescription)")
+            captured.containsLine(matching: pattern),
+            "got: \(captured.debugDescription)")
     }
 
     @Test("warn prefixes WARN: after the timestamp")
     func warnFormat() {
-        let line = captureStderr { Log.warn("retrying") }
-        let pattern = #"^\[\d{2}:\d{2}:\d{2}\.\d{3}\] WARN: retrying\n$"#
+        let captured = captureStderr { Log.warn("retrying") }
+        let pattern = #"^\[\d{2}:\d{2}:\d{2}\.\d{3}\] WARN: retrying$"#
         #expect(
-            line.range(of: pattern, options: .regularExpression) != nil,
-            "got: \(line.debugDescription)")
+            captured.containsLine(matching: pattern),
+            "got: \(captured.debugDescription)")
     }
 
     @Test("error prefixes ERROR: after the timestamp")
     func errorFormat() {
-        let line = captureStderr { Log.error("boom") }
-        let pattern = #"^\[\d{2}:\d{2}:\d{2}\.\d{3}\] ERROR: boom\n$"#
+        let captured = captureStderr { Log.error("boom") }
+        let pattern = #"^\[\d{2}:\d{2}:\d{2}\.\d{3}\] ERROR: boom$"#
         #expect(
-            line.range(of: pattern, options: .regularExpression) != nil,
-            "got: \(line.debugDescription)")
+            captured.containsLine(matching: pattern),
+            "got: \(captured.debugDescription)")
     }
 
     /// Redirects fd 2 to a temp file for the duration of `body`, then
@@ -60,5 +68,16 @@ struct LogTests {
         dup2(savedStderr, fileno(stderr))
 
         return (try? String(contentsOf: temp, encoding: .utf8)) ?? ""
+    }
+}
+
+private extension String {
+    /// True if any newline-delimited line in `self` matches `pattern` as a
+    /// regular expression. Pattern is matched line-anchored — callers should
+    /// include `^…$` to pin format at the line scope.
+    func containsLine(matching pattern: String) -> Bool {
+        split(separator: "\n", omittingEmptySubsequences: true).contains { line in
+            String(line).range(of: pattern, options: .regularExpression) != nil
+        }
     }
 }
