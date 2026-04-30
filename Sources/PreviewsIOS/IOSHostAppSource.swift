@@ -103,7 +103,6 @@ enum IOSHostAppSource {
             private func showError(_ message: String) {
                 let vc = UIViewController()
                 vc.view.backgroundColor = .systemRed
-                vc.view.accessibilityLabel = "Preview host error"
 
                 let title = UILabel()
                 title.translatesAutoresizingMaskIntoConstraints = false

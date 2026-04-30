@@ -23,7 +23,7 @@ struct LogTests {
     @Test("info writes timestamped plain message to stderr")
     func infoFormat() {
         let captured = captureStderr { Log.info("hello world") }
-        let pattern = #"^\[\d{2}:\d{2}:\d{2}\.\d{3}\] hello world$"#
+        let pattern = #"\[\d{2}:\d{2}:\d{2}\.\d{3}\] hello world"#
         #expect(
             captured.containsLine(matching: pattern),
             "got: \(captured.debugDescription)")
@@ -32,7 +32,7 @@ struct LogTests {
     @Test("warn prefixes WARN: after the timestamp")
     func warnFormat() {
         let captured = captureStderr { Log.warn("retrying") }
-        let pattern = #"^\[\d{2}:\d{2}:\d{2}\.\d{3}\] WARN: retrying$"#
+        let pattern = #"\[\d{2}:\d{2}:\d{2}\.\d{3}\] WARN: retrying"#
         #expect(
             captured.containsLine(matching: pattern),
             "got: \(captured.debugDescription)")
@@ -41,7 +41,7 @@ struct LogTests {
     @Test("error prefixes ERROR: after the timestamp")
     func errorFormat() {
         let captured = captureStderr { Log.error("boom") }
-        let pattern = #"^\[\d{2}:\d{2}:\d{2}\.\d{3}\] ERROR: boom$"#
+        let pattern = #"\[\d{2}:\d{2}:\d{2}\.\d{3}\] ERROR: boom"#
         #expect(
             captured.containsLine(matching: pattern),
             "got: \(captured.debugDescription)")
@@ -72,12 +72,13 @@ struct LogTests {
 }
 
 private extension String {
-    /// True if any newline-delimited line in `self` matches `pattern` as a
-    /// regular expression. Pattern is matched line-anchored — callers should
-    /// include `^…$` to pin format at the line scope.
+    /// True if some line in `self` matches `pattern` (regular expression)
+    /// AND is followed by a `\n`. The `\n` terminator is load-bearing —
+    /// `previewsmcp logs` consumers and CI grep patterns depend on Log
+    /// emitting newline-delimited records, so the format pin would be
+    /// incomplete without it. Callers pass just the line content; the
+    /// helper applies `(?m)^…\n` line anchoring internally.
     func containsLine(matching pattern: String) -> Bool {
-        split(separator: "\n", omittingEmptySubsequences: true).contains { line in
-            String(line).range(of: pattern, options: .regularExpression) != nil
-        }
+        range(of: "(?m)^" + pattern + "\\n", options: .regularExpression) != nil
     }
 }
