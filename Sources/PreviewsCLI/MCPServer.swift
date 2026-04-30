@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 import MCP
 import PreviewsCore
@@ -125,6 +126,8 @@ func configureMCPServer(
             return try await handleSimulatorList()
         case .sessionList:
             return await handleSessionList()
+        case .previewBuildInfo:
+            return handlePreviewBuildInfo()
         }
     }
 
@@ -1248,4 +1251,94 @@ private func previewIndexOutOfRangeError(_ newIndex: Int, count: Int) -> CallToo
         ],
         isError: true
     )
+}
+
+// MARK: - preview_build_info
+
+/// Resolve the running executable's absolute path via `_NSGetExecutablePath`.
+/// Authoritative on Darwin — independent of `argv[0]`, which can be relative
+/// or rewritten by the caller. Issue #100 covers migrating the daemon spawn
+/// path to this primitive; this handler uses it locally without changing
+/// that surface.
+private func resolveRunningBinaryPath() -> String? {
+    var size: UInt32 = 0
+    _ = _NSGetExecutablePath(nil, &size)
+    var buf = [UInt8](repeating: 0, count: Int(size))
+    let result = buf.withUnsafeMutableBufferPointer { ptr -> Int32 in
+        ptr.baseAddress!.withMemoryRebound(to: CChar.self, capacity: Int(size)) {
+            _NSGetExecutablePath($0, &size)
+        }
+    }
+    guard result == 0 else { return nil }
+    // Drop trailing NUL.
+    if let nulIndex = buf.firstIndex(of: 0) {
+        buf.removeSubrange(nulIndex..<buf.endIndex)
+    }
+    let raw = String(decoding: buf, as: UTF8.self)
+    // Resolve `..` and symlinks so the mtime stat matches what the build
+    // system actually wrote — `swift build` may produce an argv[0] like
+    // `/.../.build/arm64-apple-macosx/debug/previewsmcp` and a logical
+    // symlink alias at `.build/debug/previewsmcp`. The skill stats the
+    // alias; the handler should report the resolved target.
+    return URL(fileURLWithPath: raw).resolvingSymlinksInPath().path
+}
+
+/// Stat `path` and return its mtime, or nil if the file is unreachable.
+private func mtime(at path: String) -> Date? {
+    guard let attrs = try? FileManager.default.attributesOfItem(atPath: path),
+        let date = attrs[.modificationDate] as? Date
+    else { return nil }
+    return date
+}
+
+/// Build the `preview_build_info` response. Synchronous: no I/O beyond a
+/// single stat, no daemon state read.
+private func handlePreviewBuildInfo() -> CallTool.Result {
+    let formatter = ISO8601DateFormatter()
+    formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+
+    let processStartISO = formatter.string(from: ProcessStartup.time)
+
+    guard let binaryPath = resolveRunningBinaryPath() else {
+        return CallTool.Result(
+            content: [.text("preview_build_info: could not resolve running binary path")],
+            isError: true
+        )
+    }
+
+    guard let binaryMtimeDate = mtime(at: binaryPath) else {
+        return CallTool.Result(
+            content: [.text("preview_build_info: could not stat \(binaryPath)")],
+            isError: true
+        )
+    }
+    let binaryMtimeISO = formatter.string(from: binaryMtimeDate)
+    let stale = binaryMtimeDate > ProcessStartup.time
+
+    let payload = DaemonProtocol.BuildInfoResult(
+        binaryPath: binaryPath,
+        binaryMtime: binaryMtimeISO,
+        processStartTime: processStartISO,
+        stale: stale
+    )
+
+    let staleHint =
+        stale
+        ? " STALE — on-disk binary was rebuilt after this server started; restart the MCP host to pick up the new binary."
+        : ""
+    let text =
+        "binary=\(binaryPath) mtime=\(binaryMtimeISO) processStart=\(processStartISO) stale=\(stale).\(staleHint)"
+
+    do {
+        return try CallTool.Result(
+            content: [.text(text)],
+            structuredContent: payload
+        )
+    } catch {
+        // Reachable only if BuildInfoResult ever stops being Codable —
+        // a programmer error worth surfacing in serve.log rather than
+        // silently degrading to text-only.
+        Log.error("preview_build_info: structured encoding failed: \(error)")
+        return CallTool.Result(content: [.text(text)])
+    }
 }

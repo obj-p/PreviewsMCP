@@ -63,7 +63,10 @@ struct ServeCommand: ParsableCommand {
                     host: host, iosManager: IOSSessionManager(),
                     configCache: ConfigCache()
                 )
-                Log.info("MCP server starting on stdio...")
+                let startISO = ISO8601DateFormatter().string(from: ProcessStartup.time)
+                Log.info(
+                    "MCP server starting on stdio (pid \(ProcessInfo.processInfo.processIdentifier), started \(startISO))..."
+                )
                 let transport = StdioTransport()
                 try await runMCPServer(server, transport: transport)
             } catch {
@@ -101,7 +104,10 @@ struct ServeCommand: ParsableCommand {
                 let host = Self.sharedHost!
                 _ = try await DaemonListener.start(host: host)
                 try DaemonLifecycle.register()
-                Log.info("daemon ready (pid \(ProcessInfo.processInfo.processIdentifier))")
+                let startISO = ISO8601DateFormatter().string(from: ProcessStartup.time)
+                Log.info(
+                    "daemon ready (pid \(ProcessInfo.processInfo.processIdentifier), started \(startISO))"
+                )
                 // One-line breadcrumb so `serve.log` records when the
                 // daemon was (re)spawned because of a version-mismatch
                 // restart. Diagnoses repeated restart loops in bug

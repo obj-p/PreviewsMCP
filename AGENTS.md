@@ -75,6 +75,22 @@ Key files:
 
 `PreviewsMCPApp.swift` routes commands: only `serve` runs `NSApplication`; everything else uses `dispatchMain()` + async `Task`.
 
+### Stdio server vs UDS daemon
+
+`previewsmcp serve` runs in two modes that are **separate processes with separate session state**:
+
+- **Stdio** (default) — spawned by MCP clients via `.mcp.json` (Claude Code, Cursor). Self-contained: own `PreviewHost`, `IOSSessionManager`, `ConfigCache`. Resident for the lifetime of the MCP host process.
+- **UDS daemon** (`--daemon`) — auto-spawned by every CLI subcommand at `~/.previewsmcp/serve.sock`. Persists across CLI invocations.
+
+A session created via MCP tools lives in the stdio process and is **not** visible to `previewsmcp list` / `snapshot --session-id …` (which talk to the daemon). And vice versa.
+
+When validating code changes, both halves can go stale — `swift build` overwrites the binary, but resident processes keep running the old code:
+
+- Refresh stdio: `/exit` and relaunch Claude Code (or call `preview_build_info` to detect staleness — `stale: true` means the on-disk binary has been rebuilt since the running process started).
+- Refresh daemon: `previewsmcp kill-daemon` (auto-respawns on next CLI invocation; #142's version-mismatch handshake also restarts it transparently).
+
+The stdio server has no equivalent of #142's handshake — there's no peer to handshake with — so the staleness must be detected client-side.
+
 ### CLI subcommands
 
 | Command | Purpose | Daemon? |
@@ -121,7 +137,7 @@ CLI commands follow a stdout-for-data, stderr-for-side-effects convention:
 Binary: `.build/debug/previewsmcp serve`
 Config: `/.mcp.json` (in parent directory)
 
-Tools: `preview_list`, `preview_start`, `preview_configure`, `preview_switch`, `preview_variants`, `preview_snapshot`, `preview_elements`, `preview_touch`, `preview_stop`, `simulator_list`, `session_list`
+Tools: `preview_list`, `preview_start`, `preview_configure`, `preview_switch`, `preview_variants`, `preview_snapshot`, `preview_elements`, `preview_touch`, `preview_stop`, `simulator_list`, `session_list`, `preview_build_info`
 
 All tool handlers that return non-trivial data emit a `structuredContent` payload (Codable DTOs from `DaemonProtocol.swift`) alongside the human-readable text content blocks. Agents that consume `structuredContent` can skip parsing prose.
 
