@@ -721,6 +721,111 @@ struct BuildSystemTests {
         #expect(files?.first?.lastPathComponent == "Item.swift")
     }
 
+    // MARK: - XcodeBuildSystem resource bundle rewrite (#151)
+
+    /// Sample preamble emitted by Xcode at the top of `Generated*Symbols.swift`
+    /// files. The recompiled-into-bridge form (`Bundle(for:)`) breaks asset
+    /// lookup at runtime; the rewrite replaces it with an absolute-path lookup.
+    private static let generatedSymbolsPreamble = """
+        import Foundation
+
+        #if SWIFT_PACKAGE
+        private let resourceBundle = Foundation.Bundle.module
+        #else
+        private class ResourceBundleClass {}
+        private let resourceBundle = Foundation.Bundle(for: ResourceBundleClass.self)
+        #endif
+
+        // MARK: - Color Symbols -
+        """
+
+    @Test("rewriteResourceBundle replaces Bundle(for:) with absolute path lookup")
+    func rewriteResourceBundleReplacesPreamble() throws {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        let source = tmpDir.appendingPathComponent("GeneratedAssetSymbols.swift")
+        try Self.generatedSymbolsPreamble.write(to: source, atomically: true, encoding: .utf8)
+
+        let rewriteDir = tmpDir.appendingPathComponent("PreviewsMCPRewrites")
+        let wrapperPath = "/path/to/Build/Products/Debug-iphonesimulator/ToDo.framework"
+        let result = XcodeBuildSystem.rewriteResourceBundle(
+            source: source, wrapperPath: wrapperPath, rewriteDir: rewriteDir)
+
+        #expect(result != source, "Expected rewritten file to live under rewriteDir")
+        #expect(result.path.hasPrefix(rewriteDir.path))
+
+        let rewritten = try String(contentsOf: result, encoding: .utf8)
+        #expect(rewritten.contains("Bundle(path: \"\(wrapperPath)\")"))
+        #expect(rewritten.contains("Foundation.Bundle.main"))
+        #expect(!rewritten.contains("Bundle(for: ResourceBundleClass.self)"))
+        // The SWIFT_PACKAGE branch is preserved so SPM consumers (if this code
+        // path is ever shared) still resolve via `Bundle.module`.
+        #expect(rewritten.contains("Foundation.Bundle.module"))
+    }
+
+    @Test("rewriteResourceBundle skips files without the preamble")
+    func rewriteResourceBundleSkipsUnrelatedFiles() throws {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        let source = tmpDir.appendingPathComponent("GeneratedSomethingElse.swift")
+        try "import Foundation\n// no preamble here\n".write(
+            to: source, atomically: true, encoding: .utf8)
+
+        let result = XcodeBuildSystem.rewriteResourceBundle(
+            source: source,
+            wrapperPath: "/some/path.framework",
+            rewriteDir: tmpDir.appendingPathComponent("PreviewsMCPRewrites"))
+
+        #expect(result == source, "Expected source URL to be returned unchanged")
+    }
+
+    @Test("rewriteResourceBundle skips files not named Generated*Symbols.swift")
+    func rewriteResourceBundleSkipsNonMatchingNames() throws {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        // File contains the preamble but is named something else.
+        let source = tmpDir.appendingPathComponent("MyView.swift")
+        try Self.generatedSymbolsPreamble.write(to: source, atomically: true, encoding: .utf8)
+
+        let result = XcodeBuildSystem.rewriteResourceBundle(
+            source: source,
+            wrapperPath: "/some/path.framework",
+            rewriteDir: tmpDir.appendingPathComponent("PreviewsMCPRewrites"))
+
+        #expect(result == source)
+    }
+
+    @Test("rewriteResourceBundle escapes special characters in wrapper path")
+    func rewriteResourceBundleEscapesPath() throws {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        let source = tmpDir.appendingPathComponent("GeneratedAssetSymbols.swift")
+        try Self.generatedSymbolsPreamble.write(to: source, atomically: true, encoding: .utf8)
+
+        let weirdPath = #"/path/with "quotes" and \backslash/ToDo.framework"#
+        let result = XcodeBuildSystem.rewriteResourceBundle(
+            source: source,
+            wrapperPath: weirdPath,
+            rewriteDir: tmpDir.appendingPathComponent("PreviewsMCPRewrites"))
+
+        let rewritten = try String(contentsOf: result, encoding: .utf8)
+        // Backslashes and quotes must be escaped so the result is valid Swift.
+        #expect(rewritten.contains(#"\\backslash"#))
+        #expect(rewritten.contains(#"\"quotes\""#))
+    }
+
     @Test("XcodeBuildSystem returns nil when OutputFileMap is missing")
     func collectSourceFilesReturnsNilWhenMissing() async throws {
         let xcode = XcodeBuildSystem(

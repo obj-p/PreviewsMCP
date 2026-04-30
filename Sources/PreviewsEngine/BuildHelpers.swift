@@ -66,7 +66,13 @@ public func detectAndBuild(
         return nil
     }
 
-    let platformLabel = platform == .iOS ? "Building for iOS..." : "Building..."
+    let buildSystemName = String(describing: type(of: buildSystem))
+    Log.info("buildSystem: \(buildSystemName) projectRoot=\(buildSystem.projectRoot.path)")
+
+    let platformLabel =
+        platform == .iOS
+        ? "Building for iOS (\(buildSystemName))..."
+        : "Building (\(buildSystemName))..."
     await progress?.report(.buildingProject, message: platformLabel)
 
     let context = try await buildSystem.build(platform: platform)

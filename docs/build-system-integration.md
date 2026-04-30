@@ -62,6 +62,112 @@ The file watcher monitors all `.swift` files in the target directory. When any f
 - Preview file change → try literal-only fast path (DesignTimeStore), else full recompile
 - Other file change → full recompile (rebuild all target sources + bridge)
 
+## Xcode Build System
+
+### Detection
+
+`XcodeBuildSystem.detect(for:)` walks up from the source file looking for `.xcodeproj` or `.xcworkspace`. SPM is preferred when both markers exist (a `Package.swift` in the same tree wins).
+
+### Build Flow
+
+```
+xcodebuild -list -json                              →  enumerate schemes
+xcodebuild build -scheme <s> -destination <d>       →  build the framework
+xcodebuild -showBuildSettings -scheme <s>           →  read settings
+```
+
+### Artifact Layout
+
+Xcode writes build outputs under `~/Library/Developer/Xcode/DerivedData/<project>-<hash>/`:
+
+```
+Build/Products/<Configuration>-<Platform>/
+  <Target>.framework/
+    <Target>                            ← framework binary
+    Modules/<Target>.swiftmodule/       ← per-arch swiftmodule files
+    Assets.car                          ← compiled asset catalog (resources)
+    Info.plist
+Build/Intermediates.noindex/<project>.build/<Configuration>-<Platform>/<Target>.build/
+  Objects-normal/<arch>/                ← OBJECT_FILE_DIR_normal/<arch>
+    <Target>-OutputFileMap.json         ← swift-driver input/output map
+    <FileName>.o                        ← per-file object files
+    <Target>.swiftmodule                ← per-arch swiftmodule (also under Build/Products)
+  DerivedSources/                       ← DERIVED_FILE_DIR
+    GeneratedAssetSymbols.swift         ← Color.brandPrimary, etc.
+    GeneratedStringSymbols.swift        ← string-catalog symbols
+    GeneratedPlistSymbols.swift         ← plist symbols
+```
+
+PreviewsMCP reads:
+
+| Build setting        | Used for                                                                 |
+|----------------------|--------------------------------------------------------------------------|
+| `BUILT_PRODUCTS_DIR` | `-F` framework search path so `import <Target>` resolves                  |
+| `FRAMEWORK_SEARCH_PATHS` | Additional `-F` paths for dependency frameworks                       |
+| `OBJECT_FILE_DIR_normal` | Locate `<Target>-OutputFileMap.json` to enumerate Tier 2 source files |
+| `DERIVED_FILE_DIR`   | Append Xcode-generated Swift files (asset symbols, etc.) to Tier 2        |
+| `CODESIGNING_FOLDER_PATH` | Absolute path to the framework wrapper, used to rewrite `Generated*Symbols.swift` resource-bundle lookups (see below) |
+| `PRODUCT_MODULE_NAME` / `TARGET_NAME` | Module name for the bridge dylib                              |
+
+### Resource-Bundle Rewrite
+
+`Generated*Symbols.swift` files contain a preamble of the form:
+
+```swift
+#if SWIFT_PACKAGE
+private let resourceBundle = Foundation.Bundle.module
+#else
+private class ResourceBundleClass {}
+private let resourceBundle = Foundation.Bundle(for: ResourceBundleClass.self)
+#endif
+```
+
+`Bundle(for:)` resolves to whichever binary contains `ResourceBundleClass`. When PreviewsMCP recompiles this file into the bridge dylib, that binary becomes the bridge dylib (which has no `Assets.car`), so `Color(.brandPrimary)` and similar asset lookups silently return nothing. To prevent that, `XcodeBuildSystem` writes a transformed copy of each `Generated*Symbols.swift` to `<DERIVED_FILE_DIR>/PreviewsMCPRewrites/` whose preamble points at the framework's on-disk wrapper:
+
+```swift
+private let resourceBundle = Foundation.Bundle(path: "<CODESIGNING_FOLDER_PATH>") ?? Foundation.Bundle.main
+```
+
+The transformation is invisible to the rest of Tier 2 — the rewritten URLs replace the originals in `BuildContext.sourceFiles`.
+
+### File Watching
+
+Same scope as SPM: `.swift` files under the target's source root, plus the preview file. Xcode-generated `Generated*Symbols.swift` files are picked up only on full rebuilds (they're driven by the asset catalog / string catalog, not by source edits).
+
+## Bazel Build System
+
+### Detection
+
+`BazelBuildSystem.detect(for:)` walks up from the source file looking for `WORKSPACE`, `WORKSPACE.bazel`, `MODULE.bazel`, or `BUILD` / `BUILD.bazel` markers. Falls through to Xcode if no Bazel marker is found.
+
+### Build Flow
+
+```
+bazel query 'kind(swift_library, ...)'  →  find the target containing the source file
+bazel query 'attr(module_name, ...)'    →  determine the Swift module name
+bazel build <target>                    →  build the target
+bazel cquery --output=files <target>    →  locate the .swiftmodule
+```
+
+### Artifact Layout
+
+Bazel writes outputs to the `bazel-bin/` symlink at the workspace root:
+
+```
+bazel-bin/<package>/
+  <target>.swiftmodule                 ← module interface
+  <target>.a                           ← static archive (Tier 2 unused)
+  <target>_objs/                       ← per-source `.o` files
+```
+
+PreviewsMCP relies on `bazel cquery --output=files` to locate the `.swiftmodule`, falling back to `bazel-bin/<package>/<moduleName>.swiftmodule` if cquery returns no files. The directory containing the `.swiftmodule` becomes the single `-I` flag passed to swiftc — there is no per-file enumeration of dependency search paths.
+
+Source files for Tier 2 are enumerated via `bazel query 'labels(srcs, <target>)'`. There is **no** `DerivedSources/` walk: rules_swift's `swift_library` does not synthesize a `Bundle.module` accessor (resources are exposed as a separate `apple_resource_bundle` reached via `Bundle(identifier:)` or a hand-written accessor). Auto-generated outputs from `swift_proto_library` / `swift_grpc_library` are also not currently picked up; if needed, extend `collectSourceFiles` to union those `.swift` outputs from `bazel cquery --output=files`.
+
+### File Watching
+
+Same scope as SPM: `.swift` files under the target's source root.
+
 ## Interfaces
 
 ### BuildSystem Protocol
