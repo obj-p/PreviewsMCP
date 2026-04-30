@@ -130,6 +130,16 @@ public actor XcodeBuildSystem: BuildSystem {
             }
         }
 
+        // 5c. Rewrite any `Generated*Symbols.swift` files (whether they came
+        //     from OutputFileMap or DerivedSources) so their resource-bundle
+        //     lookup points at the framework's on-disk wrapper. The generator
+        //     emits `Bundle(for: ResourceBundleClass.self)`, which when
+        //     recompiled into the bridge dylib resolves to the dylib itself
+        //     (no `Assets.car`) — asset lookups silently return nothing (#151).
+        if let sources = sourceFiles {
+            sourceFiles = Self.applyResourceBundleRewrites(sources: sources, settings: settings)
+        }
+
         // 6. Build compiler flags
         let compilerFlags = buildCompilerFlags(settings: settings)
 
@@ -293,6 +303,92 @@ public actor XcodeBuildSystem: BuildSystem {
             entries
             .filter { $0.pathExtension == "swift" }
             .map { $0.standardizedFileURL }
+    }
+
+    /// Apply `rewriteResourceBundle` to every source file when the build
+    /// settings name a resource wrapper that exists on disk. Returns `sources`
+    /// unchanged if `CODESIGNING_FOLDER_PATH` is missing, points at a
+    /// non-existent path, or `DERIVED_FILE_DIR` is missing — in those cases
+    /// the rewrite would either crash with a nil-bundle path or silently
+    /// reintroduce the bug, so it's safer to fall back to the original
+    /// behavior and log a warning.
+    nonisolated static func applyResourceBundleRewrites(
+        sources: [URL],
+        settings: [String: String]
+    ) -> [URL] {
+        guard let wrapperPath = settings["CODESIGNING_FOLDER_PATH"] else {
+            return sources
+        }
+        guard FileManager.default.fileExists(atPath: wrapperPath) else {
+            Log.warn(
+                "CODESIGNING_FOLDER_PATH=\(wrapperPath) does not exist; "
+                    + "skipping resource-bundle rewrite. Asset lookups in "
+                    + "the bridge dylib may return nothing.")
+            return sources
+        }
+        guard let derivedFileDir = settings["DERIVED_FILE_DIR"] else {
+            return sources
+        }
+        let rewriteDir = URL(fileURLWithPath: derivedFileDir)
+            .appendingPathComponent("PreviewsMCPRewrites")
+        return sources.map { source in
+            rewriteResourceBundle(
+                source: source, wrapperPath: wrapperPath, rewriteDir: rewriteDir)
+        }
+    }
+
+    /// If `source` matches the `Generated*Symbols.swift` resource-bundle
+    /// preamble, write a rewritten copy to `rewriteDir` and return its URL;
+    /// otherwise return `source` unchanged.
+    nonisolated static func rewriteResourceBundle(
+        source: URL,
+        wrapperPath: String,
+        rewriteDir: URL
+    ) -> URL {
+        guard source.lastPathComponent.hasPrefix("Generated"),
+            source.lastPathComponent.hasSuffix("Symbols.swift"),
+            let original = try? String(contentsOf: source, encoding: .utf8)
+        else {
+            return source
+        }
+        let needle = """
+            #if SWIFT_PACKAGE
+            private let resourceBundle = Foundation.Bundle.module
+            #else
+            private class ResourceBundleClass {}
+            private let resourceBundle = Foundation.Bundle(for: ResourceBundleClass.self)
+            #endif
+            """
+        guard original.contains(needle) else {
+            return source
+        }
+        let escaped = wrapperPath.replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+        let replacement = """
+            #if SWIFT_PACKAGE
+            private let resourceBundle = Foundation.Bundle.module
+            #else
+            // PreviewsMCP rewrite (#151): the recompiled bridge dylib has no
+            // resource bundle of its own; point at the framework on disk.
+            private let resourceBundle = Foundation.Bundle(path: "\(escaped)") ?? Foundation.Bundle.main
+            #endif
+            """
+        let rewritten = original.replacingOccurrences(of: needle, with: replacement)
+        do {
+            try FileManager.default.createDirectory(
+                at: rewriteDir, withIntermediateDirectories: true)
+            let dest = rewriteDir.appendingPathComponent(source.lastPathComponent)
+            try rewritten.write(to: dest, atomically: true, encoding: .utf8)
+            Log.info(
+                "rewroteResourceBundle: \(source.lastPathComponent) -> \(dest.path) "
+                    + "(bundle=\(wrapperPath))")
+            return dest
+        } catch {
+            Log.warn(
+                "rewriteResourceBundle failed for \(source.lastPathComponent): \(error). "
+                    + "Falling back to original; asset lookups may return nothing.")
+            return source
+        }
     }
 
     // MARK: - Private: Compiler Flags

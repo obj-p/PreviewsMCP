@@ -88,6 +88,12 @@ public actor Compiler {
         let sourceFile = workDir.appendingPathComponent("\(uniqueName).swift")
         let dylibFile = workDir.appendingPathComponent("\(uniqueName).dylib")
 
+        Log.info(
+            "compileCombined: module=\(moduleName) platform=\(platform) "
+                + "extraFlags=\(extraFlags.joined(separator: " ")) "
+                + "additionalSources=\(additionalSourceFiles.count) "
+                + "dylib=\(dylibFile.path)")
+
         try source.write(to: sourceFile, atomically: true, encoding: .utf8)
 
         // Build argument list
