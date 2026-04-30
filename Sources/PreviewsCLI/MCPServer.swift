@@ -1255,34 +1255,6 @@ private func previewIndexOutOfRangeError(_ newIndex: Int, count: Int) -> CallToo
 
 // MARK: - preview_build_info
 
-/// Resolve the running executable's absolute path via `_NSGetExecutablePath`.
-/// Authoritative on Darwin — independent of `argv[0]`, which can be relative
-/// or rewritten by the caller. Issue #100 covers migrating the daemon spawn
-/// path to this primitive; this handler uses it locally without changing
-/// that surface.
-private func resolveRunningBinaryPath() -> String? {
-    var size: UInt32 = 0
-    _ = _NSGetExecutablePath(nil, &size)
-    var buf = [UInt8](repeating: 0, count: Int(size))
-    let result = buf.withUnsafeMutableBufferPointer { ptr -> Int32 in
-        ptr.baseAddress!.withMemoryRebound(to: CChar.self, capacity: Int(size)) {
-            _NSGetExecutablePath($0, &size)
-        }
-    }
-    guard result == 0 else { return nil }
-    // Drop trailing NUL.
-    if let nulIndex = buf.firstIndex(of: 0) {
-        buf.removeSubrange(nulIndex..<buf.endIndex)
-    }
-    let raw = String(decoding: buf, as: UTF8.self)
-    // Resolve `..` and symlinks so the mtime stat matches what the build
-    // system actually wrote — `swift build` may produce an argv[0] like
-    // `/.../.build/arm64-apple-macosx/debug/previewsmcp` and a logical
-    // symlink alias at `.build/debug/previewsmcp`. The skill stats the
-    // alias; the handler should report the resolved target.
-    return URL(fileURLWithPath: raw).resolvingSymlinksInPath().path
-}
-
 /// Stat `path` and return its mtime, or nil if the file is unreachable.
 private func mtime(at path: String) -> Date? {
     guard let attrs = try? FileManager.default.attributesOfItem(atPath: path),
