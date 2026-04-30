@@ -137,22 +137,7 @@ public actor XcodeBuildSystem: BuildSystem {
         //     recompiled into the bridge dylib resolves to the dylib itself
         //     (no `Assets.car`) — asset lookups silently return nothing (#151).
         if let sources = sourceFiles {
-            let wrapperPath = settings["CODESIGNING_FOLDER_PATH"]
-                ?? (settings["BUILT_PRODUCTS_DIR"].flatMap { dir in
-                    settings["WRAPPER_NAME"].map { "\(dir)/\($0)" }
-                })
-            if let wrapperPath = wrapperPath,
-                let derivedFileDir = settings["DERIVED_FILE_DIR"]
-            {
-                let rewriteDir = URL(fileURLWithPath: derivedFileDir)
-                    .appendingPathComponent("PreviewsMCPRewrites")
-                sourceFiles = sources.map { source in
-                    Self.rewriteResourceBundle(
-                        source: source,
-                        wrapperPath: wrapperPath,
-                        rewriteDir: rewriteDir)
-                }
-            }
+            sourceFiles = Self.applyResourceBundleRewrites(sources: sources, settings: settings)
         }
 
         // 6. Build compiler flags
@@ -318,6 +303,38 @@ public actor XcodeBuildSystem: BuildSystem {
             entries
             .filter { $0.pathExtension == "swift" }
             .map { $0.standardizedFileURL }
+    }
+
+    /// Apply `rewriteResourceBundle` to every source file when the build
+    /// settings name a resource wrapper that exists on disk. Returns `sources`
+    /// unchanged if `CODESIGNING_FOLDER_PATH` is missing, points at a
+    /// non-existent path, or `DERIVED_FILE_DIR` is missing — in those cases
+    /// the rewrite would either crash with a nil-bundle path or silently
+    /// reintroduce the bug, so it's safer to fall back to the original
+    /// behavior and log a warning.
+    nonisolated static func applyResourceBundleRewrites(
+        sources: [URL],
+        settings: [String: String]
+    ) -> [URL] {
+        guard let wrapperPath = settings["CODESIGNING_FOLDER_PATH"] else {
+            return sources
+        }
+        guard FileManager.default.fileExists(atPath: wrapperPath) else {
+            Log.warn(
+                "CODESIGNING_FOLDER_PATH=\(wrapperPath) does not exist; "
+                    + "skipping resource-bundle rewrite. Asset lookups in "
+                    + "the bridge dylib may return nothing.")
+            return sources
+        }
+        guard let derivedFileDir = settings["DERIVED_FILE_DIR"] else {
+            return sources
+        }
+        let rewriteDir = URL(fileURLWithPath: derivedFileDir)
+            .appendingPathComponent("PreviewsMCPRewrites")
+        return sources.map { source in
+            rewriteResourceBundle(
+                source: source, wrapperPath: wrapperPath, rewriteDir: rewriteDir)
+        }
     }
 
     /// If `source` matches the `Generated*Symbols.swift` resource-bundle
