@@ -395,6 +395,46 @@ public actor SPMBuildSystem: BuildSystem {
 
     // MARK: - Private: Dependency Archives
 
+    /// Decide whether to skip a `<Target>.build/` directory during dependency
+    /// archiving. Three reasons to skip:
+    ///
+    /// 1. The target *is* the consumer — Tier 2 already recompiles its sources
+    ///    directly; archiving them again would cause duplicate-symbol link errors.
+    /// 2. Name starts with `_` — SPM's own plugin/support bundles.
+    /// 3. SPM already produced `lib<Target>.dylib` in binPath (i.e. this is a
+    ///    dynamic library product). Autolink via `-module-link-name` handles
+    ///    linking from actual importers; a blanket `-l<Target>` would drag
+    ///    test-only transitive deps (e.g. swift-issue-reporting's
+    ///    `IssueReportingTestSupport`, which references `Testing.framework`)
+    ///    into the preview host unconditionally. The simulator runtime doesn't
+    ///    ship `Testing.framework`, so those deps then fail at dlopen.
+    ///
+    /// Binary-target XCFramework artifacts that land as bare `lib<X>.dylib`
+    /// without a matching `<X>.build/` directory don't reach this predicate —
+    /// the outer loop gates on `.build/` existing.
+    ///
+    /// Assumes the SPM product name equals the target name (so the dylib SPM
+    /// emits is `lib<Target>.dylib`). Covers the real-world repro
+    /// (`IssueReportingTestSupport` is declared with matching product+target
+    /// names) and every swift-issue-reporting-style layout we've seen. If a
+    /// renamed dynamic product ever shows up here — `.library(name: "Foo",
+    /// type: .dynamic, targets: ["Bar"])` — the predicate won't fire and the
+    /// archive-then-link fallback runs against `Bar.build/`'s `.o` files,
+    /// which is what happened before this fix; the original bug is specific
+    /// to blanket `-l<Target>` resolving to `lib<Target>.dylib`, so the
+    /// rename-mismatch case was always safe.
+    nonisolated static func shouldSkipDependencyTarget(
+        targetName: String,
+        consumerTargetName: String,
+        binPath: URL,
+        fm: FileManager = .default
+    ) -> Bool {
+        if targetName == consumerTargetName { return true }
+        if targetName.hasPrefix("_") { return true }
+        let dylibPath = binPath.appendingPathComponent("lib\(targetName).dylib")
+        return fm.fileExists(atPath: dylibPath.path)
+    }
+
     /// Archive every non-consumer target's `.o` files into `<binPath>/lib<Target>.a`
     /// and return the list of target names (for use with `-l<Target>`).
     ///
@@ -403,9 +443,9 @@ public actor SPMBuildSystem: BuildSystem {
     /// autolink hints for them either. So the bridge compile can't discover or link
     /// dependency symbols on its own — we have to stage the archives ourselves.
     ///
-    /// Consumer target `.build/` is skipped because Tier 2 already recompiles its
-    /// sources directly. All other sibling targets (and transitively-built external
-    /// packages, which land in the same bin path) are archived.
+    /// Targets flagged by `shouldSkipDependencyTarget` are excluded: the consumer
+    /// itself (Tier 2 recompiles it), SPM plugin bundles, and dynamic library
+    /// products that Swift's autolink already handles.
     private func archiveDependencyTargets(
         binPath: URL,
         consumerTargetName: String
@@ -434,11 +474,14 @@ public actor SPMBuildSystem: BuildSystem {
             }
 
             let targetName = String(name.dropLast(".build".count))
-            // Skip the consumer target — Tier 2 compiles its sources directly, and
-            // archiving them here would cause duplicate-symbol errors at link time.
-            if targetName == consumerTargetName { continue }
-            // Skip SPM's own plugin/support bundles if any.
-            if targetName.hasPrefix("_") { continue }
+            if Self.shouldSkipDependencyTarget(
+                targetName: targetName,
+                consumerTargetName: consumerTargetName,
+                binPath: binPath,
+                fm: fm
+            ) {
+                continue
+            }
 
             // Collect .o files produced for this target.
             let objectFiles = collectObjectFiles(in: entry)

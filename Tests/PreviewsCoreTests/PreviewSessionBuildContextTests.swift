@@ -200,4 +200,91 @@ struct PreviewSessionBuildContextTests {
             "Should contain the changed string value"
         )
     }
+
+    // MARK: - Dynamic library product exclusion
+
+    /// Regression guard for the swift-issue-reporting / `Testing.framework`
+    /// bug (PR #146). Minimal SPM shape that reproduces the necessary
+    /// artifact layout: a root package with a sibling `.library(type:
+    /// .dynamic)` product that the consumer target does NOT import. SPM
+    /// emits both `lib<Sibling>.dylib` and `<Sibling>.build/` in binPath,
+    /// and before the fix `archiveDependencyTargets` unconditionally added
+    /// `-l<Sibling>` to the preview link — the linker then preferred the
+    /// `.dylib` over our `.a`, dragging an unrelated dynamic product (and
+    /// its transitive deps) into the preview host. In the real-world case
+    /// the dynamic product was `IssueReportingTestSupport`, whose load
+    /// command on `Testing.framework` killed the iOS-simulator preview
+    /// host at dlopen.
+    ///
+    /// We use a synthetic fixture rather than the real `swift-issue-reporting`
+    /// package because plain `swift build` on a root package that only
+    /// imports `IssueReporting` does not emit `libIssueReportingTestSupport.dylib`
+    /// — SPM only materialises that dylib when the product is explicitly
+    /// requested, which PreviewsMCP's build path does not do. The synthetic
+    /// fixture controls the shape directly.
+    @Test("SPMBuildSystem does not -l a sibling dynamic library product")
+    func spmSkipsDynamicLibraryProductFromLink() async throws {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-dynlib-test-\(UUID().uuidString)")
+        let consumerDir = tmpDir.appendingPathComponent("Sources/ConsumerLib")
+        let siblingDir = tmpDir.appendingPathComponent("Sources/SiblingDyn")
+        try FileManager.default.createDirectory(at: consumerDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: siblingDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        let packageSwift = """
+            // swift-tools-version: 6.0
+            import PackageDescription
+
+            let package = Package(
+                name: "Fixture",
+                platforms: [.macOS(.v14)],
+                products: [
+                    .library(name: "ConsumerLib", targets: ["ConsumerLib"]),
+                    .library(name: "SiblingDyn", type: .dynamic, targets: ["SiblingDyn"]),
+                ],
+                targets: [
+                    .target(name: "SiblingDyn", path: "Sources/SiblingDyn"),
+                    .target(name: "ConsumerLib", path: "Sources/ConsumerLib"),
+                ]
+            )
+            """
+        try packageSwift.write(
+            to: tmpDir.appendingPathComponent("Package.swift"),
+            atomically: true, encoding: .utf8)
+        try "public func siblingHello() -> String { \"hi\" }".write(
+            to: siblingDir.appendingPathComponent("SiblingDyn.swift"),
+            atomically: true, encoding: .utf8)
+        let consumerFile = consumerDir.appendingPathComponent("ConsumerLib.swift")
+        try "public func consumerHello() -> String { \"hi\" }".write(
+            to: consumerFile, atomically: true, encoding: .utf8)
+
+        let buildSystem = SPMBuildSystem(projectRoot: tmpDir, sourceFile: consumerFile)
+        let context = try await buildSystem.build(platform: .macOS)
+
+        // Load-bearing sanity check: the "-lSiblingDyn absent" assertion only
+        // proves the fix when the fixture actually produced the dylib whose
+        // presence triggers the skip. Without it, a future SPM behaviour
+        // change that stops emitting the sibling dylib would turn this test
+        // green for the wrong reason.
+        let binPathResult = try await runAsync(
+            "/usr/bin/env",
+            arguments: ["swift", "build", "--show-bin-path"],
+            workingDirectory: tmpDir,
+            discardStderr: true
+        )
+        let binPath = URL(
+            fileURLWithPath: binPathResult.stdout.trimmingCharacters(
+                in: .whitespacesAndNewlines))
+        let dylibPath = binPath.appendingPathComponent("libSiblingDyn.dylib")
+        #expect(
+            FileManager.default.fileExists(atPath: dylibPath.path),
+            "fixture should produce libSiblingDyn.dylib — without it the -l absence below is meaningless"
+        )
+
+        #expect(
+            !context.compilerFlags.contains("-lSiblingDyn"),
+            "compilerFlags should not -l a sibling dynamic library product; flags were: \(context.compilerFlags)"
+        )
+    }
 }
