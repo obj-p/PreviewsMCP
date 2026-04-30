@@ -49,8 +49,27 @@ enum DaemonClient {
             try await waitForSocket(timeout: startTimeout)
         }
 
-        let (client, initResult) = try await openClient(
-            clientName: clientName, configure: configure)
+        // If the daemon was already running but disappears between
+        // `canConnect()` and `openClient()`, a sibling CLI almost
+        // certainly killed it for a version-mismatch respawn (issue
+        // #142). The kill+respawn typically completes in <2s, so
+        // wait for the socket to come back and retry the handshake
+        // once. Bound at one retry — a second failure means the
+        // daemon is genuinely gone, propagate the underlying error.
+        // Skip the retry when WE spawned the daemon; in that case a
+        // failure is our own startup misbehaving and retrying just
+        // hides it.
+        let client: Client
+        let initResult: Initialize.Result
+        do {
+            (client, initResult) = try await openClient(
+                clientName: clientName, configure: configure)
+        } catch {
+            guard !weJustSpawned else { throw error }
+            try await waitForSocket(timeout: startTimeout)
+            (client, initResult) = try await openClient(
+                clientName: clientName, configure: configure)
+        }
 
         if weJustSpawned {
             return client
