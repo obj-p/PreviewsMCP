@@ -63,7 +63,10 @@ struct ServeCommand: ParsableCommand {
                     host: host, iosManager: IOSSessionManager(),
                     configCache: ConfigCache()
                 )
-                Log.info("MCP server starting on stdio...")
+                let startISO = ISO8601DateFormatter().string(from: ProcessStartup.time)
+                Log.info(
+                    "MCP server starting on stdio (pid \(ProcessInfo.processInfo.processIdentifier), started \(startISO))..."
+                )
                 let transport = StdioTransport()
                 try await runMCPServer(server, transport: transport)
             } catch {

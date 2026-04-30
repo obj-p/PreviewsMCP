@@ -1335,6 +1335,10 @@ private func handlePreviewBuildInfo() -> CallTool.Result {
             structuredContent: payload
         )
     } catch {
+        // Reachable only if BuildInfoResult ever stops being Codable —
+        // a programmer error worth surfacing in serve.log rather than
+        // silently degrading to text-only.
+        Log.error("preview_build_info: structured encoding failed: \(error)")
         return CallTool.Result(content: [.text(text)])
     }
 }
