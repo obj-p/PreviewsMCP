@@ -98,6 +98,12 @@ struct SnapshotCommand: AsyncParsableCommand {
     )
     var json: Bool = false
 
+    @Option(
+        name: .long,
+        help: "Render the snapshot inline in the terminal when supported: 'auto' (default), 'always', or 'never'. Honors $PREVIEWSMCP_INLINE."
+    )
+    var inline: InlineMode = .auto
+
     mutating func run() async throws {
         // Validate traits locally so bad flags fail before hitting the daemon.
         do {
@@ -342,12 +348,38 @@ struct SnapshotCommand: AsyncParsableCommand {
                         )
                     )
                 } else {
+                    emitInlineIfPossible(imageData: data)
                     print(outputURL.path)
                 }
                 return
             }
         }
         throw SnapshotCommandError.noImageContent(response.content.joinedText())
+    }
+
+    private static let newline = Data([0x0A])
+
+    /// Try to render the snapshot inline in the terminal. Suppressed
+    /// automatically when stdout is not a TTY, when `--inline never` is set,
+    /// or when the terminal doesn't speak a protocol we support. Any stderr
+    /// hint from the decision (e.g. tmux passthrough is off) is surfaced
+    /// here so the user knows why they didn't get an image.
+    private func emitInlineIfPossible(imageData: Data) {
+        let isTTY = isatty(FileHandle.standardOutput.fileDescriptor) != 0
+        let decision = TerminalImages.renderInline(
+            imageData: imageData,
+            mode: inline,
+            jsonOutput: false,
+            stdoutIsTTY: isTTY
+        )
+        switch decision {
+        case .emit(let bytes, let hint):
+            FileHandle.standardOutput.write(bytes)
+            FileHandle.standardOutput.write(Self.newline)
+            if let hint { fputs(hint + "\n", stderr) }
+        case .skip(let hint):
+            if let hint { fputs(hint + "\n", stderr) }
+        }
     }
 
     private func format(for mimeType: String) -> String {
