@@ -13,6 +13,7 @@ enum ToolName: String {
     case previewVariants = "preview_variants"
     case simulatorList = "simulator_list"
     case sessionList = "session_list"
+    case previewBuildInfo = "preview_build_info"
 }
 
 /// All MCP tool schemas exposed by the daemon. Separated from handler
@@ -347,6 +348,15 @@ func mcpToolSchemas() -> [Tool] {
             name: ToolName.sessionList.rawValue,
             description:
                 "List all active preview sessions in the daemon, with their source file paths and platforms. Used by CLI commands to resolve --file to --session, and for diagnostic tooling.",
+            inputSchema: .object([
+                "type": .string("object"),
+                "properties": .object([:]),
+            ])
+        ),
+        Tool(
+            name: ToolName.previewBuildInfo.rawValue,
+            description:
+                "Report the running server's binary path, mtime, and process start time. Returns stale=true when the on-disk binary has been replaced since the running process started — i.e., a swift build happened but the resident MCP server wasn't restarted. Used by the integration-test skill to detect stale-binary footguns before validating behavior.",
             inputSchema: .object([
                 "type": .string("object"),
                 "properties": .object([:]),
