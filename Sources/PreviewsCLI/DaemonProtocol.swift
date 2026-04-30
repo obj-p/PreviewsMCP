@@ -121,6 +121,28 @@ enum DaemonProtocol {
         let sessions: [SessionDTO]
     }
 
+    /// Result of `preview_build_info`. Lets clients detect a "swift build
+    /// happened, but the running MCP server wasn't restarted" situation —
+    /// the integration-test skill aborts on `stale: true` rather than
+    /// silently exercising stale code. See issue #147.
+    ///
+    /// Timestamps are ISO 8601 strings so the JSON is human-inspectable
+    /// without timezone ambiguity.
+    struct BuildInfoResult: Codable, Sendable, Equatable {
+        /// Absolute path of the running binary on disk.
+        let binaryPath: String
+        /// `stat`-reported mtime of `binaryPath` at handler call time.
+        let binaryMtime: String
+        /// Wall-clock instant the running process started, captured in
+        /// `PreviewsMCPApp.main`.
+        let processStartTime: String
+        /// `binaryMtime > processStartTime`. True iff the on-disk binary
+        /// has been replaced since this process started — i.e., the
+        /// running code is stale relative to whatever a fresh spawn
+        /// would execute.
+        let stale: Bool
+    }
+
     // Elements doesn't get a Codable DTO — the accessibility tree is
     // arbitrary nested JSON from WDA. The daemon encodes it directly
     // into a `Value.object(["sessionID": ..., "elements": <tree>])`

@@ -8,9 +8,25 @@ enum CLIPlatform: String, ExpressibleByArgument, CaseIterable {
     case ios
 }
 
+/// Wall-clock instant the process began. Captured at app entry (the first
+/// line of `PreviewsMCPApp.main`) so the `preview_build_info` MCP tool can
+/// compare against the on-disk binary's mtime to detect "swift build
+/// happened but the running process wasn't restarted." Must be initialized
+/// here, not lazily inside an MCP handler — the daemon can spend seconds
+/// listening before the first request arrives, and during that window
+/// `swift build` could overwrite the binary, falsely reporting fresh.
+/// See issue #147.
+enum ProcessStartup {
+    static let time = Date()
+}
+
 @main
 struct PreviewsMCPApp {
     static func main() {
+        // Touch ProcessStartup.time at the earliest possible point so its
+        // lazy-init resolves to the actual app-birth instant.
+        _ = ProcessStartup.time
+
         // Force unbuffered stderr. When previewsmcp runs as a subprocess
         // with stderr redirected to a file (e.g., MCPTestServer captures,
         // or the daemon's ~/.previewsmcp/serve.log), libc stdio switches

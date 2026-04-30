@@ -101,7 +101,10 @@ struct ServeCommand: ParsableCommand {
                 let host = Self.sharedHost!
                 _ = try await DaemonListener.start(host: host)
                 try DaemonLifecycle.register()
-                Log.info("daemon ready (pid \(ProcessInfo.processInfo.processIdentifier))")
+                let startISO = ISO8601DateFormatter().string(from: ProcessStartup.time)
+                Log.info(
+                    "daemon ready (pid \(ProcessInfo.processInfo.processIdentifier), started \(startISO))"
+                )
                 // One-line breadcrumb so `serve.log` records when the
                 // daemon was (re)spawned because of a version-mismatch
                 // restart. Diagnoses repeated restart loops in bug

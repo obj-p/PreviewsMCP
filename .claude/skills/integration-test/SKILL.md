@@ -2,7 +2,7 @@
 name: integration-test
 description: Run integration tests against example projects in the examples/ directory. Use when the user wants to validate PreviewsMCP's build system support, rendering, interaction, or hot-reload end-to-end.
 argument-hint: [example-name]
-allowed-tools: Bash, Read, Glob, Grep, preview_start, preview_snapshot, preview_configure, preview_switch, preview_elements, preview_touch, preview_stop, preview_list, simulator_list
+allowed-tools: Bash, Read, Glob, Grep, preview_start, preview_snapshot, preview_configure, preview_switch, preview_elements, preview_touch, preview_stop, preview_list, preview_build_info, simulator_list
 ---
 
 Run integration tests for PreviewsMCP example projects.
@@ -11,11 +11,25 @@ Run integration tests for PreviewsMCP example projects.
 
 - `$ARGUMENTS` — optional example name (e.g., `spm`). If omitted, run all examples.
 
+## Important: two server processes
+
+PreviewsMCP runs as two separate processes with independent state:
+- **Stdio MCP server** — spawned by Claude Code at session start via `.mcp.json`. This is what `mcp__previewsmcp__*` tool calls reach.
+- **UDS daemon** — auto-spawned by every `previewsmcp` CLI subcommand. Persists across CLI invocations.
+
+`swift build` overwrites the on-disk binary, but **resident processes keep running the old code** until they restart. Without an explicit check this skill could exercise a stale binary and report green against unchanged code. Steps 0 and 2 below guard against that.
+
 ## Steps
+
+0. **Reset daemon state.** Run `previewsmcp kill-daemon`, then `previewsmcp status`. If `status` exits 0 (a daemon is still alive), abort the skill — a residual UDS daemon is potentially stale and is load-bearing for Step 7's `preview_list` calls on non-SPM examples.
 
 1. **Discover examples.** List directories under `examples/` in the repo root. If `$ARGUMENTS` is provided, filter to that example only. If the specified example doesn't exist, report the error and list available examples.
 
-2. **Build PreviewsMCP.** Run `swift build` from the repo root. If the build fails, stop and report the error.
+2. **Build PreviewsMCP and verify the stdio server is fresh.** Run `swift build` from the repo root. If the build fails, stop and report the error. Then call `preview_build_info` (MCP tool). If the response has `stale: true`, abort with this message:
+
+   > Stdio MCP server's on-disk binary was rebuilt at `<binaryMtime>` but the running process started at `<processStartTime>`. Type `/exit` and relaunch Claude Code so it respawns the MCP server from the new binary, then re-run this skill.
+
+   If `stale: false`, proceed.
 
 3. **For each example**, read its `README.md` and follow the "Integration Test Prompt" section. The README contains the exact steps to execute, including which MCP tools to call and what to verify.
 
