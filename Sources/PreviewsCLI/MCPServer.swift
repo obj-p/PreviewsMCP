@@ -89,7 +89,7 @@ func configureMCPServer(
 
     let server = Server(
         name: "previewsmcp",
-        version: PreviewsMCPCommand.version,
+        version: advertisedServerVersion(),
         capabilities: .init(logging: .init(), tools: .init(listChanged: false))
     )
 
@@ -129,6 +129,22 @@ func configureMCPServer(
     }
 
     return (server, compiler)
+}
+
+/// The version string the daemon advertises in MCP `serverInfo.version`.
+/// Normally `PreviewsMCPCommand.version` (the compile-time value), but
+/// integration tests override it via `_PREVIEWSMCP_TEST_DAEMON_VERSION`
+/// to exercise the client-side version-mismatch restart path without
+/// needing two separately-versioned binaries. See issue #142. Leading
+/// underscore signals "internal, not a supported user knob." The client
+/// never reads this variable.
+private func advertisedServerVersion() -> String {
+    if let override = ProcessInfo.processInfo.environment["_PREVIEWSMCP_TEST_DAEMON_VERSION"],
+        !override.isEmpty
+    {
+        return override
+    }
+    return PreviewsMCPCommand.version
 }
 
 /// Run the MCP server's event loop on `transport`, emitting a periodic
