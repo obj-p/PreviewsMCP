@@ -180,33 +180,80 @@ final class MCPTestServer: @unchecked Sendable {
     /// Safe from deadlock because Client.disconnect() runs on the client actor's
     /// executor, which is independent of any thread held by the calling defer.
     func stop() {
+        // Diagnostics for issue #156: write a phase trace to the per-instance
+        // stderr log file and to the test-process stderr. The hung-test
+        // post-mortem so far shows the daemon completing preview_stop in 3 ms
+        // and the test then wedging for 1200 s — most likely inside
+        // waitUntilExit() or the SDK disconnect. These lines bracket each
+        // phase so the next failed dump pinpoints which one.
+        let traceFD = open(stderrLogPath.path, O_WRONLY | O_APPEND)
+        func trace(_ message: String) {
+            let stamp = Date().formatted(.iso8601.time(includingFractionalSeconds: true))
+            let line = "[stop \(stamp)] \(message)\n"
+            fputs(line, stderr)
+            fflush(stderr)
+            if traceFD >= 0 {
+                _ = line.withCString { Darwin.write(traceFD, $0, strlen($0)) }
+            }
+        }
+
         // Signal the watchdog thread to exit on its next poll. It may
         // sleep up to 60s past stop() before noticing — that's fine,
         // the thread is lightweight and holds nothing but a weak
         // reference to self.
+        trace("enter")
         watchdogShouldStop.withLock { $0 = true }
         process.terminationHandler = nil
         if process.isRunning {
+            trace("process.terminate")
             process.terminate()
-            process.waitUntilExit()
+            // Bounded wait: poll instead of `process.waitUntilExit()`, which
+            // blocks indefinitely. CI evidence (issue #156) shows the daemon
+            // sometimes ignores SIGTERM, wedging the test for 1200 s. After
+            // 5 s, escalate to SIGKILL so cleanup can finish in seconds.
+            let deadline = ContinuousClock.now + .seconds(5)
+            while process.isRunning && ContinuousClock.now < deadline {
+                Thread.sleep(forTimeInterval: 0.05)
+            }
+            if process.isRunning {
+                trace("SIGTERM ignored after 5s — escalating to SIGKILL pid=\(process.processIdentifier)")
+                kill(process.processIdentifier, SIGKILL)
+                process.waitUntilExit()
+                trace("process.waitUntilExit (returned after SIGKILL)")
+            } else {
+                trace("process exited after SIGTERM")
+            }
+        } else {
+            trace("process not running")
         }
         let semaphore = DispatchSemaphore(value: 0)
         let client = self.client
+        trace("client.disconnect (dispatched)")
         Task.detached {
             await client.disconnect()
             semaphore.signal()
         }
         semaphore.wait()
+        trace("client.disconnect (returned)")
+        if traceFD >= 0 { close(traceFD) }
     }
 
     // MARK: - Tool calls
 
     /// Call an MCP tool and return the result.
+    ///
+    /// Bounded by a default 60-second timeout so a never-arriving response from
+    /// the daemon (e.g., an MCP SDK transport drop, see issue #156) fails the
+    /// test in seconds instead of wedging until the per-test 1200 s `.timeLimit`
+    /// fires. Callers that need a different bound should use
+    /// `callToolWithTimeout(name:arguments:timeout:)` directly.
     func callTool(
         name: String,
         arguments: [String: Value]? = nil
     ) async throws -> (content: [Tool.Content], isError: Bool?) {
-        try await client.callTool(name: name, arguments: arguments)
+        try await callToolWithTimeout(
+            name: name, arguments: arguments, timeout: .seconds(60)
+        )
     }
 
     /// Call an MCP tool bounded by `timeout`. On timeout, dumps the captured
@@ -360,9 +407,15 @@ final class MCPTestServer: @unchecked Sendable {
         let elapsed = ContinuousClock.now - startedAt
         let elapsedSeconds = Int(elapsed.components.seconds)
         let log = stderrLog()
+        // Filter out our own prior heartbeat lines so each tick reports the
+        // daemon's recent activity, not a recursive nest of previous tails.
         let tailLines =
             log
             .split(separator: "\n", omittingEmptySubsequences: false)
+            .filter { line in
+                !line.contains("[MCPTestServer watchdog")
+                    && !line.hasPrefix("[/watchdog]")
+            }
             .suffix(5)
             .joined(separator: "\n")
         let tailDescription = tailLines.isEmpty ? "(server stderr empty)" : String(tailLines)
@@ -372,8 +425,18 @@ final class MCPTestServer: @unchecked Sendable {
             [/watchdog]
 
             """
+        // Write to test-process stderr so a live tail in CI sees it.
         fputs(message, stderr)
         fflush(stderr)
+        // Also append to the per-instance log file. The "Dump MCP server stderr"
+        // step cats this file post-mortem regardless of whether the test process
+        // ever flushed its own stderr — so heartbeats survive even when the
+        // GH Actions stderr capture is buffered/blocked behind a wedged test.
+        if let handle = try? FileHandle(forWritingTo: stderrLogPath) {
+            _ = try? handle.seekToEnd()
+            try? handle.write(contentsOf: Data(message.utf8))
+            try? handle.close()
+        }
     }
 
     /// Poll the server's stderr log until it contains `needle`, up to `timeout`.

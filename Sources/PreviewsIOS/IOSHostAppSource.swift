@@ -103,13 +103,59 @@ enum IOSHostAppSource {
             private func showError(_ message: String) {
                 let vc = UIViewController()
                 vc.view.backgroundColor = .systemRed
-                let label = UILabel()
-                label.text = message
-                label.textAlignment = .center
-                label.numberOfLines = 0
-                label.frame = vc.view.bounds.insetBy(dx: 20, dy: 20)
-                label.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-                vc.view.addSubview(label)
+
+                let title = UILabel()
+                title.translatesAutoresizingMaskIntoConstraints = false
+                title.text = "Preview host error"
+                title.font = UIFont.preferredFont(forTextStyle: .headline)
+                title.adjustsFontForContentSizeCategory = true
+                title.textColor = .white
+                title.numberOfLines = 0
+
+                let scrollView = UIScrollView()
+                scrollView.translatesAutoresizingMaskIntoConstraints = false
+                scrollView.alwaysBounceVertical = true
+                scrollView.indicatorStyle = .white
+                scrollView.showsVerticalScrollIndicator = true
+
+                let body = UILabel()
+                body.translatesAutoresizingMaskIntoConstraints = false
+                body.text = message
+                body.font = UIFont.monospacedSystemFont(ofSize: 15, weight: .regular)
+                body.textColor = .white
+                body.numberOfLines = 0
+                body.lineBreakMode = .byWordWrapping
+
+                scrollView.addSubview(body)
+                vc.view.addSubview(title)
+                vc.view.addSubview(scrollView)
+
+                let guide = vc.view.safeAreaLayoutGuide
+                let content = scrollView.contentLayoutGuide
+                let frame = scrollView.frameLayoutGuide
+
+                NSLayoutConstraint.activate([
+                    title.topAnchor.constraint(equalTo: guide.topAnchor, constant: 20),
+                    title.leadingAnchor.constraint(equalTo: guide.leadingAnchor, constant: 20),
+                    title.trailingAnchor.constraint(equalTo: guide.trailingAnchor, constant: -20),
+
+                    scrollView.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 12),
+                    scrollView.leadingAnchor.constraint(equalTo: guide.leadingAnchor, constant: 20),
+                    scrollView.trailingAnchor.constraint(equalTo: guide.trailingAnchor, constant: -20),
+                    scrollView.bottomAnchor.constraint(equalTo: guide.bottomAnchor, constant: -20),
+
+                    // Pin label to the scroll view's content layout guide so its
+                    // intrinsic height drives contentSize. The widthAnchor tie
+                    // to the frame guide is what forces wrapping at the visible
+                    // width instead of letting the label grow horizontally —
+                    // without it, long error lines extend off-screen and the
+                    // scroll view never gets a vertical scrollable region.
+                    body.topAnchor.constraint(equalTo: content.topAnchor),
+                    body.bottomAnchor.constraint(equalTo: content.bottomAnchor),
+                    body.leadingAnchor.constraint(equalTo: content.leadingAnchor),
+                    body.trailingAnchor.constraint(equalTo: content.trailingAnchor),
+                    body.widthAnchor.constraint(equalTo: frame.widthAnchor),
+                ])
 
                 if let oldVC = window?.rootViewController {
                     retainedControllers.append(oldVC)

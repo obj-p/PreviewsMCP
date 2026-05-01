@@ -39,6 +39,18 @@ struct IOSHostBuilderTests {
         let output = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
         #expect(output.contains("arm64"))
 
+        // Guard against silent mis-escaping in the embedded `"""…"""` host-app
+        // source: the error screen's title should survive round-tripping into
+        // the compiled binary as a literal string. If someone double-escapes
+        // or drops a character, the byte search misses and the test fails
+        // before a user hits a broken error screen in the simulator.
+        let binaryData = try Data(contentsOf: binaryPath)
+        let title = Data("Preview host error".utf8)
+        #expect(
+            binaryData.range(of: title) != nil,
+            "compiled host binary should embed the error-screen title verbatim"
+        )
+
         print("Built iOS host app at: \(appPath.path)")
         print("Binary info: \(output.trimmingCharacters(in: .whitespacesAndNewlines))")
     }

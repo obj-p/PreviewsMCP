@@ -1048,6 +1048,116 @@ struct BuildSystemTests {
         #expect(found.map(\.lastPathComponent) == ["accessor.swift"])
     }
 
+    // MARK: - SPMBuildSystem.shouldSkipDependencyTarget
+
+    /// Regression guard for the swift-issue-reporting / `Testing.framework`
+    /// bug: SPM builds `IssueReportingTestSupport` as a dynamic library product
+    /// (emitting `libIssueReportingTestSupport.dylib` in binPath) that links
+    /// `Testing.framework`. The previous dependency-archiving loop linked every
+    /// sibling `<Target>.build/` via `-l<Target>`, which made the linker prefer
+    /// the dylib over the archive, burning a load command for the test-support
+    /// library into the preview host even when the consumer didn't import it.
+    /// At launch on the iOS simulator (no `Testing.framework`) the host crashed.
+    ///
+    /// The fix skips targets that already have a dylib in binPath — autolink
+    /// via `-module-link-name` handles linking from real importers.
+
+    @Test("shouldSkipDependencyTarget skips the consumer target itself")
+    func shouldSkipDependencyTarget_skipsConsumer() throws {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        #expect(
+            SPMBuildSystem.shouldSkipDependencyTarget(
+                targetName: "MyApp",
+                consumerTargetName: "MyApp",
+                binPath: tmpDir
+            )
+        )
+    }
+
+    @Test("shouldSkipDependencyTarget skips underscore-prefixed targets")
+    func shouldSkipDependencyTarget_skipsUnderscorePrefix() throws {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        #expect(
+            SPMBuildSystem.shouldSkipDependencyTarget(
+                targetName: "_PluginBundle",
+                consumerTargetName: "MyApp",
+                binPath: tmpDir
+            )
+        )
+    }
+
+    @Test("shouldSkipDependencyTarget skips targets that SPM built as a dynamic library product")
+    func shouldSkipDependencyTarget_skipsDynamicLibraryProduct() throws {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        // Simulate SPM emitting a .dylib for a `.library(type: .dynamic)` product.
+        // The predicate only checks `fileExists`, so an empty file would pass
+        // today — but write a 64-bit Mach-O dylib magic header (MH_MAGIC_64,
+        // 0xFEEDFACF, little-endian) so if the check ever tightens to "is a
+        // real Mach-O" the fixture keeps being shaped like a dylib.
+        let dylibPath = tmpDir.appendingPathComponent("libIssueReportingTestSupport.dylib")
+        try Data([0xCF, 0xFA, 0xED, 0xFE]).write(to: dylibPath)
+
+        #expect(
+            SPMBuildSystem.shouldSkipDependencyTarget(
+                targetName: "IssueReportingTestSupport",
+                consumerTargetName: "MyApp",
+                binPath: tmpDir
+            )
+        )
+    }
+
+    @Test("shouldSkipDependencyTarget does NOT skip ordinary sibling library targets")
+    func shouldSkipDependencyTarget_keepsSiblingTarget() throws {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        // No .dylib for this target — the existing archive-then-link path is
+        // exactly what it needs (SPM left loose .o files behind, no autolink).
+        #expect(
+            !SPMBuildSystem.shouldSkipDependencyTarget(
+                targetName: "SharedModels",
+                consumerTargetName: "MyApp",
+                binPath: tmpDir
+            )
+        )
+    }
+
+    @Test("shouldSkipDependencyTarget does NOT skip when only a .a archive exists")
+    func shouldSkipDependencyTarget_keepsStaticOnlyTarget() throws {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        // A pre-existing .a (e.g. from our own prior archive pass) should not
+        // flip the skip — we still want -l for static targets so their symbols
+        // get pulled in.
+        let archivePath = tmpDir.appendingPathComponent("libSharedModels.a")
+        try Data().write(to: archivePath)
+
+        #expect(
+            !SPMBuildSystem.shouldSkipDependencyTarget(
+                targetName: "SharedModels",
+                consumerTargetName: "MyApp",
+                binPath: tmpDir
+            )
+        )
+    }
+
     // MARK: - XcodeBuildSystem.collectGeneratedSources
 
     @Test("XcodeBuildSystem finds Xcode-generated swift under DERIVED_FILE_DIR/DerivedSources")

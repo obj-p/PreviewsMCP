@@ -65,6 +65,7 @@ The example project is at examples/xcworkspace/ relative to the PreviewsMCP repo
 - Take a snapshot — verify it shows "My Items" nav title with a summary card section and 8 item rows
 - The first item ("Design UI") should have a filled checkmark; others should have empty circles
 - The first summary card (blue "Progress") should show "1/8" with "7 remaining"
+- Stop the macOS session before moving on
 
 ### 3. Interaction (iOS simulator)
 - Use preview_start with platform "ios" on the same file (keep projectPath set to examples/xcworkspace/)

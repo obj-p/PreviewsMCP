@@ -606,19 +606,26 @@ private func handlePreviewStop(params: CallTool.Parameters) async throws -> Call
         return CallTool.Result(content: [.text(error.localizedDescription)], isError: true)
     }
 
+    Log.info("preview_stop: enter sessionID=\(sessionID)")
+
     // Check if this is an iOS session
     if let iosSession = await iosState.getSession(sessionID) {
+        Log.info("preview_stop/ios: stopping session")
         await iosSession.stop()
+        Log.info("preview_stop/ios: removing from manager")
         await iosState.removeSession(sessionID)
+        Log.info("preview_stop/ios: done")
         return CallTool.Result(content: [.text("iOS preview session \(sessionID) closed.")])
     }
 
     // macOS path. Verify existence before calling `closePreview` — which
     // otherwise silently succeeds for unknown IDs — so typos and races
     // surface as real errors rather than phantom successes.
+    Log.info("preview_stop/macos: hopping to MainActor for existence check")
     let isMacOSSession = await MainActor.run {
         host.allSessions[sessionID] != nil
     }
+    Log.info("preview_stop/macos: existence check returned isMacOSSession=\(isMacOSSession)")
     guard isMacOSSession else {
         return CallTool.Result(
             content: [.text("No session found for \(sessionID).")],
@@ -626,9 +633,11 @@ private func handlePreviewStop(params: CallTool.Parameters) async throws -> Call
         )
     }
 
+    Log.info("preview_stop/macos: hopping to MainActor for closePreview")
     await MainActor.run {
         host.closePreview(sessionID: sessionID)
     }
+    Log.info("preview_stop/macos: closePreview returned")
 
     return CallTool.Result(content: [.text("Preview session \(sessionID) closed.")])
 }
