@@ -207,9 +207,22 @@ final class MCPTestServer: @unchecked Sendable {
         if process.isRunning {
             trace("process.terminate")
             process.terminate()
-            trace("process.waitUntilExit (begin)")
-            process.waitUntilExit()
-            trace("process.waitUntilExit (returned)")
+            // Bounded wait: poll instead of `process.waitUntilExit()`, which
+            // blocks indefinitely. CI evidence (issue #156) shows the daemon
+            // sometimes ignores SIGTERM, wedging the test for 1200 s. After
+            // 5 s, escalate to SIGKILL so cleanup can finish in seconds.
+            let deadline = ContinuousClock.now + .seconds(5)
+            while process.isRunning && ContinuousClock.now < deadline {
+                Thread.sleep(forTimeInterval: 0.05)
+            }
+            if process.isRunning {
+                trace("SIGTERM ignored after 5s — escalating to SIGKILL pid=\(process.processIdentifier)")
+                kill(process.processIdentifier, SIGKILL)
+                process.waitUntilExit()
+                trace("process.waitUntilExit (returned after SIGKILL)")
+            } else {
+                trace("process exited after SIGTERM")
+            }
         } else {
             trace("process not running")
         }
