@@ -91,7 +91,7 @@ When validating code changes, both halves can go stale — `swift build` overwri
 
 The stdio server has no equivalent of #142's handshake — there's no peer to handshake with — so the staleness must be detected client-side.
 
-**Worktree footgun (#154):** when iterating in a git worktree (e.g., `.claude/worktrees/<name>/`), Claude Code may launch the stdio MCP server from the parent repo's `.build/...`, not the worktree's. `/resume` makes this sticky — it preserves the original project root regardless of where you re-launch from. `preview_build_info`'s `stale: false` won't catch this; it only knows about the binary at its own resolved path. To validate worktree-local changes via MCP tool calls, exit Claude Code, `cd` into the worktree directory, and start a fresh session (not `/resume`). The integration-test skill's Step 2 detects the mismatch automatically by comparing `binaryPath` to the worktree-derived expected path.
+**Worktrees (#154):** open Claude Code from inside the worktree directory, not via `/resume` from the main repo. `/resume` preserves the original project root, so the stdio MCP server keeps pointing at the main repo's `.build/...` binary regardless of where you re-launched. Fresh launches in each worktree resolve the relative `.mcp.json` command path correctly. The integration-test skill's Step 2 catches the mismatch automatically if you forget.
 
 ### CLI subcommands
 
