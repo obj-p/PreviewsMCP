@@ -91,6 +91,8 @@ When validating code changes, both halves can go stale — `swift build` overwri
 
 The stdio server has no equivalent of #142's handshake — there's no peer to handshake with — so the staleness must be detected client-side.
 
+**Worktrees (#154):** open Claude Code from inside the worktree directory, not via `/resume` from the main repo. `/resume` preserves the original project root, so the stdio MCP server keeps pointing at the main repo's `.build/...` binary regardless of where you re-launched. Fresh launches in each worktree resolve the relative `.mcp.json` command path correctly. The integration-test skill's Step 2 catches the mismatch automatically if you forget.
+
 ### CLI subcommands
 
 | Command | Purpose | Daemon? |

@@ -25,11 +25,23 @@ PreviewsMCP runs as two separate processes with independent state:
 
 1. **Discover examples.** List directories under `examples/` in the repo root. If `$ARGUMENTS` is provided, filter to that example only. If the specified example doesn't exist, report the error and list available examples.
 
-2. **Build PreviewsMCP and verify the stdio server is fresh.** Run `swift build` from the repo root. If the build fails, stop and report the error. Then call `preview_build_info` (MCP tool). If the response has `stale: true`, abort with this message:
+2. **Build PreviewsMCP and verify the stdio server is fresh and pointed at this worktree.** Run `swift build` from the repo root. If the build fails, stop and report the error. Then call `preview_build_info` (MCP tool) and run both checks below. They cover independent failure modes — wrong binary entirely (worktree-vs-parent) vs stale binary at the right path (rebuild without restart) — and both must pass before proceeding.
+
+   **2a. Wrong-binary check.** Compute the expected binary path from the worktree the skill is running in, resolving symlinks the same way `preview_build_info` does:
+
+   ```bash
+   git_root=$(git rev-parse --show-toplevel)
+   expected=$(python3 -c 'import os,sys;print(os.path.realpath(sys.argv[1]))' \
+              "$git_root/.build/$(uname -m)-apple-macosx/debug/previewsmcp")
+   ```
+
+   Compare `expected` against `binaryPath` from `preview_build_info`. If they differ, abort:
+
+   > MCP server is running `<binaryPath>` but you're working in `<git_root>`. Tool calls won't reflect your changes. Type `/exit`, `cd` to the worktree directory, and relaunch `claude` (avoid `/resume` — it preserves the original project root and silently keeps the wrong binary). See issue #154.
+
+   **2b. Stale-binary check.** If the response has `stale: true`, abort:
 
    > Stdio MCP server's on-disk binary was rebuilt at `<binaryMtime>` but the running process started at `<processStartTime>`. Type `/exit` and relaunch Claude Code so it respawns the MCP server from the new binary, then re-run this skill.
-
-   If `stale: false`, proceed.
 
 3. **For each example**, read its `README.md` and follow the "Integration Test Prompt" section. The README contains the exact steps to execute, including which MCP tools to call and what to verify.
 
