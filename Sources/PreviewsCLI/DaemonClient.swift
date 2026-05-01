@@ -40,8 +40,9 @@ enum DaemonClient {
         configure: ((Client) async -> Void)? = nil
     ) async throws -> Client {
         // When no daemon is running we spawn one ourselves. By
-        // construction its binary matches argv[0], so the MCP
-        // `serverInfo.version` must equal our own compile-time
+        // construction its binary is the one we're currently running
+        // (resolved authoritatively via `_NSGetExecutablePath`), so the
+        // MCP `serverInfo.version` must equal our own compile-time
         // version — no handshake check needed on this branch.
         let weJustSpawned = !DaemonProbe.canConnect()
         if weJustSpawned {
@@ -372,14 +373,17 @@ enum DaemonClient {
     /// so the new daemon logs a diagnostic breadcrumb to `serve.log` on
     /// startup. Only set when this spawn is a version-mismatch recovery.
     private static func spawnDaemon(restartReason: String? = nil) throws {
-        let selfPath = ProcessInfo.processInfo.arguments[0]
-        let binaryURL = URL(fileURLWithPath: selfPath).standardizedFileURL
+        // `_NSGetExecutablePath` returns the kernel's record of the binary
+        // we're executing, set at exec() time. Authoritative regardless of
+        // CWD, PATH resolution, or what the caller put in argv[0].
+        guard let selfPath = resolveRunningBinaryPath() else {
+            throw DaemonClientError.binaryNotFound(path: "<unknown>")
+        }
+        let binaryURL = URL(fileURLWithPath: selfPath)
 
-        // Best-effort sanity check so a missing binary surfaces as a clear
-        // error instead of Process.run()'s generic POSIX failure. This is
-        // not a security boundary — a spoofed argv[0] pointing at some
-        // other real executable would still pass this check. See #100 for
-        // authoritative self-path resolution via _NSGetExecutablePath.
+        // Defense in depth: the binary could have been moved or deleted
+        // between resolution and Process.run(). Surface a clear error
+        // instead of Process.run()'s generic POSIX failure.
         guard FileManager.default.isExecutableFile(atPath: binaryURL.path) else {
             throw DaemonClientError.binaryNotFound(path: binaryURL.path)
         }
@@ -419,11 +423,11 @@ enum DaemonClient {
         env["_PREVIEWSMCP_DAEMON_RESTART_REASON"] = restartReason
         proc.environment = env
 
-        // Log the binary path on a restart spawn so a user diagnosing
-        // a respawn loop can see whether argv[0] still points at the
-        // stale binary (see issue #100). No-op for normal startup
-        // spawns — the daemon's own "daemon ready (pid ...)" line is
-        // enough for those.
+        // Log the resolved binary path on a restart spawn so a user
+        // diagnosing a respawn loop can see whether the running binary
+        // is still the stale one. No-op for normal startup spawns —
+        // the daemon's own "daemon ready (pid ...)" line is enough
+        // for those.
         if restartReason != nil {
             fputs(
                 "previewsmcp: respawning daemon from \(binaryURL.path)\n",
