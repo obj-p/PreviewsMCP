@@ -372,8 +372,18 @@ final class MCPTestServer: @unchecked Sendable {
             [/watchdog]
 
             """
+        // Write to test-process stderr so a live tail in CI sees it.
         fputs(message, stderr)
         fflush(stderr)
+        // Also append to the per-instance log file. The "Dump MCP server stderr"
+        // step cats this file post-mortem regardless of whether the test process
+        // ever flushed its own stderr — so heartbeats survive even when the
+        // GH Actions stderr capture is buffered/blocked behind a wedged test.
+        if let handle = try? FileHandle(forWritingTo: stderrLogPath) {
+            _ = try? handle.seekToEnd()
+            try? handle.write(contentsOf: Data(message.utf8))
+            try? handle.close()
+        }
     }
 
     /// Poll the server's stderr log until it contains `needle`, up to `timeout`.

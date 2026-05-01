@@ -263,21 +263,26 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
 
     /// Close and clean up a preview window.
     public func closePreview(sessionID: String) {
+        fputs("closePreview: enter sessionID=\(sessionID)\n", stderr); fflush(stderr)
         fileWatchers[sessionID]?.stop()
         fileWatchers.removeValue(forKey: sessionID)
         sessions.removeValue(forKey: sessionID)
+        fputs("closePreview: watchers/sessions removed\n", stderr); fflush(stderr)
 
         if let window = windows.removeValue(forKey: sessionID) {
             if let oldView = window.contentView {
                 retainedViews.append(oldView)
             }
             window.contentView = nil
+            fputs("closePreview: about to orderOut window\n", stderr); fflush(stderr)
             window.orderOut(nil)
+            fputs("closePreview: orderOut returned\n", stderr); fflush(stderr)
         }
 
         if let loader = loaders.removeValue(forKey: sessionID) {
             retainedLoaders.append(loader)
         }
+        fputs("closePreview: exit sessionID=\(sessionID)\n", stderr); fflush(stderr)
     }
 
     /// Get the session for a session ID (for reconfiguration).
