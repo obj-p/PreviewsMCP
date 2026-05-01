@@ -228,11 +228,19 @@ final class MCPTestServer: @unchecked Sendable {
     // MARK: - Tool calls
 
     /// Call an MCP tool and return the result.
+    ///
+    /// Bounded by a default 60-second timeout so a never-arriving response from
+    /// the daemon (e.g., an MCP SDK transport drop, see issue #156) fails the
+    /// test in seconds instead of wedging until the per-test 1200 s `.timeLimit`
+    /// fires. Callers that need a different bound should use
+    /// `callToolWithTimeout(name:arguments:timeout:)` directly.
     func callTool(
         name: String,
         arguments: [String: Value]? = nil
     ) async throws -> (content: [Tool.Content], isError: Bool?) {
-        try await client.callTool(name: name, arguments: arguments)
+        try await callToolWithTimeout(
+            name: name, arguments: arguments, timeout: .seconds(60)
+        )
     }
 
     /// Call an MCP tool bounded by `timeout`. On timeout, dumps the captured
@@ -386,9 +394,15 @@ final class MCPTestServer: @unchecked Sendable {
         let elapsed = ContinuousClock.now - startedAt
         let elapsedSeconds = Int(elapsed.components.seconds)
         let log = stderrLog()
+        // Filter out our own prior heartbeat lines so each tick reports the
+        // daemon's recent activity, not a recursive nest of previous tails.
         let tailLines =
             log
             .split(separator: "\n", omittingEmptySubsequences: false)
+            .filter { line in
+                !line.contains("[MCPTestServer watchdog")
+                    && !line.hasPrefix("[/watchdog]")
+            }
             .suffix(5)
             .joined(separator: "\n")
         let tailDescription = tailLines.isEmpty ? "(server stderr empty)" : String(tailLines)
