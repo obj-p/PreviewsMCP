@@ -180,23 +180,49 @@ final class MCPTestServer: @unchecked Sendable {
     /// Safe from deadlock because Client.disconnect() runs on the client actor's
     /// executor, which is independent of any thread held by the calling defer.
     func stop() {
+        // Diagnostics for issue #156: write a phase trace to the per-instance
+        // stderr log file and to the test-process stderr. The hung-test
+        // post-mortem so far shows the daemon completing preview_stop in 3 ms
+        // and the test then wedging for 1200 s — most likely inside
+        // waitUntilExit() or the SDK disconnect. These lines bracket each
+        // phase so the next failed dump pinpoints which one.
+        let traceFD = open(stderrLogPath.path, O_WRONLY | O_APPEND)
+        func trace(_ message: String) {
+            let stamp = Date().formatted(.iso8601.time(includingFractionalSeconds: true))
+            let line = "[stop \(stamp)] \(message)\n"
+            fputs(line, stderr)
+            fflush(stderr)
+            if traceFD >= 0 {
+                _ = line.withCString { Darwin.write(traceFD, $0, strlen($0)) }
+            }
+        }
+
         // Signal the watchdog thread to exit on its next poll. It may
         // sleep up to 60s past stop() before noticing — that's fine,
         // the thread is lightweight and holds nothing but a weak
         // reference to self.
+        trace("enter")
         watchdogShouldStop.withLock { $0 = true }
         process.terminationHandler = nil
         if process.isRunning {
+            trace("process.terminate")
             process.terminate()
+            trace("process.waitUntilExit (begin)")
             process.waitUntilExit()
+            trace("process.waitUntilExit (returned)")
+        } else {
+            trace("process not running")
         }
         let semaphore = DispatchSemaphore(value: 0)
         let client = self.client
+        trace("client.disconnect (dispatched)")
         Task.detached {
             await client.disconnect()
             semaphore.signal()
         }
         semaphore.wait()
+        trace("client.disconnect (returned)")
+        if traceFD >= 0 { close(traceFD) }
     }
 
     // MARK: - Tool calls
