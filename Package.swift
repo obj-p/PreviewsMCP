@@ -45,7 +45,7 @@ let package = Package(
         ),
         .target(
             name: "PreviewsEngine",
-            dependencies: ["PreviewsCore", "PreviewsIOS"]
+            dependencies: ["PreviewsCore", "PreviewsIOS", "PreviewsMacOS"]
         ),
         .executableTarget(
             name: "PreviewsCLI",
