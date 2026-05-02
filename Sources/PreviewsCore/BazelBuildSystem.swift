@@ -307,6 +307,15 @@ public actor BazelBuildSystem: BuildSystem {
     }
 
     /// Run a bazel command via `/usr/bin/env`, check exit code, and return stdout.
+    ///
+    /// On nonzero exit, the thrown `BuildSystemError.buildFailed` carries the
+    /// full command line, both captured streams (or `(empty)` placeholders),
+    /// and the pwd. The previous shape — `output.stderr.isEmpty ? output.stdout
+    /// : output.stderr` — discarded one stream and yielded a blank diagnostic
+    /// when both streams were empty (CI run 25243519727 surfaced exactly this:
+    /// bazel exited 7 with no captured output, leaving the test failure
+    /// message as just "Project build failed (exit code 7):" with nothing
+    /// after the colon).
     @discardableResult
     private func runBazel(
         _ arguments: [String], discardStderr: Bool = false
@@ -315,8 +324,19 @@ public actor BazelBuildSystem: BuildSystem {
             "/usr/bin/env", arguments: arguments,
             workingDirectory: projectRoot, discardStderr: discardStderr)
         guard output.exitCode == 0 else {
+            let cmd = arguments.joined(separator: " ")
+            let stderrSection = output.stderr.isEmpty ? "(empty)" : output.stderr
+            let stdoutSection = output.stdout.isEmpty ? "(empty)" : output.stdout
+            let diagnostic = """
+                command: \(cmd)
+                cwd: \(projectRoot.path)
+                stderr:
+                \(stderrSection)
+                stdout:
+                \(stdoutSection)
+                """
             throw BuildSystemError.buildFailed(
-                stderr: output.stderr.isEmpty ? output.stdout : output.stderr,
+                stderr: diagnostic,
                 exitCode: output.exitCode
             )
         }
