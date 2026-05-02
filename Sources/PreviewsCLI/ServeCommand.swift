@@ -56,6 +56,7 @@ struct ServeCommand: ParsableCommand {
     }
 
     private func runStdio() {
+        installStdioSignalHandler()
         Task { @MainActor in
             let host = Self.sharedHost!
             do {
@@ -73,6 +74,30 @@ struct ServeCommand: ParsableCommand {
                 Log.error("MCP server error: \(error)")
                 await MainActor.run { NSApp.terminate(nil) }
             }
+        }
+    }
+
+    /// Install a signal-safe SIGTERM handler for stdio mode. Distinct from
+    /// `DaemonLifecycle.installSignalHandlers()` which uses
+    /// `DispatchSource.makeSignalSource(... queue: .main)` — that path is
+    /// coupled to NSApplication's runloop and can be slow under load
+    /// (issue #156 investigation). Stdio mode has no on-disk state to
+    /// clean up before exit (no PID file, no socket), so an `_exit(0)`
+    /// from the signal-delivery thread is correct: the kernel reaps file
+    /// descriptors and the process is gone in <1 ms regardless of what
+    /// libdispatch or AppKit are doing.
+    ///
+    /// The single observable side effect is the stderr breadcrumb. If a
+    /// future shutdown wedge recurs, the presence/absence of this line
+    /// in the per-instance log partitions "daemon ignored signal" from
+    /// "Foundation Process wedged on the test-host side."
+    private func installStdioSignalHandler() {
+        signal(SIGTERM) { _ in
+            let msg: StaticString = "previewsmcp stdio: received SIGTERM, exiting\n"
+            msg.withUTF8Buffer { buf in
+                _ = write(STDERR_FILENO, buf.baseAddress, buf.count)
+            }
+            _exit(0)
         }
     }
 
