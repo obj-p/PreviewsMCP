@@ -942,6 +942,7 @@ private func handlePreviewVariants(params: CallTool.Parameters, server: Server) 
             await progress.report(
                 .compilingBridge, message: "Recompiling for variant \"\(variant.label)\"...")
             try await handle.setTraits(variant.traits)
+            await handle.awaitLayoutSettle()
             await progress.report(
                 .capturingSnapshot,
                 message: "Capturing variant \(index + 1)/\(resolved.count) \"\(variant.label)\"...")

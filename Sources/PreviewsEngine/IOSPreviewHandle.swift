@@ -51,4 +51,9 @@ public actor IOSPreviewHandle: PreviewSessionHandle {
         await iosSession.stop()
         await manager.removeSession(id)
     }
+
+    public func awaitLayoutSettle() async {
+        // iOS host-app reload-ack already implies the new view tree is
+        // mounted before sendAndAwait returns; no additional wait needed.
+    }
 }

@@ -32,17 +32,17 @@ public actor MacOSPreviewHandle: PreviewSessionHandle {
         }
     }
 
-    /// Compile, reload the dylib into the host window, and pause 300ms
-    /// for SwiftUI layout to settle before any subsequent snapshot.
-    /// The pause is variant-loop-tuned: an absent settle here causes
-    /// rapid `setTraits → snapshot` sequences to capture pre-layout
-    /// frames.
+    /// Compile and reload the dylib into the host window. Does NOT
+    /// pause for layout — call `awaitLayoutSettle()` between this and a
+    /// subsequent snapshot. Folding the settle into `setTraits` would
+    /// add 300ms to the variants restore step (which does not snapshot)
+    /// and is what tipped CI's `preview_variants` test over its 60s
+    /// callTool budget.
     public func setTraits(_ traits: PreviewTraits) async throws {
         let result = try await session.setTraits(traits)
         try await MainActor.run {
             try host.loadPreview(sessionID: id, dylibPath: result.dylibPath)
         }
-        try await Task.sleep(for: .milliseconds(300))
     }
 
     public func reconfigure(traits: PreviewTraits, clearing: Set<PreviewTraits.Field>) async throws {
@@ -75,5 +75,12 @@ public actor MacOSPreviewHandle: PreviewSessionHandle {
         await MainActor.run {
             host.closePreview(sessionID: sessionID)
         }
+    }
+
+    public func awaitLayoutSettle() async {
+        // SwiftUI lays out asynchronously after a contentView swap. 300ms
+        // gives the run loop time for at least one layout+display pass
+        // before `cacheDisplay` reads the frame.
+        try? await Task.sleep(for: .milliseconds(300))
     }
 }

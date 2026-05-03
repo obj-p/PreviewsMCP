@@ -22,8 +22,10 @@ public protocol PreviewSessionHandle: Sendable {
 
     /// Replace traits absolutely (no merge) and recompile. Used by
     /// `preview_variants`. macOS implementations also reload the dylib
-    /// into the host window and pause briefly to let SwiftUI lay out
-    /// before any subsequent snapshot.
+    /// into the host window. Callers planning an immediate snapshot
+    /// should call `awaitLayoutSettle()` afterward — the 300ms macOS
+    /// settle is not folded into `setTraits` because the variants
+    /// restore step does not snapshot and pays no settle cost.
     func setTraits(_ traits: PreviewTraits) async throws
 
     /// Merge traits into the current set and clear the named fields, then
@@ -38,6 +40,13 @@ public protocol PreviewSessionHandle: Sendable {
     /// Capture a screenshot. `quality >= 1.0` requests PNG output where
     /// supported; values in `[0, 1)` request JPEG at that quality.
     func snapshot(quality: Double) async throws -> Data
+
+    /// Wait for SwiftUI layout to settle after a fresh dylib load. macOS
+    /// pauses 300ms; iOS no-ops (the host-app reload-ack already implies
+    /// the new view tree is mounted). Called between `setTraits` /
+    /// `switchPreview` / `reconfigure` and a subsequent `snapshot` to
+    /// avoid capturing a pre-layout frame.
+    func awaitLayoutSettle() async
 
     /// Tear down the session and unregister it from its backend's
     /// registry. After this returns, the handle should not be reused.
