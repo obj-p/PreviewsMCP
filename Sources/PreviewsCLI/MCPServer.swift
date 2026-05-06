@@ -13,6 +13,7 @@ import os
 @MainActor private var host: PreviewHost!
 @MainActor private var iosState: IOSSessionManager!
 @MainActor private var configCache: ConfigCache!
+@MainActor private var router: SessionRouter!
 
 /// MCP progress reporter that sends progress notifications and log messages to the client.
 final class MCPProgressReporter: ProgressReporter, @unchecked Sendable {
@@ -77,6 +78,7 @@ func configureMCPServer(
         if host == nil { host = previewHost }
         if iosState == nil { iosState = iosManager }
         if configCache == nil { configCache = cache }
+        if router == nil { router = SessionRouter(host: previewHost, iosManager: iosManager) }
     }
 
     cleanupStaleTempDirs()
@@ -490,13 +492,8 @@ private func buildSetupIfConfigured(
 
 /// Resolve the config quality default for a session (iOS or macOS).
 private func configQualityForSession(_ sessionID: String) async -> Double? {
-    if let iosSession = await iosState.getSession(sessionID) {
-        return await configCache.load(for: iosSession.sourceFile)?.config.quality
-    }
-    if let macSession: PreviewSession = await MainActor.run(body: { host.session(for: sessionID) }) {
-        return await configCache.load(for: macSession.sourceFile)?.config.quality
-    }
-    return nil
+    guard let handle = await router.handle(for: sessionID) else { return nil }
+    return await configCache.load(for: handle.sourceFile)?.config.quality
 }
 
 private func startMacOSPreview(
@@ -556,43 +553,16 @@ private func handlePreviewSnapshot(params: CallTool.Parameters) async throws -> 
 
     let configQuality = await configQualityForSession(sessionID)
     let quality = max(0.0, min(1.0, extractOptionalDouble("quality", from: params) ?? configQuality ?? 0.85))
-    let usePNG = quality >= 1.0
-    let mimeType = usePNG ? "image/png" : "image/jpeg"
+    let mimeType = quality >= 1.0 ? "image/png" : "image/jpeg"
 
-    // Check if this is an iOS session
-    if let iosSession = await iosState.getSession(sessionID) {
-        let imageData = try await iosSession.screenshot(jpegQuality: quality)
-        let base64 = imageData.base64EncodedString()
-        return CallTool.Result(content: [
-            .image(data: base64, mimeType: mimeType, metadata: nil)
-        ])
-    }
-
-    // macOS path. Verify existence upfront so a typo'd sessionID
-    // surfaces as a clean "No session found" rather than the misleading
-    // "capture failed" from `window(for:)` returning nil.
-    let isMacOSSession = await MainActor.run {
-        host.allSessions[sessionID] != nil
-    }
-    guard isMacOSSession else {
+    guard let handle = await router.handle(for: sessionID) else {
         return CallTool.Result(
             content: [.text("No session found for \(sessionID).")],
             isError: true
         )
     }
 
-    // Don't add a pre-capture `Task.sleep` here for "layout settling" —
-    // `cacheDisplay` below forces layout synchronously, and under rapid
-    // snapshot polling a cooperative sleep can starve (see issue #135).
-
-    let format: Snapshot.ImageFormat = usePNG ? .png : .jpeg(quality: quality)
-    let imageData: Data = try await MainActor.run {
-        guard let window = host.window(for: sessionID) else {
-            throw SnapshotError.captureFailed
-        }
-        return try Snapshot.capture(window: window, format: format)
-    }
-
+    let imageData = try await handle.snapshot(quality: quality)
     let base64 = imageData.base64EncodedString()
 
     return CallTool.Result(content: [
@@ -608,38 +578,22 @@ private func handlePreviewStop(params: CallTool.Parameters) async throws -> Call
 
     Log.info("preview_stop: enter sessionID=\(sessionID)")
 
-    // Check if this is an iOS session
-    if let iosSession = await iosState.getSession(sessionID) {
-        Log.info("preview_stop/ios: stopping session")
-        await iosSession.stop()
-        Log.info("preview_stop/ios: removing from manager")
-        await iosState.removeSession(sessionID)
-        Log.info("preview_stop/ios: done")
-        return CallTool.Result(content: [.text("iOS preview session \(sessionID) closed.")])
-    }
-
-    // macOS path. Verify existence before calling `closePreview` — which
-    // otherwise silently succeeds for unknown IDs — so typos and races
-    // surface as real errors rather than phantom successes.
-    Log.info("preview_stop/macos: hopping to MainActor for existence check")
-    let isMacOSSession = await MainActor.run {
-        host.allSessions[sessionID] != nil
-    }
-    Log.info("preview_stop/macos: existence check returned isMacOSSession=\(isMacOSSession)")
-    guard isMacOSSession else {
+    guard let handle = await router.handle(for: sessionID) else {
         return CallTool.Result(
             content: [.text("No session found for \(sessionID).")],
             isError: true
         )
     }
 
-    Log.info("preview_stop/macos: hopping to MainActor for closePreview")
-    await MainActor.run {
-        host.closePreview(sessionID: sessionID)
-    }
-    Log.info("preview_stop/macos: closePreview returned")
+    let platform = handle.platform
+    Log.info("preview_stop/\(platform.rawValue): stopping session")
+    await handle.stop()
+    Log.info("preview_stop/\(platform.rawValue): done")
 
-    return CallTool.Result(content: [.text("Preview session \(sessionID) closed.")])
+    // Preserve the platform-prefixed message — `IOSCLIWorkflowTests`
+    // asserts on the substring "iOS preview session".
+    let prefix = platform == .iOS ? "iOS preview session" : "Preview session"
+    return CallTool.Result(content: [.text("\(prefix) \(sessionID) closed.")])
 }
 
 private func handlePreviewElements(params: CallTool.Parameters) async throws -> CallTool.Result {
@@ -895,35 +849,15 @@ private func handlePreviewConfigure(params: CallTool.Parameters, server: Server)
         return CallTool.Result(content: [.text("No configuration changes specified.")])
     }
 
-    let progress = mcpReporter(server: server, params: params, totalSteps: 1)
-
-    // iOS path
-    if let iosSession = await iosState.getSession(sessionID) {
-        await progress.report(.compilingBridge, message: "Recompiling with new traits...")
-        try await iosSession.reconfigure(traits: traits, clearing: clearedFields)
-        let activeTraits = await iosSession.currentTraits
-        return CallTool.Result(content: [
-            .text(
-                "Configured session \(sessionID): \(traitsSummary(activeTraits)). View recompiled (@State was reset)."
-            )
-        ])
-    }
-
-    // macOS path
-    let session: PreviewSession? = await MainActor.run { host.session(for: sessionID) }
-    guard let session else {
+    guard let handle = await router.handle(for: sessionID) else {
         return CallTool.Result(content: [.text("No session found for \(sessionID)")], isError: true)
     }
 
+    let progress = mcpReporter(server: server, params: params, totalSteps: 1)
     await progress.report(.compilingBridge, message: "Recompiling with new traits...")
-    let compileResult = try await session.reconfigure(
-        traits: traits, clearing: clearedFields
-    )
-    try await MainActor.run {
-        try host.loadPreview(sessionID: sessionID, dylibPath: compileResult.dylibPath)
-    }
+    try await handle.reconfigure(traits: traits, clearing: clearedFields)
 
-    let activeTraits = await session.currentTraits
+    let activeTraits = await handle.currentTraits
     return CallTool.Result(content: [
         .text(
             "Configured session \(sessionID): \(traitsSummary(activeTraits)). View recompiled (@State was reset)."
@@ -989,120 +923,34 @@ private func handlePreviewVariants(params: CallTool.Parameters, server: Server) 
         return CallTool.Result(content: [.text(error.localizedDescription)], isError: true)
     }
 
-    let variantConfigQuality = await configQualityForSession(sessionID)
-    let quality = max(0.0, min(1.0, extractOptionalDouble("quality", from: params) ?? variantConfigQuality ?? 0.85))
-    let usePNG = quality >= 1.0
-    let mimeType = usePNG ? "image/png" : "image/jpeg"
-    let progress = mcpReporter(server: server, params: params, totalSteps: 2 * resolved.count)
-
-    // iOS path
-    if let iosSession = await iosState.getSession(sessionID) {
-        let savedTraits = await iosSession.currentTraits
-        var contentBlocks: [Tool.Content] = []
-        var outcomes: [DaemonProtocol.VariantOutcomeDTO] = []
-        var failCount = 0
-
-        for (index, variant) in resolved.enumerated() {
-            do {
-                await progress.report(
-                    .compilingBridge, message: "Recompiling for variant \"\(variant.label)\"...")
-                try await iosSession.setTraits(variant.traits)
-                await progress.report(
-                    .capturingSnapshot,
-                    message: "Capturing variant \(index + 1)/\(resolved.count) \"\(variant.label)\"...")
-                let imageData = try await iosSession.screenshot(jpegQuality: quality)
-                let base64 = imageData.base64EncodedString()
-                contentBlocks.append(.text("[\(index)] \(variant.label):"))
-                contentBlocks.append(.image(data: base64, mimeType: mimeType, metadata: nil))
-                // imageIndex addresses the .image block we just appended.
-                outcomes.append(
-                    DaemonProtocol.VariantOutcomeDTO(
-                        status: "ok",
-                        index: index,
-                        label: variant.label,
-                        imageIndex: contentBlocks.count - 1,
-                        error: nil
-                    )
-                )
-            } catch {
-                failCount += 1
-                contentBlocks.append(
-                    .text("[\(index)] \(variant.label): ERROR — \(error.localizedDescription)"))
-                outcomes.append(
-                    DaemonProtocol.VariantOutcomeDTO(
-                        status: "error",
-                        index: index,
-                        label: variant.label,
-                        imageIndex: nil,
-                        error: error.localizedDescription
-                    )
-                )
-            }
-        }
-
-        // Restore original traits if they changed — but only if the
-        // session is still registered. A concurrent `preview_stop`
-        // during the capture loop will remove the session from
-        // iosState; attempting to setTraits on the stopped simulator
-        // produces a misleading "failed to restore" warning when the
-        // user explicitly asked for the stop.
-        let stillRegistered = await iosState.getSession(sessionID) != nil
-        let currentTraits = await iosSession.currentTraits
-        if stillRegistered, savedTraits != currentTraits {
-            do {
-                try await iosSession.setTraits(savedTraits)
-            } catch {
-                contentBlocks.append(
-                    .text("Warning: failed to restore original traits: \(error.localizedDescription)")
-                )
-            }
-        }
-
-        let structured = DaemonProtocol.VariantsResult(
-            variants: outcomes,
-            successCount: outcomes.count - failCount,
-            failCount: failCount
-        )
-        return try CallTool.Result(
-            content: contentBlocks,
-            structuredContent: structured,
-            isError: failCount == resolved.count
-        )
-    }
-
-    // macOS path
-    let session: PreviewSession? = await MainActor.run { host.session(for: sessionID) }
-    guard let session else {
+    guard let handle = await router.handle(for: sessionID) else {
         return CallTool.Result(content: [.text("No session found for \(sessionID)")], isError: true)
     }
 
-    let savedTraits = await session.currentTraits
+    let variantConfigQuality = await configQualityForSession(sessionID)
+    let quality = max(0.0, min(1.0, extractOptionalDouble("quality", from: params) ?? variantConfigQuality ?? 0.85))
+    let mimeType = quality >= 1.0 ? "image/png" : "image/jpeg"
+    let progress = mcpReporter(server: server, params: params, totalSteps: 2 * resolved.count)
+
+    let savedTraits = await handle.currentTraits
     var contentBlocks: [Tool.Content] = []
     var outcomes: [DaemonProtocol.VariantOutcomeDTO] = []
     var failCount = 0
-    let format: Snapshot.ImageFormat = usePNG ? .png : .jpeg(quality: quality)
 
     for (index, variant) in resolved.enumerated() {
         do {
             await progress.report(
                 .compilingBridge, message: "Recompiling for variant \"\(variant.label)\"...")
-            let compileResult = try await session.setTraits(variant.traits)
-            try await MainActor.run {
-                try host.loadPreview(sessionID: sessionID, dylibPath: compileResult.dylibPath)
-            }
-            try await Task.sleep(for: .milliseconds(300))
+            try await handle.setTraits(variant.traits)
+            await handle.awaitLayoutSettle()
             await progress.report(
                 .capturingSnapshot,
                 message: "Capturing variant \(index + 1)/\(resolved.count) \"\(variant.label)\"...")
-            let imageData: Data = try await MainActor.run {
-                guard let window = host.window(for: sessionID) else {
-                    throw SnapshotError.captureFailed
-                }
-                return try Snapshot.capture(window: window, format: format)
-            }
+            let imageData = try await handle.snapshot(quality: quality)
             let base64 = imageData.base64EncodedString()
             contentBlocks.append(.text("[\(index)] \(variant.label):"))
             contentBlocks.append(.image(data: base64, mimeType: mimeType, metadata: nil))
+            // imageIndex addresses the .image block we just appended.
             outcomes.append(
                 DaemonProtocol.VariantOutcomeDTO(
                     status: "ok",
@@ -1130,20 +978,15 @@ private func handlePreviewVariants(params: CallTool.Parameters, server: Server) 
 
     // Restore original traits if they changed — but only if the
     // session is still registered. A concurrent `preview_stop` during
-    // the capture loop would remove the session from host;
-    // `loadPreview` would then throw and the user would see a
-    // misleading "failed to restore" warning when they explicitly
-    // asked for the stop.
-    let stillRegistered = await MainActor.run {
-        host.allSessions[sessionID] != nil
-    }
-    let currentTraits = await session.currentTraits
+    // the capture loop will tear down the session; attempting to
+    // setTraits on the torn-down session produces a misleading
+    // "failed to restore" warning when the user explicitly asked
+    // for the stop.
+    let stillRegistered = await handle.isRegistered
+    let currentTraits = await handle.currentTraits
     if stillRegistered, savedTraits != currentTraits {
         do {
-            let restoreResult = try await session.setTraits(savedTraits)
-            try await MainActor.run {
-                try host.loadPreview(sessionID: sessionID, dylibPath: restoreResult.dylibPath)
-            }
+            try await handle.setTraits(savedTraits)
         } catch {
             contentBlocks.append(
                 .text("Warning: failed to restore original traits: \(error.localizedDescription)"))
@@ -1172,60 +1015,24 @@ private func handlePreviewSwitch(params: CallTool.Parameters, server: Server) as
         return CallTool.Result(content: [.text(error.localizedDescription)], isError: true)
     }
 
-    let progress = mcpReporter(server: server, params: params, totalSteps: 1)
-
-    // iOS path
-    if let iosSession = await iosState.getSession(sessionID) {
-        // Bounds-check before delegating. The compile path will also
-        // validate (PreviewSession.compile throws previewNotFound) but
-        // an early structured error guarantees a fast, deterministic
-        // failure regardless of any upstream transport state. See #127.
-        let previews = try PreviewParser.parse(fileAt: iosSession.sourceFile)
-        if let outOfRange = previewIndexOutOfRangeError(newIndex, count: previews.count) {
-            return outOfRange
-        }
-        await progress.report(.compilingBridge, message: "Switching to preview \(newIndex)...")
-        try await iosSession.switchPreview(to: newIndex)
-        let activeTraits = await iosSession.currentTraits
-        let traitInfo = activeTraits.isEmpty ? "" : " Traits: \(traitsSummary(activeTraits))."
-
-        let previewList = formatPreviewList(previews: previews, activeIndex: newIndex)
-        let structured = DaemonProtocol.SwitchResult(
-            sessionID: sessionID,
-            activeIndex: newIndex,
-            traits: DaemonProtocol.TraitsDTO.orNil(activeTraits),
-            previews: previews.map {
-                DaemonProtocol.PreviewInfoDTO(from: $0, activeIndex: newIndex)
-            }
-        )
-        return try CallTool.Result(
-            content: [
-                .text(
-                    "Switched to preview \(newIndex) in session \(sessionID).\(traitInfo) View recompiled (@State was reset).\n\(previewList)"
-                )
-            ],
-            structuredContent: structured
-        )
-    }
-
-    // macOS path
-    let session: PreviewSession? = await MainActor.run { host.session(for: sessionID) }
-    guard let session else {
+    guard let handle = await router.handle(for: sessionID) else {
         return CallTool.Result(content: [.text("No session found for \(sessionID)")], isError: true)
     }
 
-    let previews = try PreviewParser.parse(fileAt: session.sourceFile)
+    // Bounds-check before delegating. The compile path will also
+    // validate (PreviewSession.compile throws previewNotFound) but
+    // an early structured error guarantees a fast, deterministic
+    // failure regardless of any upstream transport state. See #127.
+    let previews = try PreviewParser.parse(fileAt: handle.sourceFile)
     if let outOfRange = previewIndexOutOfRangeError(newIndex, count: previews.count) {
         return outOfRange
     }
 
+    let progress = mcpReporter(server: server, params: params, totalSteps: 1)
     await progress.report(.compilingBridge, message: "Switching to preview \(newIndex)...")
-    let compileResult = try await session.switchPreview(to: newIndex)
-    try await MainActor.run {
-        try host.loadPreview(sessionID: sessionID, dylibPath: compileResult.dylibPath)
-    }
+    try await handle.switchPreview(to: newIndex)
 
-    let activeTraits = await session.currentTraits
+    let activeTraits = await handle.currentTraits
     let traitInfo = activeTraits.isEmpty ? "" : " Traits: \(traitsSummary(activeTraits))."
 
     let previewList = formatPreviewList(previews: previews, activeIndex: newIndex)
