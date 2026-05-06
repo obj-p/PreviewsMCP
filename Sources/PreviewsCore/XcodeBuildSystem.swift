@@ -290,19 +290,7 @@ public actor XcodeBuildSystem: BuildSystem {
     /// whitelist — Xcode's generator set changes across releases.
     nonisolated static func collectGeneratedSources(derivedFileDir: URL) -> [URL] {
         let derivedSources = derivedFileDir.appendingPathComponent("DerivedSources")
-        guard
-            let entries = try? FileManager.default.contentsOfDirectory(
-                at: derivedSources,
-                includingPropertiesForKeys: nil,
-                options: [.skipsHiddenFiles]
-            )
-        else {
-            return []
-        }
-        return
-            entries
-            .filter { $0.pathExtension == "swift" }
-            .map { $0.standardizedFileURL }
+        return BuildSystemSupport.collectGeneratedSources(in: derivedSources)
     }
 
     /// Apply `rewriteResourceBundle` to every source file when the build

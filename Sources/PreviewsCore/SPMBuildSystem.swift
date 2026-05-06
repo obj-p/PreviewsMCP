@@ -212,7 +212,7 @@ public actor SPMBuildSystem: BuildSystem {
         //     dependencies) directly into binPath. These aren't covered by the
         //     .build/-directory scan above — they need -F (framework search path)
         //     and -framework flags instead of -L/-l.
-        let frameworkNames = collectFrameworks(binPath: binPath)
+        let frameworkNames = BuildSystemSupport.collectFrameworks(binPath: binPath)
 
         // 7. Build compiler flags
         //    -I <Modules>   resolves dependency .swiftmodule files at compile time
@@ -301,19 +301,7 @@ public actor SPMBuildSystem: BuildSystem {
             binPath
             .appendingPathComponent("\(targetName).build")
             .appendingPathComponent("DerivedSources")
-        guard
-            let entries = try? FileManager.default.contentsOfDirectory(
-                at: derivedDir,
-                includingPropertiesForKeys: nil,
-                options: [.skipsHiddenFiles]
-            )
-        else {
-            return []
-        }
-        return
-            entries
-            .filter { $0.pathExtension == "swift" }
-            .map { $0.standardizedFileURL }
+        return BuildSystemSupport.collectGeneratedSources(in: derivedDir)
     }
 
     // MARK: - Private: Package Description
@@ -484,7 +472,7 @@ public actor SPMBuildSystem: BuildSystem {
             }
 
             // Collect .o files produced for this target.
-            let objectFiles = collectObjectFiles(in: entry)
+            let objectFiles = BuildSystemSupport.collectObjectFiles(in: entry)
             guard !objectFiles.isEmpty else { continue }
 
             // Write to a unique temp file and atomically swap into place so a
@@ -514,53 +502,6 @@ public actor SPMBuildSystem: BuildSystem {
         }
 
         return libs
-    }
-
-    /// Collect `.framework` bundles in binPath (binary XCFramework dependencies).
-    /// Returns the framework names (e.g. ["Lottie"]) for use with `-framework`.
-    private func collectFrameworks(binPath: URL) -> [String] {
-        let fm = FileManager.default
-        guard
-            let entries = try? fm.contentsOfDirectory(
-                at: binPath,
-                includingPropertiesForKeys: [.isDirectoryKey],
-                options: [.skipsHiddenFiles]
-            )
-        else {
-            return []
-        }
-
-        var frameworks: [String] = []
-        for entry in entries {
-            let name = entry.lastPathComponent
-            guard name.hasSuffix(".framework") else { continue }
-            var isDir: ObjCBool = false
-            guard fm.fileExists(atPath: entry.path, isDirectory: &isDir), isDir.boolValue else {
-                continue
-            }
-            let frameworkName = String(name.dropLast(".framework".count))
-            frameworks.append(frameworkName)
-        }
-        return frameworks
-    }
-
-    /// Recursively collect `.o` files under a target's build directory, including
-    /// files named `Foo.swift.o` that swift build emits for Swift sources.
-    private func collectObjectFiles(in directory: URL) -> [URL] {
-        guard
-            let enumerator = FileManager.default.enumerator(
-                at: directory,
-                includingPropertiesForKeys: nil,
-                options: [.skipsHiddenFiles]
-            )
-        else {
-            return []
-        }
-        var files: [URL] = []
-        for case let url as URL in enumerator where url.pathExtension == "o" {
-            files.append(url)
-        }
-        return files
     }
 
     // MARK: - Private: Package Name (from build manifest)

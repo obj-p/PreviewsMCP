@@ -111,7 +111,7 @@ public enum SetupBuilder {
             "-Xlinker", "-rpath", "-Xlinker", binPath.path,
         ]
 
-        let frameworkNames = collectFrameworks(binPath: binPath)
+        let frameworkNames = BuildSystemSupport.collectFrameworks(binPath: binPath)
         if !frameworkNames.isEmpty {
             flags += ["-F", binPath.path]
             for fw in frameworkNames {
@@ -159,7 +159,7 @@ public enum SetupBuilder {
                 else { continue }
                 let targetName = String(name.dropLast(".build".count))
                 if targetName.hasPrefix("_") { continue }
-                allObjectFiles.append(contentsOf: collectObjectFiles(in: entry))
+                allObjectFiles.append(contentsOf: BuildSystemSupport.collectObjectFiles(in: entry))
             }
         }
 
@@ -204,7 +204,7 @@ public enum SetupBuilder {
         }
         args += ["-sdk", sdkPath]
 
-        let frameworks = collectFrameworks(binPath: binPath)
+        let frameworks = BuildSystemSupport.collectFrameworks(binPath: binPath)
         if !frameworks.isEmpty {
             args += ["-F", binPath.path]
             for fw in frameworks {
@@ -270,19 +270,6 @@ public enum SetupBuilder {
         }
     }
 
-    private static func collectObjectFiles(in directory: URL) -> [URL] {
-        guard
-            let enumerator = FileManager.default.enumerator(
-                at: directory, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
-            )
-        else { return [] }
-        var files: [URL] = []
-        for case let url as URL in enumerator where url.pathExtension == "o" {
-            files.append(url)
-        }
-        return files
-    }
-
     private static func resolveSwiftc() async throws -> String {
         let result = try await runAsync(
             "/usr/bin/xcrun", arguments: ["--find", "swiftc"], discardStderr: true
@@ -329,26 +316,6 @@ public enum SetupBuilder {
             )
         }
         return result.stdout
-    }
-
-    private static func collectFrameworks(binPath: URL) -> [String] {
-        guard
-            let entries = try? FileManager.default.contentsOfDirectory(
-                at: binPath,
-                includingPropertiesForKeys: [.isDirectoryKey],
-                options: [.skipsHiddenFiles]
-            )
-        else { return [] }
-
-        return entries.compactMap { entry in
-            let name = entry.lastPathComponent
-            guard name.hasSuffix(".framework") else { return nil }
-            var isDir: ObjCBool = false
-            guard FileManager.default.fileExists(atPath: entry.path, isDirectory: &isDir),
-                isDir.boolValue
-            else { return nil }
-            return String(name.dropLast(".framework".count))
-        }
     }
 
 }
