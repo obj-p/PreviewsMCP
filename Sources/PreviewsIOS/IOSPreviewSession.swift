@@ -344,7 +344,7 @@ public actor IOSPreviewSession {
         guard let response = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
             let tree = response["tree"] as? [String: Any]
         else {
-            throw IOSPreviewSessionError.socketResponseTimeout("elementsResponse")
+            throw IOSPreviewSessionError.responseDecodeFailed(operation: "elements")
         }
 
         // Apply server-side filtering if needed
@@ -409,6 +409,10 @@ public enum IOSPreviewSessionError: Error, LocalizedError, CustomStringConvertib
     case socketAcceptTimeout
     case socketResponseTimeout(String)
     case connectionLost
+    /// JSON parse or shape mismatch on a host-app response. Distinct
+    /// from `socketResponseTimeout` so callers and operators can tell
+    /// "host app didn't respond" from "host app responded with garbage."
+    case responseDecodeFailed(operation: String)
 
     public var description: String {
         switch self {
@@ -418,6 +422,8 @@ public enum IOSPreviewSessionError: Error, LocalizedError, CustomStringConvertib
         case .socketAcceptTimeout: return "Timed out waiting for host app to connect"
         case .socketResponseTimeout(let id): return "Timed out waiting for response (id: \(id))"
         case .connectionLost: return "Connection to host app lost"
+        case .responseDecodeFailed(let operation):
+            return "Failed to decode host app response (operation: \(operation))"
         }
     }
 

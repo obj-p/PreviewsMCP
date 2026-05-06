@@ -85,14 +85,8 @@ public enum SetupBuilder {
         let binPath = URL(fileURLWithPath: binPathResult.stdout)
         let modulesDir = binPath.appendingPathComponent("Modules")
 
-        guard
-            FileManager.default.fileExists(
-                atPath: modulesDir.appendingPathComponent("\(config.moduleName).swiftmodule").path
-            )
-        else {
-            throw SetupBuilderError.moduleNotFound(
-                config.moduleName, searchPath: modulesDir.path
-            )
+        try BuildSystemSupport.verifySwiftModule(named: config.moduleName, in: modulesDir) {
+            SetupBuilderError.moduleNotFound(config.moduleName, searchPath: modulesDir.path)
         }
 
         // Link .o files into a dynamic library so all preview dylibs share the same statics.
