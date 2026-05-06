@@ -73,7 +73,9 @@ struct IOSHostChannelTests {
                 timeout: .seconds(10)
             )
         }
-        try await Task.sleep(for: .milliseconds(50))
+        // 200ms is more than enough on local but adds CI cushion — a busy
+        // GHA agent can take >50ms to schedule the actor entry.
+        try await Task.sleep(for: .milliseconds(200))
 
         let start = Date()
         Darwin.close(clientFD)

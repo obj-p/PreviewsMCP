@@ -157,37 +157,44 @@ public actor IOSHostChannel {
         }
     }
 
-    /// Send a message and await a response with the matching `id`.
-    /// Races the response against `timeout`. The continuation is
-    /// registered on the actor; both the response path
-    /// (`processIncomingData`) and the timeout path use
-    /// `removeValue(forKey:)` to ensure exactly one resumption.
     /// Send a message and await a response with the matching `id`,
-    /// returning the raw response bytes. Returns `Data` rather than a
-    /// decoded dictionary because `[String: Any]` is not `Sendable` and
-    /// crossing actor isolation would require `sending` semantics that
-    /// the response path can't provide. Callers `JSONSerialization`-decode
-    /// the returned bytes themselves.
+    /// returning the raw response bytes. Races the response against
+    /// `timeout`; both the response path (`processIncomingData`) and
+    /// the timeout path use `removeValue(forKey:)` to ensure exactly
+    /// one resumption.
+    ///
+    /// Returns `Data` rather than a decoded dictionary because
+    /// `[String: Any]` is not `Sendable` and crossing actor isolation
+    /// back to the caller would require `sending` semantics that the
+    /// response path can't provide. Callers decode the returned bytes
+    /// with `JSONSerialization` themselves.
     public func sendAndAwait(
         _ message: sending [String: Any], id: String, timeout: Duration
     ) async throws -> Data {
         // Fail eagerly if the peer has already disconnected. Without
-        // this guard, the call would register a continuation that no
+        // this guard the call would register a continuation that no
         // response can resolve and only the `timeout` would unblock it.
-        // The race is real: a test (or any caller) can call sendAndAwait
-        // after a peer FIN but before the read-loop's dispatched
+        // The race is real: a caller can hit `sendAndAwait` after a
+        // peer FIN but before the read-loop's dispatched
         // `handleDisconnect` Task has entered the actor.
         guard connectedFD >= 0 else {
             throw IOSPreviewSessionError.connectionLost
         }
 
-        send(message)
-
         return try await withCheckedThrowingContinuation { cont in
+            // Register the continuation BEFORE calling `send`. If `send`
+            // detects a write failure, it invokes `handleDisconnect`
+            // synchronously on this actor turn, which iterates
+            // `pendingDataResponses` and resumes every entry with
+            // `connectionLost`. With the registration in this order, a
+            // write-failure-induced disconnect resolves THIS continuation
+            // rather than leaving it stranded for the timeout to clean up.
             pendingDataResponses[id] = cont
+            send(message)
 
             // Timeout task: if no response arrives, fail the continuation.
-            // Uses removeValue to guarantee no double-resume with processIncomingData.
+            // Uses removeValue to guarantee no double-resume with
+            // processIncomingData / handleDisconnect.
             Task { [weak self] in
                 try? await Task.sleep(for: timeout)
                 guard let self else { return }
