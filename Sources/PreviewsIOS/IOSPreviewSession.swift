@@ -24,6 +24,7 @@ public actor IOSPreviewSession {
     private let setupModule: String?
     private let setupType: String?
     private let setupCompilerFlags: [String]
+    private let setupSDKPath: String?
     private let setupDylibPath: URL?
     public var currentTraits: PreviewTraits { traits }
 
@@ -47,6 +48,7 @@ public actor IOSPreviewSession {
         setupModule: String? = nil,
         setupType: String? = nil,
         setupCompilerFlags: [String] = [],
+        setupSDKPath: String? = nil,
         setupDylibPath: URL? = nil,
         progress: (any ProgressReporter)? = nil
     ) {
@@ -63,6 +65,7 @@ public actor IOSPreviewSession {
         self.setupModule = setupModule
         self.setupType = setupType
         self.setupCompilerFlags = setupCompilerFlags
+        self.setupSDKPath = setupSDKPath
         self.setupDylibPath = setupDylibPath
         self.progress = progress
     }
@@ -93,7 +96,8 @@ public actor IOSPreviewSession {
             traits: traits,
             setupModule: setupModule,
             setupType: setupType,
-            setupCompilerFlags: setupCompilerFlags
+            setupCompilerFlags: setupCompilerFlags,
+            setupSDKPath: setupSDKPath
         )
         self.session = previewSession
         let compileResult = try await previewSession.compile()
@@ -218,7 +222,8 @@ public actor IOSPreviewSession {
             traits: traits,
             setupModule: setupModule,
             setupType: setupType,
-            setupCompilerFlags: setupCompilerFlags
+            setupCompilerFlags: setupCompilerFlags,
+            setupSDKPath: setupSDKPath
         )
         self.session = previewSession
         let compileResult = try await previewSession.compile()

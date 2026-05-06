@@ -21,9 +21,9 @@ public actor IOSHostBuilder {
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         self.workDir = dir
 
-        self.sdkPath = try await Self.resolve("xcrun", "--show-sdk-path", "--sdk", "iphonesimulator")
-        self.swiftcPath = try await Self.resolve("xcrun", "--find", "swiftc")
-        self.codesignPath = try await Self.resolve("xcrun", "--find", "codesign")
+        self.sdkPath = try await Toolchain.sdkPath(for: .iOS)
+        self.swiftcPath = try await Toolchain.swiftcPath()
+        self.codesignPath = try await Toolchain.codesignPath()
 
         let cacheDir = dir.appendingPathComponent("ModuleCache", isDirectory: true)
         try FileManager.default.createDirectory(at: cacheDir, withIntermediateDirectories: true)
@@ -129,15 +129,6 @@ public actor IOSHostBuilder {
         return output.stdout
     }
 
-    private static func resolve(_ args: String...) async throws -> String {
-        let output = try await runAsync("/usr/bin/env", arguments: args, discardStderr: true)
-        guard output.exitCode == 0 else {
-            throw IOSHostBuildError.compilationFailed(
-                "Failed to resolve: \(args.joined(separator: " "))"
-            )
-        }
-        return output.stdout
-    }
 }
 
 public enum IOSHostBuildError: Error, LocalizedError, CustomStringConvertible {

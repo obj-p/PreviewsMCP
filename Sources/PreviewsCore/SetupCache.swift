@@ -108,6 +108,7 @@ public enum SetupCache {
         let typeName: String
         let compilerFlags: [String]
         let dylibPath: String
+        let sdkPath: String
         let sourceHash: String
         let swiftVersion: String
         let platform: String
@@ -153,11 +154,18 @@ public enum SetupCache {
         let dylibURL = URL(fileURLWithPath: entry.dylibPath)
         guard FileManager.default.fileExists(atPath: dylibURL.path) else { return nil }
 
+        // Issue #170: a cached entry whose SDK has been removed (Xcode upgrade,
+        // CommandLineTools change) would otherwise feed a stale path into the
+        // downstream Compiler and fail with "SDK not found". Treat as cache miss
+        // so SetupBuilder rebuilds and captures the current SDK.
+        guard FileManager.default.fileExists(atPath: entry.sdkPath) else { return nil }
+
         return SetupBuilder.Result(
             moduleName: entry.moduleName,
             typeName: entry.typeName,
             compilerFlags: entry.compilerFlags,
-            dylibPath: dylibURL
+            dylibPath: dylibURL,
+            sdkPath: entry.sdkPath
         )
     }
 
@@ -182,6 +190,7 @@ public enum SetupCache {
                 typeName: result.typeName,
                 compilerFlags: result.compilerFlags,
                 dylibPath: result.dylibPath.path,
+                sdkPath: result.sdkPath,
                 sourceHash: sourceHash,
                 swiftVersion: swiftVersion,
                 platform: platform.rawValue

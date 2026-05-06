@@ -8,19 +8,21 @@ struct SetupBuilderTests {
 
     // MARK: - Result struct
 
-    @Test("SetupBuilder.Result includes dylibPath field")
+    @Test("SetupBuilder.Result includes dylibPath and sdkPath fields")
     func resultIncludesDylibPath() {
         let result = SetupBuilder.Result(
             moduleName: "TestSetup",
             typeName: "AppSetup",
             compilerFlags: ["-I", "/some/path"],
-            dylibPath: URL(fileURLWithPath: "/tmp/libPreviewSetup.dylib")
+            dylibPath: URL(fileURLWithPath: "/tmp/libPreviewSetup.dylib"),
+            sdkPath: "/test-sdk"
         )
 
         #expect(result.moduleName == "TestSetup")
         #expect(result.typeName == "AppSetup")
         #expect(result.dylibPath.lastPathComponent == "libPreviewSetup.dylib")
         #expect(result.compilerFlags.contains("-I"))
+        #expect(result.sdkPath == "/test-sdk")
     }
 
     // MARK: - Build with real example setup package
@@ -57,6 +59,12 @@ struct SetupBuilderTests {
 
         // Verify no -undefined dynamic_lookup
         #expect(!result.compilerFlags.contains("dynamic_lookup"))
+
+        // Layer 2 invariant for issue #170: the SDK SetupBuilder used must be
+        // the same one Toolchain resolves, so the downstream Compiler can
+        // inherit it and avoid an SDK-mismatch swiftmodule load failure.
+        let toolchainSDK = try await Toolchain.sdkPath(for: .macOS)
+        #expect(result.sdkPath == toolchainSDK)
     }
 
     // MARK: - Error cases

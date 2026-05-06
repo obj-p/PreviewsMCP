@@ -74,13 +74,7 @@ public actor XcodeBuildSystem: BuildSystem {
     }
 
     private static func isXcodebuildAvailable() async -> Bool {
-        do {
-            let output = try await runAsync(
-                "/usr/bin/xcrun", arguments: ["--find", "xcodebuild"], discardStderr: true)
-            return output.exitCode == 0
-        } catch {
-            return false
-        }
+        ((try? await Toolchain.xcodebuildPath()) ?? nil) != nil
     }
 
     // MARK: - Build

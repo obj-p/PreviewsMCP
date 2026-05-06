@@ -197,7 +197,8 @@ struct SetupCacheTests {
         let fakeResult = SetupBuilder.Result(
             moduleName: "TestSetup", typeName: "Setup",
             compilerFlags: ["-I", "/nonexistent/Modules", "-L", "/nonexistent"],
-            dylibPath: URL(fileURLWithPath: "/nonexistent/libPreviewSetup.dylib"))
+            dylibPath: URL(fileURLWithPath: "/nonexistent/libPreviewSetup.dylib"),
+            sdkPath: "/test-sdk")
         SetupCache.store(
             fakeResult, packageDir: dir, platform: .macOS,
             sourceHash: "abc123", swiftVersion: "Swift 6.0")
@@ -228,7 +229,8 @@ struct SetupCacheTests {
         let fakeResult = SetupBuilder.Result(
             moduleName: "TestSetup", typeName: "Setup",
             compilerFlags: ["-I", modulesDir.path, "-L", buildDir.path, "-lPreviewSetup"],
-            dylibPath: dylibPath)
+            dylibPath: dylibPath,
+            sdkPath: "/test-sdk")
         SetupCache.store(
             fakeResult, packageDir: dir, platform: .macOS,
             sourceHash: "abc123", swiftVersion: "Swift 6.0")
@@ -248,9 +250,13 @@ struct SetupCacheTests {
         defer { try? FileManager.default.removeItem(at: dir) }
 
         let (flags, dylibPath) = try makeArtifacts(packageDir: dir, moduleName: "TestSetup")
+        // sdkPath must point at an existing directory — SetupCache.load now
+        // treats a missing SDK as cache miss to handle Xcode upgrades safely.
+        let sdkStub = dir.path
         let original = SetupBuilder.Result(
             moduleName: "TestSetup", typeName: "AppSetup", compilerFlags: flags,
-            dylibPath: dylibPath)
+            dylibPath: dylibPath,
+            sdkPath: sdkStub)
 
         SetupCache.store(
             original, packageDir: dir, platform: .macOS,
@@ -264,6 +270,28 @@ struct SetupCacheTests {
         #expect(loaded?.moduleName == "TestSetup")
         #expect(loaded?.typeName == "AppSetup")
         #expect(loaded?.compilerFlags == flags)
+        #expect(loaded?.sdkPath == sdkStub)
+    }
+
+    @Test("load returns nil when sdkPath no longer exists (Xcode upgrade)")
+    func load_missingSDKReturnsNil() throws {
+        let dir = try makePackageDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let (flags, dylibPath) = try makeArtifacts(packageDir: dir, moduleName: "TestSetup")
+        let result = SetupBuilder.Result(
+            moduleName: "TestSetup", typeName: "AppSetup", compilerFlags: flags,
+            dylibPath: dylibPath,
+            sdkPath: "/this-sdk-does-not-exist-\(UUID().uuidString)")
+
+        SetupCache.store(
+            result, packageDir: dir, platform: .macOS,
+            sourceHash: "abc", swiftVersion: "Swift 6.0")
+
+        let loaded = SetupCache.load(
+            packageDir: dir, platform: .macOS, sourceHash: "abc",
+            swiftVersion: "Swift 6.0")
+        #expect(loaded == nil)
     }
 
     @Test("store does not throw on read-only parent directory")
@@ -285,7 +313,8 @@ struct SetupCacheTests {
 
         let result = SetupBuilder.Result(
             moduleName: "Test", typeName: "Setup", compilerFlags: [],
-            dylibPath: URL(fileURLWithPath: "/tmp/libPreviewSetup.dylib"))
+            dylibPath: URL(fileURLWithPath: "/tmp/libPreviewSetup.dylib"),
+            sdkPath: "/test-sdk")
         // Should not throw — errors are swallowed
         SetupCache.store(
             result, packageDir: dir, platform: .macOS,
@@ -300,9 +329,11 @@ struct SetupCacheTests {
         defer { try? FileManager.default.removeItem(at: dir) }
 
         let (macFlags, macDylibPath) = try makeArtifacts(packageDir: dir, moduleName: "TestSetup")
+        let sdkStub = dir.path
         let macResult = SetupBuilder.Result(
             moduleName: "TestSetup", typeName: "Setup", compilerFlags: macFlags,
-            dylibPath: macDylibPath)
+            dylibPath: macDylibPath,
+            sdkPath: sdkStub)
 
         // Create separate iOS artifacts
         let iosBuildDir = dir.appendingPathComponent(".build/ios-debug")
@@ -317,7 +348,8 @@ struct SetupCacheTests {
         let iosFlags = ["-I", iosModulesDir.path, "-L", iosBuildDir.path, "-lPreviewSetup"]
         let iosResult = SetupBuilder.Result(
             moduleName: "TestSetup", typeName: "Setup", compilerFlags: iosFlags,
-            dylibPath: iosDylibPath)
+            dylibPath: iosDylibPath,
+            sdkPath: sdkStub)
 
         // Store both
         SetupCache.store(

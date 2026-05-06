@@ -271,6 +271,7 @@ private func handleIOSPreviewStart(
         setupModule: setupResult?.moduleName,
         setupType: setupResult?.typeName,
         setupCompilerFlags: setupResult?.compilerFlags ?? [],
+        setupSDKPath: setupResult?.sdkPath,
         setupDylibPath: setupResult?.dylibPath,
         progress: progress
     )
@@ -379,7 +380,8 @@ private func startMacOSPreview(
         traits: traits,
         setupModule: setupResult?.moduleName,
         setupType: setupResult?.typeName,
-        setupCompilerFlags: setupResult?.compilerFlags ?? []
+        setupCompilerFlags: setupResult?.compilerFlags ?? [],
+        setupSDKPath: setupResult?.sdkPath
     )
 
     let compileResult = try await session.compile()

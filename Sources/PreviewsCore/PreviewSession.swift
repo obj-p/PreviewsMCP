@@ -19,6 +19,7 @@ public actor PreviewSession {
     private let setupModule: String?
     private let setupType: String?
     private let setupCompilerFlags: [String]
+    private let setupSDKPath: String?
     private var compilationResult: CompilationResult?
     private var lastOriginalSource: String?
     private var lastLiterals: [LiteralEntry]?
@@ -43,7 +44,8 @@ public actor PreviewSession {
         traits: PreviewTraits = PreviewTraits(),
         setupModule: String? = nil,
         setupType: String? = nil,
-        setupCompilerFlags: [String] = []
+        setupCompilerFlags: [String] = [],
+        setupSDKPath: String? = nil
     ) {
         self.id = UUID().uuidString
         self.sourceFile = sourceFile
@@ -55,6 +57,7 @@ public actor PreviewSession {
         self.setupModule = setupModule
         self.setupType = setupType
         self.setupCompilerFlags = setupCompilerFlags
+        self.setupSDKPath = setupSDKPath
     }
 
     /// Run the full pipeline and return the compiled dylib path + literal map.
@@ -128,7 +131,8 @@ public actor PreviewSession {
                 source: compiledSource,
                 moduleName: moduleName,
                 extraFlags: extraFlags,
-                additionalSourceFiles: additionalSourceFiles
+                additionalSourceFiles: additionalSourceFiles,
+                overrideSDK: setupSDKPath
             )
 
             compilationResult = compileResult
