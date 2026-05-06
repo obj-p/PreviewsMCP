@@ -66,7 +66,7 @@ public enum Toolchain {
 
     /// Reset the process-lifetime cache. Tests use this to pick up changes
     /// to xcode-select state between scenarios.
-    static func _resetCacheForTesting() {
+    static func resetCacheForTesting() {
         stringCache.withLock { $0.removeAll() }
     }
 

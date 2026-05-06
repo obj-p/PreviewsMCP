@@ -8,7 +8,7 @@ struct ToolchainTests {
 
     @Test("macOS SDK path resolves via --sdk macosx and ends in .sdk")
     func macOSSDKPathShape() async throws {
-        Toolchain._resetCacheForTesting()
+        Toolchain.resetCacheForTesting()
         let path = try await Toolchain.sdkPath(for: .macOS)
         #expect(path.contains("MacOSX"))
         #expect(path.hasSuffix(".sdk"))
@@ -16,7 +16,7 @@ struct ToolchainTests {
 
     @Test("iOS simulator SDK path resolves and ends in .sdk")
     func iOSSDKPathShape() async throws {
-        Toolchain._resetCacheForTesting()
+        Toolchain.resetCacheForTesting()
         let path = try await Toolchain.sdkPath(for: .iOS)
         #expect(path.contains("iPhoneSimulator"))
         #expect(path.hasSuffix(".sdk"))
@@ -24,7 +24,7 @@ struct ToolchainTests {
 
     @Test("Repeat lookups return cached value (identical string)")
     func cachesValues() async throws {
-        Toolchain._resetCacheForTesting()
+        Toolchain.resetCacheForTesting()
         let first = try await Toolchain.sdkPath(for: .macOS)
         let second = try await Toolchain.sdkPath(for: .macOS)
         #expect(first == second)
@@ -32,7 +32,7 @@ struct ToolchainTests {
 
     @Test("Tool lookups resolve to absolute paths")
     func toolPathsAreAbsolute() async throws {
-        Toolchain._resetCacheForTesting()
+        Toolchain.resetCacheForTesting()
         let swiftc = try await Toolchain.swiftcPath()
         let codesign = try await Toolchain.codesignPath()
         let ar = try await Toolchain.arPath()
@@ -48,7 +48,7 @@ struct ToolchainTests {
     /// equal Toolchain's macOS SDK.
     @Test("Compiler(macOS).sdkPath matches Toolchain.sdkPath(.macOS)")
     func compilerSDKMatchesToolchain() async throws {
-        Toolchain._resetCacheForTesting()
+        Toolchain.resetCacheForTesting()
         let compiler = try await Compiler(platform: .macOS)
         let toolchainSDK = try await Toolchain.sdkPath(for: .macOS)
         #expect(compiler.sdkPath == toolchainSDK)
@@ -61,7 +61,7 @@ struct ToolchainTests {
     /// were ignored, swiftc would succeed against the real SDK.
     @Test("compileCombined(overrideSDK:) routes the override to swiftc")
     func overrideSDKReachesSwiftc() async throws {
-        Toolchain._resetCacheForTesting()
+        Toolchain.resetCacheForTesting()
         let compiler = try await Compiler(platform: .macOS)
         let bogus = "/totally-not-an-sdk-\(UUID().uuidString)"
         let trivialSource = "public func _previewsmcpProbe() {}"
