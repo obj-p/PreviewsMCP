@@ -4,7 +4,13 @@ import Testing
 @testable import PreviewsCore
 @testable import PreviewsIOS
 
-@Suite("IOSPreviewSession")
+// Serialized so `endToEnd` and `endToEndUIViewBodyKindProbe` don't both boot
+// a simulator at the same time. Two parallel boots inside a single iOS suite
+// starve each other on CI macos-15 runners — the iOS-tests job timed out at
+// 20 min on PR #163 with both tests running concurrently. The suite's
+// per-test simulator picker (`IOSSimulatorPicker.pick(index:)`) prevents
+// cross-suite contention; this trait covers the within-suite case.
+@Suite("IOSPreviewSession", .serialized)
 struct IOSPreviewSessionTests {
 
     static let testViewSource = """
@@ -172,21 +178,17 @@ struct IOSPreviewSessionTests {
         let pid = try await session.start()
         #expect(pid > 0)
 
-        var testError: (any Error)?
-        do {
-            // The runtime probe runs at dylib load and is reported via the
-            // init handshake during `start()`. By the time `start()` returns,
-            // `currentBodyKind` reflects the kind the iOS dylib resolved.
-            let bodyKind = await session.currentBodyKind
-            #expect(
-                bodyKind == .uiView,
-                "Expected iOS UIView probe to return .uiView; got \(bodyKind)"
-            )
-        } catch {
-            testError = error
-        }
-
+        // The runtime probe runs at dylib load and is reported via the init
+        // handshake during `start()`. By the time `start()` returns,
+        // `currentBodyKind` reflects the kind the iOS dylib resolved. Snapshot
+        // the value before shutdown so a failed expectation doesn't leak the
+        // simulator.
+        let bodyKind = await session.currentBodyKind
         try? await simulatorManager.shutdownDevice(udid: target.udid)
-        if let testError { throw testError }
+
+        #expect(
+            bodyKind == .uiView,
+            "Expected iOS UIView probe to return .uiView; got \(bodyKind)"
+        )
     }
 }
