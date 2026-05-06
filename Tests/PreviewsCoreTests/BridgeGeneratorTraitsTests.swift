@@ -1170,6 +1170,10 @@ struct BridgeGeneratorTraitsTests {
         #expect(size > 0, "iOS dylib with SwiftUI body should still be non-empty")
     }
 
+    // Body-kind probe emission tests live in `BodyKindProbeEmissionTests.swift`
+    // — split out so this struct stays under SwiftLint's `type_body_length`
+    // ceiling.
+
     // MARK: - Equatable
 
     @Test("PreviewTraits Equatable works correctly")

@@ -33,6 +33,18 @@ public actor IOSPreviewSession {
     /// per-session and torn down by `stop()`.
     private let channel = IOSHostChannel()
 
+    /// Outermost body kind of the currently-loaded preview. Reported by the host
+    /// after each dylib load (initial `init` handshake + every `reloadAck`).
+    /// Defaults to `.uiView` so a stale or legacy host that never reports a kind
+    /// keeps the daemon on the safe full-reload path — never silently no-ops the
+    /// way the literal-only fast path did before #160.
+    private var lastBodyKind: BodyKind = .uiView
+
+    /// Test-only window into the body-kind state set by the `init` handshake
+    /// and each `reloadAck`. Production callers gate via `handleSourceChange`
+    /// — they don't need direct access.
+    public var currentBodyKind: BodyKind { lastBodyKind }
+
     public static let hostBundleID = "com.previewsmcp.host"
 
     public init(
@@ -193,7 +205,38 @@ public actor IOSPreviewSession {
         stage("launched pid=\(pid); awaiting socket connection")
         await progress?.report(.connectingToApp, message: "Waiting for host app connection...")
         try await channel.awaitConnect(timeout: .seconds(10))
-        stage("connected; start complete")
+
+        // 7. Body-kind handshake (#160). The first dylib is loaded via the host's
+        // `--dylib` argv (no `reload` round-trip), so the daemon would otherwise
+        // not learn the body kind until the first edit forces a reload — meaning
+        // a SwiftUI session would pay one extra full recompile on its very first
+        // literal edit. Asking the host upfront eliminates that cost. A 2s
+        // timeout is generous: the host has nothing to do but call dlsym and
+        // reply. If the request times out (legacy host, missing symbol),
+        // `lastBodyKind` stays at its safe default of `.uiView`.
+        do {
+            let initID = "init-\(UUID().uuidString)"
+            let responseData = try await channel.sendAndAwait(
+                ["type": "init", "id": initID],
+                id: initID,
+                timeout: .seconds(2)
+            )
+            if let dict = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
+                let kind = dict["kind"] as? String,
+                let parsed = BodyKind(wireValue: kind)
+            {
+                lastBodyKind = parsed
+            }
+        } catch {
+            // Legacy host or transient hiccup — keep the safe default.
+            // Log at info so users debugging an unexpected full-reload-on-every-edit
+            // can spot the missed handshake without grepping for "stage" details.
+            Log.info(
+                "iOS preview: body-kind handshake skipped (\(error)); assuming legacy host, defaulting lastBodyKind=.uiView"
+            )
+        }
+
+        stage("connected; start complete (bodyKind=\(lastBodyKind))")
 
         return pid
     }
@@ -229,11 +272,23 @@ public actor IOSPreviewSession {
         let compileResult = try await previewSession.compile()
 
         let requestID = UUID().uuidString
-        _ = try await channel.sendAndAwait(
+        let responseData = try await channel.sendAndAwait(
             ["type": "reload", "id": requestID, "dylibPath": compileResult.dylibPath.path],
             id: requestID,
             timeout: .seconds(5)
         )
+        // Re-read the body kind from the just-loaded dylib. Reloads can change
+        // the kind (e.g., after `preview_switch` to a different `#Preview` block,
+        // or after a structural edit that changes the body's outermost type).
+        // A missing `kind` field falls back to the previous value rather than
+        // the default, so a one-off ack-shape regression doesn't suddenly start
+        // forcing reloads on a SwiftUI session.
+        if let dict = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
+            let kind = dict["kind"] as? String,
+            let parsed = BodyKind(wireValue: kind)
+        {
+            lastBodyKind = parsed
+        }
     }
 
     /// Handle a source file change. Tries the literal fast path first;
@@ -246,8 +301,15 @@ public actor IOSPreviewSession {
 
         let newSource = try String(contentsOf: sourceFile, encoding: .utf8)
 
-        // Fast path: literal-only change
-        if let currentSession = session,
+        // Fast path: literal-only change. Only safe for SwiftUI bodies — the
+        // path mutates `DesignTimeStore.shared.values` and relies on
+        // `@Observable` to drive a re-render, which UIKit doesn't do (#160).
+        // Mixed bodies (SwiftUI outermost, UIKit `UIViewRepresentable` deeper
+        // in the file) are handled separately by `LiteralDiffer`'s region
+        // taint check — it returns `.structural` if any edited literal lives
+        // in a UIKit-evaluated scope, so `tryLiteralUpdate` returns nil here.
+        if lastBodyKind == .swiftUI,
+            let currentSession = session,
             let changes = await currentSession.tryLiteralUpdate(newSource: newSource),
             !changes.isEmpty
         {

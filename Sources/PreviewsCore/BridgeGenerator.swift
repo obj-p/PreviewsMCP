@@ -52,6 +52,7 @@ public enum BridgeGenerator {
                     }()
             """
 
+        let bodyKindEntry = bodyKindEntryPoint(closureBody: transformedClosureBody)
         let bridgeCode: String
         switch platform {
         case .macOS:
@@ -65,6 +66,8 @@ public enum BridgeGenerator {
                     let hostingView = NSHostingView(rootView: view)
                     return Unmanaged.passRetained(hostingView).toOpaque()
                 }
+
+                \(bodyKindEntry)
                 """
         case .iOS:
             bridgeCode = """
@@ -77,6 +80,8 @@ public enum BridgeGenerator {
                     let hostingController = UIHostingController(rootView: view)
                     return Unmanaged.passRetained(hostingController).toOpaque()
                 }
+
+                \(bodyKindEntry)
                 """
         }
 
@@ -146,6 +151,8 @@ public enum BridgeGenerator {
                 }()
             """
 
+        let bodyKindEntry = bodyKindEntryPoint(closureBody: closureBody)
+
         return """
             import SwiftUI
             \(frameworkImport)
@@ -159,6 +166,8 @@ public enum BridgeGenerator {
                 let view = \(viewCode)
                 \(hostCode)
             }
+
+            \(bodyKindEntry)
             """
     }
 
@@ -219,6 +228,22 @@ public enum BridgeGenerator {
     private static func isValidSwiftIdentifier(_ s: String) -> Bool {
         let pattern = #"^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$"#
         return s.range(of: pattern, options: .regularExpression) != nil
+    }
+
+    /// Generate the `@_cdecl("previewBodyKind")` entry point. The compiler picks the same
+    /// `__PreviewBodyKindProbe.detect` overload that `__PreviewBridge.wrap` does, so the
+    /// returned value reflects the outermost body kind: 1 = SwiftUI, 2 = UIView,
+    /// 3 = UIViewController. Used by the daemon to skip the literal-only fast path for
+    /// UIKit bodies (#160).
+    private static func bodyKindEntryPoint(closureBody: String) -> String {
+        """
+        @_cdecl("previewBodyKind")
+        public func previewBodyKind() -> Int32 {
+            return __PreviewBodyKindProbe.detect {
+                \(closureBody)
+            }
+        }
+        """
     }
 
     /// Generate the `@_cdecl("previewSetUp")` entry point that bridges async setUp.

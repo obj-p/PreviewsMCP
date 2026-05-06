@@ -39,6 +39,14 @@ public enum PreviewBridgeSource {
                 SwiftUI.AnyView(body())
             }
         }
+
+        // macOS bridge has no UIKit overloads, so the body is always SwiftUI.
+        // Code 1 matches `PreviewsCore.BodyKind.swiftUI.rawCode` (pinned by
+        // `BodyKindCodeContractTests`). Returned via @_cdecl so the daemon can
+        // read the kind without reflecting on AnyView internals.
+        enum __PreviewBodyKindProbe {
+            static func detect<V: SwiftUI.View>(@SwiftUI.ViewBuilder _ body: () -> V) -> Int32 { 1 }
+        }
         """
 
     private static let iOSCode = """
@@ -58,6 +66,20 @@ public enum PreviewBridgeSource {
             static func wrap(_ body: () -> UIKit.UIViewController) -> SwiftUI.AnyView {
                 SwiftUI.AnyView(__PreviewUIViewControllerBridge(controller: body()))
             }
+        }
+
+        // Mirror of `__PreviewBridge.wrap`'s overload set. The compiler resolves the same
+        // overload that `wrap` does, so the daemon learns the outermost body kind without
+        // a separate type-checker pass — used to skip the literal-only fast path for UIKit
+        // bodies, where mutating DesignTimeStore values doesn't drive a re-render (#160).
+        //
+        // Codes 1/2/3 are the wire format of `PreviewsCore.BodyKind.rawCode`; this template
+        // emits user-dylib code that doesn't link `PreviewsCore`. `BodyKindCodeContractTests`
+        // pins the mapping so any divergence breaks at test time.
+        enum __PreviewBodyKindProbe {
+            static func detect<V: SwiftUI.View>(@SwiftUI.ViewBuilder _ body: () -> V) -> Int32 { 1 }
+            static func detect(_ body: () -> UIKit.UIView) -> Int32 { 2 }
+            static func detect(_ body: () -> UIKit.UIViewController) -> Int32 { 3 }
         }
 
         private struct __PreviewUIViewBridge: SwiftUI.UIViewRepresentable {

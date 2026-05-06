@@ -30,7 +30,9 @@ struct IOSHostBuilderHashTests {
         // Pre-refactor value. If the iOS host-app source, the Info.plist,
         // or the AppIcon.png bytes change, this value MUST be updated
         // (and the change should land in the same PR as the edit).
-        let expected = "ba6a5667d62c06384e8e79f5924e753986bb91e4f47cc0962b861583c9677af6"
+        // Updated 2026-05-06 for #160: HostApp.swift gained body-kind probe
+        // dlsym + reloadAck/init handshake reporting.
+        let expected = "3230e348b2f22a14bcf3ec18e7a7675e2ed51f850bef33c75d81d2c60f98090e"
         #expect(hash == expected, "host-app artifact hash drifted (was \(expected), now \(hash))")
     }
 }
