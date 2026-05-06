@@ -28,6 +28,20 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
     /// Callback invoked after NSApplication finishes launching.
     public var onLaunch: (@MainActor () -> Void)?
 
+    /// Async sink that publishes a snapshot of macOS sessions to the
+    /// cross-process registry. Set once by the engine layer at host
+    /// construction; not reassigned per MCP connection.
+    public var publishSessions: (@Sendable ([(id: String, sourceFile: URL)]) async -> Void)?
+
+    /// Tail of the chained publish queue. Every `notifySessionsChanged`
+    /// call snapshots the current sessions on MainActor and spawns a
+    /// Task that `await`s this prior Task before invoking
+    /// `publishSessions`. Holding the chain guarantees FIFO arrival at
+    /// the registry actor — without it, two MainActor mutations in
+    /// quick succession can spawn Tasks that race for the registry's
+    /// queue and persist the older snapshot last.
+    private var lastPublishTask: Task<Void, Never>?
+
     public override init() {
         super.init()
     }
@@ -150,6 +164,7 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
         buildContext: BuildContext? = nil
     ) {
         sessions[sessionID] = session
+        notifySessionsChanged()
         let fileURL = URL(fileURLWithPath: filePath)
         let allPaths = [filePath] + additionalPaths
         fileWatchers[sessionID]?.stop()
@@ -267,6 +282,7 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
         fileWatchers[sessionID]?.stop()
         fileWatchers.removeValue(forKey: sessionID)
         sessions.removeValue(forKey: sessionID)
+        notifySessionsChanged()
         fputs("closePreview: watchers/sessions removed\n", stderr); fflush(stderr)
 
         if let window = windows.removeValue(forKey: sessionID) {
@@ -298,5 +314,23 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
     /// Get the window for a session (for snapshotting).
     public func window(for sessionID: String) -> NSWindow? {
         windows[sessionID]
+    }
+
+    /// Snapshot the current sessions and chain a publish Task. Each new
+    /// Task `await`s the prior `lastPublishTask` before calling
+    /// `publishSessions`, guaranteeing FIFO order at the registry even
+    /// though the publish itself runs on a different actor. All
+    /// read/writes of `lastPublishTask` happen on MainActor (this
+    /// method is not async), so the chain head is consistent.
+    public func notifySessionsChanged() {
+        guard let publishSessions else { return }
+        let snapshot: [(id: String, sourceFile: URL)] = sessions.map {
+            (id: $0.key, sourceFile: $0.value.sourceFile)
+        }
+        let prev = lastPublishTask
+        lastPublishTask = Task { [publishSessions] in
+            await prev?.value
+            await publishSessions(snapshot)
+        }
     }
 }

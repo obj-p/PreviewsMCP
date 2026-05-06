@@ -32,6 +32,12 @@ enum DaemonListener {
         let sharedCompiler = try await Compiler()
         let iosManager = IOSSessionManager()
         let configCache = ConfigCache()
+        // Cross-process session registry. Constructed once and attached
+        // here (not per-connection) so the publish-on-mutation hooks on
+        // the iOS manager and macOS host are wired exactly once. See
+        // architectural plan #6b.
+        let registry = SessionRegistry(registryDir: DaemonPaths.sessionsDirectory)
+        await registry.attachTo(iosManager: iosManager, previewHost: host)
 
         let params = NWParameters.tcp
         params.requiredLocalEndpoint = NWEndpoint.unix(path: DaemonPaths.socket.path)
@@ -43,7 +49,8 @@ enum DaemonListener {
             Task {
                 await handleConnection(
                     connection, compiler: sharedCompiler,
-                    host: host, iosManager: iosManager, configCache: configCache
+                    host: host, iosManager: iosManager, configCache: configCache,
+                    registry: registry
                 )
             }
         }
@@ -74,13 +81,15 @@ enum DaemonListener {
     /// sharing the given compiler and module-level state with other connections.
     private static func handleConnection(
         _ connection: NWConnection, compiler: Compiler,
-        host: PreviewHost, iosManager: IOSSessionManager, configCache: ConfigCache
+        host: PreviewHost, iosManager: IOSSessionManager, configCache: ConfigCache,
+        registry: SessionRegistry
     ) async {
         do {
             let transport = NetworkTransport(connection: connection)
             let (server, _) = try await configureMCPServer(
                 host: host, iosManager: iosManager,
-                configCache: configCache, sharedCompiler: compiler
+                configCache: configCache, registry: registry,
+                sharedCompiler: compiler
             )
             try await runMCPServer(server, transport: transport)
             // `runMCPServer` returns when the transport closes (client disconnected).

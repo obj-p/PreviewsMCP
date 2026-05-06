@@ -1,3 +1,4 @@
+import Foundation
 import MCP
 import PreviewsCore
 import PreviewsEngine
@@ -34,6 +35,12 @@ func mcpToolSchemas() -> [Tool] {
 
 /// Configures and returns an MCP server with preview tools.
 ///
+/// - Parameter registry: The cross-process session registry. Must be
+///   attached to `previewHost` and `iosManager` already (call
+///   `await registry.attachTo(iosManager:previewHost:)` once at host
+///   construction time, BEFORE invoking this function — daemon mode
+///   calls `configureMCPServer` per-connection and we don't want to
+///   re-attach on every accept).
 /// - Parameter sharedCompiler: Pass a pre-built `Compiler` to reuse across
 ///   multiple server instances (e.g., daemon mode, where each accepted client
 ///   connection gets its own `Server` but they all share one compiler). When
@@ -43,6 +50,7 @@ func configureMCPServer(
     host previewHost: PreviewHost,
     iosManager: IOSSessionManager,
     configCache cache: ConfigCache,
+    registry: SessionRegistry,
     sharedCompiler: Compiler? = nil
 ) async throws -> (Server, Compiler) {
     cleanupStaleTempDirs()
@@ -61,11 +69,13 @@ func configureMCPServer(
     )
 
     let router = SessionRouter(host: previewHost, iosManager: iosManager)
+
     let ctx = HandlerContext(
         host: previewHost,
         iosState: iosManager,
         configCache: cache,
         router: router,
+        registry: registry,
         macCompiler: compiler,
         server: server
     )

@@ -1,4 +1,5 @@
 import MCP
+import PreviewsEngine
 
 enum SessionListHandler: ToolHandler {
     static let name: ToolName = .sessionList
@@ -13,9 +14,18 @@ enum SessionListHandler: ToolHandler {
         ])
     )
 
-    /// List all active sessions (iOS + macOS). Output is one line per session in
-    /// the format `<sessionID>\t<platform>\t<sourceFilePath>` — tab-delimited for
-    /// simple client-side parsing. Empty result when no sessions are active.
+    /// List all active sessions (iOS + macOS) across every running
+    /// PreviewsMCP process. Output is one line per session in the
+    /// format `<sessionID>\t<platform>\t<sourceFilePath>` — tab-delimited
+    /// for simple client-side parsing. Empty result when no sessions
+    /// are active anywhere.
+    ///
+    /// The local in-memory state covers sessions THIS process owns;
+    /// `SessionRegistry.readOthers()` covers sessions owned by peer
+    /// processes (typically: stdio MCP server vs UDS daemon — each
+    /// holds its own session pool, but `session_list` from either
+    /// returns the union). See `SessionRegistry` and the architectural
+    /// plan's #6b for context.
     static func handle(
         _ params: CallTool.Parameters,
         ctx: HandlerContext
@@ -44,6 +54,29 @@ enum SessionListHandler: ToolHandler {
                 )
             )
         }
+
+        // Merge in sessions published by peer processes via the
+        // cross-process registry. Stale-PID filtering and lazy
+        // file cleanup happen inside `readOthers()`.
+        let peerEntries = await ctx.registry.readOthers()
+        for entry in peerEntries {
+            sessions.append(
+                DaemonProtocol.SessionDTO(
+                    sessionID: entry.sessionID,
+                    platform: entry.platform,
+                    sourceFilePath: entry.sourceFilePath
+                )
+            )
+        }
+
+        // De-dup by sessionID. Local + registry can theoretically both
+        // surface the same ID — local always wins because it's appended
+        // first and the second-pass insert preserves the first occurrence.
+        // Session IDs are UUIDs and shouldn't collide across processes,
+        // but a daemon-restart-with-handoff path or a copy-paste bug
+        // could break that, and the cost of guarding is one Dictionary.
+        var seen: Set<String> = []
+        sessions = sessions.filter { seen.insert($0.sessionID).inserted }
 
         // Stable ordering so clients parsing the output get consistent results.
         sessions.sort { $0.sessionID < $1.sessionID }

@@ -15,6 +15,7 @@ struct HandlerContext: Sendable {
     let iosState: IOSSessionManager
     let configCache: ConfigCache
     let router: SessionRouter
+    let registry: SessionRegistry
     let macCompiler: Compiler
     let server: Server
 }
