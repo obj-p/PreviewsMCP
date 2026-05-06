@@ -63,18 +63,26 @@ public struct PreviewTraits: Sendable, Equatable {
         )
     }
 
-    public static let validColorSchemes: Set<String> = ["light", "dark"]
+    /// Canonical trait value lists, ordered so MCP tool schemas exposing
+    /// them as `enum` constraints get a stable, meaningful presentation
+    /// order (size order for `dynamicTypeSize`, light-then-dark, etc.).
+    /// Order is wire-relevant: `Tests/PreviewsCLITests/list_tools_snapshot.json`
+    /// pins the JSON-encoded order.
+    ///
+    /// `.contains` membership is O(n) on arrays, but n is tiny (≤12).
 
-    public static let validDynamicTypeSizes: Set<String> = [
+    public static let validColorSchemes: [String] = ["light", "dark"]
+
+    public static let validDynamicTypeSizes: [String] = [
         "xSmall", "small", "medium", "large",
         "xLarge", "xxLarge", "xxxLarge",
         "accessibility1", "accessibility2", "accessibility3",
         "accessibility4", "accessibility5",
     ]
 
-    public static let validLayoutDirections: Set<String> = ["leftToRight", "rightToLeft"]
+    public static let validLayoutDirections: [String] = ["leftToRight", "rightToLeft"]
 
-    public static let validLegibilityWeights: Set<String> = ["regular", "bold"]
+    public static let validLegibilityWeights: [String] = ["regular", "bold"]
 
     /// Normalize empty strings to nil (used for trait clearing).
     private static func normalize(_ value: String?) -> String? {
@@ -137,7 +145,7 @@ public struct PreviewTraits: Sendable, Equatable {
 
     /// All recognized preset names (color schemes + dynamic type sizes + layout/legibility).
     public static var allPresetNames: Set<String> {
-        validColorSchemes.union(validDynamicTypeSizes).union(["rtl", "ltr", "boldText"])
+        Set(validColorSchemes).union(validDynamicTypeSizes).union(["rtl", "ltr", "boldText"])
     }
 
     /// A trait variant resolved from a user-supplied string (preset name or JSON object).

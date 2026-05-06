@@ -17,41 +17,26 @@ enum PreviewConfigureHandler: ToolHandler {
                     "type": .string("string"),
                     "description": .string("Session ID from preview_start"),
                 ]),
-                "colorScheme": .object([
-                    "type": .string("string"),
-                    "enum": .array([.string("light"), .string("dark")]),
-                    "description": .string("Color scheme override"),
-                ]),
-                "dynamicTypeSize": .object([
-                    "type": .string("string"),
-                    "enum": .array([
-                        .string("xSmall"), .string("small"), .string("medium"),
-                        .string("large"),
-                        .string("xLarge"), .string("xxLarge"), .string("xxxLarge"),
-                        .string("accessibility1"), .string("accessibility2"),
-                        .string("accessibility3"),
-                        .string("accessibility4"), .string("accessibility5"),
-                    ]),
-                    "description": .string("Dynamic Type size override"),
-                ]),
-                "locale": .object([
-                    "type": .string("string"),
-                    "description": .string(
+                "colorScheme": traitProperty(
+                    enumValues: PreviewTraits.validColorSchemes,
+                    description: "Color scheme override"
+                ),
+                "dynamicTypeSize": traitProperty(
+                    enumValues: PreviewTraits.validDynamicTypeSizes,
+                    description: "Dynamic Type size override"
+                ),
+                "locale": traitProperty(
+                    description:
                         "BCP 47 locale identifier (e.g., 'en', 'ar', 'ja-JP'). Pass empty string to clear."
-                    ),
-                ]),
-                "layoutDirection": .object([
-                    "type": .string("string"),
-                    "description": .string(
+                ),
+                "layoutDirection": traitProperty(
+                    description:
                         "Layout direction: 'leftToRight' or 'rightToLeft'. Pass empty string to clear."
-                    ),
-                ]),
-                "legibilityWeight": .object([
-                    "type": .string("string"),
-                    "description": .string(
+                ),
+                "legibilityWeight": traitProperty(
+                    description:
                         "Legibility weight: 'regular' or 'bold'. Pass empty string to clear."
-                    ),
-                ]),
+                ),
             ]),
             "required": .array([.string("sessionID")]),
         ])
