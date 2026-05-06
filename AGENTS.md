@@ -57,7 +57,7 @@ Sources/
 - **PreviewsCore** has no platform-specific dependencies (no AppKit, no CoreSimulator)
 - **SimulatorBridge** is ObjC because it uses `objc_lookUpClass` / protocol casts for private API access
 - **PreviewsIOS** depends on SimulatorBridge; touch injection runs in-app via Hammer approach (IOHIDEvent + BKSHIDEventSetDigitizerInfo)
-- **IOSHostAppSource.swift** contains the iOS host app as an embedded string, compiled at runtime by IOSHostBuilder
+- **iOS host-app source lives in `HostAppSource/`** at the package root (`HostApp.swift`, `Info.plist`, `AppIcon.png`). The `EmbedHostAppSource` build-tool plugin (driven by `Sources/EmbedHostAppSourceTool/`) reads those files and emits `IOSHostAppSource.generated.swift` exposing them as `IOSHostAppSource.code` / `.infoPlist` / `IOSAppIconData.bytes` (base64-encoded). `IOSHostBuilder` writes the source out at session start and compiles it with swiftc targeting arm64-apple-ios-simulator. Byte-equivalence with the previous stringified blob is pinned by `IOSHostBuilderHashTests`.
 
 ### Daemon model
 
@@ -129,7 +129,7 @@ CLI commands follow a stdout-for-data, stderr-for-side-effects convention:
 
 - Swift 6.0 strict concurrency — actors for shared state, Sendable structs for cross-isolation data
 - Private framework access: runtime-load via `Bundle(path:).loadAndReturnError()` + `objc_lookUpClass()`, never build-time link
-- iOS host app source is a string constant (like DesignTimeStore) — compiled with swiftc targeting arm64-apple-ios-simulator at runtime
+- iOS host app source is real Swift in `HostAppSource/HostApp.swift` (lintable, formatable, compile-checked); the `EmbedHostAppSource` build-tool plugin embeds it as a base64 constant for runtime compilation with swiftc targeting arm64-apple-ios-simulator
 - Old dylibs/views are retained (never dlclose) to prevent EXC_BAD_ACCESS
 - `.tag()` integer literals are excluded from ThunkGenerator to avoid Int/CGFloat overload ambiguity
 - All custom Error types must conform to `LocalizedError` with `errorDescription` (not just `CustomStringConvertible`) so MCP server reports useful messages
