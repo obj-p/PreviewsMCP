@@ -213,6 +213,32 @@ struct ThunkGeneratorTests {
         #expect(lit?.region == .uiKit)
     }
 
+    @Test("Region: identifier that merely embeds UIView is not tainted")
+    func regionUIViewSubstringFalsePositive() {
+        // `MyUIViewSubclass` and `UIViewable` happen to contain "UIView" as a
+        // substring but are not UIKit types. The word-boundary classifier
+        // must not taint them.
+        let source = """
+            struct MyUIViewSubclass {
+                func make() -> String {
+                    return "shouldFastPath"
+                }
+            }
+            protocol UIViewable {
+                func tag() -> String
+            }
+            extension UIViewable {
+                func tag() -> String { "tagVal" }
+            }
+            """
+        let result = ThunkGenerator.transform(source: source)
+        for entry in result.literals {
+            #expect(
+                entry.region == .swiftUI,
+                "Literal \(entry.value) wrongly tainted (region=\(entry.region))")
+        }
+    }
+
     @Test("Region: literals in mixed file get per-scope classification")
     func regionMixedFile() {
         // Same file: a SwiftUI helper view AND a UIView subclass.

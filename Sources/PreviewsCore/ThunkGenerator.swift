@@ -374,12 +374,15 @@ final class LiteralCollector: SyntaxVisitor {
     /// Catches: `UIView`, `UIViewController`, `UIKit.UIView`, common subclasses
     /// (`UILabel`, `UIButton`, `UIScrollView`, etc.), and `UIViewRepresentable.UIViewType`
     /// associated-type returns.
+    ///
+    /// Uses word-boundary matching so identifiers that merely *embed* `UIView`
+    /// (e.g. `MyUIViewSubclass`, `UIViewable`) don't get false-positive tainted.
+    /// False positives cost only an extra reload, but precision is cheap here.
     private func typeNameMentionsUIKit(_ type: TypeSyntax) -> Bool {
         let text = type.trimmedDescription
-        // Generic check: any UIKit class name starts with "UI" and most are
-        // suffixed `View`, `ViewController`, `Cell`, `Bar`, `Control`, etc.
-        // Be conservative — match on the dominant patterns.
-        if text.contains("UIView") || text.contains("UIViewController") {
+        // \bUIView(Controller)?\b matches `UIView` and `UIViewController` as whole
+        // identifiers, including when wrapped (`[UIView]`, `UIView?`, `UIKit.UIView`).
+        if text.range(of: #"\bUIView(Controller)?\b"#, options: .regularExpression) != nil {
             return true
         }
         // Common UIKit class names that don't fit the UIView* prefix.

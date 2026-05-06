@@ -40,20 +40,10 @@ public actor IOSPreviewSession {
     /// way the literal-only fast path did before #160.
     private var lastBodyKind: BodyKind = .uiView
 
-    public enum BodyKind: Sendable {
-        case swiftUI
-        case uiView
-        case uiViewController
-
-        init?(rawValue: String) {
-            switch rawValue {
-            case "swiftUI": self = .swiftUI
-            case "uiView": self = .uiView
-            case "uiViewController": self = .uiViewController
-            default: return nil
-            }
-        }
-    }
+    /// Test-only window into the body-kind state set by the `init` handshake
+    /// and each `reloadAck`. Production callers gate via `handleSourceChange`
+    /// — they don't need direct access.
+    public var currentBodyKind: BodyKind { lastBodyKind }
 
     public static let hostBundleID = "com.previewsmcp.host"
 
@@ -233,7 +223,7 @@ public actor IOSPreviewSession {
             )
             if let dict = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
                 let kind = dict["kind"] as? String,
-                let parsed = BodyKind(rawValue: kind)
+                let parsed = BodyKind(wireValue: kind)
             {
                 lastBodyKind = parsed
             }
@@ -295,7 +285,7 @@ public actor IOSPreviewSession {
         // forcing reloads on a SwiftUI session.
         if let dict = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
             let kind = dict["kind"] as? String,
-            let parsed = BodyKind(rawValue: kind)
+            let parsed = BodyKind(wireValue: kind)
         {
             lastBodyKind = parsed
         }
