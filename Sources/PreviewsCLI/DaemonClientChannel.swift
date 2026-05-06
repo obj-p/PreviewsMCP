@@ -1,8 +1,11 @@
 import MCP
 import PreviewsCore
 
-/// Notification-handler wiring for `DaemonClient`. Both helpers run
-/// inside `withDaemonClient`'s `configure` closure so they're
+/// Notification-handler wiring for `DaemonClient`. One of three files
+/// extending the `DaemonClient` namespace — see `DaemonClient.swift`
+/// for the file-layout overview.
+///
+/// Both helpers run inside `withDaemonClient`'s `configure` closure so they're
 /// registered BEFORE the MCP initialize handshake — without that
 /// ordering, notifications emitted during the handshake (rare but
 /// possible) get dropped on the floor.

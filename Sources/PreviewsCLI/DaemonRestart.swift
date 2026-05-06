@@ -2,7 +2,9 @@ import Darwin
 import Foundation
 import MCP
 
-/// Version-mismatch handshake recovery for `DaemonClient`.
+/// Version-mismatch handshake recovery for `DaemonClient`. One of
+/// three files extending the `DaemonClient` namespace — see
+/// `DaemonClient.swift` for the file-layout overview.
 ///
 /// When a CLI binary connects to a daemon that was spawned by a prior
 /// (now-stale) binary — e.g., `brew upgrade` moved `previewsmcp`
