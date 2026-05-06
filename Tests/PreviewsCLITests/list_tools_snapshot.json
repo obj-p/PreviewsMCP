@@ -1,0 +1,349 @@
+[
+  {
+    "description" : "List #Preview blocks in a Swift source file",
+    "inputSchema" : {
+      "properties" : {
+        "filePath" : {
+          "description" : "Absolute path to a Swift source file",
+          "type" : "string"
+        }
+      },
+      "required" : [
+        "filePath"
+      ],
+      "type" : "object"
+    },
+    "name" : "preview_list"
+  },
+  {
+    "description" : "Compile and launch a live SwiftUI preview. Returns a session ID. Supports macOS (default) and iOS simulator.",
+    "inputSchema" : {
+      "properties" : {
+        "colorScheme" : {
+          "description" : "Color scheme override: 'light' or 'dark'",
+          "enum" : [
+            "light",
+            "dark"
+          ],
+          "type" : "string"
+        },
+        "deviceUDID" : {
+          "description" : "Simulator device UDID (for ios; auto-selects if omitted)",
+          "type" : "string"
+        },
+        "dynamicTypeSize" : {
+          "description" : "Dynamic Type size (e.g., 'large', 'accessibility3')",
+          "enum" : [
+            "xSmall",
+            "small",
+            "medium",
+            "large",
+            "xLarge",
+            "xxLarge",
+            "xxxLarge",
+            "accessibility1",
+            "accessibility2",
+            "accessibility3",
+            "accessibility4",
+            "accessibility5"
+          ],
+          "type" : "string"
+        },
+        "filePath" : {
+          "description" : "Absolute path to a Swift source file containing #Preview",
+          "type" : "string"
+        },
+        "headless" : {
+          "description" : "If false, shows the preview window (default: true)",
+          "type" : "boolean"
+        },
+        "height" : {
+          "description" : "Window height in points (macOS only, default: 600)",
+          "type" : "integer"
+        },
+        "layoutDirection" : {
+          "description" : "Layout direction: 'leftToRight' or 'rightToLeft'",
+          "enum" : [
+            "leftToRight",
+            "rightToLeft"
+          ],
+          "type" : "string"
+        },
+        "legibilityWeight" : {
+          "description" : "Legibility weight: 'regular' or 'bold' (Bold Text accessibility)",
+          "enum" : [
+            "regular",
+            "bold"
+          ],
+          "type" : "string"
+        },
+        "locale" : {
+          "description" : "BCP 47 locale identifier (e.g., 'en', 'ar', 'ja-JP')",
+          "type" : "string"
+        },
+        "platform" : {
+          "description" : "Target platform: 'macos' (default) or 'ios'",
+          "type" : "string"
+        },
+        "previewIndex" : {
+          "description" : "0-based index of which #Preview to show (default: 0)",
+          "type" : "integer"
+        },
+        "projectPath" : {
+          "description" : "Project root path (auto-detected if omitted). Enables importing project types from SPM packages, Bazel swift_library targets, or Xcode projects (.xcodeproj \/ .xcworkspace).",
+          "type" : "string"
+        },
+        "scheme" : {
+          "description" : "Xcode scheme name (only used for .xcodeproj \/ .xcworkspace projects). Required when the project contains more than one scheme and none of them match the source file's directory.",
+          "type" : "string"
+        },
+        "width" : {
+          "description" : "Window width in points (macOS only, default: 400)",
+          "type" : "integer"
+        }
+      },
+      "required" : [
+        "filePath"
+      ],
+      "type" : "object"
+    },
+    "name" : "preview_start"
+  },
+  {
+    "description" : "Capture a screenshot of a running preview. Returns the image as JPEG (default) or PNG.",
+    "inputSchema" : {
+      "properties" : {
+        "quality" : {
+          "description" : "JPEG quality 0.0–1.0 (default: 0.85). Values >= 1.0 produce PNG output.",
+          "type" : "number"
+        },
+        "sessionID" : {
+          "description" : "Session ID from preview_start",
+          "type" : "string"
+        }
+      },
+      "required" : [
+        "sessionID"
+      ],
+      "type" : "object"
+    },
+    "name" : "preview_snapshot"
+  },
+  {
+    "description" : "Close a preview and clean up the session.",
+    "inputSchema" : {
+      "properties" : {
+        "sessionID" : {
+          "description" : "Session ID from preview_start",
+          "type" : "string"
+        }
+      },
+      "required" : [
+        "sessionID"
+      ],
+      "type" : "object"
+    },
+    "name" : "preview_stop"
+  },
+  {
+    "description" : "Change rendering traits (color scheme, dynamic type, locale, layout direction, legibility weight) for a running preview. Triggers recompile; @State is reset. Pass empty string to clear a trait. Note: dynamicTypeSize only has a visible effect on iOS simulator — macOS does not scale fonts in response to this modifier.",
+    "inputSchema" : {
+      "properties" : {
+        "colorScheme" : {
+          "description" : "Color scheme override",
+          "enum" : [
+            "light",
+            "dark"
+          ],
+          "type" : "string"
+        },
+        "dynamicTypeSize" : {
+          "description" : "Dynamic Type size override",
+          "enum" : [
+            "xSmall",
+            "small",
+            "medium",
+            "large",
+            "xLarge",
+            "xxLarge",
+            "xxxLarge",
+            "accessibility1",
+            "accessibility2",
+            "accessibility3",
+            "accessibility4",
+            "accessibility5"
+          ],
+          "type" : "string"
+        },
+        "layoutDirection" : {
+          "description" : "Layout direction: 'leftToRight' or 'rightToLeft'. Pass empty string to clear.",
+          "type" : "string"
+        },
+        "legibilityWeight" : {
+          "description" : "Legibility weight: 'regular' or 'bold'. Pass empty string to clear.",
+          "type" : "string"
+        },
+        "locale" : {
+          "description" : "BCP 47 locale identifier (e.g., 'en', 'ar', 'ja-JP'). Pass empty string to clear.",
+          "type" : "string"
+        },
+        "sessionID" : {
+          "description" : "Session ID from preview_start",
+          "type" : "string"
+        }
+      },
+      "required" : [
+        "sessionID"
+      ],
+      "type" : "object"
+    },
+    "name" : "preview_configure"
+  },
+  {
+    "description" : "Switch which #Preview block is rendered in a running session. Triggers recompile; @State is reset. Traits persist across switches.",
+    "inputSchema" : {
+      "properties" : {
+        "previewIndex" : {
+          "description" : "0-based index of the #Preview block to switch to",
+          "type" : "integer"
+        },
+        "sessionID" : {
+          "description" : "Session ID from preview_start",
+          "type" : "string"
+        }
+      },
+      "required" : [
+        "sessionID",
+        "previewIndex"
+      ],
+      "type" : "object"
+    },
+    "name" : "preview_switch"
+  },
+  {
+    "description" : "Get the accessibility tree of an iOS simulator preview. Returns elements with labels, frames, and traits for targeted interaction.",
+    "inputSchema" : {
+      "properties" : {
+        "filter" : {
+          "description" : "Filter mode: 'all' (default) returns the full tree, 'interactable' returns only buttons\/links\/toggles, 'labeled' returns only elements with label\/value\/identifier",
+          "enum" : [
+            "all",
+            "interactable",
+            "labeled"
+          ],
+          "type" : "string"
+        },
+        "sessionID" : {
+          "description" : "Session ID from preview_start (iOS simulator only)",
+          "type" : "string"
+        }
+      },
+      "required" : [
+        "sessionID"
+      ],
+      "type" : "object"
+    },
+    "name" : "preview_elements"
+  },
+  {
+    "description" : "Send a touch event to an iOS simulator preview. Coordinates are in device points. For swipe, x\/y is the start point.",
+    "inputSchema" : {
+      "properties" : {
+        "action" : {
+          "description" : "'tap' (default) or 'swipe'",
+          "type" : "string"
+        },
+        "duration" : {
+          "description" : "Swipe duration in seconds (default: 0.3)",
+          "type" : "number"
+        },
+        "sessionID" : {
+          "description" : "Session ID from preview_start (iOS simulator only)",
+          "type" : "string"
+        },
+        "toX" : {
+          "description" : "End X for swipe",
+          "type" : "number"
+        },
+        "toY" : {
+          "description" : "End Y for swipe",
+          "type" : "number"
+        },
+        "x" : {
+          "description" : "X coordinate in points (start point for swipe)",
+          "type" : "number"
+        },
+        "y" : {
+          "description" : "Y coordinate in points (start point for swipe)",
+          "type" : "number"
+        }
+      },
+      "required" : [
+        "sessionID",
+        "x",
+        "y"
+      ],
+      "type" : "object"
+    },
+    "name" : "preview_touch"
+  },
+  {
+    "description" : "Capture screenshots under multiple trait configurations in a single call. Renders each variant, snapshots it, then restores original traits. Accepts preset names or JSON trait objects.",
+    "inputSchema" : {
+      "properties" : {
+        "quality" : {
+          "description" : "JPEG quality 0.0-1.0 (default: 0.85). Values >= 1.0 produce PNG output.",
+          "type" : "number"
+        },
+        "sessionID" : {
+          "description" : "Session ID from preview_start",
+          "type" : "string"
+        },
+        "variants" : {
+          "description" : "Array of trait variants to snapshot. Example: [\"light\", \"dark\", \"accessibility3\"]",
+          "items" : {
+            "description" : "Preset name ('light', 'dark', 'xSmall'…'accessibility5', 'rtl', 'ltr', 'boldText') or a JSON object string with any combination of colorScheme, dynamicTypeSize, locale, layoutDirection, legibilityWeight, and an optional label.",
+            "type" : "string"
+          },
+          "type" : "array"
+        }
+      },
+      "required" : [
+        "sessionID",
+        "variants"
+      ],
+      "type" : "object"
+    },
+    "name" : "preview_variants"
+  },
+  {
+    "description" : "List available iOS simulator devices with their UDIDs and states.",
+    "inputSchema" : {
+      "properties" : {
+
+      },
+      "type" : "object"
+    },
+    "name" : "simulator_list"
+  },
+  {
+    "description" : "List all active preview sessions in the daemon, with their source file paths and platforms. Used by CLI commands to resolve --file to --session, and for diagnostic tooling.",
+    "inputSchema" : {
+      "properties" : {
+
+      },
+      "type" : "object"
+    },
+    "name" : "session_list"
+  },
+  {
+    "description" : "Report the running server's binary path, mtime, and process start time. Returns stale=true when the on-disk binary has been replaced since the running process started — i.e., a swift build happened but the resident MCP server wasn't restarted. Used by the integration-test skill to detect stale-binary footguns before validating behavior.",
+    "inputSchema" : {
+      "properties" : {
+
+      },
+      "type" : "object"
+    },
+    "name" : "preview_build_info"
+  }
+]
