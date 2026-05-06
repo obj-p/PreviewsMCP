@@ -62,46 +62,25 @@ enum PreviewStartHandler: ToolHandler {
                         "Xcode scheme name (only used for .xcodeproj / .xcworkspace projects). Required when the project contains more than one scheme and none of them match the source file's directory."
                     ),
                 ]),
-                "colorScheme": .object([
-                    "type": .string("string"),
-                    "enum": .array([.string("light"), .string("dark")]),
-                    "description": .string("Color scheme override: 'light' or 'dark'"),
-                ]),
-                "dynamicTypeSize": .object([
-                    "type": .string("string"),
-                    "enum": .array([
-                        .string("xSmall"), .string("small"), .string("medium"),
-                        .string("large"),
-                        .string("xLarge"), .string("xxLarge"), .string("xxxLarge"),
-                        .string("accessibility1"), .string("accessibility2"),
-                        .string("accessibility3"),
-                        .string("accessibility4"), .string("accessibility5"),
-                    ]),
-                    "description": .string(
-                        "Dynamic Type size (e.g., 'large', 'accessibility3')"),
-                ]),
-                "locale": .object([
-                    "type": .string("string"),
-                    "description": .string(
-                        "BCP 47 locale identifier (e.g., 'en', 'ar', 'ja-JP')"),
-                ]),
-                "layoutDirection": .object([
-                    "type": .string("string"),
-                    "enum": .array([
-                        .string("leftToRight"), .string("rightToLeft"),
-                    ]),
-                    "description": .string(
-                        "Layout direction: 'leftToRight' or 'rightToLeft'"),
-                ]),
-                "legibilityWeight": .object([
-                    "type": .string("string"),
-                    "enum": .array([
-                        .string("regular"), .string("bold"),
-                    ]),
-                    "description": .string(
-                        "Legibility weight: 'regular' or 'bold' (Bold Text accessibility)"
-                    ),
-                ]),
+                "colorScheme": traitProperty(
+                    enumValues: PreviewTraits.validColorSchemes,
+                    description: "Color scheme override: 'light' or 'dark'"
+                ),
+                "dynamicTypeSize": traitProperty(
+                    enumValues: PreviewTraits.validDynamicTypeSizes,
+                    description: "Dynamic Type size (e.g., 'large', 'accessibility3')"
+                ),
+                "locale": traitProperty(
+                    description: "BCP 47 locale identifier (e.g., 'en', 'ar', 'ja-JP')"
+                ),
+                "layoutDirection": traitProperty(
+                    enumValues: PreviewTraits.validLayoutDirections,
+                    description: "Layout direction: 'leftToRight' or 'rightToLeft'"
+                ),
+                "legibilityWeight": traitProperty(
+                    enumValues: PreviewTraits.validLegibilityWeights,
+                    description: "Legibility weight: 'regular' or 'bold' (Bold Text accessibility)"
+                ),
             ]),
             "required": .array([.string("filePath")]),
         ])
