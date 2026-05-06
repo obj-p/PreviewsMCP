@@ -77,11 +77,11 @@ struct ToolchainTests {
         } catch let error as CompilationError {
             // swiftc surfaces the bogus path it was handed; that's our proof.
             let mentions = error.stderr.contains(bogus) || error.message.contains(bogus)
-            #expect(
-                mentions,
-                Comment(rawValue: "Expected the bogus SDK path to appear in the "
-                    + "compiler error, indicating the override reached swiftc. Got "
-                    + "message=\(error.message), stderr=\(error.stderr)"))
+            let detail =
+                "Expected the bogus SDK path to appear in the compiler error, "
+                + "indicating the override reached swiftc. Got "
+                + "message=\(error.message), stderr=\(error.stderr)"
+            #expect(mentions, Comment(rawValue: detail))
         }
     }
 }
