@@ -12,6 +12,14 @@ import PreviewsMacOS
 /// and the `IOSSessionManager` lookup is a single actor hop, while the
 /// macOS lookup hops to MainActor. Order matters only for performance —
 /// session IDs are UUIDs and never collide across backends.
+///
+/// Both backends are wrapped in adapter actors (`IOSPreviewHandle`,
+/// `MacOSPreviewHandle`) rather than letting `IOSPreviewSession` conform
+/// to `PreviewSessionHandle` directly. This keeps the session types in
+/// `PreviewsIOS` / `PreviewsMacOS` free of `PreviewSessionHandle`
+/// knowledge and lets the iOS adapter own the manager-de-register hook
+/// in `stop()`, symmetric with the way macOS's `host.closePreview` does
+/// teardown and bookkeeping in one call.
 public actor SessionRouter {
     private let host: PreviewHost
     private let iosManager: IOSSessionManager

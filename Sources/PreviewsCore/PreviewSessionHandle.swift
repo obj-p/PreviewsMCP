@@ -39,6 +39,12 @@ public protocol PreviewSessionHandle: Sendable {
 
     /// Capture a screenshot. `quality >= 1.0` requests PNG output where
     /// supported; values in `[0, 1)` request JPEG at that quality.
+    ///
+    /// If a preceding `setTraits` / `switchPreview` / `reconfigure` call
+    /// changed the rendered view, call `awaitLayoutSettle()` first. On
+    /// macOS the snapshot will otherwise capture a pre-layout frame —
+    /// `cacheDisplay` forces layout synchronously but does not recover
+    /// from a fresh `loadPreview` swap on its own.
     func snapshot(quality: Double) async throws -> Data
 
     /// Wait for SwiftUI layout to settle after a fresh dylib load. macOS
