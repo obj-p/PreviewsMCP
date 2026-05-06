@@ -48,6 +48,11 @@ public actor IOSPreviewHandle: PreviewSessionHandle {
     }
 
     public func stop() async {
+        // Stop the simulator-side session first, then de-register. The
+        // ordering is safe because `IOSPreviewSession.stop()` is
+        // non-throwing — a hang would block both calls equally, but
+        // there's no path where the first succeeds and the second is
+        // skipped, so the manager can't keep a phantom entry.
         await iosSession.stop()
         await manager.removeSession(id)
     }
