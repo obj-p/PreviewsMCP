@@ -85,7 +85,10 @@ let package = Package(
         ),
         .testTarget(
             name: "PreviewsCLITests",
-            dependencies: ["PreviewsCLI"]
+            dependencies: [
+                "PreviewsCLI",
+                .product(name: "MCP", package: "swift-sdk"),
+            ]
         ),
         .testTarget(
             name: "MCPIntegrationTests",
