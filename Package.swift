@@ -41,7 +41,7 @@ let package = Package(
         .target(
             name: "PreviewsIOS",
             dependencies: ["PreviewsCore", "SimulatorBridge"],
-            exclude: ["AppIcon.png"]
+            plugins: [.plugin(name: "EmbedHostAppSource")]
         ),
         .target(
             name: "PreviewsEngine",
@@ -66,6 +66,14 @@ let package = Package(
             name: "GenerateVersion",
             capability: .buildTool(),
             dependencies: ["GenerateVersionTool"]
+        ),
+        .executableTarget(
+            name: "EmbedHostAppSourceTool"
+        ),
+        .plugin(
+            name: "EmbedHostAppSource",
+            capability: .buildTool(),
+            dependencies: ["EmbedHostAppSourceTool"]
         ),
         .testTarget(
             name: "PreviewsCoreTests",
