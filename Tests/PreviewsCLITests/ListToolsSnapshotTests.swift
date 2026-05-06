@@ -32,6 +32,11 @@ struct ListToolsSnapshotTests {
 
         let fm = FileManager.default
         if !fm.fileExists(atPath: snapshotPath.path) {
+            // Bless mode: write the snapshot and fail the test so CI
+            // catches an unblessed run. We deliberately skip the
+            // equality check below — the snapshot was just written so
+            // it would tautologically pass; the issue-record is the
+            // signal to commit the new fixture and re-run.
             try actual.write(to: snapshotPath)
             Issue.record(
                 "Blessed initial snapshot at \(snapshotPath.path) — re-run to verify"

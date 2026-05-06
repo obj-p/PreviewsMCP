@@ -71,7 +71,11 @@ func configureMCPServer(
     )
 
     // Index handlers by wire name once so dispatch is O(1) rather than
-    // a linear scan of the registry per call.
+    // a linear scan of the registry per call. `uniqueKeysWithValues`
+    // traps if a future contributor adds a handler that returns a
+    // duplicate `ToolName` (typically a copy-paste that forgets to
+    // update `static let name`). The trap fires at server construction,
+    // not on the first request — fail-fast and visible in tests.
     let handlersByName: [String: any ToolHandler.Type] = Dictionary(
         uniqueKeysWithValues: handlerRegistry.map { ($0.name.rawValue, $0) }
     )
