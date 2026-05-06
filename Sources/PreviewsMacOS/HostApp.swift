@@ -28,6 +28,12 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
     /// Callback invoked after NSApplication finishes launching.
     public var onLaunch: (@MainActor () -> Void)?
 
+    /// Invoked whenever `sessions` changes (added or removed). The
+    /// engine layer wires this up to publish the macOS session set
+    /// to the cross-process `SessionRegistry`. Fire-and-forget — the
+    /// callback may launch its own Task to enter actor-isolated code.
+    public var onSessionsChanged: (@MainActor @Sendable () -> Void)?
+
     public override init() {
         super.init()
     }
@@ -150,6 +156,7 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
         buildContext: BuildContext? = nil
     ) {
         sessions[sessionID] = session
+        onSessionsChanged?()
         let fileURL = URL(fileURLWithPath: filePath)
         let allPaths = [filePath] + additionalPaths
         fileWatchers[sessionID]?.stop()
@@ -267,6 +274,7 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
         fileWatchers[sessionID]?.stop()
         fileWatchers.removeValue(forKey: sessionID)
         sessions.removeValue(forKey: sessionID)
+        onSessionsChanged?()
         fputs("closePreview: watchers/sessions removed\n", stderr); fflush(stderr)
 
         if let window = windows.removeValue(forKey: sessionID) {

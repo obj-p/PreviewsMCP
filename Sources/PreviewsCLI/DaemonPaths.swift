@@ -45,6 +45,15 @@ enum DaemonPaths {
         directory.appendingPathComponent("restart.lock")
     }
 
+    /// Cross-process session registry directory. Each running
+    /// PreviewsMCP process (stdio MCP server, UDS daemon) writes a
+    /// `<pid>.json` file here describing its current session set so
+    /// `session_list` from any process can return the union. See
+    /// `SessionRegistry`.
+    static var sessionsDirectory: URL {
+        directory.appendingPathComponent("sessions", isDirectory: true)
+    }
+
     /// Ensure the directory exists with owner-only permissions.
     static func ensureDirectory() throws {
         try FileManager.default.createDirectory(

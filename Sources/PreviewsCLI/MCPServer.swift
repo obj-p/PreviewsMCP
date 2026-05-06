@@ -1,3 +1,4 @@
+import Foundation
 import MCP
 import PreviewsCore
 import PreviewsEngine
@@ -61,11 +62,34 @@ func configureMCPServer(
     )
 
     let router = SessionRouter(host: previewHost, iosManager: iosManager)
+
+    // Cross-process session registry. Each PreviewsMCP process (stdio
+    // MCP server, UDS daemon) publishes its session set to a per-PID
+    // file under `~/.previewsmcp/sessions/`; `SessionListHandler`
+    // returns the union of local + peer sessions so a `session_list`
+    // call from either mouth sees everything (see #6b in the
+    // architectural plan).
+    let registry = SessionRegistry(registryDir: DaemonPaths.sessionsDirectory)
+    await iosManager.setRegistry(registry)
+    await MainActor.run {
+        previewHost.onSessionsChanged = { [weak previewHost] in
+            guard let previewHost else { return }
+            let snapshot: [(String, URL)] = previewHost.allSessions.map {
+                ($0.key, $0.value.sourceFile)
+            }
+            Task { await registry.publishMacOSSessions(snapshot) }
+        }
+        // Trigger an initial publish so a registry attached after
+        // sessions exist (e.g., daemon reconfiguration) doesn't lose them.
+        previewHost.onSessionsChanged?()
+    }
+
     let ctx = HandlerContext(
         host: previewHost,
         iosState: iosManager,
         configCache: cache,
         router: router,
+        registry: registry,
         macCompiler: compiler,
         server: server
     )

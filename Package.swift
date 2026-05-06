@@ -80,6 +80,10 @@ let package = Package(
             dependencies: ["PreviewsIOS"]
         ),
         .testTarget(
+            name: "PreviewsEngineTests",
+            dependencies: ["PreviewsEngine"]
+        ),
+        .testTarget(
             name: "CLIIntegrationTests",
             dependencies: []
         ),
