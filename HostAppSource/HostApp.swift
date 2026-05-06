@@ -7,6 +7,12 @@ class PreviewHostAppDelegate: UIResponder, UIApplicationDelegate {
     private var retainedControllers: [UIViewController] = []
     private var currentDylibHandle: UnsafeMutableRawPointer?
     private var hasCalledSetUp = false
+    // Kind of the currently-loaded preview's outermost body, as returned by
+    // the dylib's `previewBodyKind` symbol. Reported back to the daemon so
+    // it can skip the literal-only fast path for UIKit bodies (#160).
+    // Defaults to the safe value: if the symbol is missing, the daemon
+    // forces a full reload on every literal edit rather than no-op'ing.
+    private var currentBodyKind: String = "uiView"
 
     // TCP socket state
     private var socketFD: Int32 = -1
@@ -81,6 +87,27 @@ class PreviewHostAppDelegate: UIResponder, UIApplicationDelegate {
             return
         }
         currentDylibHandle = handle
+
+        // Read the body kind from the new dylib's `previewBodyKind` symbol.
+        // Missing symbol → safe default (`uiView`) keeps the daemon on the
+        // full-reload path, avoiding the silent no-op described in #160.
+        //
+        // Numeric→string mapping is duplicated from `PreviewsCore.BodyKind`:
+        // this source is compiled as a standalone host module that doesn't
+        // link `PreviewsCore`. `BodyKindCodeContractTests` pins the codes
+        // so any divergence breaks at test time.
+        if let kindSym = dlsym(handle, "previewBodyKind") {
+            typealias BodyKindFunc = @convention(c) () -> Int32
+            let bodyKindFn = unsafeBitCast(kindSym, to: BodyKindFunc.self)
+            switch bodyKindFn() {
+            case 1: currentBodyKind = "swiftUI"
+            case 2: currentBodyKind = "uiView"
+            case 3: currentBodyKind = "uiViewController"
+            default: currentBodyKind = "uiView"
+            }
+        } else {
+            currentBodyKind = "uiView"
+        }
 
         typealias CreateFunc = @convention(c) () -> UnsafeMutableRawPointer
         let createView = unsafeBitCast(sym, to: CreateFunc.self)
@@ -228,12 +255,30 @@ class PreviewHostAppDelegate: UIResponder, UIApplicationDelegate {
         case "reload":
             guard let dylibPath = msg["dylibPath"] as? String else { return }
             loadPreview(dylibPath: dylibPath)
-            // Send ack after one RunLoop turn to ensure SwiftUI environment propagation
+            // Send ack after one RunLoop turn to ensure SwiftUI environment propagation.
+            // Includes the new dylib's body kind so the daemon can re-gate the literal
+            // fast path for the just-loaded preview (e.g., across `preview_switch`).
             DispatchQueue.main.async { [weak self] in
-                var response: [String: Any] = ["type": "reloadAck"]
+                guard let self else { return }
+                var response: [String: Any] = [
+                    "type": "reloadAck",
+                    "kind": self.currentBodyKind,
+                ]
                 if let id = msg["id"] { response["id"] = id }
-                self?.sendResponse(response)
+                self.sendResponse(response)
             }
+
+        case "init":
+            // Daemon's startup handshake: report the body kind of the dylib
+            // that was loaded via the `--dylib` argv at app launch. Without
+            // this the daemon wouldn't learn the kind until the first reload
+            // and would force-reload the first literal edit unnecessarily.
+            var response: [String: Any] = [
+                "type": "initAck",
+                "kind": currentBodyKind,
+            ]
+            if let id = msg["id"] { response["id"] = id }
+            sendResponse(response)
 
         case "literals":
             guard let changes = msg["changes"],

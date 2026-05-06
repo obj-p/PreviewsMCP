@@ -26,7 +26,8 @@ public enum ThunkGenerator {
                     id: "#\(index)",
                     value: raw.value,
                     utf8Start: raw.utf8Start,
-                    utf8End: raw.utf8End
+                    utf8End: raw.utf8End,
+                    region: raw.region
                 ))
         }
 
@@ -63,6 +64,7 @@ struct RawLiteralEntry {
     let value: LiteralValue
     let utf8Start: Int
     let utf8End: Int
+    let region: LiteralRegion
 }
 
 final class LiteralCollector: SyntaxVisitor {
@@ -83,7 +85,8 @@ final class LiteralCollector: SyntaxVisitor {
             RawLiteralEntry(
                 value: .string(text),
                 utf8Start: node.position.utf8Offset,
-                utf8End: node.endPosition.utf8Offset
+                utf8End: node.endPosition.utf8Offset,
+                region: regionFor(node)
             ))
         return .skipChildren
     }
@@ -115,14 +118,16 @@ final class LiteralCollector: SyntaxVisitor {
                 RawLiteralEntry(
                     value: .integer(-intValue),
                     utf8Start: prefix.position.utf8Offset,
-                    utf8End: prefix.endPosition.utf8Offset
+                    utf8End: prefix.endPosition.utf8Offset,
+                    region: regionFor(node)
                 ))
         } else {
             rawEntries.append(
                 RawLiteralEntry(
                     value: .integer(intValue),
                     utf8Start: node.position.utf8Offset,
-                    utf8End: node.endPosition.utf8Offset
+                    utf8End: node.endPosition.utf8Offset,
+                    region: regionFor(node)
                 ))
         }
         return .skipChildren
@@ -143,14 +148,16 @@ final class LiteralCollector: SyntaxVisitor {
                 RawLiteralEntry(
                     value: .float(-doubleValue),
                     utf8Start: prefix.position.utf8Offset,
-                    utf8End: prefix.endPosition.utf8Offset
+                    utf8End: prefix.endPosition.utf8Offset,
+                    region: regionFor(node)
                 ))
         } else {
             rawEntries.append(
                 RawLiteralEntry(
                     value: .float(doubleValue),
                     utf8Start: node.position.utf8Offset,
-                    utf8End: node.endPosition.utf8Offset
+                    utf8End: node.endPosition.utf8Offset,
+                    region: regionFor(node)
                 ))
         }
         return .skipChildren
@@ -166,7 +173,8 @@ final class LiteralCollector: SyntaxVisitor {
             RawLiteralEntry(
                 value: .boolean(value),
                 utf8Start: node.position.utf8Offset,
-                utf8End: node.endPosition.utf8Offset
+                utf8End: node.endPosition.utf8Offset,
+                region: regionFor(node)
             ))
         return .skipChildren
     }
@@ -302,6 +310,106 @@ final class LiteralCollector: SyntaxVisitor {
                 return true
             }
             current = parent
+        }
+        return false
+    }
+
+    // MARK: - Region classification (#160)
+    //
+    // Classifies each literal as living in either a SwiftUI- or UIKit-evaluated
+    // region. The literal-only fast path mutates `DesignTimeStore.shared.values`
+    // and relies on `@Observable` to drive a re-render — that's only sound for
+    // SwiftUI-evaluated reads. UIKit code captures the store value once at
+    // construction (`label.text = store.string("#X")`) and never observes
+    // mutation, so a literal edit inside UIKit code silently no-ops on the
+    // fast path. We taint such literals as `.uiKit` so `LiteralDiffer.diff`
+    // can downgrade `.literalOnly` to `.structural` and force a full reload.
+    //
+    // This is a syntactic heuristic. False negatives exist (e.g.
+    // `func make() -> SomeAlias` where `SomeAlias = UIView`), but they
+    // degrade to today's behavior — no worse than status quo. False positives
+    // (claiming UIKit when it's actually SwiftUI) cost only an extra reload.
+    private func regionFor(_ node: some SyntaxProtocol) -> LiteralRegion {
+        var current: Syntax? = Syntax(node)
+        while let parent = current?.parent {
+            if let funcDecl = parent.as(FunctionDeclSyntax.self) {
+                if let returnClause = funcDecl.signature.returnClause,
+                    typeNameMentionsUIKit(returnClause.type)
+                {
+                    return .uiKit
+                }
+            }
+            if let varDecl = parent.as(VariableDeclSyntax.self) {
+                for binding in varDecl.bindings {
+                    if let typeAnnotation = binding.typeAnnotation,
+                        typeNameMentionsUIKit(typeAnnotation.type)
+                    {
+                        return .uiKit
+                    }
+                }
+            }
+            if let classDecl = parent.as(ClassDeclSyntax.self),
+                inheritanceMentionsUIKit(classDecl.inheritanceClause)
+            {
+                return .uiKit
+            }
+            if let structDecl = parent.as(StructDeclSyntax.self),
+                inheritanceMentionsUIKit(structDecl.inheritanceClause)
+            {
+                return .uiKit
+            }
+            if let extensionDecl = parent.as(ExtensionDeclSyntax.self) {
+                if typeNameMentionsUIKit(extensionDecl.extendedType)
+                    || inheritanceMentionsUIKit(extensionDecl.inheritanceClause)
+                {
+                    return .uiKit
+                }
+            }
+            current = parent
+        }
+        return .swiftUI
+    }
+
+    /// Match the type's textual representation against known UIKit class names.
+    /// Catches: `UIView`, `UIViewController`, `UIKit.UIView`, common subclasses
+    /// (`UILabel`, `UIButton`, `UIScrollView`, etc.), and `UIViewRepresentable.UIViewType`
+    /// associated-type returns.
+    private func typeNameMentionsUIKit(_ type: TypeSyntax) -> Bool {
+        let text = type.trimmedDescription
+        // Generic check: any UIKit class name starts with "UI" and most are
+        // suffixed `View`, `ViewController`, `Cell`, `Bar`, `Control`, etc.
+        // Be conservative — match on the dominant patterns.
+        if text.contains("UIView") || text.contains("UIViewController") {
+            return true
+        }
+        // Common UIKit class names that don't fit the UIView* prefix.
+        let uikitClasses: Set<String> = [
+            "UILabel", "UIButton", "UIImageView", "UIScrollView", "UITableView",
+            "UICollectionView", "UIStackView", "UISwitch", "UISlider", "UIStepper",
+            "UISegmentedControl", "UIPageControl", "UIProgressView", "UIActivityIndicatorView",
+            "UITextField", "UITextView", "UIControl", "UIWindow",
+            "UINavigationController", "UITabBarController", "UISplitViewController",
+            "UIPageViewController", "UIAlertController", "UISearchController",
+            "UITableViewCell", "UICollectionViewCell",
+        ]
+        // Strip module prefix and generic args for the contains check.
+        let bare = text.split(separator: ".").last.map(String.init) ?? text
+        let baseName = bare.split(whereSeparator: { "<>?! ".contains($0) }).first.map(String.init) ?? bare
+        return uikitClasses.contains(baseName)
+    }
+
+    /// Treat any inherited type that names a UIKit class or one of the SwiftUI<->UIKit
+    /// representable protocols as marking the enclosing scope as UIKit-evaluated.
+    private func inheritanceMentionsUIKit(_ clause: InheritanceClauseSyntax?) -> Bool {
+        guard let clause else { return false }
+        for entry in clause.inheritedTypes {
+            let text = entry.type.trimmedDescription
+            if text.contains("UIViewRepresentable") || text.contains("UIViewControllerRepresentable") {
+                return true
+            }
+            if typeNameMentionsUIKit(entry.type) {
+                return true
+            }
         }
         return false
     }

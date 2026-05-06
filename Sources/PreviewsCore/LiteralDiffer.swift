@@ -32,6 +32,14 @@ public enum LiteralDiffer {
         var changes: [(id: String, newValue: LiteralValue)] = []
         for (index, (oldEntry, newEntry)) in zip(oldLiterals, newLiterals).enumerated()
         where oldEntry.value != newEntry.value {
+            // A changed literal living in a UIKit-evaluated region (e.g., inside
+            // `class MyView: UIView` or `struct Wrapper: UIViewRepresentable`)
+            // can't ride the @Observable DesignTimeStore re-render — UIKit
+            // captures the value once at construction. Force a full reload so
+            // the new value reaches the screen. See issue #160.
+            if newEntry.region == .uiKit {
+                return .structural
+            }
             changes.append((id: "#\(index)", newValue: newEntry.value))
         }
 

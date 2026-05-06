@@ -131,4 +131,109 @@ struct ThunkGeneratorTests {
         // count = 0 should NOT be replaced (stored property)
         #expect(result.source.contains("var count = 0"))
     }
+
+    // MARK: - LiteralRegion classification (#160)
+
+    @Test("Region: SwiftUI body literal classified as .swiftUI")
+    func regionSwiftUI() {
+        let source = """
+            import SwiftUI
+            struct V: View {
+                var body: some View { Text("Hi") }
+            }
+            """
+        let result = ThunkGenerator.transform(source: source)
+        let textLiteral = result.literals.first { $0.value == .string("Hi") }
+        #expect(textLiteral?.region == .swiftUI)
+    }
+
+    @Test("Region: literal inside class extending UIView classified as .uiKit")
+    func regionUIViewSubclass() {
+        let source = """
+            import UIKit
+            class MyView: UIView {
+                func setup() {
+                    let label = UILabel()
+                    label.text = "before"
+                }
+            }
+            """
+        let result = ThunkGenerator.transform(source: source)
+        let lit = result.literals.first { $0.value == .string("before") }
+        #expect(lit?.region == .uiKit)
+    }
+
+    @Test("Region: literal inside UIViewRepresentable conformance classified as .uiKit")
+    func regionUIViewRepresentable() {
+        let source = """
+            import SwiftUI
+            import UIKit
+            struct W: UIViewRepresentable {
+                func makeUIView(context: Context) -> UIView {
+                    let v = UIView()
+                    v.tag = 42
+                    return v
+                }
+                func updateUIView(_ uiView: UIView, context: Context) {}
+            }
+            """
+        let result = ThunkGenerator.transform(source: source)
+        let lit = result.literals.first { $0.value == .integer(42) }
+        #expect(lit?.region == .uiKit)
+    }
+
+    @Test("Region: literal inside func returning UIView classified as .uiKit")
+    func regionUIViewReturningFunction() {
+        let source = """
+            import UIKit
+            func makeLabel() -> UILabel {
+                let l = UILabel()
+                l.text = "before"
+                return l
+            }
+            """
+        let result = ThunkGenerator.transform(source: source)
+        let lit = result.literals.first { $0.value == .string("before") }
+        #expect(lit?.region == .uiKit)
+    }
+
+    @Test("Region: literal inside extension on UIView classified as .uiKit")
+    func regionUIViewExtension() {
+        let source = """
+            import UIKit
+            extension UIView {
+                func helper() {
+                    let label = UILabel()
+                    label.text = "tag"
+                }
+            }
+            """
+        let result = ThunkGenerator.transform(source: source)
+        let lit = result.literals.first { $0.value == .string("tag") }
+        #expect(lit?.region == .uiKit)
+    }
+
+    @Test("Region: literals in mixed file get per-scope classification")
+    func regionMixedFile() {
+        // Same file: a SwiftUI helper view AND a UIView subclass.
+        // Each literal must reflect its enclosing scope, not a file-wide flag.
+        let source = """
+            import SwiftUI
+            import UIKit
+            struct Content: View {
+                var body: some View { Text("swiftUIVal") }
+            }
+            class MyView: UIView {
+                func setup() {
+                    let l = UILabel()
+                    l.text = "uikitVal"
+                }
+            }
+            """
+        let result = ThunkGenerator.transform(source: source)
+        let swiftUILit = result.literals.first { $0.value == .string("swiftUIVal") }
+        let uikitLit = result.literals.first { $0.value == .string("uikitVal") }
+        #expect(swiftUILit?.region == .swiftUI)
+        #expect(uikitLit?.region == .uiKit)
+    }
 }
