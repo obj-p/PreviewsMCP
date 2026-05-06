@@ -69,6 +69,15 @@ enum SessionListHandler: ToolHandler {
             )
         }
 
+        // De-dup by sessionID. Local + registry can theoretically both
+        // surface the same ID — local always wins because it's appended
+        // first and the second-pass insert preserves the first occurrence.
+        // Session IDs are UUIDs and shouldn't collide across processes,
+        // but a daemon-restart-with-handoff path or a copy-paste bug
+        // could break that, and the cost of guarding is one Dictionary.
+        var seen: Set<String> = []
+        sessions = sessions.filter { seen.insert($0.sessionID).inserted }
+
         // Stable ordering so clients parsing the output get consistent results.
         sessions.sort { $0.sessionID < $1.sessionID }
         let lines = sessions.map { "\($0.sessionID)\t\($0.platform)\t\($0.sourceFilePath)" }

@@ -1,5 +1,6 @@
 import Darwin
 import Foundation
+import PreviewsMacOS
 
 /// Cross-process registry of live preview sessions.
 ///
@@ -78,6 +79,29 @@ public actor SessionRegistry {
         let result = Darwin.kill(pid, 0)
         if result == 0 { return true }
         return errno != ESRCH
+    }
+
+    // MARK: - Attach
+
+    /// Wire this registry to the iOS manager and macOS host so they
+    /// publish on every session-set mutation. Call once at host
+    /// construction time — both `DaemonListener.start` and
+    /// `ServeCommand.runStdio` do so. Calling more than once is
+    /// wasteful but not unsafe (idempotent attach + redundant
+    /// initial publishes).
+    public func attachTo(iosManager: IOSSessionManager, previewHost: PreviewHost) async {
+        await iosManager.setRegistry(self)
+        await MainActor.run {
+            // weak self so the host doesn't extend the registry's life
+            // beyond intended scope.
+            previewHost.publishSessions = { [weak self] snapshot in
+                await self?.publishMacOSSessions(snapshot)
+            }
+            // Trigger an initial publish so a registry attached after
+            // sessions exist (e.g., reattach during integration tests)
+            // doesn't lose them.
+            previewHost.notifySessionsChanged()
+        }
     }
 
     // MARK: - Publish
@@ -159,6 +183,11 @@ public actor SessionRegistry {
         // partial file. `Data.write(options: .atomic)` writes to a
         // temp and renames into place.
         try? data.write(to: target, options: .atomic)
+        // Tighten permissions explicitly. The parent directory is 0700
+        // so the file is already user-private, but session entries
+        // embed full filesystem paths and 0600 is one fewer place
+        // someone has to look to verify that.
+        try? fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: target.path)
     }
 
 }

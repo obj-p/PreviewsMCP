@@ -35,6 +35,12 @@ func mcpToolSchemas() -> [Tool] {
 
 /// Configures and returns an MCP server with preview tools.
 ///
+/// - Parameter registry: The cross-process session registry. Must be
+///   attached to `previewHost` and `iosManager` already (call
+///   `await registry.attachTo(iosManager:previewHost:)` once at host
+///   construction time, BEFORE invoking this function — daemon mode
+///   calls `configureMCPServer` per-connection and we don't want to
+///   re-attach on every accept).
 /// - Parameter sharedCompiler: Pass a pre-built `Compiler` to reuse across
 ///   multiple server instances (e.g., daemon mode, where each accepted client
 ///   connection gets its own `Server` but they all share one compiler). When
@@ -44,6 +50,7 @@ func configureMCPServer(
     host previewHost: PreviewHost,
     iosManager: IOSSessionManager,
     configCache cache: ConfigCache,
+    registry: SessionRegistry,
     sharedCompiler: Compiler? = nil
 ) async throws -> (Server, Compiler) {
     cleanupStaleTempDirs()
@@ -62,27 +69,6 @@ func configureMCPServer(
     )
 
     let router = SessionRouter(host: previewHost, iosManager: iosManager)
-
-    // Cross-process session registry. Each PreviewsMCP process (stdio
-    // MCP server, UDS daemon) publishes its session set to a per-PID
-    // file under `~/.previewsmcp/sessions/`; `SessionListHandler`
-    // returns the union of local + peer sessions so a `session_list`
-    // call from either mouth sees everything (see #6b in the
-    // architectural plan).
-    let registry = SessionRegistry(registryDir: DaemonPaths.sessionsDirectory)
-    await iosManager.setRegistry(registry)
-    await MainActor.run {
-        previewHost.onSessionsChanged = { [weak previewHost] in
-            guard let previewHost else { return }
-            let snapshot: [(String, URL)] = previewHost.allSessions.map {
-                ($0.key, $0.value.sourceFile)
-            }
-            Task { await registry.publishMacOSSessions(snapshot) }
-        }
-        // Trigger an initial publish so a registry attached after
-        // sessions exist (e.g., daemon reconfiguration) doesn't lose them.
-        previewHost.onSessionsChanged?()
-    }
 
     let ctx = HandlerContext(
         host: previewHost,
