@@ -64,6 +64,20 @@ The example project is at examples/spm/ relative to the PreviewsMCP repo root.
 - Call preview_switch with previewIndex 1 — take a snapshot and verify the empty state
 - Stop the session
 
-### 8. Cleanup
+### 8. UIKit hot reload — #160 regression guard (iOS only)
+- Use preview_start with platform "ios" on examples/spm/Sources/ToDo/UIKitPreview.swift
+  (this `#Preview` returns `ExampleLabelView`, a `UIView` subclass)
+- Take a snapshot — verify the yellow background with centered "Hello from UIKit" label
+- Change "Hello from UIKit" to "UIKit reload works" in UIKitPreview.swift
+- Wait 3 seconds (UIKit bodies always take the full-reload path — see #160)
+- Take a snapshot — verify the label now reads "UIKit reload works"
+- Revert the change and stop the session
+
+  Pre-#160 the daemon would log "iOS literal-only change applied" and the
+  simulator screen would NOT update — the literal-only fast path silently
+  no-op'd because UIKit doesn't observe DesignTimeStore mutations. If you
+  see a stale screen on a literal edit to a UIKit body, this regressed.
+
+### 9. Cleanup
 - Stop all preview sessions
 ```
