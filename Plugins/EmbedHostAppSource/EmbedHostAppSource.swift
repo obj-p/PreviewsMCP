@@ -12,6 +12,13 @@ import PackagePlugin
 /// `IOSAppIconData.bytes` with byte-equivalent runtime values to the
 /// prior hand-written stringified versions. See `IOSHostBuilderHashTests`
 /// for the gate.
+///
+/// Assumes the plugin runs only inside the PreviewsMCP package itself —
+/// `context.package.directoryURL` resolves to whatever package is
+/// being built, so if PreviewsMCP ever becomes a SwiftPM dependency
+/// of another package, the path lookup would land in the consumer's
+/// root, not ours. Safe today; revisit if extracting `PreviewsCore`
+/// as a public library.
 @main
 struct EmbedHostAppSource: BuildToolPlugin {
     func createBuildCommands(
