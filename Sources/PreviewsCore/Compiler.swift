@@ -28,7 +28,7 @@ public struct CompilationError: Error, LocalizedError, CustomStringConvertible {
 /// Compiles Swift source code into signed dynamic libraries.
 public actor Compiler {
     private let workDir: URL
-    private let sdkPath: String
+    nonisolated let sdkPath: String
     private let swiftcPath: String
     private let codesignPath: String
     public nonisolated let platform: PreviewPlatform
@@ -49,15 +49,10 @@ public actor Compiler {
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         self.workDir = dir
 
-        switch platform {
-        case .macOS:
-            self.sdkPath = try await Self.resolve("xcrun", "--show-sdk-path")
-        case .iOS:
-            self.sdkPath = try await Self.resolve("xcrun", "--show-sdk-path", "--sdk", "iphonesimulator")
-        }
+        self.sdkPath = try await Toolchain.sdkPath(for: platform)
         self.targetTriple = platform.targetTriple
-        self.swiftcPath = try await Self.resolve("xcrun", "--find", "swiftc")
-        self.codesignPath = try await Self.resolve("xcrun", "--find", "codesign")
+        self.swiftcPath = try await Toolchain.swiftcPath()
+        self.codesignPath = try await Toolchain.codesignPath()
 
         // Shared module cache at parent of workDir, keyed by platform to avoid SDK conflicts.
         let cacheDir =
@@ -77,19 +72,52 @@ public actor Compiler {
     ///   - moduleName: The module name for the compilation unit.
     ///   - extraFlags: Additional swiftc flags (e.g., -I, -L from build system).
     ///   - additionalSourceFiles: Extra .swift files to compile alongside (Tier 2 project mode).
+    ///   - overrideSDK: Optional SDK path to use instead of the Compiler's default.
+    ///     When the bridge imports a swiftmodule built externally (the user's
+    ///     setup package, compiled by SetupBuilder), the import will fail with
+    ///     "cannot load module ... built with SDK 'X' when using SDK 'Y'" if
+    ///     the two compilations disagreed on the SDK. Inheriting the setup's
+    ///     SDK here makes the import succeed by construction (issue #170).
     public func compileCombined(
         source: String,
         moduleName: String,
         extraFlags: [String] = [],
-        additionalSourceFiles: [URL] = []
+        additionalSourceFiles: [URL] = [],
+        overrideSDK: String? = nil
     ) async throws -> CompilationResult {
         compilationCounter += 1
         let uniqueName = "\(moduleName)_\(compilationCounter)"
         let sourceFile = workDir.appendingPathComponent("\(uniqueName).swift")
         let dylibFile = workDir.appendingPathComponent("\(uniqueName).dylib")
+        let effectiveSDK = overrideSDK ?? sdkPath
+
+        // Layer 3 guard for issue #170: if the caller passes an SDK that no
+        // longer exists (e.g. user upgraded Xcode after a SetupBuilder build
+        // landed in cache, or hand-supplied a bogus path), fail fast with an
+        // actionable error before swiftc surfaces a generic "cannot find SDK"
+        // diagnostic that doesn't hint at the cache-staleness root cause.
+        if let overrideSDK, !FileManager.default.fileExists(atPath: overrideSDK) {
+            throw CompilationError(
+                message:
+                    "Setup module was built against SDK at \(overrideSDK), which "
+                    + "no longer exists on disk. The active toolchain resolves to "
+                    + "\(sdkPath). Delete the setup cache (.build/previewsmcp-setup-cache) "
+                    + "or rebuild the setup package to capture the current SDK.",
+                stderr: "",
+                exitCode: 1
+            )
+        }
+
+        if let overrideSDK, overrideSDK != sdkPath {
+            Log.warn(
+                "compileCombined: setup SDK differs from active toolchain SDK "
+                    + "(setup=\(overrideSDK), default=\(sdkPath)). Inheriting setup "
+                    + "SDK to keep swiftmodule load consistent.")
+        }
 
         Log.info(
             "compileCombined: module=\(moduleName) platform=\(platform) "
+                + "sdk=\(effectiveSDK) "
                 + "extraFlags=\(extraFlags.joined(separator: " ")) "
                 + "additionalSources=\(additionalSourceFiles.count) "
                 + "dylib=\(dylibFile.path)")
@@ -102,7 +130,7 @@ public actor Compiler {
             "-emit-library",
             "-parse-as-library",
             "-target", targetTriple,
-            "-sdk", sdkPath,
+            "-sdk", effectiveSDK,
             "-module-name", moduleName,
             "-Onone",
             "-gnone",
@@ -135,15 +163,4 @@ public actor Compiler {
         return output.stdout
     }
 
-    private static func resolve(_ args: String...) async throws -> String {
-        let output = try await runAsync("/usr/bin/env", arguments: args, discardStderr: true)
-        guard output.exitCode == 0 else {
-            throw CompilationError(
-                message: "Failed to resolve: \(args.joined(separator: " "))",
-                stderr: "",
-                exitCode: output.exitCode
-            )
-        }
-        return output.stdout
-    }
 }

@@ -173,14 +173,8 @@ public actor SPMBuildSystem: BuildSystem {
         let targetName = try findTarget(for: sourceFile, in: description)
 
         // 2. Resolve iOS SDK path once (used by both swift build and --show-bin-path)
-        let iosSDKPath: String?
-        if platform == .iOS {
-            iosSDKPath = try await runProcess(
-                "/usr/bin/xcrun", "--show-sdk-path", "--sdk", "iphonesimulator"
-            )
-        } else {
-            iosSDKPath = nil
-        }
+        let iosSDKPath: String? =
+            platform == .iOS ? try await Toolchain.sdkPath(for: .iOS) : nil
 
         // 3. Build the package
         try await runSwiftBuild(platform: platform, iosSDKPath: iosSDKPath)
@@ -448,7 +442,7 @@ public actor SPMBuildSystem: BuildSystem {
             return []
         }
 
-        let arPath = try await Self.resolvedArPath()
+        let arPath = try await Toolchain.arPath()
         var libs: [String] = []
 
         for entry in entries {
@@ -547,15 +541,6 @@ public actor SPMBuildSystem: BuildSystem {
             return String(tail[..<endQuote])
         }
         return nil
-    }
-
-    private static func resolvedArPath() async throws -> String {
-        let output = try await runAsync(
-            "/usr/bin/xcrun", arguments: ["--find", "ar"], discardStderr: true)
-        guard output.exitCode == 0 else {
-            throw BuildSystemError.missingArtifacts("Could not locate `ar` via xcrun")
-        }
-        return output.stdout
     }
 
     // MARK: - Private: Source Files (Tier 2)

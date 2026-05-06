@@ -10,6 +10,25 @@ public enum SetupBuilder {
         /// Path to the setup dynamic library. Must be loaded with RTLD_GLOBAL
         /// before any preview dylib so all preview dylibs share the same statics.
         public let dylibPath: URL
+        /// SDK path used to compile the setup module. The downstream
+        /// preview-bridge compile must inherit this SDK or swiftc will
+        /// reject the swiftmodule with "cannot load module ... built with
+        /// SDK 'macosxA' when using SDK 'macosxB'" (issue #170).
+        public let sdkPath: String
+
+        public init(
+            moduleName: String,
+            typeName: String,
+            compilerFlags: [String],
+            dylibPath: URL,
+            sdkPath: String
+        ) {
+            self.moduleName = moduleName
+            self.typeName = typeName
+            self.compilerFlags = compilerFlags
+            self.dylibPath = dylibPath
+            self.sdkPath = sdkPath
+        }
     }
 
     /// Build the setup package and return flags needed to compile bridge code that imports it.
@@ -41,10 +60,14 @@ public enum SetupBuilder {
         // source hash.
 
         // Resolve inputs for the cache key before checking the cache.
-        let iosSDKPath: String? = platform == .iOS ? try await resolveIOSSDK() : nil
+        // Pin the SDK both platforms — the swiftmodule SetupBuilder produces
+        // gets imported by the downstream Compiler invocation, and a bare
+        // `swift build` may otherwise pick a different SDK on hosts where
+        // CommandLineTools and Xcode disagree (issue #170).
+        let sdkPath = try await Toolchain.sdkPath(for: platform)
         let swiftVersion = try await SetupCache.resolveSwiftVersion()
         let sourceHash = try SetupCache.hashSources(
-            packageDir: packageDir, sdkPath: iosSDKPath, swiftVersion: swiftVersion)
+            packageDir: packageDir, sdkPath: sdkPath, swiftVersion: swiftVersion)
 
         if let cached = SetupCache.load(
             packageDir: packageDir,
@@ -55,9 +78,9 @@ public enum SetupBuilder {
             return cached
         }
 
-        var buildArgs = ["build", "--package-path", packageDir.path]
-        if let sdkPath = iosSDKPath {
-            buildArgs += ["--triple", PreviewPlatform.iOS.targetTriple, "--sdk", sdkPath]
+        var buildArgs = ["build", "--package-path", packageDir.path, "--sdk", sdkPath]
+        if platform == .iOS {
+            buildArgs += ["--triple", PreviewPlatform.iOS.targetTriple]
         }
 
         let buildResult = try await SPMBuildRecovery.runSwift(
@@ -70,9 +93,12 @@ public enum SetupBuilder {
             )
         }
 
-        var binPathArgs = ["swift", "build", "--package-path", packageDir.path, "--show-bin-path"]
-        if let sdkPath = iosSDKPath {
-            binPathArgs += ["--triple", PreviewPlatform.iOS.targetTriple, "--sdk", sdkPath]
+        var binPathArgs = [
+            "swift", "build", "--package-path", packageDir.path,
+            "--show-bin-path", "--sdk", sdkPath,
+        ]
+        if platform == .iOS {
+            binPathArgs += ["--triple", PreviewPlatform.iOS.targetTriple]
         }
 
         let binPathResult = try await runAsync("/usr/bin/env", arguments: binPathArgs)
@@ -118,7 +144,8 @@ public enum SetupBuilder {
             moduleName: config.moduleName,
             typeName: config.typeName,
             compilerFlags: flags,
-            dylibPath: dylibPath
+            dylibPath: dylibPath,
+            sdkPath: sdkPath
         )
 
         SetupCache.store(
@@ -179,7 +206,7 @@ public enum SetupBuilder {
         )
         try? fm.removeItem(at: tempDylib)
 
-        let swiftcPath = try await resolveSwiftc()
+        let swiftcPath = try await Toolchain.swiftcPath()
         var args = ["-emit-library", "-o", tempDylib.path]
         // Set the install name to the FINAL path (not the temp path). After
         // atomic rename, preview dylibs linked with this install_name will
@@ -189,13 +216,7 @@ public enum SetupBuilder {
 
         // Always pass -sdk — swiftc needs it for both macOS and iOS to locate
         // the Swift runtime and system frameworks.
-        let sdkPath: String
-        switch platform {
-        case .iOS:
-            sdkPath = try await resolveIOSSDK()
-        case .macOS:
-            sdkPath = try await resolveMacOSSDK()
-        }
+        let sdkPath = try await Toolchain.sdkPath(for: platform)
         args += ["-sdk", sdkPath]
 
         let frameworks = BuildSystemSupport.collectFrameworks(binPath: binPath)
@@ -218,7 +239,7 @@ public enum SetupBuilder {
 
         // Ad-hoc codesign the temp file before it's visible at the final path
         // (required on Apple Silicon; dyld refuses unsigned dylibs).
-        let codesignPath = try await resolveCodesign()
+        let codesignPath = try await Toolchain.codesignPath()
         let signResult = try await runAsync(codesignPath, arguments: ["-s", "-", tempDylib.path])
         guard signResult.exitCode == 0 else {
             try? fm.removeItem(at: tempDylib)
@@ -262,54 +283,6 @@ public enum SetupBuilder {
                 try? FileManager.default.removeItem(at: entry)
             }
         }
-    }
-
-    private static func resolveSwiftc() async throws -> String {
-        let result = try await runAsync(
-            "/usr/bin/xcrun", arguments: ["--find", "swiftc"], discardStderr: true
-        )
-        guard result.exitCode == 0 else {
-            throw SetupBuilderError.buildFailed(
-                package: "swiftc", stderr: "Could not locate swiftc via xcrun"
-            )
-        }
-        return result.stdout
-    }
-
-    private static func resolveCodesign() async throws -> String {
-        let result = try await runAsync(
-            "/usr/bin/xcrun", arguments: ["--find", "codesign"], discardStderr: true
-        )
-        guard result.exitCode == 0 else {
-            throw SetupBuilderError.buildFailed(
-                package: "codesign", stderr: "Could not locate codesign via xcrun"
-            )
-        }
-        return result.stdout
-    }
-
-    private static func resolveIOSSDK() async throws -> String {
-        let result = try await runAsync(
-            "/usr/bin/xcrun", arguments: ["--show-sdk-path", "--sdk", "iphonesimulator"]
-        )
-        guard result.exitCode == 0 else {
-            throw SetupBuilderError.buildFailed(
-                package: "iOS SDK", stderr: result.stderr
-            )
-        }
-        return result.stdout
-    }
-
-    private static func resolveMacOSSDK() async throws -> String {
-        let result = try await runAsync(
-            "/usr/bin/xcrun", arguments: ["--show-sdk-path", "--sdk", "macosx"]
-        )
-        guard result.exitCode == 0 else {
-            throw SetupBuilderError.buildFailed(
-                package: "macOS SDK", stderr: result.stderr
-            )
-        }
-        return result.stdout
     }
 
 }
