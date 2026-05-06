@@ -66,6 +66,30 @@ enum BuildSystemSupport {
             .map { $0.standardizedFileURL }
     }
 
+    /// Verify that `<modulesDir>/<moduleName>.swiftmodule` exists; if
+    /// missing, throw the error returned by `onMissing()`. SPM,
+    /// SetupBuilder, and Bazel all do this exact "build path →
+    /// fileExists → throw" check after their own build subprocess
+    /// finishes, with different concrete error types
+    /// (`BuildSystemError.missingArtifacts` vs
+    /// `SetupBuilderError.moduleNotFound`). The closure pattern lets
+    /// each caller throw its own type without forcing a single error
+    /// shape on all of them.
+    ///
+    /// Xcode's "verify build outputs" check is structurally different
+    /// (it looks at `BUILT_PRODUCTS_DIR`, not a specific module file)
+    /// and is intentionally NOT routed through this helper.
+    static func verifySwiftModule(
+        named moduleName: String,
+        in modulesDir: URL,
+        onMissing makeError: () -> Error
+    ) throws {
+        let swiftmodule = modulesDir.appendingPathComponent("\(moduleName).swiftmodule")
+        guard FileManager.default.fileExists(atPath: swiftmodule.path) else {
+            throw makeError()
+        }
+    }
+
     /// Recursively collect `.o` files under `directory`. Used by SPM (per
     /// dependency-target archive) and the setup builder (single dylib link).
     /// `swift build` emits Swift object files as `<Source>.swift.o`, so

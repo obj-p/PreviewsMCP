@@ -212,10 +212,8 @@ public actor BazelBuildSystem: BuildSystem {
         let moduleDir = bazelBin.appendingPathComponent(
             target.replacingOccurrences(of: "//", with: "")
                 .split(separator: ":").first.map(String.init) ?? "")
-        let swiftmodule = moduleDir.appendingPathComponent("\(moduleName).swiftmodule")
-
-        guard FileManager.default.fileExists(atPath: swiftmodule.path) else {
-            throw BuildSystemError.missingArtifacts(
+        try BuildSystemSupport.verifySwiftModule(named: moduleName, in: moduleDir) {
+            BuildSystemError.missingArtifacts(
                 "Expected \(moduleName).swiftmodule in bazel-bin output for \(target)")
         }
 

@@ -190,9 +190,8 @@ public actor SPMBuildSystem: BuildSystem {
 
         // 5. Verify the module exists
         let modulesDir = binPath.appendingPathComponent("Modules")
-        let swiftmodule = modulesDir.appendingPathComponent("\(targetName).swiftmodule")
-        guard FileManager.default.fileExists(atPath: swiftmodule.path) else {
-            throw BuildSystemError.missingArtifacts(
+        try BuildSystemSupport.verifySwiftModule(named: targetName, in: modulesDir) {
+            BuildSystemError.missingArtifacts(
                 "Expected \(targetName).swiftmodule at \(modulesDir.path)"
             )
         }
