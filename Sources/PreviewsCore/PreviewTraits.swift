@@ -63,13 +63,12 @@ public struct PreviewTraits: Sendable, Equatable {
         )
     }
 
-    /// Canonical trait value lists, ordered so MCP tool schemas exposing
-    /// them as `enum` constraints get a stable, meaningful presentation
-    /// order (size order for `dynamicTypeSize`, light-then-dark, etc.).
-    /// Order is wire-relevant: `Tests/PreviewsCLITests/list_tools_snapshot.json`
-    /// pins the JSON-encoded order.
-    ///
-    /// `.contains` membership is O(n) on arrays, but n is tiny (≤12).
+    /// Canonical trait value lists. Stored as ordered arrays — not Sets —
+    /// because the wire shape matters: MCP tool schemas expose these as
+    /// JSON `enum` arrays in declaration order, and
+    /// `Tests/PreviewsCLITests/list_tools_snapshot.json` pins the
+    /// resulting bytes. `.contains` membership against these arrays is
+    /// O(n), but n is tiny (≤12) — acceptable for the validation paths.
 
     public static let validColorSchemes: [String] = ["light", "dark"]
 

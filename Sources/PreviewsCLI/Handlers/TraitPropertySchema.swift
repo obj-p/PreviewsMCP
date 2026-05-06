@@ -12,10 +12,15 @@ import PreviewsCore
 /// to clear" hints that `preview_start` doesn't need) — only the value
 /// list is shared.
 func traitProperty(enumValues: [String]? = nil, description: String) -> Value {
-    var members: [(String, Value)] = [("type", .string("string"))]
+    // Key insertion order doesn't matter — `JSONEncoder.outputFormatting`
+    // includes `.sortedKeys`, so the wire bytes alphabetize regardless
+    // of how we build the dictionary here.
+    var members: [String: Value] = [
+        "type": .string("string"),
+        "description": .string(description),
+    ]
     if let enumValues {
-        members.append(("enum", .array(enumValues.map { .string($0) })))
+        members["enum"] = .array(enumValues.map { .string($0) })
     }
-    members.append(("description", .string(description)))
-    return .object(Dictionary(uniqueKeysWithValues: members))
+    return .object(members)
 }
