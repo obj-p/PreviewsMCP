@@ -124,7 +124,15 @@ public actor Compiler {
 
         try source.write(to: sourceFile, atomically: true, encoding: .utf8)
 
-        // Build argument list
+        // Build argument list.
+        //
+        // `-wmo -num-threads N` is the "fast debug build" recipe: one frontend
+        // invocation type-checks the whole module once (cheaper than batched
+        // mode's per-batch re-typechecking on import-heavy code), then
+        // codegen parallelizes across N threads. `-num-threads` alone is a
+        // no-op without `-wmo`. Onone keeps cross-file inlining off so this
+        // doesn't slow down link.
+        let threadCount = ProcessInfo.processInfo.activeProcessorCount
         var args: [String] = [
             swiftcPath,
             "-emit-library",
@@ -134,6 +142,8 @@ public actor Compiler {
             "-module-name", moduleName,
             "-Onone",
             "-gnone",
+            "-wmo",
+            "-num-threads", String(threadCount),
             "-module-cache-path", moduleCachePath.path,
         ]
         args += extraFlags
