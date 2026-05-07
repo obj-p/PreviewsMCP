@@ -132,7 +132,18 @@ public actor Compiler {
         // codegen parallelizes across N threads. `-num-threads` alone is a
         // no-op without `-wmo`. Onone keeps cross-file inlining off so this
         // doesn't slow down link.
-        let threadCount = ProcessInfo.processInfo.activeProcessorCount
+        //
+        // `PREVIEWSMCP_SWIFTC_THREADS` overrides the thread count for
+        // benchmarking or for users on thermally-constrained machines who
+        // want to leave headroom for the rest of the system.
+        let threadCount: Int = {
+            if let override = ProcessInfo.processInfo.environment["PREVIEWSMCP_SWIFTC_THREADS"],
+                let n = Int(override), n > 0
+            {
+                return n
+            }
+            return ProcessInfo.processInfo.activeProcessorCount
+        }()
         var args: [String] = [
             swiftcPath,
             "-emit-library",
