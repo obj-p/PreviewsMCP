@@ -69,12 +69,18 @@ struct SpikeHarness {
 
     /// Compile a thunk dylib that links against the stable.
     ///
-    /// Same `-module-name` as the stable — see `SpikeHarness.moduleName`
-    /// docstring for why.
+    /// Defaults to `<moduleName>Thunk` — see `SpikeHarness.moduleName`
+    /// docstring. Tests that compile multiple thunks against the same
+    /// stable (multi-cycle hot-swap) pass a distinct
+    /// `thunkModuleNameOverride` per call so the dispatch-table
+    /// registration is unambiguous; without that, two thunks sharing
+    /// the same module + symbol names step on each other's replacement
+    /// registration.
     @discardableResult
     func compileThunk(
         source: String,
         sourceName: String,
+        thunkModuleNameOverride: String? = nil,
         extraArgs: [String] = []
     ) async throws -> URL {
         let sourcePath = workDir.appendingPathComponent(sourceName)
@@ -83,10 +89,11 @@ struct SpikeHarness {
             "libThunk_\(UUID().uuidString.prefix(8)).dylib")
         let swiftc = try await Toolchain.swiftcPath()
         let sdk = try await Toolchain.sdkPath(named: "macosx")
+        let resolvedThunkModuleName = thunkModuleNameOverride ?? thunkModuleName
         let args =
             [
                 "-emit-library",
-                "-module-name", thunkModuleName,
+                "-module-name", resolvedThunkModuleName,
                 "-Onone",
                 "-g",
                 "-sdk", sdk,
