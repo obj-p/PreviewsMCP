@@ -18,7 +18,7 @@ struct ListCommand: ParsableCommand {
     var json: Bool = false
 
     mutating func run() throws {
-        let fileURL = URL(fileURLWithPath: file).standardizedFileURL
+        let fileURL = Path.normalizeURL(file)
         let previews = try PreviewParser.parse(fileAt: fileURL)
 
         if json {

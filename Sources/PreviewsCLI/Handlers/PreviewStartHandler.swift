@@ -81,6 +81,12 @@ enum PreviewStartHandler: ToolHandler {
                     enumValues: PreviewTraits.validLegibilityWeights,
                     description: "Legibility weight: 'regular' or 'bold' (Bold Text accessibility)"
                 ),
+                "config": .object([
+                    "type": .string("string"),
+                    "description": .string(
+                        "Path to a .previewsmcp.json config file. When omitted, the daemon auto-discovers by walking up from the source file's directory."
+                    ),
+                ]),
             ]),
             "required": .array([.string("filePath")]),
         ])
@@ -92,20 +98,28 @@ enum PreviewStartHandler: ToolHandler {
     ) async throws -> CallTool.Result {
         Log.info("preview_start: enter")
 
-        let filePath: String
-        do { filePath = try extractString("filePath", from: params) } catch {
+        let rawFilePath: String
+        do { rawFilePath = try extractString("filePath", from: params) } catch {
             return CallTool.Result(content: [.text(error.localizedDescription)], isError: true)
         }
 
-        let fileURL = URL(fileURLWithPath: filePath)
+        let fileURL = Path.normalizeURL(rawFilePath)
         guard FileManager.default.fileExists(atPath: fileURL.path) else {
-            return CallTool.Result(content: [.text("File not found: \(filePath)")], isError: true)
+            return CallTool.Result(content: [.text("File not found: \(rawFilePath)")], isError: true)
         }
 
         let previewIndex = extractOptionalInt("previewIndex", from: params) ?? 0
 
         Log.info("preview_start: loading config")
-        let configResult = await ctx.configCache.load(for: fileURL)
+        let configResult: ProjectConfigLoader.Result?
+        if let explicitConfig = extractOptionalString("config", from: params) {
+            // Explicit `config` bypasses the auto-discovery cache. One-shot
+            // load is fine: config is read once at session start; long-lived
+            // sessions don't consult it again.
+            configResult = loadProjectConfig(explicit: explicitConfig, fileURL: fileURL)
+        } else {
+            configResult = await ctx.configCache.load(for: fileURL)
+        }
         Log.info("preview_start: config loaded")
         let config = configResult?.config
         let platformStr: String
@@ -352,7 +366,8 @@ private func detectBuildContext(
     platform: PreviewPlatform,
     progress: (any ProgressReporter)? = nil
 ) async throws -> BuildContext? {
-    let projectRootURL = extractOptionalString("projectPath", from: params).map { URL(fileURLWithPath: $0) }
+    let projectRootURL = extractOptionalString("projectPath", from: params)
+        .map { Path.normalizeURL($0) }
     let scheme = extractOptionalString("scheme", from: params)
     return try await detectAndBuild(
         for: fileURL,

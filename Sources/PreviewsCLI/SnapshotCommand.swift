@@ -119,8 +119,7 @@ struct SnapshotCommand: AsyncParsableCommand {
         }
 
         if let file {
-            let fileURL = URL(fileURLWithPath: file).standardizedFileURL
-            guard FileManager.default.fileExists(atPath: fileURL.path) else {
+            guard FileManager.default.fileExists(atPath: Path.normalize(file)) else {
                 throw ValidationError("File not found: \(file)")
             }
         }
@@ -189,7 +188,11 @@ struct SnapshotCommand: AsyncParsableCommand {
     /// Create an ephemeral session for the target file, capture, tear down.
     /// Trait flags are applied at start.
     private func snapshotEphemeral(file: String, client: Client) async throws {
-        let fileURL = URL(fileURLWithPath: file).standardizedFileURL
+        // Normalize locally — used for client-side helpers (config
+        // discovery, platform inference) and sent to the daemon, which
+        // runs in its own process and does not share our CWD. The daemon
+        // re-normalizes on receipt for non-CLI MCP clients.
+        let fileURL = Path.normalizeURL(file)
         let configResult = loadProjectConfig(explicit: config, fileURL: fileURL)
         let resolvedPlatform = Self.resolvePlatform(
             explicit: platform,
@@ -211,7 +214,7 @@ struct SnapshotCommand: AsyncParsableCommand {
             // root and hang resolving the main package.
             "platform": .string(resolvedPlatform.rawValue),
         ]
-        if let project { startArgs["projectPath"] = .string(project) }
+        if let project { startArgs["projectPath"] = .string(Path.normalize(project)) }
         if let scheme { startArgs["scheme"] = .string(scheme) }
         if let device { startArgs["deviceUDID"] = .string(device) }
         if let colorScheme { startArgs["colorScheme"] = .string(colorScheme) }
@@ -219,7 +222,7 @@ struct SnapshotCommand: AsyncParsableCommand {
         if let locale { startArgs["locale"] = .string(locale) }
         if let layoutDirection { startArgs["layoutDirection"] = .string(layoutDirection) }
         if let legibilityWeight { startArgs["legibilityWeight"] = .string(legibilityWeight) }
-        if let config { startArgs["config"] = .string(config) }
+        if let config { startArgs["config"] = .string(Path.normalize(config)) }
 
         let startResponse = try await client.callToolStructured(
             name: "preview_start", arguments: startArgs
@@ -330,7 +333,7 @@ struct SnapshotCommand: AsyncParsableCommand {
                 guard let data = Data(base64Encoded: base64) else {
                     throw SnapshotCommandError.invalidImageData
                 }
-                let outputURL = URL(fileURLWithPath: output)
+                let outputURL = URL(fileURLWithPath: Path.normalize(output))
                 try data.write(to: outputURL)
                 if json {
                     try emitJSON(
