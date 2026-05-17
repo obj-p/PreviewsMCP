@@ -12,8 +12,7 @@ import Foundation
 /// fires when any event under those directories matches a watched path.
 public final class FileWatcher: @unchecked Sendable {
     private let userPaths: [String]
-    private let canonicalPaths: Set<String>
-    private let callback: @Sendable () -> Void
+    private let box: CallbackBox
     private let queue = DispatchQueue(label: "com.previewsmcp.filewatcher")
     private var stream: FSEventStreamRef?
 
@@ -37,18 +36,24 @@ public final class FileWatcher: @unchecked Sendable {
             }
         }
 
-        self.userPaths = paths
-        self.callback = callback
-
         var canonical = Set<String>()
         var parentDirs = Set<String>()
         for path in paths {
-            let resolved = Self.canonicalize(path)
+            guard let resolved = Self.canonicalize(path) else {
+                throw FileWatcherError.cannotOpen(path: path)
+            }
             canonical.insert(resolved)
             parentDirs.insert((resolved as NSString).deletingLastPathComponent)
         }
-        self.canonicalPaths = canonical
 
+        self.userPaths = paths
+        self.box = CallbackBox(canonicalPaths: canonical, callback: callback)
+
+        // Hand FSEvents a retained pointer to `box`, not to `self`. The
+        // context's `release` callback drops the +1 when the stream is
+        // released by `stop()`. The callback trampoline dereferences `box`
+        // via unretained — safe because `box`'s lifetime is anchored to
+        // the stream itself, independent of `self`.
         var context = FSEventStreamContext(
             version: 0,
             info: nil,
@@ -56,7 +61,11 @@ public final class FileWatcher: @unchecked Sendable {
             release: nil,
             copyDescription: nil
         )
-        context.info = Unmanaged.passUnretained(self).toOpaque()
+        context.info = Unmanaged.passRetained(self.box).toOpaque()
+        context.release = { info in
+            guard let info else { return }
+            Unmanaged<CallbackBox>.fromOpaque(info).release()
+        }
 
         let flags = UInt32(
             kFSEventStreamCreateFlagFileEvents
@@ -66,11 +75,14 @@ public final class FileWatcher: @unchecked Sendable {
 
         let callbackTrampoline: FSEventStreamCallback = { _, info, numEvents, eventPaths, _, _ in
             guard let info, numEvents > 0 else { return }
-            let watcher = Unmanaged<FileWatcher>.fromOpaque(info).takeUnretainedValue()
+            let box = Unmanaged<CallbackBox>.fromOpaque(info).takeUnretainedValue()
             let cfPaths = Unmanaged<CFArray>.fromOpaque(eventPaths).takeUnretainedValue()
             let nsPaths = cfPaths as NSArray
-            for case let path as String in nsPaths where watcher.canonicalPaths.contains(path) {
-                watcher.callback()
+            // First match wins: a single change-event burst yields one
+            // callback regardless of how many watched paths it touched,
+            // matching the "one reload per change burst" intent.
+            for case let path as String in nsPaths where box.canonicalPaths.contains(path) {
+                box.callback()
                 return
             }
         }
@@ -86,19 +98,24 @@ public final class FileWatcher: @unchecked Sendable {
                 flags
             )
         else {
+            // FSEventStreamCreate did not take ownership; drop our +1 on box.
+            Unmanaged<CallbackBox>.fromOpaque(context.info!).release()
             throw FileWatcherError.cannotOpen(path: paths.first ?? "<unknown>")
         }
 
-        self.stream = stream
         FSEventStreamSetDispatchQueue(stream, queue)
-        FSEventStreamStart(stream)
+        guard FSEventStreamStart(stream) else {
+            FSEventStreamInvalidate(stream)
+            FSEventStreamRelease(stream)
+            throw FileWatcherError.cannotOpen(path: paths.first ?? "<unknown>")
+        }
+        self.stream = stream
     }
 
     public func stop() {
         // Drain any in-flight callback on `queue` before tearing down the
-        // stream — the callback dereferences `self` via an unretained info
-        // pointer, so it must not run after `stop()` returns to a deiniting
-        // owner.
+        // stream. `FSEventStreamRelease` triggers the context's release
+        // callback, dropping the +1 on `box`.
         queue.sync {
             guard let stream else { return }
             FSEventStreamStop(stream)
@@ -112,10 +129,26 @@ public final class FileWatcher: @unchecked Sendable {
         stop()
     }
 
-    private static func canonicalize(_ path: String) -> String {
-        guard let resolved = realpath(path, nil) else { return path }
+    private static func canonicalize(_ path: String) -> String? {
+        guard let resolved = realpath(path, nil) else { return nil }
         defer { free(resolved) }
         return String(cString: resolved)
+    }
+}
+
+/// Immutable state read by the FSEvents callback trampoline.
+///
+/// The callback dereferences this via an unretained pointer; the stream's
+/// context release callback drops the matching +1 when the stream is
+/// released. Decoupling the callback from `FileWatcher` lets the watcher
+/// deinit without racing in-flight callbacks against partial destruction.
+private final class CallbackBox: @unchecked Sendable {
+    let canonicalPaths: Set<String>
+    let callback: @Sendable () -> Void
+
+    init(canonicalPaths: Set<String>, callback: @escaping @Sendable () -> Void) {
+        self.canonicalPaths = canonicalPaths
+        self.callback = callback
     }
 }
 

@@ -263,12 +263,24 @@ struct IntegrationTests {
 
         try await Task.sleep(for: .milliseconds(100))
 
+        let initialInode =
+            try FileManager.default.attributesOfItem(atPath: file.path)[.systemFileNumber]
+            as? UInt64
+
         // Explicit write-temp + rename, not `atomically: true` (which would
         // hide whether the rename path is what we actually exercise).
         let tmp = tempDir.appendingPathComponent("watched.swift.tmp")
         try "modified".write(to: tmp, atomically: false, encoding: .utf8)
         let renamed = rename(tmp.path, file.path)
         #expect(renamed == 0, "rename(2) should succeed")
+
+        let finalInode =
+            try FileManager.default.attributesOfItem(atPath: file.path)[.systemFileNumber]
+            as? UInt64
+        #expect(
+            initialInode != nil && finalInode != nil && initialInode != finalInode,
+            "rename(2) should have replaced the file's inode (so this exercises the inode-vanish hole, not an in-place write)"
+        )
 
         try await Task.sleep(for: .milliseconds(200))
 
@@ -331,17 +343,21 @@ struct IntegrationTests {
 
         try await Task.sleep(for: .milliseconds(100))
 
-        // Two delete-and-recreate cycles, spaced past the latency window so
-        // each one gets its own delivery rather than being coalesced into
-        // the first.
+        // Two delete-and-recreate cycles, spaced well past the latency
+        // window so each cycle gets its own delivery rather than being
+        // coalesced into the first. Per-cycle assertion catches the
+        // regression where only the initial cycle fires.
         for i in 1...2 {
+            let beforeCycle = callCount.withLock { $0 }
             try FileManager.default.removeItem(at: file)
             try "save \(i)".write(to: file, atomically: false, encoding: .utf8)
-            try await Task.sleep(for: .milliseconds(150))
+            try await Task.sleep(for: .milliseconds(300))
+            let afterCycle = callCount.withLock { $0 }
+            #expect(
+                afterCycle > beforeCycle,
+                "Cycle \(i): watcher should have fired after delete+recreate (before=\(beforeCycle), after=\(afterCycle))"
+            )
         }
-
-        let count = callCount.withLock { $0 }
-        #expect(count >= 1, "Watcher should still be firing after delete+recreate, got \(count)")
     }
 }
 
