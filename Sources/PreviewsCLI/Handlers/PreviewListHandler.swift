@@ -24,14 +24,14 @@ enum PreviewListHandler: ToolHandler {
         _ params: CallTool.Parameters,
         ctx: HandlerContext
     ) async throws -> CallTool.Result {
-        let filePath: String
-        do { filePath = try extractString("filePath", from: params) } catch {
+        let rawFilePath: String
+        do { rawFilePath = try extractString("filePath", from: params) } catch {
             return CallTool.Result(content: [.text(error.localizedDescription)], isError: true)
         }
 
-        let fileURL = URL(fileURLWithPath: filePath)
+        let fileURL = Path.normalizeURL(rawFilePath)
         guard FileManager.default.fileExists(atPath: fileURL.path) else {
-            return CallTool.Result(content: [.text("File not found: \(filePath)")], isError: true)
+            return CallTool.Result(content: [.text("File not found: \(rawFilePath)")], isError: true)
         }
 
         let previews = try PreviewParser.parse(fileAt: fileURL)
