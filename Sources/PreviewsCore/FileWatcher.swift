@@ -11,7 +11,6 @@ import Foundation
 /// One watch is installed per unique canonical parent directory; the callback
 /// fires when any event under those directories matches a watched path.
 public final class FileWatcher: @unchecked Sendable {
-    private let userPaths: [String]
     private let box: CallbackBox
     private let queue = DispatchQueue(label: "com.previewsmcp.filewatcher")
     private var stream: FSEventStreamRef?
@@ -46,7 +45,6 @@ public final class FileWatcher: @unchecked Sendable {
             parentDirs.insert((resolved as NSString).deletingLastPathComponent)
         }
 
-        self.userPaths = paths
         self.box = CallbackBox(canonicalPaths: canonical, callback: callback)
 
         // Hand FSEvents a retained pointer to `box`, not to `self`. The

@@ -346,12 +346,13 @@ struct IntegrationTests {
         // Two delete-and-recreate cycles, spaced well past the latency
         // window so each cycle gets its own delivery rather than being
         // coalesced into the first. Per-cycle assertion catches the
-        // regression where only the initial cycle fires.
+        // regression where only the initial cycle fires. 500ms leaves
+        // ~10× the FSEvents latency for headroom on heavily-loaded CI.
         for i in 1...2 {
             let beforeCycle = callCount.withLock { $0 }
             try FileManager.default.removeItem(at: file)
             try "save \(i)".write(to: file, atomically: false, encoding: .utf8)
-            try await Task.sleep(for: .milliseconds(300))
+            try await Task.sleep(for: .milliseconds(500))
             let afterCycle = callCount.withLock { $0 }
             #expect(
                 afterCycle > beforeCycle,
