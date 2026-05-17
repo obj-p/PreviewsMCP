@@ -1,29 +1,29 @@
+import CoreServices
 import Foundation
 
-/// Watches one or more files for changes using polling.
-/// Checks file modification dates at a regular interval.
+/// Watches one or more files for changes using FSEvents.
+///
+/// FSEvents watches directories (not inodes), so atomic-rename saves —
+/// NSDocument, Xcode, JetBrains, default-config vim — surface as changes to
+/// the same path rather than vanishing into a deleted-inode hole the way a
+/// kqueue/`DispatchSource.makeFileSystemObjectSource` watcher would.
+///
+/// One watch is installed per unique canonical parent directory; the callback
+/// fires when any event under those directories matches a watched path.
 public final class FileWatcher: @unchecked Sendable {
-    private let filePaths: [String]
-    private let callback: @Sendable () -> Void
-    private var timer: DispatchSourceTimer?
-    private var lastModDates: [String: Date]
+    private let box: CallbackBox
     private let queue = DispatchQueue(label: "com.previewsmcp.filewatcher")
+    private var stream: FSEventStreamRef?
 
-    /// Watch a file and call the callback when it's modified.
-    /// Polls every `interval` seconds (default: 0.5s).
     public convenience init(
         path: String,
-        interval: TimeInterval = 0.5,
         callback: @escaping @Sendable () -> Void
     ) throws {
-        try self.init(paths: [path], interval: interval, callback: callback)
+        try self.init(paths: [path], callback: callback)
     }
 
-    /// Watch multiple files and call the callback when any is modified.
-    /// Polls every `interval` seconds (default: 0.5s).
     public init(
         paths: [String],
-        interval: TimeInterval = 0.5,
         callback: @escaping @Sendable () -> Void
     ) throws {
         guard !paths.isEmpty else {
@@ -35,50 +35,118 @@ public final class FileWatcher: @unchecked Sendable {
             }
         }
 
-        self.filePaths = paths
-        self.callback = callback
-
-        var dates: [String: Date] = [:]
+        var canonical = Set<String>()
+        var parentDirs = Set<String>()
         for path in paths {
-            dates[path] = Self.modDate(of: path)
+            guard let resolved = Self.canonicalize(path) else {
+                throw FileWatcherError.cannotOpen(path: path)
+            }
+            canonical.insert(resolved)
+            parentDirs.insert((resolved as NSString).deletingLastPathComponent)
         }
-        self.lastModDates = dates
 
-        let timer = DispatchSource.makeTimerSource(queue: queue)
-        timer.schedule(
-            deadline: .now() + interval,
-            repeating: interval
+        self.box = CallbackBox(canonicalPaths: canonical, callback: callback)
+
+        // Hand FSEvents a retained pointer to `box`, not to `self`. The
+        // context's `release` callback drops the +1 when the stream is
+        // released by `stop()`. The callback trampoline dereferences `box`
+        // via unretained — safe because `box`'s lifetime is anchored to
+        // the stream itself, independent of `self`.
+        var context = FSEventStreamContext(
+            version: 0,
+            info: nil,
+            retain: nil,
+            release: nil,
+            copyDescription: nil
         )
-        timer.setEventHandler { [weak self] in
-            self?.checkForChanges()
+        context.info = Unmanaged.passRetained(self.box).toOpaque()
+        context.release = { info in
+            guard let info else { return }
+            Unmanaged<CallbackBox>.fromOpaque(info).release()
         }
-        self.timer = timer
-        timer.resume()
+
+        let flags = UInt32(
+            kFSEventStreamCreateFlagFileEvents
+                | kFSEventStreamCreateFlagNoDefer
+                | kFSEventStreamCreateFlagUseCFTypes
+        )
+
+        let callbackTrampoline: FSEventStreamCallback = { _, info, numEvents, eventPaths, _, _ in
+            guard let info, numEvents > 0 else { return }
+            let box = Unmanaged<CallbackBox>.fromOpaque(info).takeUnretainedValue()
+            let cfPaths = Unmanaged<CFArray>.fromOpaque(eventPaths).takeUnretainedValue()
+            let nsPaths = cfPaths as NSArray
+            // First match wins: a single change-event burst yields one
+            // callback regardless of how many watched paths it touched,
+            // matching the "one reload per change burst" intent.
+            for case let path as String in nsPaths where box.canonicalPaths.contains(path) {
+                box.callback()
+                return
+            }
+        }
+
+        guard
+            let stream = FSEventStreamCreate(
+                kCFAllocatorDefault,
+                callbackTrampoline,
+                &context,
+                Array(parentDirs) as CFArray,
+                FSEventStreamEventId(kFSEventStreamEventIdSinceNow),
+                0.05,
+                flags
+            )
+        else {
+            // FSEventStreamCreate did not take ownership; drop our +1 on box.
+            Unmanaged<CallbackBox>.fromOpaque(context.info!).release()
+            throw FileWatcherError.cannotOpen(path: paths.first ?? "<unknown>")
+        }
+
+        FSEventStreamSetDispatchQueue(stream, queue)
+        guard FSEventStreamStart(stream) else {
+            FSEventStreamInvalidate(stream)
+            FSEventStreamRelease(stream)
+            throw FileWatcherError.cannotOpen(path: paths.first ?? "<unknown>")
+        }
+        self.stream = stream
     }
 
     public func stop() {
-        timer?.cancel()
-        timer = nil
+        // Drain any in-flight callback on `queue` before tearing down the
+        // stream. `FSEventStreamRelease` triggers the context's release
+        // callback, dropping the +1 on `box`.
+        queue.sync {
+            guard let stream else { return }
+            FSEventStreamStop(stream)
+            FSEventStreamInvalidate(stream)
+            FSEventStreamRelease(stream)
+            self.stream = nil
+        }
     }
 
     deinit {
         stop()
     }
 
-    private func checkForChanges() {
-        for path in filePaths {
-            guard let newDate = Self.modDate(of: path) else { continue }
-            if newDate != lastModDates[path] {
-                lastModDates[path] = newDate
-                callback()
-                return  // Fire once per poll cycle
-            }
-        }
+    private static func canonicalize(_ path: String) -> String? {
+        guard let resolved = realpath(path, nil) else { return nil }
+        defer { free(resolved) }
+        return String(cString: resolved)
     }
+}
 
-    private static func modDate(of path: String) -> Date? {
-        let attrs = try? FileManager.default.attributesOfItem(atPath: path)
-        return attrs?[.modificationDate] as? Date
+/// Immutable state read by the FSEvents callback trampoline.
+///
+/// The callback dereferences this via an unretained pointer; the stream's
+/// context release callback drops the matching +1 when the stream is
+/// released. Decoupling the callback from `FileWatcher` lets the watcher
+/// deinit without racing in-flight callbacks against partial destruction.
+private final class CallbackBox: @unchecked Sendable {
+    let canonicalPaths: Set<String>
+    let callback: @Sendable () -> Void
+
+    init(canonicalPaths: Set<String>, callback: @escaping @Sendable () -> Void) {
+        self.canonicalPaths = canonicalPaths
+        self.callback = callback
     }
 }
 
