@@ -382,17 +382,17 @@ struct BuildSystemTests {
         try "initial 2".write(to: file2, atomically: true, encoding: .utf8)
 
         let changed = Mutex(false)
-        let watcher = try FileWatcher(paths: [file1.path, file2.path], interval: 0.1) {
+        let watcher = try FileWatcher(paths: [file1.path, file2.path]) {
             changed.withLock { $0 = true }
         }
         defer { watcher.stop() }
 
-        // Wait a moment, then modify only the SECOND file
-        try await Task.sleep(for: .milliseconds(200))
+        // Give FSEvents time to install its watch before mutating.
+        try await Task.sleep(for: .milliseconds(100))
         try "modified 2".write(to: file2, atomically: true, encoding: .utf8)
 
-        // Wait for the watcher to detect the change
-        try await Task.sleep(for: .milliseconds(500))
+        // Wait for the watcher to detect the change (FSEvents latency ~50ms).
+        try await Task.sleep(for: .milliseconds(200))
 
         let didChange = changed.withLock { $0 }
         #expect(didChange, "FileWatcher should detect modification of the second watched file")

@@ -10,13 +10,13 @@ struct PreviewHostTests {
 
     /// Regression guard for the iOS `run` hot-reload bug.
     ///
-    /// `FileWatcher`'s timer closure captures self weakly, so a watcher goes
-    /// silent as soon as the binding that owns it falls out of scope. The
-    /// iOS `launchIOSPreview` path creates a watcher inside a function that
-    /// returns, so without an external retain the watcher deinits and hot
-    /// reload silently stops firing. `PreviewHost.retainFileWatcher` is the
-    /// hand-off that keeps it alive — if that mechanism breaks, this test
-    /// should go red.
+    /// `FileWatcher` callbacks dereference `self` via an unretained pointer,
+    /// so a watcher goes silent as soon as the binding that owns it falls
+    /// out of scope. The iOS `launchIOSPreview` path creates a watcher
+    /// inside a function that returns, so without an external retain the
+    /// watcher deinits and hot reload silently stops firing.
+    /// `PreviewHost.retainFileWatcher` is the hand-off that keeps it
+    /// alive — if that mechanism breaks, this test should go red.
     @Test("retainFileWatcher keeps a watcher alive past the creating scope")
     func retainFileWatcherKeepsWatcherAlive() async throws {
         let host = PreviewHost()
@@ -35,18 +35,19 @@ struct PreviewHostTests {
         // before we touch the file. Without `retainFileWatcher` the watcher
         // would deinit here and the callback below would never fire.
         do {
-            let watcher = try FileWatcher(path: file.path, interval: 0.1) {
+            let watcher = try FileWatcher(path: file.path) {
                 fired.withLock { $0 = true }
             }
             host.retainFileWatcher(watcher)
         }
 
-        // Give the inner scope's release a chance to actually run.
-        try await Task.sleep(for: .milliseconds(200))
+        // Give the inner scope's release a chance to actually run, and
+        // FSEvents a moment to install its watch.
+        try await Task.sleep(for: .milliseconds(100))
 
         // Modify the file — the retained watcher should see it.
         try "modified".write(to: file, atomically: true, encoding: .utf8)
-        try await Task.sleep(for: .milliseconds(500))
+        try await Task.sleep(for: .milliseconds(200))
 
         #expect(
             fired.withLock { $0 },

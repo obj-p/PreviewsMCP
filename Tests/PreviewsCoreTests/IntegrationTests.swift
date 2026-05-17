@@ -225,20 +225,123 @@ struct IntegrationTests {
         try "initial content".write(to: file, atomically: true, encoding: .utf8)
 
         let changed = Mutex(false)
-        let watcher = try FileWatcher(path: file.path, interval: 0.1) {
+        let watcher = try FileWatcher(path: file.path) {
             changed.withLock { $0 = true }
         }
         defer { watcher.stop() }
 
-        // Wait a moment, then modify the file
-        try await Task.sleep(for: .milliseconds(200))
+        // Give FSEvents time to install its watch before mutating.
+        try await Task.sleep(for: .milliseconds(100))
         try "modified content".write(to: file, atomically: true, encoding: .utf8)
 
-        // Wait for the watcher to detect the change
-        try await Task.sleep(for: .milliseconds(500))
+        // Wait for the watcher to detect the change (FSEvents latency ~50ms).
+        try await Task.sleep(for: .milliseconds(200))
 
         let didChange = changed.withLock { $0 }
         #expect(didChange, "FileWatcher should detect the file modification")
+    }
+
+    /// Atomic-rename is how NSDocument, Xcode, JetBrains, and default-config
+    /// vim save. The original inode is unlinked and replaced — a kqueue/
+    /// inode-based watcher would go silent here; FSEvents reports the event
+    /// at path granularity.
+    @Test("FileWatcher detects atomic-rename save")
+    func fileWatcherAtomicRename() async throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previews-mcp-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let file = tempDir.appendingPathComponent("watched.swift")
+        try "initial".write(to: file, atomically: false, encoding: .utf8)
+
+        let changed = Mutex(false)
+        let watcher = try FileWatcher(path: file.path) {
+            changed.withLock { $0 = true }
+        }
+        defer { watcher.stop() }
+
+        try await Task.sleep(for: .milliseconds(100))
+
+        // Explicit write-temp + rename, not `atomically: true` (which would
+        // hide whether the rename path is what we actually exercise).
+        let tmp = tempDir.appendingPathComponent("watched.swift.tmp")
+        try "modified".write(to: tmp, atomically: false, encoding: .utf8)
+        let renamed = rename(tmp.path, file.path)
+        #expect(renamed == 0, "rename(2) should succeed")
+
+        try await Task.sleep(for: .milliseconds(200))
+
+        #expect(
+            changed.withLock { $0 },
+            "FileWatcher should detect an atomic-rename save"
+        )
+    }
+
+    /// FSEvents coalesces successive writes inside its latency window into a
+    /// single delivery. The contract we care about is "at least one
+    /// callback" — zero would be a regression.
+    @Test("FileWatcher fires at least once for back-to-back saves")
+    func fileWatcherBackToBackSaves() async throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previews-mcp-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let file = tempDir.appendingPathComponent("watched.swift")
+        try "initial".write(to: file, atomically: false, encoding: .utf8)
+
+        let callCount = Mutex(0)
+        let watcher = try FileWatcher(path: file.path) {
+            callCount.withLock { $0 += 1 }
+        }
+        defer { watcher.stop() }
+
+        try await Task.sleep(for: .milliseconds(100))
+
+        // Two writes inside the ~50ms latency window. FSEvents may coalesce
+        // them into a single callback — that is expected and fine.
+        try "write 1".write(to: file, atomically: false, encoding: .utf8)
+        try "write 2".write(to: file, atomically: false, encoding: .utf8)
+
+        try await Task.sleep(for: .milliseconds(200))
+
+        let count = callCount.withLock { $0 }
+        #expect(count >= 1, "Back-to-back saves should produce at least one callback, got \(count)")
+    }
+
+    /// Some editors (and some Foundation paths) delete the file and create
+    /// a new one on every save. A path-based watcher must survive this; an
+    /// inode-bound one would not.
+    @Test("FileWatcher survives delete-and-recreate save pattern")
+    func fileWatcherDeleteRecreate() async throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previews-mcp-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let file = tempDir.appendingPathComponent("watched.swift")
+        try "initial".write(to: file, atomically: false, encoding: .utf8)
+
+        let callCount = Mutex(0)
+        let watcher = try FileWatcher(path: file.path) {
+            callCount.withLock { $0 += 1 }
+        }
+        defer { watcher.stop() }
+
+        try await Task.sleep(for: .milliseconds(100))
+
+        // Two delete-and-recreate cycles, spaced past the latency window so
+        // each one gets its own delivery rather than being coalesced into
+        // the first.
+        for i in 1...2 {
+            try FileManager.default.removeItem(at: file)
+            try "save \(i)".write(to: file, atomically: false, encoding: .utf8)
+            try await Task.sleep(for: .milliseconds(150))
+        }
+
+        let count = callCount.withLock { $0 }
+        #expect(count >= 1, "Watcher should still be firing after delete+recreate, got \(count)")
     }
 }
 
