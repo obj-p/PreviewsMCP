@@ -54,6 +54,12 @@ struct SetupCommand: AsyncParsableCommand {
     )
     var restoreFrom: String?
 
+    @Flag(
+        name: .customLong("recovery"),
+        help: "Boot into macOS recoveryOS via VZMacOSVirtualMachineStartOptions.startUpFromMacOSRecovery=true. Required by the recoveryOS-bound presets (explore-recovery, disable-sip)."
+    )
+    var recovery: Bool = false
+
     enum Preset: String, ExpressibleByArgument, CaseIterable {
         /// 30s render wait + screenshot, then Enter, screenshot, ...
         /// Goal: figure out what the first 5-6 SA screens look like.
@@ -92,6 +98,19 @@ struct SetupCommand: AsyncParsableCommand {
         /// human-eyed troubleshooting. Use after a `provision-ssh` run
         /// that didn't survive reboot.
         case debugSSHState = "debug-ssh-state"
+
+        /// Boot into recoveryOS (requires --recovery flag) and
+        /// screenshot the UI at intervals so we can see what the
+        /// first-render state of recoveryOS looks like on this macOS
+        /// version. Doesn't perform any actions — pure observation.
+        /// Used to author the `disable-sip` sequence.
+        case exploreRecovery = "explore-recovery"
+
+        /// Restore from `post-ssh`, boot into recoveryOS, navigate the
+        /// Startup Options picker → Options → user-unlock → macOS
+        /// Utilities → Utilities menu → Terminal → `csrutil disable`,
+        /// confirm + reboot. Requires --recovery flag.
+        case disableSIP = "disable-sip"
     }
 
     enum Transport: String, ExpressibleByArgument, CaseIterable {
@@ -134,6 +153,22 @@ struct SetupCommand: AsyncParsableCommand {
                 throw VMError("--preset debug-ssh-state requires --transport vnc")
             }
             steps = Self.debugSSHStateSteps
+        case .exploreRecovery:
+            if transport != .vnc {
+                throw VMError("--preset explore-recovery requires --transport vnc")
+            }
+            if !recovery {
+                throw VMError("--preset explore-recovery requires --recovery")
+            }
+            steps = Self.exploreRecoverySteps
+        case .disableSIP:
+            if transport != .vnc {
+                throw VMError("--preset disable-sip requires --transport vnc")
+            }
+            if !recovery {
+                throw VMError("--preset disable-sip requires --recovery")
+            }
+            steps = Self.disableSIPSteps
         }
 
         if retry > 0 && restoreFrom == nil {
@@ -182,7 +217,7 @@ struct SetupCommand: AsyncParsableCommand {
         let host = try await MainActor.run {
             try FirstBootHost(bundle: bundle, debugVisible: !invisible)
         }
-        try await host.start()
+        try await host.start(recovery: recovery)
 
         do {
             switch transport {
@@ -210,11 +245,12 @@ struct SetupCommand: AsyncParsableCommand {
             throw error
         }
 
-        // The provision-ssh preset ends with `sudo shutdown -h now` so
-        // authorized_keys is flushed before the disk image is captured.
-        // Wait for the guest to reach `.stopped` on its own; fall back
-        // to force-stop if it doesn't.
-        if preset == .provisionSSH {
+        // The provision-ssh / disable-sip presets end with a graceful
+        // halt/shutdown so persistent state (authorized_keys, NVRAM)
+        // flushes before the disk image is captured. Wait for the
+        // guest to reach `.stopped` on its own; fall back to
+        // force-stop if it doesn't.
+        if preset == .provisionSSH || preset == .disableSIP {
             do {
                 Log.info("sequence complete; waiting up to 30s for graceful guest shutdown")
                 try await host.waitForStop(timeout: 30)
@@ -361,6 +397,154 @@ struct SetupCommand: AsyncParsableCommand {
             .key(.returnKey),
             .wait(seconds: 10),
             .screenshot(label: "07-shutdown-initiated"),
+        ]
+    }
+
+    /// Pure-observation preset for the recoveryOS UI on this macOS
+    /// version. Boots into recovery (via --recovery), waits long
+    /// intervals, screenshots throughout. We don't know what the first
+    /// screen is, whether user-selection is gated, what menu items
+    /// look like — this preset is the eyes-on-it discovery pass.
+    /// Authors `disable-sip` from the artifacts.
+    static var exploreRecoverySteps: [SetupAssistantSequence.Step] {
+        var steps: [SetupAssistantSequence.Step] = [
+            .log("recoveryOS boot — screenshotting at intervals for 4 minutes"),
+        ]
+        // Take a screenshot every 15s. recoveryOS on Apple Silicon
+        // can take 60-120s to render its initial UI, and intermediate
+        // states (loading, user picker, password prompt, macOS
+        // Utilities) are all valuable to see.
+        for i in 1...16 {
+            steps.append(.wait(seconds: 15))
+            steps.append(.screenshot(label: String(format: "t+%03ds", i * 15)))
+        }
+        return steps
+    }
+
+    /// Drive recoveryOS to `csrutil disable`. From the Apple-Silicon
+    /// Startup Options picker: click Options → handle user-unlock if
+    /// shown → wait for macOS Utilities → Utilities menu → Terminal →
+    /// `csrutil disable` → confirm any auth dialog → verify success
+    /// marker → halt. After this snapshot, the next normal boot has
+    /// SIP off (`csrutil status` shows "System Integrity Protection
+    /// status: disabled" over SSH).
+    ///
+    /// Many unknowns first time through — screenshots between every
+    /// step so a failed run tells us exactly where it derailed.
+    static var disableSIPSteps: [SetupAssistantSequence.Step] {
+        [
+            .log("waiting 45s for Startup Options picker to render"),
+            .wait(seconds: 45),
+            .screenshot(label: "01-startup-options"),
+            .verifyText("Options"),
+
+            // Apple Silicon Startup Options is a two-step click: the
+            // first click on "Options" selects the gear (boxes it in
+            // the UI) and reveals a "Continue" button below. The
+            // second click on Continue actually transitions into
+            // recoveryOS.
+            .clickByText("Options"),
+            .wait(seconds: 3),
+            .verifyText("Continue"),
+            .clickByText("Continue"),
+
+            // recoveryOS boot takes ~90s after the Continue click
+            // (Apple logo + progress bar phase). Then a Language
+            // picker appears with English pre-selected (blue
+            // highlight) — Enter advances.
+            .wait(seconds: 90),
+            .screenshot(label: "02-recovery-language"),
+            .verifyText("Language"),
+            .key(.returnKey),
+            .wait(seconds: 8),
+            .screenshot(label: "03-after-language"),
+
+            // After Language → Continue, recoveryOS goes straight to
+            // the macOS Utilities window (titled "Recovery" in
+            // Tahoe). No user-unlock screen — that only appears when
+            // a tool actually requires authentication (e.g., csrutil
+            // itself).
+            .verifyText("Recovery"),
+
+            // VNC pointer clicks on the macOS menu bar don't open
+            // dropdowns in recoveryOS (verified empirically with
+            // click holds up to 300ms — the click registers as
+            // cursor movement but the menu never opens). Use
+            // keyboard navigation instead: Ctrl+F2 focuses the menu
+            // bar, then arrow-right to reach Utilities, Down to open
+            // its menu, then Down repeatedly to find Terminal and
+            // Enter to launch it.
+            //
+            // Menu bar order: Apple, Recovery, File, Edit, Utilities,
+            // Window. Starting from Apple after Ctrl+F2, four rights
+            // lands on Utilities.
+            .modifiedKey(modifier: .control, key: .f2),
+            .wait(seconds: 1),
+            .screenshot(label: "04-after-ctrl-f2"),
+            .key(.rightArrow),
+            .wait(seconds: 0.3),
+            .key(.rightArrow),
+            .wait(seconds: 0.3),
+            .key(.rightArrow),
+            .wait(seconds: 0.3),
+            .key(.rightArrow),
+            .wait(seconds: 0.3),
+            .screenshot(label: "05-on-utilities"),
+
+            // Down opens the focused menu.
+            .key(.downArrow),
+            .wait(seconds: 1),
+            .screenshot(label: "06-utilities-open"),
+
+            // Type-ahead: pressing "T" jumps to the first item
+            // starting with T (Terminal). Enter activates.
+            .type("t"),
+            .wait(seconds: 0.5),
+            .screenshot(label: "07-terminal-selected"),
+            .key(.returnKey),
+            .wait(seconds: 5),
+            .screenshot(label: "08-terminal-open"),
+
+            // Run csrutil disable. On Apple Silicon recovery, csrutil
+            // may prompt for credentials via a system dialog. We'll
+            // see what happens in the screenshots and add handling if
+            // needed.
+            .type("csrutil disable"),
+            .key(.returnKey),
+            .wait(seconds: 5),
+            .screenshot(label: "09-after-csrutil-disable"),
+
+            // First confirmation: y/n prompt asking whether to allow
+            // booting unsigned operating systems and kernel extensions
+            // for OS "Macintosh HD".
+            .type("y"),
+            .key(.returnKey),
+            .wait(seconds: 3),
+            .screenshot(label: "10-after-yn"),
+
+            // Authorized user: admin + Enter (then password).
+            .verifyText("Authorized user"),
+            .type("admin"),
+            .key(.returnKey),
+            .wait(seconds: 2),
+            .type("previewsvm"),
+            .key(.returnKey),
+            .wait(seconds: 10),
+            .screenshot(label: "11-after-auth"),
+
+            // Success marker on Tahoe is "System Integrity Protection
+            // is off." followed by "Restart the machine for the
+            // changes to take effect." Use the first as the retry
+            // gate.
+            .verifyText("System Integrity Protection is off"),
+
+            // Halt (or shutdown). `halt` is shorter than typing
+            // shutdown -h now. recoveryOS is root by default so no
+            // sudo needed.
+            .type("halt"),
+            .key(.returnKey),
+            .wait(seconds: 10),
+            .screenshot(label: "12-after-halt"),
         ]
     }
 

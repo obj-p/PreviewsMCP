@@ -179,8 +179,10 @@ extension SetupAssistantSequence {
 
             case .click(let x, let y):
                 Log.debug("[SA/VNC step \(stepIndex)] click (\(x), \(y))")
-                try client.leftClick(x: UInt16(clamping: Int(x)), y: UInt16(clamping: Int(y)))
-                try await Task.sleep(for: .milliseconds(120))
+                try await leftClickWithHold(
+                    client: client,
+                    x: UInt16(clamping: Int(x)),
+                    y: UInt16(clamping: Int(y)))
 
             case .verifyText(let target):
                 Log.info("[SA/VNC step \(stepIndex)] verifyText \"\(target)\"")
@@ -223,10 +225,10 @@ extension SetupAssistantSequence {
                     )
                 }
                 Log.info("[SA/VNC step \(stepIndex)] OCR match \"\(match.text)\" → click (\(Int(match.center.x)), \(Int(match.center.y)))")
-                try client.leftClick(
+                try await leftClickWithHold(
+                    client: client,
                     x: UInt16(clamping: Int(match.center.x)),
                     y: UInt16(clamping: Int(match.center.y)))
-                try await Task.sleep(for: .milliseconds(150))
 
             case .modifiedKey(let modifier, let key):
                 Log.debug("[SA/VNC step \(stepIndex)] modifiedKey \(modifier)+\(key)")
@@ -255,6 +257,28 @@ extension SetupAssistantSequence {
                 Log.info("[SA/VNC step \(stepIndex)] \(message)")
             }
         }
+    }
+
+    /// Send a left click with proper down/up timing. `RFBClient.leftClick`
+    /// fires the pointer-move + button-down + button-up events
+    /// back-to-back with no spacing — fast enough that macOS HID can
+    /// treat them as "no actual press" for certain UI elements
+    /// (menu-bar items especially, where a single fast click registers
+    /// as movement-only and doesn't open the dropdown). This variant
+    /// inserts realistic dwell times: settle after move, hold the
+    /// button down for ~300ms before releasing — long enough that even
+    /// recoveryOS's HID stack treats it as a deliberate click.
+    private static func leftClickWithHold(
+        client: RFBClient,
+        x: UInt16,
+        y: UInt16
+    ) async throws {
+        try client.sendPointerEvent(buttonMask: 0, x: x, y: y)  // move
+        try await Task.sleep(for: .milliseconds(150))
+        try client.sendPointerEvent(buttonMask: 1, x: x, y: y)  // down
+        try await Task.sleep(for: .milliseconds(300))
+        try client.sendPointerEvent(buttonMask: 0, x: x, y: y)  // up
+        try await Task.sleep(for: .milliseconds(200))
     }
 
     /// Map a shifted-ASCII character to the unshifted base key it lives
@@ -316,6 +340,18 @@ extension SetupAssistantSequence {
         case .rightArrow: return RFBClient.KeySym.rightArrow
         case .upArrow: return RFBClient.KeySym.upArrow
         case .downArrow: return RFBClient.KeySym.downArrow
+        case .f1:  return RFBClient.KeySym.f1
+        case .f2:  return RFBClient.KeySym.f2
+        case .f3:  return RFBClient.KeySym.f3
+        case .f4:  return RFBClient.KeySym.f4
+        case .f5:  return RFBClient.KeySym.f5
+        case .f6:  return RFBClient.KeySym.f6
+        case .f7:  return RFBClient.KeySym.f7
+        case .f8:  return RFBClient.KeySym.f8
+        case .f9:  return RFBClient.KeySym.f9
+        case .f10: return RFBClient.KeySym.f10
+        case .f11: return RFBClient.KeySym.f11
+        case .f12: return RFBClient.KeySym.f12
         case .character(let scalar, _):
             return scalar  // ASCII keysyms are passthrough
         }

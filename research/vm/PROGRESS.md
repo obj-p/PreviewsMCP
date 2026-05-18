@@ -6,10 +6,11 @@ working, what's left, and how to pick up where this left off. Updated
 
 ## Where we are
 
-**SSH provisioning works end-to-end on macOS 26.3.1.** From a fresh
-IPSW install, the pipeline now reaches a snapshot from which
-`previewsvm boot <bundle> && previewsvm ssh <bundle> uname -a`
-succeeds on first attempt.
+**SIP off, end-to-end on macOS 26.3.1.** The full pipeline from a
+fresh IPSW install now reaches a snapshot whose next normal boot
+reports `System Integrity Protection status: disabled.` over SSH.
+recoveryOS automation is driven by the same VNC/OCR/keyboard
+machinery as Setup Assistant — no manual clicks required.
 
 Working bundle for verification: `/tmp/verify.bundle` (NOT in repo).
 Snapshots inside it:
@@ -17,9 +18,12 @@ Snapshots inside it:
 - `post-sa` — post-SA, at desktop (admin user `admin`/`previewsvm`)
 - `post-ssh` — sshd auto-starts on boot, host key authorized, app
   firewall off, graceful-shutdown-friendly (admin user can `sudo -S
-  shutdown`). **The new high-value checkpoint** — from here on,
-  downstream automation runs over SSH, no more OCR or keyboard
-  scripting.
+  shutdown`).
+- `post-sip` — boots into recoveryOS via `startUpFromMacOSRecovery`,
+  drives Startup Options → Options + Continue → Language → Recovery
+  window → Ctrl+F2 + arrow keys → Utilities → Terminal →
+  `csrutil disable` → halt. **New high-value checkpoint** — next
+  step (AMFI off) just needs `nvram boot-args` over SSH.
 
 ## Done (working today)
 
@@ -34,8 +38,12 @@ Snapshots inside it:
 | APFS-clonefile snapshot/restore (sub-100ms) | `SnapshotStore` + `previewsvm snapshot ...` |
 | Setup Assistant driver: verifyText-gated, retry-with-restore, full 16-screen macOS 26.3.1 sequence | `SetupAssistantSequence.runVNC` + `SetupCommand.exploreClickVNCSteps` |
 | Shift-aware `.type()`: synthesizes Shift modifier for shifted-ASCII keysyms (`~`, `&`, `>`, `|`, `_`, uppercase) since `_VZVNCServer` drops the implicit shift | `SetupAssistantSequence.shiftedAsciiBase` |
+| Click-with-hold (150 ms settle / 300 ms hold / 200 ms release) — back-to-back move/down/up was being filtered as cursor-move-only by macOS HID for some UI elements | `SetupAssistantSequence.leftClickWithHold` |
+| F1-F12 keysyms + `KeyboardScripter.Key.f1`...`f12` for Ctrl+F2 menu-bar focus (recoveryOS menu-bar pointer clicks just don't work) | `RFBClient.KeySym` + `KeyboardScripter.Key` |
+| Recovery-mode boot via `VZMacOSVirtualMachineStartOptions.startUpFromMacOSRecovery = true` | `FirstBootHost.start(recovery:)` |
 | SSH provisioning: login → Spotlight Terminal → persistent `/Library/LaunchDaemons/com.previewsvm.bootstrap-ssh.plist` that enables+bootstraps sshd on every boot, pubkey install via hex+xxd, firewall disable, graceful shutdown | `SetupCommand.provisionSSHSteps` |
-| Debug preset for SSH-state inspection (plist parse, daemon state, port 22 listener, firewall state, btm) | `SetupCommand.debugSSHStateSteps` |
+| SIP off via recoveryOS: Startup Options → Options + Continue → Language → Recovery utilities → Ctrl+F2 menu focus → Right×4 → Down → "t" → Enter → `csrutil disable` + admin/`previewsvm` auth → halt | `SetupCommand.disableSIPSteps` |
+| Debug presets: SSH state, recoveryOS UI exploration | `SetupCommand.debugSSHStateSteps`, `exploreRecoverySteps` |
 | boot / ssh / stop / status (already-installed bundles) | `BootCommand` etc. |
 
 ## Remaining (the path to W1 done-criterion)
@@ -53,15 +61,11 @@ The W1 done-criterion is *"single command → lldb attached to
    bundle where cold-boot → `previewsvm ssh <bundle> uname -a` works
    on first attempt. Cost: ~5 min wall time per provisioning run.
 
-3. **SIP off via recoveryOS** (Task #14a, ~1 hour)
-   - `VZVirtualMachineStartOptions.startUpFromMacOSRecovery = true`
-     (macOS 14+ API).
-   - Boot into recoveryOS; bring up Terminal from the Utilities menu.
-   - Run `csrutil disable`. Reboot.
-   - **No SSH inside recoveryOS** — OCR + keyboard scripting is the
-     transport. Reuses the existing `runVNC` machinery + shift-aware
-     `.type` for any shell punctuation needed.
-   - Snapshot as `post-sip`.
+3. ~~**SIP off via recoveryOS.**~~ Done — `previewsvm setup <bundle>
+   --preset disable-sip --transport vnc --recovery --restore-from
+   post-ssh` + `previewsvm snapshot take <bundle> post-sip` produces
+   a bundle whose next normal boot reports
+   `csrutil status` = `disabled` over SSH. Cost: ~5 min wall time.
 
 4. **AMFI off** (Task #14b, ~10 min)
    - SSH in, `sudo nvram boot-args="amfi_get_out_of_my_way=1"`, reboot.
@@ -116,6 +120,18 @@ cd research/vm
 sleep 30  # boot + sshd come up
 .build/release/previewsvm ssh ./my.bundle uname -a
 
+# SIP off via recoveryOS (~5 min). Drives Startup Options →
+# Options + Continue → Language → Recovery → Ctrl+F2 → Utilities →
+# Terminal → csrutil disable → halt.
+.build/release/previewsvm setup ./my.bundle \
+    --preset disable-sip --transport vnc --recovery \
+    --restore-from post-ssh
+
+.build/release/previewsvm snapshot take ./my.bundle post-sip
+.build/release/previewsvm boot ./my.bundle --skip-ssh-wait &
+.build/release/previewsvm ssh ./my.bundle csrutil status
+# → System Integrity Protection status: disabled.
+
 # Inspect screenshots from the successful attempt.
 ls /tmp/previewsvm-setup/attempt-N/
 ```
@@ -144,6 +160,16 @@ ls /tmp/previewsvm-setup/attempt-N/
   also broken for the same reason (uppercase in base64) but the
   current implementation uses hex+xxd to stay in `[0-9a-f]` for safety
   regardless.
+- **VNC pointer clicks on the macOS menu bar are non-functional in
+  recoveryOS.** Verified empirically with click holds up to 300 ms:
+  the click registers as cursor movement (cursor appears at the
+  Utilities title) but the dropdown never opens. Workaround in
+  `disable-sip`: use Ctrl+F2 to focus the menu bar via keyboard, then
+  Right-arrow to navigate to Utilities, Down to open the menu, type
+  the first letter to jump (`t` → Terminal), Enter to activate. F1-F12
+  keysyms live in `RFBClient.KeySym`. The click-with-hold
+  (150 / 300 / 200 ms) is still kept since it works for normal
+  dialog/button clicks.
 - **macOS Tahoe SSH enablement requires a custom LaunchDaemon.**
   `systemsetup -setremotelogin on` errors with "Full Disk Access
   privileges required" even under sudo (TCC). `launchctl enable +

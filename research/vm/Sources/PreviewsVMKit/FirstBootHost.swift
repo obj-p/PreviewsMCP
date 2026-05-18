@@ -76,11 +76,17 @@ public final class FirstBootHost {
         KeyboardScripter(window: window, view: view)
     }
 
-    public func start() async throws {
-        Log.info("starting first-boot host (\(bundle.url.lastPathComponent), hidden window attached)")
+    public func start(recovery: Bool = false) async throws {
+        Log.info("starting first-boot host (\(bundle.url.lastPathComponent), hidden window attached\(recovery ? ", into recoveryOS" : ""))")
         attachToAppKit()
         do {
-            try await machine.start()
+            if recovery {
+                let options = VZMacOSVirtualMachineStartOptions()
+                options.startUpFromMacOSRecovery = true
+                try await machine.start(options: options)
+            } else {
+                try await machine.start()
+            }
         } catch {
             throw VMError("first-boot VZVirtualMachine.start failed", underlying: error)
         }

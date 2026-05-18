@@ -126,6 +126,7 @@ extension KeyboardScripter {
         case rightArrow
         case upArrow
         case downArrow
+        case f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12
         case character(unicodeScalar: UInt32, code: UInt16)
 
         public static func character(_ c: Character) -> Key? {
@@ -145,6 +146,19 @@ extension KeyboardScripter {
             case .rightArrow: return 124
             case .downArrow: return 125
             case .upArrow: return 126
+            // macOS virtual keycodes for F-keys (Carbon HIToolbox).
+            case .f1:  return 122
+            case .f2:  return 120
+            case .f3:  return 99
+            case .f4:  return 118
+            case .f5:  return 96
+            case .f6:  return 97
+            case .f7:  return 98
+            case .f8:  return 100
+            case .f9:  return 101
+            case .f10: return 109
+            case .f11: return 103
+            case .f12: return 111
             case .character(_, let code): return code
             }
         }
@@ -160,6 +174,19 @@ extension KeyboardScripter {
             case .rightArrow: return "\u{F703}"
             case .upArrow: return "\u{F700}"
             case .downArrow: return "\u{F701}"
+            // NSEvent unicode for F-keys.
+            case .f1:  return "\u{F704}"
+            case .f2:  return "\u{F705}"
+            case .f3:  return "\u{F706}"
+            case .f4:  return "\u{F707}"
+            case .f5:  return "\u{F708}"
+            case .f6:  return "\u{F709}"
+            case .f7:  return "\u{F70A}"
+            case .f8:  return "\u{F70B}"
+            case .f9:  return "\u{F70C}"
+            case .f10: return "\u{F70D}"
+            case .f11: return "\u{F70E}"
+            case .f12: return "\u{F70F}"
             case .character(let value, _):
                 guard let scalar = Unicode.Scalar(value) else { return "" }
                 return String(Character(scalar))

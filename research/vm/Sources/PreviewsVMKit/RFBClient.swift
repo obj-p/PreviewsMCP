@@ -213,6 +213,19 @@ extension RFBClient {
         public static let rightArrow: UInt32 = 0xFF53
         public static let downArrow: UInt32 = 0xFF54
         public static let space: UInt32 = 0x0020
+        // F-keys, X11 standard.
+        public static let f1: UInt32 = 0xFFBE
+        public static let f2: UInt32 = 0xFFBF
+        public static let f3: UInt32 = 0xFFC0
+        public static let f4: UInt32 = 0xFFC1
+        public static let f5: UInt32 = 0xFFC2
+        public static let f6: UInt32 = 0xFFC3
+        public static let f7: UInt32 = 0xFFC4
+        public static let f8: UInt32 = 0xFFC5
+        public static let f9: UInt32 = 0xFFC6
+        public static let f10: UInt32 = 0xFFC7
+        public static let f11: UInt32 = 0xFFC8
+        public static let f12: UInt32 = 0xFFC9
         public static let shiftLeft: UInt32 = 0xFFE1
         public static let shiftRight: UInt32 = 0xFFE2
         public static let controlLeft: UInt32 = 0xFFE3
