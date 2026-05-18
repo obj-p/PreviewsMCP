@@ -6,11 +6,15 @@ working, what's left, and how to pick up where this left off. Updated
 
 ## Where we are
 
-**SIP off, end-to-end on macOS 26.3.1.** The full pipeline from a
-fresh IPSW install now reaches a snapshot whose next normal boot
-reports `System Integrity Protection status: disabled.` over SSH.
-recoveryOS automation is driven by the same VNC/OCR/keyboard
-machinery as Setup Assistant — no manual clicks required.
+**SIP off + AMFI off, end-to-end on macOS 26.3.1.** The full pipeline
+from a fresh IPSW install now reaches a snapshot whose next normal
+boot reports:
+- `csrutil status` → "System Integrity Protection status: disabled."
+- `sysctl kern.bootargs` → "amfi_get_out_of_my_way=1"
+
+both verified over SSH. recoveryOS automation is driven by the same
+VNC/OCR/keyboard machinery as Setup Assistant — no manual clicks
+required.
 
 Working bundle for verification: `/tmp/verify.bundle` (NOT in repo).
 Snapshots inside it:
@@ -22,8 +26,10 @@ Snapshots inside it:
 - `post-sip` — boots into recoveryOS via `startUpFromMacOSRecovery`,
   drives Startup Options → Options + Continue → Language → Recovery
   window → Ctrl+F2 + arrow keys → Utilities → Terminal →
-  `csrutil disable` → halt. **New high-value checkpoint** — next
-  step (AMFI off) just needs `nvram boot-args` over SSH.
+  `csrutil disable` → halt.
+- `post-amfi` — SSH in, `sudo nvram boot-args=amfi_get_out_of_my_way=1`,
+  shutdown, snapshot. **New high-value checkpoint** — only Xcode
+  install left before the research-session base.
 
 ## Done (working today)
 
@@ -67,10 +73,12 @@ The W1 done-criterion is *"single command → lldb attached to
    a bundle whose next normal boot reports
    `csrutil status` = `disabled` over SSH. Cost: ~5 min wall time.
 
-4. **AMFI off** (Task #14b, ~10 min)
-   - SSH in, `sudo nvram boot-args="amfi_get_out_of_my_way=1"`, reboot.
-   - Verify by inspecting `nvram boot-args` over SSH.
-   - Snapshot.
+4. ~~**AMFI off.**~~ Done — restore `post-sip`, boot, SSH in,
+   `echo previewsvm | sudo -S nvram boot-args=amfi_get_out_of_my_way=1`,
+   `sudo shutdown -h now`, snapshot as `post-amfi`. Verified on next
+   cold boot by `sysctl kern.bootargs` showing
+   `amfi_get_out_of_my_way=1` (i.e., the kernel actually came up with
+   that flag). Cost: ~3 min wall time. No preset needed — pure SSH.
 
 5. **Xcode install** (Task #14c, ~30-60 min wall time)
    - SSH in, `curl -O https://...Xcode_NN.xip`, `xip -x Xcode.xip`,
@@ -131,6 +139,19 @@ sleep 30  # boot + sshd come up
 .build/release/previewsvm boot ./my.bundle --skip-ssh-wait &
 .build/release/previewsvm ssh ./my.bundle csrutil status
 # → System Integrity Protection status: disabled.
+
+# AMFI off via SSH (~3 min, no preset needed).
+.build/release/previewsvm ssh ./my.bundle \
+  'echo previewsvm | sudo -S nvram boot-args=amfi_get_out_of_my_way=1'
+.build/release/previewsvm ssh ./my.bundle \
+  'echo previewsvm | sudo -S shutdown -h now'
+.build/release/previewsvm stop ./my.bundle
+.build/release/previewsvm snapshot take ./my.bundle post-amfi
+
+# Validate.
+.build/release/previewsvm boot ./my.bundle --skip-ssh-wait &
+.build/release/previewsvm ssh ./my.bundle sysctl kern.bootargs
+# → amfi_get_out_of_my_way=1
 
 # Inspect screenshots from the successful attempt.
 ls /tmp/previewsvm-setup/attempt-N/
