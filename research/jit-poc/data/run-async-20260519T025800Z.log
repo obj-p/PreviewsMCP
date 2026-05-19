@@ -1,0 +1,36 @@
+[objc-selref-plugin] graph <MachOHeaderMU>: no __DATA,__objc_selrefs section, nothing to do
+[objc-selref-plugin] graph /opt/homebrew/opt/llvm/lib/clang/22/lib/darwin/liborc_rt_osx.a[7](macho_platform.cpp.o): no __DATA,__objc_selrefs section, nothing to do
+[objc-selref-plugin] graph /opt/homebrew/opt/llvm/lib/clang/22/lib/darwin/liborc_rt_osx.a[3](rtti.cpp.o): no __DATA,__objc_selrefs section, nothing to do
+[objc-selref-plugin] graph /opt/homebrew/opt/llvm/lib/clang/22/lib/darwin/liborc_rt_osx.a[4](log_error_to_stderr.cpp.o): no __DATA,__objc_selrefs section, nothing to do
+[objc-selref-plugin] graph <OrcRTCompleteBootstrap>: no __DATA,__objc_selrefs section, nothing to do
+[objc-selref-plugin] graph <MachOHeaderMU>: no __DATA,__objc_selrefs section, nothing to do
+[objc-selref-plugin] graph build/async_v1.o: no __DATA,__objc_selrefs section, nothing to do
+[host] pid=23321 (attach with lldb if it hangs)
+[host] LLJIT target triple: arm64-apple-darwin25.3.0
+[host] dlopened libswiftCore via /usr/lib/swift/libswiftCore.dylib
+[host] dlopened libswift_Concurrency via /usr/lib/swift/libswift_Concurrency.dylib
+[host] dlopened Foundation.framework via /System/Library/Frameworks/Foundation.framework/Foundation
+[host] dlopened libswiftFoundation via /usr/lib/swift/libswiftFoundation.dylib
+[host] dlopened libswiftDispatch via /usr/lib/swift/libswiftDispatch.dylib
+[host] v1: loading async object from build/async_v1.o
+[host] v1: runAsync -> 0x102e480b4; calling...
+objc[23321]: Attempt to use unknown class 0x102e44bf0.
+PLEASE submit a bug report to https://github.com/Homebrew/homebrew-core/issues and include the crash backtrace and instructions to reproduce the bug.
+Stack dump:
+0.	Program arguments: ./build/host_async /opt/homebrew/opt/llvm/lib/clang/22/lib/darwin/liborc_rt_osx.a build/async_v1.o
+Stack dump without symbol names (ensure you have llvm-symbolizer in your PATH or set the environment var `LLVM_SYMBOLIZER_PATH` to point to it):
+0  libLLVM.dylib            0x0000000110e87958 llvm::sys::PrintStackTrace(llvm::raw_ostream&, int) + 56
+1  libLLVM.dylib            0x0000000110e8819c SignalHandler(int, __siginfo*, void*) + 372
+2  libsystem_platform.dylib 0x0000000181609764 _sigtramp + 56
+3  libsystem_kernel.dylib   0x00000001815f03b0 abort_with_payload_wrapper_internal + 104
+4  libsystem_kernel.dylib   0x00000001815f0348 abort_with_payload_wrapper_internal + 0
+5  libobjc.A.dylib          0x00000001811e946c _objc_fatalv(unsigned long long, unsigned long long, char const*, char*) + 128
+6  libobjc.A.dylib          0x00000001811e93ec _objc_fatalv(unsigned long long, unsigned long long, char const*, char*) + 0
+7  libobjc.A.dylib          0x00000001811b219c lookUpImpOrForward + 816
+8  libobjc.A.dylib          0x00000001811b1b84 _objc_msgSend_uncached + 68
+9  (error)                  0x0000000102e48290
+10 (error)                  0x0000000102e48114
+11 host_async               0x0000000102ce867c main::$_2::operator()(char const*, char const*) const + 480
+12 host_async               0x0000000102ce8004 main + 1504
+13 dyld                     0x0000000181235d54 start + 7184
+exit=137

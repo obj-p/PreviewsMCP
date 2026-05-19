@@ -32,16 +32,23 @@ public func greetAsync() async -> String {
 
 @_cdecl("runAsync")
 public func runAsync() {
+    // We avoid declaring a local class (or any user-defined class) to
+    // keep `__DATA,__objc_classlist` empty — JITLink + MachOPlatform
+    // does not call objc_registerClassPair on classes from JIT-loaded
+    // objects, so doing so currently aborts in libobjc as
+    // "Attempt to use unknown class 0x...". The result handoff goes
+    // through an UnsafeMutablePointer so the captured closure can
+    // write the post-await value without a Sendable diagnostic.
     let sem = DispatchSemaphore(value: 0)
-    // `result` is captured by the Task and read after the wait. Using
-    // a class wrapper avoids the Swift 6 concurrency-strict capture
-    // diagnostic on a mutable var.
-    final class Box: @unchecked Sendable { var s: String = "" }
-    let box = Box()
+    let slot = UnsafeMutablePointer<String>.allocate(capacity: 1)
+    slot.initialize(to: "")
     Task {
-        box.s = await greetAsync()
+        let v = await greetAsync()
+        slot.pointee = v
         sem.signal()
     }
     sem.wait()
-    print(box.s)
+    print(slot.pointee)
+    slot.deinitialize(count: 1)
+    slot.deallocate()
 }
