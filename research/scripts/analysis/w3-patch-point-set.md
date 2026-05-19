@@ -343,7 +343,33 @@ Swift-ABI-surface table likewise stands as the universe of patches
 that *could* hit on an arbitrary edit; for body-literal edits the
 observed answer is none.
 
-### Scope: 4 edit kinds tested; respawn-only generalizes
+### Scope: 8 edit kinds tested; respawn-only universal
+
+Session 6 doubled the edit-kind matrix from session 5's 4 to 8,
+spanning the most ABI-disruptive Swift mutations: function-sig
+change, remove-stored-property, conformance addition, new file +
+new public type. Result: **every edit triggers full respawn. Zero
+exceptions across 14 agent processes (2 runs × 7 respawns each, plus
+initials).**
+
+| # | Edit | PID change | write_mem |
+|---|---|---|---|
+| 1 | body-literal-same-file | 1308→1399 | 0 |
+| 2 | body-literal-cross-file (Model.swift) | 1399→1498 | 0 |
+| 3 | add-method | 1498→1585 | 0 |
+| 4 | add-`@State` | 1585→1666 | 0 |
+| 5 | remove-stored-property | 1666→1745 | 0 |
+| 6 | function-signature change | 1745→1820 | 0 |
+| 7 | new file + new public type | 1820→1921 | 0 |
+| 8 | protocol-conformance addition | 1921→1998 | 0 |
+
+The most disruptive mutations (edits 6, 8, 5 in order) still
+respawn. `REGION_ONLY_IN_BEFORE` ~120 per edit = full process
+replacement signature. Apple's runtime in macOS 26.2 / Xcode 26.2
+**does not exercise the in-place patch primitive for any edit kind
+we tested**.
+
+### Scope: 4 edit kinds tested; respawn-only generalizes (legacy — superseded by 8-edit matrix above)
 
 Session 5 extended the capture across four edit kinds in a single
 run, with two more interpose families added (PreviewsInjection

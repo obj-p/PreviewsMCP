@@ -107,6 +107,98 @@ extends the capture across four edit kinds; see below.
 
 ---
 
+## Session-6 update — 8-edit matrix + XPC event-handler capture
+
+Session 6 doubled the edit matrix and added one more interpose
+target. Goal: stress-test the respawn-only hypothesis against the
+most ABI-disruptive edit kinds we can construct from one source file.
+
+### The 8-edit matrix
+
+| edit | description | PID change | write_mem | run_program | REGION_ONLY_IN_BEFORE |
+|------|---|---|---|---|---|
+| 1 | body-literal-same-file (`World`→`Earth`) | 1308→1399 | 0 | 3 | 109 |
+| 2 | body-literal-cross-file (`Hello`→`Howdy` in Model.swift) | 1399→1498 | 0 | 3 | 122 |
+| 3 | add-method (`func decorate(_:)`) | 1498→1585 | 0 | 3 | 121 |
+| 4 | add-state (`@State counter` + reading Text) | 1585→1666 | 0 | 3 | 87 |
+| 5 | remove-stored-property (drop `@State counter`) | 1666→1745 | 0 | 3 | 122 |
+| 6 | function-sig change (`decorate` adds `suffix:`) | 1745→1820 | 0 | 3 | 120 |
+| 7 | new file `Extras.swift` + new `struct Decoration` | 1820→1921 | 0 | 3 | 114 |
+| 8 | conformance add (`Greeter: CustomStringConvertible`) | 1921→1998 | 0 | 3 | 121 |
+
+9 agent processes total (1 initial + 8 respawns), 27
+`run_program_*` calls (9 × 3 = 27 exactly, no edit-specific
+variation). **Zero `write_mem` calls. Zero exceptions.** Including
+the most disruptive ABI changes — function-signature mutation,
+protocol-conformance addition, stored-property removal — Apple's
+runtime in macOS 26.2 / Xcode 26.2 still respawns.
+
+### XPC event-handler null result
+
+Session 6 added `xpc_connection_set_event_handler` to the interpose
+table — block-based wrapping that catches every incoming XPC message
+the agent receives. Result: **0 invocations across the entire run.**
+
+This is informative. Combined with sessions 4-5's 0-result for
+`xpc_connection_send_message{,_with_reply_sync}`, the agent uses
+**zero C-level XPC API surface**. All XPC traffic in the agent goes
+through Swift wrappers — the `XOJITExecutor.init(connection:)` /
+`start(terminationHandler:)` / `handleRunProgramOnMainThread()` /
+`waitForTermination()` / `disconnect()` family of Swift methods
+visible in [`../data/w3/XOJITExecutor-exports.txt`](../data/w3/XOJITExecutor-exports.txt).
+
+To capture XPC content we'd need to either:
+
+1. Interpose Swift-mangled XPC entry points at the
+   `_$s13XOJITExecutorAAC10connection…` level. Doable but messy
+   (`self` in `x20`, no-param/no-return signatures, can't observe
+   the OS_xpc_object argument from C without inline asm).
+2. Function-prologue hooks against `handleRunProgramOnMainThread` —
+   complex on arm64e (PAC-protected prologues).
+3. Hook at the `OS_xpc_object` consumption layer — e.g., interpose
+   `xpc_dictionary_get_value` to log every XPC dict read. Catches
+   inbound message content even if the agent never calls
+   `set_event_handler` directly (Swift may register handlers via a
+   different API path).
+
+None of these is in scope for this session — they'd be a separate
+spike. The bottom line for the design doc is unaffected: regardless
+of the XPC plumbing, the agent's behavior is respawn-only and the
+3-call `run_program_*` dispatch is the only mechanism we need to
+mirror.
+
+### Universalized finding: respawn-only is universal in macOS 26.2
+
+Across **two sessions, 12 distinct edit-trigger events, 14 agent
+processes, zero `write_mem` calls**: Apple's hot-reload runtime is
+respawn-only for body-literal-same-file, body-literal-cross-file,
+add-method, add-state, remove-stored-property, function-sig change,
+new-file-with-new-type, and conformance addition. The §1
+in-place-patch primitives exist on Apple's surface but are not
+exercised by the hot-reload path in this macOS/Xcode version.
+
+The relevant question is no longer "does Apple in-place patch?" but
+"are there edit kinds that exist outside this matrix where it
+might?" The plausible remaining candidates are:
+
+- **Generic-parameter changes** (e.g., adding `<T: Hashable>` to a
+  type) — invokes Swift's protocol-witness machinery in a different
+  way than a plain conformance add.
+- **Crash-recovery / panic-recovery** — Apple may have a fast-path
+  for "agent crashed but JIT'd image is still valid" that re-loads
+  the agent against the same image.
+- **Multi-file edits in a single save** — does Apple coalesce
+  multiple file-watch events?
+- **Truly trivial edits** — whitespace-only or comment-only changes.
+  Does Apple short-circuit those entirely (no respawn)?
+
+If we want to chase any of these: same preset infrastructure, swap
+the sed/cat step, re-run. For now the respawn-only finding stands
+across the most disruptive edit-kind matrix the spike can
+reasonably construct.
+
+---
+
 ## Session-5 multi-edit capture — respawn-only generalizes
 
 A follow-up session exercised four edit kinds sequentially in a

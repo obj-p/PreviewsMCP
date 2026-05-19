@@ -1028,12 +1028,93 @@ struct SetupCommand: AsyncParsableCommand {
                 expectContains: "SNAP_AFTER_E4_OK"),
             .screenshot(label: "06d-after-edit-4"),
 
+            // Edit 5: remove-stored-property. Removes `@State counter`
+            // (and the Text that reads it). ABI SHRINKS — the view's
+            // stored-property count goes down. Test: does this still
+            // respawn, or does it crash the agent (ABI mismatch with
+            // pre-existing JIT'd code)?
+            .hostShell(
+                command: remote("AGENT_PID=$(pgrep -n -f XCPreviewAgent); echo BEFORE_E5_PID=$AGENT_PID; echo previewsvm | sudo -S /tmp/mem-diff-helper snapshot $AGENT_PID /tmp/w3-mem-before-e5.snap 2>&1 && echo SNAP_BEFORE_E5_OK"),
+                label: "mem-diff snapshot before edit 5",
+                expectContains: "SNAP_BEFORE_E5_OK"),
+            .hostShell(
+                command: remote("cat > /Users/admin/HelloPreview/Sources/HelloPreview/ContentView.swift << 'SWEOF'\nimport SwiftUI\n\npublic struct ContentView: View {\n    public init() {}\n    let greeter = Greeter()\n    func decorate(_ s: String) -> String { s.uppercased() }\n    public var body: some View {\n        VStack {\n            Text(greeter.prefix).font(.title)\n            Text(\"Earth\").foregroundColor(.blue)\n        }\n        .padding()\n        .frame(width: 200, height: 160)\n    }\n}\n\n#Preview {\n    ContentView()\n}\nSWEOF\n! grep '@State' /Users/admin/HelloPreview/Sources/HelloPreview/ContentView.swift > /dev/null && echo EDIT5_OK"),
+                label: "edit 5: remove-stored-property (drop @State counter)",
+                expectContains: "EDIT5_OK"),
+            .log("waiting 30s for edit-5 hot-reload"),
+            .wait(seconds: 30),
+            .hostShell(
+                command: remote("AGENT_PID=$(pgrep -n -f XCPreviewAgent); echo AFTER_E5_PID=$AGENT_PID; echo previewsvm | sudo -S /tmp/mem-diff-helper snapshot $AGENT_PID /tmp/w3-mem-after-e5.snap 2>&1 && echo previewsvm | sudo -S /tmp/mem-diff-helper diff /tmp/w3-mem-before-e5.snap /tmp/w3-mem-after-e5.snap /tmp/w3-mem-diff-e5.txt 2>&1 && echo previewsvm | sudo -S chmod 644 /tmp/w3-mem-diff-e5.txt && wc -l /tmp/w3-mem-diff-e5.txt && echo SNAP_AFTER_E5_OK"),
+                label: "mem-diff snapshot after edit 5 + diff",
+                expectContains: "SNAP_AFTER_E5_OK"),
+            .screenshot(label: "06e-after-edit-5"),
+
+            // Edit 6: function-signature change. `decorate(_:)` →
+            // `decorate(_:suffix:)` with a new String param + default
+            // value. Changes the function's Swift mangled name +
+            // witness signature.
+            .hostShell(
+                command: remote("AGENT_PID=$(pgrep -n -f XCPreviewAgent); echo BEFORE_E6_PID=$AGENT_PID; echo previewsvm | sudo -S /tmp/mem-diff-helper snapshot $AGENT_PID /tmp/w3-mem-before-e6.snap 2>&1 && echo SNAP_BEFORE_E6_OK"),
+                label: "mem-diff snapshot before edit 6",
+                expectContains: "SNAP_BEFORE_E6_OK"),
+            .hostShell(
+                command: remote("cat > /Users/admin/HelloPreview/Sources/HelloPreview/ContentView.swift << 'SWEOF'\nimport SwiftUI\n\npublic struct ContentView: View {\n    public init() {}\n    let greeter = Greeter()\n    func decorate(_ s: String, suffix: String = \"!\") -> String { s.uppercased() + suffix }\n    public var body: some View {\n        VStack {\n            Text(greeter.prefix).font(.title)\n            Text(\"Earth\").foregroundColor(.blue)\n        }\n        .padding()\n        .frame(width: 200, height: 160)\n    }\n}\n\n#Preview {\n    ContentView()\n}\nSWEOF\ngrep 'suffix: String' /Users/admin/HelloPreview/Sources/HelloPreview/ContentView.swift > /dev/null && echo EDIT6_OK"),
+                label: "edit 6: function-sig change (decorate adds suffix param)",
+                expectContains: "EDIT6_OK"),
+            .log("waiting 30s for edit-6 hot-reload"),
+            .wait(seconds: 30),
+            .hostShell(
+                command: remote("AGENT_PID=$(pgrep -n -f XCPreviewAgent); echo AFTER_E6_PID=$AGENT_PID; echo previewsvm | sudo -S /tmp/mem-diff-helper snapshot $AGENT_PID /tmp/w3-mem-after-e6.snap 2>&1 && echo previewsvm | sudo -S /tmp/mem-diff-helper diff /tmp/w3-mem-before-e6.snap /tmp/w3-mem-after-e6.snap /tmp/w3-mem-diff-e6.txt 2>&1 && echo previewsvm | sudo -S chmod 644 /tmp/w3-mem-diff-e6.txt && wc -l /tmp/w3-mem-diff-e6.txt && echo SNAP_AFTER_E6_OK"),
+                label: "mem-diff snapshot after edit 6 + diff",
+                expectContains: "SNAP_AFTER_E6_OK"),
+            .screenshot(label: "06f-after-edit-6"),
+
+            // Edit 7: new-file-with-new-type. Adds Extras.swift with
+            // a new public struct `Decoration`. ContentView gains a
+            // reference to it. Cross-image symbol introduction.
+            .hostShell(
+                command: remote("AGENT_PID=$(pgrep -n -f XCPreviewAgent); echo BEFORE_E7_PID=$AGENT_PID; echo previewsvm | sudo -S /tmp/mem-diff-helper snapshot $AGENT_PID /tmp/w3-mem-before-e7.snap 2>&1 && echo SNAP_BEFORE_E7_OK"),
+                label: "mem-diff snapshot before edit 7",
+                expectContains: "SNAP_BEFORE_E7_OK"),
+            .hostShell(
+                command: remote("cat > /Users/admin/HelloPreview/Sources/HelloPreview/Extras.swift << 'EXEOF'\npublic struct Decoration {\n    public init() {}\n    public var symbol: String = \"*\"\n}\nEXEOF\ncat > /Users/admin/HelloPreview/Sources/HelloPreview/ContentView.swift << 'SWEOF'\nimport SwiftUI\n\npublic struct ContentView: View {\n    public init() {}\n    let greeter = Greeter()\n    let decoration = Decoration()\n    func decorate(_ s: String, suffix: String = \"!\") -> String { s.uppercased() + suffix }\n    public var body: some View {\n        VStack {\n            Text(greeter.prefix + decoration.symbol).font(.title)\n            Text(\"Earth\").foregroundColor(.blue)\n        }\n        .padding()\n        .frame(width: 200, height: 160)\n    }\n}\n\n#Preview {\n    ContentView()\n}\nSWEOF\ntest -f /Users/admin/HelloPreview/Sources/HelloPreview/Extras.swift && grep Decoration /Users/admin/HelloPreview/Sources/HelloPreview/ContentView.swift > /dev/null && echo EDIT7_OK"),
+                label: "edit 7: new file Extras.swift + use it in ContentView",
+                expectContains: "EDIT7_OK"),
+            .log("waiting 30s for edit-7 hot-reload"),
+            .wait(seconds: 30),
+            .hostShell(
+                command: remote("AGENT_PID=$(pgrep -n -f XCPreviewAgent); echo AFTER_E7_PID=$AGENT_PID; echo previewsvm | sudo -S /tmp/mem-diff-helper snapshot $AGENT_PID /tmp/w3-mem-after-e7.snap 2>&1 && echo previewsvm | sudo -S /tmp/mem-diff-helper diff /tmp/w3-mem-before-e7.snap /tmp/w3-mem-after-e7.snap /tmp/w3-mem-diff-e7.txt 2>&1 && echo previewsvm | sudo -S chmod 644 /tmp/w3-mem-diff-e7.txt && wc -l /tmp/w3-mem-diff-e7.txt && echo SNAP_AFTER_E7_OK"),
+                label: "mem-diff snapshot after edit 7 + diff",
+                expectContains: "SNAP_AFTER_E7_OK"),
+            .screenshot(label: "06g-after-edit-7"),
+
+            // Edit 8: conformance addition. Adds `extension Greeter:
+            // CustomStringConvertible` in Model.swift. The protocol
+            // witness table for Greeter:CustomStringConvertible is a
+            // NEW witness install. Tests whether protocol-conformance
+            // additions go through the same respawn path.
+            .hostShell(
+                command: remote("AGENT_PID=$(pgrep -n -f XCPreviewAgent); echo BEFORE_E8_PID=$AGENT_PID; echo previewsvm | sudo -S /tmp/mem-diff-helper snapshot $AGENT_PID /tmp/w3-mem-before-e8.snap 2>&1 && echo SNAP_BEFORE_E8_OK"),
+                label: "mem-diff snapshot before edit 8",
+                expectContains: "SNAP_BEFORE_E8_OK"),
+            .hostShell(
+                command: remote("cat > /Users/admin/HelloPreview/Sources/HelloPreview/Model.swift << 'MDEOF'\npublic struct Greeter {\n    public init() {}\n    public var prefix: String = \"Howdy\"\n}\n\nextension Greeter: CustomStringConvertible {\n    public var description: String { prefix }\n}\nMDEOF\ngrep CustomStringConvertible /Users/admin/HelloPreview/Sources/HelloPreview/Model.swift > /dev/null && echo EDIT8_OK"),
+                label: "edit 8: conformance addition (Greeter: CustomStringConvertible)",
+                expectContains: "EDIT8_OK"),
+            .log("waiting 30s for edit-8 hot-reload"),
+            .wait(seconds: 30),
+            .hostShell(
+                command: remote("AGENT_PID=$(pgrep -n -f XCPreviewAgent); echo AFTER_E8_PID=$AGENT_PID; echo previewsvm | sudo -S /tmp/mem-diff-helper snapshot $AGENT_PID /tmp/w3-mem-after-e8.snap 2>&1 && echo previewsvm | sudo -S /tmp/mem-diff-helper diff /tmp/w3-mem-before-e8.snap /tmp/w3-mem-after-e8.snap /tmp/w3-mem-diff-e8.txt 2>&1 && echo previewsvm | sudo -S chmod 644 /tmp/w3-mem-diff-e8.txt && wc -l /tmp/w3-mem-diff-e8.txt && echo SNAP_AFTER_E8_OK"),
+                label: "mem-diff snapshot after edit 8 + diff",
+                expectContains: "SNAP_AFTER_E8_OK"),
+            .screenshot(label: "06h-after-edit-8"),
+
             // Peek the accumulated interposer trace. Important: this
-            // log spans ALL 4 edits, so timestamps + the multi-agent
+            // log spans ALL 8 edits, so timestamps + the multi-agent
             // open_log markers tell us which lines belong to which
             // edit-respawn.
             .hostShell(
-                command: remote("echo '--- /tmp/w3-writes.log ---'; wc -l /tmp/w3-writes.log; echo '--- write_mem hits (if any) ---'; grep -c write_mem /tmp/w3-writes.log || echo 0; echo '--- pi_jit_link hits ---'; grep -c pi_jit_link /tmp/w3-writes.log || echo 0; echo '--- pi_perform_first hits ---'; grep -c pi_perform_first /tmp/w3-writes.log || echo 0; echo '--- xpc_send count ---'; grep -c xpc_send /tmp/w3-writes.log || echo 0; echo '--- run_program count ---'; grep -c run_program /tmp/w3-writes.log || echo 0; echo '--- open_log markers (one per agent process) ---'; grep -c open_log /tmp/w3-writes.log || echo 0"),
+                command: remote("echo '--- /tmp/w3-writes.log ---'; wc -l /tmp/w3-writes.log; echo '--- write_mem hits (if any) ---'; grep -c write_mem /tmp/w3-writes.log || echo 0; echo '--- pi_jit_link hits ---'; grep -c pi_jit_link /tmp/w3-writes.log || echo 0; echo '--- pi_perform_first hits ---'; grep -c pi_perform_first /tmp/w3-writes.log || echo 0; echo '--- xpc_send (outgoing) count ---'; grep -c xpc_send /tmp/w3-writes.log || echo 0; echo '--- xpc_recv (incoming via handler) count ---'; grep -c xpc_recv /tmp/w3-writes.log || echo 0; echo '--- xpc_set_event_handler count ---'; grep -c xpc_set_event_handler /tmp/w3-writes.log || echo 0; echo '--- run_program count ---'; grep -c run_program /tmp/w3-writes.log || echo 0; echo '--- open_log markers (one per agent process) ---'; grep -c open_log /tmp/w3-writes.log || echo 0"),
                 label: "peek accumulated trace stats"),
 
             // Retrieve every captured artifact.
@@ -1055,6 +1136,18 @@ struct SetupCommand: AsyncParsableCommand {
             .hostShell(
                 command: remote("cat /tmp/w3-mem-diff-e4.txt") + " > \"\(outputDir)/w3-mem-diff-e4.txt\" && wc -l \"\(outputDir)/w3-mem-diff-e4.txt\"",
                 label: "retrieve mem-diff edit-4"),
+            .hostShell(
+                command: remote("cat /tmp/w3-mem-diff-e5.txt") + " > \"\(outputDir)/w3-mem-diff-e5.txt\" && wc -l \"\(outputDir)/w3-mem-diff-e5.txt\"",
+                label: "retrieve mem-diff edit-5"),
+            .hostShell(
+                command: remote("cat /tmp/w3-mem-diff-e6.txt") + " > \"\(outputDir)/w3-mem-diff-e6.txt\" && wc -l \"\(outputDir)/w3-mem-diff-e6.txt\"",
+                label: "retrieve mem-diff edit-6"),
+            .hostShell(
+                command: remote("cat /tmp/w3-mem-diff-e7.txt") + " > \"\(outputDir)/w3-mem-diff-e7.txt\" && wc -l \"\(outputDir)/w3-mem-diff-e7.txt\"",
+                label: "retrieve mem-diff edit-7"),
+            .hostShell(
+                command: remote("cat /tmp/w3-mem-diff-e8.txt") + " > \"\(outputDir)/w3-mem-diff-e8.txt\" && wc -l \"\(outputDir)/w3-mem-diff-e8.txt\"",
+                label: "retrieve mem-diff edit-8"),
             .screenshot(label: "07-complete"),
             .log("artifacts retrieved to \(outputDir)/"),
         ]

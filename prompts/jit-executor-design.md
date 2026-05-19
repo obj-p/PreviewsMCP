@@ -236,37 +236,46 @@ Phase 2 of the implementation, we **mirror Apple's respawn model**:
 - **No W^X `mprotect`+`memcpy` dance** in the agent.
 - **No live-call serialization** (§5) needed — agent process is fresh on every edit.
 
-### Scope: edit-kind coverage (4 kinds tested, all respawn-only)
+### Scope: edit-kind coverage (8 kinds tested, all respawn-only)
 
-The empirical capture exercises four edit kinds in a single run, with
-the interposer extended to also catch PreviewsInjection's JIT-link
-entry points and the C `xpc_*` API:
+The empirical capture exercises eight edit kinds across two preset
+runs. The matrix spans from trivial body-literal changes to the most
+ABI-disruptive structural mutations Swift permits:
 
-| # | Edit | write_mem? | run_program | Mechanism observed |
-|---|---|---|---|---|
-| 1 | body-literal-same-file | 0 | 3 | full respawn |
-| 2 | body-literal-cross-file | 0 | 3 | full respawn |
-| 3 | add-method | 0 | 3 | full respawn |
-| 4 | add-`@State` property | 0 | 3 | full respawn |
+| # | Edit | write_mem | Mechanism |
+|---|---|---|---|
+| 1 | body-literal-same-file | 0 | full respawn |
+| 2 | body-literal-cross-file | 0 | full respawn |
+| 3 | add-method | 0 | full respawn |
+| 4 | add-`@State` property | 0 | full respawn |
+| 5 | remove-stored-property | 0 | full respawn |
+| 6 | function-signature change | 0 | full respawn |
+| 7 | new file + new public type | 0 | full respawn |
+| 8 | protocol-conformance addition | 0 | full respawn |
 
-All 4 trigger full agent respawn (PID changes; mem-diff shows ~120
-`REGION_ONLY_IN_BEFORE` per edit = full process replacement
-signature). Every agent runs the same 3-call `run_program_*`
-dispatch pattern. `__xojit_executor_write_mem` is never called for
-any of them — including the structural `@State` add.
+14 agent processes total across the two runs (2 initial + 12
+respawns). **Zero `__xojit_executor_write_mem` calls.** Every agent
+runs the same 3-call `run_program_*` dispatch pattern.
 
 The Mach-O surface table above stays as the static-analysis universe
 of patches JITLink could in principle emit; Apple's runtime in macOS
 26.2 / Xcode 26.2 simply chooses not to exercise the in-place patch
-primitive for these edit kinds. If a future macOS release adds an
-in-place fast-path, re-run the capture matrix and refine.
+primitive for ANY edit kind we tested, including the most disruptive
+(function-sig change, conformance add, stored-property removal).
 
-Untested edit kinds — remove-stored-property, function-signature
-change, conformance add, new file with new public type — could
-in principle trip `write_mem`. Capture infrastructure is reusable:
-add a new sed/cat step to the preset and re-run. See
+Plausible remaining edit categories (untested; could in principle
+trip `write_mem` though we'd be surprised given the universality):
+
+- Generic-parameter changes (`<T: Hashable>` add).
+- Whitespace/comment-only edits (might short-circuit respawn).
+- Crash-recovery / agent panic with a still-valid JIT'd image.
+- Coalesced multi-file edits in a single save.
+
+Capture infrastructure is reusable: add a new sed/cat step to the
+preset and re-run. See
 [`research/scripts/analysis/w3-empirical-capture.md`](../research/scripts/analysis/w3-empirical-capture.md)
-"What would falsify respawn-only" for the suggested kinds.
+session-6 update for the full 8-edit data + the XPC event-handler
+null result that reinforces "respawn is the entire mechanism."
 
 ### Architectural finding (informs §5)
 

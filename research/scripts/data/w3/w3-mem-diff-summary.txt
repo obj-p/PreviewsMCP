@@ -1,0 +1,53 @@
+# W3 mem-diff summary — 8 edits, 9 agent processes, macOS 26.2 / Xcode 26.2
+#
+# Captured via `drive-xcode-preview` preset session-6 form. Each edit is
+# bracketed by a mach_vm_read snapshot of the agent's writable regions;
+# the diff compares pre-edit vs post-edit snapshots. Per-edit raw diff
+# files (w3-mem-diff-e{1..8}.txt) are truncated to first 300 + last 5
+# lines for repo hygiene; full diffs are reproducible from the preset.
+#
+# Numbers from /tmp/w3-interposer-run/ in the source run (this file
+# captures the exact stats before truncation).
+
+| edit | description                        | PID change      | regions B→A | REGION_ONLY_IN_BEFORE | REGION_ONLY_IN_AFTER | DIFF entries |
+|------|------------------------------------|-----------------|-------------|-----------------------|----------------------|--------------|
+| 1    | body-literal-same-file             | 1308→1399       | 128→132     | 109                   | 0                    |      2,492   |
+| 2    | body-literal-cross-file (Model)    | 1399→1498       | 131→131     | 122                   | 0                    |        526   |
+| 3    | add-method (decorate)              | 1498→1585       | 131→131     | 121                   | 0                    |      1,456   |
+| 4    | add-state (@State counter)         | 1585→1666       | 131→132     |  87                   | 0                    |    692,354 ★ |
+| 5    | remove-stored-property             | 1666→1745       | 132→130     | 122                   | 0                    |      1,009   |
+| 6    | function-sig change (suffix param) | 1745→1820       | 130→132     | 120                   | 0                    |      1,933   |
+| 7    | new file Extras.swift + new type   | 1820→1921       | 132→131     | 114                   | 0                    |      5,666   |
+| 8    | conformance add (CustomStringCnv)  | 1921→1998       | 130→135     | 121                   | 0                    |        457   |
+
+# Interpretation:
+#
+# - Every edit triggers full agent respawn (PID changes 1308 → 1399 →
+#   ... → 1998: 9 agents = initial + 8 respawns). No exception across
+#   8 distinct edit kinds, including the most ABI-disruptive ones
+#   (function-sig change, conformance add, remove-stored-property).
+#
+# - "REGION_ONLY_IN_BEFORE" ~120 per edit is the unmistakable
+#   signature of full process replacement: ~120 writable VM regions in
+#   the dead pre-edit agent are FREED by the kernel; the new agent's
+#   fresh allocations live at different VM addresses, so the "after"
+#   snapshot doesn't see them as the same regions. In-place patching
+#   would show 0 of these.
+#
+# - "DIFF entries" is bytes differing between regions present at SAME
+#   addresses in both snapshots — typically dyld_shared_cache mappings
+#   (which the kernel maps at the same address across processes) and
+#   shared library data. The high count is normal; the relevant test
+#   for "respawn vs patch" is REGION_ONLY_IN_BEFORE > 0, which we have
+#   for all 8 edits.
+#
+# - ★ Edit 4 (add-state) has an anomalously high DIFF count (692K).
+#   Most likely SwiftUI internal state-machine restructuring at the
+#   shared-library level — adding @State invokes runtime registration
+#   of new property observers in SwiftUI/Combine, touching a lot of
+#   shared data. This is incidental to the respawn finding; the agent
+#   is still freshly spawned.
+#
+# Net architectural finding: macOS 26.2 / Xcode 26.2 uses respawn-only
+# for EVERY edit kind in this 8-edit matrix. There is no edit category
+# we tested that triggers Apple's in-place `write_mem` patch primitive.

@@ -122,6 +122,17 @@ extern void xpc_connection_send_message(xpc_connection_t_compat conn, xpc_object
 extern xpc_object_t_compat xpc_connection_send_message_with_reply_sync(xpc_connection_t_compat conn, xpc_object_t_compat msg);
 extern char *xpc_copy_description(xpc_object_t_compat obj);
 
+// xpc_connection_set_event_handler — the canonical incoming-message
+// callback registration. The agent's XPC traffic, including the JIT-
+// link payload from previewsd, is delivered through whatever handler
+// is registered here. Wrapping the registration in a block-based
+// interpose lets us see EVERY incoming message regardless of which
+// API layer the agent uses to send replies — because every
+// xpc_connection has at most one event handler.
+extern void xpc_connection_set_event_handler(
+    xpc_connection_t_compat conn,
+    void (^handler)(xpc_object_t_compat event));
+
 static int my_write_mem(void *addr, const void *bytes, uint64_t len) {
     pthread_once(&g_once, open_log);
     pthread_mutex_lock(&g_log_mu);
@@ -220,6 +231,35 @@ static xpc_object_t_compat my_xpc_send_reply_sync(
     return reply;
 }
 
+static void my_xpc_set_event_handler(
+    xpc_connection_t_compat conn,
+    void (^handler)(xpc_object_t_compat event))
+{
+    pthread_once(&g_once, open_log);
+    // Wrap the user's handler in a block that logs each incoming
+    // message before delegating. Blocks capture `handler` by
+    // reference (ARC retain semantics under Block runtime), so the
+    // captured ref stays valid for the lifetime of our wrapper.
+    void (^wrapped)(xpc_object_t_compat) = ^(xpc_object_t_compat event) {
+        char *desc = xpc_copy_description(event);
+        pthread_mutex_lock(&g_log_mu);
+        log_xpc_desc("xpc_recv", desc);
+        pthread_mutex_unlock(&g_log_mu);
+        if (desc) free(desc);
+        handler(event);
+    };
+    pthread_mutex_lock(&g_log_mu);
+    if (g_log) {
+        fprintf(g_log,
+                "%llu\txpc_set_event_handler\tconn=%p\thandler=%p\ttid=%p\n",
+                (unsigned long long)now_ns(),
+                (void *)conn, (void *)handler,
+                (void *)pthread_self());
+    }
+    pthread_mutex_unlock(&g_log_mu);
+    xpc_connection_set_event_handler(conn, wrapped);
+}
+
 static void my_pi_jit_link_entrypoint(
     int32_t argc, char **argv, char *dylib_path, char *entry_name)
 {
@@ -268,6 +308,8 @@ static const struct {
       (const void *)&xpc_connection_send_message },
     { (const void *)&my_xpc_send_reply_sync,
       (const void *)&xpc_connection_send_message_with_reply_sync },
+    { (const void *)&my_xpc_set_event_handler,
+      (const void *)&xpc_connection_set_event_handler },
     { (const void *)&my_pi_jit_link_entrypoint,
       (const void *)&pi_jit_link_entrypoint },
     { (const void *)&my_pi_perform_first_jit_link,
