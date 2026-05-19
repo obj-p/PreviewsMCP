@@ -299,32 +299,52 @@ struct SetupCommand: AsyncParsableCommand {
     /// `prompts/jit-executor-research.md` →
     /// `research/scripts/analysis/w3-patch-point-set.md` §6.
     ///
+    /// **Capture mechanism: DYLD_INSERT_LIBRARIES interposer.** Previous
+    /// lldb + dtrace attempts both failed against the attached agent
+    /// (lldb: "No executable module" on attach; dtrace: signed-binary
+    /// gate independent of SIP/AMFI). The interposer bypasses both:
+    /// a small dylib built from `interposer.c` registers a
+    /// `__DATA,__interpose` table mapping the four
+    /// `__xojit_executor_*` exports to logging wrappers. `launchctl
+    /// setenv DYLD_INSERT_LIBRARIES` plus `DYLD_FORCE_FLAT_NAMESPACE=1`
+    /// before Xcode launches gets the dylib loaded into every
+    /// descendant process, including XCPreviewAgent.
+    ///
     /// **Preconditions** (a `post-autologin-w3`-style snapshot should
     /// already have these):
     /// - admin auto-login configured via `/etc/kcpassword` + the
     ///   `autoLoginUser` default in `com.apple.loginwindow`.
     /// - `xcodebuild -runFirstLaunch` has been run (clears the
     ///   "additional components" first-launch modal).
-    /// - `~/HelloPreview/{Package.swift,Sources/HelloPreview/main.swift}`
-    ///   contains a minimal SwiftUI executable with a `#Preview` block.
+    /// - `~/HelloPreview/{Package.swift,Sources/HelloPreview/ContentView.swift}`
+    ///   contains a minimal SwiftUI library target with a `#Preview` block
+    ///   (the preset rebuilds this each run from scratch — see
+    ///   "rebuild test package as library" step).
     ///
     /// **Flow:**
     /// 1. Boot. Wait for auto-login to admin's desktop.
-    /// 2. SSH-open `main.swift` in Xcode (`open -a /Applications/Xcode.app`).
-    /// 3. Wait 90s for Xcode + SourceKit indexing to settle.
-    /// 4. Cmd+Option+Return via VNC to toggle the preview canvas. This
-    ///    is the only keystroke the preset delivers; everything else
-    ///    runs via SSH.
-    /// 5. Wait for `XCPreviewAgent` to spawn (poll `pgrep` via SSH).
-    /// 6. Deploy the `capture-write-mem.d` dtrace script to the guest
-    ///    (hex-encoded inline; SSH-decodes via `xxd -r -p`). Start it
-    ///    against the agent PID under `sudo`.
-    /// 7. Edit `main.swift` via `sed` (`Hello` → `Howdy`). Xcode's
+    /// 2. Kill stale Xcode/agent.
+    /// 3. Build the interposer dylib on the guest from embedded C
+    ///    source (clang ships with Xcode's toolchain).
+    /// 4. `launchctl setenv DYLD_INSERT_LIBRARIES /tmp/w3-interposer.dylib`
+    ///    + `launchctl setenv DYLD_FORCE_FLAT_NAMESPACE 1`. Subsequent
+    ///    launchd-spawned processes inherit this env, incl. Xcode and
+    ///    its previewsd descendant.
+    /// 5. Open Package.swift then ContentView.swift in Xcode.
+    /// 6. Drive the preview canvas open via Help-menu search ("Canvas").
+    ///    Xcode 26 repurposed Cmd+Opt+Return so the menu-search path
+    ///    is the load-bearing one.
+    /// 7. Wait for `XCPreviewAgent` to spawn (poll `pgrep` via SSH).
+    /// 8. Diagnostic: verify the agent has DYLD_INSERT_LIBRARIES via
+    ///    `ps -E` and that `/tmp/w3-interposer.log` recorded a
+    ///    constructor call from an XCPreviewAgent process.
+    /// 9. Edit ContentView.swift via `sed` (`Hello` → `Howdy`). Xcode's
     ///    file watcher initiates the hot-reload through previewsd to
     ///    the agent; PreviewsInjection calls `__xojit_executor_write_mem`
-    ///    to apply patches; dtrace records each call.
-    /// 8. Wait 20s for the reload + writes to finish.
-    /// 9. Stop dtrace, retrieve output via SSH `cat`.
+    ///    to apply patches; the interposer wrapper logs each call.
+    /// 10. Wait 30s for the reload + writes to finish.
+    /// 11. Retrieve `/tmp/w3-writes.log` (the W3 address-list deliverable)
+    ///     and `/tmp/w3-interposer.log` (load-time diagnostic).
     static func driveXcodePreviewSteps(
         bundlePath: String,
         outputDir: String
@@ -334,92 +354,144 @@ struct SetupCommand: AsyncParsableCommand {
             ?? "previewsvm"
         let ssh = "\"\(previewsvmBin)\" ssh \"\(bundlePath)\""
 
-        // The dtrace script lives in research/scripts/data/w3/capture-write-mem.d
-        // (committed). Embedded here so the preset is self-contained — no
-        // separate file deploy step needed when this preset runs from a CI
-        // job with no working copy.
-        let dtraceScript = """
-            #pragma D option quiet
-            #pragma D option dynvarsize=8m
-            #pragma D option strsize=512
-
-            dtrace:::BEGIN {
-                printf("[capture-write-mem] tracing pid=%d (XCPreviewAgent)\\n", $target);
-                printf("ts\\twrite_mem(addr, len)\\n");
-            }
-
-            pid$target::*xojit_executor_write_mem*:entry {
-                printf("%llu\\twrite_mem(0x%llx, %lld)\\n", timestamp, (uint64_t)arg0, (int64_t)arg2);
-                ustack(5);
-                printf("\\n");
-            }
-
-            pid$target::*xojit_executor_run_program_on_main_thread*:entry {
-                printf("%llu\\trun_program_on_main_thread(fn=0x%llx)\\n", timestamp, (uint64_t)arg0);
-                ustack(3);
-                printf("\\n");
-            }
-
-            pid$target::mprotect:entry {
-                printf("%llu\\tmprotect(addr=0x%llx, len=0x%llx, prot=0x%x)\\n",
-                       timestamp, (uint64_t)arg0, (uint64_t)arg1, (uint32_t)arg2);
-            }
-
-            dtrace:::END { printf("[capture-write-mem] done\\n"); }
-            """
-        let dtraceHex = dtraceScript.utf8
-            .map { String(format: "%02x", $0) }
-            .joined()
-
-        // lldb-driven capture script. Used as a fallback when dtrace's
-        // pid-provider fails on the agent (Apple gates dtrace on
-        // signed binaries separately from SIP). lldb attaches to any
-        // get-task-allow process. The script installs Python callback
-        // breakpoints that print register state + a short stack on
-        // each hit, then resumes execution automatically.
-        // Use plain lldb commands (no Python) — lldb's batch mode
-        // (`-b`) does not interactively enter the Python REPL via
-        // `script`; multi-line Python code in a script file is
-        // dispatched line-by-line to the REPL and produces syntax
-        // errors. Pure lldb commands with `br command add ... DONE`
-        // are the documented batch-friendly form. Each breakpoint's
-        // command body ends with `continue` for auto-resume.
+        // DYLD_INSERT_LIBRARIES interposer source. The previous attempt's
+        // lldb + dtrace paths both failed: lldb couldn't resolve symbols
+        // on the attached agent ("No executable module"), and dtrace's
+        // pid-provider is gated on signed-binary checks separate from
+        // SIP. The interposer bypasses both. The dylib is built on the
+        // guest from this embedded source (clang ships with Xcode and
+        // is on PATH after `xcode-select` has run).
         //
-        // Symbol-name convention: dyld_info shows the raw Mach-O
-        // symbol with linker-added leading `_` (so
-        // `___xojit_executor_write_mem` — 3 underscores). lldb's
-        // `--name` strips that prefix to match the C function name
-        // (`__xojit_executor_write_mem` — 2 underscores). Use the
-        // 2-underscore form for breakpoints. The regex fallback
-        // catches any naming-convention surprise.
-        let lldbScript = """
-            settings set target.process.thread.step-avoid-libraries libsystem_kernel.dylib,libsystem_pthread.dylib
-            br set --name __xojit_executor_write_mem
-            br command add
-            printf "WRITE_MEM addr=0x%llx buf=0x%llx len=%lld\\n" $x0 $x1 $x2
-            thread backtrace 5
-            continue
-            DONE
-            br set -r xojit_executor_write_mem
-            br command add
-            printf "WRITE_MEM_RE addr=0x%llx buf=0x%llx len=%lld\\n" $x0 $x1 $x2
-            thread backtrace 3
-            continue
-            DONE
-            br set --name __xojit_executor_run_program_on_main_thread
-            br command add
-            printf "RUN_PROGRAM_MAIN fn=0x%llx\\n" $x0
-            continue
-            DONE
-            br set --name mprotect
-            br command add
-            printf "MPROTECT addr=0x%llx len=0x%llx prot=0x%x\\n" $x0 $x1 $x2
-            continue
-            DONE
-            br list
-            continue
-            """
-        let lldbScriptHex = lldbScript.utf8
+        // The committed master copy lives at
+        // `research/scripts/data/w3/interposer.c`; this string mirrors
+        // it so the preset is self-contained. Keep them in sync.
+        let interposerC = #"""
+            // W3 — DYLD_INSERT_LIBRARIES interposer dylib. See
+            // research/scripts/data/w3/interposer.c for the committed copy.
+            #include <stdio.h>
+            #include <stdint.h>
+            #include <unistd.h>
+            #include <pthread.h>
+            #include <string.h>
+            #include <sys/time.h>
+            #include <mach-o/dyld.h>
+
+            static FILE *g_log = NULL;
+            static pthread_mutex_t g_log_mu = PTHREAD_MUTEX_INITIALIZER;
+            static pthread_once_t g_once = PTHREAD_ONCE_INIT;
+
+            static void open_log(void) {
+                g_log = fopen("/tmp/w3-writes.log", "a");
+                if (g_log) {
+                    setvbuf(g_log, NULL, _IOLBF, 0);
+                    fprintf(g_log, "# open_log pid=%d\n", (int)getpid());
+                }
+            }
+
+            static uint64_t now_ns(void) {
+                struct timeval tv;
+                gettimeofday(&tv, NULL);
+                return (uint64_t)tv.tv_sec * 1000000000ull
+                     + (uint64_t)tv.tv_usec * 1000ull;
+            }
+
+            extern int __xojit_executor_write_mem(void *addr, const void *bytes, uint64_t len);
+            extern int __xojit_executor_run_program_on_main_thread(void *fn, void *args);
+            extern int __xojit_executor_run_program_wrapper(void *fn, void *args);
+            extern int __xojit_run_wrapper(void *fn, void *args);
+
+            static int my_write_mem(void *addr, const void *bytes, uint64_t len) {
+                pthread_once(&g_once, open_log);
+                pthread_mutex_lock(&g_log_mu);
+                if (g_log) {
+                    fprintf(g_log, "%llu\twrite_mem\taddr=%p\tlen=%llu\ttid=%p\n",
+                            (unsigned long long)now_ns(),
+                            addr, (unsigned long long)len,
+                            (void *)pthread_self());
+                }
+                pthread_mutex_unlock(&g_log_mu);
+                return __xojit_executor_write_mem(addr, bytes, len);
+            }
+
+            static int my_run_program_main(void *fn, void *args) {
+                pthread_once(&g_once, open_log);
+                pthread_mutex_lock(&g_log_mu);
+                if (g_log) {
+                    fprintf(g_log, "%llu\trun_program_on_main_thread\tfn=%p\ttid=%p\n",
+                            (unsigned long long)now_ns(),
+                            fn, (void *)pthread_self());
+                }
+                pthread_mutex_unlock(&g_log_mu);
+                return __xojit_executor_run_program_on_main_thread(fn, args);
+            }
+
+            static int my_run_program_wrapper(void *fn, void *args) {
+                pthread_once(&g_once, open_log);
+                pthread_mutex_lock(&g_log_mu);
+                if (g_log) {
+                    fprintf(g_log, "%llu\trun_program_wrapper\tfn=%p\ttid=%p\n",
+                            (unsigned long long)now_ns(),
+                            fn, (void *)pthread_self());
+                }
+                pthread_mutex_unlock(&g_log_mu);
+                return __xojit_executor_run_program_wrapper(fn, args);
+            }
+
+            static int my_run_wrapper(void *fn, void *args) {
+                pthread_once(&g_once, open_log);
+                pthread_mutex_lock(&g_log_mu);
+                if (g_log) {
+                    fprintf(g_log, "%llu\trun_wrapper\tfn=%p\ttid=%p\n",
+                            (unsigned long long)now_ns(),
+                            fn, (void *)pthread_self());
+                }
+                pthread_mutex_unlock(&g_log_mu);
+                return __xojit_run_wrapper(fn, args);
+            }
+
+            __attribute__((used))
+            static const struct {
+                const void *replacement;
+                const void *replacee;
+            } interposers[] __attribute__((section("__DATA,__interpose"))) = {
+                { (const void *)&my_write_mem,
+                  (const void *)&__xojit_executor_write_mem },
+                { (const void *)&my_run_program_main,
+                  (const void *)&__xojit_executor_run_program_on_main_thread },
+                { (const void *)&my_run_program_wrapper,
+                  (const void *)&__xojit_executor_run_program_wrapper },
+                { (const void *)&my_run_wrapper,
+                  (const void *)&__xojit_run_wrapper },
+            };
+
+            __attribute__((constructor))
+            static void w3_interposer_init(void) {
+                FILE *boot = fopen("/tmp/w3-interposer.log", "a");
+                if (!boot) return;
+                setvbuf(boot, NULL, _IOLBF, 0);
+
+                char exe[1024]; uint32_t exelen = sizeof(exe);
+                if (_NSGetExecutablePath(exe, &exelen) != 0) {
+                    strncpy(exe, "?", sizeof(exe));
+                }
+
+                fprintf(boot, "%llu\tloaded\tpid=%d\texe=%s\n",
+                        (unsigned long long)now_ns(),
+                        (int)getpid(), exe);
+
+                extern char **environ;
+                if (environ) {
+                    for (char **e = environ; *e; ++e) {
+                        if (strncmp(*e, "DYLD_", 5) == 0) {
+                            fprintf(boot, "%llu\tenv\t%s\n",
+                                    (unsigned long long)now_ns(), *e);
+                        }
+                    }
+                }
+                fclose(boot);
+            }
+            """#
+        let interposerHex = interposerC.utf8
             .map { String(format: "%02x", $0) }
             .joined()
 
@@ -470,14 +542,56 @@ struct SetupCommand: AsyncParsableCommand {
                 expectContains: "admin"),
             .screenshot(label: "01c-desktop"),
 
-            // Deploy the dtrace script + clean any stale agent state.
-            .hostShell(
-                command: remote("printf %s \(dtraceHex) | xxd -r -p > /tmp/capture-write-mem.d && wc -l /tmp/capture-write-mem.d"),
-                label: "deploy dtrace script"),
+            // Clean any stale Xcode/agent state so the launchctl-setenv
+            // below applies to a fresh process tree.
             .hostShell(
                 command: remote("pkill -9 -f XCPreviewAgent 2>/dev/null; pkill -9 -f Xcode 2>/dev/null; sleep 2; pgrep -f Xcode || echo XCODE_CLEAN"),
                 label: "kill stale Xcode/agent",
                 expectContains: "XCODE_CLEAN"),
+
+            // Deploy the interposer C source, build the dylib via clang
+            // (Xcode's toolchain is on PATH after xcode-select pointed at
+            // /Applications/Xcode.app), and ad-hoc-codesign it. arm64 is
+            // what we build — dyld will happily load arm64 dylibs into
+            // arm64e processes (this is the standard third-party-dylib
+            // case). arm64e on user binaries requires special signing
+            // we don't have, and isn't necessary for interposing.
+            .hostShell(
+                command: remote("printf %s \(interposerHex) | xxd -r -p > /tmp/w3-interposer.c && wc -l /tmp/w3-interposer.c && echo INTERPOSER_SRC_DEPLOYED"),
+                label: "deploy interposer.c",
+                expectContains: "INTERPOSER_SRC_DEPLOYED"),
+            .hostShell(
+                command: remote("clang -dynamiclib -arch arm64 -Wall -Wno-unused-function -O0 -g -o /tmp/w3-interposer.dylib /tmp/w3-interposer.c 2>&1 && codesign --force --sign - /tmp/w3-interposer.dylib && file /tmp/w3-interposer.dylib && echo INTERPOSER_BUILT"),
+                label: "build + ad-hoc sign interposer dylib",
+                expectContains: "INTERPOSER_BUILT"),
+
+            // Clean prior run's logs so we capture a fresh trace.
+            .hostShell(
+                command: remote("rm -f /tmp/w3-writes.log /tmp/w3-interposer.log && touch /tmp/w3-writes.log /tmp/w3-interposer.log && chmod 666 /tmp/w3-writes.log /tmp/w3-interposer.log && echo LOGS_RESET"),
+                label: "reset interposer log files",
+                expectContains: "LOGS_RESET"),
+
+            // Inject the interposer into every new process launchd
+            // spawns in this user session. `launchctl setenv` writes
+            // into launchd's user-session env; any process subsequently
+            // started by launchd (incl. Xcode via LaunchServices) and
+            // its descendants (incl. previewsd and XCPreviewAgent)
+            // inherits these values. DYLD_FORCE_FLAT_NAMESPACE=1
+            // forces dyld to consult the __interpose table on every
+            // call, including intra-XOJITExecutor calls that would
+            // otherwise be routed by two-level namespace binding past
+            // our entry. The chained semantics here: previewsd is
+            // expected to call setenv() itself to add
+            // PreviewsInjection.framework to DYLD_INSERT_LIBRARIES; if
+            // it APPENDS to the existing value our dylib stays; if it
+            // REPLACES, only PreviewsInjection ends up loaded — in
+            // which case `/tmp/w3-interposer.log` stays empty and we
+            // can switch to `dyld_dynamic_interpose` from a
+            // constructor (the handoff doc's fallback path).
+            .hostShell(
+                command: remote("launchctl setenv DYLD_INSERT_LIBRARIES /tmp/w3-interposer.dylib && launchctl setenv DYLD_FORCE_FLAT_NAMESPACE 1 && launchctl getenv DYLD_INSERT_LIBRARIES && launchctl getenv DYLD_FORCE_FLAT_NAMESPACE && echo SETENV_OK"),
+                label: "launchctl setenv DYLD_INSERT_LIBRARIES",
+                expectContains: "SETENV_OK"),
 
             // Rebuild the test package as a LIBRARY target (no @main,
             // no main.swift top-level conflict). The previous structure
@@ -634,30 +748,27 @@ struct SetupCommand: AsyncParsableCommand {
                 expectContains: "AGENT_UP"),
             .screenshot(label: "04-agent-up"),
 
-            // dtrace's pid-provider fails on the agent ("Failed to
-            // start process notifications") even with SIP off + AMFI
-            // off — Apple's dtrace has a separate (csops-checked)
-            // gate on attaching to Apple-signed binaries. Use lldb
-            // instead: it attaches to any debuggable process (the
-            // agent's `get-task-allow` entitlement is sufficient),
-            // sets breakpoints on the four xojit primitives, and
-            // prints addr/len/stack on each hit via the breakpoint
-            // command + auto-continue. The lldb script is deployed
-            // to the guest via xxd-hex.
+            // Diagnostic: did our interposer dylib actually load into
+            // the agent? The constructor in interposer.c appends a
+            // `loaded pid=… exe=…` line to /tmp/w3-interposer.log when
+            // dyld processes the dylib. If this file has a line whose
+            // exe path ends in `XCPreviewAgent`, the interposer is
+            // resident in the agent's address space and we expect the
+            // hot-reload to drive write_mem hits into /tmp/w3-writes.log.
+            // If the file is empty (or only has `loaded` lines from
+            // Xcode / previewsd but not the agent), previewsd is
+            // replacing DYLD_INSERT_LIBRARIES on the agent spawn and
+            // we need the dyld_dynamic_interpose fallback per the
+            // handoff doc.
             .hostShell(
-                command: remote("printf %s \(lldbScriptHex) | xxd -r -p > /tmp/capture-write-mem.lldb && wc -l /tmp/capture-write-mem.lldb && echo LLDB_DEPLOYED"),
-                label: "deploy lldb capture script",
-                expectContains: "LLDB_DEPLOYED"),
-            .hostShell(
-                command: remote("AGENT_PID=$(pgrep -n -f XCPreviewAgent); echo $AGENT_PID > /tmp/w3-agent.pid; rm -f /tmp/w3-writes.lldb.txt; (echo previewsvm | sudo -S env TERM=xterm-256color nohup lldb -b -O 'target create --arch arm64e /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Xcode/Agents/XCPreviewAgent.app/Contents/MacOS/XCPreviewAgent' -O \"process attach -p $AGENT_PID\" -s /tmp/capture-write-mem.lldb > /tmp/w3-writes.lldb.txt 2>&1 &); sleep 12; pgrep -n lldb && head -70 /tmp/w3-writes.lldb.txt && echo LLDB_STARTED || (cat /tmp/w3-writes.lldb.txt; echo LLDB_FAILED)"),
-                label: "start lldb against XCPreviewAgent",
-                expectContains: "LLDB_STARTED"),
-            .screenshot(label: "05-lldb-running"),
+                command: remote("AGENT_PID=$(pgrep -n -f XCPreviewAgent); echo AGENT_PID=$AGENT_PID; echo '--- agent env (DYLD_*) ---'; ps -E -ww -p $AGENT_PID | tr ' ' '\\n' | grep '^DYLD_' || echo '(no DYLD_* in env)'; echo '--- /tmp/w3-interposer.log ---'; cat /tmp/w3-interposer.log; echo '--- agent constructor presence ---'; grep -F XCPreviewAgent /tmp/w3-interposer.log && echo INTERPOSER_IN_AGENT || echo INTERPOSER_NOT_IN_AGENT"),
+                label: "verify interposer loaded in agent"),
+            .screenshot(label: "05-interposer-check"),
 
             // Trigger the hot-reload by editing the file via sed.
             // Xcode's file watcher detects the change and routes
             // through previewsd → agent → PreviewsInjection →
-            // XOJITExecutor.write_mem. dtrace records the calls.
+            // XOJITExecutor.write_mem. The interposer logs each call.
             .hostShell(
                 command: remote("sed -i.bak s/Hello/Howdy/g /Users/admin/HelloPreview/Sources/HelloPreview/ContentView.swift && grep Howdy /Users/admin/HelloPreview/Sources/HelloPreview/ContentView.swift > /dev/null && echo EDITED"),
                 label: "edit ContentView.swift (Hello → Howdy)",
@@ -666,16 +777,24 @@ struct SetupCommand: AsyncParsableCommand {
             .wait(seconds: 30),
             .screenshot(label: "06-after-edit"),
 
-            // Stop lldb and retrieve the output. The output is the
-            // patch-point address list we wanted.
+            // Peek the captured trace before retrieval, so the
+            // run output makes the result obvious even without
+            // looking at the artifact directory.
             .hostShell(
-                command: remote("echo previewsvm | sudo -S pkill -INT lldb; sleep 2; wc -l /tmp/w3-writes.lldb.txt; echo ---WRITE_MEM_HITS---; grep WRITE_MEM /tmp/w3-writes.lldb.txt | head -30; echo ---MPROTECT_HITS---; grep MPROTECT /tmp/w3-writes.lldb.txt | head -10"),
-                label: "stop lldb + peek output"),
+                command: remote("echo '--- /tmp/w3-writes.log ---'; wc -l /tmp/w3-writes.log; echo '--- first 30 lines ---'; head -30 /tmp/w3-writes.log; echo '--- /tmp/w3-interposer.log tail ---'; tail -30 /tmp/w3-interposer.log"),
+                label: "peek interposer output"),
+
+            // Retrieve both logs to the host's outputDir. The
+            // `w3-writes.interposer.txt` is the W3 deliverable-#2
+            // address list per the handoff doc's acceptance criterion.
             .hostShell(
-                command: remote("cat /tmp/w3-writes.lldb.txt") + " > \"\(outputDir)/w3-writes.lldb.txt\" && wc -l \"\(outputDir)/w3-writes.lldb.txt\"",
-                label: "retrieve lldb output to host"),
+                command: remote("cat /tmp/w3-writes.log") + " > \"\(outputDir)/w3-writes.interposer.txt\" && wc -l \"\(outputDir)/w3-writes.interposer.txt\"",
+                label: "retrieve write_mem log to host"),
+            .hostShell(
+                command: remote("cat /tmp/w3-interposer.log") + " > \"\(outputDir)/w3-interposer.boot.txt\" && wc -l \"\(outputDir)/w3-interposer.boot.txt\"",
+                label: "retrieve interposer-load log to host"),
             .screenshot(label: "07-complete"),
-            .log("lldb output retrieved to \(outputDir)/w3-writes.lldb.txt"),
+            .log("interposer output retrieved to \(outputDir)/w3-writes.interposer.txt"),
         ]
     }
 
