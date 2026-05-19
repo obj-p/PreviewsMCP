@@ -13,6 +13,11 @@
 #   build/greeter_v2.o   — v2 conformance + makeGreeting cdecl
 #   build/host_witness   — Phase-2 step-1 C++ host harness
 #
+# Phase 2 step 2 outputs (TLVs + Swift global-init):
+#   build/tlv_c_v1.o     — C _Thread_local probe (real Mach-O TLV)
+#   build/tlv_v1.o       — Swift module-level `let` (swift_once init)
+#   build/host_tlv       — Phase-2 step-2 C++ host harness
+#
 # Conventions:
 #   * brewed LLVM's clang++ — NOT xcrun's. xcrun's clang ships with
 #     the Swift toolchain and isn't ABI-compatible with brewed LLVM's
@@ -159,6 +164,28 @@ echo "[build] swiftc conform_v2.swift -> build/conform_v2.o"
     -o "${BUILD_DIR}/conform_v2.o" \
     "${SWIFT_DIR}/conform_v2.swift"
 
+# -- Phase 2 step 2: TLV + Swift global-init objects ------------------
+#
+# tlv_v1.swift: module-level `let` with a non-trivial initializer. The
+# spike-relevant fact recorded in host_tlv.cpp's header: this does NOT
+# lower to a Mach-O TLV; swiftc 6.x emits a regular global + a
+# swift_once-protected init function + an addressor (vau) symbol. We
+# build it anyway, both to verify that lifecycle JIT-links cleanly and
+# to keep the spike's coverage of Swift global-init explicit.
+echo "[build] swiftc tlv_v1.swift -> build/tlv_v1.o"
+"${SWIFTC}" "${SWIFT_FLAGS[@]}" \
+    -o "${BUILD_DIR}/tlv_v1.o" \
+    "${SWIFT_DIR}/tlv_v1.swift"
+
+# tlv_c_v1.c: real Mach-O TLV. Use brewed LLVM's clang so the C
+# emission matches what we'd see in actual mixed-language code paths.
+# arm64-only.
+echo "[build] clang tlv_c_v1.c -> build/tlv_c_v1.o"
+"${LLVM_PREFIX}/bin/clang" \
+    -arch arm64 -O2 -isysroot "${SDK_PATH}" \
+    -c -o "${BUILD_DIR}/tlv_c_v1.o" \
+    "${SWIFT_DIR}/tlv_c_v1.c"
+
 # -- C++ host harness --------------------------------------------------
 
 LLVM_COMPONENTS=(
@@ -215,9 +242,40 @@ echo "[build] clang++ src/host_witness.cpp -> build/host_witness"
     ${LLVM_LDFLAGS} ${LLVM_LIBS} ${LLVM_SYSLIBS} \
     -Wl,-rpath,"${LLVM_PREFIX}/lib"
 
+echo "[build] clang++ src/host_tlv.cpp -> build/host_tlv"
+# shellcheck disable=SC2086
+"${LLVM_CLANG}" \
+    ${LLVM_CXXFLAGS} ${RTTI_FLAG} ${EXC_FLAG} \
+    -O2 -g -arch arm64 \
+    -o "${BUILD_DIR}/host_tlv" \
+    "${SRC_DIR}/host_tlv.cpp" \
+    ${LLVM_LDFLAGS} ${LLVM_LIBS} ${LLVM_SYSLIBS} \
+    -Wl,-rpath,"${LLVM_PREFIX}/lib"
+
+# Locate the ORC runtime archive (arm64 slice within a universal
+# archive). We record the path so callers can hand it to host_tlv as
+# argv[1]. brew's compiler-rt installs the universal `liborc_rt_osx.a`
+# under lib/clang/<v>/lib/darwin/. host_tlv passes the path to LLVM's
+# ExecutorNativePlatform, which extracts the matching slice itself.
+ORC_RT="${LLVM_PREFIX}/lib/clang/$("${LLVM_CONFIG}" --version | cut -d. -f1)/lib/darwin/liborc_rt_osx.a"
+if [[ ! -f "${ORC_RT}" ]]; then
+    # Glob fallback in case the version dir doesn't match major-only.
+    ORC_RT_CAND=$(find "${LLVM_PREFIX}/lib/clang" \
+        -name "liborc_rt_osx.a" -type f 2>/dev/null | head -1)
+    if [[ -n "${ORC_RT_CAND}" ]]; then
+        ORC_RT="${ORC_RT_CAND}"
+    fi
+fi
+if [[ -f "${ORC_RT}" ]]; then
+    echo "[build] ORC runtime: ${ORC_RT}"
+else
+    echo "[build] WARNING: ORC runtime archive not found under ${LLVM_PREFIX}/lib/clang"
+fi
+
 echo "[build] OK"
 echo "[build] artifacts:"
-ls -la "${BUILD_DIR}/host" "${BUILD_DIR}/host_witness" \
+ls -la "${BUILD_DIR}/host" "${BUILD_DIR}/host_witness" "${BUILD_DIR}/host_tlv" \
        "${BUILD_DIR}/greet_v1.o" "${BUILD_DIR}/greet_v2.o" \
        "${BUILD_DIR}/Greeter.o" \
-       "${BUILD_DIR}/greeter_v1.o" "${BUILD_DIR}/greeter_v2.o"
+       "${BUILD_DIR}/greeter_v1.o" "${BUILD_DIR}/greeter_v2.o" \
+       "${BUILD_DIR}/tlv_v1.o" "${BUILD_DIR}/tlv_c_v1.o"

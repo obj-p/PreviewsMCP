@@ -1,0 +1,15 @@
+[host] LLJIT target triple: arm64-apple-darwin25.3.0
+[host] dlopened libswiftCore via /usr/lib/swift/libswiftCore.dylib
+[host] dlopened Foundation.framework via /System/Library/Frameworks/Foundation.framework/Foundation
+[host] dlopened libswiftFoundation via /usr/lib/swift/libswiftFoundation.dylib
+[host] loading C TLV object from build/tlv_c_v1.o
+[host] tlv c v1: incTLV -> 43
+[host] tlv c v1: incTLV -> 44
+[host] tlv c v1: peekTLV -> 44
+tlv v1: counter=44 (pid=13481)
+[host] loading Swift global-init object from build/tlv_v1.o
+[host] readComputed -> 0x100c30000; calling...
+computed in v1 (sum_of_squares_1_to_100=338350)
+[host] readComputed again (caching check)...
+computed in v1 (sum_of_squares_1_to_100=338350)
+[host] done.
