@@ -186,41 +186,69 @@ this section is the *specification* for the host-side patch-point planner.
 | ObjC selref slot | `__DATA,__objc_selrefs` | Edit that introduces a previously-unused selector. | `write_mem` of canonical SEL address. **Plugin required** — see §4. POC Phase 2.2.5 closed this gap. |
 | ObjC class slot | `__DATA,__objc_classlist` | Rare in pure SwiftUI; possible when a preview emits an ObjC class. | `write_mem` of class struct address after host-side `objc_registerClassPair`. **Plugin required** — see §4. Apple's PreviewsInjection does not import `objc_register*`, suggesting they avoid this case or handle host-side. |
 
-### Per-edit address-list capture (the runtime confirmation step)
+### Per-edit address-list capture — RESOLVED (and the surprise it produced)
 
-The address list ABOVE is the universe of *kinds*; the *specific addresses*
-written for a given edit are produced by ORC's relocation resolver at
-link-finalize time. We have *not* yet observed Apple's per-edit address list
-under real load. Three capture-mechanism attempts have been blocked at
-progressively deeper architectural layers:
+The address list ABOVE is the *static-analysis universe* of kinds that JITLink
+*could* touch. The *empirical address list* — what Apple's runtime *actually*
+does on a body-literal edit — was captured via `LC_LOAD_DYLIB` binary
+modification of `XCPreviewAgent` in session 4 of the W3 spike. Full empirical
+data: [`w3-empirical-capture.md`](../research/scripts/analysis/w3-empirical-capture.md).
+Capture pipeline: [`research/scripts/data/w3/interposer-results.md`](../research/scripts/data/w3/interposer-results.md)
+sessions 1-4.
 
-1. dtrace `pid$target` provider — gated on signed binaries independent of
-   SIP/AMFI.
-2. lldb attach + breakpoint — "No executable module" pathology when
-   attaching to the running agent; previewsd's heartbeat SIGKILLs the
-   agent during attach pause.
-3. `DYLD_INSERT_LIBRARIES` interposer dylib via `launchctl setenv` — three
-   stacked barriers: (a) launchctl-setenv from SSH doesn't reach the GUI
-   launchd session, (b) `open -a Xcode.app` strips DYLD_* via
-   LaunchServices, (c) previewsd reconstructs the agent's
-   `DYLD_INSERT_LIBRARIES` from a hardcoded 5-entry list rather than
-   inheriting.
+**The surprise: Apple does NOT use in-place patching for body-literal
+edits.** The observed lifecycle is **full agent respawn**:
 
-See
-[`w3-patch-point-set.md`](../research/scripts/analysis/w3-patch-point-set.md) §6
-and
-[`research/scripts/data/w3/interposer-results.md`](../research/scripts/data/w3/interposer-results.md)
-for the full diagnosis. The next-attempt fork is Mach-O binary
-modification of `XCPreviewAgent` (append `LC_LOAD_DYLIB` for an
-interposer) — outlined in
-[`research/scripts/data/w3/handoff.md`](../research/scripts/data/w3/handoff.md).
+1. previewsd kills the existing `XCPreviewAgent`.
+2. previewsd posix_spawns a fresh `XCPreviewAgent` (different PID).
+3. The new agent loads the freshly-JIT-linked pseudodylib at startup.
+4. previewsd invokes the new preview body via remote-EPC dispatch.
 
-The capture is **not blocking for Phase 1** (host-side prototype) and **not
-blocking for Phase 2** (agent-side executor). It's blocking for the
-production-hardening phase only — by then we need to know empirically that our
-patch-point planner agrees with Apple's choices, or surface the divergence.
+The exact call sequence on a body-literal edit, captured per-agent
+lifetime:
 
-### Architectural finding from attempt 3 (informs §5)
+| Call # | Function | Arg | Role |
+|---|---|---|---|
+| 1 | `__xojit_executor_run_program_wrapper` | `fn=X+0` | JIT bootstrap dispatch |
+| 2 | `__xojit_executor_run_program_on_main_thread` | `fn=Y+0` | Swift async entry point |
+| 3 | `__xojit_executor_run_program_wrapper` | `fn=Y+8` | Swift async continuation (`_ret`) |
+
+(`X`, `Y` are ASLR'd `__TEXT` addresses in the pseudodylib. 8-byte
+offset between calls 2 and 3 is the Swift async ABI's entry/return
+pair.)
+
+**Crucially: `__xojit_executor_write_mem` is NOT called.** The in-place
+patch mechanism the table ABOVE catalogs is not exercised for this edit
+kind. The table's rows enumerate surfaces ORC's relocation engine
+*could* target — and would, if the host chose in-place patching — but
+Apple does not choose in-place patching for this case.
+
+### Implications for our implementation
+
+The table above remains the *static design reference* for any future
+in-place-patch path (e.g., if a future Phase-4 optimization adds
+fast-path patching for edits that don't change types). For Phase 1 and
+Phase 2 of the implementation, we **mirror Apple's respawn model**:
+
+- Agent surface area: `executor_run_program_on_main_thread` +
+  `executor_run_program_wrapper` + XPC/socket transport. That's it.
+- **No `executor_write_mem` needed** for body-literal edits.
+- **No W^X `mprotect`+`memcpy` dance** in the agent.
+- **No live-call serialization** (§5) needed — agent process is fresh on every edit.
+
+### Scope caveat: only one edit kind captured
+
+The empirical capture exercised the body-literal case (one
+`Text("Hello")` → `Text("Howdy")` change). Other edit kinds (struct
+field, function signature, new method, new file) MAY trip the
+in-place `write_mem` path — they were not tested. The capture
+infrastructure is reusable: modify the preset's `sed` step and re-run.
+If any other edit kind triggers `write_mem`, the §2 table's rows
+become live for THAT kind. Track per-edit-kind variation in a
+follow-up if/when we hit it; for now, the respawn-only path covers the
+spike's stated targets.
+
+### Architectural finding (informs §5)
 
 The agent's hardcoded `DYLD_INSERT_LIBRARIES` chain has five entries
 ([`research/scripts/data/w3/agent-dyld-env.txt`](../research/scripts/data/w3/agent-dyld-env.txt)).

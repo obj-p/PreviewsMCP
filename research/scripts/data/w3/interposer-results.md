@@ -1,8 +1,28 @@
-# DYLD_INSERT_LIBRARIES interposer attempt — results
+# W3 capture — results across four sessions
 
-**Status:** Built and deployed the interposer dylib + the launchctl-setenv
-injection path described in the handoff doc's "Continuation prompt" /
-"Interposer feasibility check". The interposer never fires. Three
+**Status (after session 4):** ✅ **Capture succeeded.** The
+empirical address list of `__xojit_executor_*` calls during a
+SwiftUI body-literal hot-reload is captured and committed at
+[`w3-writes.interposer.txt`](w3-writes.interposer.txt). The
+result is a load-bearing surprise (no `write_mem` calls; full
+agent respawn observed) — analysis at
+[`../analysis/w3-empirical-capture.md`](../analysis/w3-empirical-capture.md)
+which refines
+[`../analysis/w3-patch-point-set.md`](../analysis/w3-patch-point-set.md)
+§6 and `prompts/jit-executor-design.md` §2.
+
+Sessions 1-3 explored capture mechanisms that turned out to be
+architecturally blocked; session 4 used `LC_LOAD_DYLIB` binary
+modification of `XCPreviewAgent` to bypass every prior gate.
+The story of how we got here is recorded below.
+
+---
+
+## Sessions 1-3: DYLD_INSERT_LIBRARIES interposer — blocked
+
+**Earlier status:** Built and deployed the interposer dylib + the
+launchctl-setenv injection path described in session 1's handoff doc.
+The interposer never fires under that injection path. Three
 independent barriers, all empirically confirmed in three preset runs,
 combine to make the DYLD_INSERT_LIBRARIES injection path
 architecturally non-viable for `XCPreviewAgent` under macOS 26.3.1 /
@@ -159,30 +179,133 @@ The DYLD-env injection path is closed. The viable fallbacks fall under
 Approach (1) is the cleanest. Approach (2) is the cheapest to retry if
 (1) hits a snag. Either gives us the write_mem address list.
 
+---
+
+## Session 4: LC_LOAD_DYLIB binary mod — capture succeeded
+
+The session-3 handoff prescribed `LC_LOAD_DYLIB` binary modification
+as the next-attempt fork. Session 4 implemented it: a ~250-LOC C
+tool ([`mach-o-add-dylib.c`](mach-o-add-dylib.c)) that appends an
+`LC_LOAD_DYLIB` load command to every arm64* slice of a Mach-O
+universal binary, plus preset integration that re-codesigns
+ad-hoc afterward.
+
+### What was built
+
+- **[`mach-o-add-dylib.c`](mach-o-add-dylib.c)** — Mach-O LC_LOAD_DYLIB
+  injector. Patches both `arm64` and `arm64e` slices of the agent's
+  fat binary. Validates load-command headroom (88 bytes available; 56
+  needed for `/tmp/w3-interposer.dylib`). ~250 LOC, pure C, no deps
+  beyond `<mach-o/loader.h>`.
+- **[`mem-diff-helper.c`](mem-diff-helper.c)** — second-source
+  capture via `task_for_pid` + `mach_vm_region_recurse` +
+  `mach_vm_read_overwrite`. Non-invasive (target keeps running, no
+  heartbeat timeouts). Snapshots writable regions before/after the
+  edit and diffs them.
+- **Preset integration** — `research/vm/Sources/previewsvm/SetupCommand.swift`:
+  build + deploy both tools, ad-hoc re-codesign with hardcoded
+  entitlements plist (the agent's only entitlement is
+  `com.apple.security.get-task-allow`), spawn-with-`DYLD_PRINT_LIBRARIES`
+  diagnostic.
+
+### What was learned (the two surprises)
+
+1. **The interposer dylib must be a fat binary (arm64 + arm64e).**
+   The agent runs as arm64e on Apple Silicon; an arm64-only dylib
+   produced dyld errors:
+   ```
+   '/tmp/w3-interposer.dylib' (mach-o file, but is an incompatible
+   architecture (have 'arm64', need 'arm64e'))
+   ```
+   When dyld rejected our patched arm64e slice, it silently fell back
+   to the unmodified arm64 slice — the agent started successfully but
+   without our interposer. Fix: `clang -arch arm64 -arch arm64e` for
+   the dylib build + `mach-o-add-dylib` patches *every* arm64* slice
+   (subtype 0 = arm64, subtype 2 = arm64e) so the LC_LOAD_DYLIB
+   survives either arch selection.
+
+2. **The agent process is RESPAWNED across every body-literal edit.**
+   The agent's PID changed (1290 → 1403) between the pre-edit
+   snapshot and the post-edit snapshot. previewsd kills the existing
+   agent and posix_spawns a fresh one to run the JIT-linked edit.
+   This contradicts the `[[w3-patch-point-set]]` §2 hypothesis of
+   in-place data patching via `mprotect`+`memcpy`+`write_mem`. See
+   [`../analysis/w3-empirical-capture.md`](../analysis/w3-empirical-capture.md)
+   for the architectural analysis.
+
+### The captured address list
+
+Full empirical data:
+[`w3-writes.interposer.txt`](w3-writes.interposer.txt). 6 calls
+across 2 agents:
+
+```
+# Agent #1 (pid=1290) — initial canvas render
+run_program_wrapper          fn=0xc7ec34140  tid=...
+run_program_on_main_thread   fn=0xc7f0fc040  tid=...
+run_program_wrapper          fn=0xc7f0fc048  tid=...    (= 0xc7f0fc040 + 8, Swift async ret)
+
+# Agent #2 (pid=1403) — post-edit render (fresh process)
+run_program_wrapper          fn=0x95cc34240  tid=...
+run_program_on_main_thread   fn=0x95d0fc040  tid=...
+run_program_wrapper          fn=0x95d0fc048  tid=...    (= 0x95d0fc040 + 8)
+```
+
+`__xojit_executor_write_mem` never fired. `__xojit_run_wrapper`
+(the raw `_run_wrapper` export — distinct from
+`_executor_run_program_wrapper`) also never fired. Only the
+`_run_program_*` dispatch family.
+
+### Acceptance check
+
+The handoff doc's acceptance criterion was "a log file with at least
+1 hot-reload-edit's worth of `write_mem(addr, len)` lines plus the
+calling-thread ustack (or at minimum the addr+len tuples)." We
+captured 0 `write_mem` lines — but the **actual** Apple mechanism
+for body-literal edits doesn't use `write_mem`. The empirical
+finding answers the underlying question ("which xojit primitives
+fire per edit") completely; the W3 sub-task closes with a refined
+answer rather than the predicted one.
+
+---
+
 ## State files
 
-- `interposer.c` — the dylib source. Committed master copy.
+- [`interposer.c`](interposer.c) — the dylib source. Committed
+  master copy. Built as fat (arm64 + arm64e) per the
+  session-4 fix.
+- [`mach-o-add-dylib.c`](mach-o-add-dylib.c) — LC_LOAD_DYLIB
+  injector. Patches all arm64* slices.
+- [`mem-diff-helper.c`](mem-diff-helper.c) — task_for_pid +
+  mach_vm_read snapshot/diff tool. Second-source capture; the
+  data corroborates respawn (large `REGION_ONLY_IN_BEFORE` set
+  from the dead pre-edit agent's freed mappings).
+- [`w3-writes.interposer.txt`](w3-writes.interposer.txt) — the
+  captured `__xojit_executor_*` calls. **6 lines, the W3
+  deliverable-#2 result.**
+- [`w3-interposer.boot.txt`](w3-interposer.boot.txt) — dyld
+  constructor trace per agent process.
+- [`w3-mem-diff.txt`](w3-mem-diff.txt) — mach_vm_read snapshot
+  diff (1208 lines, dominated by respawn artifacts).
+- [`agent-dyld-env.txt`](agent-dyld-env.txt) — the agent's
+  hardcoded 5-entry DYLD_INSERT_LIBRARIES chain (captured
+  session 2; constant across runs).
 - `/tmp/verify.bundle/snapshots/post-autologin-w3` — VM snapshot
-  reusable for any further capture attempt.
-- `/tmp/w3-interposer-run/` — most recent preset run's artifacts:
-  - `w3-writes.interposer.txt` — empty (proves the interpose never
-    fired).
-  - `w3-interposer.boot.txt` — empty (proves the dylib was never
-    loaded anywhere in the user session).
-  - screenshots `01-…` through `21-…` — the canvas-driving worked
-    perfectly; capture is the only thing that didn't.
-- `research/vm/Sources/previewsvm/SetupCommand.swift` —
-  `drive-xcode-preview` preset. The interposer build / setenv /
-  diagnostics are still in place; future attempts can replace the
-  "launchctl setenv" step with a binary-modify step and the rest of
-  the preset works unchanged.
+  reusable for any further capture attempt. The preset boots
+  from this snapshot by default.
+- `research/vm/Sources/previewsvm/SetupCommand.swift` — the
+  `drive-xcode-preview` preset with full session-4 form:
+  build interposer dylib (fat), build mach-o-add-dylib +
+  mem-diff-helper on guest, patch the agent's both arm64* slices,
+  re-codesign, dyld_print diagnostic, mem-diff snapshot pair.
 
 ## Provenance
 
-Session commit: `2938154` (added interposer.c + preset
-modifications). The capture itself produced no output; this doc
-records the dead-end with enough detail that the next session can
-skip directly to binary modification.
+Session commits:
+
+- `2938154` — session 2: interposer.c + preset modifications.
+- `196e4ad` — session 2: dead-end diagnosis + 3-barrier writeup.
+- (TBD) — session 4: binary-mod tooling + captured address list.
 
 Verified against macOS 26.3.1, Xcode 26.2 (Build 17C49), running
 SIP-off + AMFI-off via the post-autologin-w3 VM snapshot.

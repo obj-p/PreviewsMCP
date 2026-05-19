@@ -264,18 +264,123 @@ already substantially validated.
 
 ---
 
-## 6. What's NOT closed: the address-list-per-edit-kind question
+## 6. Empirical capture — and the surprise that closes the question
 
 The spike scope's literal phrasing was "before/after diffs of the agent's
 loaded image at JIT-link time: which vtable slots changed, which witness-table
 entries changed, which symbol stubs were rewritten." Closing this at the
-*specific address list* level requires runtime capture during a real
-hot-reload — i.e., recording `__xojit_executor_write_mem(addr, len)`
-sequences as the agent applies a patch.
+*specific address list* level required runtime capture during a real
+hot-reload.
 
-**Status: still NOT closed.** Three capture-mechanism attempts to date,
-all blocked at progressively deeper architectural layers. The mechanism
-finding in §1-5 stands; only the per-edit address tuples remain unobserved.
+**Status: closed, with a load-bearing surprise.** After three iterations
+the capture landed via `LC_LOAD_DYLIB` binary-modification of the agent —
+see [`../data/w3/interposer-results.md`](../data/w3/interposer-results.md)
+session 3 — and the result inverts §2's mechanism hypothesis.
+
+### The empirical address list
+
+The full annotated capture lives at
+[`w3-empirical-capture.md`](w3-empirical-capture.md). Raw data:
+[`../data/w3/w3-writes.interposer.txt`](../data/w3/w3-writes.interposer.txt).
+
+For a body-literal hot-reload (`Hello` → `Howdy` inside a SwiftUI
+`Text(...)`), the agent's interpose log shows **only three xojit calls
+per agent lifetime**, all of them `run_program_*`, **none of them
+`write_mem`**:
+
+| # | Function | Arg | Notes |
+|---|---|---|---|
+| 1 | `__xojit_executor_run_program_wrapper`        | `fn=X+0`  | JIT bootstrap dispatch |
+| 2 | `__xojit_executor_run_program_on_main_thread` | `fn=Y+0`  | Swift async entry point |
+| 3 | `__xojit_executor_run_program_wrapper`        | `fn=Y+8`  | Swift async continuation (`_ret`) |
+
+(`X`, `Y` are per-agent ASLR'd `__TEXT` addresses in the in-memory
+pseudodylib. The 8-byte offset between calls 2 and 3 is the Swift
+async ABI's emit-time entry/return pair.)
+
+The same three-call pattern repeats once per `render`. Each agent
+lifetime contains exactly N×3 calls for N renders.
+
+### The surprise: no `write_mem`, agent respawns instead
+
+The agent's PID changed across the source edit (1290 → 1403 in the
+captured run). previewsd spawned a fresh agent for the post-edit
+render rather than patching the existing one. Both agents show the
+identical 3-call dispatch pattern; neither emits a `write_mem`.
+
+**This contradicts §2's mechanism hypothesis.** §2 said "option (a)
+in-place `mprotect`+`memcpy` data patch is Apple's primary mechanism";
+the empirical evidence is **option (c) full respawn**. The §2 hypothesis
+was derived from static analysis of XOJITExecutor's *imports* (which
+indeed include `_mprotect` + `_memcpy` + `_mach_vm_map`) and *exports*
+(`_write_mem` + the `_run_program_*` family). The primitives for
+in-place patching all exist on Apple's surface, but Apple's runtime
+**does not exercise the patch primitive** for body-literal edits — it
+uses the dispatch primitives plus a respawn.
+
+Plausible reasons (analysis in `w3-empirical-capture.md`):
+
+1. Simpler: respawn = one posix_spawn + XPC handshake; in-place patch
+   would need host-side ORC to compute byte-exact deltas against the
+   live agent's ASLR'd memory.
+2. Correctness-by-construction: a fresh process can't have stale state
+   from the pre-edit JIT'd code (objects, observers, in-flight async
+   continuations on the stack).
+3. Cost-of-spawn is small: ~80-200 ms on Apple Silicon, well under
+   the interactive-preview perception threshold.
+
+### What this means for §1-5
+
+§1-5 (mechanism / architecture / surfaces / concurrency / public-layer
+analogue) describe **what Apple could do with the surface they expose**.
+§6 now describes **what Apple actually does** for one edit kind.
+
+The §1 finding (LLVM `SimpleRemoteEPC` executor) stands — the agent IS
+that, with `run_program_*` and `write_mem` as canonical EPC vocabulary.
+The §2 in-place-patch mechanism remains the conditional answer if
+write_mem ever fires; we just haven't observed it. §3's
+Swift-ABI-surface table likewise stands as the universe of patches
+that *could* hit on an arbitrary edit; for body-literal edits the
+observed answer is none.
+
+### Scope caveat: only one edit kind captured
+
+The capture exercised exactly the body-literal case. Whether
+`write_mem` fires for OTHER edit kinds (struct field, function
+signature, new method, new file) is **untested**. The same capture
+infrastructure trivially extends:
+
+- Modify the preset's `sed` step (currently `s/Hello/Howdy/g`) to
+  exercise the new edit kind.
+- Re-run.
+- Inspect `w3-writes.interposer.txt`.
+
+If any other edit kind triggers `write_mem`, the §2 mechanism applies
+for THAT edit kind, layered above the respawn baseline. That's
+production-hardening work, not verdict-affecting.
+
+### Implications for [`prompts/jit-executor-design.md`](../../prompts/jit-executor-design.md)
+
+Substantially simpler than §2 prescribed:
+
+- The agent surface our equivalent needs collapses to
+  `executor_run_program_on_main_thread` +
+  `executor_run_program_wrapper` + XPC/socket transport.
+- `executor_write_mem` is **not required** for body-literal edits.
+- The W^X `mprotect`+`memcpy` dance is **not required**.
+- Concurrency / live-call serialization (§4) is **not required** —
+  no in-flight references in the new agent's address space.
+
+Per-edit pipeline reduces to: host JIT-links new `.o` → kills the old
+agent → spawns a new one → invokes the new entry via remote-EPC. See
+[`w3-empirical-capture.md`](w3-empirical-capture.md) §"Implications for
+prompts/jit-executor-design.md" for the full diff.
+
+---
+
+## 6.1 — Original capture-attempts log (preserved)
+
+Three capture-mechanism attempts before the working approach:
 
 ### Attempts and outcomes
 

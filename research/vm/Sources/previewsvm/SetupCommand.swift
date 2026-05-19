@@ -495,6 +495,36 @@ struct SetupCommand: AsyncParsableCommand {
             .map { String(format: "%02x", $0) }
             .joined()
 
+        // mach-o-add-dylib.c (LC_LOAD_DYLIB injector) and
+        // mem-diff-helper.c (mach_vm_read snapshot/diff) are loaded
+        // from the repo's `research/scripts/data/w3/` rather than
+        // embedded inline. Both are ~150-250 LOC of C — too much to
+        // duplicate as Swift raw strings without churn. `#filePath`
+        // resolves to this source file's absolute path; the data dir
+        // is at a known fixed relative location. If the files are
+        // missing the deployed shell-script will emit a clear error
+        // because the hex string will start with `#error`.
+        let dataW3Dir = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()  // previewsvm/
+            .deletingLastPathComponent()  // Sources/
+            .deletingLastPathComponent()  // vm/
+            .deletingLastPathComponent()  // research/
+            .appendingPathComponent("scripts/data/w3", isDirectory: true)
+        let machoAddDylibC = (try? String(
+            contentsOf: dataW3Dir.appendingPathComponent("mach-o-add-dylib.c"),
+            encoding: .utf8))
+            ?? "#error \"mach-o-add-dylib.c missing at \(dataW3Dir.path)\"\n"
+        let memDiffHelperC = (try? String(
+            contentsOf: dataW3Dir.appendingPathComponent("mem-diff-helper.c"),
+            encoding: .utf8))
+            ?? "#error \"mem-diff-helper.c missing at \(dataW3Dir.path)\"\n"
+        let machoAddDylibHex = machoAddDylibC.utf8
+            .map { String(format: "%02x", $0) }
+            .joined()
+        let memDiffHelperHex = memDiffHelperC.utf8
+            .map { String(format: "%02x", $0) }
+            .joined()
+
         // The `previewsvm ssh` subcommand joins remoteCommand args with
         // a single space and hands the result to `ssh ... user@host
         // <command>`. We pass the entire remote command as ONE
@@ -564,17 +594,114 @@ struct SetupCommand: AsyncParsableCommand {
             // symbols only exist at runtime in the agent (XOJITExecutor
             // lives in dyld_shared_cache; the framework headers aren't
             // exposed to the SDK). Defer resolution to dyld at load
-            // time. The classic `interposing.dylib` pattern depends on
-            // exactly this flag.
+            // time. -install_name ensures the dylib's LC_ID_DYLIB
+            // matches the LC_LOAD_DYLIB path we add to the agent
+            // below (mismatch is tolerated on AMFI-off but cleaner
+            // matched).
+            //
+            // -arch arm64 -arch arm64e builds a fat dylib so it loads
+            // into BOTH the agent's arm64e slice (which macOS-on-
+            // Apple-Silicon picks first) and the arm64 fallback slice
+            // (which dyld uses if it rejects the arm64e slice for any
+            // reason — our ad-hoc re-codesign of the agent may trip
+            // arm64e validation). A first run with -arch arm64 only
+            // failed with dyld errors "have 'arm64', need 'arm64e'".
             .hostShell(
-                command: remote("clang -dynamiclib -arch arm64 -Wall -Wno-unused-function -O0 -g -undefined dynamic_lookup -o /tmp/w3-interposer.dylib /tmp/w3-interposer.c 2>&1 && codesign --force --sign - /tmp/w3-interposer.dylib && file /tmp/w3-interposer.dylib && echo INTERPOSER_BUILT"),
-                label: "build + ad-hoc sign interposer dylib",
+                command: remote("clang -dynamiclib -arch arm64 -arch arm64e -Wall -Wno-unused-function -O0 -g -undefined dynamic_lookup -install_name /tmp/w3-interposer.dylib -o /tmp/w3-interposer.dylib /tmp/w3-interposer.c 2>&1 && codesign --force --sign - /tmp/w3-interposer.dylib && file /tmp/w3-interposer.dylib && lipo -archs /tmp/w3-interposer.dylib && echo INTERPOSER_BUILT"),
+                label: "build + ad-hoc sign interposer dylib (fat)",
                 expectContains: "INTERPOSER_BUILT"),
+
+            // Deploy + build the LC_LOAD_DYLIB injector. The tool
+            // appends an LC_LOAD_DYLIB load command to the agent
+            // binary's arm64e slice. ~150 LOC of pure C, no deps.
+            .hostShell(
+                command: remote("printf %s \(machoAddDylibHex) | xxd -r -p > /tmp/mach-o-add-dylib.c && wc -l /tmp/mach-o-add-dylib.c && echo MACHO_TOOL_SRC_DEPLOYED"),
+                label: "deploy mach-o-add-dylib.c",
+                expectContains: "MACHO_TOOL_SRC_DEPLOYED"),
+            .hostShell(
+                command: remote("clang -O2 -Wall -o /tmp/mach-o-add-dylib /tmp/mach-o-add-dylib.c 2>&1 && file /tmp/mach-o-add-dylib && echo MACHO_TOOL_BUILT"),
+                label: "build mach-o-add-dylib",
+                expectContains: "MACHO_TOOL_BUILT"),
+
+            // Deploy + build the mach_vm_read snapshot/diff helper —
+            // second-source capture in parallel with the interposer.
+            // Uses task_for_pid against the agent's get-task-allow
+            // entitlement; mach_vm_read_overwrite is non-invasive
+            // (target keeps running) so no heartbeat timeout fires.
+            .hostShell(
+                command: remote("printf %s \(memDiffHelperHex) | xxd -r -p > /tmp/mem-diff-helper.c && wc -l /tmp/mem-diff-helper.c && echo MEMDIFF_SRC_DEPLOYED"),
+                label: "deploy mem-diff-helper.c",
+                expectContains: "MEMDIFF_SRC_DEPLOYED"),
+            .hostShell(
+                command: remote("clang -O2 -Wall -o /tmp/mem-diff-helper /tmp/mem-diff-helper.c 2>&1 && file /tmp/mem-diff-helper && echo MEMDIFF_BUILT"),
+                label: "build mem-diff-helper",
+                expectContains: "MEMDIFF_BUILT"),
+
+            // Patch the agent binary in-place. /Applications/Xcode.app
+            // is outside SSV — writable with sudo. The path:
+            //   1. Write a hardcoded entitlements plist (the agent's
+            //      original entitlement is just get-task-allow=true,
+            //      captured by `codesign -d --entitlements` in a
+            //      prior session). Hardcoding sidesteps the wrapped
+            //      CMS blob format that codesign-display emits but
+            //      codesign-sign can't read back.
+            //   2. Backup, then run mach-o-add-dylib in-place.
+            //   3. Re-codesign ad-hoc with the entitlements,
+            //      preserving get-task-allow so mem-diff-helper +
+            //      anything else relying on task-port access still
+            //      works.
+            //   4. Verify by `otool -L` lists the interposer path.
+            //
+            // Split into multiple hostShell steps so each failure is
+            // pinpointed.
+            .hostShell(
+                command: remote("cat > /tmp/agent.entitlements.xml << 'XMLEOF'\n<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n<plist version=\"1.0\">\n<dict>\n    <key>com.apple.security.get-task-allow</key>\n    <true/>\n</dict>\n</plist>\nXMLEOF\nwc -l /tmp/agent.entitlements.xml && echo ENT_WRITTEN"),
+                label: "write hardcoded entitlements plist",
+                expectContains: "ENT_WRITTEN"),
+            .hostShell(
+                command: remote("AGENT=/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Xcode/Agents/XCPreviewAgent.app/Contents/MacOS/XCPreviewAgent; echo previewsvm | sudo -S cp \"$AGENT\" /tmp/XCPreviewAgent.bak && ls -la /tmp/XCPreviewAgent.bak && echo AGENT_BACKED_UP"),
+                label: "backup XCPreviewAgent",
+                expectContains: "AGENT_BACKED_UP"),
+            .hostShell(
+                command: remote("AGENT=/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Xcode/Agents/XCPreviewAgent.app/Contents/MacOS/XCPreviewAgent; echo previewsvm | sudo -S /tmp/mach-o-add-dylib \"$AGENT\" /tmp/w3-interposer.dylib 2>&1 && echo AGENT_PATCHED_BYTES"),
+                label: "append LC_LOAD_DYLIB to agent",
+                expectContains: "AGENT_PATCHED_BYTES"),
+            .hostShell(
+                command: remote("AGENT=/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Xcode/Agents/XCPreviewAgent.app/Contents/MacOS/XCPreviewAgent; echo previewsvm | sudo -S codesign --force --sign - --entitlements /tmp/agent.entitlements.xml \"$AGENT\" 2>&1 && echo previewsvm | sudo -S codesign -d --verbose=2 \"$AGENT\" 2>&1 | head -5 && echo AGENT_CODESIGNED"),
+                label: "ad-hoc re-codesign agent with entitlements",
+                expectContains: "AGENT_CODESIGNED"),
+            .hostShell(
+                command: remote("AGENT=/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Xcode/Agents/XCPreviewAgent.app/Contents/MacOS/XCPreviewAgent; otool -L \"$AGENT\" | grep -F /tmp/w3-interposer.dylib && echo previewsvm | sudo -S codesign -d --entitlements :- \"$AGENT\" 2>&1 | head -10 && echo VERIFIED_INTERPOSER_IN_LOAD_CMDS"),
+                label: "verify interposer in load commands",
+                expectContains: "VERIFIED_INTERPOSER_IN_LOAD_CMDS"),
+
+            // Sanity test: does dyld actually load our interposer
+            // dylib when DYLD_INSERT_LIBRARIES'd into a trivial
+            // process? Tests the dylib's loadability independent of
+            // the LC_LOAD_DYLIB injection path. /usr/bin/true is the
+            // smallest possible target. After this runs, the
+            // constructor should have written a "loaded" line to
+            // /tmp/w3-interposer.log if the dylib is well-formed.
+            .hostShell(
+                command: remote("rm -f /tmp/w3-interposer.log; DYLD_INSERT_LIBRARIES=/tmp/w3-interposer.dylib /usr/bin/true 2>&1; echo '--- dylib loadability test result ---'; ls -la /tmp/w3-interposer.log 2>&1; cat /tmp/w3-interposer.log 2>&1; echo DYLIB_SANITY_DONE"),
+                label: "sanity test interposer dylib loadability",
+                expectContains: "DYLIB_SANITY_DONE"),
+
+            // Capture the modified-agent's dyld trace by spawning it
+            // ourselves with DYLD_PRINT_LIBRARIES + a short timeout.
+            // The agent will hang waiting for XPC, but dyld's
+            // library-load messages fire BEFORE that (early in
+            // startup). Kills after 3s. The output will show whether
+            // /tmp/w3-interposer.dylib is in the load list.
+            .hostShell(
+                command: remote("AGENT=/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Xcode/Agents/XCPreviewAgent.app/Contents/MacOS/XCPreviewAgent; (echo previewsvm | sudo -S env DYLD_PRINT_LIBRARIES=1 \"$AGENT\" > /tmp/agent-dyld-trace.log 2>&1 &); TEST_PID=$!; sleep 3; echo previewsvm | sudo -S pkill -9 -f XCPreviewAgent 2>/dev/null; sleep 1; echo '--- /tmp/agent-dyld-trace.log head ---'; head -100 /tmp/agent-dyld-trace.log; echo '--- search for /tmp/w3-interposer.dylib ---'; grep -F 'w3-interposer' /tmp/agent-dyld-trace.log || echo INTERPOSER_NOT_IN_DYLD_TRACE; echo DYLD_TRACE_DONE"),
+                label: "trace modified agent's dyld loads",
+                expectContains: "DYLD_TRACE_DONE"),
 
             // Clean prior run's logs so we capture a fresh trace.
             .hostShell(
-                command: remote("rm -f /tmp/w3-writes.log /tmp/w3-interposer.log && touch /tmp/w3-writes.log /tmp/w3-interposer.log && chmod 666 /tmp/w3-writes.log /tmp/w3-interposer.log && echo LOGS_RESET"),
-                label: "reset interposer log files",
+                command: remote("rm -f /tmp/w3-writes.log /tmp/w3-interposer.log /tmp/w3-mem-before.snap /tmp/w3-mem-after.snap /tmp/w3-mem-diff.txt && touch /tmp/w3-writes.log /tmp/w3-interposer.log && chmod 666 /tmp/w3-writes.log /tmp/w3-interposer.log && echo LOGS_RESET"),
+                label: "reset interposer + mem-diff log files",
                 expectContains: "LOGS_RESET"),
 
             // Inject the interposer into every new process launchd
@@ -798,6 +925,17 @@ struct SetupCommand: AsyncParsableCommand {
                 label: "verify interposer loaded in agent"),
             .screenshot(label: "05-interposer-check"),
 
+            // Mem-diff snapshot BEFORE the edit. The helper enumerates
+            // the agent's writable VM regions via mach_vm_region_recurse
+            // and copies each one with mach_vm_read_overwrite. Both are
+            // non-invasive — the agent keeps running. Runs as root via
+            // sudo for the strictest possible task_for_pid path; on
+            // an AMFI-off VM same-uid would also work.
+            .hostShell(
+                command: remote("AGENT_PID=$(pgrep -n -f XCPreviewAgent); echo BEFORE_SNAP_PID=$AGENT_PID; echo previewsvm | sudo -S /tmp/mem-diff-helper snapshot $AGENT_PID /tmp/w3-mem-before.snap 2>&1 && echo previewsvm | sudo -S ls -la /tmp/w3-mem-before.snap && echo SNAPSHOT_BEFORE_OK"),
+                label: "mem-diff snapshot before edit",
+                expectContains: "SNAPSHOT_BEFORE_OK"),
+
             // Trigger the hot-reload by editing the file via sed.
             // Xcode's file watcher detects the change and routes
             // through previewsd → agent → PreviewsInjection →
@@ -809,6 +947,12 @@ struct SetupCommand: AsyncParsableCommand {
             .log("waiting 30s for hot-reload + write_mem calls"),
             .wait(seconds: 30),
             .screenshot(label: "06-after-edit"),
+
+            // Mem-diff snapshot AFTER the edit, then diff.
+            .hostShell(
+                command: remote("AGENT_PID=$(pgrep -n -f XCPreviewAgent); echo AFTER_SNAP_PID=$AGENT_PID; echo previewsvm | sudo -S /tmp/mem-diff-helper snapshot $AGENT_PID /tmp/w3-mem-after.snap 2>&1 && echo previewsvm | sudo -S ls -la /tmp/w3-mem-after.snap && echo previewsvm | sudo -S /tmp/mem-diff-helper diff /tmp/w3-mem-before.snap /tmp/w3-mem-after.snap /tmp/w3-mem-diff.txt 2>&1 && echo previewsvm | sudo -S chmod 644 /tmp/w3-mem-diff.txt && wc -l /tmp/w3-mem-diff.txt && echo '--- first 40 lines of diff ---' && head -40 /tmp/w3-mem-diff.txt && echo SNAPSHOT_AFTER_DIFF_OK"),
+                label: "mem-diff snapshot after edit + run diff",
+                expectContains: "SNAPSHOT_AFTER_DIFF_OK"),
 
             // Peek the captured trace before retrieval, so the
             // run output makes the result obvious even without
@@ -826,8 +970,12 @@ struct SetupCommand: AsyncParsableCommand {
             .hostShell(
                 command: remote("cat /tmp/w3-interposer.log") + " > \"\(outputDir)/w3-interposer.boot.txt\" && wc -l \"\(outputDir)/w3-interposer.boot.txt\"",
                 label: "retrieve interposer-load log to host"),
+            .hostShell(
+                command: remote("cat /tmp/w3-mem-diff.txt") + " > \"\(outputDir)/w3-mem-diff.txt\" && wc -l \"\(outputDir)/w3-mem-diff.txt\"",
+                label: "retrieve mem-diff report to host"),
             .screenshot(label: "07-complete"),
             .log("interposer output retrieved to \(outputDir)/w3-writes.interposer.txt"),
+            .log("mem-diff output retrieved to \(outputDir)/w3-mem-diff.txt"),
         ]
     }
 
