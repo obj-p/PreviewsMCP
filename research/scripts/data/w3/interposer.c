@@ -51,6 +51,7 @@
 // patching in-place. See `../analysis/w3-empirical-capture.md`.
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <stdint.h>
 #include <unistd.h>
 #include <pthread.h>
@@ -86,6 +87,40 @@ extern int __xojit_executor_write_mem(void *addr, const void *bytes, uint64_t le
 extern int __xojit_executor_run_program_on_main_thread(void *fn, void *args);
 extern int __xojit_executor_run_program_wrapper(void *fn, void *args);
 extern int __xojit_run_wrapper(void *fn, void *args);
+
+// PreviewsInjection.framework entry points — the actual Swift-callable
+// surface previewsd hits per edit. The asm-name trick (clang/GCC
+// extension) lets a C function reference a Swift-mangled symbol
+// directly. Signatures from `xcrun swift-demangle`:
+//
+//   __previewsInjectionJITLinkEntrypoint(
+//       argc: Int32, argv: char**,
+//       previewsDylibPath: char*, previewsDylibEntryPointName: char*
+//   ) -> Void
+//
+//   __previewsInjectionPerformFirstJITLink(
+//       argc: Int32, argv: char**
+//   ) -> Int32
+//
+// Both top-level (no Swift implicit self), 4-or-fewer-register args, no
+// indirect-result-pointer dance — standard AAPCS64 ABI from C.
+extern void pi_jit_link_entrypoint(
+    int32_t argc, char **argv,
+    char *dylib_path, char *entry_name)
+    __asm__("_$s17PreviewsInjection010__previewsB17JITLinkEntrypoint4argc4argv0C9DylibPath0cH14EntryPointNameys5Int32V_SpySpys4Int8VGSgGSgA2LtF");
+
+extern int32_t pi_perform_first_jit_link(int32_t argc, char **argv)
+    __asm__("_$s17PreviewsInjection010__previewsB19PerformFirstJITLink4argc4argvs5Int32VAF_SpySpys4Int8VGSgGSgtF");
+
+// XPC entry points used by previewsd↔agent traffic. Capture both the
+// fire-and-forget send and the synchronous reply-bearing send.
+// `xpc_copy_description` returns a heap-allocated UTF-8 string the
+// caller must free; we use it for logging then free.
+typedef struct xpc_connection_s *xpc_connection_t_compat;
+typedef struct xpc_object_s     *xpc_object_t_compat;
+extern void xpc_connection_send_message(xpc_connection_t_compat conn, xpc_object_t_compat msg);
+extern xpc_object_t_compat xpc_connection_send_message_with_reply_sync(xpc_connection_t_compat conn, xpc_object_t_compat msg);
+extern char *xpc_copy_description(xpc_object_t_compat obj);
 
 static int my_write_mem(void *addr, const void *bytes, uint64_t len) {
     pthread_once(&g_once, open_log);
@@ -136,6 +171,86 @@ static int my_run_wrapper(void *fn, void *args) {
     return __xojit_run_wrapper(fn, args);
 }
 
+// Truncate an XPC description for log readability. The descriptions
+// can be hundreds of bytes with embedded newlines; flatten + cap.
+static void log_xpc_desc(const char *prefix, char *desc) {
+    if (!g_log) return;
+    if (!desc) {
+        fprintf(g_log, "%llu\t%s\tdesc=(null)\ttid=%p\n",
+                (unsigned long long)now_ns(), prefix,
+                (void *)pthread_self());
+        return;
+    }
+    // Flatten newlines so each call stays one log line.
+    for (char *p = desc; *p; ++p) {
+        if (*p == '\n' || *p == '\r' || *p == '\t') *p = ' ';
+    }
+    fprintf(g_log, "%llu\t%s\tdesc=%.700s\ttid=%p\n",
+            (unsigned long long)now_ns(), prefix,
+            desc, (void *)pthread_self());
+}
+
+static void my_xpc_send(xpc_connection_t_compat conn, xpc_object_t_compat msg) {
+    pthread_once(&g_once, open_log);
+    char *desc = xpc_copy_description(msg);
+    pthread_mutex_lock(&g_log_mu);
+    log_xpc_desc("xpc_send", desc);
+    pthread_mutex_unlock(&g_log_mu);
+    if (desc) free(desc);
+    xpc_connection_send_message(conn, msg);
+}
+
+static xpc_object_t_compat my_xpc_send_reply_sync(
+    xpc_connection_t_compat conn, xpc_object_t_compat msg)
+{
+    pthread_once(&g_once, open_log);
+    char *desc = xpc_copy_description(msg);
+    pthread_mutex_lock(&g_log_mu);
+    log_xpc_desc("xpc_send_reply_sync_req", desc);
+    pthread_mutex_unlock(&g_log_mu);
+    if (desc) free(desc);
+
+    xpc_object_t_compat reply = xpc_connection_send_message_with_reply_sync(conn, msg);
+
+    char *rdesc = xpc_copy_description(reply);
+    pthread_mutex_lock(&g_log_mu);
+    log_xpc_desc("xpc_send_reply_sync_rep", rdesc);
+    pthread_mutex_unlock(&g_log_mu);
+    if (rdesc) free(rdesc);
+    return reply;
+}
+
+static void my_pi_jit_link_entrypoint(
+    int32_t argc, char **argv, char *dylib_path, char *entry_name)
+{
+    pthread_once(&g_once, open_log);
+    pthread_mutex_lock(&g_log_mu);
+    if (g_log) {
+        fprintf(g_log,
+                "%llu\tpi_jit_link_entrypoint\targc=%d\tdylib_path=%s\tentry=%s\ttid=%p\n",
+                (unsigned long long)now_ns(),
+                (int)argc,
+                dylib_path ? dylib_path : "(null)",
+                entry_name ? entry_name : "(null)",
+                (void *)pthread_self());
+    }
+    pthread_mutex_unlock(&g_log_mu);
+    pi_jit_link_entrypoint(argc, argv, dylib_path, entry_name);
+}
+
+static int32_t my_pi_perform_first_jit_link(int32_t argc, char **argv) {
+    pthread_once(&g_once, open_log);
+    pthread_mutex_lock(&g_log_mu);
+    if (g_log) {
+        fprintf(g_log,
+                "%llu\tpi_perform_first_jit_link\targc=%d\ttid=%p\n",
+                (unsigned long long)now_ns(),
+                (int)argc, (void *)pthread_self());
+    }
+    pthread_mutex_unlock(&g_log_mu);
+    return pi_perform_first_jit_link(argc, argv);
+}
+
 __attribute__((used))
 static const struct {
     const void *replacement;
@@ -149,6 +264,14 @@ static const struct {
       (const void *)&__xojit_executor_run_program_wrapper },
     { (const void *)&my_run_wrapper,
       (const void *)&__xojit_run_wrapper },
+    { (const void *)&my_xpc_send,
+      (const void *)&xpc_connection_send_message },
+    { (const void *)&my_xpc_send_reply_sync,
+      (const void *)&xpc_connection_send_message_with_reply_sync },
+    { (const void *)&my_pi_jit_link_entrypoint,
+      (const void *)&pi_jit_link_entrypoint },
+    { (const void *)&my_pi_perform_first_jit_link,
+      (const void *)&pi_perform_first_jit_link },
 };
 
 // Constructor — proves the dylib was loaded into the agent's address

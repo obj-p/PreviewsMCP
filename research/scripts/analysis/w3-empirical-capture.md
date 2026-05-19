@@ -102,24 +102,107 @@ For the design doc's §5 "Public-layer analogue checklist," our equivalent agent
 
 ### What this does NOT close
 
-The capture exercised exactly one edit kind. The full design must still answer:
+The session-4 capture exercised exactly one edit kind. Session 5
+extends the capture across four edit kinds; see below.
 
-- Do struct/class field changes use the same respawn path, or does Apple have an in-place fast-path for "metadata-only" edits?
-- Does adding/removing a SwiftUI `@State` property trigger respawn or patch?
-- What about new methods, new types, or new files in the package?
+---
 
-These warrant separate captures per the same interposer infrastructure. For each, run the preset with a different `sed` edit in step 90 (the existing `Hello`→`Howdy` is the body-literal case).
+## Session-5 multi-edit capture — respawn-only generalizes
 
-If any of those edit kinds DO trigger `write_mem`, the original §2 mechanism applies for THAT edit kind — likely as an optimization above the respawn baseline. Document per-kind in a future revision.
+A follow-up session exercised four edit kinds sequentially in a
+single run, with two extra interpose families added: PreviewsInjection
+JIT-link entry points (Swift-mangled — `__previewsInjectionJITLinkEntrypoint`
++ `__previewsInjectionPerformFirstJITLink`) + XPC
+`xpc_connection_send_message{,_with_reply_sync}`. The hypothesis was
+that one of these other edit kinds — particularly the structural
+`@State` add — might exercise `__xojit_executor_write_mem` (the
+in-place patch primitive) instead of respawn. **It does not.**
+
+| # | Edit | PID change | write_mem? | run_program calls | mem-diff `REGION_ONLY_IN_BEFORE` |
+|---|---|---|---|---|---|
+| 1 | body-literal-same-file (`World`→`Earth` in ContentView.swift) | 1307→1411 | 0 | 3 | 89 |
+| 2 | body-literal-cross-file (`Hello`→`Howdy` in Model.swift, read via `greeter.prefix`) | 1411→1495 | 0 | 3 | 122 |
+| 3 | add-method (new `func decorate(_:)` in ContentView) | 1495→1579 | 0 | 3 | 120 |
+| 4 | add-state (new `@State private var counter` + Text reading it) | 1579→1659 | 0 | 3 | 123 |
+
+Five total agent PIDs (initial + four respawn-per-edit), 15 total
+`run_program_*` calls — exactly 3 per agent, matching the body-literal
+pattern.
+
+Notably **zero** of these:
+
+- `__xojit_executor_write_mem` — the in-place patch primitive is
+  dormant across all 4 edit kinds, including the most structural one.
+- `__previewsInjectionJITLinkEntrypoint` — see "What's also notably
+  absent" below.
+- `__previewsInjectionPerformFirstJITLink` — same.
+- `xpc_connection_send_message` / `xpc_connection_send_message_with_reply_sync`
+  — the agent's XPC traffic does not go through the C `xpc_*` API.
+  It uses Swift wrappers (the `XOJITExecutor` class methods that take
+  `OS_xpc_object` parameters — exported as
+  `_$s13XOJITExecutorAAC10connection…` per the framework's exports).
+  To capture XPC content we'd need to interpose at the Swift-symbol
+  level.
+
+The mem-diff `REGION_ONLY_IN_BEFORE` counts (~90-123 per edit) are
+the unmistakable signature of process replacement: ~120 of the
+agent's writable VM regions disappear and ~120 fresh ones appear at
+the same virtual addresses (the same Mach-O slices get re-mmap'd at
+the same ASLR'd bases in the new process). In-place patching would
+produce zero `REGION_ONLY_IN_BEFORE` entries and a much smaller set
+of byte-level `DIFF`s. We don't see that.
+
+**Universalized conclusion for macOS 26.2 / Xcode 26.2:** for every
+edit kind in our test matrix, Apple's runtime is a respawn-only
+system. The Mach-O surfaces enumerated in §3 of
+[`w3-patch-point-set.md`](w3-patch-point-set.md) remain the
+static-analysis universe of *what JITLink could patch* — but Apple's
+runtime exercises **zero** of them per edit.
+
+### What's also notably absent: PreviewsInjection JIT-link calls
+
+The 0 `pi_jit_link_entrypoint` count across 5 agents is mildly
+surprising — the function name reads like "the agent's main JIT-link
+entry point." Most plausible interpretation: it IS the entry, but
+only on cold start (the agent's `main()` calls it once into the EPC
+server loop). Our `__DATA,__interpose` table fires on cross-image
+calls only; intra-binary calls inside the agent's own `main` resolve
+through the GOT without going through the interpose entry. So we'd
+miss it.
+
+To confirm: function-prologue hook (write the first bytes of the
+function to jump to our trampoline) rather than via
+`__DATA,__interpose`. Out of scope for this spike; the respawn-only
+conclusion holds either way.
+
+### What would falsify "respawn-only"
+
+If a future macOS/Xcode release optimizes the hot-reload path with an
+in-place fast-path, we'd want to re-run the preset with the same
+edit-kind matrix. Additional edit kinds worth trying:
+
+- Removing a stored property (Swift ABI shrinks).
+- Changing a function signature.
+- Adding a closure capture or `@escaping` marker.
+- Conformance addition (new protocol extension).
+- New file with a public type.
+
+Any `write_mem` hit would tell us Apple has layered an in-place
+fast-path above the respawn baseline. Document per-edit-kind dispatch
+in this file's "Session-N" section if/when that happens.
 
 ---
 
 ## Provenance
 
-- Raw interposer log: [`research/scripts/data/w3/w3-writes.interposer.txt`](../data/w3/w3-writes.interposer.txt) (8 lines, 6 calls across 2 agents).
-- dyld boot trace: [`research/scripts/data/w3/w3-interposer.boot.txt`](../data/w3/w3-interposer.boot.txt) (2 loaded events + env per agent).
-- Mem-diff snapshot pair: [`research/scripts/data/w3/w3-mem-diff.txt`](../data/w3/w3-mem-diff.txt) (1208 lines; dominated by REGION_ONLY_IN_BEFORE entries from the agent #1 → agent #2 process replacement).
-- Capture infrastructure: `research/scripts/data/w3/interposer.c` (the dylib), `research/scripts/data/w3/mach-o-add-dylib.c` (the binary-mod tool), `research/scripts/data/w3/mem-diff-helper.c` (mach_vm_read helper).
-- Preset that ran the capture: `research/vm/Sources/previewsvm/SetupCommand.swift:driveXcodePreviewSteps`.
+- Raw interposer log: [`research/scripts/data/w3/w3-writes.interposer.txt`](../data/w3/w3-writes.interposer.txt) (session-5 form: 20 lines, 15 `run_program_*` calls across 5 agents — initial + 4 respawn-per-edit).
+- dyld boot trace: [`research/scripts/data/w3/w3-interposer.boot.txt`](../data/w3/w3-interposer.boot.txt) (5 `loaded` + env events).
+- Per-edit mem-diff snapshots:
+  - [`research/scripts/data/w3/w3-mem-diff-e1.txt`](../data/w3/w3-mem-diff-e1.txt) — body-literal-same-file (6492 lines: 89 REGION_ONLY_IN_BEFORE + 6400 DIFF).
+  - [`research/scripts/data/w3/w3-mem-diff-e2.txt`](../data/w3/w3-mem-diff-e2.txt) — body-literal-cross-file (1393 lines: 122 + 1268).
+  - [`research/scripts/data/w3/w3-mem-diff-e3.txt`](../data/w3/w3-mem-diff-e3.txt) — add-method (1244 lines: 120 + 1121).
+  - [`research/scripts/data/w3/w3-mem-diff-e4.txt`](../data/w3/w3-mem-diff-e4.txt) — add-state (1212 lines: 123 + 1086).
+- Capture infrastructure: `research/scripts/data/w3/interposer.c` (the dylib — now with 8 interpose entries: 4 xojit + 2 XPC + 2 PreviewsInjection-Swift-mangled), `research/scripts/data/w3/mach-o-add-dylib.c` (the binary-mod tool), `research/scripts/data/w3/mem-diff-helper.c` (mach_vm_read helper).
+- Preset that ran the capture: `research/vm/Sources/previewsvm/SetupCommand.swift:driveXcodePreviewSteps` (session-5 form has 4 sequential sed/cat edits + per-edit mem-diff pairs).
 - Session writeup: [`research/scripts/data/w3/interposer-results.md`](../data/w3/interposer-results.md).
 - Design doc (whose §2 this refines): [`prompts/jit-executor-design.md`](../../prompts/jit-executor-design.md).

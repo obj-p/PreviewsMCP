@@ -236,17 +236,37 @@ Phase 2 of the implementation, we **mirror Apple's respawn model**:
 - **No W^X `mprotect`+`memcpy` dance** in the agent.
 - **No live-call serialization** (§5) needed — agent process is fresh on every edit.
 
-### Scope caveat: only one edit kind captured
+### Scope: edit-kind coverage (4 kinds tested, all respawn-only)
 
-The empirical capture exercised the body-literal case (one
-`Text("Hello")` → `Text("Howdy")` change). Other edit kinds (struct
-field, function signature, new method, new file) MAY trip the
-in-place `write_mem` path — they were not tested. The capture
-infrastructure is reusable: modify the preset's `sed` step and re-run.
-If any other edit kind triggers `write_mem`, the §2 table's rows
-become live for THAT kind. Track per-edit-kind variation in a
-follow-up if/when we hit it; for now, the respawn-only path covers the
-spike's stated targets.
+The empirical capture exercises four edit kinds in a single run, with
+the interposer extended to also catch PreviewsInjection's JIT-link
+entry points and the C `xpc_*` API:
+
+| # | Edit | write_mem? | run_program | Mechanism observed |
+|---|---|---|---|---|
+| 1 | body-literal-same-file | 0 | 3 | full respawn |
+| 2 | body-literal-cross-file | 0 | 3 | full respawn |
+| 3 | add-method | 0 | 3 | full respawn |
+| 4 | add-`@State` property | 0 | 3 | full respawn |
+
+All 4 trigger full agent respawn (PID changes; mem-diff shows ~120
+`REGION_ONLY_IN_BEFORE` per edit = full process replacement
+signature). Every agent runs the same 3-call `run_program_*`
+dispatch pattern. `__xojit_executor_write_mem` is never called for
+any of them — including the structural `@State` add.
+
+The Mach-O surface table above stays as the static-analysis universe
+of patches JITLink could in principle emit; Apple's runtime in macOS
+26.2 / Xcode 26.2 simply chooses not to exercise the in-place patch
+primitive for these edit kinds. If a future macOS release adds an
+in-place fast-path, re-run the capture matrix and refine.
+
+Untested edit kinds — remove-stored-property, function-signature
+change, conformance add, new file with new public type — could
+in principle trip `write_mem`. Capture infrastructure is reusable:
+add a new sed/cat step to the preset and re-run. See
+[`research/scripts/analysis/w3-empirical-capture.md`](../research/scripts/analysis/w3-empirical-capture.md)
+"What would falsify respawn-only" for the suggested kinds.
 
 ### Architectural finding (informs §5)
 

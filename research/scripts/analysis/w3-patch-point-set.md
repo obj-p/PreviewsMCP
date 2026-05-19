@@ -343,21 +343,39 @@ Swift-ABI-surface table likewise stands as the universe of patches
 that *could* hit on an arbitrary edit; for body-literal edits the
 observed answer is none.
 
-### Scope caveat: only one edit kind captured
+### Scope: 4 edit kinds tested; respawn-only generalizes
 
-The capture exercised exactly the body-literal case. Whether
-`write_mem` fires for OTHER edit kinds (struct field, function
-signature, new method, new file) is **untested**. The same capture
-infrastructure trivially extends:
+Session 5 extended the capture across four edit kinds in a single
+run, with two more interpose families added (PreviewsInjection
+Swift-mangled JIT-link entry points + C XPC `send_message`). Result:
+**every tested edit kind uses the same respawn-only mechanism. Zero
+`write_mem` calls across 5 agent processes.**
 
-- Modify the preset's `sed` step (currently `s/Hello/Howdy/g`) to
-  exercise the new edit kind.
-- Re-run.
-- Inspect `w3-writes.interposer.txt`.
+| # | Edit | PID change | write_mem | mem-diff REGION_ONLY_IN_BEFORE |
+|---|---|---|---|---|
+| 1 | body-literal-same-file | 1307→1411 | 0 | 89 |
+| 2 | body-literal-cross-file (Model.swift) | 1411→1495 | 0 | 122 |
+| 3 | add-method (new func in ContentView) | 1495→1579 | 0 | 120 |
+| 4 | add-`@State` (new stored property) | 1579→1659 | 0 | 123 |
 
-If any other edit kind triggers `write_mem`, the §2 mechanism applies
-for THAT edit kind, layered above the respawn baseline. That's
-production-hardening work, not verdict-affecting.
+The `REGION_ONLY_IN_BEFORE` count (~120 per edit) is the signature of
+full process replacement — the dead agent's writable VM regions freed
+by the kernel, ~120 fresh mappings allocated by the respawned agent.
+In-place patching would show 0 of these and a tiny set of byte-level
+`DIFF`s. We see the opposite.
+
+Untested kinds (any of which could in principle trip `write_mem`):
+
+- Remove a stored property.
+- Function-signature change.
+- New file with new public type.
+- Protocol conformance addition.
+- Closure / `@escaping` change.
+
+If any future capture lands a `write_mem` hit, the §2 mechanism rows
+apply for THAT kind, layered above the respawn baseline. Document
+per-edit-kind dispatch in a follow-up to
+[`w3-empirical-capture.md`](w3-empirical-capture.md).
 
 ### Implications for [`prompts/jit-executor-design.md`](../../prompts/jit-executor-design.md)
 

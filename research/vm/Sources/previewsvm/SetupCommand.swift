@@ -735,9 +735,12 @@ struct SetupCommand: AsyncParsableCommand {
             // ever activating XCPreviewAgent. Library target with a
             // single ContentView.swift containing only the View type
             // and the #Preview block compiles cleanly.
+            // Multi-file library target. ContentView pulls a literal
+            // from Model.swift's `Greeter`, so a Model.swift edit IS a
+            // cross-file edit affecting the rendered body.
             .hostShell(
-                command: remote("rm -rf /Users/admin/HelloPreview && mkdir -p /Users/admin/HelloPreview/Sources/HelloPreview && cat > /Users/admin/HelloPreview/Package.swift << 'PKEOF'\n// swift-tools-version: 6.0\nimport PackageDescription\n\nlet package = Package(\n    name: \"HelloPreview\",\n    platforms: [.macOS(.v14)],\n    targets: [.target(name: \"HelloPreview\")]\n)\nPKEOF\ncat > /Users/admin/HelloPreview/Sources/HelloPreview/ContentView.swift << 'SWEOF'\nimport SwiftUI\n\npublic struct ContentView: View {\n    public init() {}\n    public var body: some View {\n        VStack {\n            Text(\"Hello\").font(.title)\n            Text(\"World\").foregroundColor(.blue)\n        }\n        .padding()\n        .frame(width: 200, height: 120)\n    }\n}\n\n#Preview {\n    ContentView()\n}\nSWEOF\nls -la /Users/admin/HelloPreview/Sources/HelloPreview/ && echo PKG_REBUILT"),
-                label: "rebuild test package as library",
+                command: remote("rm -rf /Users/admin/HelloPreview && mkdir -p /Users/admin/HelloPreview/Sources/HelloPreview && cat > /Users/admin/HelloPreview/Package.swift << 'PKEOF'\n// swift-tools-version: 6.0\nimport PackageDescription\n\nlet package = Package(\n    name: \"HelloPreview\",\n    platforms: [.macOS(.v14)],\n    targets: [.target(name: \"HelloPreview\")]\n)\nPKEOF\ncat > /Users/admin/HelloPreview/Sources/HelloPreview/ContentView.swift << 'SWEOF'\nimport SwiftUI\n\npublic struct ContentView: View {\n    public init() {}\n    let greeter = Greeter()\n    public var body: some View {\n        VStack {\n            Text(greeter.prefix).font(.title)\n            Text(\"World\").foregroundColor(.blue)\n        }\n        .padding()\n        .frame(width: 200, height: 120)\n    }\n}\n\n#Preview {\n    ContentView()\n}\nSWEOF\ncat > /Users/admin/HelloPreview/Sources/HelloPreview/Model.swift << 'MDEOF'\npublic struct Greeter {\n    public init() {}\n    public var prefix: String = \"Hello\"\n}\nMDEOF\nls -la /Users/admin/HelloPreview/Sources/HelloPreview/ && echo PKG_REBUILT"),
+                label: "rebuild test package as multi-file library",
                 expectContains: "PKG_REBUILT"),
 
             // Suppress Xcode's "Introducing Coding Intelligence"
@@ -925,57 +928,135 @@ struct SetupCommand: AsyncParsableCommand {
                 label: "verify interposer loaded in agent"),
             .screenshot(label: "05-interposer-check"),
 
-            // Mem-diff snapshot BEFORE the edit. The helper enumerates
-            // the agent's writable VM regions via mach_vm_region_recurse
-            // and copies each one with mach_vm_read_overwrite. Both are
-            // non-invasive — the agent keeps running. Runs as root via
-            // sudo for the strictest possible task_for_pid path; on
-            // an AMFI-off VM same-uid would also work.
-            .hostShell(
-                command: remote("AGENT_PID=$(pgrep -n -f XCPreviewAgent); echo BEFORE_SNAP_PID=$AGENT_PID; echo previewsvm | sudo -S /tmp/mem-diff-helper snapshot $AGENT_PID /tmp/w3-mem-before.snap 2>&1 && echo previewsvm | sudo -S ls -la /tmp/w3-mem-before.snap && echo SNAPSHOT_BEFORE_OK"),
-                label: "mem-diff snapshot before edit",
-                expectContains: "SNAPSHOT_BEFORE_OK"),
+            // Multi-edit sequence. Each edit fires a hot-reload; we
+            // snapshot the agent's writable regions before + after and
+            // diff. The interposer log accumulates across all edits, so
+            // we can correlate timestamps with sed-step labels.
+            //
+            // Edit kinds tested, in order of expected ABI impact (low
+            // → high):
+            //   1. body-literal-same-file: change a string literal in
+            //      ContentView.swift.
+            //   2. body-literal-cross-file: change Greeter.prefix in
+            //      Model.swift; ContentView reads it via greeter.prefix
+            //      so the rendered body changes without modifying
+            //      ContentView itself.
+            //   3. add-method: insert a new method into ContentView
+            //      before `var body`. Doesn't change body's signature
+            //      but adds an entry to the type's method table.
+            //   4. add-state: insert an `@State` stored property into
+            //      ContentView. Changes the View's stored layout —
+            //      structural ABI impact.
+            //
+            // Goal: see whether any of these triggers
+            // `__xojit_executor_write_mem`, or whether all of them
+            // follow the body-literal pattern (run_program_* +
+            // respawn-only). Inversely: also captures whether
+            // PreviewsInjection's JIT-link entry points fire per edit.
 
-            // Trigger the hot-reload by editing the file via sed.
-            // Xcode's file watcher detects the change and routes
-            // through previewsd → agent → PreviewsInjection →
-            // XOJITExecutor.write_mem. The interposer logs each call.
+            // Edit 1: body-literal-same-file (World → Earth).
             .hostShell(
-                command: remote("sed -i.bak s/Hello/Howdy/g /Users/admin/HelloPreview/Sources/HelloPreview/ContentView.swift && grep Howdy /Users/admin/HelloPreview/Sources/HelloPreview/ContentView.swift > /dev/null && echo EDITED"),
-                label: "edit ContentView.swift (Hello → Howdy)",
-                expectContains: "EDITED"),
-            .log("waiting 30s for hot-reload + write_mem calls"),
+                command: remote("AGENT_PID=$(pgrep -n -f XCPreviewAgent); echo BEFORE_E1_PID=$AGENT_PID; echo previewsvm | sudo -S /tmp/mem-diff-helper snapshot $AGENT_PID /tmp/w3-mem-before-e1.snap 2>&1 && echo SNAP_BEFORE_E1_OK"),
+                label: "mem-diff snapshot before edit 1",
+                expectContains: "SNAP_BEFORE_E1_OK"),
+            .hostShell(
+                command: remote("sed -i.bak s/World/Earth/g /Users/admin/HelloPreview/Sources/HelloPreview/ContentView.swift && grep Earth /Users/admin/HelloPreview/Sources/HelloPreview/ContentView.swift > /dev/null && echo EDIT1_OK"),
+                label: "edit 1: body-literal-same-file (World→Earth)",
+                expectContains: "EDIT1_OK"),
+            .log("waiting 30s for edit-1 hot-reload"),
             .wait(seconds: 30),
-            .screenshot(label: "06-after-edit"),
-
-            // Mem-diff snapshot AFTER the edit, then diff.
             .hostShell(
-                command: remote("AGENT_PID=$(pgrep -n -f XCPreviewAgent); echo AFTER_SNAP_PID=$AGENT_PID; echo previewsvm | sudo -S /tmp/mem-diff-helper snapshot $AGENT_PID /tmp/w3-mem-after.snap 2>&1 && echo previewsvm | sudo -S ls -la /tmp/w3-mem-after.snap && echo previewsvm | sudo -S /tmp/mem-diff-helper diff /tmp/w3-mem-before.snap /tmp/w3-mem-after.snap /tmp/w3-mem-diff.txt 2>&1 && echo previewsvm | sudo -S chmod 644 /tmp/w3-mem-diff.txt && wc -l /tmp/w3-mem-diff.txt && echo '--- first 40 lines of diff ---' && head -40 /tmp/w3-mem-diff.txt && echo SNAPSHOT_AFTER_DIFF_OK"),
-                label: "mem-diff snapshot after edit + run diff",
-                expectContains: "SNAPSHOT_AFTER_DIFF_OK"),
+                command: remote("AGENT_PID=$(pgrep -n -f XCPreviewAgent); echo AFTER_E1_PID=$AGENT_PID; echo previewsvm | sudo -S /tmp/mem-diff-helper snapshot $AGENT_PID /tmp/w3-mem-after-e1.snap 2>&1 && echo previewsvm | sudo -S /tmp/mem-diff-helper diff /tmp/w3-mem-before-e1.snap /tmp/w3-mem-after-e1.snap /tmp/w3-mem-diff-e1.txt 2>&1 && echo previewsvm | sudo -S chmod 644 /tmp/w3-mem-diff-e1.txt && wc -l /tmp/w3-mem-diff-e1.txt && echo SNAP_AFTER_E1_OK"),
+                label: "mem-diff snapshot after edit 1 + diff",
+                expectContains: "SNAP_AFTER_E1_OK"),
+            .screenshot(label: "06a-after-edit-1"),
 
-            // Peek the captured trace before retrieval, so the
-            // run output makes the result obvious even without
-            // looking at the artifact directory.
+            // Edit 2: body-literal-cross-file (Hello → Howdy in Model.swift).
             .hostShell(
-                command: remote("echo '--- /tmp/w3-writes.log ---'; wc -l /tmp/w3-writes.log; echo '--- first 30 lines ---'; head -30 /tmp/w3-writes.log; echo '--- /tmp/w3-interposer.log tail ---'; tail -30 /tmp/w3-interposer.log"),
-                label: "peek interposer output"),
+                command: remote("AGENT_PID=$(pgrep -n -f XCPreviewAgent); echo BEFORE_E2_PID=$AGENT_PID; echo previewsvm | sudo -S /tmp/mem-diff-helper snapshot $AGENT_PID /tmp/w3-mem-before-e2.snap 2>&1 && echo SNAP_BEFORE_E2_OK"),
+                label: "mem-diff snapshot before edit 2",
+                expectContains: "SNAP_BEFORE_E2_OK"),
+            .hostShell(
+                command: remote("sed -i.bak s/Hello/Howdy/g /Users/admin/HelloPreview/Sources/HelloPreview/Model.swift && grep Howdy /Users/admin/HelloPreview/Sources/HelloPreview/Model.swift > /dev/null && echo EDIT2_OK"),
+                label: "edit 2: body-literal-cross-file (Hello→Howdy in Model.swift)",
+                expectContains: "EDIT2_OK"),
+            .log("waiting 30s for edit-2 hot-reload"),
+            .wait(seconds: 30),
+            .hostShell(
+                command: remote("AGENT_PID=$(pgrep -n -f XCPreviewAgent); echo AFTER_E2_PID=$AGENT_PID; echo previewsvm | sudo -S /tmp/mem-diff-helper snapshot $AGENT_PID /tmp/w3-mem-after-e2.snap 2>&1 && echo previewsvm | sudo -S /tmp/mem-diff-helper diff /tmp/w3-mem-before-e2.snap /tmp/w3-mem-after-e2.snap /tmp/w3-mem-diff-e2.txt 2>&1 && echo previewsvm | sudo -S chmod 644 /tmp/w3-mem-diff-e2.txt && wc -l /tmp/w3-mem-diff-e2.txt && echo SNAP_AFTER_E2_OK"),
+                label: "mem-diff snapshot after edit 2 + diff",
+                expectContains: "SNAP_AFTER_E2_OK"),
+            .screenshot(label: "06b-after-edit-2"),
 
-            // Retrieve both logs to the host's outputDir. The
-            // `w3-writes.interposer.txt` is the W3 deliverable-#2
-            // address list per the handoff doc's acceptance criterion.
+            // Edit 3: add-method. Inserts a new method into
+            // ContentView via cat-overwrite (simpler than sed-insert
+            // with multi-line content). Preserves edits 1+2 so the
+            // edited Model + Earth literal stay live.
+            .hostShell(
+                command: remote("AGENT_PID=$(pgrep -n -f XCPreviewAgent); echo BEFORE_E3_PID=$AGENT_PID; echo previewsvm | sudo -S /tmp/mem-diff-helper snapshot $AGENT_PID /tmp/w3-mem-before-e3.snap 2>&1 && echo SNAP_BEFORE_E3_OK"),
+                label: "mem-diff snapshot before edit 3",
+                expectContains: "SNAP_BEFORE_E3_OK"),
+            .hostShell(
+                command: remote("cat > /Users/admin/HelloPreview/Sources/HelloPreview/ContentView.swift << 'SWEOF'\nimport SwiftUI\n\npublic struct ContentView: View {\n    public init() {}\n    let greeter = Greeter()\n    func decorate(_ s: String) -> String { s.uppercased() }\n    public var body: some View {\n        VStack {\n            Text(greeter.prefix).font(.title)\n            Text(\"Earth\").foregroundColor(.blue)\n        }\n        .padding()\n        .frame(width: 200, height: 120)\n    }\n}\n\n#Preview {\n    ContentView()\n}\nSWEOF\ngrep decorate /Users/admin/HelloPreview/Sources/HelloPreview/ContentView.swift > /dev/null && echo EDIT3_OK"),
+                label: "edit 3: add-method (new func decorate)",
+                expectContains: "EDIT3_OK"),
+            .log("waiting 30s for edit-3 hot-reload"),
+            .wait(seconds: 30),
+            .hostShell(
+                command: remote("AGENT_PID=$(pgrep -n -f XCPreviewAgent); echo AFTER_E3_PID=$AGENT_PID; echo previewsvm | sudo -S /tmp/mem-diff-helper snapshot $AGENT_PID /tmp/w3-mem-after-e3.snap 2>&1 && echo previewsvm | sudo -S /tmp/mem-diff-helper diff /tmp/w3-mem-before-e3.snap /tmp/w3-mem-after-e3.snap /tmp/w3-mem-diff-e3.txt 2>&1 && echo previewsvm | sudo -S chmod 644 /tmp/w3-mem-diff-e3.txt && wc -l /tmp/w3-mem-diff-e3.txt && echo SNAP_AFTER_E3_OK"),
+                label: "mem-diff snapshot after edit 3 + diff",
+                expectContains: "SNAP_AFTER_E3_OK"),
+            .screenshot(label: "06c-after-edit-3"),
+
+            // Edit 4: add-state. Adds an `@State` stored property to
+            // ContentView. Changes the View's stored layout — the
+            // structural-ABI case most likely to require something
+            // other than respawn-only.
+            .hostShell(
+                command: remote("AGENT_PID=$(pgrep -n -f XCPreviewAgent); echo BEFORE_E4_PID=$AGENT_PID; echo previewsvm | sudo -S /tmp/mem-diff-helper snapshot $AGENT_PID /tmp/w3-mem-before-e4.snap 2>&1 && echo SNAP_BEFORE_E4_OK"),
+                label: "mem-diff snapshot before edit 4",
+                expectContains: "SNAP_BEFORE_E4_OK"),
+            .hostShell(
+                command: remote("cat > /Users/admin/HelloPreview/Sources/HelloPreview/ContentView.swift << 'SWEOF'\nimport SwiftUI\n\npublic struct ContentView: View {\n    public init() {}\n    let greeter = Greeter()\n    @State private var counter: Int = 0\n    func decorate(_ s: String) -> String { s.uppercased() }\n    public var body: some View {\n        VStack {\n            Text(greeter.prefix).font(.title)\n            Text(\"Earth\").foregroundColor(.blue)\n            Text(\"counter=\\(counter)\")\n        }\n        .padding()\n        .frame(width: 200, height: 160)\n    }\n}\n\n#Preview {\n    ContentView()\n}\nSWEOF\ngrep '@State' /Users/admin/HelloPreview/Sources/HelloPreview/ContentView.swift > /dev/null && echo EDIT4_OK"),
+                label: "edit 4: add-state (@State property)",
+                expectContains: "EDIT4_OK"),
+            .log("waiting 30s for edit-4 hot-reload"),
+            .wait(seconds: 30),
+            .hostShell(
+                command: remote("AGENT_PID=$(pgrep -n -f XCPreviewAgent); echo AFTER_E4_PID=$AGENT_PID; echo previewsvm | sudo -S /tmp/mem-diff-helper snapshot $AGENT_PID /tmp/w3-mem-after-e4.snap 2>&1 && echo previewsvm | sudo -S /tmp/mem-diff-helper diff /tmp/w3-mem-before-e4.snap /tmp/w3-mem-after-e4.snap /tmp/w3-mem-diff-e4.txt 2>&1 && echo previewsvm | sudo -S chmod 644 /tmp/w3-mem-diff-e4.txt && wc -l /tmp/w3-mem-diff-e4.txt && echo SNAP_AFTER_E4_OK"),
+                label: "mem-diff snapshot after edit 4 + diff",
+                expectContains: "SNAP_AFTER_E4_OK"),
+            .screenshot(label: "06d-after-edit-4"),
+
+            // Peek the accumulated interposer trace. Important: this
+            // log spans ALL 4 edits, so timestamps + the multi-agent
+            // open_log markers tell us which lines belong to which
+            // edit-respawn.
+            .hostShell(
+                command: remote("echo '--- /tmp/w3-writes.log ---'; wc -l /tmp/w3-writes.log; echo '--- write_mem hits (if any) ---'; grep -c write_mem /tmp/w3-writes.log || echo 0; echo '--- pi_jit_link hits ---'; grep -c pi_jit_link /tmp/w3-writes.log || echo 0; echo '--- pi_perform_first hits ---'; grep -c pi_perform_first /tmp/w3-writes.log || echo 0; echo '--- xpc_send count ---'; grep -c xpc_send /tmp/w3-writes.log || echo 0; echo '--- run_program count ---'; grep -c run_program /tmp/w3-writes.log || echo 0; echo '--- open_log markers (one per agent process) ---'; grep -c open_log /tmp/w3-writes.log || echo 0"),
+                label: "peek accumulated trace stats"),
+
+            // Retrieve every captured artifact.
             .hostShell(
                 command: remote("cat /tmp/w3-writes.log") + " > \"\(outputDir)/w3-writes.interposer.txt\" && wc -l \"\(outputDir)/w3-writes.interposer.txt\"",
-                label: "retrieve write_mem log to host"),
+                label: "retrieve interposer log to host"),
             .hostShell(
                 command: remote("cat /tmp/w3-interposer.log") + " > \"\(outputDir)/w3-interposer.boot.txt\" && wc -l \"\(outputDir)/w3-interposer.boot.txt\"",
                 label: "retrieve interposer-load log to host"),
             .hostShell(
-                command: remote("cat /tmp/w3-mem-diff.txt") + " > \"\(outputDir)/w3-mem-diff.txt\" && wc -l \"\(outputDir)/w3-mem-diff.txt\"",
-                label: "retrieve mem-diff report to host"),
+                command: remote("cat /tmp/w3-mem-diff-e1.txt") + " > \"\(outputDir)/w3-mem-diff-e1.txt\" && wc -l \"\(outputDir)/w3-mem-diff-e1.txt\"",
+                label: "retrieve mem-diff edit-1"),
+            .hostShell(
+                command: remote("cat /tmp/w3-mem-diff-e2.txt") + " > \"\(outputDir)/w3-mem-diff-e2.txt\" && wc -l \"\(outputDir)/w3-mem-diff-e2.txt\"",
+                label: "retrieve mem-diff edit-2"),
+            .hostShell(
+                command: remote("cat /tmp/w3-mem-diff-e3.txt") + " > \"\(outputDir)/w3-mem-diff-e3.txt\" && wc -l \"\(outputDir)/w3-mem-diff-e3.txt\"",
+                label: "retrieve mem-diff edit-3"),
+            .hostShell(
+                command: remote("cat /tmp/w3-mem-diff-e4.txt") + " > \"\(outputDir)/w3-mem-diff-e4.txt\" && wc -l \"\(outputDir)/w3-mem-diff-e4.txt\"",
+                label: "retrieve mem-diff edit-4"),
             .screenshot(label: "07-complete"),
-            .log("interposer output retrieved to \(outputDir)/w3-writes.interposer.txt"),
-            .log("mem-diff output retrieved to \(outputDir)/w3-mem-diff.txt"),
+            .log("artifacts retrieved to \(outputDir)/"),
         ]
     }
 

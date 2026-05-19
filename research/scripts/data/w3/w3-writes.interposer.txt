@@ -1,8 +1,20 @@
-# open_log pid=1290
-1779215574801107000	run_program_wrapper	fn=0xc7ec34140	tid=0x16dd47000
-1779215574807036000	run_program_on_main_thread	fn=0xc7f0fc040	tid=0x16deeb000
-1779215574807063000	run_program_wrapper	fn=0xc7f0fc048	tid=0x1fc86b100
-# open_log pid=1403
-1779215661083777000	run_program_wrapper	fn=0x95cc34240	tid=0x16d7cb000
-1779215661089110000	run_program_on_main_thread	fn=0x95d0fc040	tid=0x16d857000
-1779215661089154000	run_program_wrapper	fn=0x95d0fc048	tid=0x1fc86b100
+# open_log pid=1307
+1779218069581703000	run_program_wrapper	fn=0x746c40240	tid=0x16b5e3000
+1779218069587853000	run_program_on_main_thread	fn=0x746cd4040	tid=0x16b66f000
+1779218069587887000	run_program_wrapper	fn=0x746cd4048	tid=0x1fc04f100
+# open_log pid=1411
+1779218156713806000	run_program_wrapper	fn=0xa3ec40140	tid=0x16b5a7000
+1779218156719538000	run_program_on_main_thread	fn=0xa3ecd0040	tid=0x16b48f000
+1779218156719570000	run_program_wrapper	fn=0xa3ecd0048	tid=0x1fc04f100
+# open_log pid=1495
+1779218189388786000	run_program_wrapper	fn=0x99ac40240	tid=0x16b647000
+1779218189394452000	run_program_on_main_thread	fn=0x99acd0040	tid=0x16b6d3000
+1779218189394478000	run_program_wrapper	fn=0x99acd0048	tid=0x1fc04f100
+# open_log pid=1579
+1779218222398035000	run_program_wrapper	fn=0xba8c40140	tid=0x16fa23000
+1779218222403388000	run_program_on_main_thread	fn=0xba8cd0040	tid=0x16faaf000
+1779218222403418000	run_program_wrapper	fn=0xba8cd0048	tid=0x1fc04f100
+# open_log pid=1659
+1779218255523782000	run_program_wrapper	fn=0x870c40240	tid=0x16f25f000
+1779218255531903000	run_program_on_main_thread	fn=0x870cd0040	tid=0x16f1d3000
+1779218255531931000	run_program_wrapper	fn=0x870cd0048	tid=0x1fc04f100
