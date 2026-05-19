@@ -23,6 +23,11 @@
 #   build/ObjCSelrefPlugin.o — JITLink plugin object
 #   build/host_objc      — Phase-2 step-2.5 C++ host harness
 #
+# Phase 2 step 3 outputs (Swift async functions):
+#   build/async_v1.o     — Swift `async` function + @_cdecl wrapper
+#   build/async_v2.o     — stretch: multi-await async function
+#   build/host_async     — Phase-2 step-3 C++ host harness
+#
 # Conventions:
 #   * brewed LLVM's clang++ — NOT xcrun's. xcrun's clang ships with
 #     the Swift toolchain and isn't ABI-compatible with brewed LLVM's
@@ -201,6 +206,27 @@ echo "[build] swiftc objc_v1.swift -> build/objc_v1.o"
     -o "${BUILD_DIR}/objc_v1.o" \
     "${SWIFT_DIR}/objc_v1.swift"
 
+# -- Phase 2 step 3: Swift `async` objects ----------------------------
+#
+# async_v1.swift contains a real `async` function + a `@_cdecl`
+# wrapper that bridges sync->async via DispatchSemaphore. The emitted
+# .o carries `__TEXT,__swift_as_entry` and `__TEXT,__swift_as_ret`
+# (S_COALESCED) plus undefined refs to `_swift_task_create`,
+# `_swift_task_alloc`, `_swift_task_dealloc`, `_swift_task_switch`,
+# all of which live in libswift_Concurrency.dylib at runtime.
+echo "[build] swiftc async_v1.swift -> build/async_v1.o"
+"${SWIFTC}" "${SWIFT_FLAGS[@]}" \
+    -o "${BUILD_DIR}/async_v1.o" \
+    "${SWIFT_DIR}/async_v1.swift"
+
+# Stretch: a multi-await async function that suspends twice.
+if [[ -f "${SWIFT_DIR}/async_v2.swift" ]]; then
+    echo "[build] swiftc async_v2.swift -> build/async_v2.o"
+    "${SWIFTC}" "${SWIFT_FLAGS[@]}" \
+        -o "${BUILD_DIR}/async_v2.o" \
+        "${SWIFT_DIR}/async_v2.swift"
+fi
+
 # -- C++ host harness --------------------------------------------------
 
 LLVM_COMPONENTS=(
@@ -279,6 +305,18 @@ echo "[build] clang++ src/ObjCSelrefPlugin.cpp + host_objc.cpp -> build/host_obj
     -lobjc \
     -Wl,-rpath,"${LLVM_PREFIX}/lib"
 
+echo "[build] clang++ src/ObjCSelrefPlugin.cpp + host_async.cpp -> build/host_async"
+# shellcheck disable=SC2086
+"${LLVM_CLANG}" \
+    ${LLVM_CXXFLAGS} ${RTTI_FLAG} ${EXC_FLAG} \
+    -O2 -g -arch arm64 \
+    -isysroot "${SDK_PATH}" \
+    -o "${BUILD_DIR}/host_async" \
+    "${SRC_DIR}/ObjCSelrefPlugin.cpp" "${SRC_DIR}/host_async.cpp" \
+    ${LLVM_LDFLAGS} ${LLVM_LIBS} ${LLVM_SYSLIBS} \
+    -lobjc \
+    -Wl,-rpath,"${LLVM_PREFIX}/lib"
+
 # Locate the ORC runtime archive (arm64 slice within a universal
 # archive). We record the path so callers can hand it to host_tlv as
 # argv[1]. brew's compiler-rt installs the universal `liborc_rt_osx.a`
@@ -302,9 +340,9 @@ fi
 echo "[build] OK"
 echo "[build] artifacts:"
 ls -la "${BUILD_DIR}/host" "${BUILD_DIR}/host_witness" "${BUILD_DIR}/host_tlv" \
-       "${BUILD_DIR}/host_objc" \
+       "${BUILD_DIR}/host_objc" "${BUILD_DIR}/host_async" \
        "${BUILD_DIR}/greet_v1.o" "${BUILD_DIR}/greet_v2.o" \
        "${BUILD_DIR}/Greeter.o" \
        "${BUILD_DIR}/greeter_v1.o" "${BUILD_DIR}/greeter_v2.o" \
        "${BUILD_DIR}/tlv_v1.o" "${BUILD_DIR}/tlv_c_v1.o" \
-       "${BUILD_DIR}/objc_v1.o"
+       "${BUILD_DIR}/objc_v1.o" "${BUILD_DIR}/async_v1.o"
