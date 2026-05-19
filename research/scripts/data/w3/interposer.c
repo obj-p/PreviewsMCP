@@ -3,9 +3,15 @@
 // from XCPreviewAgent during a SwiftUI hot-reload.
 //
 // Build (on the guest VM, where Xcode's toolchain is present):
-//   clang -dynamiclib -arch arm64 -o /tmp/w3-interposer.dylib \
-//         /tmp/interposer.c
+//   clang -dynamiclib -arch arm64 -undefined dynamic_lookup \
+//         -o /tmp/w3-interposer.dylib /tmp/interposer.c
 //   codesign --force --sign - /tmp/w3-interposer.dylib
+//
+// `-undefined dynamic_lookup` is load-bearing: the four
+// `__xojit_executor_*` symbols are only available at runtime via
+// dyld_shared_cache, and the SDK does not expose XOJITExecutor headers.
+// dyld resolves the external references when the dylib is loaded into
+// XCPreviewAgent.
 //
 // Inject via `launchctl setenv DYLD_INSERT_LIBRARIES /tmp/w3-interposer.dylib`
 // plus `launchctl setenv DYLD_FORCE_FLAT_NAMESPACE 1` (the latter ensures

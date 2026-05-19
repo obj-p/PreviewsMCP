@@ -191,16 +191,46 @@ this section is the *specification* for the host-side patch-point planner.
 The address list ABOVE is the universe of *kinds*; the *specific addresses*
 written for a given edit are produced by ORC's relocation resolver at
 link-finalize time. We have *not* yet observed Apple's per-edit address list
-under real load — the pre-implementation runtime confirmation
-([`w3-patch-point-set.md`](../research/scripts/analysis/w3-patch-point-set.md) §6)
-captures this via dtrace on `__xojit_executor_write_mem` during an Xcode
-hot-reload. The dtrace script is ready at
-[`research/scripts/data/w3/capture-write-mem.d`](../research/scripts/data/w3/capture-write-mem.d).
+under real load. Three capture-mechanism attempts have been blocked at
+progressively deeper architectural layers:
 
-This confirmation is **not blocking for Phase 1** (host-side prototype) and **not
+1. dtrace `pid$target` provider — gated on signed binaries independent of
+   SIP/AMFI.
+2. lldb attach + breakpoint — "No executable module" pathology when
+   attaching to the running agent; previewsd's heartbeat SIGKILLs the
+   agent during attach pause.
+3. `DYLD_INSERT_LIBRARIES` interposer dylib via `launchctl setenv` — three
+   stacked barriers: (a) launchctl-setenv from SSH doesn't reach the GUI
+   launchd session, (b) `open -a Xcode.app` strips DYLD_* via
+   LaunchServices, (c) previewsd reconstructs the agent's
+   `DYLD_INSERT_LIBRARIES` from a hardcoded 5-entry list rather than
+   inheriting.
+
+See
+[`w3-patch-point-set.md`](../research/scripts/analysis/w3-patch-point-set.md) §6
+and
+[`research/scripts/data/w3/interposer-results.md`](../research/scripts/data/w3/interposer-results.md)
+for the full diagnosis. The next-attempt fork is Mach-O binary
+modification of `XCPreviewAgent` (append `LC_LOAD_DYLIB` for an
+interposer) — outlined in
+[`research/scripts/data/w3/handoff.md`](../research/scripts/data/w3/handoff.md).
+
+The capture is **not blocking for Phase 1** (host-side prototype) and **not
 blocking for Phase 2** (agent-side executor). It's blocking for the
 production-hardening phase only — by then we need to know empirically that our
 patch-point planner agrees with Apple's choices, or surface the divergence.
+
+### Architectural finding from attempt 3 (informs §5)
+
+The agent's hardcoded `DYLD_INSERT_LIBRARIES` chain has five entries
+([`research/scripts/data/w3/agent-dyld-env.txt`](../research/scripts/data/w3/agent-dyld-env.txt)).
+Only one — `PreviewsInjection.framework` — is load-bearing for the JIT
+path. The other four (libLogRedirect, libPlaygrounds,
+libLiveExecutionResultsLogger, LiveExecutionResultsProbe) support
+Xcode's playground / live-results UX, which our public-layer equivalent
+does not need to mirror. The §5 "Public-layer analogue checklist" row
+"PreviewsInjection's EntryPoint protocol family" is the only injection
+point we replicate.
 
 ---
 

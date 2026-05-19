@@ -269,25 +269,80 @@ already substantially validated.
 The spike scope's literal phrasing was "before/after diffs of the agent's
 loaded image at JIT-link time: which vtable slots changed, which witness-table
 entries changed, which symbol stubs were rewritten." Closing this at the
-*specific address list* level requires:
+*specific address list* level requires runtime capture during a real
+hot-reload — i.e., recording `__xojit_executor_write_mem(addr, len)`
+sequences as the agent applies a patch.
 
-1. Driving a real preview session that triggers a hot-reload. (Multi-hour
-   GUI-automation subproject; the `previewsvm setup` machinery from
-   `research/vm/` is available — see `[[project_vm_setup_assistant_via_snapshot]]`.)
-2. Capturing the agent's `__DATA,__const` / `__DATA,__got` / `__DATA,__data`
-   regions before the edit.
-3. Triggering the edit (smallest possible — a literal-string change in a
-   SwiftUI body).
-4. Capturing the same regions after.
-5. Diffing.
+**Status: still NOT closed.** Three capture-mechanism attempts to date,
+all blocked at progressively deeper architectural layers. The mechanism
+finding in §1-5 stands; only the per-edit address tuples remain unobserved.
 
-Plus optionally:
-- `dtrace -n 'pid$target::*write_mem*:entry { ustack(); printf("addr=%p
-  len=%d", arg1, arg2); }' -p $AGENT_PID` to capture the actual `write_mem`
-  call sequence with arguments.
+### Attempts and outcomes
 
-The dtrace path is the more direct one — it captures the patch operations
-without needing to reverse-engineer image diffs.
+1. **dtrace `pid$target::*write_mem*:entry` against agent PID.** Apple's
+   dtrace has a `dt_proc_create` gate that fails on signed agent binaries
+   even with `csrutil disable` + `amfi_get_out_of_my_way=1`. The gate
+   is separate from SIP/AMFI. Documented at
+   [`xcode-driving-attempt.md`](../data/w3/xcode-driving-attempt.md).
+2. **lldb attach to agent + breakpoint on `__xojit_executor_*`.** lldb
+   reports `target create --arch arm64e <agent>` succeeds, but `process
+   attach -p $PID` produces "No executable module" — dyld's loaded-image
+   list does not propagate to lldb's view, so breakpoints stay pending.
+   Compounded by previewsd's SIGKILL of the agent within seconds of
+   lldb's attach pause (heartbeat timeout). Documented at
+   [`canvas-driving-results.md`](../data/w3/canvas-driving-results.md).
+3. **`DYLD_INSERT_LIBRARIES` interposer dylib via `launchctl setenv`.**
+   Blocked at three independent barriers (full diagnosis at
+   [`interposer-results.md`](../data/w3/interposer-results.md)):
+   - `launchctl setenv` from an SSH session writes to the SSH bootstrap,
+     not admin's GUI launchd session.
+   - `open -a Xcode.app` (LaunchServices) strips DYLD_* env vars before
+     reaching launchd.
+   - previewsd reconstructs the agent's `DYLD_INSERT_LIBRARIES` from a
+     hardcoded 5-entry list ([`agent-dyld-env.txt`](../data/w3/agent-dyld-env.txt)),
+     not by inheriting/chaining the parent env.
+
+The DYLD-env-injection path is conclusively closed. The interposer
+dylib mechanism itself is correct — the table fires whenever the dylib
+gets loaded — but no env-based delivery vector reaches the agent's
+dyld.
+
+### The genuinely-new architectural finding from attempt 3
+
+The agent's hardcoded DYLD_INSERT_LIBRARIES chain has five entries:
+
+| # | Path | Role |
+|---|---|---|
+| 1 | `/Applications/Xcode.app/.../usr/lib/libLogRedirect.dylib` | Xcode's stdout/stderr redirector |
+| 2 | `/Applications/Xcode.app/.../libLiveExecutionResultsLogger.dylib` | Live-results telemetry recorder |
+| 3 | `/Applications/Xcode.app/.../libPlaygrounds.dylib` | Playground/preview common hooks |
+| 4 | `/System/Library/PrivateFrameworks/LiveExecutionResultsProbe.framework/...` | Probe-point insertion |
+| 5 | `/System/Library/PrivateFrameworks/PreviewsInjection.framework/...` | Host↔agent JIT-link entrypoint |
+
+Only entry #5 is load-bearing for the JIT-execution path. Entries
+#1-4 support Xcode's playground/live-results UX. **Our public-layer
+equivalent only needs to mirror #5** (host↔agent wire-protocol bridge);
+the playground/live-results hooks are out-of-scope per
+[`prompts/jit-executor-research.md`](../../prompts/jit-executor-research.md)
+non-goals.
+
+This is the same finding that closes the "what does our equivalent
+need?" question in §5: one entry (PreviewsInjection-equivalent), not
+five.
+
+### Next-attempt fork: binary modification
+
+Per [`interposer-results.md`](../data/w3/interposer-results.md) §
+"Where to go next", the remaining viable capture path is Mach-O
+modification — add an `LC_LOAD_DYLIB` for our interposer to the agent
+binary directly, bypassing all env-injection. The handoff doc
+[`handoff.md`](../data/w3/handoff.md) has the session-3 continuation
+prompt and feasibility check for that approach.
+
+### Original capture plan (for reference)
+
+The following was the session-1 plan; preserved here in case a future
+session finds a way past the dtrace gate.
 
 **Pre-implementation runtime confirmation plan** (consumed by
 `prompts/jit-executor-design.md` once written):

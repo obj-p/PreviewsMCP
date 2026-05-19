@@ -560,8 +560,14 @@ struct SetupCommand: AsyncParsableCommand {
                 command: remote("printf %s \(interposerHex) | xxd -r -p > /tmp/w3-interposer.c && wc -l /tmp/w3-interposer.c && echo INTERPOSER_SRC_DEPLOYED"),
                 label: "deploy interposer.c",
                 expectContains: "INTERPOSER_SRC_DEPLOYED"),
+            // -undefined dynamic_lookup: the four `__xojit_executor_*`
+            // symbols only exist at runtime in the agent (XOJITExecutor
+            // lives in dyld_shared_cache; the framework headers aren't
+            // exposed to the SDK). Defer resolution to dyld at load
+            // time. The classic `interposing.dylib` pattern depends on
+            // exactly this flag.
             .hostShell(
-                command: remote("clang -dynamiclib -arch arm64 -Wall -Wno-unused-function -O0 -g -o /tmp/w3-interposer.dylib /tmp/w3-interposer.c 2>&1 && codesign --force --sign - /tmp/w3-interposer.dylib && file /tmp/w3-interposer.dylib && echo INTERPOSER_BUILT"),
+                command: remote("clang -dynamiclib -arch arm64 -Wall -Wno-unused-function -O0 -g -undefined dynamic_lookup -o /tmp/w3-interposer.dylib /tmp/w3-interposer.c 2>&1 && codesign --force --sign - /tmp/w3-interposer.dylib && file /tmp/w3-interposer.dylib && echo INTERPOSER_BUILT"),
                 label: "build + ad-hoc sign interposer dylib",
                 expectContains: "INTERPOSER_BUILT"),
 
@@ -618,10 +624,37 @@ struct SetupCommand: AsyncParsableCommand {
                 label: "suppress Xcode coding-intelligence welcome",
                 expectContains: "DEFAULTS_SET"),
 
-            // Open Package.swift in Xcode (gives project context),
-            // then main.swift (focuses on the source file with #Preview).
-            // Opening main.swift directly without project context skips
-            // package indexing and the preview pipeline never activates.
+            // Open Package.swift then ContentView.swift in Xcode.
+            //
+            // NOTE: this preset's `launchctl setenv DYLD_INSERT_LIBRARIES`
+            // above does NOT propagate into Xcode (let alone the agent).
+            // Three barriers were confirmed empirically across runs:
+            //   1. `launchctl setenv` from the SSH session lands in
+            //      the SSH bootstrap, not in admin's GUI launchd
+            //      session. `launchctl asuser 501 /bin/bash -lc 'echo
+            //      $DYLD_INSERT_LIBRARIES'` returns empty even after
+            //      the setenv step succeeded.
+            //   2. `open -a Xcode.app` goes through LaunchServices,
+            //      which strips DYLD_* env vars on the way to launchd.
+            //   3. previewsd reconstructs DYLD_INSERT_LIBRARIES for
+            //      the agent from a hardcoded 5-entry list
+            //      (libLogRedirect, libPlaygrounds,
+            //      libLiveExecutionResultsLogger,
+            //      LiveExecutionResultsProbe, PreviewsInjection). Even
+            //      if we got our dylib into Xcode's env, previewsd
+            //      drops it.
+            // Bypassing barrier (2) via `launchctl asuser 501 env
+            // DYLD_INSERT_LIBRARIES=… /Applications/Xcode.app/Contents/MacOS/Xcode`
+            // was tried and produced an Xcode that never spawned the
+            // agent (the preview pipeline depends on LaunchServices
+            // session context that direct-exec lacks).
+            //
+            // Conclusion: the DYLD_INSERT_LIBRARIES path is
+            // architecturally blocked. The fallback is binary
+            // modification — either appending an LC_LOAD_DYLIB to the
+            // agent binary, or wrapping libLogRedirect.dylib inside
+            // Xcode.app with a shim that loads both itself and the
+            // interposer. See `handoff.md` for the full plan.
             .hostShell(
                 command: remote("open -a /Applications/Xcode.app /Users/admin/HelloPreview/Package.swift && echo OPENED_PKG"),
                 label: "open Package.swift in Xcode",
