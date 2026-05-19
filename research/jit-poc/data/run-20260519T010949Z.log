@@ -1,0 +1,9 @@
+[host] LLJIT target triple: arm64-apple-darwin25.3.0
+[host] dlopened libswiftCore via /usr/lib/swift/libswiftCore.dylib
+[host] loading v1 object from build/greet_v1.o
+[host] v1 greet resolved to 0x104edc000; calling...
+hello from swift v1
+[host] loading v2 object from build/greet_v2.o
+[host] v2 greet resolved to 0x104ee8000; calling...
+hello from swift v2
+[host] done.
