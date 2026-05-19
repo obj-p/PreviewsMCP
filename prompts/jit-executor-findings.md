@@ -63,7 +63,7 @@ verdict unlocks."
 |---|---|---|
 | **W1** — research VM infra | `research/vm/` `Virtualization.framework` wrapper CLI + provisioning; `research/scripts/` Python wrappers | **Delivered for symbol-dump and architecture-study use cases.** SA automation reached macOS desktop end-to-end on 26.3.1; `post-sa` and `post-xcode-sip-amfi` snapshots exist. dtrace/lldb attach scaffolding deferred pending W3 dtrace work. |
 | **W2** — `PreviewsPipeline` study + JITLink POC | architecture diagram with public-layer analogues; harness demonstrating Swift function override via JITLink | **Both delivered.** Architecture diagram draft 1 at `research/scripts/analysis/architecture-diagram-draft.md`. JITLink POC lives on `.worktrees/jit-poc`, branch `jit-poc`, commits `5cb8277..95db2ed` (13 commits across Phases 1 / 2.1 / 2.1-stretch / 2.2 / 2.2.5 / 2.3 / 2.3-stretch). |
-| **W3** — XCPreviewAgent lifecycle + patch-point set | lifecycle timeline; before/after diffs of patched indirections | **Deferred.** W2's POC produced enough evidence on its own; W3's runtime dtrace was not load-bearing for the architectural verdict, captured below as a pre-implementation TODO. Q6 (Apple's JIT engine = LLVM ORC) was closed via VM-side `dyld_info` evidence (`research/scripts/analysis/q6-jit-runtime-findings.md`), absorbing most of W3's "what does the runtime use" question. |
+| **W3** — XCPreviewAgent lifecycle + patch-point set | lifecycle timeline; before/after diffs of patched indirections | **Delivered to mechanism level.** Lifecycle timeline at `research/scripts/analysis/w3-lifecycle-timeline.md` (three execution paths identified: Dylib / JIT / framework-agent; full env-var + symbol-fallback chain mapped; decision tree captured verbatim from the agent's own stderr log). Patch-point mechanism at `research/scripts/analysis/w3-patch-point-set.md` (option (a) in-place `mprotect`+`memcpy` confirmed; option (b) JITDylib::replace ruled out; architecture is LLVM `SimpleRemoteEPC` — patch decisions made host-side, patch application agent-side via `___xojit_executor_write_mem`). Per-edit address list still pending runtime capture during real Xcode hot-reload (pre-implementation TODO; capture-write-mem.d dtrace script ready to run). |
 
 The verdict rests on W2's architecture diagram ("the public-layer shape matches Apple's")
 plus W2's JITLink POC ("the public-layer building blocks actually work for Swift"). W1
@@ -308,21 +308,30 @@ question." Captured as a pre-implementation TODO.
 
 ### W3 patch-point runtime confirmation
 
-The W3 patch-point set was scoped as a runtime-extracted artifact: dtrace `XCPreviewAgent`
-during a hot-reload, diff before/after, capture which vtable slots / witness-table entries /
-symbol stubs were rewritten. **This runtime extraction was not performed in-spike.**
+**Updated post-W3.** Mechanism-level closure landed; per-edit address-list-level
+extraction still pending. See `research/scripts/analysis/w3-patch-point-set.md`.
 
-What we have instead is the Phase 2.1 stretch-goal-derived patch-point hypothesis (option
-(a) in-place PWT patch via `mprotect`+`memcpy` or (b) per-conformance JITDylib replacement
-— either reachable on public ORC) plus Q6 evidence that Apple's runtime uses the same LLVM
-ORC + JITLink stack (so whatever Apple does is in the public-layer's reachable mechanism
-set).
+What W3 closed: the patch mechanism is option (a) (in-place
+`mprotect`+`memcpy` via `___xojit_executor_write_mem`), driven by host-side
+ORC over the LLVM `SimpleRemoteEPC` wire protocol. Option (b) (JITDylib
+replacement) is *not* what Apple ships — there is no `replace`-style export
+on either `XOJITExecutor.framework` or `PreviewsInjection.framework`, and
+the imports table (`_mprotect`, `_mach_vm_map`, `_memcpy`, `_memmove`)
+explicitly fingerprints the W^X-data-patch model.
 
-**Severity for the verdict:** does not change it. The architectural question ("can the
-public layer do this?") is answered without W3. The dtrace work becomes implementation-time
-tuning: the design doc picks (a) or (b), and the dtrace either confirms our choice matches
-Apple's or surfaces a third option. Most likely outcome: a small refinement of the
-patch-point list, not a verdict reversal. Captured as a pre-implementation TODO.
+What W3 did *not* close: the specific list of addresses (PWT slots, GOT
+entries, etc.) that get written for a given concrete edit kind. Doing so
+requires dtrace on `__xojit_executor_write_mem` during a real Xcode
+hot-reload — see `research/scripts/data/w3/capture-write-mem.d` for the
+ready-to-run dtrace script and `research/scripts/analysis/w3-patch-point-set.md`
+§6 for the full procedure.
+
+**Severity for the verdict:** does not change it. The architectural question
+("can the public layer do this?") was already answered without W3. The W3
+mechanism-level finding *strengthens* the design-doc input (we now know
+Apple's design is the LLVM SimpleRemoteEPC pattern, which our own
+implementation can use directly) but does not move the verdict. The
+remaining per-edit address-list work is implementation-time tuning.
 
 ### Large-module scaling
 
@@ -456,10 +465,14 @@ not by itself authorize implementation; the design doc below is the gating artif
 
 **Pre-implementation TODOs:**
 
-1. **W3 patch-point runtime confirmation.** dtrace `XCPreviewAgent` during hot-reload to
-   confirm which option (PWT in-place vs JITDylib replace) Apple uses, and enumerate any
-   patch-points we didn't anticipate. ~1 week. VM infrastructure under `research/vm/`
-   provisions the environment.
+1. **W3 patch-point address-list confirmation.** *(Mechanism-level closure
+   landed post-spike: option (a) confirmed, see
+   `research/scripts/analysis/w3-patch-point-set.md`.)* Remaining work: dtrace
+   on `__xojit_executor_write_mem` during a real Xcode hot-reload to enumerate
+   the specific PWT slots / GOT entries written per edit kind. ~2-3 days once
+   an Xcode-driving harness exists (the harder subtask). Ready-to-run dtrace
+   script at `research/scripts/data/w3/capture-write-mem.d`. VM infrastructure
+   under `research/vm/` provisions the environment.
 2. **ObjC classlist plugin.** ~150 LOC, same shape as `ObjCSelrefPlugin`. Closes the second
    ObjC interop gap surfaced in Phase 2.3.
 3. **Large-module scaling spike.** Synthetic 1000-file Swift module, JIT-link a
