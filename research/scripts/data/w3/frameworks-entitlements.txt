@@ -1,0 +1,14 @@
+=== /System/Library/PrivateFrameworks/PreviewsInjection.framework/Versions/A/PreviewsInjection ===
+--- file ---
+/System/Library/PrivateFrameworks/PreviewsInjection.framework/Versions/A/PreviewsInjection: cannot open `/System/Library/PrivateFrameworks/PreviewsInjection.framework/Versions/A/PreviewsInjection' (No such file or directory)
+--- codesign -dvvv ---
+/System/Library/PrivateFrameworks/PreviewsInjection.framework/Versions/A/PreviewsInjection: No such file or directory
+--- codesign entitlements ---
+/System/Library/PrivateFrameworks/PreviewsInjection.framework/Versions/A/PreviewsInjection: No such file or directory
+=== /System/Library/PrivateFrameworks/XOJITExecutor.framework/Versions/A/XOJITExecutor ===
+--- file ---
+/System/Library/PrivateFrameworks/XOJITExecutor.framework/Versions/A/XOJITExecutor: cannot open `/System/Library/PrivateFrameworks/XOJITExecutor.framework/Versions/A/XOJITExecutor' (No such file or directory)
+--- codesign -dvvv ---
+/System/Library/PrivateFrameworks/XOJITExecutor.framework/Versions/A/XOJITExecutor: No such file or directory
+--- codesign entitlements ---
+/System/Library/PrivateFrameworks/XOJITExecutor.framework/Versions/A/XOJITExecutor: No such file or directory

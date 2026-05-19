@@ -1,0 +1,498 @@
+2026-05-18 20:52:37.644841-0700 XCPreviewAgent[768:5241] [PreviewsAgentExecutorLibrary] Looking up debug dylib relative path
+2026-05-18 20:52:37.644872-0700 XCPreviewAgent[768:5241] [PreviewsAgentExecutorLibrary] No debug dylib relative path defined.
+2026-05-18 20:52:37.644879-0700 XCPreviewAgent[768:5241] [PreviewsAgentExecutorLibrary] Looking up debug dylib entry point name
+2026-05-18 20:52:37.644883-0700 XCPreviewAgent[768:5241] [PreviewsAgentExecutorLibrary] No debug dylib entry point name defined.
+2026-05-18 20:52:37.644887-0700 XCPreviewAgent[768:5241] [PreviewsAgentExecutorLibrary] Looking up debug dylib install name
+2026-05-18 20:52:37.644890-0700 XCPreviewAgent[768:5241] [PreviewsAgentExecutorLibrary] No debug dylib install name defined.
+2026-05-18 20:52:37.644894-0700 XCPreviewAgent[768:5241] [PreviewsAgentExecutorLibrary] Looking for Previews JIT link entry point.
+2026-05-18 20:52:37.645020-0700 XCPreviewAgent[768:5241] [PreviewsAgentExecutorLibrary] No Previews JIT entry point found.
+2026-05-18 20:52:37.645024-0700 XCPreviewAgent[768:5241] [PreviewsAgentExecutorLibrary] Gave PreviewsInjection a chance to run and it returned, continuing with debug dylib.
+2026-05-18 20:52:37.645027-0700 XCPreviewAgent[768:5241] [PreviewsAgentExecutorLibrary] Looking for main entry point.
+2026-05-18 20:52:37.645030-0700 XCPreviewAgent[768:5241] [PreviewsAgentExecutorLibrary] No debug dylib present, assuming framework agent.
+2026-05-18 20:52:37.645033-0700 XCPreviewAgent[768:5241] [PreviewsAgentExecutorLibrary] Calling provided entry point.
+2026-05-18 20:52:37.648066-0700 XCPreviewAgent[768:5260] [general] Connection to 'pboard' server had an error: <dictionary: 0x2013205d0> { count = 1, transaction: 0, voucher = 0x0, contents =
+	"XPCErrorDescription" => <string: 0x201320718> { string cache = 0x0, length = 18, contents = "Connection invalid" }
+}
+Invalidation reason: Connection init failed at lookup with error 3 - No such process
+2026-05-18 20:52:37.648066-0700 XCPreviewAgent[768:5241] [general] Failed to set up CFPasteboardRef 'Apple CFPasteboard general'. Error: <dictionary: 0x2013205d0> { count = 1, transaction: 0, voucher = 0x0, contents =
+	"XPCErrorDescription" => <string: 0x201320718> { string cache = 0x0, length = 18, contents = "Connection invalid" }
+}
+Invalidation reason: Connection init failed at lookup with error 3 - No such process
+2026-05-18 20:52:37.648317-0700 XCPreviewAgent[768:5241] [general] Failed to set up CFPasteboardRef 'Apple CFPasteboard general'. Error: <dictionary: 0x2013205d0> { count = 1, transaction: 0, voucher = 0x0, contents =
+	"XPCErrorDescription" => <string: 0x201320718> { string cache = 0x0, length = 18, contents = "Connection invalid" }
+}
+Invalidation reason: Connection init failed at lookup with error 3 - No such process
+2026-05-18 20:52:37.653868-0700 XCPreviewAgent[768:5241] [default] failed to look up session port with error 3ef
+2026-05-18 20:52:37.654506-0700 XCPreviewAgent[768:5241] [default] This user is not allowed access to the window system right now.
+2026-05-18 20:52:37.654553-0700 XCPreviewAgent[768:5241] [default] Conn 0x0 is not a valid connection ID.
+2026-05-18 20:52:37.654577-0700 XCPreviewAgent[768:5241] [default] Conn 0x0 is not a valid connection ID.
+2026-05-18 20:52:37.654583-0700 XCPreviewAgent[768:5241] [default] Conn 0x0 is not a valid connection ID.
+2026-05-18 20:52:37.662977-0700 XCPreviewAgent[768:5241] [default] Conn 0x0 is not a valid connection ID.
+2026-05-18 20:52:37.662997-0700 XCPreviewAgent[768:5241] [default] Conn 0x0 is not a valid connection ID.
+2026-05-18 20:52:37.663520-0700 XCPreviewAgent[768:5241] [default] Conn 0x0 is not a valid connection ID.
+2026-05-18 20:52:37.663723-0700 XCPreviewAgent[768:5241] [default] Conn 0x0 is not a valid connection ID.
+2026-05-18 20:52:37.663739-0700 XCPreviewAgent[768:5241] [default] Conn 0x0 is not a valid connection ID.
+2026-05-18 20:52:37.663743-0700 XCPreviewAgent[768:5241] [default] Conn 0x0 is not a valid connection ID.
+2026-05-18 20:52:37.663746-0700 XCPreviewAgent[768:5241] [default] Conn 0x0 is not a valid connection ID.
+2026-05-18 20:52:37.663754-0700 XCPreviewAgent[768:5241] [default] Conn 0x0 is not a valid connection ID.
+2026-05-18 20:52:37.996690-0700 XCPreviewAgent[768:5259] [Connection] Unable to get synchronousRemoteObjectProxy, error: Error Domain=NSCocoaErrorDomain Code=4099 "The connection to service named com.apple.linkd.autoShortcut was invalidated: Connection init failed at lookup with error 3 - No such process." UserInfo={NSDebugDescription=The connection to service named com.apple.linkd.autoShortcut was invalidated: Connection init failed at lookup with error 3 - No such process.}
+2026-05-18 20:52:38.007937-0700 XCPreviewAgent[768:5259] [Application] Error registering app with intents framework: Error Domain=NSCocoaErrorDomain Code=4099 "The connection to service named com.apple.linkd.autoShortcut was invalidated: Connection init failed at lookup with error 3 - No such process." UserInfo={NSDebugDescription=The connection to service named com.apple.linkd.autoShortcut was invalidated: Connection init failed at lookup with error 3 - No such process.}
+2026-05-18 20:52:38.011158-0700 XCPreviewAgent[768:5241] [Menu] Internal inconsistency in menus - menu <NSMenu: 0x96ed4bb00>
+    Title: Services
+    Supermenu: 0x96ed4bac0 (Xcode Previews), autoenable: YES
+    Previous menu: 0x0 (None)
+    Next menu: 0x0 (None)
+    Items:     (
+    ) believes it has <NSMenu: 0x96ed4bac0>
+    Title: Xcode Previews
+    Supermenu: 0x0 (None), autoenable: YES
+    Previous menu: 0x0 (None)
+    Next menu: 0x0 (None)
+    Items:     (
+    ) as a supermenu, but the supermenu does not seem to have any item with that submenu
+2026-05-18 20:52:38.011816-0700 XCPreviewAgent[768:5241] [Menu] Internal inconsistency in menus - menu <NSMenu: 0x96ed4ba80>
+    Title: Kern
+    Supermenu: 0x96ed4bb40 (Font), autoenable: YES
+    Previous menu: 0x0 (None)
+    Next menu: 0x0 (None)
+    Items:     (
+        "<NSMenuItem: 0x96ec55680 Use Default, ke mask='<none>'>",
+        "<NSMenuItem: 0x96ec55720 Use None, ke mask='<none>'>",
+        "<NSMenuItem: 0x96ec555e0 Tighten, ke mask='<none>'>",
+        "<NSMenuItem: 0x96ec557c0 Loosen, ke mask='<none>'>"
+    ) believes it has <NSMenu: 0x96ed4bb40>
+    Title: Font
+    Supermenu: 0x0 (None), autoenable: YES
+    Previous menu: 0x0 (None)
+    Next menu: 0x0 (None)
+    Items:     (
+    ) as a supermenu, but the supermenu does not seem to have any item with that submenu
+2026-05-18 20:52:38.011887-0700 XCPreviewAgent[768:5241] [Menu] Internal inconsistency in menus - menu <NSMenu: 0x96ed4bb80>
+    Title: Ligatures
+    Supermenu: 0x96ed4bb40 (Font), autoenable: YES
+    Previous menu: 0x0 (None)
+    Next menu: 0x0 (None)
+    Items:     (
+        "<NSMenuItem: 0x96ec56620 Use Default, ke mask='<none>'>",
+        "<NSMenuItem: 0x96ec566c0 Use None, ke mask='<none>'>",
+        "<NSMenuItem: 0x96ec56760 Use All, ke mask='<none>'>"
+    ) believes it has <NSMenu: 0x96ed4bb40>
+    Title: Font
+    Supermenu: 0x0 (None), autoenable: YES
+    Previous menu: 0x0 (None)
+    Next menu: 0x0 (None)
+    Items:     (
+    ) as a supermenu, but the supermenu does not seem to have any item with that submenu
+2026-05-18 20:52:38.011933-0700 XCPreviewAgent[768:5241] [Menu] Internal inconsistency in menus - menu <NSMenu: 0x96ed4ba40>
+    Title: Baseline
+    Supermenu: 0x96ed4bb40 (Font), autoenable: YES
+    Previous menu: 0x0 (None)
+    Next menu: 0x0 (None)
+    Items:     (
+        "<NSMenuItem: 0x96ec55360 Use Default, ke mask='<none>'>",
+        "<NSMenuItem: 0x96ec55400 Superscript, ke mask='<none>'>",
+        "<NSMenuItem: 0x96ec554a0 Subscript, ke mask='<none>'>",
+        "<NSMenuItem: 0x96ec55540 Raise, ke mask='<none>'>",
+        "<NSMenuItem: 0x96ec552c0 Lower, ke mask='<none>'>"
+    ) believes it has <NSMenu: 0x96ed4bb40>
+    Title: Font
+    Supermenu: 0x0 (None), autoenable: YES
+    Previous menu: 0x0 (None)
+    Next menu: 0x0 (None)
+    Items:     (
+    ) as a supermenu, but the supermenu does not seem to have any item with that submenu
+2026-05-18 20:52:38.012675-0700 XCPreviewAgent[768:5241] [Menu] Internal inconsistency in menus - menu <NSMenu: 0x96ed4bc00>
+    Title: Find
+    Supermenu: 0x96ed4bbc0 (Edit), autoenable: YES
+    Previous menu: 0x0 (None)
+    Next menu: 0x0 (None)
+    Items:     (
+        "<NSMenuItem: 0x96ec57200 Find\U2026, ke='Command-F'>",
+        "<NSMenuItem: 0x96ec572a0 Find and Replace\U2026, ke='Option-Command-F'>",
+        "<NSMenuItem: 0x96ec57340 Find Next, ke='Command-G'>",
+        "<NSMenuItem: 0x96ec573e0 Find Previous, ke='Shift-Command-G'>",
+        "<NSMenuItem: 0x96ec57480 Use Selection for Find, ke='Command-E'>",
+        "<NSMenuItem: 0x96ec57520 Jump to Selection, ke='Command-J'>"
+    ) believes it has <NSMenu: 0x96ed4bbc0>
+    Title: Edit
+    Supermenu: 0x0 (None), autoenable: YES
+    Previous menu: 0x0 (None)
+    Next menu: 0x0 (None)
+    Items:     (
+    ) as a supermenu, but the supermenu does not seem to have any item with that submenu
+2026-05-18 20:52:38.012795-0700 XCPreviewAgent[768:5241] [Menu] Internal inconsistency in menus - menu <NSMenu: 0x96ed4bc40>
+    Title: Spelling
+    Supermenu: 0x96ed4bbc0 (Edit), autoenable: YES
+    Previous menu: 0x0 (None)
+    Next menu: 0x0 (None)
+    Items:     (
+        "<NSMenuItem: 0x96ec57660 Show Spelling and Grammar, ke='Command-:'>",
+        "<NSMenuItem: 0x96ec57700 Check Document Now, ke='Command-;'>",
+        "<NSMenuItem: 0x96ec577a0, separator, ke mask='<none>'>",
+        "<NSMenuItem: 0x96ec57840 Check Spelling While Typing, ke mask='<none>'>",
+        "<NSMenuItem: 0x96ec578e0 Check Grammar With Spelling, ke mask='<none>'>",
+        "<NSMenuItem: 0x96ec57980 Correct Spelling Automatically, ke mask='<none>'>"
+    ) believes it has <NSMenu: 0x96ed4bbc0>
+    Title: Edit
+    Supermenu: 0x0 (None), autoenable: YES
+    Previous menu: 0x0 (None)
+    Next menu: 0x0 (None)
+    Items:     (
+    ) as a supermenu, but the supermenu does not seem to have any item with that submenu
+2026-05-18 20:52:38.012863-0700 XCPreviewAgent[768:5241] [Menu] Internal inconsistency in menus - menu <NSMenu: 0x96ed4bc80>
+    Title: Substitutions
+    Supermenu: 0x96ed4bbc0 (Edit), autoenable: YES
+    Previous menu: 0x0 (None)
+    Next menu: 0x0 (None)
+    Items:     (
+        "<NSMenuItem: 0x96ec57ac0 Show Substitutions, ke mask='<none>'>",
+        "<NSMenuItem: 0x96ec57b60, separator, ke mask='<none>'>",
+        "<NSMenuItem: 0x96ec57c00 Smart Copy/Paste, ke mask='<none>'>",
+        "<NSMenuItem: 0x96ec57ca0 Smart Quotes, ke mask='<none>'>",
+        "<NSMenuItem: 0x96ec57d40 Smart Dashes, ke mask='<none>'>",
+        "<NSMenuItem: 0x96ec57de0 Smart Links, ke mask='<none>'>",
+        "<NSMenuItem: 0x96ec57e80 Data Detectors, ke mask='<none>'>",
+        "<NSMenuItem: 0x96ec57f20 Text Replacement, ke mask='<none>'>"
+    ) believes it has <NSMenu: 0x96ed4bbc0>
+    Title: Edit
+    Supermenu: 0x0 (None), autoenable: YES
+    Previous menu: 0x0 (None)
+    Next menu: 0x0 (None)
+    Items:     (
+    ) as a supermenu, but the supermenu does not seem to have any item with that submenu
+2026-05-18 20:52:38.012909-0700 XCPreviewAgent[768:5241] [Menu] Internal inconsistency in menus - menu <NSMenu: 0x96ed4bcc0>
+    Title: Transformations
+    Supermenu: 0x96ed4bbc0 (Edit), autoenable: YES
+    Previous menu: 0x0 (None)
+    Next menu: 0x0 (None)
+    Items:     (
+        "<NSMenuItem: 0x96ee0c0a0 Make Upper Case, ke mask='<none>'>",
+        "<NSMenuItem: 0x96ee0c140 Make Lower Case, ke mask='<none>'>",
+        "<NSMenuItem: 0x96ee0c1e0 Capitalize, ke mask='<none>'>"
+    ) believes it has <NSMenu: 0x96ed4bbc0>
+    Title: Edit
+    Supermenu: 0x0 (None), autoenable: YES
+    Previous menu: 0x0 (None)
+    Next menu: 0x0 (None)
+    Items:     (
+    ) as a supermenu, but the supermenu does not seem to have any item with that submenu
+2026-05-18 20:52:38.012940-0700 XCPreviewAgent[768:5241] [Menu] Internal inconsistency in menus - menu <NSMenu: 0x96ed4bd00>
+    Title: Speech
+    Supermenu: 0x96ed4bbc0 (Edit), autoenable: YES
+    Previous menu: 0x0 (None)
+    Next menu: 0x0 (None)
+    Items:     (
+        "<NSMenuItem: 0x96ee0c320 Start Speaking, ke mask='<none>'>",
+        "<NSMenuItem: 0x96ee0c3c0 Stop Speaking, ke mask='<none>'>"
+    ) believes it has <NSMenu: 0x96ed4bbc0>
+    Title: Edit
+    Supermenu: 0x0 (None), autoenable: YES
+    Previous menu: 0x0 (None)
+    Next menu: 0x0 (None)
+    Items:     (
+    ) as a supermenu, but the supermenu does not seem to have any item with that submenu
+2026-05-18 20:52:38.013006-0700 XCPreviewAgent[768:5241] [Menu] Internal inconsistency in menus - menu <NSMenu: 0x96ed4bdc0>
+    Title: Open Recent
+    Supermenu: 0x96ed4bd80 (File), autoenable: YES
+    Previous menu: 0x0 (None)
+    Next menu: 0x0 (None)
+    Items:     (
+        "<NSMenuItem: 0x96ee0cc80 Clear Menu, ke mask='<none>'>"
+    ) believes it has <NSMenu: 0x96ed4bd80>
+    Title: File
+    Supermenu: 0x0 (None), autoenable: YES
+    Previous menu: 0x0 (None)
+    Next menu: 0x0 (None)
+    Items:     (
+    ) as a supermenu, but the supermenu does not seem to have any item with that submenu
+2026-05-18 20:52:38.013116-0700 XCPreviewAgent[768:5241] [Menu] Internal inconsistency in menus - menu <NSMenu: 0x96ed4bd40>
+    Title: Writing Direction
+    Supermenu: 0x96ed4be40 (Text), autoenable: YES
+    Previous menu: 0x0 (None)
+    Next menu: 0x0 (None)
+    Items:     (
+        "<NSMenuItem: 0x96ee0c500 Paragraph, ke mask='<none>'>",
+        "<NSMenuItem: 0x96ee0c5a0 \tDefault, ke mask='<none>'>",
+        "<NSMenuItem: 0x96ee0c640 \tLeft to Right, ke mask='<none>'>",
+        "<NSMenuItem: 0x96ee0c6e0 \tRight to Left, ke mask='<none>'>",
+        "<NSMenuItem: 0x96ee0c780, separator, ke mask='<none>'>",
+        "<NSMenuItem: 0x96ee0c820 Selection, ke mask='<none>'>",
+        "<NSMenuItem: 0x96ee0c8c0 \tDefault, ke mask='<none>'>",
+        "<NSMenuItem: 0x96ee0c460 \tLeft to Right, ke mask='<none>'>",
+        "<NSMenuItem: 0x96ee0c960 \tRight to Left, ke mask='<none>'>"
+    ) believes it has <NSMenu: 0x96ed4be40>
+    Title: Text
+    Supermenu: 0x0 (None), autoenable: YES
+    Previous menu: 0x0 (None)
+    Next menu: 0x0 (None)
+    Items:     (
+    ) as a supermenu, but the supermenu does not seem to have any item with that submenu
+2026-05-18 20:52:38.013303-0700 XCPreviewAgent[768:5241] [Menu] Internal inconsistency in menus - menu <NSMenu: 0x96ed4bac0>
+    Title: Xcode Previews
+    Supermenu: 0x96ed4bec0 (Main Menu), autoenable: YES
+    Previous menu: 0x0 (None)
+    Next menu: 0x0 (None)
+    Items:     (
+        "<NSMenuItem: 0x96ec55900 About Xcode Previews, ke mask='<none>'>",
+        "<NSMenuItem: 0x96ec559a0, separator, ke mask='<none>'>",
+        "<NSMenuItem: 0x96ec55a40 Preferences\U2026, ke='Command-,'>",
+        "<NSMenuItem: 0x96ec55ae0, separator, ke mask='<none>'>",
+        "<NSMenuItem: 0x96ec55b80 Services, ke mask='<none>', submenu: 0x96ed4bb00 (Services)>",
+        "<NSMenuItem: 0x96ec55c20, separator, ke mask='<none>'>",
+        "<NSMenuItem: 0x96ec55cc0 Hide Xcode Previews, ke='Command-H'>",
+        "<NSMenuItem: 0x96ec55d60 Hide Others, ke='Option-Command-H'>",
+        "<NSMenuItem: 0x96ec55e00 Show All, ke mask='<none>'>",
+        "<NSMenuItem: 0x96ec55ea0, separator, ke mask='<none>'>",
+        "<NSMenuItem: 0x96ec55860 Quit Xcode Previews, ke='Command-Q'>"
+    ) believes it has <NSMenu: 0x96ed4bec0>
+    Title: Main Menu
+    Supermenu: 0x0 (None), autoenable: YES
+    Previous menu: 0x0 (None)
+    Next menu: 0x0 (None)
+    Items:     (
+    ) as a supermenu, but the supermenu does not seem to have any item with that submenu
+2026-05-18 20:52:38.013500-0700 XCPreviewAgent[768:5241] [Menu] Internal inconsistency in menus - menu <NSMenu: 0x96ed4bd80>
+    Title: File
+    Supermenu: 0x96ed4bec0 (Main Menu), autoenable: YES
+    Previous menu: 0x0 (None)
+    Next menu: 0x0 (None)
+    Items:     (
+        "<NSMenuItem: 0x96ee0caa0 New, ke='Command-N'>",
+        "<NSMenuItem: 0x96ee0cb40 Open\U2026, ke='Command-O'>",
+        "<NSMenuItem: 0x96ee0cbe0 Open Recent, ke mask='<none>', submenu: 0x96ed4bdc0 (Open Recent)>",
+        "<NSMenuItem: 0x96ee0cd20, separator, ke mask='<none>'>",
+        "<NSMenuItem: 0x96ee0cdc0 Close, ke='Command-W'>",
+        "<NSMenuItem: 0x96ee0ce60 Save\U2026, ke='Command-S'>",
+        "<NSMenuItem: 0x96ee0ca00 Save As\U2026, ke='Shift-Command-S'>",
+        "<NSMenuItem: 0x96ee0cf00 Revert to Saved, ke='Command-R'>",
+        "<NSMenuItem: 0x96ee0cfa0, separator, ke mask='<none>'>",
+        "<NSMenuItem: 0x96ee0d040 Page Setup\U2026, ke='Shift-Command-P'>",
+        "<NSMenuItem: 0x96ee0d0e0 Print\U2026, ke='Command-P'>"
+    ) believes it has <NSMenu: 0x96ed4bec0>
+    Title: Main Menu
+    Supermenu: 0x0 (None), autoenable: YES
+    Previous menu: 0x0 (None)
+    Next menu: 0x0 (None)
+    Items:     (
+    ) as a supermenu, but the supermenu does not seem to have any item with that submenu
+2026-05-18 20:52:38.013667-0700 XCPreviewAgent[768:5241] [Menu] Internal inconsistency in menus - menu <NSMenu: 0x96ed4bbc0>
+    Title: Edit
+    Supermenu: 0x96ed4bec0 (Main Menu), autoenable: YES
+    Previous menu: 0x0 (None)
+    Next menu: 0x0 (None)
+    Items:     (
+        "<NSMenuItem: 0x96ec56bc0 Undo, ke='Command-Z'>",
+        "<NSMenuItem: 0x96ec56b20 Redo, ke='Shift-Command-Z'>",
+        "<NSMenuItem: 0x96ec56c60, separator, ke mask='<none>'>",
+        "<NSMenuItem: 0x96ec56d00 Cut, ke='Command-X'>",
+        "<NSMenuItem: 0x96ec56da0 Copy, ke='Command-C'>",
+        "<NSMenuItem: 0x96ec56e40 Paste, ke='Command-V'>",
+        "<NSMenuItem: 0x96ec56ee0 Paste and Match Style, ke='Option-Shift-Command-V'>",
+        "<NSMenuItem: 0x96ec56f80 Delete, ke mask='<none>'>",
+        "<NSMenuItem: 0x96ec57020 Select All, ke='Command-A'>",
+        "<NSMenuItem: 0x96ec570c0, separator, ke mask='<none>'>",
+        "<NSMenuItem: 0x96ec57160 Find, ke mask='<none>', submenu: 0x96ed4bc00 (Find)>",
+        "<NSMenuItem: 0x96ec575c0 Spelling and Grammar, ke mask='<none>', submenu: 0x96ed4bc40 (Spelling)>",
+        "<NSMenuItem: 0x96ec57a20 Substitutions, ke mask='<none>', submenu: 0x96ed4bc80 (Substitutions)>",
+        "<NSMenuItem: 0x96ee0c000 Transformations, ke mask='<none>', submenu: 0x96ed4bcc0 (Transformations)>",
+        "<NSMenuItem: 0x96ee0c280 Speech, ke mask='<none>', submenu: 0x96ed4bd00 (Speech)>"
+    ) believes it has <NSMenu: 0x96ed4bec0>
+    Title: Main Menu
+    Supermenu: 0x0 (None), autoenable: YES
+    Previous menu: 0x0 (None)
+    Next menu: 0x0 (None)
+    Items:     (
+    ) as a supermenu, but the supermenu does not seem to have any item with that submenu
+2026-05-18 20:52:38.013885-0700 XCPreviewAgent[768:5241] [Menu] Internal inconsistency in menus - menu <NSMenu: 0x96ed4bb40>
+    Title: Font
+    Supermenu: 0x96ec5a3c0 (Format), autoenable: YES
+    Previous menu: 0x0 (None)
+    Next menu: 0x0 (None)
+    Items:     (
+        "<NSMenuItem: 0x96ec55fe0 Show Fonts, ke='Command-T'>",
+        "<NSMenuItem: 0x96ec56080 Bold, ke='Command-B'>",
+        "<NSMenuItem: 0x96ec56120 Italic, ke='Command-I'>",
+        "<NSMenuItem: 0x96ec561c0 Underline, ke='Command-U'>",
+        "<NSMenuItem: 0x96ec56260, separator, ke mask='<none>'>",
+        "<NSMenuItem: 0x96ec56300 Bigger, ke='Command-+'>",
+        "<NSMenuItem: 0x96ec563a0 Smaller, ke='Command--'>",
+        "<NSMenuItem: 0x96ec56440, separator, ke mask='<none>'>",
+        "<NSMenuItem: 0x96ec564e0 Kern, ke mask='<none>', submenu: 0x96ed4ba80 (Kern)>",
+        "<NSMenuItem: 0x96ec56580 Ligatures, ke mask='<none>', submenu: 0x96ed4bb80 (Ligatures)>",
+        "<NSMenuItem: 0x96ec56800 Baseline, ke mask='<none>', submenu: 0x96ed4ba40 (Baseline)>",
+        "<NSMenuItem: 0x96ec568a0, separator, ke mask='<none>'>",
+        "<NSMenuItem: 0x96ec56940 Show Colors, ke='Shift-Command-C'>",
+        "<NSMenuItem: 0x96ec569e0, separator, ke mask='<none>'>",
+        "<NSMenuItem: 0x96ec55f40 Copy Style, ke='Option-Command-C'>",
+        "<NSMenuItem: 0x96ec56a80 Paste Style, ke='Option-Command-V'>"
+    ) believes it has <NSMenu: 0x96ec5a3c0>
+    Title: Format
+    Supermenu: 0x0 (None), autoenable: YES
+    Previous menu: 0x0 (None)
+    Next menu: 0x0 (None)
+    Items:     (
+    ) as a supermenu, but the supermenu does not seem to have any item with that submenu
+2026-05-18 20:52:38.014039-0700 XCPreviewAgent[768:5241] [Menu] Internal inconsistency in menus - menu <NSMenu: 0x96ed4be40>
+    Title: Text
+    Supermenu: 0x96ec5a3c0 (Format), autoenable: YES
+    Previous menu: 0x0 (None)
+    Next menu: 0x0 (None)
+    Items:     (
+        "<NSMenuItem: 0x96ee0d2c0 Align Left, ke='Command-{'>",
+        "<NSMenuItem: 0x96ee0d360 Center, ke='Command-|'>",
+        "<NSMenuItem: 0x96ee0d220 Justify, ke mask='<none>'>",
+        "<NSMenuItem: 0x96ee0d400 Align Right, ke='Command-}'>",
+        "<NSMenuItem: 0x96ee0d4a0, separator, ke mask='<none>'>",
+        "<NSMenuItem: 0x96ee0d540 Writing Direction, ke mask='<none>', submenu: 0x96ed4bd40 (Writing Direction)>",
+        "<NSMenuItem: 0x96ee0d5e0, separator, ke mask='<none>'>",
+        "<NSMenuItem: 0x96ee0d680 Show Ruler, ke mask='<none>'>",
+        "<NSMenuItem: 0x96ee0d720 Copy Ruler, ke='Control-Command-C'>",
+        "<NSMenuItem: 0x96ee0d7c0 Paste Ruler, ke='Control-Command-V'>"
+    ) believes it has <NSMenu: 0x96ec5a3c0>
+    Title: Format
+    Supermenu: 0x0 (None), autoenable: YES
+    Previous menu: 0x0 (None)
+    Next menu: 0x0 (None)
+    Items:     (
+    ) as a supermenu, but the supermenu does not seem to have any item with that submenu
+2026-05-18 20:52:38.014149-0700 XCPreviewAgent[768:5241] [Menu] Internal inconsistency in menus - menu <NSMenu: 0x96ec5a3c0>
+    Title: Format
+    Supermenu: 0x96ed4bec0 (Main Menu), autoenable: YES
+    Previous menu: 0x0 (None)
+    Next menu: 0x0 (None)
+    Items:     (
+        "<NSMenuItem: 0x96ee0dd60 Font, ke mask='<none>', submenu: 0x96ed4bb40 (Font)>",
+        "<NSMenuItem: 0x96ee0de00 Text, ke mask='<none>', submenu: 0x96ed4be40 (Text)>"
+    ) believes it has <NSMenu: 0x96ed4bec0>
+    Title: Main Menu
+    Supermenu: 0x0 (None), autoenable: YES
+    Previous menu: 0x0 (None)
+    Next menu: 0x0 (None)
+    Items:     (
+    ) as a supermenu, but the supermenu does not seem to have any item with that submenu
+2026-05-18 20:52:38.014237-0700 XCPreviewAgent[768:5241] [Menu] Internal inconsistency in menus - menu <NSMenu: 0x96ed4ba00>
+    Title: View
+    Supermenu: 0x96ed4bec0 (Main Menu), autoenable: YES
+    Previous menu: 0x0 (None)
+    Next menu: 0x0 (None)
+    Items:     (
+        "<NSMenuItem: 0x96ec55040 Show Toolbar, ke='Option-Command-T'>",
+        "<NSMenuItem: 0x96ec54e60 Customize Toolbar\U2026, ke mask='<none>'>",
+        "<NSMenuItem: 0x96ec550e0, separator, ke mask='<none>'>",
+        "<NSMenuItem: 0x96ec55180 Show Sidebar, ke='Control-Command-S'>",
+        "<NSMenuItem: 0x96ec55220 Enter Full Screen, ke='Control-Command-F'>"
+    ) believes it has <NSMenu: 0x96ed4bec0>
+    Title: Main Menu
+    Supermenu: 0x0 (None), autoenable: YES
+    Previous menu: 0x0 (None)
+    Next menu: 0x0 (None)
+    Items:     (
+    ) as a supermenu, but the supermenu does not seem to have any item with that submenu
+2026-05-18 20:52:38.014281-0700 XCPreviewAgent[768:5241] [Menu] Internal inconsistency in menus - menu <NSMenu: 0x96ed4be80>
+    Title: Window
+    Supermenu: 0x96ed4bec0 (Main Menu), autoenable: YES
+    Previous menu: 0x0 (None)
+    Next menu: 0x0 (None)
+    Items:     (
+        "<NSMenuItem: 0x96ee0d900 Minimize, ke='Command-M'>",
+        "<NSMenuItem: 0x96ee0d9a0 Zoom, ke mask='<none>'>",
+        "<NSMenuItem: 0x96ee0da40, separator, ke mask='<none>'>",
+        "<NSMenuItem: 0x96ee0d860 Bring All to Front, ke mask='<none>'>"
+    ) believes it has <NSMenu: 0x96ed4bec0>
+    Title: Main Menu
+    Supermenu: 0x0 (None), autoenable: YES
+    Previous menu: 0x0 (None)
+    Next menu: 0x0 (None)
+    Items:     (
+    ) as a supermenu, but the supermenu does not seem to have any item with that submenu
+2026-05-18 20:52:38.014309-0700 XCPreviewAgent[768:5241] [Menu] Internal inconsistency in menus - menu <NSMenu: 0x96ed4be00>
+    Title: Help
+    Supermenu: 0x96ed4bec0 (Main Menu), autoenable: YES
+    Previous menu: 0x0 (None)
+    Next menu: 0x0 (None)
+    Items:     (
+        "<NSMenuItem: 0x96ee0d180 Xcode Previews Help, ke='Command-?'>"
+    ) believes it has <NSMenu: 0x96ed4bec0>
+    Title: Main Menu
+    Supermenu: 0x0 (None), autoenable: YES
+    Previous menu: 0x0 (None)
+    Next menu: 0x0 (None)
+    Items:     (
+    ) as a supermenu, but the supermenu does not seem to have any item with that submenu
+2026-05-18 20:52:38.645971-0700 XCPreviewAgent[768:5241] [default] Conn 0x0 is not a valid connection ID.
+2026-05-18 20:52:38.646001-0700 XCPreviewAgent[768:5241] [default] Conn 0x0 is not a valid connection ID.
+2026-05-18 20:52:38.692083-0700 XCPreviewAgent[768:5241] [default] Conn 0x0 is not a valid connection ID.
+2026-05-18 20:52:38.692115-0700 XCPreviewAgent[768:5241] [framework] Target user identifier failure: error (268435459) finding session ID
+2026-05-18 20:52:38.692246-0700 XCPreviewAgent[768:5261] [framework] [WMClientWindowManager]: Invalid connection
+2026-05-18 20:52:40.474213-0700 XCPreviewAgent[768:5241] [default] Conn 0x0 is not a valid connection ID.
+2026-05-18 20:52:40.474252-0700 XCPreviewAgent[768:5241] [default] Conn 0x0 is not a valid connection ID.
+2026-05-18 20:52:40.474443-0700 XCPreviewAgent[768:5241] [default] Conn 0x0 is not a valid connection ID.
+2026-05-18 20:52:40.474510-0700 XCPreviewAgent[768:5241] [general] Failed to set up CFPasteboardRef 'DefaultAsciiKeyboardLayoutPasteboard'. Error: <dictionary: 0x2013205d0> { count = 1, transaction: 0, voucher = 0x0, contents =
+	"XPCErrorDescription" => <string: 0x201320718> { string cache = 0x0, length = 18, contents = "Connection invalid" }
+}
+Invalidation reason: Connection init failed at lookup with error 3 - No such process
+2026-05-18 20:52:40.474721-0700 XCPreviewAgent[768:5241] [general] Failed to set up CFPasteboardRef 'DefaultAsciiKeyboardLayoutPasteboard'. Error: <dictionary: 0x2013205d0> { count = 1, transaction: 0, voucher = 0x0, contents =
+	"XPCErrorDescription" => <string: 0x201320718> { string cache = 0x0, length = 18, contents = "Connection invalid" }
+}
+Invalidation reason: Connection init failed at lookup with error 3 - No such process
+2026-05-18 20:52:40.475439-0700 XCPreviewAgent[768:5241] [general] Failed to set up CFPasteboardRef 'AppleIntlFileCacheModificationDatePasteboard'. Error: <dictionary: 0x2013205d0> { count = 1, transaction: 0, voucher = 0x0, contents =
+	"XPCErrorDescription" => <string: 0x201320718> { string cache = 0x0, length = 18, contents = "Connection invalid" }
+}
+Invalidation reason: Connection init failed at lookup with error 3 - No such process
+2026-05-18 20:52:40.507162-0700 XCPreviewAgent[768:5241] [general] Failed to set up CFPasteboardRef 'AppleIntlFileCacheModificationDatePasteboard'. Error: <dictionary: 0x2013205d0> { count = 1, transaction: 0, voucher = 0x0, contents =
+	"XPCErrorDescription" => <string: 0x201320718> { string cache = 0x0, length = 18, contents = "Connection invalid" }
+}
+Invalidation reason: Connection init failed at lookup with error 3 - No such process
+2026-05-18 20:52:40.507211-0700 XCPreviewAgent[768:5241] [general] Failed to set up CFPasteboardRef 'AppleIntlFileCacheModificationDatePasteboard'. Error: <dictionary: 0x2013205d0> { count = 1, transaction: 0, voucher = 0x0, contents =
+	"XPCErrorDescription" => <string: 0x201320718> { string cache = 0x0, length = 18, contents = "Connection invalid" }
+}
+Invalidation reason: Connection init failed at lookup with error 3 - No such process
+2026-05-18 20:52:40.507299-0700 XCPreviewAgent[768:5241] [general] Failed to set up CFPasteboardRef 'AppleIntlFileCacheModificationDatePasteboard'. Error: <dictionary: 0x2013205d0> { count = 1, transaction: 0, voucher = 0x0, contents =
+	"XPCErrorDescription" => <string: 0x201320718> { string cache = 0x0, length = 18, contents = "Connection invalid" }
+}
+Invalidation reason: Connection init failed at lookup with error 3 - No such process
+2026-05-18 20:52:40.507322-0700 XCPreviewAgent[768:5241] [general] Failed to set up CFPasteboardRef 'AppleIntlFileCacheModificationDatePasteboard'. Error: <dictionary: 0x2013205d0> { count = 1, transaction: 0, voucher = 0x0, contents =
+	"XPCErrorDescription" => <string: 0x201320718> { string cache = 0x0, length = 18, contents = "Connection invalid" }
+}
+Invalidation reason: Connection init failed at lookup with error 3 - No such process
+2026-05-18 20:52:40.507344-0700 XCPreviewAgent[768:5241] [foldermgr] FSFindFolder failed with error=-43
+2026-05-18 20:52:40.507374-0700 XCPreviewAgent[768:5241] [general] Failed to set up CFPasteboardRef 'AppleIntlFileCacheModificationDatePasteboard'. Error: <dictionary: 0x2013205d0> { count = 1, transaction: 0, voucher = 0x0, contents =
+	"XPCErrorDescription" => <string: 0x201320718> { string cache = 0x0, length = 18, contents = "Connection invalid" }
+}
+Invalidation reason: Connection init failed at lookup with error 3 - No such process
+2026-05-18 20:52:40.507426-0700 XCPreviewAgent[768:5241] [general] Failed to set up CFPasteboardRef 'AppleIntlFileCacheModificationDatePasteboard'. Error: <dictionary: 0x2013205d0> { count = 1, transaction: 0, voucher = 0x0, contents =
+	"XPCErrorDescription" => <string: 0x201320718> { string cache = 0x0, length = 18, contents = "Connection invalid" }
+}
+Invalidation reason: Connection init failed at lookup with error 3 - No such process
+2026-05-18 20:52:40.507559-0700 XCPreviewAgent[768:5241] [general] Failed to set up CFPasteboardRef 'AppleIntlFileCacheModificationDatePasteboard'. Error: <dictionary: 0x2013205d0> { count = 1, transaction: 0, voucher = 0x0, contents =
+	"XPCErrorDescription" => <string: 0x201320718> { string cache = 0x0, length = 18, contents = "Connection invalid" }
+}
+Invalidation reason: Connection init failed at lookup with error 3 - No such process
+2026-05-18 20:52:40.507609-0700 XCPreviewAgent[768:5241] [general] Failed to set up CFPasteboardRef 'AppleIntlFileCacheModificationDatePasteboard'. Error: <dictionary: 0x2013205d0> { count = 1, transaction: 0, voucher = 0x0, contents =
+	"XPCErrorDescription" => <string: 0x201320718> { string cache = 0x0, length = 18, contents = "Connection invalid" }
+}
+Invalidation reason: Connection init failed at lookup with error 3 - No such process
+2026-05-18 20:52:40.507662-0700 XCPreviewAgent[768:5241] [general] Failed to set up CFPasteboardRef 'AppleIntlFileCacheModificationDatePasteboard'. Error: <dictionary: 0x2013205d0> { count = 1, transaction: 0, voucher = 0x0, contents =
+	"XPCErrorDescription" => <string: 0x201320718> { string cache = 0x0, length = 18, contents = "Connection invalid" }
+}
+Invalidation reason: Connection init failed at lookup with error 3 - No such process
+2026-05-18 20:52:40.507692-0700 XCPreviewAgent[768:5241] [general] Failed to set up CFPasteboardRef 'AppleIntlFileCacheModificationDatePasteboard'. Error: <dictionary: 0x2013205d0> { count = 1, transaction: 0, voucher = 0x0, contents =
+	"XPCErrorDescription" => <string: 0x201320718> { string cache = 0x0, length = 18, contents = "Connection invalid" }
+}
+Invalidation reason: Connection init failed at lookup with error 3 - No such process
+2026-05-18 20:52:40.507766-0700 XCPreviewAgent[768:5241] [general] Failed to set up CFPasteboardRef 'AppleIntlFileCacheModificationDatePasteboard'. Error: <dictionary: 0x2013205d0> { count = 1, transaction: 0, voucher = 0x0, contents =
+	"XPCErrorDescription" => <string: 0x201320718> { string cache = 0x0, length = 18, contents = "Connection invalid" }
+}
+Invalidation reason: Connection init failed at lookup with error 3 - No such process
+2026-05-18 20:52:40.509186-0700 XCPreviewAgent[768:5241] [default] Conn 0x0 is not a valid connection ID.
+2026-05-18 20:52:40.525698-0700 XCPreviewAgent[768:5241] +[NSXPCSharedListener endpointForReply:withListenerName:replyErrorCode:]: an error occurred while attempting to obtain endpoint for listener 'ClientCallsAuxiliary': Connection interrupted
+2026-05-18 20:52:40.533353-0700 XCPreviewAgent[768:5241] [default] Conn 0x0 is not a valid connection ID.
+2026-05-18 20:52:40.533398-0700 XCPreviewAgent[768:5241] [default] Conn 0x0 is not a valid connection ID.
+2026-05-18 20:52:40.533405-0700 XCPreviewAgent[768:5241] [default] SLSTransaction commit with no context
+2026-05-18 20:52:40.533424-0700 XCPreviewAgent[768:5241] [default] Conn 0x0 is not a valid connection ID.
+2026-05-18 20:52:40.533430-0700 XCPreviewAgent[768:5241] [default] Conn 0x0 is not a valid connection ID.
+2026-05-18 20:52:40.533439-0700 XCPreviewAgent[768:5260] [default] Conn 0x0 is not a valid connection ID.
+2026-05-18 20:52:40.533467-0700 XCPreviewAgent[768:5260] [framework] Target user identifier failure: error (268435459) finding session ID
+2026-05-18 20:52:40.533596-0700 XCPreviewAgent[768:5260] [framework] [WMClientWindowManager]: Invalid connection
+---file end---
+-rw-r--r--  1 admin  wheel  32966 May 18 20:52 /tmp/agent-stderr.txt

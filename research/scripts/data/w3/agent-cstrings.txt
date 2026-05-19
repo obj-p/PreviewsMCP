@@ -1,0 +1,44 @@
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Xcode/Agents/XCPreviewAgent.app/Contents/MacOS/XCPreviewAgent:
+Contents of (__TEXT,__cstring) section
+0000000100004b20  com.apple.Previews.StubExecutor
+0000000100004b40  PreviewsAgentExecutorLibrary
+0000000100004b5d  __PREVIEWS_AGENT_STUB_EXECUTOR_STDERR_REDIRECT
+0000000100004b8c  /tmp/agent-stderr.txt
+0000000100004ba2  a
+0000000100004ba4  \n================\n
+0000000100004bb7  %04d-%02d-%02d %02d:%02d:%02d\n\n
+0000000100004bd7  __PREVIEWS_AGENT_SKIP_USER_ENTRY_POINT
+0000000100004bfe  CFRunLoopRun
+0000000100004c0b  _dyld_is_pseudodylib
+0000000100004c20  ./%s
+0000000100004c25  __debug_main_executable_dylib_entry_point
+0000000100004c4f  main
+0000000100004c54  __previews_injection_get_debug_dodylib_swift_entry_section_data
+0000000100004c94  __TEXT
+0000000100004c9b  __swift5_entry
+0000000100004caa  __PREVIEWS_JIT_LINK
+0000000100004cbe  YES
+0000000100004cc2  __PREVIEWS_INTERPOSED_DEBUG_DLIB
+0000000100004ce3  __PREVIEWS_EXECUTABLE_DYLIB_NAME
+0000000100004d04  __previews_injection_jit_link_entrypoint
+0000000100004d2d  __debug_blank_executor_run_user_entry_point
+0000000100004d59  
+0000000100004d5a  
+0000000100004d5b  
+0000000100004d5c  
+0000000100004d5d  
+0000000100004d5e  
+0000000100004d5f  
+0000000100004d60  _TtC14XCPreviewAgent11AppDelegate
+0000000100004d82  @16@0:8
+0000000100004d8a  v24@0:8@16
+0000000100004d95  B24@0:8@16
+0000000100004da0  v16@0:8
+0000000100004da8  window
+0000000100004daf  @"NSWindow"
+0000000100004dbb  
+0000000100004dbc  
+0000000100004dbd  
+0000000100004dbe  
+0000000100004dbf  
+0000000100004dc0  T@"NSWindow",N,&,Vwindow

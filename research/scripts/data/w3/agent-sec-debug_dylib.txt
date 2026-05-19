@@ -1,0 +1,2 @@
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Xcode/Agents/XCPreviewAgent.app/Contents/MacOS/XCPreviewAgent:
+Contents of (__TEXT,__debug_dylib) section

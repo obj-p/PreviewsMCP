@@ -419,19 +419,17 @@ layout of artifacts. The following need other data sources:
      lldb `expr -- print(strategy)` against a live process.
 
 6. **Does the agent's JIT linker actually use LLVM ORC, or a private fork?**
-   - The whole risk model assumes it's "their LLVM-derived linker, equivalent in capability
-     to public ORC." If it's significantly diverged (e.g., a custom Swift-aware linker), our
-     JITLink POC results may not predict feasibility well.
-   - Next data source: `dyld_info -exports` of `libPreviewsJITStubExecutor.a` /
-     `PreviewsInjection.framework`; look for `llvm::orc::*` symbols or close analogues.
-     `nm` + demangle on the runtime libraries.
+   - **Closed.** YES — Apple's `XOJITExecutor.framework` is built on LLVM ORC + JITLink,
+     statically linked behind a Swift+XPC façade. See
+     `research/scripts/analysis/q6-jit-runtime-findings.md` for the full evidence trail.
 
 7. **`PreviewAgentRunMode.fullBinary` — what is the "full binary" mode?**
-   - Plausibly the "run the unmodified built app, ignore previews entirely" fallback used
-     when previews can't render. Worth confirming because it bounds when the runtime injection
-     is *not* active.
-   - Next data source: `log stream` while toggling preview on/off; correlate `runMode=fullBinary`
-     log lines with what user action triggered them.
+   - **Closed by W3.** Corresponds to the **framework-agent path** of
+     `XCPreviewAgent` — the agent boots into a stock `NSApplicationMain` →
+     `AppDelegate` → `CFRunLoopRun` and sits idle. Used when neither the Dylib
+     path (link-time `__TEXT,__debug_dylib` sections populated) nor the JIT path
+     (PreviewsInjection.framework injected via `DYLD_INSERT_LIBRARIES`) is
+     active. See `research/scripts/analysis/w3-lifecycle-timeline.md` Step 6.
 
 8. **`VerifyThunkPresenceBuildStep` — what gets verified?**
    - No matching Swift symbol. Possibly a `ResourceGraph` query that ensures every required
@@ -473,12 +471,15 @@ layout of artifacts. The following need other data sources:
       `dump-previews-pipeline-exports.sh`.
 
 13. **Concurrent-patching semantics (LT-2 territory).**
-    - The dump tells us nothing about how the agent serializes a re-link against in-flight
-      method calls. This is one of the four uncertainties the spike is bounding
-      (`prompts/jit-executor-research.md:121-123`).
-    - Next data source: dtrace on `XCPreviewAgent` during a hot-reload triggered by an
-      edit; watch for thread-suspend / atomic-swap patterns around the JIT-link entrypoints
-      named in `docs/reverse-engineering.md:585-603`.
+    - **Partially closed by W3.** The patch mechanism is identified (in-place
+      `mprotect`+`memcpy` driven by host-side ORC via XOJITExecutor's
+      `___xojit_executor_write_mem` remote-EPC primitive), the serialization
+      model is inferred (main-thread marshaling + atomic pointer-width
+      writes), but the actual call-versus-patch race window has not been
+      observed under load. See
+      `research/scripts/analysis/w3-patch-point-set.md` §4. Full close
+      requires the pre-implementation runtime-confirmation dtrace plan
+      described there.
 
 ---
 

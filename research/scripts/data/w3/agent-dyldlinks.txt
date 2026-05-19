@@ -1,0 +1,24 @@
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Xcode/Agents/XCPreviewAgent.app/Contents/MacOS/XCPreviewAgent [arm64]:
+    -linked_dylibs:
+        attributes     load path
+                       /System/Library/Frameworks/Foundation.framework/Versions/C/Foundation
+                       /usr/lib/libobjc.A.dylib
+                       /usr/lib/libSystem.B.dylib
+                       /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit
+        weak-link      /usr/lib/swift/libswiftAccelerate.dylib
+                       /usr/lib/swift/libswiftCore.dylib
+        weak-link      /usr/lib/swift/libswiftCoreFoundation.dylib
+        weak-link      /usr/lib/swift/libswiftCoreImage.dylib
+        weak-link      /usr/lib/swift/libswiftDarwin.dylib
+        weak-link      /usr/lib/swift/libswiftDispatch.dylib
+        weak-link      /usr/lib/swift/libswiftIOKit.dylib
+        weak-link      /usr/lib/swift/libswiftMetal.dylib
+        weak-link      /usr/lib/swift/libswiftOSLog.dylib
+        weak-link      /usr/lib/swift/libswiftObjectiveC.dylib
+        weak-link      /usr/lib/swift/libswiftQuartzCore.dylib
+        weak-link      /usr/lib/swift/libswiftSpatial.dylib
+        weak-link      /usr/lib/swift/libswiftUniformTypeIdentifiers.dylib
+        weak-link      /usr/lib/swift/libswiftXPC.dylib
+                       /usr/lib/swift/libswift_Concurrency.dylib
+        weak-link      /usr/lib/swift/libswiftos.dylib
+        weak-link      /usr/lib/swift/libswiftsimd.dylib
