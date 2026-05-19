@@ -236,6 +236,41 @@ Phase 2 of the implementation, we **mirror Apple's respawn model**:
 - **No W^X `mprotect`+`memcpy` dance** in the agent.
 - **No live-call serialization** (§5) needed — agent process is fresh on every edit.
 
+### Two edit-latency categories (session-7 finding)
+
+Session 7's 12-edit run surfaced a previously-missed distinction:
+**in-place edits** (modify content of existing file) respawn the
+agent within ~3 seconds, but **structural edits** (add new file to
+the package, or possibly remove file / change package config) take
+much longer — long enough that under load they may not complete in a
+single watcher cycle. Specifically:
+
+- Edits to existing `.swift` files (body literal, structural ABI
+  change, function-sig change, conformance add, @State add/remove,
+  add-method, whitespace-only, etc.) → reliable ~3-second respawn.
+- Adding a new `.swift` file with a new public type → did NOT
+  respawn within ~60 seconds in session 7. (Session 5+6 with a
+  lighter interposer did see respawn for the same edit. Either
+  interposer-overhead pushed it past previewsd's timeout, or the
+  new-file case is inherently variable.)
+
+For the design doc's §7 (build-pipeline integration), this argues
+for two pipelines in our equivalent system:
+
+- **Fast respawn path** — single-file content mutation. File
+  watcher → incremental swiftc → ORC re-link → agent respawn.
+  Sub-second turnaround target.
+- **Slow rebuild path** — SwiftPM graph change (file add/remove,
+  Package.swift change). File watcher → SwiftPM re-resolve →
+  full module re-compile → ORC re-link → agent respawn.
+  Seconds-tens-of-seconds target.
+
+Apple's hot-reload pipeline appears to have only ONE path for
+edit dispatch (full respawn) but the upstream build-side latency
+differs by edit kind. Our design can either match (one dispatch
+path, two build paths) or optimize (fast path for in-place edits;
+slow path only on graph changes).
+
 ### Scope: edit-kind coverage (8 kinds tested, all respawn-only)
 
 The empirical capture exercises eight edit kinds across two preset

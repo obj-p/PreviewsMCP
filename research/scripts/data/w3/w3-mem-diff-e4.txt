@@ -1,305 +1,305 @@
 # mem-diff: /tmp/w3-mem-before-e4.snap -> /tmp/w3-mem-after-e4.snap
-# 131 regions in before, 132 in after
-REGION_ONLY_IN_BEFORE addr=0x100318000 size=16384
-REGION_ONLY_IN_BEFORE addr=0x10031c000 size=16384
-REGION_ONLY_IN_BEFORE addr=0x10032c000 size=32768
-REGION_ONLY_IN_BEFORE addr=0x100364000 size=16384
-REGION_ONLY_IN_BEFORE addr=0x100368000 size=16384
-REGION_ONLY_IN_BEFORE addr=0x10036c000 size=16384
-REGION_ONLY_IN_BEFORE addr=0x100370000 size=16384
-REGION_ONLY_IN_BEFORE addr=0x100374000 size=32768
-REGION_ONLY_IN_BEFORE addr=0x10037c000 size=196608
-REGION_ONLY_IN_BEFORE addr=0x1003ac000 size=16384
-REGION_ONLY_IN_BEFORE addr=0x1003b0000 size=16384
-REGION_ONLY_IN_BEFORE addr=0x1003b4000 size=16384
-REGION_ONLY_IN_BEFORE addr=0x1003b8000 size=16384
-REGION_ONLY_IN_BEFORE addr=0x1003bc000 size=114688
-REGION_ONLY_IN_BEFORE addr=0x1003d8000 size=16384
-REGION_ONLY_IN_BEFORE addr=0x1003dc000 size=16384
-REGION_ONLY_IN_BEFORE addr=0x1003e0000 size=16384
-REGION_ONLY_IN_BEFORE addr=0x1003e4000 size=16384
-REGION_ONLY_IN_BEFORE addr=0x1003e8000 size=32768
-REGION_ONLY_IN_BEFORE addr=0x1003f0000 size=262144
-REGION_ONLY_IN_BEFORE addr=0x100448000 size=131072
-REGION_ONLY_IN_BEFORE addr=0x100468000 size=16384
-REGION_ONLY_IN_BEFORE addr=0x10046c000 size=16384
-REGION_ONLY_IN_BEFORE addr=0x100470000 size=16384
-REGION_ONLY_IN_BEFORE addr=0x100474000 size=16384
-REGION_ONLY_IN_BEFORE addr=0x10047c000 size=114688
-REGION_ONLY_IN_BEFORE addr=0x1004dc000 size=16384
-REGION_ONLY_IN_BEFORE addr=0x10056c000 size=16384
-REGION_ONLY_IN_BEFORE addr=0x1005ac000 size=16384
-REGION_ONLY_IN_BEFORE addr=0x1005b0000 size=49152
-REGION_ONLY_IN_BEFORE addr=0x1005bc000 size=147456
-REGION_ONLY_IN_BEFORE addr=0x1005e4000 size=16384
-REGION_ONLY_IN_BEFORE addr=0x1005e8000 size=16384
-REGION_ONLY_IN_BEFORE addr=0x1005ec000 size=16384
-REGION_ONLY_IN_BEFORE addr=0x100914000 size=163840
-REGION_ONLY_IN_BEFORE addr=0x10093c000 size=16384
-REGION_ONLY_IN_BEFORE addr=0x100940000 size=32768
-REGION_ONLY_IN_BEFORE addr=0x100948000 size=16384
-REGION_ONLY_IN_BEFORE addr=0x10094c000 size=524288
-REGION_ONLY_IN_BEFORE addr=0x1009cc000 size=81920
-REGION_ONLY_IN_BEFORE addr=0x1009e0000 size=49152
-REGION_ONLY_IN_BEFORE addr=0x1009ec000 size=32768
-REGION_ONLY_IN_BEFORE addr=0x1009f4000 size=81920
-REGION_ONLY_IN_BEFORE addr=0x100a08000 size=32768
-REGION_ONLY_IN_BEFORE addr=0x100a10000 size=16384
-REGION_ONLY_IN_BEFORE addr=0x100b54000 size=4194304
-REGION_ONLY_IN_BEFORE addr=0x106ff0000 size=7913472
-REGION_ONLY_IN_BEFORE addr=0x10777c000 size=2981888
-REGION_ONLY_IN_BEFORE addr=0x107a54000 size=6225920
-REGION_ONLY_IN_BEFORE addr=0x108044000 size=9715712
-REGION_ONLY_IN_BEFORE addr=0x112248000 size=8339456
-REGION_ONLY_IN_BEFORE addr=0x112a3c000 size=1048576
-REGION_ONLY_IN_BEFORE addr=0x112b3c000 size=81920
-REGION_ONLY_IN_BEFORE addr=0x112b50000 size=65536
-REGION_ONLY_IN_BEFORE addr=0x112b60000 size=3375104
-REGION_ONLY_IN_BEFORE addr=0x112e98000 size=2048000
-REGION_ONLY_IN_BEFORE addr=0x11308c000 size=180224
-REGION_ONLY_IN_BEFORE addr=0x1130b8000 size=1556480
-REGION_ONLY_IN_BEFORE addr=0x113234000 size=147456
-REGION_ONLY_IN_BEFORE addr=0x113258000 size=262144
-REGION_ONLY_IN_BEFORE addr=0x113298000 size=2375680
-REGION_ONLY_IN_BEFORE addr=0x1134dc000 size=16384
-REGION_ONLY_IN_BEFORE addr=0x1134e0000 size=98304
-REGION_ONLY_IN_BEFORE addr=0x113518000 size=49152
-REGION_ONLY_IN_BEFORE addr=0x113524000 size=32768
-REGION_ONLY_IN_BEFORE addr=0x113530000 size=16384
-REGION_ONLY_IN_BEFORE addr=0x113534000 size=32768
-REGION_ONLY_IN_BEFORE addr=0x113540000 size=16384
-REGION_ONLY_IN_BEFORE addr=0x113544000 size=16384
-REGION_ONLY_IN_BEFORE addr=0x113548000 size=16384
-REGION_ONLY_IN_BEFORE addr=0x1135a0000 size=131072
-REGION_ONLY_IN_BEFORE addr=0x1135d8000 size=131072
-REGION_ONLY_IN_BEFORE addr=0x1135fc000 size=360448
-REGION_ONLY_IN_BEFORE addr=0x113654000 size=16384
-REGION_ONLY_IN_BEFORE addr=0x113658000 size=81920
-REGION_ONLY_IN_BEFORE addr=0x11366c000 size=65536
-REGION_ONLY_IN_BEFORE addr=0x11367c000 size=2195456
-DIFF addr=0x11ee00000 len=1 region=0x11ee00000+0 prot=0x703 before=04 after=00
-DIFF addr=0x11ee00008 len=1 region=0x11ee00000+8 prot=0x703 before=00 after=01
-DIFF addr=0x11ee00010 len=1 region=0x11ee00000+16 prot=0x703 before=01 after=00
-DIFF addr=0x11ee04041 len=3 region=0x11ee04000+65 prot=0x303 before=ffffff after=4eafac
-DIFF addr=0x11ee0c0a0 len=1 region=0x11ee0c000+160 prot=0x303 before=37 after=39
-DIFF addr=0x11ee0c0a3 len=7 region=0x11ee0c000+163 prot=0x303 before=5f2e7374722e39 after=43504938355f30
-DIFF addr=0x11ee0c0ac len=7 region=0x11ee0c000+172 prot=0x303 before=5f2e7374722e35 after=43504937325f30
-DIFF addr=0x11ee0c0be len=7 region=0x11ee0c000+190 prot=0x303 before=5f2e7374722e34 after=43504934365f30
-DIFF addr=0x11ee0c0c7 len=7 region=0x11ee0c000+199 prot=0x303 before=43504934365f30 after=5f2e7374722e34
-DIFF addr=0x11ee0c0d0 len=7 region=0x11ee0c000+208 prot=0x303 before=43504937325f30 after=5f2e7374722e35
-DIFF addr=0x11ee0c0d9 len=7 region=0x11ee0c000+217 prot=0x303 before=43504938355f30 after=5f2e7374722e37
-DIFF addr=0x11ee0c0e8 len=2 region=0x11ee0c000+232 prot=0x303 before=3337 after=3130
-DIFF addr=0x11ee0c0f2 len=2 region=0x11ee0c000+242 prot=0x303 before=3434 after=3337
-DIFF addr=0x11ee0c0fd len=1 region=0x11ee0c000+253 prot=0x303 before=37 after=33
-DIFF addr=0x11ee0c107 len=1 region=0x11ee0c000+263 prot=0x303 before=30 after=36
-DIFF addr=0x11ee0c10a len=8 region=0x11ee0c000+266 prot=0x303 before=5f2e7374722e3533 after=4350493236375f30
-DIFF addr=0x11ee0c114 len=8 region=0x11ee0c000+276 prot=0x303 before=4350493135345f32 after=5f2e7374722e3339
-DIFF addr=0x11ee0c121 len=3 region=0x11ee0c000+289 prot=0x303 before=323637 after=313534
-DIFF addr=0x11ee0c125 len=1 region=0x11ee0c000+293 prot=0x303 before=30 after=31
-DIFF addr=0x11ee0c128 len=8 region=0x11ee0c000+296 prot=0x303 before=4350493135345f31 after=5f2e7374722e3137
-DIFF addr=0x11ee0c142 len=2 region=0x11ee0c000+322 prot=0x303 before=3338 after=3439
-DIFF addr=0x11ee0c146 len=7 region=0x11ee0c000+326 prot=0x303 before=4350493135345f after=5f2e7374722e34
-DIFF addr=0x11ee0c157 len=1 region=0x11ee0c000+343 prot=0x303 before=35 after=31
-DIFF addr=0x11ee0c160 len=2 region=0x11ee0c000+352 prot=0x303 before=3336 after=3233
-DIFF addr=0x11ee0c16a len=1 region=0x11ee0c000+362 prot=0x303 before=31 after=35
-DIFF addr=0x11ee0c174 len=2 region=0x11ee0c000+372 prot=0x303 before=3236 after=3434
-DIFF addr=0x11ee0c178 len=8 region=0x11ee0c000+376 prot=0x303 before=5f2e7374722e3136 after=4350493135345f30
-DIFF addr=0x11ee0c188 len=2 region=0x11ee0c000+392 prot=0x303 before=3532 after=3338
-DIFF addr=0x11ee0c18c len=8 region=0x11ee0c000+396 prot=0x303 before=5f2e7374722e3439 after=4350493135345f32
-DIFF addr=0x11ee0c19c len=2 region=0x11ee0c000+412 prot=0x303 before=3433 after=3336
-DIFF addr=0x11ee0c1a6 len=2 region=0x11ee0c000+422 prot=0x303 before=3430 after=3131
-DIFF addr=0x11ee0c1b1 len=1 region=0x11ee0c000+433 prot=0x303 before=35 after=31
-DIFF addr=0x11ee0c1bb len=1 region=0x11ee0c000+443 prot=0x303 before=39 after=30
-DIFF addr=0x11ee0c1c4 len=1 region=0x11ee0c000+452 prot=0x303 before=32 after=35
-DIFF addr=0x11ee0c1ce len=2 region=0x11ee0c000+462 prot=0x303 before=3133 after=3435
-DIFF addr=0x11ee0c1d8 len=2 region=0x11ee0c000+472 prot=0x303 before=3438 after=3235
-DIFF addr=0x11ee0c1e2 len=2 region=0x11ee0c000+482 prot=0x303 before=3431 after=3236
-DIFF addr=0x11ee0c1ec len=2 region=0x11ee0c000+492 prot=0x303 before=3134 after=3237
-DIFF addr=0x11ee0c1f6 len=2 region=0x11ee0c000+502 prot=0x303 before=3536 after=3133
-DIFF addr=0x11ee0c200 len=2 region=0x11ee0c000+512 prot=0x303 before=3132 after=3530
-DIFF addr=0x11ee0c20a len=2 region=0x11ee0c000+522 prot=0x303 before=3339 after=3132
-DIFF addr=0x11ee0c214 len=1 region=0x11ee0c000+532 prot=0x303 before=34 after=31
-DIFF addr=0x11ee0c21e len=2 region=0x11ee0c000+542 prot=0x303 before=3130 after=3437
-DIFF addr=0x11ee0c228 len=2 region=0x11ee0c000+552 prot=0x303 before=3537 after=3239
-DIFF addr=0x11ee0c232 len=2 region=0x11ee0c000+562 prot=0x303 before=3235 after=3537
-DIFF addr=0x11ee0c23c len=2 region=0x11ee0c000+572 prot=0x303 before=3137 after=3532
-DIFF addr=0x11ee0c246 len=2 region=0x11ee0c000+582 prot=0x303 before=3531 after=3436
-DIFF addr=0x11ee0c251 len=1 region=0x11ee0c000+593 prot=0x303 before=31 after=34
-DIFF addr=0x11ee0c25a len=2 region=0x11ee0c000+602 prot=0x303 before=3230 after=3135
-DIFF addr=0x11ee0c264 len=2 region=0x11ee0c000+612 prot=0x303 before=3237 after=3438
-DIFF addr=0x11ee0c26b len=1 region=0x11ee0c000+619 prot=0x303 before=53 after=49
-DIFF addr=0x11ee0c276 len=1 region=0x11ee0c000+630 prot=0x303 before=6e after=6c
-DIFF addr=0x11ee0c278 len=2 region=0x11ee0c000+632 prot=0x303 before=6465 after=6f70
-DIFF addr=0x11ee0c28e len=1 region=0x11ee0c000+654 prot=0x303 before=6c after=6e
-DIFF addr=0x11ee0c290 len=2 region=0x11ee0c000+656 prot=0x303 before=6f70 after=6465
-DIFF addr=0x11ee0c29b len=1 region=0x11ee0c000+667 prot=0x303 before=56 after=53
-DIFF addr=0x11ee0c2b3 len=1 region=0x11ee0c000+691 prot=0x303 before=49 after=56
-DIFF addr=0x11ee0c2be len=1 region=0x11ee0c000+702 prot=0x303 before=6e after=6c
-DIFF addr=0x11ee0c2c0 len=2 region=0x11ee0c000+704 prot=0x303 before=6465 after=6f70
-DIFF addr=0x11ee0c2d6 len=1 region=0x11ee0c000+726 prot=0x303 before=6c after=6e
-DIFF addr=0x11ee0c2d8 len=2 region=0x11ee0c000+728 prot=0x303 before=6f70 after=6465
-DIFF addr=0x11ee0c377 len=5 region=0x11ee0c000+887 prot=0x303 before=636c6f7365 after=6572726f72
-DIFF addr=0x11ee0c3af len=5 region=0x11ee0c000+943 prot=0x303 before=6572726f72 after=636c6f7365
-DIFF addr=0x11ee0c3f1 len=7 region=0x11ee0c000+1009 prot=0x303 before=5f6f72635f7274 after=5a54534e537433
-DIFF addr=0x11ee0c3f9 len=5 region=0x11ee0c000+1017 prot=0x303 before=6d6163686f after=5f3131305f
-DIFF addr=0x11ee0c3ff len=12 region=0x11ee0c000+1023 prot=0x303 before=6378615f66696e616c697a65 after=6261636b5f72656649634545
-DIFF addr=0x11ee0c40e len=7 region=0x11ee0c000+1038 prot=0x303 before=5a54534e537433 after=5f6f72635f7274
-DIFF addr=0x11ee0c416 len=5 region=0x11ee0c000+1046 prot=0x303 before=5f3131305f after=6d6163686f
-DIFF addr=0x11ee0c41c len=12 region=0x11ee0c000+1052 prot=0x303 before=6261636b5f72656649634545 after=6378615f66696e616c697a65
-DIFF addr=0x11ee0c42d len=1 region=0x11ee0c000+1069 prot=0x303 before=56 after=49
-DIFF addr=0x11ee0c439 len=6 region=0x11ee0c000+1081 prot=0x303 before=616c7465726e after=656e645f7374
-DIFF addr=0x11ee0c44a len=24 region=0x11ee0c000+1098 prot=0x303 before=4e5374335f5f3131305f5f6261636b5f7265664963454431 after=54494e5374335f5f3131315f5f616c7465726e6174654963
-DIFF addr=0x11ee0c463 len=1 region=0x11ee0c000+1123 prot=0x303 before=76 after=45
-DIFF addr=0x11ee0c4a5 len=1 region=0x11ee0c000+1189 prot=0x303 before=53 after=49
-DIFF addr=0x11ee0c4a7 len=12 region=0x11ee0c000+1191 prot=0x303 before=385f5f6f72635f7274313153 after=5374335f5f3131315f5f6d61
-DIFF addr=0x11ee0c4b4 len=9 region=0x11ee0c000+1204 prot=0x303 before=72696e674572726f72 after=63685f616e79496345
-DIFF addr=0x11ee0c4cf len=2 region=0x11ee0c000+1231 prot=0x303 before=6d61 after=616c
-DIFF addr=0x11ee0c4d2 len=3 region=0x11ee0c000+1234 prot=0x303 before=63685f after=65726e
-DIFF addr=0x11ee0c4d6 len=2 region=0x11ee0c000+1238 prot=0x303 before=6e79 after=7465
-DIFF addr=0x11ee0c4ff len=1 region=0x11ee0c000+1279 prot=0x303 before=53 after=56
-DIFF addr=0x11ee0c529 len=6 region=0x11ee0c000+1321 prot=0x303 before=656e645f7374 after=6d617463685f
-DIFF addr=0x11ee0c530 len=2 region=0x11ee0c000+1328 prot=0x303 before=7465 after=6e79
-DIFF addr=0x11ee0c53a len=24 region=0x11ee0c000+1338 prot=0x303 before=54494e5374335f5f3131315f5f656e645f73746174654963 after=4e5374335f5f3131305f5f6261636b5f7265664963454431
-DIFF addr=0x11ee0c553 len=1 region=0x11ee0c000+1363 prot=0x303 before=45 after=76
-DIFF addr=0x11ee0c559 len=1 region=0x11ee0c000+1369 prot=0x303 before=49 after=53
-DIFF addr=0x11ee0c55b len=12 region=0x11ee0c000+1371 prot=0x303 before=5374335f5f3131315f5f616c after=385f5f6f72635f7274313153
-DIFF addr=0x11ee0c568 len=2 region=0x11ee0c000+1384 prot=0x303 before=6572 after=7269
-DIFF addr=0x11ee0c56b len=6 region=0x11ee0c000+1387 prot=0x303 before=617465496345 after=674572726f72
-DIFF addr=0x11ee0c583 len=6 region=0x11ee0c000+1411 prot=0x303 before=616c7465726e after=656e645f7374
-DIFF addr=0x11ee0c595 len=1 region=0x11ee0c000+1429 prot=0x303 before=49 after=53
-DIFF addr=0x11ee0c5a1 len=2 region=0x11ee0c000+1441 prot=0x303 before=6d61 after=616c
-DIFF addr=0x11ee0c5a4 len=3 region=0x11ee0c000+1444 prot=0x303 before=63685f after=65726e
-DIFF addr=0x11ee0c5a8 len=2 region=0x11ee0c000+1448 prot=0x303 before=6e79 after=7465
-DIFF addr=0x11ee0c5db len=6 region=0x11ee0c000+1499 prot=0x303 before=656e645f7374 after=6d617463685f
-DIFF addr=0x11ee0c5e2 len=2 region=0x11ee0c000+1506 prot=0x303 before=7465 after=6e79
-DIFF addr=0x11ee0c5e8 len=1 region=0x11ee0c000+1512 prot=0x303 before=31 after=30
-DIFF addr=0x11ee0c5fa len=2 region=0x11ee0c000+1530 prot=0x303 before=6d61 after=616c
-DIFF addr=0x11ee0c5fd len=3 region=0x11ee0c000+1533 prot=0x303 before=63685f after=65726e
-DIFF addr=0x11ee0c601 len=2 region=0x11ee0c000+1537 prot=0x303 before=6e79 after=7465
-DIFF addr=0x11ee0c607 len=1 region=0x11ee0c000+1543 prot=0x303 before=30 after=31
-DIFF addr=0x11ee0c62d len=8 region=0x11ee0c000+1581 prot=0x303 before=4e5374335f5f3131 after=54494e5374335f5f
-DIFF addr=0x11ee0c636 len=16 region=0x11ee0c000+1590 prot=0x303 before=5f5f616c7465726e6174654963454431 after=31325f5f6d617463685f636861724963
-DIFF addr=0x11ee0c647 len=1 region=0x11ee0c000+1607 prot=0x303 before=76 after=45
-DIFF addr=0x11ee0c64d len=12 region=0x11ee0c000+1613 prot=0x303 before=5374335f5f3131315f5f616c after=385f5f6f72635f7274313153
-DIFF addr=0x11ee0c65a len=2 region=0x11ee0c000+1626 prot=0x303 before=6572 after=7269
-DIFF addr=0x11ee0c65d len=6 region=0x11ee0c000+1629 prot=0x303 before=617465496345 after=674572726f72
-DIFF addr=0x11ee0c664 len=1 region=0x11ee0c000+1636 prot=0x303 before=30 after=31
-DIFF addr=0x11ee0c66c len=22 region=0x11ee0c000+1644 prot=0x303 before=385f5f6f72635f72743131537472696e674572726f72 after=5374335f5f3131315f5f656e645f7374617465496345
-DIFF addr=0x11ee0c68a len=7 region=0x11ee0c000+1674 prot=0x303 before=54564e5374335f after=4e385f5f6f7263
-DIFF addr=0x11ee0c692 len=14 region=0x11ee0c000+1682 prot=0x303 before=3131325f5f6d617463685f636861 after=72743131537472696e674572726f
-DIFF addr=0x11ee0c6a1 len=2 region=0x11ee0c000+1697 prot=0x303 before=4963 after=4430
-DIFF addr=0x11ee0c6a4 len=1 region=0x11ee0c000+1700 prot=0x303 before=45 after=76
-DIFF addr=0x11ee0c6a9 len=7 region=0x11ee0c000+1705 prot=0x303 before=4e385f5f6f7263 after=54564e5374335f
-DIFF addr=0x11ee0c6b1 len=14 region=0x11ee0c000+1713 prot=0x303 before=72743131537472696e674572726f after=3131325f5f6d617463685f636861
-DIFF addr=0x11ee0c6c0 len=2 region=0x11ee0c000+1728 prot=0x303 before=4431 after=4963
-DIFF addr=0x11ee0c6c3 len=1 region=0x11ee0c000+1731 prot=0x303 before=76 after=45
-DIFF addr=0x11ee0c6d3 len=6 region=0x11ee0c000+1747 prot=0x303 before=656e645f7374 after=616c7465726e
-DIFF addr=0x11ee0c6f2 len=6 region=0x11ee0c000+1778 prot=0x303 before=6d617463685f after=656e645f7374
-DIFF addr=0x11ee0c6f9 len=2 region=0x11ee0c000+1785 prot=0x303 before=6e79 after=7465
-DIFF addr=0x11ee0c706 len=8 region=0x11ee0c000+1798 prot=0x303 before=54494e5374335f5f after=4e5374335f5f3131
-DIFF addr=0x11ee0c70f len=16 region=0x11ee0c000+1807 prot=0x303 before=31325f5f6d617463685f636861724963 after=5f5f6d617463685f616e794963454431
-DIFF addr=0x11ee0c720 len=1 region=0x11ee0c000+1824 prot=0x303 before=45 after=76
-DIFF addr=0x11ee0c725 len=26 region=0x11ee0c000+1829 prot=0x303 before=54494e5374335f5f3131335f5f656d7074795f73746174654963 after=4e5374335f5f3131325f5f6d617463685f636861724963454431
-DIFF addr=0x11ee0c740 len=1 region=0x11ee0c000+1856 prot=0x303 before=45 after=76
-DIFF addr=0x11ee0c746 len=1 region=0x11ee0c000+1862 prot=0x303 before=56 after=53
-DIFF addr=0x11ee0c766 len=1 region=0x11ee0c000+1894 prot=0x303 before=53 after=49
-DIFF addr=0x11ee0c768 len=24 region=0x11ee0c000+1896 prot=0x303 before=5374335f5f3131335f5f656d7074795f7374617465496345 after=385f5f6f72635f727431334572726f72496e666f42617365
-DIFF addr=0x11ee0c785 len=26 region=0x11ee0c000+1925 prot=0x303 before=4e5374335f5f3131325f5f6d617463685f636861724963454431 after=54564e5374335f5f3131335f5f656d7074795f73746174654963
-DIFF addr=0x11ee0c7a0 len=1 region=0x11ee0c000+1952 prot=0x303 before=76 after=45
-DIFF addr=0x11ee0c7a6 len=1 region=0x11ee0c000+1958 prot=0x303 before=49 after=53
-DIFF addr=0x11ee0c7e6 len=1 region=0x11ee0c000+2022 prot=0x303 before=53 after=49
-DIFF addr=0x11ee0c7e8 len=24 region=0x11ee0c000+2024 prot=0x303 before=385f5f6f72635f727431334572726f72496e666f42617365 after=5374335f5f3131335f5f656d7074795f7374617465496345
-DIFF addr=0x11ee0c81f len=1 region=0x11ee0c000+2079 prot=0x303 before=31 after=30
-DIFF addr=0x11ee0c82e len=3 region=0x11ee0c000+2094 prot=0x303 before=335f5f after=397069
-DIFF addr=0x11ee0c832 len=17 region=0x11ee0c000+2098 prot=0x303 before=6d7074795f737461746549634544304576 after=6365776973655f636f6e73747275637445
-DIFF addr=0x11ee0c870 len=3 region=0x11ee0c000+2160 prot=0x303 before=397069 after=335f5f
-DIFF addr=0x11ee0c874 len=17 region=0x11ee0c000+2164 prot=0x303 before=6365776973655f636f6e73747275637445 after=6d7074795f737461746549634544314576
-DIFF addr=0x11ee0c8c7 len=1 region=0x11ee0c000+2247 prot=0x303 before=32 after=31
-DIFF addr=0x11ee0c8cb len=7 region=0x11ee0c000+2251 prot=0x303 before=5f6f72635f7274 after=5a54494e537433
-DIFF addr=0x11ee0c8d3 len=5 region=0x11ee0c000+2259 prot=0x303 before=6d6163686f after=5f3131355f
-DIFF addr=0x11ee0c8d9 len=6 region=0x11ee0c000+2265 prot=0x303 before=726567697374 after=6861735f6f6e
-DIFF addr=0x11ee0c8e0 len=4 region=0x11ee0c000+2272 prot=0x303 before=725f6a69 after=5f737461
-DIFF addr=0x11ee0c8e5 len=5 region=0x11ee0c000+2277 prot=0x303 before=64796c6962 after=6549634545
-DIFF addr=0x11ee0c90b len=1 region=0x11ee0c000+2315 prot=0x303 before=33 after=36
-DIFF addr=0x11ee0c92d len=1 region=0x11ee0c000+2349 prot=0x303 before=36 after=33
-DIFF addr=0x11ee0c953 len=7 region=0x11ee0c000+2387 prot=0x303 before=5a54494e537433 after=5f6f72635f7274
-DIFF addr=0x11ee0c95b len=5 region=0x11ee0c000+2395 prot=0x303 before=5f3131355f after=6d6163686f
-DIFF addr=0x11ee0c961 len=17 region=0x11ee0c000+2401 prot=0x303 before=6861735f6f6e655f737461746549634545 after=706c6174666f726d5f73687574646f776e
-DIFF addr=0x11ee0c975 len=7 region=0x11ee0c000+2421 prot=0x303 before=5a54534e537433 after=5f6f72635f7274
-DIFF addr=0x11ee0c97d len=5 region=0x11ee0c000+2429 prot=0x303 before=5f3131355f after=6d6163686f
-DIFF addr=0x11ee0c983 len=3 region=0x11ee0c000+2435 prot=0x303 before=686173 after=746c76
-DIFF addr=0x11ee0c987 len=3 region=0x11ee0c000+2439 prot=0x303 before=6f6e65 after=676574
-DIFF addr=0x11ee0c98b len=9 region=0x11ee0c000+2443 prot=0x303 before=737461746549634545 after=616464725f696d706c
-DIFF addr=0x11ee0c9b5 len=1 region=0x11ee0c000+2485 prot=0x303 before=31 after=35
-DIFF addr=0x11ee0c9d7 len=1 region=0x11ee0c000+2519 prot=0x303 before=35 after=34
-DIFF addr=0x11ee0c9db len=7 region=0x11ee0c000+2523 prot=0x303 before=5f6f72635f7274 after=5a54534e537433
-DIFF addr=0x11ee0c9e3 len=5 region=0x11ee0c000+2531 prot=0x303 before=6d6163686f after=5f3131355f
-DIFF addr=0x11ee0c9e9 len=17 region=0x11ee0c000+2537 prot=0x303 before=706c6174666f726d5f73687574646f776e after=6861735f6f6e655f737461746549634545
-DIFF addr=0x11ee0ca1b len=1 region=0x11ee0c000+2587 prot=0x303 before=34 after=37
-DIFF addr=0x11ee0ca2d len=17 region=0x11ee0c000+2605 prot=0x303 before=6a69745f646c6f70656e2e636f6c642e37 after=72656769737465725f6a697464796c6962
-DIFF addr=0x11ee0ca4f len=3 region=0x11ee0c000+2639 prot=0x303 before=746c76 after=6a6974
-DIFF addr=0x11ee0ca53 len=13 region=0x11ee0c000+2643 prot=0x303 before=6765745f616464725f696d706c after=646c6f70656e2e636f6c642e32
-DIFF addr=0x11ee0caa9 len=7 region=0x11ee0c000+2729 prot=0x303 before=5a54494e537433 after=5f6f72635f7274
-DIFF addr=0x11ee0cab1 len=5 region=0x11ee0c000+2737 prot=0x303 before=5f3131365f after=6d6163686f
-DIFF addr=0x11ee0cab7 len=18 region=0x11ee0c000+2743 prot=0x303 before=6f776e735f6f6e655f737461746549634545 after=6372656174655f707468726561645f6b6579
-DIFF addr=0x11ee0cacc len=7 region=0x11ee0c000+2764 prot=0x303 before=5f6f72635f7274 after=5a54494e537433
-DIFF addr=0x11ee0cad4 len=5 region=0x11ee0c000+2772 prot=0x303 before=6d6163686f after=5f3131365f
-DIFF addr=0x11ee0cada len=18 region=0x11ee0c000+2778 prot=0x303 before=6372656174655f707468726561645f6b6579 after=6f776e735f6f6e655f737461746549634545
-DIFF addr=0x11ee0cb36 len=1 region=0x11ee0c000+2870 prot=0x303 before=4e after=54
-DIFF addr=0x11ee0cb38 len=17 region=0x11ee0c000+2872 prot=0x303 before=74335f5f3131365f5f6f776e735f6f6e65 after=4e5374335f5f3131375f5f726570656174
-DIFF addr=0x11ee0cb4a len=10 region=0x11ee0c000+2890 prot=0x303 before=73746174654963454431 after=6f6e655f6c6f6f704963
-DIFF addr=0x11ee0cb55 len=1 region=0x11ee0c000+2901 prot=0x303 before=76 after=45
-DIFF addr=0x11ee0cb5b len=1 region=0x11ee0c000+2907 prot=0x303 before=49 after=53
-DIFF addr=0x11ee0cb67 len=5 region=0x11ee0c000+2919 prot=0x303 before=7265706561 after=6f776e735f
-DIFF addr=0x11ee0cb6d len=1 region=0x11ee0c000+2925 prot=0x303 before=5f after=77
-DIFF addr=0x11ee0cb6f len=7 region=0x11ee0c000+2927 prot=0x303 before=6e655f6c6f6f70 after=5f737461746573
-DIFF addr=0x11ee0cba3 len=1 region=0x11ee0c000+2979 prot=0x303 before=49 after=56
-DIFF addr=0x11ee0cbc6 len=19 region=0x11ee0c000+3014 prot=0x303 before=4e5374335f5f3131365f5f6f776e735f6f6e65 after=54494e5374335f5f3131375f5f726570656174
-DIFF addr=0x11ee0cbda len=10 region=0x11ee0c000+3034 prot=0x303 before=73746174654963454430 after=6f6e655f6c6f6f704963
-DIFF addr=0x11ee0cbe5 len=1 region=0x11ee0c000+3045 prot=0x303 before=76 after=45
-DIFF addr=0x11ee0cbea len=19 region=0x11ee0c000+3050 prot=0x303 before=54564e5374335f5f3131375f5f726570656174 after=4e5374335f5f3131365f5f6f776e735f6f6e65
-DIFF addr=0x11ee0cbfe len=10 region=0x11ee0c000+3070 prot=0x303 before=6f6e655f6c6f6f704963 after=73746174654963454431
-DIFF addr=0x11ee0cc09 len=1 region=0x11ee0c000+3081 prot=0x303 before=45 after=76
-DIFF addr=0x11ee0cc0f len=1 region=0x11ee0c000+3087 prot=0x303 before=56 after=49
-DIFF addr=0x11ee0cc32 len=1 region=0x11ee0c000+3122 prot=0x303 before=54 after=4e
-DIFF addr=0x11ee0cc34 len=17 region=0x11ee0c000+3124 prot=0x303 before=4e5374335f5f3131375f5f726570656174 after=74335f5f3131365f5f6f776e735f6f6e65
-DIFF addr=0x11ee0cc46 len=10 region=0x11ee0c000+3142 prot=0x303 before=6f6e655f6c6f6f704963 after=73746174654963454430
-DIFF addr=0x11ee0cc51 len=1 region=0x11ee0c000+3153 prot=0x303 before=45 after=76
-DIFF addr=0x11ee0cc57 len=1 region=0x11ee0c000+3159 prot=0x303 before=53 after=56
-DIFF addr=0x11ee0cc63 len=5 region=0x11ee0c000+3171 prot=0x303 before=6f776e735f after=7265706561
-DIFF addr=0x11ee0cc69 len=1 region=0x11ee0c000+3177 prot=0x303 before=77 after=5f
-DIFF addr=0x11ee0cc6b len=7 region=0x11ee0c000+3179 prot=0x303 before=5f737461746573 after=6e655f6c6f6f70
-DIFF addr=0x11ee0cc85 len=5 region=0x11ee0c000+3205 prot=0x303 before=7265706561 after=6f776e735f
-DIFF addr=0x11ee0cc8b len=1 region=0x11ee0c000+3211 prot=0x303 before=5f after=77
-DIFF addr=0x11ee0cc8d len=7 region=0x11ee0c000+3213 prot=0x303 before=6e655f6c6f6f70 after=5f737461746573
-DIFF addr=0x11ee0cc98 len=1 region=0x11ee0c000+3224 prot=0x303 before=31 after=30
-DIFF addr=0x11ee0ccaa len=5 region=0x11ee0c000+3242 prot=0x303 before=6f776e735f after=7265706561
-DIFF addr=0x11ee0ccb0 len=1 region=0x11ee0c000+3248 prot=0x303 before=77 after=5f
-DIFF addr=0x11ee0ccb2 len=7 region=0x11ee0c000+3250 prot=0x303 before=5f737461746573 after=6e655f6c6f6f70
-DIFF addr=0x11ee0ccbd len=1 region=0x11ee0c000+3261 prot=0x303 before=31 after=30
-DIFF addr=0x11ee0cce2 len=1 region=0x11ee0c000+3298 prot=0x303 before=30 after=31
-DIFF addr=0x11ee0cd07 len=1 region=0x11ee0c000+3335 prot=0x303 before=30 after=31
-DIFF addr=0x11ee0cd5b len=1 region=0x11ee0c000+3419 prot=0x303 before=56 after=53
-DIFF addr=0x11ee0cd67 len=1 region=0x11ee0c000+3431 prot=0x303 before=72 after=6c
-DIFF addr=0x11ee0cd81 len=20 region=0x11ee0c000+3457 prot=0x303 before=4e4b385f5f6f72635f72743131537472696e6745 after=54564e5374335f5f3132305f5f725f616e63686f
-DIFF addr=0x11ee0cd96 len=4 region=0x11ee0c000+3478 prot=0x303 before=726f7238 after=5f6d756c
-DIFF addr=0x11ee0cd9b len=7 region=0x11ee0c000+3483 prot=0x303 before=6f537472696e67 after=696c696e654963
-DIFF addr=0x11ee0cda3 len=1 region=0x11ee0c000+3491 prot=0x303 before=76 after=45
-DIFF addr=0x11ee0cda9 len=1 region=0x11ee0c000+3497 prot=0x303 before=53 after=56
-DIFF addr=0x11ee0cdf6 len=20 region=0x11ee0c000+3574 prot=0x303 before=54494e5374335f5f3132305f5f6c5f616e63686f after=4e4b385f5f6f72635f72743131537472696e6745
-DIFF addr=0x11ee0ce0b len=4 region=0x11ee0c000+3595 prot=0x303 before=5f6d756c after=726f7238
-DIFF addr=0x11ee0ce10 len=7 region=0x11ee0c000+3600 prot=0x303 before=696c696e654963 after=6f537472696e67
-DIFF addr=0x11ee0ce18 len=1 region=0x11ee0c000+3608 prot=0x303 before=45 after=76
-DIFF addr=0x11ee0ce1e len=1 region=0x11ee0c000+3614 prot=0x303 before=56 after=49
-DIFF addr=0x11ee0ce6b len=12 region=0x11ee0c000+3691 prot=0x303 before=54494e5374335f5f3132315f after=4e5374335f5f3132305f5f6c
-DIFF addr=0x11ee0ce78 len=21 region=0x11ee0c000+3704 prot=0x303 before=656d7074795f6e6f6e5f6f776e5f73746174654963 after=616e63686f725f6d756c74696c696e654963454431
-DIFF addr=0x11ee0ce8e len=1 region=0x11ee0c000+3726 prot=0x303 before=45 after=76
-DIFF addr=0x11ee0ceb4 len=1 region=0x11ee0c000+3764 prot=0x303 before=31 after=30
-DIFF addr=0x11ee0cebc len=1 region=0x11ee0c000+3772 prot=0x303 before=53 after=56
-DIFF addr=0x11ee0cf04 len=1 region=0x11ee0c000+3844 prot=0x303 before=30 after=31
-DIFF addr=0x11ee0cf0b len=1 region=0x11ee0c000+3851 prot=0x303 before=4e after=54
-DIFF addr=0xc357107c8 len=3 region=0xc35400000+3213256 prot=0x703 before=7862e4 after=000000
-DIFF addr=0xc357107cc len=1 region=0xc35400000+3213260 prot=0x703 before=02 after=00
-DIFF addr=0xc357107f0 len=5 region=0xc35400000+3213296 prot=0x703 before=f4b4288701 after=0000000000
-DIFF addr=0xc357107f8 len=5 region=0xc35400000+3213304 prot=0x703 before=f803b70102 after=0000000000
-# total: 692354 diff runs, 3754649 diff bytes
+# 135 regions in before, 133 in after
+REGION_ONLY_IN_BEFORE addr=0x1005f8000 size=16384
+REGION_ONLY_IN_BEFORE addr=0x1005fc000 size=16384
+REGION_ONLY_IN_BEFORE addr=0x10060c000 size=32768
+REGION_ONLY_IN_BEFORE addr=0x100644000 size=16384
+REGION_ONLY_IN_BEFORE addr=0x100648000 size=16384
+REGION_ONLY_IN_BEFORE addr=0x10064c000 size=16384
+REGION_ONLY_IN_BEFORE addr=0x100650000 size=16384
+REGION_ONLY_IN_BEFORE addr=0x100654000 size=32768
+REGION_ONLY_IN_BEFORE addr=0x10065c000 size=16384
+REGION_ONLY_IN_BEFORE addr=0x100660000 size=16384
+REGION_ONLY_IN_BEFORE addr=0x100664000 size=16384
+REGION_ONLY_IN_BEFORE addr=0x100668000 size=16384
+REGION_ONLY_IN_BEFORE addr=0x10066c000 size=32768
+REGION_ONLY_IN_BEFORE addr=0x100674000 size=262144
+REGION_ONLY_IN_BEFORE addr=0x100710000 size=16384
+REGION_ONLY_IN_BEFORE addr=0x100720000 size=16384
+REGION_ONLY_IN_BEFORE addr=0x100760000 size=196608
+REGION_ONLY_IN_BEFORE addr=0x100790000 size=16384
+REGION_ONLY_IN_BEFORE addr=0x100794000 size=16384
+REGION_ONLY_IN_BEFORE addr=0x100798000 size=16384
+REGION_ONLY_IN_BEFORE addr=0x10079c000 size=16384
+REGION_ONLY_IN_BEFORE addr=0x1007a0000 size=114688
+REGION_ONLY_IN_BEFORE addr=0x1007bc000 size=131072
+REGION_ONLY_IN_BEFORE addr=0x1007dc000 size=16384
+REGION_ONLY_IN_BEFORE addr=0x1007e0000 size=16384
+REGION_ONLY_IN_BEFORE addr=0x1007e4000 size=16384
+REGION_ONLY_IN_BEFORE addr=0x1007e8000 size=16384
+REGION_ONLY_IN_BEFORE addr=0x1007f0000 size=114688
+REGION_ONLY_IN_BEFORE addr=0x10088c000 size=147456
+REGION_ONLY_IN_BEFORE addr=0x1008b4000 size=16384
+REGION_ONLY_IN_BEFORE addr=0x1008b8000 size=16384
+REGION_ONLY_IN_BEFORE addr=0x1008bc000 size=16384
+REGION_ONLY_IN_BEFORE addr=0x1008c0000 size=16384
+REGION_ONLY_IN_BEFORE addr=0x1008c4000 size=49152
+REGION_ONLY_IN_BEFORE addr=0x1008d0000 size=32768
+REGION_ONLY_IN_BEFORE addr=0x1008dc000 size=65536
+REGION_ONLY_IN_BEFORE addr=0x1008ec000 size=16384
+REGION_ONLY_IN_BEFORE addr=0x1008f0000 size=16384
+REGION_ONLY_IN_BEFORE addr=0x100904000 size=49152
+REGION_ONLY_IN_BEFORE addr=0x100910000 size=32768
+REGION_ONLY_IN_BEFORE addr=0x100918000 size=180224
+REGION_ONLY_IN_BEFORE addr=0x100a70000 size=163840
+REGION_ONLY_IN_BEFORE addr=0x100a98000 size=16384
+REGION_ONLY_IN_BEFORE addr=0x100a9c000 size=32768
+REGION_ONLY_IN_BEFORE addr=0x100aa4000 size=16384
+REGION_ONLY_IN_BEFORE addr=0x100aa8000 size=524288
+REGION_ONLY_IN_BEFORE addr=0x100b28000 size=81920
+REGION_ONLY_IN_BEFORE addr=0x100b3c000 size=81920
+REGION_ONLY_IN_BEFORE addr=0x100b50000 size=81920
+REGION_ONLY_IN_BEFORE addr=0x100b64000 size=49152
+REGION_ONLY_IN_BEFORE addr=0x100ea0000 size=4194304
+REGION_ONLY_IN_BEFORE addr=0x10733c000 size=7913472
+REGION_ONLY_IN_BEFORE addr=0x107ac8000 size=2981888
+REGION_ONLY_IN_BEFORE addr=0x107da0000 size=6225920
+REGION_ONLY_IN_BEFORE addr=0x108390000 size=9715712
+REGION_ONLY_IN_BEFORE addr=0x112594000 size=8339456
+REGION_ONLY_IN_BEFORE addr=0x112d88000 size=1048576
+REGION_ONLY_IN_BEFORE addr=0x112e88000 size=3375104
+REGION_ONLY_IN_BEFORE addr=0x1131c0000 size=2048000
+REGION_ONLY_IN_BEFORE addr=0x1133b4000 size=1556480
+REGION_ONLY_IN_BEFORE addr=0x113530000 size=147456
+REGION_ONLY_IN_BEFORE addr=0x113554000 size=262144
+REGION_ONLY_IN_BEFORE addr=0x113594000 size=2375680
+REGION_ONLY_IN_BEFORE addr=0x1137d8000 size=98304
+REGION_ONLY_IN_BEFORE addr=0x1137f0000 size=32768
+REGION_ONLY_IN_BEFORE addr=0x1137fc000 size=16384
+REGION_ONLY_IN_BEFORE addr=0x113800000 size=32768
+REGION_ONLY_IN_BEFORE addr=0x11380c000 size=16384
+REGION_ONLY_IN_BEFORE addr=0x113810000 size=16384
+REGION_ONLY_IN_BEFORE addr=0x113814000 size=16384
+REGION_ONLY_IN_BEFORE addr=0x11386c000 size=131072
+REGION_ONLY_IN_BEFORE addr=0x11388c000 size=16384
+REGION_ONLY_IN_BEFORE addr=0x1138a4000 size=131072
+REGION_ONLY_IN_BEFORE addr=0x1138ec000 size=360448
+REGION_ONLY_IN_BEFORE addr=0x113944000 size=16384
+REGION_ONLY_IN_BEFORE addr=0x113948000 size=81920
+REGION_ONLY_IN_BEFORE addr=0x11395c000 size=65536
+REGION_ONLY_IN_BEFORE addr=0x11396c000 size=2195456
+REGION_ONLY_IN_BEFORE addr=0x122e00000 size=16384
+REGION_ONLY_IN_BEFORE addr=0x122e04000 size=16384
+REGION_ONLY_IN_BEFORE addr=0x122e08000 size=16384
+REGION_ONLY_IN_BEFORE addr=0x122e0c000 size=49152
+REGION_ONLY_IN_BEFORE addr=0x122e18000 size=114688
+REGION_ONLY_IN_BEFORE addr=0x122e34000 size=16384
+REGION_ONLY_IN_BEFORE addr=0x122e38000 size=16384
+REGION_ONLY_IN_BEFORE addr=0x122e3c000 size=16384
+REGION_ONLY_IN_BEFORE addr=0x122e40000 size=16384
+REGION_ONLY_IN_BEFORE addr=0x122e44000 size=16384
+REGION_ONLY_IN_BEFORE addr=0x122e48000 size=16384
+REGION_ONLY_IN_BEFORE addr=0x122e4c000 size=16384
+REGION_ONLY_IN_BEFORE addr=0x122e50000 size=16384
+REGION_ONLY_IN_BEFORE addr=0x122e54000 size=16384
+REGION_ONLY_IN_BEFORE addr=0x122e58000 size=16384
+REGION_ONLY_IN_BEFORE addr=0x122e5c000 size=16384
+REGION_ONLY_IN_BEFORE addr=0x122e60000 size=16384
+REGION_ONLY_IN_BEFORE addr=0x122e64000 size=16384
+REGION_ONLY_IN_BEFORE addr=0x122e68000 size=16384
+REGION_ONLY_IN_BEFORE addr=0x16f014000 size=8372224
+REGION_ONLY_IN_BEFORE addr=0x16f814000 size=557056
+REGION_ONLY_IN_BEFORE addr=0x16f92c000 size=557056
+REGION_ONLY_IN_BEFORE addr=0x16fb5c000 size=557056
+REGION_ONLY_IN_BEFORE addr=0x16fbe8000 size=557056
+REGION_ONLY_IN_BEFORE addr=0x16fc74000 size=557056
+DIFF addr=0x1f9d0eb89 len=3 region=0x1f9d0c000+11145 prot=0x303 before=4ceb00 after=0c5e05
+DIFF addr=0x1f9d0eb90 len=2 region=0x1f9d0c000+11152 prot=0x303 before=be5a after=3285
+DIFF addr=0x1f9d187d1 len=3 region=0x1f9d0c000+51153 prot=0x303 before=409b00 after=001c05
+DIFF addr=0x1f9d187da len=1 region=0x1f9d0c000+51162 prot=0x303 before=4e after=40
+DIFF addr=0x1f9d187e1 len=3 region=0x1f9d0c000+51169 prot=0x303 before=00a700 after=802c05
+DIFF addr=0x1f9d34700 len=2 region=0x1f9d0c000+165632 prot=0x303 before=625b after=da85
+DIFF addr=0x1f9d34708 len=2 region=0x1f9d0c000+165640 prot=0x303 before=625b after=da85
+DIFF addr=0x1f9d34710 len=2 region=0x1f9d0c000+165648 prot=0x303 before=625b after=da85
+DIFF addr=0x1f9d34718 len=2 region=0x1f9d0c000+165656 prot=0x303 before=625b after=da85
+DIFF addr=0x1f9d34720 len=2 region=0x1f9d0c000+165664 prot=0x303 before=625b after=da85
+DIFF addr=0x1f9d34728 len=2 region=0x1f9d0c000+165672 prot=0x303 before=625b after=da85
+DIFF addr=0x1f9d34730 len=2 region=0x1f9d0c000+165680 prot=0x303 before=625b after=da85
+DIFF addr=0x1f9d34738 len=2 region=0x1f9d0c000+165688 prot=0x303 before=625b after=da85
+DIFF addr=0x1f9d34768 len=2 region=0x1f9d0c000+165736 prot=0x303 before=625b after=da85
+DIFF addr=0x1f9d347a8 len=2 region=0x1f9d0c000+165800 prot=0x303 before=625b after=da85
+DIFF addr=0x1f9d347b0 len=2 region=0x1f9d0c000+165808 prot=0x303 before=625b after=da85
+DIFF addr=0x1f9d34969 len=3 region=0x1f9d0c000+166249 prot=0x303 before=2eec00 after=ee5e05
+DIFF addr=0x1f9d57860 len=2 region=0x1f9d0c000+309344 prot=0x303 before=e04c after=200d
+DIFF addr=0x1f9d57863 len=2 region=0x1f9d0c000+309347 prot=0x303 before=e40a after=260c
+DIFF addr=0x1f9d57880 len=5 region=0x1f9d0c000+309376 prot=0x303 before=6092e7e40a after=184ddd260c
+DIFF addr=0x1f9d578a0 len=2 region=0x1f9d0c000+309408 prot=0x303 before=5a5b after=d285
+DIFF addr=0x1f9d58128 len=2 region=0x1f9d0c000+311592 prot=0x303 before=004d after=400d
+DIFF addr=0x1f9d5812b len=2 region=0x1f9d0c000+311595 prot=0x303 before=e40a after=260c
+DIFF addr=0x1f9d58148 len=5 region=0x1f9d0c000+311624 prot=0x303 before=a097e7e40a after=5852dd260c
+DIFF addr=0x1f9d5856c len=1 region=0x1f9d0c000+312684 prot=0x303 before=00 after=01
+DIFF addr=0x1f9d58570 len=5 region=0x1f9d0c000+312688 prot=0x303 before=0000000000 after=2020ce260c
+DIFF addr=0x1f9d5857c len=1 region=0x1f9d0c000+312700 prot=0x303 before=00 after=10
+DIFF addr=0x1f9d58590 len=5 region=0x1f9d0c000+312720 prot=0x303 before=0000000000 after=904e4b260c
+DIFF addr=0x1f9d585a0 len=1 region=0x1f9d0c000+312736 prot=0x303 before=00 after=01
+DIFF addr=0x1f9d585a2 len=1 region=0x1f9d0c000+312738 prot=0x303 before=00 after=01
+DIFF addr=0x1f9d585b0 len=3 region=0x1f9d0c000+312752 prot=0x303 before=000000 after=ea8502
+DIFF addr=0x1f9d589c0 len=2 region=0x1f9d0c000+313792 prot=0x303 before=4e5b after=c685
+DIFF addr=0x1f9d59260 len=5 region=0x1f9d0c000+316000 prot=0x303 before=c0d0e6e40a after=c888dc260c
+DIFF addr=0x1f9d594f1 len=4 region=0x1f9d0c000+316657 prot=0x303 before=c5e6e40a after=7ddc260c
+DIFF addr=0x1f9d59e40 len=5 region=0x1f9d0c000+319040 prot=0x303 before=2873fce40a after=78acfd260c
+DIFF addr=0x1f9d59eb0 len=5 region=0x1f9d0c000+319152 prot=0x303 before=b84584fc01 after=1800d3260c
+DIFF addr=0x1f9d59ec0 len=5 region=0x1f9d0c000+319168 prot=0x303 before=7060e7e40a after=201add260c
+DIFF addr=0x1f9d59ec9 len=4 region=0x1f9d0c000+319177 prot=0x303 before=c6e6e40a after=7edc260c
+DIFF addr=0x1f9d59ed0 len=5 region=0x1f9d0c000+319184 prot=0x303 before=10c8e6e40a after=1880dc260c
+DIFF addr=0x1f9d59f68 len=5 region=0x1f9d0c000+319336 prot=0x303 before=905ee7e40a after=4018dd260c
+DIFF addr=0x1f9d5a008 len=5 region=0x1f9d0c000+319496 prot=0x303 before=908fd2e40a after=a8b7db260c
+DIFF addr=0x1f9d5a081 len=4 region=0x1f9d0c000+319617 prot=0x303 before=0ee6e40a after=ccdb260c
+DIFF addr=0x1f9d5a088 len=5 region=0x1f9d0c000+319624 prot=0x303 before=403e84fc01 after=00f8d2260c
+DIFF addr=0x1f9d5c9d1 len=4 region=0x1f9d0c000+330193 prot=0x303 before=0fe6e40a after=cddb260c
+DIFF addr=0x1f9d5cc50 len=5 region=0x1f9d0c000+330832 prot=0x303 before=d84184fc01 after=98fbd2260c
+DIFF addr=0x1f9d5cc68 len=5 region=0x1f9d0c000+330856 prot=0x303 before=884784fc01 after=e801d3260c
+DIFF addr=0x1f9d5d2a0 len=2 region=0x1f9d0c000+332448 prot=0x303 before=d0d0 after=38ca
+DIFF addr=0x1f9d5d2a3 len=2 region=0x1f9d0c000+332451 prot=0x303 before=e40a after=260c
+DIFF addr=0x1f9d5d2d0 len=5 region=0x1f9d0c000+332496 prot=0x303 before=b03be6e40a after=60f3db260c
+DIFF addr=0x1f9d5d2d8 len=5 region=0x1f9d0c000+332504 prot=0x303 before=1840e6e40a after=38f7db260c
+DIFF addr=0x1f9d5dd21 len=4 region=0x1f9d0c000+335137 prot=0x303 before=0de6e40a after=cbdb260c
+DIFF addr=0x1f9d5e1e8 len=5 region=0x1f9d0c000+336360 prot=0x303 before=6857e7e40a after=1811dd260c
+DIFF addr=0x1f9d5e810 len=5 region=0x1f9d0c000+337936 prot=0x303 before=f033e6e40a after=a0ebdb260c
+DIFF addr=0x1f9d5eca0 len=5 region=0x1f9d0c000+339104 prot=0x303 before=c03e84fc01 after=80f8d2260c
+DIFF addr=0x1f9d5edd8 len=5 region=0x1f9d0c000+339416 prot=0x303 before=7886d2e40a after=90aedb260c
+DIFF addr=0x1f9d5ede0 len=5 region=0x1f9d0c000+339424 prot=0x303 before=808ad2e40a after=98b2db260c
+DIFF addr=0x1f9d5ee30 len=5 region=0x1f9d0c000+339504 prot=0x303 before=781be6e40a after=28d3db260c
+DIFF addr=0x1f9d5ef18 len=2 region=0x1f9d0c000+339736 prot=0x303 before=989e after=6832
+DIFF addr=0x1f9d5ef1b len=2 region=0x1f9d0c000+339739 prot=0x303 before=e40a after=260c
+DIFF addr=0x1f9d61060 len=5 region=0x1f9d0c000+348256 prot=0x303 before=d098e7e40a after=8853dd260c
+DIFF addr=0x1f9d6b748 len=2 region=0x1f9d0c000+390984 prot=0x303 before=404d after=800d
+DIFF addr=0x1f9d6b74b len=2 region=0x1f9d0c000+390987 prot=0x303 before=e40a after=260c
+DIFF addr=0x1f9d6b754 len=1 region=0x1f9d0c000+390996 prot=0x303 before=00 after=01
+DIFF addr=0x1f9d6b756 len=1 region=0x1f9d0c000+390998 prot=0x303 before=10 after=00
+DIFF addr=0x1f9d6b768 len=5 region=0x1f9d0c000+391016 prot=0x303 before=989ce7e40a after=5057dd260c
+DIFF addr=0x1f9d6b778 len=2 region=0x1f9d0c000+391032 prot=0x303 before=5a5b after=d285
+DIFF addr=0x1f9d6b7c8 len=2 region=0x1f9d0c000+391112 prot=0x303 before=9049 after=d009
+DIFF addr=0x1f9d6b7cb len=2 region=0x1f9d0c000+391115 prot=0x303 before=e40a after=260c
+DIFF addr=0x1f9d6b7d4 len=1 region=0x1f9d0c000+391124 prot=0x303 before=00 after=01
+DIFF addr=0x1f9d6b7d6 len=1 region=0x1f9d0c000+391126 prot=0x303 before=10 after=00
+DIFF addr=0x1f9d6b7e8 len=5 region=0x1f9d0c000+391144 prot=0x303 before=589ce7e40a after=1057dd260c
+DIFF addr=0x1f9d6b7f8 len=2 region=0x1f9d0c000+391160 prot=0x303 before=5a5b after=d285
+DIFF addr=0x1f9d6b848 len=2 region=0x1f9d0c000+391240 prot=0x303 before=a049 after=e009
+DIFF addr=0x1f9d6b84b len=2 region=0x1f9d0c000+391243 prot=0x303 before=e40a after=260c
+DIFF addr=0x1f9d6b854 len=1 region=0x1f9d0c000+391252 prot=0x303 before=00 after=01
+DIFF addr=0x1f9d6b856 len=1 region=0x1f9d0c000+391254 prot=0x303 before=10 after=00
+DIFF addr=0x1f9d6b868 len=5 region=0x1f9d0c000+391272 prot=0x303 before=089ce7e40a after=c056dd260c
+DIFF addr=0x1f9d6b878 len=2 region=0x1f9d0c000+391288 prot=0x303 before=5a5b after=d285
+DIFF addr=0x1f9d6f198 len=2 region=0x1f9d0c000+405912 prot=0x303 before=204d after=600d
+DIFF addr=0x1f9d6f19b len=2 region=0x1f9d0c000+405915 prot=0x303 before=e40a after=260c
+DIFF addr=0x1f9d6f1a1 len=1 region=0x1f9d0c000+405921 prot=0x303 before=00 after=10
+DIFF addr=0x1f9d6f1a4 len=1 region=0x1f9d0c000+405924 prot=0x303 before=10 after=00
+DIFF addr=0x1f9d6f1b8 len=5 region=0x1f9d0c000+405944 prot=0x303 before=5098e7e40a after=0853dd260c
+DIFF addr=0x1f9d6f1c8 len=2 region=0x1f9d0c000+405960 prot=0x303 before=5a5b after=d285
+DIFF addr=0x1f9d6f218 len=2 region=0x1f9d0c000+406040 prot=0x303 before=104d after=500d
+DIFF addr=0x1f9d6f21b len=2 region=0x1f9d0c000+406043 prot=0x303 before=e40a after=260c
+DIFF addr=0x1f9d6f221 len=1 region=0x1f9d0c000+406049 prot=0x303 before=00 after=10
+DIFF addr=0x1f9d6f224 len=1 region=0x1f9d0c000+406052 prot=0x303 before=10 after=00
+DIFF addr=0x1f9d6f238 len=5 region=0x1f9d0c000+406072 prot=0x303 before=1098e7e40a after=c852dd260c
+DIFF addr=0x1f9d6f298 len=2 region=0x1f9d0c000+406168 prot=0x303 before=304d after=700d
+DIFF addr=0x1f9d6f29b len=2 region=0x1f9d0c000+406171 prot=0x303 before=e40a after=260c
+DIFF addr=0x1f9d6f2a1 len=1 region=0x1f9d0c000+406177 prot=0x303 before=00 after=10
+DIFF addr=0x1f9d6f2a4 len=1 region=0x1f9d0c000+406180 prot=0x303 before=10 after=00
+DIFF addr=0x1f9d6f2b8 len=5 region=0x1f9d0c000+406200 prot=0x303 before=7898e7e40a after=3053dd260c
+DIFF addr=0x1f9d703b0 len=2 region=0x1f9d0c000+410544 prot=0x303 before=80c3 after=50e2
+DIFF addr=0x1f9d703b3 len=2 region=0x1f9d0c000+410547 prot=0x303 before=e40a after=260c
+DIFF addr=0x1f9da9400 len=5 region=0x1f9d0c000+644096 prot=0x303 before=4057e7e40a after=f010dd260c
+DIFF addr=0x1f9da9480 len=5 region=0x1f9d0c000+644224 prot=0x303 before=6857e7e40a after=1811dd260c
+DIFF addr=0x1f9dff5b8 len=2 region=0x1f9d0c000+996792 prot=0x303 before=3e5b after=b685
+DIFF addr=0x1f9dff5c0 len=2 region=0x1f9d0c000+996800 prot=0x303 before=b019 after=a01a
+DIFF addr=0x1f9dff5c3 len=2 region=0x1f9d0c000+996803 prot=0x303 before=e40a after=260c
+DIFF addr=0x1f9e11e80 len=5 region=0x1f9d0c000+1072768 prot=0x303 before=f039eb0001 after=004225270c
+DIFF addr=0x1f9e2a050 len=5 region=0x1f9d0c000+1171536 prot=0x303 before=600f25e50a after=20fdc7260c
+DIFF addr=0x1f9e2a390 len=5 region=0x1f9d0c000+1172368 prot=0x303 before=08b7e7e40a after=c071dd260c
+DIFF addr=0x1f9e2a5b0 len=5 region=0x1f9d0c000+1172912 prot=0x303 before=6002fbe40a after=007ddd260c
+DIFF addr=0x1f9e2a6f8 len=5 region=0x1f9d0c000+1173240 prot=0x303 before=c00f53e50a after=601050270c
+DIFF addr=0x1f9e2a708 len=2 region=0x1f9d0c000+1173256 prot=0x303 before=7052 after=c051
+DIFF addr=0x1f9e2a70b len=2 region=0x1f9d0c000+1173259 prot=0x303 before=e40a after=260c
+DIFF addr=0x1f9e2b750 len=5 region=0x1f9d0c000+1177424 prot=0x303 before=98ece6e40a after=a0a4dc260c
+DIFF addr=0x1f9e2c208 len=5 region=0x1f9d0c000+1180168 prot=0x303 before=e82fe7e40a after=08e9dc260c
+DIFF addr=0x1f9e2c250 len=2 region=0x1f9d0c000+1180240 prot=0x303 before=604f after=f04e
+DIFF addr=0x1f9e2c253 len=2 region=0x1f9d0c000+1180243 prot=0x303 before=e40a after=260c
+DIFF addr=0x1f9e2cb48 len=5 region=0x1f9d0c000+1182536 prot=0x303 before=d090e7e40a after=884bdd260c
+DIFF addr=0x1f9e2ccc8 len=5 region=0x1f9d0c000+1182920 prot=0x303 before=90b5e7e40a after=4870dd260c
+DIFF addr=0x1f9e2ccd0 len=5 region=0x1f9d0c000+1182928 prot=0x303 before=10b5e7e40a after=c86fdd260c
+DIFF addr=0x1f9e2ccd8 len=5 region=0x1f9d0c000+1182936 prot=0x303 before=f8ece6e40a after=00a5dc260c
+DIFF addr=0x1f9e2cdc0 len=5 region=0x1f9d0c000+1183168 prot=0x303 before=786ee6e40a after=f026dc260c
+DIFF addr=0x1f9e2cdd0 len=5 region=0x1f9d0c000+1183184 prot=0x303 before=70ebe6e40a after=78a3dc260c
+DIFF addr=0x1f9e2cde0 len=5 region=0x1f9d0c000+1183200 prot=0x303 before=1063e7e40a after=c01cdd260c
+DIFF addr=0x1f9e2cef8 len=5 region=0x1f9d0c000+1183480 prot=0x303 before=d864e7e40a after=881edd260c
+DIFF addr=0x1f9e2cf58 len=5 region=0x1f9d0c000+1183576 prot=0x303 before=a006e7e40a after=88bedc260c
+DIFF addr=0x1f9e2cf68 len=5 region=0x1f9d0c000+1183592 prot=0x303 before=7831e6e40a after=28e9db260c
+DIFF addr=0x1f9e2cfa0 len=5 region=0x1f9d0c000+1183648 prot=0x303 before=d82fe6e40a after=88e7db260c
+DIFF addr=0x1f9e2cfa8 len=5 region=0x1f9d0c000+1183656 prot=0x303 before=a830e6e40a after=58e8db260c
+DIFF addr=0x1f9e2d4d8 len=5 region=0x1f9d0c000+1184984 prot=0x303 before=a831e7e40a after=c8eadc260c
+DIFF addr=0x1f9e2d4f8 len=5 region=0x1f9d0c000+1185016 prot=0x303 before=a0b64ce40a after=b0d04b260c
+DIFF addr=0x1f9e2d538 len=5 region=0x1f9d0c000+1185080 prot=0x303 before=00ffe6e40a after=08b7dc260c
+DIFF addr=0x1f9e2d540 len=5 region=0x1f9d0c000+1185088 prot=0x303 before=600ce7e40a after=80c5dc260c
+DIFF addr=0x1f9e2d550 len=5 region=0x1f9d0c000+1185104 prot=0x303 before=c8eee6e40a after=d0a6dc260c
+DIFF addr=0x1f9e2d568 len=5 region=0x1f9d0c000+1185128 prot=0x303 before=70a0d2e40a after=d8bcdb260c
+DIFF addr=0x1f9e2d588 len=2 region=0x1f9d0c000+1185160 prot=0x303 before=8870 after=7869
+DIFF addr=0x1f9e2d58b len=2 region=0x1f9d0c000+1185163 prot=0x303 before=e40a after=260c
+DIFF addr=0x1f9e2d590 len=2 region=0x1f9d0c000+1185168 prot=0x303 before=086e after=f866
+DIFF addr=0x1f9e2d593 len=2 region=0x1f9d0c000+1185171 prot=0x303 before=e40a after=260c
+DIFF addr=0x1f9e2d678 len=5 region=0x1f9d0c000+1185400 prot=0x303 before=2079e6e40a after=9831dc260c
+DIFF addr=0x1f9e2dd70 len=5 region=0x1f9d0c000+1187184 prot=0x303 before=4832e6e40a after=f8e9db260c
+DIFF addr=0x1f9e2dd88 len=5 region=0x1f9d0c000+1187208 prot=0x303 before=1037e6e40a after=c0eedb260c
+DIFF addr=0x1f9e2dd90 len=5 region=0x1f9d0c000+1187216 prot=0x303 before=b032e6e40a after=60eadb260c
+DIFF addr=0x1f9e2de18 len=5 region=0x1f9d0c000+1187352 prot=0x303 before=d072e7e40a after=802cdd260c
+DIFF addr=0x1f9e2de28 len=5 region=0x1f9d0c000+1187368 prot=0x303 before=3872fbe40a after=b8abfc260c
+DIFF addr=0x1f9e2de58 len=2 region=0x1f9d0c000+1187416 prot=0x303 before=2056 after=b055
+DIFF addr=0x1f9e2de5b len=2 region=0x1f9d0c000+1187419 prot=0x303 before=e40a after=260c
+DIFF addr=0x1f9e2de60 len=5 region=0x1f9d0c000+1187424 prot=0x303 before=7831e6e40a after=28e9db260c
+DIFF addr=0x1f9e2de68 len=5 region=0x1f9d0c000+1187432 prot=0x303 before=a830e6e40a after=58e8db260c
+DIFF addr=0x1f9e2de70 len=5 region=0x1f9d0c000+1187440 prot=0x303 before=d82fe6e40a after=88e7db260c
+DIFF addr=0x1f9e2de78 len=5 region=0x1f9d0c000+1187448 prot=0x303 before=a8ffe6e40a after=b0b7dc260c
+DIFF addr=0x1f9e2de80 len=5 region=0x1f9d0c000+1187456 prot=0x303 before=e80de7e40a after=08c7dc260c
+DIFF addr=0x1f9e2de88 len=5 region=0x1f9d0c000+1187464 prot=0x303 before=c8eae6e40a after=d0a2dc260c
+DIFF addr=0x1f9e2de90 len=5 region=0x1f9d0c000+1187472 prot=0x303 before=80fee6e40a after=88b6dc260c
+DIFF addr=0x1f9e2eea0 len=5 region=0x1f9d0c000+1191584 prot=0x303 before=a86de6e40a after=2026dc260c
+DIFF addr=0x1f9e2f240 len=5 region=0x1f9d0c000+1192512 prot=0x303 before=6075e6e40a after=d82ddc260c
+DIFF addr=0x1f9e2f360 len=5 region=0x1f9d0c000+1192800 prot=0x303 before=8026e6e40a after=30dedb260c
+DIFF addr=0x1f9e2f4b0 len=5 region=0x1f9d0c000+1193136 prot=0x303 before=401ee6e40a after=f0d5db260c
+DIFF addr=0x1f9e2f9b0 len=5 region=0x1f9d0c000+1194416 prot=0x303 before=40b34ce40a after=50cd4b260c
+DIFF addr=0x1f9e2fcf8 len=5 region=0x1f9d0c000+1195256 prot=0x303 before=00d5e6e40a after=088ddc260c
+DIFF addr=0x1f9e30381 len=4 region=0x1f9d0c000+1196929 prot=0x303 before=c4e6e40a after=7cdc260c
+DIFF addr=0x1f9e30e10 len=2 region=0x1f9d0c000+1199632 prot=0x303 before=886e after=7867
+DIFF addr=0x1f9e30e13 len=2 region=0x1f9d0c000+1199635 prot=0x303 before=e40a after=260c
+DIFF addr=0x1f9e30e18 len=5 region=0x1f9d0c000+1199640 prot=0x303 before=08a3d2e40a after=70bfdb260c
+DIFF addr=0x1f9e31930 len=5 region=0x1f9d0c000+1202480 prot=0x303 before=70b7e7e40a after=2872dd260c
+DIFF addr=0x1f9e31938 len=5 region=0x1f9d0c000+1202488 prot=0x303 before=50b3e7e40a after=086edd260c
+DIFF addr=0x1f9e31948 len=5 region=0x1f9d0c000+1202504 prot=0x303 before=b881d2e40a after=1839d4260c
+DIFF addr=0x1f9e31950 len=5 region=0x1f9d0c000+1202512 prot=0x303 before=3862e7e40a after=e81bdd260c
+DIFF addr=0x1f9e31960 len=5 region=0x1f9d0c000+1202528 prot=0x303 before=d800fbe40a after=787bdd260c
+DIFF addr=0x1f9e319e8 len=5 region=0x1f9d0c000+1202664 prot=0x303 before=08a64ce40a after=18c04b260c
+DIFF addr=0x1f9e31d30 len=5 region=0x1f9d0c000+1203504 prot=0x303 before=00a4d2e40a after=68c0db260c
+DIFF addr=0x1f9e32638 len=5 region=0x1f9d0c000+1205816 prot=0x303 before=a01053e50a after=201150270c
+DIFF addr=0x1f9e326b1 len=4 region=0x1f9d0c000+1205937 prot=0x303 before=f7ebe40a after=b7ed260c
+DIFF addr=0x1f9e327e8 len=2 region=0x1f9d0c000+1206248 prot=0x303 before=2053 after=b052
+DIFF addr=0x1f9e327eb len=2 region=0x1f9d0c000+1206251 prot=0x303 before=e40a after=260c
+DIFF addr=0x1f9e32840 len=5 region=0x1f9d0c000+1206336 prot=0x303 before=c0d5e6e40a after=c88ddc260c
+DIFF addr=0x1f9e329c0 len=5 region=0x1f9d0c000+1206720 prot=0x303 before=b8d9e6e40a after=c091dc260c
+DIFF addr=0x1f9e32a58 len=5 region=0x1f9d0c000+1206872 prot=0x303 before=30ece6e40a after=38a4dc260c
+DIFF addr=0x1f9e32a80 len=5 region=0x1f9d0c000+1206912 prot=0x303 before=40d9e6e40a after=4891dc260c
+DIFF addr=0x1f9e32a90 len=5 region=0x1f9d0c000+1206928 prot=0x303 before=68f1e6e40a after=70a9dc260c
+DIFF addr=0x1f9e32af8 len=5 region=0x1f9d0c000+1207032 prot=0x303 before=70ece6e40a after=78a4dc260c
+DIFF addr=0x1f9e32b08 len=5 region=0x1f9d0c000+1207048 prot=0x303 before=c071e7e40a after=702bdd260c
+DIFF addr=0x1f9e32b10 len=5 region=0x1f9d0c000+1207056 prot=0x303 before=b06ce7e40a after=6026dd260c
+DIFF addr=0x1f9e32b18 len=5 region=0x1f9d0c000+1207064 prot=0x303 before=c8e9e6e40a after=d0a1dc260c
+DIFF addr=0x1f9e32b20 len=5 region=0x1f9d0c000+1207072 prot=0x303 before=10e2e6e40a after=189adc260c
+DIFF addr=0x1f9e32b28 len=5 region=0x1f9d0c000+1207080 prot=0x303 before=50e3e6e40a after=589bdc260c
+DIFF addr=0x1f9e32b30 len=5 region=0x1f9d0c000+1207088 prot=0x303 before=b821e7e40a after=d8dadc260c
+DIFF addr=0x1f9e32c68 len=5 region=0x1f9d0c000+1207400 prot=0x303 before=c0b44ce40a after=d0ce4b260c
+DIFF addr=0x1f9e32c70 len=5 region=0x1f9d0c000+1207408 prot=0x303 before=40b44ce40a after=50ce4b260c
+DIFF addr=0x1f9e32d60 len=5 region=0x1f9d0c000+1207648 prot=0x303 before=30afe7e40a after=e869dd260c
+DIFF addr=0x1f9e32d90 len=5 region=0x1f9d0c000+1207696 prot=0x303 before=c802fbe40a after=687ddd260c
+DIFF addr=0x1f9e32f20 len=5 region=0x1f9d0c000+1208096 prot=0x303 before=60d7e6e40a after=688fdc260c
+DIFF addr=0x1f9e32f30 len=5 region=0x1f9d0c000+1208112 prot=0x303 before=60d8e6e40a after=6890dc260c
+DIFF addr=0x1f9e32f38 len=5 region=0x1f9d0c000+1208120 prot=0x303 before=d091e7e40a after=884cdd260c
+DIFF addr=0x1f9e32f40 len=5 region=0x1f9d0c000+1208128 prot=0x303 before=a092e7e40a after=584ddd260c
+DIFF addr=0x1f9e32f48 len=5 region=0x1f9d0c000+1208136 prot=0x303 before=689be7e40a after=2056dd260c
+DIFF addr=0x1f9e32f50 len=5 region=0x1f9d0c000+1208144 prot=0x303 before=b89be7e40a after=7056dd260c
+DIFF addr=0x1f9e32f58 len=5 region=0x1f9d0c000+1208152 prot=0x303 before=209ce7e40a after=d856dd260c
+DIFF addr=0x1f9e33e20 len=5 region=0x1f9d0c000+1211936 prot=0x303 before=38a2d2e40a after=a0bedb260c
+DIFF addr=0x1f9e344b0 len=5 region=0x1f9d0c000+1213616 prot=0x303 before=f0a94ce40a after=00c44b260c
+REGION_ONLY_IN_BEFORE addr=0xae4800000 size=4194304
+REGION_ONLY_IN_BEFORE addr=0xae4c00000 size=4194304
+REGION_ONLY_IN_BEFORE addr=0xae5000000 size=4194304
+REGION_ONLY_IN_BEFORE addr=0xae5400000 size=4194304
+# total: 830 diff runs, 5610 diff bytes

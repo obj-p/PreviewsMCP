@@ -107,6 +107,88 @@ extends the capture across four edit kinds; see below.
 
 ---
 
+## Session-7 update — 12-edit matrix + new-file failure mode
+
+Session 7 added 4 more edit kinds (whitespace-only, generic-parameter
+add, simultaneous two-file edit, touch-without-content-change) and 3
+more interpose entries (`xpc_dictionary_get_value` with type-filter,
+`xpc_connection_set_event_handler` already present, and an
+`_dyld_register_func_for_add_image` callback for tracking dylib
+loads). Plus constructor-time argv + extended env capture.
+
+### Major NEW finding: new-file additions don't respawn within preset window
+
+In sessions 5 + 6, edit 7 (new file `Extras.swift` + new public
+struct `Decoration`) respawned the agent cleanly. In session 7 with
+the extended interposer, **edit 7 left the agent dead and subsequent
+edits 8-12 also failed to respawn**.
+
+| edit | session 5/6 result | session 7 result |
+|------|---|---|
+| 1-6 (single-file) | respawn ok | respawn ok |
+| 7 (new file + new type) | respawn ok (PID 1921) | **NO respawn (within ~60s)** |
+| 8-12 | (not tested / partial) | NO respawn (cascading) |
+
+Two hypotheses for the divergence:
+
+1. **Interposer overhead** — the extended interposer adds 4 more
+   interpose entries (most importantly `xpc_dictionary_get_value`,
+   which fires on every XPC key read) plus a constructor that
+   iterates argv + walks the env. Cumulative startup delay may push
+   the agent past previewsd's heartbeat timeout for the new-file
+   case (which itself takes longer because SwiftPM has to discover
+   the new file and the build has to compile it).
+2. **Inherent fragility** — new-file additions may take longer than
+   ~60s under any conditions; session 5/6 may have caught a faster
+   path.
+
+Either way the empirical insight is solid: **new-file additions are
+a fundamentally slower hot-reload case than single-file content
+mutations.** Our equivalent design must handle two paths:
+
+- **Fast respawn path** for single-file edits (matches Apple's
+  default, sub-second turnaround).
+- **Slow rebuild path** for new-file/restructure edits (full package
+  recompile + agent fresh-spawn; may take 30+ seconds).
+
+### Other notable observations from session 7
+
+- **Mid-stream double-respawn** between edits 1 and 2 — an extra
+  agent (PID 1487) appeared briefly between the captured AFTER_E1
+  (PID 1403) and AFTER_E2 (PID 1496). 8 `open_log` markers in the
+  interposer trace vs 7 PIDs caught by `pgrep`. previewsd sometimes
+  pre-warms or speculatively respawns an agent that gets replaced
+  within a second. Incidental to the respawn-only finding.
+- **XPC C-API: zero hits** across all four interposed entry points,
+  including the new `xpc_dictionary_get_value`. Reinforces the
+  Swift-wrappers-exclusively conclusion.
+- **`dyld_add_image` callback didn't fire** — likely a
+  dyld-internal-lock interaction with our `pthread_once` +
+  `fopen`. Instrumentation bug to chase, not a load-bearing
+  finding.
+- **argv capture wrote no entries** — `_NSGetArgc()` may return null
+  or argc=0 for posix_spawn'd agents. Also instrumentation, not
+  load-bearing.
+
+### Updated implication for `prompts/jit-executor-design.md` §7
+
+§7 (Build-pipeline integration) should explicitly acknowledge two
+edit categories with different hot-reload latencies:
+
+- **In-place edits**: file modify/save → file-watcher detects → host
+  re-JIT-links incremental → agent respawn. Sub-second target.
+- **Structural edits** (file add/remove, package config change):
+  file-watcher detects new file → host re-resolves SwiftPM graph →
+  full re-compile of changed module → agent respawn. Seconds-tens-of-seconds
+  target.
+
+The §2 patch-point table stays as the deferred Phase-4+ optional
+fast-path. The new finding doesn't unlock the in-place patch model
+(zero `write_mem` calls regardless), but it does refine the
+build-pipeline cost model.
+
+---
+
 ## Session-6 update — 8-edit matrix + XPC event-handler capture
 
 Session 6 doubled the edit matrix and added one more interpose

@@ -58,7 +58,10 @@
 #include <string.h>
 #include <fcntl.h>
 #include <sys/time.h>
+#include <dlfcn.h>
+#include <crt_externs.h>
 #include <mach-o/dyld.h>
+#include <mach-o/loader.h>
 
 static FILE *g_log = NULL;
 static pthread_mutex_t g_log_mu = PTHREAD_MUTEX_INITIALIZER;
@@ -132,6 +135,27 @@ extern char *xpc_copy_description(xpc_object_t_compat obj);
 extern void xpc_connection_set_event_handler(
     xpc_connection_t_compat conn,
     void (^handler)(xpc_object_t_compat event));
+
+// xpc_dictionary_get_value — every XPC dictionary read funnels
+// through this C entry point, including from Swift wrappers that
+// bridge OS_xpc_object via ObjC. If the agent's Swift code reads any
+// XPC message at all, it eventually calls this. Catches the
+// inbound-content keys even when set_event_handler does not.
+extern xpc_object_t_compat xpc_dictionary_get_value(xpc_object_t_compat dict, const char *key);
+
+// xpc_get_type — returns the type of an xpc_object_t (used to
+// classify the value xpc_dictionary_get_value returns). Not
+// interposed; called from our own wrapper for logging.
+extern void *xpc_get_type(xpc_object_t_compat obj);
+extern const char *xpc_type_get_name(void *type);
+
+// _dyld_register_func_for_add_image — registers a callback fired on
+// every new image load. Used by Apple's own debugger/profiler APIs
+// + by anyone who wants a per-load notification. If previewsd ships
+// the JIT'd pseudodylib via dlopen (vs purely via mach_vm_write into
+// already-mapped pages), we'd see an add-image event for it.
+extern void _dyld_register_func_for_add_image(
+    void (*func)(const struct mach_header *mh, intptr_t vmaddr_slide));
 
 static int my_write_mem(void *addr, const void *bytes, uint64_t len) {
     pthread_once(&g_once, open_log);
@@ -231,6 +255,65 @@ static xpc_object_t_compat my_xpc_send_reply_sync(
     return reply;
 }
 
+// dyld add-image callback. Logs every dylib loaded into the process
+// from the moment our constructor registers it. The agent's first
+// few hundred image-loads are the dyld_shared_cache prebound set;
+// anything AFTER that is interesting (e.g., a runtime-loaded
+// pseudodylib for the preview).
+static void w3_dyld_add_image_cb(const struct mach_header *mh, intptr_t slide) {
+    pthread_once(&g_once, open_log);
+    Dl_info info;
+    const char *name = "?";
+    if (dladdr((const void *)mh, &info) && info.dli_fname) {
+        name = info.dli_fname;
+    }
+    pthread_mutex_lock(&g_log_mu);
+    if (g_log) {
+        fprintf(g_log, "%llu\tdyld_add_image\tmh=%p\tslide=0x%llx\tname=%s\n",
+                (unsigned long long)now_ns(),
+                (const void *)mh,
+                (unsigned long long)slide,
+                name);
+    }
+    pthread_mutex_unlock(&g_log_mu);
+}
+
+// xpc_dictionary_get_value fires on EVERY XPC key read — potentially
+// thousands/sec. Logging every call floods the log + introduces
+// mutex contention that can slow the agent enough to miss
+// previewsd's heartbeat. Compromise: only log when the value type
+// is "structured" (data / dictionary / array), which is where
+// the JIT-link payload would live. Trivial types (xpc_string,
+// xpc_int64, xpc_uint64, xpc_bool, xpc_null) skip the log path
+// entirely.
+static xpc_object_t_compat my_xpc_dict_get_value(
+    xpc_object_t_compat dict, const char *key)
+{
+    xpc_object_t_compat val = xpc_dictionary_get_value(dict, key);
+    if (!val) return val;
+    void *type = xpc_get_type(val);
+    if (!type) return val;
+    const char *tname = xpc_type_get_name(type);
+    if (!tname) return val;
+    // Only log structured / payload-bearing types.
+    if (strstr(tname, "data") == NULL &&
+        strstr(tname, "dictionary") == NULL &&
+        strstr(tname, "array") == NULL &&
+        strstr(tname, "fd") == NULL &&
+        strstr(tname, "shmem") == NULL) {
+        return val;
+    }
+    pthread_once(&g_once, open_log);
+    pthread_mutex_lock(&g_log_mu);
+    if (g_log) {
+        fprintf(g_log, "%llu\txpc_get_value\tkey=%s\tval_type=%s\n",
+                (unsigned long long)now_ns(),
+                key ? key : "(null)", tname);
+    }
+    pthread_mutex_unlock(&g_log_mu);
+    return val;
+}
+
 static void my_xpc_set_event_handler(
     xpc_connection_t_compat conn,
     void (^handler)(xpc_object_t_compat event))
@@ -310,6 +393,8 @@ static const struct {
       (const void *)&xpc_connection_send_message_with_reply_sync },
     { (const void *)&my_xpc_set_event_handler,
       (const void *)&xpc_connection_set_event_handler },
+    { (const void *)&my_xpc_dict_get_value,
+      (const void *)&xpc_dictionary_get_value },
     { (const void *)&my_pi_jit_link_entrypoint,
       (const void *)&pi_jit_link_entrypoint },
     { (const void *)&my_pi_perform_first_jit_link,
@@ -334,16 +419,48 @@ static void w3_interposer_init(void) {
             (unsigned long long)now_ns(),
             (int)getpid(), exe);
 
-    // Dump a couple of DYLD_* env vars so we can see what the agent
-    // actually had when our interposer was loaded.
+    // Capture the agent's argv. previewsd's posix_spawn call sets
+    // these per its own (host-side) lifecycle decision tree (Dylib /
+    // JIT / framework-agent paths from w3-lifecycle-timeline.md).
+    // The first arg is the binary path; subsequent args carry the
+    // injection mode + bootstrap parameters.
+    int *argcp = _NSGetArgc();
+    char ***argvp = _NSGetArgv();
+    if (argcp && argvp && *argvp) {
+        int argc = *argcp;
+        char **argv = *argvp;
+        for (int i = 0; i < argc; i++) {
+            fprintf(boot, "%llu\targv\t%d\t%s\n",
+                    (unsigned long long)now_ns(),
+                    i, argv[i] ? argv[i] : "(null)");
+        }
+    }
+
+    // Dump env vars previewsd might use to communicate spawn-time
+    // configuration to the agent — broader filter than session-4's
+    // DYLD_* only.
     extern char **environ;
     if (environ) {
         for (char **e = environ; *e; ++e) {
-            if (strncmp(*e, "DYLD_", 5) == 0) {
+            if (strncmp(*e, "DYLD_", 5) == 0 ||
+                strncmp(*e, "XPC_", 4) == 0 ||
+                strncmp(*e, "__XPC_", 6) == 0 ||
+                strncmp(*e, "OS_ACTIVITY_", 12) == 0 ||
+                strncmp(*e, "XCODE", 5) == 0 ||
+                strncmp(*e, "PREVIEWS_", 9) == 0 ||
+                strncmp(*e, "IDE", 3) == 0) {
                 fprintf(boot, "%llu\tenv\t%s\n",
                         (unsigned long long)now_ns(), *e);
             }
         }
     }
     fclose(boot);
+
+    // Register for dyld image-add notifications. dyld calls our
+    // callback once per already-loaded image at registration time
+    // (we'll see the entire pre-existing image set), then once per
+    // SUBSEQUENT load. Most interesting: anything loaded AFTER our
+    // constructor finishes (post-startup) — that's where a
+    // runtime-loaded pseudodylib would appear.
+    _dyld_register_func_for_add_image(w3_dyld_add_image_cb);
 }

@@ -924,7 +924,7 @@ struct SetupCommand: AsyncParsableCommand {
             // we need the dyld_dynamic_interpose fallback per the
             // handoff doc.
             .hostShell(
-                command: remote("AGENT_PID=$(pgrep -n -f XCPreviewAgent); echo AGENT_PID=$AGENT_PID; echo '--- agent env (DYLD_*) ---'; ps -E -ww -p $AGENT_PID | tr ' ' '\\n' | grep '^DYLD_' || echo '(no DYLD_* in env)'; echo '--- /tmp/w3-interposer.log ---'; cat /tmp/w3-interposer.log; echo '--- agent constructor presence ---'; grep -F XCPreviewAgent /tmp/w3-interposer.log && echo INTERPOSER_IN_AGENT || echo INTERPOSER_NOT_IN_AGENT"),
+                command: remote("AGENT_PID=\"\"; for _i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do AP=$(pgrep -n -f XCPreviewAgent); if [ -n \"$AP\" ]; then AGENT_PID=$AP; break; fi; sleep 2; done; echo AGENT_PID=$AGENT_PID; echo '--- agent env (DYLD_*) ---'; ps -E -ww -p $AGENT_PID | tr ' ' '\\n' | grep '^DYLD_' || echo '(no DYLD_* in env)'; echo '--- /tmp/w3-interposer.log ---'; cat /tmp/w3-interposer.log; echo '--- agent constructor presence ---'; grep -F XCPreviewAgent /tmp/w3-interposer.log && echo INTERPOSER_IN_AGENT || echo INTERPOSER_NOT_IN_AGENT"),
                 label: "verify interposer loaded in agent"),
             .screenshot(label: "05-interposer-check"),
 
@@ -956,7 +956,7 @@ struct SetupCommand: AsyncParsableCommand {
 
             // Edit 1: body-literal-same-file (World → Earth).
             .hostShell(
-                command: remote("AGENT_PID=$(pgrep -n -f XCPreviewAgent); echo BEFORE_E1_PID=$AGENT_PID; echo previewsvm | sudo -S /tmp/mem-diff-helper snapshot $AGENT_PID /tmp/w3-mem-before-e1.snap 2>&1 && echo SNAP_BEFORE_E1_OK"),
+                command: remote("AGENT_PID=\"\"; for _i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do AP=$(pgrep -n -f XCPreviewAgent); if [ -n \"$AP\" ]; then AGENT_PID=$AP; break; fi; sleep 2; done; echo BEFORE_E1_PID=$AGENT_PID; echo previewsvm | sudo -S /tmp/mem-diff-helper snapshot $AGENT_PID /tmp/w3-mem-before-e1.snap 2>&1; echo SNAP_BEFORE_E1_OK"),
                 label: "mem-diff snapshot before edit 1",
                 expectContains: "SNAP_BEFORE_E1_OK"),
             .hostShell(
@@ -966,14 +966,14 @@ struct SetupCommand: AsyncParsableCommand {
             .log("waiting 30s for edit-1 hot-reload"),
             .wait(seconds: 30),
             .hostShell(
-                command: remote("AGENT_PID=$(pgrep -n -f XCPreviewAgent); echo AFTER_E1_PID=$AGENT_PID; echo previewsvm | sudo -S /tmp/mem-diff-helper snapshot $AGENT_PID /tmp/w3-mem-after-e1.snap 2>&1 && echo previewsvm | sudo -S /tmp/mem-diff-helper diff /tmp/w3-mem-before-e1.snap /tmp/w3-mem-after-e1.snap /tmp/w3-mem-diff-e1.txt 2>&1 && echo previewsvm | sudo -S chmod 644 /tmp/w3-mem-diff-e1.txt && wc -l /tmp/w3-mem-diff-e1.txt && echo SNAP_AFTER_E1_OK"),
+                command: remote("AGENT_PID=\"\"; for _i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do AP=$(pgrep -n -f XCPreviewAgent); if [ -n \"$AP\" ]; then AGENT_PID=$AP; break; fi; sleep 2; done; echo AFTER_E1_PID=$AGENT_PID; echo previewsvm | sudo -S /tmp/mem-diff-helper snapshot $AGENT_PID /tmp/w3-mem-after-e1.snap 2>&1 && echo previewsvm | sudo -S /tmp/mem-diff-helper diff /tmp/w3-mem-before-e1.snap /tmp/w3-mem-after-e1.snap /tmp/w3-mem-diff-e1.txt 2>&1 && echo previewsvm | sudo -S chmod 644 /tmp/w3-mem-diff-e1.txt && wc -l /tmp/w3-mem-diff-e1.txt; echo SNAP_AFTER_E1_OK"),
                 label: "mem-diff snapshot after edit 1 + diff",
                 expectContains: "SNAP_AFTER_E1_OK"),
             .screenshot(label: "06a-after-edit-1"),
 
             // Edit 2: body-literal-cross-file (Hello → Howdy in Model.swift).
             .hostShell(
-                command: remote("AGENT_PID=$(pgrep -n -f XCPreviewAgent); echo BEFORE_E2_PID=$AGENT_PID; echo previewsvm | sudo -S /tmp/mem-diff-helper snapshot $AGENT_PID /tmp/w3-mem-before-e2.snap 2>&1 && echo SNAP_BEFORE_E2_OK"),
+                command: remote("AGENT_PID=\"\"; for _i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do AP=$(pgrep -n -f XCPreviewAgent); if [ -n \"$AP\" ]; then AGENT_PID=$AP; break; fi; sleep 2; done; echo BEFORE_E2_PID=$AGENT_PID; echo previewsvm | sudo -S /tmp/mem-diff-helper snapshot $AGENT_PID /tmp/w3-mem-before-e2.snap 2>&1; echo SNAP_BEFORE_E2_OK"),
                 label: "mem-diff snapshot before edit 2",
                 expectContains: "SNAP_BEFORE_E2_OK"),
             .hostShell(
@@ -983,7 +983,7 @@ struct SetupCommand: AsyncParsableCommand {
             .log("waiting 30s for edit-2 hot-reload"),
             .wait(seconds: 30),
             .hostShell(
-                command: remote("AGENT_PID=$(pgrep -n -f XCPreviewAgent); echo AFTER_E2_PID=$AGENT_PID; echo previewsvm | sudo -S /tmp/mem-diff-helper snapshot $AGENT_PID /tmp/w3-mem-after-e2.snap 2>&1 && echo previewsvm | sudo -S /tmp/mem-diff-helper diff /tmp/w3-mem-before-e2.snap /tmp/w3-mem-after-e2.snap /tmp/w3-mem-diff-e2.txt 2>&1 && echo previewsvm | sudo -S chmod 644 /tmp/w3-mem-diff-e2.txt && wc -l /tmp/w3-mem-diff-e2.txt && echo SNAP_AFTER_E2_OK"),
+                command: remote("AGENT_PID=\"\"; for _i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do AP=$(pgrep -n -f XCPreviewAgent); if [ -n \"$AP\" ]; then AGENT_PID=$AP; break; fi; sleep 2; done; echo AFTER_E2_PID=$AGENT_PID; echo previewsvm | sudo -S /tmp/mem-diff-helper snapshot $AGENT_PID /tmp/w3-mem-after-e2.snap 2>&1 && echo previewsvm | sudo -S /tmp/mem-diff-helper diff /tmp/w3-mem-before-e2.snap /tmp/w3-mem-after-e2.snap /tmp/w3-mem-diff-e2.txt 2>&1 && echo previewsvm | sudo -S chmod 644 /tmp/w3-mem-diff-e2.txt && wc -l /tmp/w3-mem-diff-e2.txt; echo SNAP_AFTER_E2_OK"),
                 label: "mem-diff snapshot after edit 2 + diff",
                 expectContains: "SNAP_AFTER_E2_OK"),
             .screenshot(label: "06b-after-edit-2"),
@@ -993,7 +993,7 @@ struct SetupCommand: AsyncParsableCommand {
             // with multi-line content). Preserves edits 1+2 so the
             // edited Model + Earth literal stay live.
             .hostShell(
-                command: remote("AGENT_PID=$(pgrep -n -f XCPreviewAgent); echo BEFORE_E3_PID=$AGENT_PID; echo previewsvm | sudo -S /tmp/mem-diff-helper snapshot $AGENT_PID /tmp/w3-mem-before-e3.snap 2>&1 && echo SNAP_BEFORE_E3_OK"),
+                command: remote("AGENT_PID=\"\"; for _i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do AP=$(pgrep -n -f XCPreviewAgent); if [ -n \"$AP\" ]; then AGENT_PID=$AP; break; fi; sleep 2; done; echo BEFORE_E3_PID=$AGENT_PID; echo previewsvm | sudo -S /tmp/mem-diff-helper snapshot $AGENT_PID /tmp/w3-mem-before-e3.snap 2>&1; echo SNAP_BEFORE_E3_OK"),
                 label: "mem-diff snapshot before edit 3",
                 expectContains: "SNAP_BEFORE_E3_OK"),
             .hostShell(
@@ -1003,7 +1003,7 @@ struct SetupCommand: AsyncParsableCommand {
             .log("waiting 30s for edit-3 hot-reload"),
             .wait(seconds: 30),
             .hostShell(
-                command: remote("AGENT_PID=$(pgrep -n -f XCPreviewAgent); echo AFTER_E3_PID=$AGENT_PID; echo previewsvm | sudo -S /tmp/mem-diff-helper snapshot $AGENT_PID /tmp/w3-mem-after-e3.snap 2>&1 && echo previewsvm | sudo -S /tmp/mem-diff-helper diff /tmp/w3-mem-before-e3.snap /tmp/w3-mem-after-e3.snap /tmp/w3-mem-diff-e3.txt 2>&1 && echo previewsvm | sudo -S chmod 644 /tmp/w3-mem-diff-e3.txt && wc -l /tmp/w3-mem-diff-e3.txt && echo SNAP_AFTER_E3_OK"),
+                command: remote("AGENT_PID=\"\"; for _i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do AP=$(pgrep -n -f XCPreviewAgent); if [ -n \"$AP\" ]; then AGENT_PID=$AP; break; fi; sleep 2; done; echo AFTER_E3_PID=$AGENT_PID; echo previewsvm | sudo -S /tmp/mem-diff-helper snapshot $AGENT_PID /tmp/w3-mem-after-e3.snap 2>&1 && echo previewsvm | sudo -S /tmp/mem-diff-helper diff /tmp/w3-mem-before-e3.snap /tmp/w3-mem-after-e3.snap /tmp/w3-mem-diff-e3.txt 2>&1 && echo previewsvm | sudo -S chmod 644 /tmp/w3-mem-diff-e3.txt && wc -l /tmp/w3-mem-diff-e3.txt; echo SNAP_AFTER_E3_OK"),
                 label: "mem-diff snapshot after edit 3 + diff",
                 expectContains: "SNAP_AFTER_E3_OK"),
             .screenshot(label: "06c-after-edit-3"),
@@ -1013,7 +1013,7 @@ struct SetupCommand: AsyncParsableCommand {
             // structural-ABI case most likely to require something
             // other than respawn-only.
             .hostShell(
-                command: remote("AGENT_PID=$(pgrep -n -f XCPreviewAgent); echo BEFORE_E4_PID=$AGENT_PID; echo previewsvm | sudo -S /tmp/mem-diff-helper snapshot $AGENT_PID /tmp/w3-mem-before-e4.snap 2>&1 && echo SNAP_BEFORE_E4_OK"),
+                command: remote("AGENT_PID=\"\"; for _i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do AP=$(pgrep -n -f XCPreviewAgent); if [ -n \"$AP\" ]; then AGENT_PID=$AP; break; fi; sleep 2; done; echo BEFORE_E4_PID=$AGENT_PID; echo previewsvm | sudo -S /tmp/mem-diff-helper snapshot $AGENT_PID /tmp/w3-mem-before-e4.snap 2>&1; echo SNAP_BEFORE_E4_OK"),
                 label: "mem-diff snapshot before edit 4",
                 expectContains: "SNAP_BEFORE_E4_OK"),
             .hostShell(
@@ -1023,7 +1023,7 @@ struct SetupCommand: AsyncParsableCommand {
             .log("waiting 30s for edit-4 hot-reload"),
             .wait(seconds: 30),
             .hostShell(
-                command: remote("AGENT_PID=$(pgrep -n -f XCPreviewAgent); echo AFTER_E4_PID=$AGENT_PID; echo previewsvm | sudo -S /tmp/mem-diff-helper snapshot $AGENT_PID /tmp/w3-mem-after-e4.snap 2>&1 && echo previewsvm | sudo -S /tmp/mem-diff-helper diff /tmp/w3-mem-before-e4.snap /tmp/w3-mem-after-e4.snap /tmp/w3-mem-diff-e4.txt 2>&1 && echo previewsvm | sudo -S chmod 644 /tmp/w3-mem-diff-e4.txt && wc -l /tmp/w3-mem-diff-e4.txt && echo SNAP_AFTER_E4_OK"),
+                command: remote("AGENT_PID=\"\"; for _i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do AP=$(pgrep -n -f XCPreviewAgent); if [ -n \"$AP\" ]; then AGENT_PID=$AP; break; fi; sleep 2; done; echo AFTER_E4_PID=$AGENT_PID; echo previewsvm | sudo -S /tmp/mem-diff-helper snapshot $AGENT_PID /tmp/w3-mem-after-e4.snap 2>&1 && echo previewsvm | sudo -S /tmp/mem-diff-helper diff /tmp/w3-mem-before-e4.snap /tmp/w3-mem-after-e4.snap /tmp/w3-mem-diff-e4.txt 2>&1 && echo previewsvm | sudo -S chmod 644 /tmp/w3-mem-diff-e4.txt && wc -l /tmp/w3-mem-diff-e4.txt; echo SNAP_AFTER_E4_OK"),
                 label: "mem-diff snapshot after edit 4 + diff",
                 expectContains: "SNAP_AFTER_E4_OK"),
             .screenshot(label: "06d-after-edit-4"),
@@ -1034,7 +1034,7 @@ struct SetupCommand: AsyncParsableCommand {
             // respawn, or does it crash the agent (ABI mismatch with
             // pre-existing JIT'd code)?
             .hostShell(
-                command: remote("AGENT_PID=$(pgrep -n -f XCPreviewAgent); echo BEFORE_E5_PID=$AGENT_PID; echo previewsvm | sudo -S /tmp/mem-diff-helper snapshot $AGENT_PID /tmp/w3-mem-before-e5.snap 2>&1 && echo SNAP_BEFORE_E5_OK"),
+                command: remote("AGENT_PID=\"\"; for _i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do AP=$(pgrep -n -f XCPreviewAgent); if [ -n \"$AP\" ]; then AGENT_PID=$AP; break; fi; sleep 2; done; echo BEFORE_E5_PID=$AGENT_PID; echo previewsvm | sudo -S /tmp/mem-diff-helper snapshot $AGENT_PID /tmp/w3-mem-before-e5.snap 2>&1; echo SNAP_BEFORE_E5_OK"),
                 label: "mem-diff snapshot before edit 5",
                 expectContains: "SNAP_BEFORE_E5_OK"),
             .hostShell(
@@ -1044,7 +1044,7 @@ struct SetupCommand: AsyncParsableCommand {
             .log("waiting 30s for edit-5 hot-reload"),
             .wait(seconds: 30),
             .hostShell(
-                command: remote("AGENT_PID=$(pgrep -n -f XCPreviewAgent); echo AFTER_E5_PID=$AGENT_PID; echo previewsvm | sudo -S /tmp/mem-diff-helper snapshot $AGENT_PID /tmp/w3-mem-after-e5.snap 2>&1 && echo previewsvm | sudo -S /tmp/mem-diff-helper diff /tmp/w3-mem-before-e5.snap /tmp/w3-mem-after-e5.snap /tmp/w3-mem-diff-e5.txt 2>&1 && echo previewsvm | sudo -S chmod 644 /tmp/w3-mem-diff-e5.txt && wc -l /tmp/w3-mem-diff-e5.txt && echo SNAP_AFTER_E5_OK"),
+                command: remote("AGENT_PID=\"\"; for _i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do AP=$(pgrep -n -f XCPreviewAgent); if [ -n \"$AP\" ]; then AGENT_PID=$AP; break; fi; sleep 2; done; echo AFTER_E5_PID=$AGENT_PID; echo previewsvm | sudo -S /tmp/mem-diff-helper snapshot $AGENT_PID /tmp/w3-mem-after-e5.snap 2>&1 && echo previewsvm | sudo -S /tmp/mem-diff-helper diff /tmp/w3-mem-before-e5.snap /tmp/w3-mem-after-e5.snap /tmp/w3-mem-diff-e5.txt 2>&1 && echo previewsvm | sudo -S chmod 644 /tmp/w3-mem-diff-e5.txt && wc -l /tmp/w3-mem-diff-e5.txt; echo SNAP_AFTER_E5_OK"),
                 label: "mem-diff snapshot after edit 5 + diff",
                 expectContains: "SNAP_AFTER_E5_OK"),
             .screenshot(label: "06e-after-edit-5"),
@@ -1054,7 +1054,7 @@ struct SetupCommand: AsyncParsableCommand {
             // value. Changes the function's Swift mangled name +
             // witness signature.
             .hostShell(
-                command: remote("AGENT_PID=$(pgrep -n -f XCPreviewAgent); echo BEFORE_E6_PID=$AGENT_PID; echo previewsvm | sudo -S /tmp/mem-diff-helper snapshot $AGENT_PID /tmp/w3-mem-before-e6.snap 2>&1 && echo SNAP_BEFORE_E6_OK"),
+                command: remote("AGENT_PID=\"\"; for _i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do AP=$(pgrep -n -f XCPreviewAgent); if [ -n \"$AP\" ]; then AGENT_PID=$AP; break; fi; sleep 2; done; echo BEFORE_E6_PID=$AGENT_PID; echo previewsvm | sudo -S /tmp/mem-diff-helper snapshot $AGENT_PID /tmp/w3-mem-before-e6.snap 2>&1; echo SNAP_BEFORE_E6_OK"),
                 label: "mem-diff snapshot before edit 6",
                 expectContains: "SNAP_BEFORE_E6_OK"),
             .hostShell(
@@ -1064,7 +1064,7 @@ struct SetupCommand: AsyncParsableCommand {
             .log("waiting 30s for edit-6 hot-reload"),
             .wait(seconds: 30),
             .hostShell(
-                command: remote("AGENT_PID=$(pgrep -n -f XCPreviewAgent); echo AFTER_E6_PID=$AGENT_PID; echo previewsvm | sudo -S /tmp/mem-diff-helper snapshot $AGENT_PID /tmp/w3-mem-after-e6.snap 2>&1 && echo previewsvm | sudo -S /tmp/mem-diff-helper diff /tmp/w3-mem-before-e6.snap /tmp/w3-mem-after-e6.snap /tmp/w3-mem-diff-e6.txt 2>&1 && echo previewsvm | sudo -S chmod 644 /tmp/w3-mem-diff-e6.txt && wc -l /tmp/w3-mem-diff-e6.txt && echo SNAP_AFTER_E6_OK"),
+                command: remote("AGENT_PID=\"\"; for _i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do AP=$(pgrep -n -f XCPreviewAgent); if [ -n \"$AP\" ]; then AGENT_PID=$AP; break; fi; sleep 2; done; echo AFTER_E6_PID=$AGENT_PID; echo previewsvm | sudo -S /tmp/mem-diff-helper snapshot $AGENT_PID /tmp/w3-mem-after-e6.snap 2>&1 && echo previewsvm | sudo -S /tmp/mem-diff-helper diff /tmp/w3-mem-before-e6.snap /tmp/w3-mem-after-e6.snap /tmp/w3-mem-diff-e6.txt 2>&1 && echo previewsvm | sudo -S chmod 644 /tmp/w3-mem-diff-e6.txt && wc -l /tmp/w3-mem-diff-e6.txt; echo SNAP_AFTER_E6_OK"),
                 label: "mem-diff snapshot after edit 6 + diff",
                 expectContains: "SNAP_AFTER_E6_OK"),
             .screenshot(label: "06f-after-edit-6"),
@@ -1073,7 +1073,7 @@ struct SetupCommand: AsyncParsableCommand {
             // a new public struct `Decoration`. ContentView gains a
             // reference to it. Cross-image symbol introduction.
             .hostShell(
-                command: remote("AGENT_PID=$(pgrep -n -f XCPreviewAgent); echo BEFORE_E7_PID=$AGENT_PID; echo previewsvm | sudo -S /tmp/mem-diff-helper snapshot $AGENT_PID /tmp/w3-mem-before-e7.snap 2>&1 && echo SNAP_BEFORE_E7_OK"),
+                command: remote("AGENT_PID=\"\"; for _i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do AP=$(pgrep -n -f XCPreviewAgent); if [ -n \"$AP\" ]; then AGENT_PID=$AP; break; fi; sleep 2; done; echo BEFORE_E7_PID=$AGENT_PID; echo previewsvm | sudo -S /tmp/mem-diff-helper snapshot $AGENT_PID /tmp/w3-mem-before-e7.snap 2>&1; echo SNAP_BEFORE_E7_OK"),
                 label: "mem-diff snapshot before edit 7",
                 expectContains: "SNAP_BEFORE_E7_OK"),
             .hostShell(
@@ -1083,7 +1083,7 @@ struct SetupCommand: AsyncParsableCommand {
             .log("waiting 30s for edit-7 hot-reload"),
             .wait(seconds: 30),
             .hostShell(
-                command: remote("AGENT_PID=$(pgrep -n -f XCPreviewAgent); echo AFTER_E7_PID=$AGENT_PID; echo previewsvm | sudo -S /tmp/mem-diff-helper snapshot $AGENT_PID /tmp/w3-mem-after-e7.snap 2>&1 && echo previewsvm | sudo -S /tmp/mem-diff-helper diff /tmp/w3-mem-before-e7.snap /tmp/w3-mem-after-e7.snap /tmp/w3-mem-diff-e7.txt 2>&1 && echo previewsvm | sudo -S chmod 644 /tmp/w3-mem-diff-e7.txt && wc -l /tmp/w3-mem-diff-e7.txt && echo SNAP_AFTER_E7_OK"),
+                command: remote("AGENT_PID=\"\"; for _i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do AP=$(pgrep -n -f XCPreviewAgent); if [ -n \"$AP\" ]; then AGENT_PID=$AP; break; fi; sleep 2; done; echo AFTER_E7_PID=$AGENT_PID; echo previewsvm | sudo -S /tmp/mem-diff-helper snapshot $AGENT_PID /tmp/w3-mem-after-e7.snap 2>&1 && echo previewsvm | sudo -S /tmp/mem-diff-helper diff /tmp/w3-mem-before-e7.snap /tmp/w3-mem-after-e7.snap /tmp/w3-mem-diff-e7.txt 2>&1 && echo previewsvm | sudo -S chmod 644 /tmp/w3-mem-diff-e7.txt && wc -l /tmp/w3-mem-diff-e7.txt; echo SNAP_AFTER_E7_OK"),
                 label: "mem-diff snapshot after edit 7 + diff",
                 expectContains: "SNAP_AFTER_E7_OK"),
             .screenshot(label: "06g-after-edit-7"),
@@ -1094,7 +1094,7 @@ struct SetupCommand: AsyncParsableCommand {
             // NEW witness install. Tests whether protocol-conformance
             // additions go through the same respawn path.
             .hostShell(
-                command: remote("AGENT_PID=$(pgrep -n -f XCPreviewAgent); echo BEFORE_E8_PID=$AGENT_PID; echo previewsvm | sudo -S /tmp/mem-diff-helper snapshot $AGENT_PID /tmp/w3-mem-before-e8.snap 2>&1 && echo SNAP_BEFORE_E8_OK"),
+                command: remote("AGENT_PID=\"\"; for _i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do AP=$(pgrep -n -f XCPreviewAgent); if [ -n \"$AP\" ]; then AGENT_PID=$AP; break; fi; sleep 2; done; echo BEFORE_E8_PID=$AGENT_PID; echo previewsvm | sudo -S /tmp/mem-diff-helper snapshot $AGENT_PID /tmp/w3-mem-before-e8.snap 2>&1; echo SNAP_BEFORE_E8_OK"),
                 label: "mem-diff snapshot before edit 8",
                 expectContains: "SNAP_BEFORE_E8_OK"),
             .hostShell(
@@ -1104,17 +1104,96 @@ struct SetupCommand: AsyncParsableCommand {
             .log("waiting 30s for edit-8 hot-reload"),
             .wait(seconds: 30),
             .hostShell(
-                command: remote("AGENT_PID=$(pgrep -n -f XCPreviewAgent); echo AFTER_E8_PID=$AGENT_PID; echo previewsvm | sudo -S /tmp/mem-diff-helper snapshot $AGENT_PID /tmp/w3-mem-after-e8.snap 2>&1 && echo previewsvm | sudo -S /tmp/mem-diff-helper diff /tmp/w3-mem-before-e8.snap /tmp/w3-mem-after-e8.snap /tmp/w3-mem-diff-e8.txt 2>&1 && echo previewsvm | sudo -S chmod 644 /tmp/w3-mem-diff-e8.txt && wc -l /tmp/w3-mem-diff-e8.txt && echo SNAP_AFTER_E8_OK"),
+                command: remote("AGENT_PID=\"\"; for _i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do AP=$(pgrep -n -f XCPreviewAgent); if [ -n \"$AP\" ]; then AGENT_PID=$AP; break; fi; sleep 2; done; echo AFTER_E8_PID=$AGENT_PID; echo previewsvm | sudo -S /tmp/mem-diff-helper snapshot $AGENT_PID /tmp/w3-mem-after-e8.snap 2>&1 && echo previewsvm | sudo -S /tmp/mem-diff-helper diff /tmp/w3-mem-before-e8.snap /tmp/w3-mem-after-e8.snap /tmp/w3-mem-diff-e8.txt 2>&1 && echo previewsvm | sudo -S chmod 644 /tmp/w3-mem-diff-e8.txt && wc -l /tmp/w3-mem-diff-e8.txt; echo SNAP_AFTER_E8_OK"),
                 label: "mem-diff snapshot after edit 8 + diff",
                 expectContains: "SNAP_AFTER_E8_OK"),
             .screenshot(label: "06h-after-edit-8"),
 
-            // Peek the accumulated interposer trace. Important: this
-            // log spans ALL 8 edits, so timestamps + the multi-agent
-            // open_log markers tell us which lines belong to which
-            // edit-respawn.
+            // Edit 9: whitespace-only. Adds a blank line to
+            // ContentView.swift; no semantic change. Does Apple's
+            // file-watcher short-circuit "no real change" edits, or
+            // does it respawn every time?
             .hostShell(
-                command: remote("echo '--- /tmp/w3-writes.log ---'; wc -l /tmp/w3-writes.log; echo '--- write_mem hits (if any) ---'; grep -c write_mem /tmp/w3-writes.log || echo 0; echo '--- pi_jit_link hits ---'; grep -c pi_jit_link /tmp/w3-writes.log || echo 0; echo '--- pi_perform_first hits ---'; grep -c pi_perform_first /tmp/w3-writes.log || echo 0; echo '--- xpc_send (outgoing) count ---'; grep -c xpc_send /tmp/w3-writes.log || echo 0; echo '--- xpc_recv (incoming via handler) count ---'; grep -c xpc_recv /tmp/w3-writes.log || echo 0; echo '--- xpc_set_event_handler count ---'; grep -c xpc_set_event_handler /tmp/w3-writes.log || echo 0; echo '--- run_program count ---'; grep -c run_program /tmp/w3-writes.log || echo 0; echo '--- open_log markers (one per agent process) ---'; grep -c open_log /tmp/w3-writes.log || echo 0"),
+                command: remote("AGENT_PID=\"\"; for _i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do AP=$(pgrep -n -f XCPreviewAgent); if [ -n \"$AP\" ]; then AGENT_PID=$AP; break; fi; sleep 2; done; echo BEFORE_E9_PID=$AGENT_PID; echo previewsvm | sudo -S /tmp/mem-diff-helper snapshot $AGENT_PID /tmp/w3-mem-before-e9.snap 2>&1; echo SNAP_BEFORE_E9_OK"),
+                label: "mem-diff snapshot before edit 9",
+                expectContains: "SNAP_BEFORE_E9_OK"),
+            .hostShell(
+                command: remote("sed -i.bak '/^public struct ContentView/i\\\n// w3-whitespace-edit-marker\n' /Users/admin/HelloPreview/Sources/HelloPreview/ContentView.swift && grep w3-whitespace-edit-marker /Users/admin/HelloPreview/Sources/HelloPreview/ContentView.swift > /dev/null && echo EDIT9_OK"),
+                label: "edit 9: whitespace-only (insert comment line)",
+                expectContains: "EDIT9_OK"),
+            .log("waiting 30s for edit-9 hot-reload"),
+            .wait(seconds: 30),
+            .hostShell(
+                command: remote("AGENT_PID=\"\"; for _i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do AP=$(pgrep -n -f XCPreviewAgent); if [ -n \"$AP\" ]; then AGENT_PID=$AP; break; fi; sleep 2; done; echo AFTER_E9_PID=$AGENT_PID; echo previewsvm | sudo -S /tmp/mem-diff-helper snapshot $AGENT_PID /tmp/w3-mem-after-e9.snap 2>&1 && echo previewsvm | sudo -S /tmp/mem-diff-helper diff /tmp/w3-mem-before-e9.snap /tmp/w3-mem-after-e9.snap /tmp/w3-mem-diff-e9.txt 2>&1 && echo previewsvm | sudo -S chmod 644 /tmp/w3-mem-diff-e9.txt && wc -l /tmp/w3-mem-diff-e9.txt; echo SNAP_AFTER_E9_OK"),
+                label: "mem-diff snapshot after edit 9 + diff",
+                expectContains: "SNAP_AFTER_E9_OK"),
+            .screenshot(label: "06i-after-edit-9"),
+
+            // Edit 10: generic-parameter add. Turns `decorate` into a
+            // generic over `T: CustomStringConvertible`. Most
+            // demanding ABI mutation: changes the function's
+            // generic-parameter-list, mangled name, and the witness
+            // signature.
+            .hostShell(
+                command: remote("AGENT_PID=\"\"; for _i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do AP=$(pgrep -n -f XCPreviewAgent); if [ -n \"$AP\" ]; then AGENT_PID=$AP; break; fi; sleep 2; done; echo BEFORE_E10_PID=$AGENT_PID; echo previewsvm | sudo -S /tmp/mem-diff-helper snapshot $AGENT_PID /tmp/w3-mem-before-e10.snap 2>&1; echo SNAP_BEFORE_E10_OK"),
+                label: "mem-diff snapshot before edit 10",
+                expectContains: "SNAP_BEFORE_E10_OK"),
+            .hostShell(
+                command: remote("cat > /Users/admin/HelloPreview/Sources/HelloPreview/ContentView.swift << 'SWEOF'\nimport SwiftUI\n\npublic struct ContentView: View {\n    public init() {}\n    let greeter = Greeter()\n    let decoration = Decoration()\n    func decorate<T: CustomStringConvertible>(_ s: T, suffix: String = \"!\") -> String { \"\\(s)\".uppercased() + suffix }\n    public var body: some View {\n        VStack {\n            Text(greeter.prefix + decoration.symbol).font(.title)\n            Text(\"Earth\").foregroundColor(.blue)\n        }\n        .padding()\n        .frame(width: 200, height: 160)\n    }\n}\n\n#Preview {\n    ContentView()\n}\nSWEOF\ngrep '<T: CustomStringConvertible>' /Users/admin/HelloPreview/Sources/HelloPreview/ContentView.swift > /dev/null && echo EDIT10_OK"),
+                label: "edit 10: generic-parameter add (decorate becomes generic)",
+                expectContains: "EDIT10_OK"),
+            .log("waiting 30s for edit-10 hot-reload"),
+            .wait(seconds: 30),
+            .hostShell(
+                command: remote("AGENT_PID=\"\"; for _i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do AP=$(pgrep -n -f XCPreviewAgent); if [ -n \"$AP\" ]; then AGENT_PID=$AP; break; fi; sleep 2; done; echo AFTER_E10_PID=$AGENT_PID; echo previewsvm | sudo -S /tmp/mem-diff-helper snapshot $AGENT_PID /tmp/w3-mem-after-e10.snap 2>&1 && echo previewsvm | sudo -S /tmp/mem-diff-helper diff /tmp/w3-mem-before-e10.snap /tmp/w3-mem-after-e10.snap /tmp/w3-mem-diff-e10.txt 2>&1 && echo previewsvm | sudo -S chmod 644 /tmp/w3-mem-diff-e10.txt && wc -l /tmp/w3-mem-diff-e10.txt; echo SNAP_AFTER_E10_OK"),
+                label: "mem-diff snapshot after edit 10 + diff",
+                expectContains: "SNAP_AFTER_E10_OK"),
+            .screenshot(label: "06j-after-edit-10"),
+
+            // Edit 11: simultaneous two-file edit. Writes to
+            // ContentView.swift AND Model.swift in one shell
+            // (effectively atomic from the watcher's POV). Does
+            // previewsd coalesce these into ONE respawn or two?
+            .hostShell(
+                command: remote("AGENT_PID=\"\"; for _i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do AP=$(pgrep -n -f XCPreviewAgent); if [ -n \"$AP\" ]; then AGENT_PID=$AP; break; fi; sleep 2; done; echo BEFORE_E11_PID=$AGENT_PID; echo previewsvm | sudo -S /tmp/mem-diff-helper snapshot $AGENT_PID /tmp/w3-mem-before-e11.snap 2>&1; echo SNAP_BEFORE_E11_OK"),
+                label: "mem-diff snapshot before edit 11",
+                expectContains: "SNAP_BEFORE_E11_OK"),
+            .hostShell(
+                command: remote("cat > /Users/admin/HelloPreview/Sources/HelloPreview/ContentView.swift << 'SWEOF'\nimport SwiftUI\n\npublic struct ContentView: View {\n    public init() {}\n    let greeter = Greeter()\n    let decoration = Decoration()\n    func decorate<T: CustomStringConvertible>(_ s: T, suffix: String = \"!\") -> String { \"\\(s)\".uppercased() + suffix }\n    public var body: some View {\n        VStack {\n            Text(greeter.prefix + decoration.symbol).font(.title)\n            Text(\"Mars\").foregroundColor(.purple)\n        }\n        .padding()\n        .frame(width: 200, height: 160)\n    }\n}\n\n#Preview {\n    ContentView()\n}\nSWEOF\ncat > /Users/admin/HelloPreview/Sources/HelloPreview/Model.swift << 'MDEOF'\npublic struct Greeter {\n    public init() {}\n    public var prefix: String = \"Aloha\"\n}\n\nextension Greeter: CustomStringConvertible {\n    public var description: String { prefix }\n}\nMDEOF\ngrep Mars /Users/admin/HelloPreview/Sources/HelloPreview/ContentView.swift > /dev/null && grep Aloha /Users/admin/HelloPreview/Sources/HelloPreview/Model.swift > /dev/null && echo EDIT11_OK"),
+                label: "edit 11: simultaneous two-file (ContentView + Model)",
+                expectContains: "EDIT11_OK"),
+            .log("waiting 30s for edit-11 hot-reload"),
+            .wait(seconds: 30),
+            .hostShell(
+                command: remote("AGENT_PID=\"\"; for _i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do AP=$(pgrep -n -f XCPreviewAgent); if [ -n \"$AP\" ]; then AGENT_PID=$AP; break; fi; sleep 2; done; echo AFTER_E11_PID=$AGENT_PID; echo previewsvm | sudo -S /tmp/mem-diff-helper snapshot $AGENT_PID /tmp/w3-mem-after-e11.snap 2>&1 && echo previewsvm | sudo -S /tmp/mem-diff-helper diff /tmp/w3-mem-before-e11.snap /tmp/w3-mem-after-e11.snap /tmp/w3-mem-diff-e11.txt 2>&1 && echo previewsvm | sudo -S chmod 644 /tmp/w3-mem-diff-e11.txt && wc -l /tmp/w3-mem-diff-e11.txt; echo SNAP_AFTER_E11_OK"),
+                label: "mem-diff snapshot after edit 11 + diff",
+                expectContains: "SNAP_AFTER_E11_OK"),
+            .screenshot(label: "06k-after-edit-11"),
+
+            // Edit 12: touch without content change. Updates mtime
+            // but file contents byte-identical. Does the file-watcher
+            // trigger a respawn anyway, or does it dedupe based on
+            // content?
+            .hostShell(
+                command: remote("AGENT_PID=\"\"; for _i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do AP=$(pgrep -n -f XCPreviewAgent); if [ -n \"$AP\" ]; then AGENT_PID=$AP; break; fi; sleep 2; done; echo BEFORE_E12_PID=$AGENT_PID; echo previewsvm | sudo -S /tmp/mem-diff-helper snapshot $AGENT_PID /tmp/w3-mem-before-e12.snap 2>&1; echo SNAP_BEFORE_E12_OK"),
+                label: "mem-diff snapshot before edit 12",
+                expectContains: "SNAP_BEFORE_E12_OK"),
+            .hostShell(
+                command: remote("touch /Users/admin/HelloPreview/Sources/HelloPreview/ContentView.swift && stat -f '%m %N' /Users/admin/HelloPreview/Sources/HelloPreview/ContentView.swift && echo EDIT12_OK"),
+                label: "edit 12: touch-without-content-change",
+                expectContains: "EDIT12_OK"),
+            .log("waiting 30s for edit-12 (maybe) hot-reload"),
+            .wait(seconds: 30),
+            .hostShell(
+                command: remote("AGENT_PID=\"\"; for _i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do AP=$(pgrep -n -f XCPreviewAgent); if [ -n \"$AP\" ]; then AGENT_PID=$AP; break; fi; sleep 2; done; echo AFTER_E12_PID=$AGENT_PID; echo previewsvm | sudo -S /tmp/mem-diff-helper snapshot $AGENT_PID /tmp/w3-mem-after-e12.snap 2>&1 && echo previewsvm | sudo -S /tmp/mem-diff-helper diff /tmp/w3-mem-before-e12.snap /tmp/w3-mem-after-e12.snap /tmp/w3-mem-diff-e12.txt 2>&1 && echo previewsvm | sudo -S chmod 644 /tmp/w3-mem-diff-e12.txt && wc -l /tmp/w3-mem-diff-e12.txt; echo SNAP_AFTER_E12_OK"),
+                label: "mem-diff snapshot after edit 12 + diff",
+                expectContains: "SNAP_AFTER_E12_OK"),
+            .screenshot(label: "06l-after-edit-12"),
+
+            // Peek the accumulated interposer trace. Stats now span
+            // ALL 12 edits.
+            .hostShell(
+                command: remote("echo '--- /tmp/w3-writes.log ---'; wc -l /tmp/w3-writes.log; echo '--- write_mem hits (if any) ---'; grep -c write_mem /tmp/w3-writes.log || echo 0; echo '--- pi_jit_link hits ---'; grep -c pi_jit_link /tmp/w3-writes.log || echo 0; echo '--- xpc_send count ---'; grep -c 'xpc_send\\b' /tmp/w3-writes.log || echo 0; echo '--- xpc_recv count ---'; grep -c xpc_recv /tmp/w3-writes.log || echo 0; echo '--- xpc_set_event_handler count ---'; grep -c xpc_set_event_handler /tmp/w3-writes.log || echo 0; echo '--- xpc_get_value count ---'; grep -c xpc_get_value /tmp/w3-writes.log || echo 0; echo '--- dyld_add_image count ---'; grep -c dyld_add_image /tmp/w3-writes.log || echo 0; echo '--- run_program count ---'; grep -c run_program /tmp/w3-writes.log || echo 0; echo '--- open_log markers (one per agent process) ---'; grep -c open_log /tmp/w3-writes.log || echo 0"),
                 label: "peek accumulated trace stats"),
 
             // Retrieve every captured artifact.
@@ -1148,6 +1227,18 @@ struct SetupCommand: AsyncParsableCommand {
             .hostShell(
                 command: remote("cat /tmp/w3-mem-diff-e8.txt") + " > \"\(outputDir)/w3-mem-diff-e8.txt\" && wc -l \"\(outputDir)/w3-mem-diff-e8.txt\"",
                 label: "retrieve mem-diff edit-8"),
+            .hostShell(
+                command: remote("cat /tmp/w3-mem-diff-e9.txt") + " > \"\(outputDir)/w3-mem-diff-e9.txt\" && wc -l \"\(outputDir)/w3-mem-diff-e9.txt\"",
+                label: "retrieve mem-diff edit-9"),
+            .hostShell(
+                command: remote("cat /tmp/w3-mem-diff-e10.txt") + " > \"\(outputDir)/w3-mem-diff-e10.txt\" && wc -l \"\(outputDir)/w3-mem-diff-e10.txt\"",
+                label: "retrieve mem-diff edit-10"),
+            .hostShell(
+                command: remote("cat /tmp/w3-mem-diff-e11.txt") + " > \"\(outputDir)/w3-mem-diff-e11.txt\" && wc -l \"\(outputDir)/w3-mem-diff-e11.txt\"",
+                label: "retrieve mem-diff edit-11"),
+            .hostShell(
+                command: remote("cat /tmp/w3-mem-diff-e12.txt") + " > \"\(outputDir)/w3-mem-diff-e12.txt\" && wc -l \"\(outputDir)/w3-mem-diff-e12.txt\"",
+                label: "retrieve mem-diff edit-12"),
             .screenshot(label: "07-complete"),
             .log("artifacts retrieved to \(outputDir)/"),
         ]
