@@ -47,6 +47,16 @@ public enum SetupAssistantSequence {
         case screenshot(label: String)
         /// Free-form log line in the run output.
         case log(String)
+        /// Send `key` with two modifiers held simultaneously (e.g.
+        /// Cmd+Option+Return to toggle Xcode's preview canvas). VNC
+        /// transport only; the NSEvent runner doesn't support modifiers.
+        case dualModifiedKey(mod1: Modifier, mod2: Modifier, key: KeyboardScripter.Key)
+        /// Run a shell command on the *host* (not the VM) and log its
+        /// output. If `expectContains` is non-nil, the step throws if
+        /// the command's combined stdout+stderr doesn't contain that
+        /// substring. Use this to interleave SSH-driven actions on the
+        /// guest with host-side keystroke delivery in a single preset.
+        case hostShell(command: String, label: String, expectContains: String? = nil)
     }
 
     public enum Modifier: Sendable {
@@ -123,6 +133,14 @@ public enum SetupAssistantSequence {
 
             case .log(let message):
                 Log.info("[SA step \(stepIndex)] \(message)")
+
+            case .dualModifiedKey:
+                Log.info("[SA step \(stepIndex)] dualModifiedKey: NSEvent runner doesn't support modifiers; use the VNC transport.")
+
+            case .hostShell(let command, let label, let expectContains):
+                try await SetupAssistantSequence.runHostShell(
+                    stepIndex: stepIndex, command: command, label: label,
+                    expectContains: expectContains, runner: "SA")
             }
         }
     }
@@ -255,7 +273,68 @@ extension SetupAssistantSequence {
 
             case .log(let message):
                 Log.info("[SA/VNC step \(stepIndex)] \(message)")
+
+            case .dualModifiedKey(let mod1, let mod2, let key):
+                Log.debug("[SA/VNC step \(stepIndex)] dualModifiedKey \(mod1)+\(mod2)+\(key)")
+                let mod1Keysym = vncModifierKeysym(mod1)
+                let mod2Keysym = vncModifierKeysym(mod2)
+                let target = keysym(for: key)
+                try client.sendKeyEvent(keysym: mod1Keysym, down: true)
+                try client.sendKeyEvent(keysym: mod2Keysym, down: true)
+                try client.sendKeyEvent(keysym: target, down: true)
+                try client.sendKeyEvent(keysym: target, down: false)
+                try client.sendKeyEvent(keysym: mod2Keysym, down: false)
+                try client.sendKeyEvent(keysym: mod1Keysym, down: false)
+                try await Task.sleep(for: .milliseconds(150))
+
+            case .hostShell(let command, let label, let expectContains):
+                try await SetupAssistantSequence.runHostShell(
+                    stepIndex: stepIndex, command: command, label: label,
+                    expectContains: expectContains, runner: "SA/VNC")
             }
+        }
+    }
+
+    /// Run a shell command on the host (not the guest). Combined
+    /// stdout+stderr is logged; if `expectContains` is non-nil, throws
+    /// when the output doesn't contain that substring. Used by the
+    /// `driveXcodePreview` preset to issue SSH commands at the right
+    /// moment between keystrokes.
+    static func runHostShell(
+        stepIndex: Int,
+        command: String,
+        label: String,
+        expectContains: String?,
+        runner: String
+    ) async throws {
+        Log.info("[\(runner) step \(stepIndex)] hostShell \"\(label)\"")
+        let process = Process()
+        process.executableURL = URL(filePath: "/bin/zsh")
+        process.arguments = ["-c", command]
+        let stdoutPipe = Pipe()
+        let stderrPipe = Pipe()
+        process.standardOutput = stdoutPipe
+        process.standardError = stderrPipe
+        try process.run()
+        process.waitUntilExit()
+        let stdoutData = (try? stdoutPipe.fileHandleForReading.readToEnd()) ?? Data()
+        let stderrData = (try? stderrPipe.fileHandleForReading.readToEnd()) ?? Data()
+        let stdout = String(data: stdoutData, encoding: .utf8) ?? ""
+        let stderr = String(data: stderrData, encoding: .utf8) ?? ""
+        let combined = stdout + stderr
+        let trimmed = combined.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty {
+            Log.info("[\(runner) step \(stepIndex)] \(label) → \(trimmed)")
+        }
+        if process.terminationStatus != 0 {
+            throw VMError(
+                "hostShell \"\(label)\" exited \(process.terminationStatus): \(trimmed)"
+            )
+        }
+        if let needle = expectContains, !combined.contains(needle) {
+            throw VMError(
+                "hostShell \"\(label)\" output did not contain \"\(needle)\": \(trimmed)"
+            )
         }
     }
 

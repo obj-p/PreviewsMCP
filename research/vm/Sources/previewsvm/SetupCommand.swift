@@ -111,6 +111,26 @@ struct SetupCommand: AsyncParsableCommand {
         /// Utilities → Utilities menu → Terminal → `csrutil disable`,
         /// confirm + reboot. Requires --recovery flag.
         case disableSIP = "disable-sip"
+
+        /// Drive Xcode in the VM to capture XCPreviewAgent's
+        /// __xojit_executor_write_mem call sequence during a real
+        /// SwiftUI preview hot-reload. The W3 patch-point address-list
+        /// capture from prompts/jit-executor-research.md.
+        ///
+        /// Preconditions: VM bundle has admin auto-login configured
+        /// (`/etc/kcpassword` + `autoLoginUser=admin` in
+        /// `com.apple.loginwindow`), `xcodebuild -runFirstLaunch` has
+        /// been run, and the source file at
+        /// `~/HelloPreview/Sources/HelloPreview/main.swift` exists
+        /// (plus a sibling `Package.swift` declaring an executable
+        /// target). The preset boots the VM, opens Xcode via SSH,
+        /// toggles the preview canvas via VNC keystrokes, runs
+        /// `research/scripts/data/w3/capture-write-mem.d` against the
+        /// spawned XCPreviewAgent, and triggers an edit by `sed`-ing
+        /// the source file (Xcode's file watcher picks it up and
+        /// initiates the hot-reload). Output files retrieved over SSH
+        /// to `--output-dir`.
+        case driveXcodePreview = "drive-xcode-preview"
     }
 
     enum Transport: String, ExpressibleByArgument, CaseIterable {
@@ -169,6 +189,13 @@ struct SetupCommand: AsyncParsableCommand {
                 throw VMError("--preset disable-sip requires --recovery")
             }
             steps = Self.disableSIPSteps
+        case .driveXcodePreview:
+            if transport != .vnc {
+                throw VMError("--preset drive-xcode-preview requires --transport vnc (needs dual modifier keys for Cmd+Option+Return)")
+            }
+            steps = Self.driveXcodePreviewSteps(
+                bundlePath: bundle.url.path,
+                outputDir: outDir.path)
         }
 
         if retry > 0 && restoreFrom == nil {
@@ -264,6 +291,392 @@ struct SetupCommand: AsyncParsableCommand {
             try? await host.forceStop()
         }
         await MainActor.run { host.close() }
+    }
+
+    /// Drive Xcode in the VM to capture XCPreviewAgent's
+    /// `__xojit_executor_write_mem` call sequence during a real SwiftUI
+    /// preview hot-reload. The W3 patch-point address-list capture from
+    /// `prompts/jit-executor-research.md` →
+    /// `research/scripts/analysis/w3-patch-point-set.md` §6.
+    ///
+    /// **Preconditions** (a `post-autologin-w3`-style snapshot should
+    /// already have these):
+    /// - admin auto-login configured via `/etc/kcpassword` + the
+    ///   `autoLoginUser` default in `com.apple.loginwindow`.
+    /// - `xcodebuild -runFirstLaunch` has been run (clears the
+    ///   "additional components" first-launch modal).
+    /// - `~/HelloPreview/{Package.swift,Sources/HelloPreview/main.swift}`
+    ///   contains a minimal SwiftUI executable with a `#Preview` block.
+    ///
+    /// **Flow:**
+    /// 1. Boot. Wait for auto-login to admin's desktop.
+    /// 2. SSH-open `main.swift` in Xcode (`open -a /Applications/Xcode.app`).
+    /// 3. Wait 90s for Xcode + SourceKit indexing to settle.
+    /// 4. Cmd+Option+Return via VNC to toggle the preview canvas. This
+    ///    is the only keystroke the preset delivers; everything else
+    ///    runs via SSH.
+    /// 5. Wait for `XCPreviewAgent` to spawn (poll `pgrep` via SSH).
+    /// 6. Deploy the `capture-write-mem.d` dtrace script to the guest
+    ///    (hex-encoded inline; SSH-decodes via `xxd -r -p`). Start it
+    ///    against the agent PID under `sudo`.
+    /// 7. Edit `main.swift` via `sed` (`Hello` → `Howdy`). Xcode's
+    ///    file watcher initiates the hot-reload through previewsd to
+    ///    the agent; PreviewsInjection calls `__xojit_executor_write_mem`
+    ///    to apply patches; dtrace records each call.
+    /// 8. Wait 20s for the reload + writes to finish.
+    /// 9. Stop dtrace, retrieve output via SSH `cat`.
+    static func driveXcodePreviewSteps(
+        bundlePath: String,
+        outputDir: String
+    ) -> [SetupAssistantSequence.Step] {
+        let previewsvmBin = Bundle.main.executableURL?.path
+            ?? CommandLine.arguments.first
+            ?? "previewsvm"
+        let ssh = "\"\(previewsvmBin)\" ssh \"\(bundlePath)\""
+
+        // The dtrace script lives in research/scripts/data/w3/capture-write-mem.d
+        // (committed). Embedded here so the preset is self-contained — no
+        // separate file deploy step needed when this preset runs from a CI
+        // job with no working copy.
+        let dtraceScript = """
+            #pragma D option quiet
+            #pragma D option dynvarsize=8m
+            #pragma D option strsize=512
+
+            dtrace:::BEGIN {
+                printf("[capture-write-mem] tracing pid=%d (XCPreviewAgent)\\n", $target);
+                printf("ts\\twrite_mem(addr, len)\\n");
+            }
+
+            pid$target::*xojit_executor_write_mem*:entry {
+                printf("%llu\\twrite_mem(0x%llx, %lld)\\n", timestamp, (uint64_t)arg0, (int64_t)arg2);
+                ustack(5);
+                printf("\\n");
+            }
+
+            pid$target::*xojit_executor_run_program_on_main_thread*:entry {
+                printf("%llu\\trun_program_on_main_thread(fn=0x%llx)\\n", timestamp, (uint64_t)arg0);
+                ustack(3);
+                printf("\\n");
+            }
+
+            pid$target::mprotect:entry {
+                printf("%llu\\tmprotect(addr=0x%llx, len=0x%llx, prot=0x%x)\\n",
+                       timestamp, (uint64_t)arg0, (uint64_t)arg1, (uint32_t)arg2);
+            }
+
+            dtrace:::END { printf("[capture-write-mem] done\\n"); }
+            """
+        let dtraceHex = dtraceScript.utf8
+            .map { String(format: "%02x", $0) }
+            .joined()
+
+        // lldb-driven capture script. Used as a fallback when dtrace's
+        // pid-provider fails on the agent (Apple gates dtrace on
+        // signed binaries separately from SIP). lldb attaches to any
+        // get-task-allow process. The script installs Python callback
+        // breakpoints that print register state + a short stack on
+        // each hit, then resumes execution automatically.
+        // Use plain lldb commands (no Python) — lldb's batch mode
+        // (`-b`) does not interactively enter the Python REPL via
+        // `script`; multi-line Python code in a script file is
+        // dispatched line-by-line to the REPL and produces syntax
+        // errors. Pure lldb commands with `br command add ... DONE`
+        // are the documented batch-friendly form. Each breakpoint's
+        // command body ends with `continue` for auto-resume.
+        //
+        // Symbol-name convention: dyld_info shows the raw Mach-O
+        // symbol with linker-added leading `_` (so
+        // `___xojit_executor_write_mem` — 3 underscores). lldb's
+        // `--name` strips that prefix to match the C function name
+        // (`__xojit_executor_write_mem` — 2 underscores). Use the
+        // 2-underscore form for breakpoints. The regex fallback
+        // catches any naming-convention surprise.
+        let lldbScript = """
+            settings set target.process.thread.step-avoid-libraries libsystem_kernel.dylib,libsystem_pthread.dylib
+            br set --name __xojit_executor_write_mem
+            br command add
+            printf "WRITE_MEM addr=0x%llx buf=0x%llx len=%lld\\n" $x0 $x1 $x2
+            thread backtrace 5
+            continue
+            DONE
+            br set -r xojit_executor_write_mem
+            br command add
+            printf "WRITE_MEM_RE addr=0x%llx buf=0x%llx len=%lld\\n" $x0 $x1 $x2
+            thread backtrace 3
+            continue
+            DONE
+            br set --name __xojit_executor_run_program_on_main_thread
+            br command add
+            printf "RUN_PROGRAM_MAIN fn=0x%llx\\n" $x0
+            continue
+            DONE
+            br set --name mprotect
+            br command add
+            printf "MPROTECT addr=0x%llx len=0x%llx prot=0x%x\\n" $x0 $x1 $x2
+            continue
+            DONE
+            br list
+            continue
+            """
+        let lldbScriptHex = lldbScript.utf8
+            .map { String(format: "%02x", $0) }
+            .joined()
+
+        // The `previewsvm ssh` subcommand joins remoteCommand args with
+        // a single space and hands the result to `ssh ... user@host
+        // <command>`. We pass the entire remote command as ONE
+        // argument (the no-`--` form) so previewsvm's
+        // ArgumentParser captures it cleanly as a single-element
+        // remoteCommand array. The single-argument form with embedded
+        // shell-escaped quotes is what works empirically (`--` form
+        // confuses /usr/bin/ssh's argv parsing).
+        func remote(_ shellCommand: String) -> String {
+            // Escape any single quotes inside the command so we can
+            // wrap the whole thing in single quotes for previewsvm's
+            // argv. Replaces ' with '\''.
+            let escaped = shellCommand.replacingOccurrences(of: "'", with: "'\\''")
+            return "\(ssh) '\(escaped)'"
+        }
+
+        return [
+            .log("waiting 35s for boot + (maybe) lock-screen to render"),
+            .wait(seconds: 35),
+            .screenshot(label: "01a-pre-unlock"),
+
+            // The VM's GUI session may be at the lock screen even when
+            // `/dev/console` shows `admin` (auto-login fires but Aqua
+            // re-locks shortly after first paint, or never logs in at
+            // all). Type the admin password + Return; harmless if the
+            // screen is already unlocked (Finder doesn't accept text
+            // input on the desktop), unlocks it if locked.
+            .log("typing password + Return (unlocks lock screen if up)"),
+            .type("previewsvm"),
+            .key(.returnKey),
+            .wait(seconds: 8),
+            .screenshot(label: "01b-post-unlock"),
+
+            // Keep the display awake + disable screen lock for this
+            // session — long waits otherwise cause the display to
+            // power off, breaking subsequent keystrokes. `caffeinate
+            // -dis` runs until the session ends.
+            .hostShell(
+                command: remote("(nohup caffeinate -dis > /dev/null 2>&1 &); sleep 1; pgrep caffeinate > /dev/null && echo CAFFEINATE_OK || echo CAFFEINATE_FAILED"),
+                label: "start caffeinate",
+                expectContains: "CAFFEINATE_OK"),
+            .hostShell(
+                command: remote("stat -f %Su /dev/console"),
+                label: "verify admin console",
+                expectContains: "admin"),
+            .screenshot(label: "01c-desktop"),
+
+            // Deploy the dtrace script + clean any stale agent state.
+            .hostShell(
+                command: remote("printf %s \(dtraceHex) | xxd -r -p > /tmp/capture-write-mem.d && wc -l /tmp/capture-write-mem.d"),
+                label: "deploy dtrace script"),
+            .hostShell(
+                command: remote("pkill -9 -f XCPreviewAgent 2>/dev/null; pkill -9 -f Xcode 2>/dev/null; sleep 2; pgrep -f Xcode || echo XCODE_CLEAN"),
+                label: "kill stale Xcode/agent",
+                expectContains: "XCODE_CLEAN"),
+
+            // Rebuild the test package as a LIBRARY target (no @main,
+            // no main.swift top-level conflict). The previous structure
+            // had `@main struct HelloApp: App` in a file named
+            // main.swift, which Swift rejects (\"main attribute cannot
+            // be used in a module that contains top-level code\") and
+            // the resulting build error stops preview rendering from
+            // ever activating XCPreviewAgent. Library target with a
+            // single ContentView.swift containing only the View type
+            // and the #Preview block compiles cleanly.
+            .hostShell(
+                command: remote("rm -rf /Users/admin/HelloPreview && mkdir -p /Users/admin/HelloPreview/Sources/HelloPreview && cat > /Users/admin/HelloPreview/Package.swift << 'PKEOF'\n// swift-tools-version: 6.0\nimport PackageDescription\n\nlet package = Package(\n    name: \"HelloPreview\",\n    platforms: [.macOS(.v14)],\n    targets: [.target(name: \"HelloPreview\")]\n)\nPKEOF\ncat > /Users/admin/HelloPreview/Sources/HelloPreview/ContentView.swift << 'SWEOF'\nimport SwiftUI\n\npublic struct ContentView: View {\n    public init() {}\n    public var body: some View {\n        VStack {\n            Text(\"Hello\").font(.title)\n            Text(\"World\").foregroundColor(.blue)\n        }\n        .padding()\n        .frame(width: 200, height: 120)\n    }\n}\n\n#Preview {\n    ContentView()\n}\nSWEOF\nls -la /Users/admin/HelloPreview/Sources/HelloPreview/ && echo PKG_REBUILT"),
+                label: "rebuild test package as library",
+                expectContains: "PKG_REBUILT"),
+
+            // Suppress Xcode's "Introducing Coding Intelligence"
+            // welcome modal that otherwise blocks keystroke delivery
+            // to the source editor on first project open. Best-effort:
+            // try a few plausible key names. If none matches, the
+            // .key(.escape) step after Xcode launches still dismisses
+            // the dialog as a fallback.
+            .hostShell(
+                command: remote("for k in IDECodingIntelligenceWelcomeShown IDEIntelligenceWelcomeShown DVTIntelligenceWelcomeShown IDECodingIntelligenceFTUXShown; do defaults write com.apple.dt.Xcode \"$k\" -bool YES; done; echo DEFAULTS_SET"),
+                label: "suppress Xcode coding-intelligence welcome",
+                expectContains: "DEFAULTS_SET"),
+
+            // Open Package.swift in Xcode (gives project context),
+            // then main.swift (focuses on the source file with #Preview).
+            // Opening main.swift directly without project context skips
+            // package indexing and the preview pipeline never activates.
+            .hostShell(
+                command: remote("open -a /Applications/Xcode.app /Users/admin/HelloPreview/Package.swift && echo OPENED_PKG"),
+                label: "open Package.swift in Xcode",
+                expectContains: "OPENED_PKG"),
+            .log("waiting 30s for project to load"),
+            .wait(seconds: 30),
+            .hostShell(
+                command: remote("open -a /Applications/Xcode.app /Users/admin/HelloPreview/Sources/HelloPreview/ContentView.swift && echo OPENED_MAIN"),
+                label: "open ContentView.swift in same Xcode",
+                expectContains: "OPENED_MAIN"),
+            .log("waiting 60s for SourceKit indexing"),
+            .wait(seconds: 60),
+            .screenshot(label: "02-xcode-open"),
+
+            // Xcode 26 shows a "Coding Intelligence Welcome" modal
+            // sheet on first project open in a fresh user account.
+            // It captures all keystrokes until dismissed. Press
+            // Escape (cancels) and also click "Remind Me Later" as
+            // a fallback. Both target the same outcome — modal is
+            // dismissed.
+            .log("dismiss any first-run modal sheets"),
+            .key(.escape),
+            .wait(seconds: 2),
+            .key(.escape),
+            .wait(seconds: 2),
+            .screenshot(label: "02a-after-escape-modal"),
+
+            // Click in the middle of the editor area to make sure the
+            // source-editor view is firstResponder before sending
+            // canvas-toggle keystrokes. Framebuffer coords (top-left
+            // origin), VNC transport.
+            .click(x: 600, y: 350),
+            .wait(seconds: 2),
+            .screenshot(label: "02b-clicked-editor"),
+
+            // Sanity check that keystrokes reach Xcode: send Cmd+,
+            // (preferences). If the preferences pane appears in the
+            // next screenshot, the keystroke path works. We close it
+            // with Escape immediately. Comma's mac keycode is 43,
+            // unicode 0x2C.
+            .modifiedKey(
+                modifier: .command,
+                key: .character(unicodeScalar: 0x2C, code: 43)),
+            .wait(seconds: 4),
+            .screenshot(label: "02c-pref-keystroke-test"),
+            .key(.escape),
+            .wait(seconds: 2),
+            .screenshot(label: "02d-after-escape"),
+
+            // Re-click editor area to re-focus (prefs interaction
+            // may have stolen focus to a different view).
+            .click(x: 400, y: 300),
+            .wait(seconds: 2),
+
+            // Cmd+Option+Return toggles the preview canvas in Xcode 26.
+            // This is the load-bearing keystroke. Try it once with a
+            // short observation window.
+            .log("attempt 1: Cmd+Option+Return"),
+            .dualModifiedKey(mod1: .command, mod2: .option, key: .returnKey),
+            .wait(seconds: 8),
+            .screenshot(label: "03a-after-cmdoptreturn"),
+
+            // Some Xcode 26 builds bound the canvas to Cmd+Shift+Return
+            // instead. Try as fallback.
+            .log("attempt 2: Cmd+Shift+Return"),
+            .dualModifiedKey(mod1: .command, mod2: .shift, key: .returnKey),
+            .wait(seconds: 8),
+            .screenshot(label: "03b-after-cmdshiftreturn"),
+
+            // Some builds: Cmd+Ctrl+Return (Editor → Canvas alternate).
+            .log("attempt 3: Cmd+Control+Return"),
+            .dualModifiedKey(mod1: .command, mod2: .control, key: .returnKey),
+            .wait(seconds: 8),
+            .screenshot(label: "03c-after-cmdctrlreturn"),
+
+            // Cmd+Opt+P — Resume Preview. Triggers preview rendering
+            // if the canvas is already open (which it may be by
+            // default in Xcode 26, just in a paused state).
+            // P's mac keycode is 35, unicode 0x70.
+            .log("attempt 4: Cmd+Option+P (resume preview)"),
+            .dualModifiedKey(
+                mod1: .command, mod2: .option,
+                key: .character(unicodeScalar: 0x70, code: 35)),
+            .wait(seconds: 8),
+            .screenshot(label: "03d-after-cmdoptp"),
+
+            // attempt 5: Use Help menu search (Cmd+? = Cmd+Shift+/).
+            // The Help menu's search field activates any menu item by
+            // name regardless of its keyboard shortcut. Type "Canvas"
+            // → autocomplete highlights the Editor menu's Canvas item
+            // → Return activates it. Works universally even if the
+            // shortcut has been repurposed (Xcode 26 gave Cmd+Opt+Return
+            // to Coding Intelligence). Slash mac keycode = 44, unicode
+            // 0x2F. Help-shortcut is Shift+Cmd+/.
+            .log("attempt 5: Help → search 'Canvas' → Return"),
+            .dualModifiedKey(
+                mod1: .command, mod2: .shift,
+                key: .character(unicodeScalar: 0x2F, code: 44)),
+            .wait(seconds: 2),
+            .screenshot(label: "03e-help-menu-open"),
+            .type("Canvas"),
+            .wait(seconds: 3),
+            .screenshot(label: "03f-help-typed-canvas"),
+            // Help menu search highlights results on hover but Return
+            // only fires the item when keyboard-selected. Down-arrow
+            // moves focus to the first result.
+            .key(.downArrow),
+            .wait(seconds: 1),
+            .screenshot(label: "03f2-after-down-arrow"),
+            .key(.returnKey),
+            .wait(seconds: 8),
+            .screenshot(label: "03g-after-help-canvas-enter"),
+
+            .log("waiting 60s for canvas + preview-pipeline to spawn agent"),
+            .wait(seconds: 60),
+            .screenshot(label: "03-canvas-shown"),
+
+            // Wait for XCPreviewAgent to actually be running. Poll up
+            // to 90 seconds (preview-pipeline cold start can be slow
+            // first time).
+            .hostShell(
+                command: remote("for i in $(seq 1 45); do AP=$(pgrep -n -f XCPreviewAgent); if [ -n \"$AP\" ]; then echo AGENT_UP $AP; exit 0; fi; sleep 2; done; ps aux | grep -iE 'preview|xcpreview' | grep -v grep; echo AGENT_NOT_FOUND"),
+                label: "wait for XCPreviewAgent",
+                expectContains: "AGENT_UP"),
+            .screenshot(label: "04-agent-up"),
+
+            // dtrace's pid-provider fails on the agent ("Failed to
+            // start process notifications") even with SIP off + AMFI
+            // off — Apple's dtrace has a separate (csops-checked)
+            // gate on attaching to Apple-signed binaries. Use lldb
+            // instead: it attaches to any debuggable process (the
+            // agent's `get-task-allow` entitlement is sufficient),
+            // sets breakpoints on the four xojit primitives, and
+            // prints addr/len/stack on each hit via the breakpoint
+            // command + auto-continue. The lldb script is deployed
+            // to the guest via xxd-hex.
+            .hostShell(
+                command: remote("printf %s \(lldbScriptHex) | xxd -r -p > /tmp/capture-write-mem.lldb && wc -l /tmp/capture-write-mem.lldb && echo LLDB_DEPLOYED"),
+                label: "deploy lldb capture script",
+                expectContains: "LLDB_DEPLOYED"),
+            .hostShell(
+                command: remote("AGENT_PID=$(pgrep -n -f XCPreviewAgent); echo $AGENT_PID > /tmp/w3-agent.pid; rm -f /tmp/w3-writes.lldb.txt; (echo previewsvm | sudo -S env TERM=xterm-256color nohup lldb -b -O 'target create --arch arm64e /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Xcode/Agents/XCPreviewAgent.app/Contents/MacOS/XCPreviewAgent' -O \"process attach -p $AGENT_PID\" -s /tmp/capture-write-mem.lldb > /tmp/w3-writes.lldb.txt 2>&1 &); sleep 12; pgrep -n lldb && head -70 /tmp/w3-writes.lldb.txt && echo LLDB_STARTED || (cat /tmp/w3-writes.lldb.txt; echo LLDB_FAILED)"),
+                label: "start lldb against XCPreviewAgent",
+                expectContains: "LLDB_STARTED"),
+            .screenshot(label: "05-lldb-running"),
+
+            // Trigger the hot-reload by editing the file via sed.
+            // Xcode's file watcher detects the change and routes
+            // through previewsd → agent → PreviewsInjection →
+            // XOJITExecutor.write_mem. dtrace records the calls.
+            .hostShell(
+                command: remote("sed -i.bak s/Hello/Howdy/g /Users/admin/HelloPreview/Sources/HelloPreview/ContentView.swift && grep Howdy /Users/admin/HelloPreview/Sources/HelloPreview/ContentView.swift > /dev/null && echo EDITED"),
+                label: "edit ContentView.swift (Hello → Howdy)",
+                expectContains: "EDITED"),
+            .log("waiting 30s for hot-reload + write_mem calls"),
+            .wait(seconds: 30),
+            .screenshot(label: "06-after-edit"),
+
+            // Stop lldb and retrieve the output. The output is the
+            // patch-point address list we wanted.
+            .hostShell(
+                command: remote("echo previewsvm | sudo -S pkill -INT lldb; sleep 2; wc -l /tmp/w3-writes.lldb.txt; echo ---WRITE_MEM_HITS---; grep WRITE_MEM /tmp/w3-writes.lldb.txt | head -30; echo ---MPROTECT_HITS---; grep MPROTECT /tmp/w3-writes.lldb.txt | head -10"),
+                label: "stop lldb + peek output"),
+            .hostShell(
+                command: remote("cat /tmp/w3-writes.lldb.txt") + " > \"\(outputDir)/w3-writes.lldb.txt\" && wc -l \"\(outputDir)/w3-writes.lldb.txt\"",
+                label: "retrieve lldb output to host"),
+            .screenshot(label: "07-complete"),
+            .log("lldb output retrieved to \(outputDir)/w3-writes.lldb.txt"),
+        ]
     }
 
     /// SSH provisioning sequence. Assumes the bundle has been restored
