@@ -6,13 +6,15 @@ working, what's left, and how to pick up where this left off. Updated
 
 ## Where we are
 
-**SIP off + AMFI off, end-to-end on macOS 26.3.1.** The full pipeline
-from a fresh IPSW install now reaches a snapshot whose next normal
-boot reports:
+**Research-session base complete on macOS 26.3.1** — W1 done-criterion
+reached. The full pipeline from a fresh IPSW install now reaches a
+snapshot whose next normal boot reports:
 - `csrutil status` → "System Integrity Protection status: disabled."
 - `sysctl kern.bootargs` → "amfi_get_out_of_my_way=1"
+- `xcodebuild -version` → "Xcode 26.2 / Build version 17C52"
+- `xcrun swiftc /tmp/hello.swift && /tmp/hello` → runs
 
-both verified over SSH. recoveryOS automation is driven by the same
+all verified over SSH. recoveryOS automation is driven by the same
 VNC/OCR/keyboard machinery as Setup Assistant — no manual clicks
 required.
 
@@ -28,8 +30,12 @@ Snapshots inside it:
   window → Ctrl+F2 + arrow keys → Utilities → Terminal →
   `csrutil disable` → halt.
 - `post-amfi` — SSH in, `sudo nvram boot-args=amfi_get_out_of_my_way=1`,
-  shutdown, snapshot. **New high-value checkpoint** — only Xcode
-  install left before the research-session base.
+  shutdown, snapshot.
+- `post-xcode-sip-amfi` — host-side Xcode-26.2.0.app `tar | ssh tar`-ed
+  into guest's `/tmp/`, moved to `/Applications/Xcode.app`, license
+  accepted non-interactively, `xcode-select -s` applied. **The
+  research-session base** — every JIT spike session restores from
+  here.
 
 ## Done (working today)
 
@@ -80,11 +86,15 @@ The W1 done-criterion is *"single command → lldb attached to
    `amfi_get_out_of_my_way=1` (i.e., the kernel actually came up with
    that flag). Cost: ~3 min wall time. No preset needed — pure SSH.
 
-5. **Xcode install** (Task #14c, ~30-60 min wall time)
-   - SSH in, `curl -O https://...Xcode_NN.xip`, `xip -x Xcode.xip`,
-     move to `/Applications/`.
-   - `sudo xcodebuild -license accept` if needed.
-   - Snapshot as `post-xcode-sip-amfi` — **the research-session base.**
+5. ~~**Xcode install.**~~ Done — instead of downloading Xcode.xip
+   from Apple (which needs Apple-ID auth + 2FA and ~30 min wall
+   time), we `tar` the host's existing `/Applications/Xcode-26.2.0.app`
+   over SSH into the guest's `/tmp/` (~3 min for the 3.5 GB bundle),
+   then `sudo mv` to `/Applications/Xcode.app`, `xcode-select -s`,
+   `sudo xcodebuild -license accept`. Snapshot as
+   `post-xcode-sip-amfi`. Verified by compiling+running a Swift
+   binary inside the guest. Cost: ~5 min wall time. No preset
+   needed.
 
 6. **JIT spike research begins** (the actual W1 work)
    - Per-session: `previewsvm snapshot restore <bundle> post-xcode-sip-amfi && previewsvm boot <bundle>`
@@ -152,6 +162,26 @@ sleep 30  # boot + sshd come up
 .build/release/previewsvm boot ./my.bundle --skip-ssh-wait &
 .build/release/previewsvm ssh ./my.bundle sysctl kern.bootargs
 # → amfi_get_out_of_my_way=1
+
+# Xcode install — tar host's existing Xcode.app into guest (~5 min).
+.build/release/previewsvm boot ./my.bundle --skip-ssh-wait &
+VM_IP=$(.build/release/previewsvm status ./my.bundle | awk '/DHCP/{print $3}')
+tar -cf - -C /Applications Xcode-26.2.0.app | \
+  ssh -i ./my.bundle/id_ed25519 -o StrictHostKeyChecking=no \
+      -o UserKnownHostsFile=/dev/null admin@$VM_IP \
+      'mkdir -p /tmp/xcode-incoming && cd /tmp/xcode-incoming && tar -xf -'
+.build/release/previewsvm ssh ./my.bundle \
+  'echo previewsvm | sudo -S sh -c "mv /tmp/xcode-incoming/Xcode-26.2.0.app /Applications/Xcode.app && xcode-select -s /Applications/Xcode.app"'
+.build/release/previewsvm ssh ./my.bundle \
+  'echo previewsvm | sudo -S xcodebuild -license accept'
+.build/release/previewsvm ssh ./my.bundle 'echo previewsvm | sudo -S shutdown -h now'
+.build/release/previewsvm stop ./my.bundle
+.build/release/previewsvm snapshot take ./my.bundle post-xcode-sip-amfi
+
+# Validate.
+.build/release/previewsvm boot ./my.bundle --skip-ssh-wait &
+.build/release/previewsvm ssh ./my.bundle xcodebuild -version
+# → Xcode 26.2 / Build version 17C52
 
 # Inspect screenshots from the successful attempt.
 ls /tmp/previewsvm-setup/attempt-N/
