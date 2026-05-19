@@ -1,0 +1,14 @@
+## Markers in PreviewsInjection + XOJITExecutor
+
+### PreviewsInjection
+  JITLink                        PreviewsInjection-exports.txt 2
+  pseudodylib                    PreviewsInjection-imports.txt 1
+  pseudodylib                    PreviewsInjection-exports.txt 1
+
+### XOJITExecutor
+  llvm_orc_                      XOJITExecutor-exports.txt 1
+  jit_debug                      XOJITExecutor-exports.txt 2
+  JITDylib                       XOJITExecutor-exports.txt 9
+  XOJIT                          XOJITExecutor-imports.txt 1
+  XOJIT                          XOJITExecutor-exports.txt 43
+

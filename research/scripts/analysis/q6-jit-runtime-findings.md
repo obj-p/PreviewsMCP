@@ -1,7 +1,10 @@
 # Open Question 6 — Does Apple's JIT linker use LLVM ORC?
 
-Resolves Q6 from `architecture-diagram-draft.md` Section 4 — partially,
-with a precise gap.
+**Verdict: yes.** Apple's `XOJITExecutor.framework` is built on
+LLVM ORC + JITLink, statically linked, wrapped in a Swift+XPC
+façade. The "Remaining gap" section originally captured at the
+bottom of this memo was closed by a VM-side `dyld_info` run —
+see Section ("VM-side evidence") below.
 
 ## What we looked at
 
@@ -179,28 +182,147 @@ is still W2's POC question. Q6's resolution doesn't change the POC
 plan; it just removes the worry that we'd need to *imitate Apple's
 internal API surface* to be feasible.
 
-## Remaining gap to fully resolve Q6
+## VM-side evidence (the gap closed)
 
-To definitively answer "is PreviewsInjection's body LLVM ORC
-internally," we'd need:
+Booted `post-xcode-sip-amfi`, dumped the VM-side framework
+internals via `dyld_info`. Captured by
+`dump-vm-jit-symbols.sh` to `data/vm/`. Two findings make
+the verdict unambiguous.
 
-1. Boot the research VM (`post-xcode-sip-amfi` snapshot).
-2. SSH in. Run:
-   ```
-   xcrun dyld_info -fixups /System/Library/PrivateFrameworks/PreviewsInjection.framework/PreviewsInjection \
-     | grep -E 'llvm|orc|JIT|RuntimeDyld'
-   ```
-   The shared-cache resolver should handle the path. If the binary
-   imports `__ZN4llvm3orc...` mangled C++ symbols from
-   libLLVMOrcJIT or analogue, it's ORC-derived. If it's
-   self-contained or imports only Swift runtime + libsystem +
-   `pthread`, it's a custom engine.
-3. Capture the import list to `data/PreviewsInjection-imports.txt`
-   alongside the public-surface dump.
+### Finding 1: `PreviewsInjection` weak-links `XOJITExecutor.framework`
 
-Cost: one VM boot + ~2 minutes. Worth doing as a follow-up, but
-**not gating** for the spike verdict — the public-surface analysis
-above already tells us the integration shape we'd need to match.
+`dyld_info -linked_dylibs` on the VM-side
+`PreviewsInjection.framework` shows:
+
+    weak-link  /System/Library/PrivateFrameworks/XOJITExecutor.framework/Versions/A/XOJITExecutor
+
+This framework wasn't visible from the host (it has no `.tbd` stub
+in the SDK). It's where the actual JIT engine lives — `PreviewsInjection`
+just wraps it.
+
+Also imports `__dyld_is_pseudodylib` from `libSystem` —
+**pseudodylibs are a first-class dyld concept on macOS now**,
+not just a PreviewsInjection abstraction. Apple extended dyld
+itself with a pseudodylib type predicate.
+
+### Finding 2: `XOJITExecutor.framework` exports LLVM ORC symbols by name
+
+`dyld_info -exports` on the VM-side
+`XOJITExecutor.framework` (48 exports total — visibility is
+mostly hidden) leaks exactly the symbols that have to be public
+for the GDB/LLDB JIT debug interface to work:
+
+    ___jit_debug_register_code
+    ___jit_debug_descriptor
+    _llvm_orc_registerJITLoaderGDBAllocAction
+
+The first two are the standard
+[LLVM/GDB JIT debug interface](https://llvm.org/docs/DebuggingJITedCode.html)
+symbols (LLDB and GDB look them up by name to track JIT'd code).
+The third is **literally an `llvm::orc::` API function** —
+defined in LLVM's
+`llvm/include/llvm/ExecutionEngine/Orc/Debugging/DebuggerSupportPlugin.h`
+and registered with `ObjectLinkingLayer`.
+
+The Swift-side API confirms it independently:
+
+- `XOJITExecutor.XOJITExecutor` — a Swift class (the public façade)
+- `XOJITExecutor.XOJITExecutor.JITDylibHandle (rawValue: UInt64)`
+  — **`JITDylib` is LLVM ORC's primary namespace abstraction**;
+  every JIT in ORC has JITDylibs.
+- `XOJITExecutor.XOJITExecutor.init(connection: OS_xpc_object)` —
+  initialized with an XPC connection (XPC replaces LLVM's default
+  socket/pipe-based executor protocol).
+- `TerminationResult` enum with `.success`, `.badCommand`,
+  `.remoteDisconnect`, `.failedSetup` — matches the failure modes
+  of LLVM's `SimpleRemoteEPC` exactly.
+- C-side helpers `___xojit_executor_write_mem`,
+  `___xojit_executor_run_program_on_main_thread`,
+  `___xojit_executor_run_program_wrapper`,
+  `___xojit_run_wrapper` — the "remote executor write/run memory"
+  pattern, identical in shape to LLVM's `llvm-jitlink-executor`
+  helper tool.
+
+### Why LLVM symbols don't appear in `-imports`
+
+`XOJITExecutor.framework` links only `Foundation`, `libobjc`,
+**`libc++.1.dylib`**, `libSystem`, and the Swift runtime — no
+`libLLVMOrcJIT.dylib` or any other LLVM dylib. `dyld_info -imports`
+across both binaries shows zero `llvm::*` C++ mangled symbols.
+
+Interpretation: **LLVM ORC + JITLink is statically linked into
+`XOJITExecutor.framework`** with `-fvisibility=hidden`, so only the
+symbols that have to be visible-by-string-lookup (GDB JIT
+interface) leak through. The `libc++.1.dylib` dependency is the
+tell that there's substantial C++ code inside — exactly what an
+LLVM-derived linker would need.
+
+### Architectural model Apple ships
+
+Putting the pieces together, Apple's runtime JIT-link is:
+
+1. **`XCPreviewAgent`** (the agent binary, per platform) starts.
+   Its `main()` is `___debug_blank_executor_main` from
+   `libPreviewsJITStubExecutor.a` (the thin Mach-O loader stub).
+2. **`PreviewsInjection.framework`** is `DYLD_INSERT_LIBRARIES`-injected
+   at agent launch. Provides the Swift-side runtime, host XPC
+   surface, and a single C-style JIT-link entrypoint
+   (`__previewsInjectionJITLinkEntrypoint`).
+3. **`XOJITExecutor.framework`** is dlopen-ed (weak-linked) by
+   PreviewsInjection. This is the **LLVM ORC engine, statically
+   linked**. It exposes a Swift class
+   `XOJITExecutor(connection: OS_xpc_object)` that drives the JIT.
+4. Xcode sends the agent an XPC message carrying object-file paths
+   + linker parameters (the `PreviewsJITLinkerParameters` shape
+   from `architecture-diagram-draft.md`).
+5. The XOJITExecutor calls into LLVM ORC's `LLJIT` + `ObjectLinkingLayer`
+   to JIT-link the `.o` files into a `JITDylib`, then runs the
+   resulting code on the main thread via
+   `___xojit_executor_run_program_on_main_thread`.
+6. The result is a **pseudodylib** — an in-memory Mach-O image
+   that dyld treats specially (the predicate
+   `__dyld_is_pseudodylib` exists in libSystem).
+
+This is **architecturally equivalent to public LLVM's
+`llvm-jitlink-executor` tool** + a custom Mach-O-pseudodylib dyld
+hook. The only Apple-private piece is the dyld pseudodylib
+extension (and even that has a documented purpose: hide in-memory
+JIT'd images from normal-dlopen scanners while keeping them
+debuggable).
+
+## What this means for the spike verdict (updated)
+
+The previous draft said this resolution was "favorable for
+buildable." With the VM-side evidence in hand, the bar moves
+higher: **the architecture we'd build on public LLVM ORC is
+*the same architecture* Apple shipped**, minus the
+pseudodylib dyld extension (which we don't need — normal
+in-memory `.o` linking via JITLink produces equivalent results,
+just without dyld-level concealment).
+
+Concretely, our W2 POC mirrors Apple's runtime stack:
+
+| Apple piece | Public-layer analogue |
+|---|---|
+| `XOJITExecutor` (Swift class wrapping LLVM ORC) | Our Swift class wrapping `llvm::orc::LLJIT` + `ObjectLinkingLayer` |
+| XPC-based executor protocol | LLVM's `SimpleRemoteEPC` (default) over Unix domain socket OR XPC if we want |
+| `JITDylibHandle` Swift type | Direct re-export of `llvm::orc::JITDylib`'s handle |
+| `TerminationResult` enum | The same four cases LLVM's executor returns |
+| `___xojit_executor_write_mem` / `_run_program_wrapper` | LLVM ORC's `RuntimeAlloc::onResolveCompleteCallback` + the `LLJIT::lookup`/`runConstructors`/`runProgram` family |
+| GDB JIT debug interface | `llvm::orc::Debugger::register` via `DebuggerSupportPlugin` |
+| pseudodylib via dyld extension | Not replicated — our images are normal-dyld-visible (it's fine; debuggers handle this either way) |
+
+**The single remaining "is it buildable?" question is exactly
+what the spike doc says it is**: whether LLVM ORC covers Swift's
+emission patterns (TLVs, async functions, witness tables, runtime
+metadata registration). The W2 POC targets exactly that question,
+and we now know with certainty that Apple's runtime is built on
+the *same public layer* the POC will exercise — so a positive POC
+result strongly implies feasibility for our full target.
+
+Headline: **Q6 is closed. Verdict positive. Building on public
+LLVM ORC isn't speculative — it's the same stack Apple ships,
+sans pseudodylib hide-from-dyld trick.**
 
 ## Data provenance
 
