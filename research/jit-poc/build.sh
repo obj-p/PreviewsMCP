@@ -18,6 +18,11 @@
 #   build/tlv_v1.o       — Swift module-level `let` (swift_once init)
 #   build/host_tlv       — Phase-2 step-2 C++ host harness
 #
+# Phase 2 step 2.5 outputs (ObjC selref uniquing plugin):
+#   build/objc_v1.o      — Foundation-touching Swift (ProcessInfo, NSString)
+#   build/ObjCSelrefPlugin.o — JITLink plugin object
+#   build/host_objc      — Phase-2 step-2.5 C++ host harness
+#
 # Conventions:
 #   * brewed LLVM's clang++ — NOT xcrun's. xcrun's clang ships with
 #     the Swift toolchain and isn't ABI-compatible with brewed LLVM's
@@ -186,6 +191,16 @@ echo "[build] clang tlv_c_v1.c -> build/tlv_c_v1.o"
     -c -o "${BUILD_DIR}/tlv_c_v1.o" \
     "${SWIFT_DIR}/tlv_c_v1.c"
 
+# -- Phase 2 step 2.5: Foundation-touching Swift object ---------------
+#
+# objc_v1.swift uses ProcessInfo and NSString — emits __objc_selrefs +
+# __objc_methname sections. Without the ObjCSelrefPlugin, JIT-linking
+# this object and calling its entry points aborts in `__forwarding__`.
+echo "[build] swiftc objc_v1.swift -> build/objc_v1.o"
+"${SWIFTC}" "${SWIFT_FLAGS[@]}" \
+    -o "${BUILD_DIR}/objc_v1.o" \
+    "${SWIFT_DIR}/objc_v1.swift"
+
 # -- C++ host harness --------------------------------------------------
 
 LLVM_COMPONENTS=(
@@ -252,6 +267,18 @@ echo "[build] clang++ src/host_tlv.cpp -> build/host_tlv"
     ${LLVM_LDFLAGS} ${LLVM_LIBS} ${LLVM_SYSLIBS} \
     -Wl,-rpath,"${LLVM_PREFIX}/lib"
 
+echo "[build] clang++ src/ObjCSelrefPlugin.cpp + host_objc.cpp -> build/host_objc"
+# shellcheck disable=SC2086
+"${LLVM_CLANG}" \
+    ${LLVM_CXXFLAGS} ${RTTI_FLAG} ${EXC_FLAG} \
+    -O2 -g -arch arm64 \
+    -isysroot "${SDK_PATH}" \
+    -o "${BUILD_DIR}/host_objc" \
+    "${SRC_DIR}/ObjCSelrefPlugin.cpp" "${SRC_DIR}/host_objc.cpp" \
+    ${LLVM_LDFLAGS} ${LLVM_LIBS} ${LLVM_SYSLIBS} \
+    -lobjc \
+    -Wl,-rpath,"${LLVM_PREFIX}/lib"
+
 # Locate the ORC runtime archive (arm64 slice within a universal
 # archive). We record the path so callers can hand it to host_tlv as
 # argv[1]. brew's compiler-rt installs the universal `liborc_rt_osx.a`
@@ -275,7 +302,9 @@ fi
 echo "[build] OK"
 echo "[build] artifacts:"
 ls -la "${BUILD_DIR}/host" "${BUILD_DIR}/host_witness" "${BUILD_DIR}/host_tlv" \
+       "${BUILD_DIR}/host_objc" \
        "${BUILD_DIR}/greet_v1.o" "${BUILD_DIR}/greet_v2.o" \
        "${BUILD_DIR}/Greeter.o" \
        "${BUILD_DIR}/greeter_v1.o" "${BUILD_DIR}/greeter_v2.o" \
-       "${BUILD_DIR}/tlv_v1.o" "${BUILD_DIR}/tlv_c_v1.o"
+       "${BUILD_DIR}/tlv_v1.o" "${BUILD_DIR}/tlv_c_v1.o" \
+       "${BUILD_DIR}/objc_v1.o"
