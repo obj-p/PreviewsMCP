@@ -1,0 +1,10 @@
+[host] LLJIT target triple: arm64-apple-darwin25.3.0
+[host] dlopened libswiftCore via /usr/lib/swift/libswiftCore.dylib
+[host] loading C TLV object from build/tlv_c_v1.o
+[host] tlv c v1: incTLV -> 43
+[host] tlv c v1: incTLV -> 44
+[host] tlv c v1: peekTLV -> 44
+tlv v1: counter=44 (pid=12941)
+JIT session error: Symbols not found: [ _OBJC_CLASS_$_NSProcessInfo ]
+FATAL: lookup(readComputed): Failed to materialize symbols: { (main, { ___swift_instantiateConcreteTypeFromMangledNameV2, __swift_FORCE_LOAD_$_swiftObjectiveC_$_poc, _symbolic _____yypG s23_ContiguousArrayStorageC, __swift_FORCE_LOAD_$_swiftXPC_$_poc, $.build/tlv_v1.o.__inits.0, _$s3poc12readComputedyyF, _$ss23_ContiguousArrayStorageCyypGMR, _$ss23_ContiguousArrayStorageCyypGMd, __llvm_jitlink_macho_objc_imageinfo, __swift_FORCE_LOAD_$_swiftDispatch_$_poc, _readComputed, __swift_FORCE_LOAD_$_swiftFoundation_$_poc, __swift_FORCE_LOAD_$_swiftIOKit_$_poc, ___swift_reflection_version, _$s3poc19computedAtFirstReadSSvp, __swift_FORCE_LOAD_$_swiftCoreFoundation_$_poc, __swift_FORCE_LOAD_$_swift_Builtin_float_$_poc, _$s3poc19computedAtFirstReadSSvau }) }
+[host] loading Swift global-init object from build/tlv_v1.o

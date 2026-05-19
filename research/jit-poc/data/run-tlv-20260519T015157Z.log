@@ -1,0 +1,53 @@
+[host] LLJIT target triple: arm64-apple-darwin25.3.0
+[host] dlopened libswiftCore via /usr/lib/swift/libswiftCore.dylib
+[host] dlopened Foundation.framework via /System/Library/Frameworks/Foundation.framework/Foundation
+[host] dlopened libswiftFoundation via /usr/lib/swift/libswiftFoundation.dylib
+[host] loading C TLV object from build/tlv_c_v1.o
+[host] tlv c v1: incTLV -> 43
+[host] tlv c v1: incTLV -> 44
+[host] tlv c v1: peekTLV -> 44
+tlv v1: counter=44 (pid=13140)
+[host] loading Swift global-init object from build/tlv_v1.o
+[host] readComputed -> 0x100e0812c; calling...
+2026-05-18 21:51:57.238 host_tlv[13140:3860769] *** NSForwarding: warning: selector (0x100e04088) for message 'processInfo' does not match selector known to Objective C runtime (0x1fb15de78)-- abort
+*** Terminating app due to uncaught exception 'NSInvalidArgumentException', reason: '+[NSProcessInfo processInfo]: unrecognized selector sent to class 0x1ed8f20b8'
+*** First throw call stack:
+(
+	0   CoreFoundation                      0x00000001816eb8fc __exceptionPreprocess + 176
+	1   libobjc.A.dylib                     0x00000001811c2418 objc_exception_throw + 88
+	2   CoreFoundation                      0x00000001817cdadc -[NSObject(NSObject) doesNotRecognizeSelector:] + 0
+	3   CoreFoundation                      0x0000000181688f08 ___forwarding___ + 1480
+	4   CoreFoundation                      0x0000000181688880 _CF_forwarding_prep_0 + 96
+	5   ???                                 0x0000000100e0802c 0x0 + 4309680172
+	6   libdispatch.dylib                   0x000000018145cad4 _dispatch_client_callout + 16
+	7   libdispatch.dylib                   0x0000000181445a60 _dispatch_once_callout + 32
+	8   ???                                 0x0000000100e081d8 0x0 + 4309680600
+	9   host_tlv                            0x0000000100c9d944 main + 1908
+	10  dyld                                0x0000000181235d54 start + 7184
+)
+libc++abi: terminating due to uncaught exception of type NSException
+PLEASE submit a bug report to https://github.com/Homebrew/homebrew-core/issues and include the crash backtrace and instructions to reproduce the bug.
+Stack dump:
+0.	Program arguments: ./build/host_tlv /opt/homebrew/opt/llvm/lib/clang/22/lib/darwin/liborc_rt_osx.a build/tlv_c_v1.o build/tlv_v1.o
+Stack dump without symbol names (ensure you have llvm-symbolizer in your PATH or set the environment var `LLVM_SYMBOLIZER_PATH` to point to it):
+0  libLLVM.dylib            0x000000010ec2b958 llvm::sys::PrintStackTrace(llvm::raw_ostream&, int) + 56
+1  libLLVM.dylib            0x000000010ec2c19c SignalHandler(int, __siginfo*, void*) + 372
+2  libsystem_platform.dylib 0x0000000181609764 _sigtramp + 56
+3  libsystem_pthread.dylib  0x00000001815ff888 pthread_kill + 296
+4  libsystem_c.dylib        0x0000000181504850 abort + 124
+5  libc++abi.dylib          0x00000001815b3858 __cxxabiv1::__aligned_malloc_with_fallback(unsigned long) + 0
+6  libc++abi.dylib          0x00000001815a24d4 demangling_unexpected_handler() + 0
+7  libobjc.A.dylib          0x00000001811cc414 _objc_terminate() + 156
+8  libc++abi.dylib          0x00000001815b2c2c std::__terminate(void (*)()) + 16
+9  libc++abi.dylib          0x00000001815b6394 __cxa_get_exception_ptr + 0
+10 libc++abi.dylib          0x00000001815b633c __cxxabiv1::failed_throw(__cxxabiv1::__cxa_exception*) + 0
+11 libobjc.A.dylib          0x00000001811c2580 objc_exception_throw + 448
+12 CoreFoundation           0x00000001817cdadc -[NSObject(NSObject) doesNotRecognizeSelector:] + 0
+13 CoreFoundation           0x0000000181688f08 ___forwarding___ + 1480
+14 CoreFoundation           0x0000000181688880 _CF_forwarding_prep_0 + 96
+15 (error)                  0x0000000100e0802c
+16 libdispatch.dylib        0x000000018145cad4 _dispatch_client_callout + 16
+17 libdispatch.dylib        0x0000000181445a60 _dispatch_once_callout + 32
+18 (error)                  0x0000000100e081d8
+19 host_tlv                 0x0000000100c9d944 main + 1908
+20 dyld                     0x0000000181235d54 start + 7184
