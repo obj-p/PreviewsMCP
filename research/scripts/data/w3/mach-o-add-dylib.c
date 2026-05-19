@@ -1,9 +1,10 @@
 // W3 — Minimal Mach-O LC_LOAD_DYLIB injector for XCPreviewAgent.
 //
-// Appends an LC_LOAD_DYLIB load command to the arm64e slice of a fat
-// Mach-O binary in-place. The DYLD_INSERT_LIBRARIES injection path
-// (handoff.md / interposer-results.md) is blocked at three barriers —
-// this tool bypasses all of them by modifying the agent binary
+// Appends an LC_LOAD_DYLIB load command to *every* arm64* slice of a
+// fat Mach-O binary in-place (subtype 0 = arm64 and subtype 2 =
+// arm64e). The DYLD_INSERT_LIBRARIES injection path (see
+// interposer-results.md sessions 1-3) is architecturally blocked —
+// this tool bypasses every prior gate by modifying the agent binary
 // directly.
 //
 // Build:
@@ -13,32 +14,60 @@
 //   mach-o-add-dylib <macho-path> <dylib-path>
 //
 // The target Mach-O is patched in place; caller is responsible for
-// backup + post-patch re-codesigning (the existing Apple signature
-// becomes invalid on any byte modification). Typical caller flow:
+// backup + post-patch re-codesigning. Working flow (matches the
+// `drive-xcode-preview` preset's "patch XCPreviewAgent + re-codesign"
+// step group):
 //
-//   sudo cp .../XCPreviewAgent .../XCPreviewAgent.bak
-//   sudo mach-o-add-dylib .../XCPreviewAgent /tmp/w3-interposer.dylib
-//   sudo codesign -d --entitlements - .../XCPreviewAgent.bak > /tmp/ent.plist
-//   sudo codesign --force --sign - --entitlements /tmp/ent.plist \
-//                 .../XCPreviewAgent
+//   AGENT=/Applications/Xcode.app/.../XCPreviewAgent.app/Contents/MacOS/XCPreviewAgent
+//   # 1. Hardcoded entitlements plist (the agent's only entitlement
+//   #    is `com.apple.security.get-task-allow`; extracting via
+//   #    `codesign -d --entitlements -` produces a CMS-wrapped blob
+//   #    that codesign --sign can't read back, so hardcode):
+//   cat > /tmp/agent.entitlements.xml <<'XML'
+//   <?xml version="1.0" encoding="UTF-8"?>
+//   <plist version="1.0"><dict>
+//       <key>com.apple.security.get-task-allow</key><true/>
+//   </dict></plist>
+//   XML
+//   sudo cp "$AGENT" /tmp/XCPreviewAgent.bak
+//   sudo mach-o-add-dylib "$AGENT" /tmp/w3-interposer.dylib
+//   sudo codesign --force --sign - \
+//        --entitlements /tmp/agent.entitlements.xml "$AGENT"
+//
+// Why patch BOTH arm64 and arm64e slices (load-bearing, session-4
+// finding): if our re-codesign happens to invalidate the arm64e slice
+// from dyld's perspective (ad-hoc + Apple's library-validation policy
+// can interact unpredictably), macOS falls back to the unmodified
+// arm64 slice — and our LC_LOAD_DYLIB is gone. Patching both keeps
+// the interposer wired up across the arch-fallback path. The price is
+// trivial: ~88 bytes of load-command slack per slice on a typical
+// Apple binary; LC_LOAD_DYLIB for `/tmp/w3-interposer.dylib` needs 56.
+//
+// Why the interposer dylib must ALSO be fat (arm64 + arm64e): same
+// reason in the other direction. dyld rejects arch mismatches with
+// "have 'arm64', need 'arm64e'" and the agent silently falls back to
+// the unmodified arm64 slice. Build with `clang -arch arm64 -arch
+// arm64e`. See `interposer.c`.
 //
 // Scope:
-//   - Only patches the arm64e slice (the slice macOS-on-Apple-Silicon
-//     selects). x86_64 and arm64 slices left intact.
-//   - Requires the new load command to fit in the existing pad bytes
-//     between the load-commands area and the first section's data.
-//     For the macOS-26.2 XCPreviewAgent the headroom is 88 bytes; the
-//     new command for `/tmp/w3-interposer.dylib` needs 56. Slack
-//     reported on `--verbose` so callers can sanity-check.
-//   - No relocation of __LINKEDIT or other segments. If the headroom
-//     is insufficient, the patch fails — caller decides whether to
-//     fall back to libLogRedirect wrap (handoff.md option 2).
-//   - Pure C, no external deps beyond <mach-o/*.h>. ~150 LOC.
+//   - arm64 + arm64e slices only. x86_64 left intact.
+//   - Requires load-command headroom in the slice (slack between the
+//     load-commands area and the first section's data offset). For
+//     the macOS-26.2 XCPreviewAgent the headroom is 88 bytes per
+//     slice; the new command for `/tmp/w3-interposer.dylib` needs 56.
+//     Tool prints actual slack on stderr — callers can sanity-check
+//     against the requirement.
+//   - No relocation of __LINKEDIT or other segments. If headroom is
+//     insufficient, the patch fails — caller would need to fall back
+//     to libLogRedirect.dylib wrap (interposer-results.md option 2)
+//     or relocate __LINKEDIT (more work).
+//   - Pure C, no external deps beyond <mach-o/*.h>. ~170 LOC.
 //
 // References:
 //   - Apple, <mach-o/loader.h>: load_command, dylib_command, segment_command_64
 //   - Cody Cutrer / Tyilo, `insert_dylib`: prior art for the
-//     same operation, MIT-licensed. This tool is a simpler subset.
+//     same operation, MIT-licensed. This tool is a simpler subset
+//     (no __LINKEDIT relocation, no signature stripping).
 
 #include <fcntl.h>
 #include <inttypes.h>

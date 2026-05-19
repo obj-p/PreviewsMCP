@@ -1,11 +1,12 @@
 // W3 — Mach VM snapshot/diff helper for XCPreviewAgent.
 //
-// Second-source capture for the per-edit write_mem address list, in
-// parallel to the DYLD_INSERT_LIBRARIES interposer. Uses
-// `task_for_pid` + `mach_vm_region_recurse_64` to enumerate writable
-// data regions of the agent, `mach_vm_read_overwrite` to snapshot
-// each region (non-invasive — doesn't stop the target), then a diff
-// mode that reports byte-level changes between two snapshots.
+// Second-source capture for the per-edit address list, in parallel to
+// the LC_LOAD_DYLIB interposer (`mach-o-add-dylib.c` +
+// `interposer.c`). Uses `task_for_pid` + `mach_vm_region_recurse_64`
+// to enumerate writable data regions of the agent,
+// `mach_vm_read_overwrite` to snapshot each region (non-invasive —
+// doesn't stop the target), then a diff mode that reports byte-level
+// changes between two snapshots.
 //
 // Build:
 //   clang -O2 -Wall -o mem-diff-helper mem-diff-helper.c
@@ -30,6 +31,23 @@
 //   nrgn   : uint32  = number of regions captured
 //   nrgn x { addr: uint64, size: uint64, prot: uint32, _pad: uint32 }
 //   then for each region: `size` bytes of raw memory.
+//
+// What the capture showed (session 4): the diff is *dominated by
+// agent respawn artifacts*, not in-place patches. The two snapshots
+// were of DIFFERENT processes (PID 1290 pre-edit, PID 1403 post-edit)
+// because previewsd kills + posix_spawns the agent on every body
+// edit. So the diff shows ~127 regions with mostly REGION_ONLY_IN_BEFORE
+// (the dead agent's freed mappings) + a small set of byte-level DIFFs
+// (shared regions / dyld_shared_cache addresses that survived). The
+// diff IS NOT a per-call patch-point list — for that, see the
+// interposer log at `w3-writes.interposer.txt`.
+//
+// Useful regardless: the diff corroborates the respawn-not-patch
+// finding. If Apple were patching in-place, we'd see only DIFF
+// entries (same-PID, byte-level mutations); we see mostly
+// REGION_ONLY_IN_BEFORE (process replacement). This is the
+// second-source evidence that closes the §2 mechanism-hypothesis
+// refutation in `../analysis/w3-empirical-capture.md`.
 
 #include <fcntl.h>
 #include <inttypes.h>

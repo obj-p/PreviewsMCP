@@ -1,28 +1,54 @@
-// W3 — `DYLD_INSERT_LIBRARIES` interposer dylib for capturing
-// `__xojit_executor_write_mem` and `__xojit_executor_run_program_on_main_thread`
-// from XCPreviewAgent during a SwiftUI hot-reload.
+// W3 — Interposer dylib for capturing `__xojit_executor_*` calls in
+// XCPreviewAgent during a SwiftUI hot-reload.
 //
 // Build (on the guest VM, where Xcode's toolchain is present):
-//   clang -dynamiclib -arch arm64 -undefined dynamic_lookup \
+//   clang -dynamiclib -arch arm64 -arch arm64e -undefined dynamic_lookup \
+//         -install_name /tmp/w3-interposer.dylib \
 //         -o /tmp/w3-interposer.dylib /tmp/interposer.c
 //   codesign --force --sign - /tmp/w3-interposer.dylib
 //
-// `-undefined dynamic_lookup` is load-bearing: the four
-// `__xojit_executor_*` symbols are only available at runtime via
-// dyld_shared_cache, and the SDK does not expose XOJITExecutor headers.
-// dyld resolves the external references when the dylib is loaded into
-// XCPreviewAgent.
+// Two load-bearing flags learned the hard way:
 //
-// Inject via `launchctl setenv DYLD_INSERT_LIBRARIES /tmp/w3-interposer.dylib`
-// plus `launchctl setenv DYLD_FORCE_FLAT_NAMESPACE 1` (the latter ensures
-// intra-XOJITExecutor calls hit our interpose entry rather than being
-// short-circuited by two-level namespace).
+//   -arch arm64 -arch arm64e (fat): the agent runs as arm64e on Apple
+//     Silicon. An arm64-only dylib triggers
+//     "(have 'arm64', need 'arm64e')" from dyld and the load fails
+//     silently — dyld then falls back to the unmodified arm64 slice of
+//     the agent if both arch slices' LC_LOAD_DYLIB target the same
+//     non-arm64e path. Fat dylib + patching both arm64* slices of the
+//     agent is the robust combination. See `mach-o-add-dylib.c`.
+//
+//   -undefined dynamic_lookup: the four `__xojit_executor_*` symbols
+//     are dyld_shared_cache-only at runtime, and the SDK does not
+//     expose XOJITExecutor headers. Defer resolution to dyld at load
+//     time.
+//
+// Inject via LC_LOAD_DYLIB binary modification of `XCPreviewAgent`
+// (see `mach-o-add-dylib.c`). The DYLD_INSERT_LIBRARIES + launchctl
+// setenv path is NOT viable: empirically blocked at 3 barriers
+// (launchctl-setenv from SSH doesn't reach admin's GUI launchd
+// session, `open -a` strips DYLD_*, and previewsd reconstructs the
+// agent's DYLD_INSERT_LIBRARIES from a hardcoded 5-entry list). Full
+// diagnosis: `interposer-results.md` sessions 1-3.
+//
+// DYLD_FORCE_FLAT_NAMESPACE was thought to be needed alongside but
+// turns out unnecessary with LC_LOAD_DYLIB injection — the
+// `__DATA,__interpose` table fires for cross-image calls into
+// XOJITExecutor regardless of namespace mode.
 //
 // Output goes to `/tmp/w3-writes.log`. One line per intercepted call.
 //
 // Constructor logs to `/tmp/w3-interposer.log` so we can confirm the
 // dylib was loaded even if the interpose entries themselves never fire
-// (which would indicate two-level-namespace bypass or wrong arch).
+// (which would indicate the wrong arch slice loaded — usually means
+// we built arm64-only and the agent's arm64e LC_LOAD_DYLIB rejected
+// us).
+//
+// What the capture showed (session 4): body-literal hot-reload fires
+// exactly 3 calls per agent lifetime — run_program_wrapper +
+// run_program_on_main_thread + run_program_wrapper, with the last two
+// 8 bytes apart (Swift async entry/ret). Never `write_mem`. Agent PID
+// changes across the edit; Apple respawns the agent rather than
+// patching in-place. See `../analysis/w3-empirical-capture.md`.
 
 #include <stdio.h>
 #include <stdint.h>
