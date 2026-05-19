@@ -1,0 +1,833 @@
+        0x00002348  _UVSimulatorDevice
+        0x000023B0  _UViOSDeviceFromDVTDevice
+        0x00002554  _UVSimulatorDeviceHasInstalledApp
+        0x000033EC  _UVMakeLayerHostWithRemoteClientID
+        0x00004AE8  static PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider.Snapshot.Origin.== infix(PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider.Snapshot.Origin, PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider.Snapshot.Origin) -> Swift.Bool
+        0x00004AE8  static PreviewsDeveloperTools.RunDestinationStrategy.== infix(PreviewsDeveloperTools.RunDestinationStrategy, PreviewsDeveloperTools.RunDestinationStrategy) -> Swift.Bool
+        0x00004AFC  PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider.Snapshot.Origin.hashValue.getter : Swift.Int
+        0x00004AFC  PreviewsDeveloperTools.RunDestinationStrategy.hashValue.getter : Swift.Int
+        0x00004B40  PreviewsDeveloperTools.DestinationDomain.hash(into: inout Swift.Hasher) -> ()
+        0x00004B40  PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider.Snapshot.Origin.hash(into: inout Swift.Hasher) -> ()
+        0x00004B40  PreviewsDeveloperTools.RunDestinationStrategy.hash(into: inout Swift.Hasher) -> ()
+        0x00004C7C  PreviewsDeveloperTools.SimulatorShutdownUnexpectedlyError.additionalDiagnostics.getter : Swift.String?
+        0x00004C94  (extension in PreviewsDeveloperTools):PreviewsDeveloperTools.DeveloperToolsPlatformSupport.supportsInteractiveByDefault.getter : Swift.Bool
+        0x00004C94  (extension in PreviewsDeveloperTools):PreviewsDeveloperTools.DeveloperToolsPlatformSupport.supportsOnDevicePreviews.getter : Swift.Bool
+        0x00004C94  default argument 5 of PreviewsDeveloperTools.SimDeviceCategoryPreferences.init(id: Swift.String, name: Swift.String, nameSuffixTags: [Swift.String], rank: Swift.Double, deviceFamily: __C.SimDeviceProductFamily, sizeCategory: PreviewsDeveloperTools.SimDeviceTypeInfo.SizeCategory?, features: Swift.Set<PreviewsDeveloperTools.SimDeviceTypeInfo.Feature>, tags: Swift.Set<PreviewsDeveloperTools.SimDeviceTypeInfo.Tag>) -> PreviewsDeveloperTools.SimDeviceCategoryPreferences
+        0x00004D20  default argument 2 of PreviewsDeveloperTools.SimDeviceCategoryPreferences.init(id: Swift.String, name: Swift.String, nameSuffixTags: [Swift.String], rank: Swift.Double, deviceFamily: __C.SimDeviceProductFamily, sizeCategory: PreviewsDeveloperTools.SimDeviceTypeInfo.SizeCategory?, features: Swift.Set<PreviewsDeveloperTools.SimDeviceTypeInfo.Feature>, tags: Swift.Set<PreviewsDeveloperTools.SimDeviceTypeInfo.Tag>) -> PreviewsDeveloperTools.SimDeviceCategoryPreferences
+        0x00004D2C  default argument 6 of PreviewsDeveloperTools.SimDeviceCategoryPreferences.init(id: Swift.String, name: Swift.String, nameSuffixTags: [Swift.String], rank: Swift.Double, deviceFamily: __C.SimDeviceProductFamily, sizeCategory: PreviewsDeveloperTools.SimDeviceTypeInfo.SizeCategory?, features: Swift.Set<PreviewsDeveloperTools.SimDeviceTypeInfo.Feature>, tags: Swift.Set<PreviewsDeveloperTools.SimDeviceTypeInfo.Tag>) -> PreviewsDeveloperTools.SimDeviceCategoryPreferences
+        0x00004D2C  default argument 7 of PreviewsDeveloperTools.SimDeviceCategoryPreferences.init(id: Swift.String, name: Swift.String, nameSuffixTags: [Swift.String], rank: Swift.Double, deviceFamily: __C.SimDeviceProductFamily, sizeCategory: PreviewsDeveloperTools.SimDeviceTypeInfo.SizeCategory?, features: Swift.Set<PreviewsDeveloperTools.SimDeviceTypeInfo.Feature>, tags: Swift.Set<PreviewsDeveloperTools.SimDeviceTypeInfo.Tag>) -> PreviewsDeveloperTools.SimDeviceCategoryPreferences
+        0x00004D38  default argument 4 of PreviewsDeveloperTools.StaticPreviewViewable.init(rawImage: __C.CGImageRef, scaleFactor: CoreGraphics.CGFloat, selectableRegionsInPixelSpace: [PreviewsPipeline.AddressableSelectableRegion], seed: PreviewsFoundationHost.Identifier, cornerRadius: CoreGraphics.CGFloat, chrome: PreviewsDeveloperTools.StaticPreviewViewable.Chrome, interfaceOrientation: PreviewsMessagingHost.PreviewTraits.Orientation) -> PreviewsDeveloperTools.StaticPreviewViewable
+        0x00005114  PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider.Snapshot.image.getter : __C.CGImageRef
+        0x00005114  PreviewsDeveloperTools.SimulatorDevice.simDevice.getter : __C.SimDevice
+        0x00005114  PreviewsDeveloperTools.SimulatorScreenInfo.device.getter : __C.SimDevice
+        0x00005114  PreviewsDeveloperTools.StaticPreviewViewable.rawImage.getter : __C.CGImageRef
+        0x00006AB4  PreviewsDeveloperTools.AvailableDevicesQuery.init() -> PreviewsDeveloperTools.AvailableDevicesQuery
+        0x00006AB4  PreviewsDeveloperTools.WorkspaceTeardownHandlersQuery.init() -> PreviewsDeveloperTools.WorkspaceTeardownHandlersQuery
+        0x00006AB4  static PreviewsDeveloperTools.BuiltInIntegrationManager.default.getter : PreviewsDeveloperTools.BuiltInIntegrationManager
+        0x00006B68  PreviewsDeveloperTools.DeviceFamilyResolver.MatchTerm.term.getter : Swift.String
+        0x00006B68  PreviewsDeveloperTools.MacOSDeviceCategoryPreferences.id.getter : Swift.String
+        0x00006B68  PreviewsDeveloperTools.SimDeviceCategoryPreferences.id.getter : Swift.String
+        0x00006B94  PreviewsDeveloperTools.DeviceFamilyResolver.MatchTerm.term.setter : Swift.String
+        0x00006B94  PreviewsDeveloperTools.MacOSDeviceCategoryPreferences.id.setter : Swift.String
+        0x00006B94  PreviewsDeveloperTools.SimDeviceCategoryPreferences.id.setter : Swift.String
+        0x00006BC8  PreviewsDeveloperTools.DeviceFamilyResolver.MatchTerm.term.modify : Swift.String
+        0x00006BC8  PreviewsDeveloperTools.DevicePlatformSupport.platform.modify : PreviewsPipeline.Platform
+        0x00006BC8  PreviewsDeveloperTools.MacOSDeviceCategoryPreferences.id.modify : Swift.String
+        0x00006BC8  PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider.Snapshot.image.modify : __C.CGImageRef
+        0x00006BC8  PreviewsDeveloperTools.SimDeviceCategoryPreferences.id.modify : Swift.String
+        0x00006BC8  PreviewsDeveloperTools.SimulatorDevice.simDevice.modify : __C.SimDevice
+        0x00006BC8  PreviewsDeveloperTools.SimulatorPlatformSupport.platform.modify : PreviewsPipeline.Platform
+        0x00006BD8  PreviewsDeveloperTools.MacOSDeviceCategoryPreferences.name.getter : Swift.String
+        0x00006BD8  PreviewsDeveloperTools.SimDeviceCategoryPreferences.name.getter : Swift.String
+        0x00006C04  PreviewsDeveloperTools.MacOSDeviceCategoryPreferences.name.setter : Swift.String
+        0x00006C04  PreviewsDeveloperTools.SimDeviceCategoryPreferences.name.setter : Swift.String
+        0x00006C38  PreviewsDeveloperTools.MacOSDeviceCategoryPreferences.name.modify : Swift.String
+        0x00006C38  PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider.Snapshot.cornerRadius.modify : CoreGraphics.CGFloat
+        0x00006C38  PreviewsDeveloperTools.SimDeviceCategoryPreferences.name.modify : Swift.String
+        0x00006C48  PreviewsDeveloperTools.SimDeviceCategoryPreferences.nameSuffixTags.getter : [Swift.String]
+        0x00006C50  PreviewsDeveloperTools.SimDeviceCategoryPreferences.nameSuffixTags.setter : [Swift.String]
+        0x00006C78  PreviewsDeveloperTools.MacOSDeviceCategoryPreferences.rank.modify : Swift.Double
+        0x00006C78  PreviewsDeveloperTools.SimDeviceCategoryPreferences.nameSuffixTags.modify : [Swift.String]
+        0x00006C88  PreviewsDeveloperTools.SimDeviceCategoryPreferences.rank.getter : Swift.Double
+        0x00006C90  PreviewsDeveloperTools.SimDeviceCategoryPreferences.rank.setter : Swift.Double
+        0x00006C98  PreviewsDeveloperTools.MacOSDeviceCategoryPreferences.sdkVariant.modify : Swift.String
+        0x00006C98  PreviewsDeveloperTools.SimDeviceCategoryPreferences.rank.modify : Swift.Double
+        0x00006CA8  PreviewsDeveloperTools.SimDeviceCategoryPreferences.deviceFamily.getter : __C.SimDeviceProductFamily
+        0x00006CB0  PreviewsDeveloperTools.SimDeviceCategoryPreferences.deviceFamily.setter : __C.SimDeviceProductFamily
+        0x00006CB8  PreviewsDeveloperTools.SimDeviceCategoryPreferences.deviceFamily.modify : __C.SimDeviceProductFamily
+        0x00006CC8  PreviewsDeveloperTools.SimDeviceCategoryPreferences.sizeCategory.getter : PreviewsDeveloperTools.SimDeviceTypeInfo.SizeCategory?
+        0x00006CD0  PreviewsDeveloperTools.SimDeviceCategoryPreferences.sizeCategory.setter : PreviewsDeveloperTools.SimDeviceTypeInfo.SizeCategory?
+        0x00006CD8  PreviewsDeveloperTools.SimDeviceCategoryPreferences.sizeCategory.modify : PreviewsDeveloperTools.SimDeviceTypeInfo.SizeCategory?
+        0x00006CE8  PreviewsDeveloperTools.SimDeviceCategoryPreferences.features.getter : Swift.Set<PreviewsDeveloperTools.SimDeviceTypeInfo.Feature>
+        0x00006CF0  PreviewsDeveloperTools.SimDeviceCategoryPreferences.features.setter : Swift.Set<PreviewsDeveloperTools.SimDeviceTypeInfo.Feature>
+        0x00006D18  PreviewsDeveloperTools.SimDeviceCategoryPreferences.features.modify : Swift.Set<PreviewsDeveloperTools.SimDeviceTypeInfo.Feature>
+        0x00006D28  PreviewsDeveloperTools.SimDeviceCategoryPreferences.tags.getter : Swift.Set<PreviewsDeveloperTools.SimDeviceTypeInfo.Tag>
+        0x00006D30  PreviewsDeveloperTools.SimDeviceCategoryPreferences.tags.setter : Swift.Set<PreviewsDeveloperTools.SimDeviceTypeInfo.Tag>
+        0x00006D58  PreviewsDeveloperTools.SimDeviceCategoryPreferences.tags.modify : Swift.Set<PreviewsDeveloperTools.SimDeviceTypeInfo.Tag>
+        0x00006D68  PreviewsDeveloperTools.SimDeviceCategoryPreferences.init(id: Swift.String, name: Swift.String, nameSuffixTags: [Swift.String], rank: Swift.Double, deviceFamily: __C.SimDeviceProductFamily, sizeCategory: PreviewsDeveloperTools.SimDeviceTypeInfo.SizeCategory?, features: Swift.Set<PreviewsDeveloperTools.SimDeviceTypeInfo.Feature>, tags: Swift.Set<PreviewsDeveloperTools.SimDeviceTypeInfo.Tag>) -> PreviewsDeveloperTools.SimDeviceCategoryPreferences
+        0x00006D8C  static PreviewsDeveloperTools.SimDeviceCategoryPreferences.== infix(PreviewsDeveloperTools.SimDeviceCategoryPreferences, PreviewsDeveloperTools.SimDeviceCategoryPreferences) -> Swift.Bool
+        0x00006D90  PreviewsDeveloperTools.SimDeviceCategoryPreferences.hash(into: inout Swift.Hasher) -> ()
+        0x00006F04  PreviewsDeveloperTools.SimDeviceCategoryPreferences.hashValue.getter : Swift.Int
+        0x00007788  type metadata accessor for PreviewsDeveloperTools.SimDeviceCategoryPreferences
+        0x000082C4  PreviewsDeveloperTools.SupportedPlatformsContainer.init(PreviewsDeveloperTools.DeveloperToolsPlatformSupport...) -> PreviewsDeveloperTools.SupportedPlatformsContainer
+        0x00008468  PreviewsDeveloperTools.SupportedPlatformsContainer.allPlatformSupports.getter : [PreviewsDeveloperTools.DeveloperToolsPlatformSupport]
+        0x000086A0  PreviewsDeveloperTools.SupportedPlatformsContainer.platformSupport(for: PreviewsDeveloperTools.PlatformSupportQuery) -> PreviewsDeveloperTools.DeveloperToolsPlatformSupport?
+        0x0000A77C  type metadata accessor for PreviewsDeveloperTools.SupportedPlatformsContainer
+        0x0000A978  PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.auditToken.getter : __C.audit_token_t
+        0x0000A984  PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.windowNumber.getter : Swift.Int
+        0x0000A98C  PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.previewGeometry.getter : PreviewsPipeline.PreviewGeometry
+        0x0000A9D8  type metadata accessor for PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable
+        0x0000A9EC  PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.snapshotProvider.getter : PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider
+        0x0000AA0C  PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.suppressedPresentationPublisher.getter : Combine.PassthroughSubject<PreviewsServicesUI.SuppressedPresentation, Swift.Never>
+        0x0000AA2C  PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.passdown.getter : PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.PassdownContext
+        0x0000AEB8  PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.geometry.getter : PreviewsPipeline.PreviewGeometry?
+        0x0000AF28  PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.snapshot() async throws -> __C.CGImageRef?
+        0x0000AFCC  PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider.snapshot.getter : PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider.Snapshot
+        0x0000AFE0  PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.publicSuccessfulCompletionDescription.getter : Swift.String
+        0x0000B430  PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider.Snapshot.image.setter : __C.CGImageRef
+        0x0000B430  PreviewsDeveloperTools.SimulatorDevice.simDevice.setter : __C.SimDevice
+        0x0000B458  PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider.Snapshot.scaleFactor.getter : CoreGraphics.CGFloat
+        0x0000B460  PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider.Snapshot.scaleFactor.setter : CoreGraphics.CGFloat
+        0x0000B468  PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider.Snapshot.scaleFactor.modify : CoreGraphics.CGFloat
+        0x0000B478  PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider.Snapshot.cornerRadius.getter : CoreGraphics.CGFloat
+        0x0000B480  PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider.Snapshot.cornerRadius.setter : CoreGraphics.CGFloat
+        0x0000B488  PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider.Snapshot.origin.getter : PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider.Snapshot.Origin
+        0x0000B494  PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider.Snapshot.origin.setter : PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider.Snapshot.Origin
+        0x0000B4A0  PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider.Snapshot.origin.modify : PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider.Snapshot.Origin
+        0x0000B4E0  PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider.$snapshot.getter : Combine.Published<PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider.Snapshot>.Publisher
+        0x0000B4EC  PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider.initialSnapshotFromUpdate.getter : PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider.Snapshot
+        0x0000B6A8  PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider.$initialSnapshotFromUpdate.getter : Combine.Published<PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider.Snapshot>.Publisher
+        0x0000C21C  PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider.updateIfNotForCurrentUpdate() -> ()
+        0x0000C648  PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider.deinit
+        0x0000C6B4  PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider.__deallocating_deinit
+        0x0000C754  PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.PassdownContext.isConnected.getter : Swift.Bool
+        0x0000C784  PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.PassdownContext.isConnected.setter : Swift.Bool
+        0x0000C7C0  PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.PassdownContext.isConnected.modify : Swift.Bool
+        0x0000C7F4  PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.PassdownContext.deinit
+        0x0000C7FC  PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.PassdownContext.__deallocating_deinit
+        0x0000C80C  PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.prepareToActivate(from: PreviewsPipeline.PreviewViewable) -> ()
+        0x0000D994  type metadata accessor for PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider
+        0x0000DA44  method lookup function for PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider
+        0x0000DC24  type metadata accessor for PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider.Snapshot
+        0x0000DC34  type metadata accessor for PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider.Snapshot.Origin
+        0x0000DC44  type metadata accessor for PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.PassdownContext
+        0x0000DC64  method lookup function for PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.PassdownContext
+        0x0000E478  dispatch thunk of PreviewsDeveloperTools.AnyHardwareDevice.isConnected.getter : Swift.Bool
+        0x0000E478  dispatch thunk of PreviewsDeveloperTools.AnySimulatorDeviceType.productFamilyID.getter : __C.SimDeviceProductFamily
+        0x0000E478  dispatch thunk of PreviewsDeveloperTools.DeveloperToolsPlatformSupport.supportsInteractiveByDefault.getter : Swift.Bool
+        0x0000E480  dispatch thunk of PreviewsDeveloperTools.AnyHardwareDevice.addConnectionObserver(() -> ()) -> PreviewsFoundationHost.CancellationToken
+        0x0000E488  dispatch thunk of PreviewsDeveloperTools.AnyHardwareDevice.launchWatchApplication(_: PreviewsPipeline.PreviewAgentBundle, environment: [Swift.String : Swift.String], arguments: [Swift.String]) -> PreviewsFoundationHost.Future<()>
+        0x0000E490  dispatch thunk of PreviewsDeveloperTools.AnyHardwareDevice.dvtDevice.getter : __C.DVTDevice?
+        0x0000E490  dispatch thunk of PreviewsDeveloperTools.AnySimulatorDeviceType.capabilities.getter : [Swift.AnyHashable : Any]
+        0x0000E490  dispatch thunk of PreviewsDeveloperTools.DeveloperToolsPlatformSupport.destinationDomain.getter : PreviewsDeveloperTools.DestinationDomain
+        0x0000ECEC  PreviewsDeveloperTools.MacOSLayerHostedPreviewViewable.init(contextID: Swift.UInt32?, sizeInPixels: __C.CGSize, cornerRadius: CoreGraphics.CGFloat, scaleFactor: CoreGraphics.CGFloat, selectableRegionsInPixelSpace: [PreviewsPipeline.AddressableSelectableRegion], fallbackImage: __C.CGImageRef) -> PreviewsDeveloperTools.MacOSLayerHostedPreviewViewable
+        0x0000EE4C  type metadata accessor for PreviewsDeveloperTools.MacOSLayerHostedPreviewViewable
+        0x0000EE84  PreviewsDeveloperTools.MacOSLayerHostedPreviewViewable.contextID.getter : Swift.UInt32?
+        0x0000EEA4  PreviewsDeveloperTools.MacOSLayerHostedPreviewViewable.fallbackImage.getter : __C.CGImageRef
+        0x0000EEAC  PreviewsDeveloperTools.MacOSLayerHostedPreviewViewable.previewGeometry.getter : PreviewsPipeline.PreviewGeometry
+        0x0000EEF8  PreviewsDeveloperTools.MacOSLayerHostedPreviewViewable.geometry.getter : PreviewsPipeline.PreviewGeometry?
+        0x0000EF68  PreviewsDeveloperTools.MacOSLayerHostedPreviewViewable.snapshot() async throws -> __C.CGImageRef?
+        0x0000EF80  PreviewsDeveloperTools.MacOSLayerHostedPreviewViewable.publicSuccessfulCompletionDescription.getter : Swift.String
+        0x000101E4  PreviewsDeveloperTools.DevicePreviewViewable.device.getter : PreviewsDeveloperTools.AnyHardwareDevice
+        0x000101F0  PreviewsDeveloperTools.DevicePreviewViewable.family.getter : PreviewsPipeline.DeviceFamily?
+        0x00010220  type metadata accessor for PreviewsDeveloperTools.DevicePreviewViewable
+        0x000102A8  PreviewsDeveloperTools.DevicePreviewViewable.publicSuccessfulCompletionDescription.getter : Swift.String
+        0x000102C4  PreviewsDeveloperTools.DevicePreviewViewable.geometry.getter : PreviewsPipeline.PreviewGeometry?
+        0x000102C4  PreviewsDeveloperTools.MacOSInteractivePreviewViewable.geometry.getter : PreviewsPipeline.PreviewGeometry?
+        0x00010300  PreviewsDeveloperTools.DevicePreviewViewable.snapshot.getter : __C.CGImageRef?
+        0x00010308  PreviewsDeveloperTools.DevicePreviewViewable.snapshot() async throws -> __C.CGImageRef?
+        0x00011214  PreviewsDeveloperTools.DeviceChromeDescription.chrome.getter : SimulatorKit.SimDeviceChrome
+        0x0001124C  PreviewsDeveloperTools.DeviceChromeDescription.maskingImage.getter : __C.NSImage?
+        0x00011280  type metadata accessor for PreviewsDeveloperTools.DeviceChromeDescription
+        0x000112B8  PreviewsDeveloperTools.DeviceChromeDescription.mainScreenSize.getter : __C.CGSize
+        0x000112DC  PreviewsDeveloperTools.DeviceChromeDescription.mainScreenScale.getter : Swift.Float
+        0x00011BE8  dispatch thunk of PreviewsDeveloperTools.DeveloperToolsPlatformSupport.runDestinationStrategy.getter : PreviewsDeveloperTools.RunDestinationStrategy
+        0x00011BF0  dispatch thunk of PreviewsDeveloperTools.DeveloperToolsPlatformSupport.supportsOnDevicePreviews.getter : Swift.Bool
+        0x0001AD1C  PreviewsDeveloperTools.DevicePlatformSupport.destinationDomain.getter : PreviewsDeveloperTools.DestinationDomain
+        0x00022714  static PreviewsDeveloperTools.SimDeviceCategoryPreferences.phones.getter : [PreviewsDeveloperTools.SimDeviceCategoryPreferences]
+        0x0002285C  static PreviewsDeveloperTools.SimDeviceCategoryPreferences.pads.getter : [PreviewsDeveloperTools.SimDeviceCategoryPreferences]
+        0x00022938  static PreviewsDeveloperTools.SimDeviceCategoryPreferences.regularPad.getter : PreviewsDeveloperTools.SimDeviceCategoryPreferences
+        0x00022AC0  static PreviewsDeveloperTools.SimDeviceCategoryPreferences.largePad.getter : PreviewsDeveloperTools.SimDeviceCategoryPreferences
+        0x00022C80  static PreviewsDeveloperTools.SimDeviceCategoryPreferences.watches.getter : [PreviewsDeveloperTools.SimDeviceCategoryPreferences]
+        0x00022D48  static PreviewsDeveloperTools.SimDeviceCategoryPreferences.tvs.getter : [PreviewsDeveloperTools.SimDeviceCategoryPreferences]
+        0x00022DA4  static PreviewsDeveloperTools.DestinationDomain.== infix(PreviewsDeveloperTools.DestinationDomain, PreviewsDeveloperTools.DestinationDomain) -> Swift.Bool
+        0x00023D3C  PreviewsDeveloperTools.DevicePlatformSupport.platform.getter : PreviewsPipeline.Platform
+        0x00023D3C  PreviewsDeveloperTools.SimulatorPlatformSupport.platform.getter : PreviewsPipeline.Platform
+        0x00023D94  PreviewsDeveloperTools.SimulatorPlatformSupport.destinationDomain.getter : PreviewsDeveloperTools.DestinationDomain
+        0x00023D94  PreviewsDeveloperTools.SimulatorPlatformSupport.runDestinationStrategy.getter : PreviewsDeveloperTools.RunDestinationStrategy
+        0x00032EDC  dispatch thunk of PreviewsDeveloperTools.AnySimulatorDeviceType.identifier.getter : Swift.String
+        0x00032EDC  dispatch thunk of PreviewsDeveloperTools.DeveloperToolsPlatformSupport.platform.getter : PreviewsPipeline.Platform
+        0x00032EDC  dispatch thunk of PreviewsDeveloperTools.SimulatorTypeProvider.deviceType.getter : __C.SimDeviceType
+        0x00033988  dispatch thunk of PreviewsDeveloperTools.AnySimulatorDeviceType.mainScreenScale.getter : Swift.Float
+        0x00033988  dispatch thunk of PreviewsDeveloperTools.DeveloperToolsPlatformSupport.devicePreference.getter : PreviewsDeveloperTools.DestinationDevicePreference
+        0x00033990  PreviewsDeveloperTools.SimulatorDevice.name.getter : Swift.String
+        0x000339E8  PreviewsDeveloperTools.SimulatorDevice.buildNumber.getter : PreviewsFoundationHost.BuildNumber
+        0x00033A34  type metadata accessor for PreviewsDeveloperTools.SimulatorDevice
+        0x00033A6C  PreviewsDeveloperTools.SimulatorDevice.buildNumber.setter : PreviewsFoundationHost.BuildNumber
+        0x00033AB8  PreviewsDeveloperTools.SimulatorDevice.buildNumber.modify : PreviewsFoundationHost.BuildNumber
+        0x00033AE0  PreviewsDeveloperTools.SimulatorDevice.identifier.getter : Swift.AnyHashable
+        0x00033BF0  PreviewsDeveloperTools.SimulatorDevice.defaultDisplayScale.getter : Swift.Double
+        0x00033D1C  PreviewsDeveloperTools.SimulatorDevice.installedApplicationInfo(forBundleIdentifier: Swift.String) -> PreviewsFoundationHost.Future<PreviewsPipeline.InstalledApplicationInfo?>
+        0x000346C8  PreviewsDeveloperTools.SimulatorDevice.installAgentApplication(PreviewsPipeline.PreviewAgentBundle) -> PreviewsFoundationHost.Future<PreviewsPipeline.DeviceAgentInstallResult>
+        0x00034F18  (extension in PreviewsDeveloperTools):__C.SimDevice.launchPreviewShell() async throws -> ()
+        0x000364FC  PreviewsDeveloperTools.IOSurfacePreviewViewable.init(surfaceID: Swift.UInt32, sizeInPixels: __C.CGSize, cornerRadius: CoreGraphics.CGFloat, scaleFactor: CoreGraphics.CGFloat, selectableRegionsInPixelSpace: [PreviewsPipeline.AddressableSelectableRegion]) -> PreviewsDeveloperTools.IOSurfacePreviewViewable
+        0x000365CC  type metadata accessor for PreviewsDeveloperTools.IOSurfacePreviewViewable
+        0x00036604  PreviewsDeveloperTools.IOSurfacePreviewViewable.surfaceID.getter : Swift.UInt32
+        0x0003660C  PreviewsDeveloperTools.IOSurfacePreviewViewable.previewGeometry.getter : PreviewsPipeline.PreviewGeometry
+        0x00036658  PreviewsDeveloperTools.IOSurfacePreviewViewable.publicSuccessfulCompletionDescription.getter : Swift.String
+        0x00036B0C  PreviewsDeveloperTools.IOSurfacePreviewViewable.geometry.getter : PreviewsPipeline.PreviewGeometry?
+        0x00036B7C  PreviewsDeveloperTools.IOSurfacePreviewViewable.snapshot() async throws -> __C.CGImageRef?
+        0x00037520  type metadata accessor for PreviewsDeveloperTools.WorkspaceTeardownHandlersQuery
+        0x00037530  dispatch thunk of PreviewsDeveloperTools.WorkspaceTeardownHandler.purge(for: PreviewsModel.WorkspaceIdentifier) -> ()
+        0x00042578  dispatch thunk of PreviewsDeveloperTools.AnySimulatorDeviceType.mainScreenSize.getter : __C.CGSize
+        0x00042578  dispatch thunk of PreviewsDeveloperTools.DeveloperToolsPlatformSupport.xcodePlatformIdentifier.getter : Swift.String
+        0x00042580  PreviewsDeveloperTools.MacOSDeviceCategoryPreferences.rank.getter : Swift.Double
+        0x00042588  PreviewsDeveloperTools.MacOSDeviceCategoryPreferences.rank.setter : Swift.Double
+        0x00042590  PreviewsDeveloperTools.MacOSDeviceCategoryPreferences.sdkVariant.getter : Swift.String
+        0x000425BC  PreviewsDeveloperTools.MacOSDeviceCategoryPreferences.sdkVariant.setter : Swift.String
+        0x00042768  static PreviewsDeveloperTools.MacOSDeviceCategoryPreferences.mac.getter : PreviewsDeveloperTools.MacOSDeviceCategoryPreferences
+        0x00042854  static PreviewsDeveloperTools.MacOSDeviceCategoryPreferences.macCatalyst.getter : PreviewsDeveloperTools.MacOSDeviceCategoryPreferences
+        0x00042B00  type metadata accessor for PreviewsDeveloperTools.MacOSDeviceCategoryPreferences
+        0x00042B68  static PreviewsDeveloperTools.MacOSDestinationManager.macDeviceCategories(devices: [PreviewsPipeline.AnyRunDestinationRecipe]) -> [PreviewsPipeline.DeviceCategory]
+        0x00042B6C  PreviewsDeveloperTools.MacOSDestinationManager.purge(for: PreviewsModel.WorkspaceIdentifier) -> ()
+        0x0004368C  type metadata accessor for PreviewsDeveloperTools.MacOSDestinationManager
+        0x000446F0  PreviewsDeveloperTools.UnresolvedRunDestinationComponents.init(targetDevice: __C.DVTBasicDevice?, isConcreteDevice: Swift.Bool, deviceIdentifier: PreviewsPipeline.DeviceIdentifier?, targetSDK: __C.DVTSDK?, targetArchitecture: PreviewsPipeline.Architecture?, targetSDKVariant: __C.DVTSDKVariant?) -> PreviewsDeveloperTools.UnresolvedRunDestinationComponents
+        0x000447F8  type metadata accessor for PreviewsDeveloperTools.UnresolvedRunDestinationComponents
+        0x00044878  PreviewsDeveloperTools.UnresolvedRunDestinationComponents.init(targetDevice: __C.DVTDevice?, targetSDK: __C.DVTSDK?, targetArchitecture: PreviewsPipeline.Architecture?, targetSDKVariant: __C.DVTSDKVariant?) -> PreviewsDeveloperTools.UnresolvedRunDestinationComponents
+        0x00047120  PreviewsDeveloperTools.DeviceFamilyResolver.init() -> PreviewsDeveloperTools.DeviceFamilyResolver
+        0x000553C4  (extension in PreviewsDeveloperTools):PreviewsDeveloperTools.DeveloperToolsPlatformSupport.localDevelopmentSupport.getter : PreviewsDeveloperTools.LocalDevelopmentSupport
+        0x000553E8  PreviewsDeveloperTools.DestinationDomain.hashValue.getter : Swift.Int
+        0x000553F0  PreviewsDeveloperTools.DestinationDevicePreference.wantsToRunOnProxyDevice.getter : Swift.Bool
+        0x000553F8  static PreviewsDeveloperTools.LocalDevelopmentSupport.== infix(PreviewsDeveloperTools.LocalDevelopmentSupport, PreviewsDeveloperTools.LocalDevelopmentSupport) -> Swift.Bool
+        0x000553FC  PreviewsDeveloperTools.LocalDevelopmentSupport.hash(into: inout Swift.Hasher) -> ()
+        0x00055478  PreviewsDeveloperTools.LocalDevelopmentSupport.hashValue.getter : Swift.Int
+        0x00055838  dispatch thunk of PreviewsDeveloperTools.DeveloperToolsPlatformSupport.destinationPreferences(for: PreviewsDeveloperTools.UnresolvedRunDestinationComponents, in: PreviewsDeveloperTools.DestinationDomain) -> PreviewsPipeline.DestinationPreferences
+        0x00055840  dispatch thunk of PreviewsDeveloperTools.DeveloperToolsPlatformSupport.destinationRecipe(for: PreviewsDeveloperTools.UnresolvedRunDestinationComponents) throws -> PreviewsPipeline.AnyRunDestinationRecipe
+        0x00055858  dispatch thunk of PreviewsDeveloperTools.DeveloperToolsPlatformSupport.deviceFamilyResolver.getter : PreviewsDeveloperTools.DeviceFamilyResolver
+        0x00055860  dispatch thunk of PreviewsDeveloperTools.DeveloperToolsPlatformSupport.localDevelopmentSupport.getter : PreviewsDeveloperTools.LocalDevelopmentSupport
+        0x00055868  type metadata accessor for PreviewsDeveloperTools.RunDestinationStrategy
+        0x00055880  type metadata accessor for PreviewsDeveloperTools.DestinationDomain
+        0x00055890  type metadata accessor for PreviewsDeveloperTools.DestinationDevicePreference
+        0x00055B60  type metadata accessor for PreviewsDeveloperTools.LocalDevelopmentSupport
+        0x00055B78  PreviewsDeveloperTools.DestinationDevicePreference.hashValue.getter : Swift.Int
+        0x00055B7C  PreviewsDeveloperTools.DestinationDevicePreference.hash(into: inout Swift.Hasher) -> ()
+        0x00055B84  static PreviewsDeveloperTools.DestinationDevicePreference.== infix(PreviewsDeveloperTools.DestinationDevicePreference, PreviewsDeveloperTools.DestinationDevicePreference) -> Swift.Bool
+        0x00056338  static PreviewsDeveloperTools.SimulatorDevice.deviceEvents.getter : PreviewsFoundationHost.EventStream<PreviewsDeveloperTools.CoreSimulatorDeviceEvent>
+        0x000564F8  type metadata accessor for PreviewsDeveloperTools.CoreSimulatorDeviceEvent
+        0x00056568  (extension in PreviewsDeveloperTools):__C.DVTFilePath.init(safeInitForFileURL: Foundation.URL) throws -> __C.DVTFilePath?
+        0x0005937C  PreviewsDeveloperTools.DeviceAvailabilityStream.eventStream.getter : PreviewsFoundationHost.EventStream<[PreviewsPipeline.DeviceIdentifier : Swift.Error?]>
+        0x0005939C  PreviewsDeveloperTools.DeviceAvailabilityStream.deviceAvailability([PreviewsPipeline.AnyRunDestinationRecipe]) -> [PreviewsPipeline.DeviceIdentifier : Swift.Error?]
+        0x0005A020  PreviewsDeveloperTools.DeviceAvailabilityStream.deinit
+        0x0005A04C  PreviewsDeveloperTools.DeviceAvailabilityStream.__deallocating_deinit
+        0x0005AA2C  type metadata accessor for PreviewsDeveloperTools.DeviceAvailabilityStream
+        0x0005AA4C  method lookup function for PreviewsDeveloperTools.DeviceAvailabilityStream
+        0x0005ABC0  static PreviewsDeveloperTools.SimulatorPlatformSupport.iOS.getter : PreviewsDeveloperTools.SimulatorPlatformSupport
+        0x0005B5B0  (extension in PreviewsDeveloperTools):PreviewsPipeline.PreviewAgentBundle.storeKitConfigurationFilePath.getter : Swift.String?
+        0x0005B644  (extension in PreviewsDeveloperTools):PreviewsPipeline.PreviewAgentBundle.storeKitConfigurationFilePath.setter : Swift.String?
+        0x0005B67C  (extension in PreviewsDeveloperTools):PreviewsPipeline.PreviewAgentBundle.storeKitConfigurationFilePath.modify : Swift.String?
+        0x0005C43C  PreviewsDeveloperTools.SimulatorShutdownUnexpectedlyError.highValueTitle.getter : Swift.String?
+        0x0005C458  PreviewsDeveloperTools.SimulatorShutdownUnexpectedlyError.additionalInfo.getter : Swift.String?
+        0x0005C520  type metadata accessor for PreviewsDeveloperTools.SimulatorShutdownUnexpectedlyError
+        0x0005E2B8  PreviewsDeveloperTools.SimulatorDestinationManager.__deallocating_deinit
+        0x0006A7AC  static PreviewsDeveloperTools.PlatformSupportQuery.== infix(PreviewsDeveloperTools.PlatformSupportQuery, PreviewsDeveloperTools.PlatformSupportQuery) -> Swift.Bool
+        0x0006A7AC  static PreviewsDeveloperTools.PlatformSupportQuery.LookupKey.== infix(PreviewsDeveloperTools.PlatformSupportQuery.LookupKey, PreviewsDeveloperTools.PlatformSupportQuery.LookupKey) -> Swift.Bool
+        0x0006A7B0  PreviewsDeveloperTools.PlatformSupportQuery.LookupKey.hash(into: inout Swift.Hasher) -> ()
+        0x0006A934  PreviewsDeveloperTools.PlatformSupportQuery.LookupKey.hashValue.getter : Swift.Int
+        0x0006A938  PreviewsDeveloperTools.PlatformSupportQuery.hash(into: inout Swift.Hasher) -> ()
+        0x0006A940  PreviewsDeveloperTools.PlatformSupportQuery.lookupKey.getter : PreviewsDeveloperTools.PlatformSupportQuery.LookupKey
+        0x0006A94C  PreviewsDeveloperTools.PlatformSupportQuery.init(platform: PreviewsPipeline.Platform) -> PreviewsDeveloperTools.PlatformSupportQuery
+        0x0006A9A0  PreviewsDeveloperTools.PlatformSupportQuery.init(xcodePlatformIdentifier: Swift.String, sdkVariant: Swift.String?) -> PreviewsDeveloperTools.PlatformSupportQuery
+        0x0006AB54  (extension in PreviewsDeveloperTools):PreviewsFoundationHost.QueryManager.platformSupport<A>(of: A.Type, for: PreviewsPipeline.Platform) -> A?
+        0x0006AFB4  type metadata accessor for PreviewsDeveloperTools.PlatformSupportQuery.LookupKey
+        0x0006B00C  type metadata accessor for PreviewsDeveloperTools.PlatformSupportQuery
+        0x0006BC14  PreviewsDeveloperTools.PlatformSupportQuery.hashValue.getter : Swift.Int
+        0x0006C808  PreviewsDeveloperTools.BootedDevicesQuery.availableDestinations.getter : [PreviewsPipeline.AnyRunDestinationRecipe]
+        0x0006C810  PreviewsDeveloperTools.BootedDevicesQuery.init(availableDestinations: [PreviewsPipeline.AnyRunDestinationRecipe]) -> PreviewsDeveloperTools.BootedDevicesQuery
+        0x0006CB10  type metadata accessor for PreviewsDeveloperTools.AvailableDevicesQuery
+        0x0006CB28  type metadata accessor for PreviewsDeveloperTools.BootedDevicesQuery
+        0x0006CB38  type metadata accessor for PreviewsDeveloperTools.DeviceAvailabilityQuery
+        0x0006CB48  type metadata accessor for PreviewsDeveloperTools.DeviceCategoriesQuery
+        0x0006CB58  type metadata accessor for PreviewsDeveloperTools.DeviceFamilyResourcesQuery
+        0x0006CCA8  PreviewsDeveloperTools.DeviceAvailabilityQuery.availableDestinations.getter : [PreviewsPipeline.AnyRunDestinationRecipe]
+        0x0006CCA8  PreviewsDeveloperTools.DeviceCategoriesQuery.availableDestinations.getter : [PreviewsPipeline.AnyRunDestinationRecipe]
+        0x0006CCA8  PreviewsDeveloperTools.DeviceFamilyResourcesQuery.deviceFamilies.getter : [PreviewsPipeline.DeviceFamily]
+        0x0006CCBC  PreviewsDeveloperTools.DeviceAvailabilityQuery.init(availableDestinations: [PreviewsPipeline.AnyRunDestinationRecipe]) -> PreviewsDeveloperTools.DeviceAvailabilityQuery
+        0x0006CCBC  PreviewsDeveloperTools.DeviceCategoriesQuery.init(availableDestinations: [PreviewsPipeline.AnyRunDestinationRecipe]) -> PreviewsDeveloperTools.DeviceCategoriesQuery
+        0x0006CCBC  PreviewsDeveloperTools.DeviceFamilyResourcesQuery.init(deviceFamilies: [PreviewsPipeline.DeviceFamily]) -> PreviewsDeveloperTools.DeviceFamilyResourcesQuery
+        0x0006D8D4  (extension in PreviewsDeveloperTools):__C.DVTBasicDevice.platformSupport(using: PreviewsFoundationHost.QueryManager, sdkVariant: __C.DVTSDKVariant?) throws -> (PreviewsDeveloperTools.DeveloperToolsPlatformSupport, __C.DVTPlatform)
+        0x0006DC20  (extension in PreviewsDeveloperTools):__C.DVTBasicDevice.destinationPreferences(using: PreviewsFoundationHost.QueryManager, sdkVariant: __C.DVTSDKVariant?) throws -> PreviewsPipeline.DestinationPreferences
+        0x0006E110  (extension in PreviewsDeveloperTools):Swift.Optional<A where A == __C.DVTBasicDevice>.platformSupport(using: PreviewsFoundationHost.QueryManager, sdkVariant: __C.DVTSDKVariant?) throws -> (PreviewsDeveloperTools.DeveloperToolsPlatformSupport, __C.DVTPlatform)
+        0x0006E688  (extension in PreviewsDeveloperTools):__C.DVTPlatform.bestSDK(forRuntimeVersion: Swift.String?) throws -> __C.DVTSDK
+        0x00072538  PreviewsDeveloperTools.SimulatorInteractivePreviewViewable.init(screenInfo: PreviewsDeveloperTools.SimulatorScreenInfo, screen: SimulatorKit.SimDeviceScreen, cornerRadius: CoreGraphics.CGFloat, contentDomain: PreviewsMessagingHost.PreviewContentDomain, traits: PreviewsMessagingHost.PreviewTraits, interfaceOrientation: PreviewsMessagingHost.PreviewTraits.Orientation) -> PreviewsDeveloperTools.SimulatorInteractivePreviewViewable
+        0x00072964  type metadata accessor for PreviewsDeveloperTools.SimulatorInteractivePreviewViewable
+        0x0007299C  PreviewsDeveloperTools.SimulatorScreenInfo.sizeInPixels.getter : __C.CGSize
+        0x000729A4  PreviewsDeveloperTools.SimulatorScreenInfo.scaleFactor.getter : CoreGraphics.CGFloat
+        0x000729AC  PreviewsDeveloperTools.SimulatorInteractivePreviewViewable.screenInfo.getter : PreviewsDeveloperTools.SimulatorScreenInfo
+        0x000729C8  PreviewsDeveloperTools.SimulatorInteractivePreviewViewable.screen.getter : SimulatorKit.SimDeviceScreen
+        0x000729D0  PreviewsDeveloperTools.SimulatorInteractivePreviewViewable.contentDomain.getter : PreviewsMessagingHost.PreviewContentDomain
+        0x00072A1C  PreviewsDeveloperTools.SimulatorInteractivePreviewViewable.traits.getter : PreviewsMessagingHost.PreviewTraits
+        0x00072A68  PreviewsDeveloperTools.SimulatorInteractivePreviewViewable.interfaceOrientation.getter : PreviewsMessagingHost.PreviewTraits.Orientation
+        0x00072AB4  PreviewsDeveloperTools.SimulatorInteractivePreviewViewable.previewGeometry.getter : PreviewsPipeline.PreviewGeometry
+        0x00072B00  PreviewsDeveloperTools.SimulatorInteractivePreviewViewable.deviceChrome.getter : PreviewsDeveloperTools.StaticPreviewViewable.Chrome?
+        0x00072B30  PreviewsDeveloperTools.SimulatorInteractivePreviewViewable.geometry.getter : PreviewsPipeline.PreviewGeometry?
+        0x00072BA0  PreviewsDeveloperTools.SimulatorInteractivePreviewViewable.snapshot() async throws -> __C.CGImageRef?
+        0x00072CD0  PreviewsDeveloperTools.SimulatorInteractivePreviewViewable.publicSuccessfulCompletionDescription.getter : Swift.String
+        0x00072DF8  PreviewsDeveloperTools.SimulatorInteractivePreviewViewable.thumbnailViewable(for: __C.CGImageRef, geometry: PreviewsMessagingHost.ThumbnailGeometry) -> PreviewsPipeline.PreviewViewable?
+        0x00073214  type metadata accessor for PreviewsDeveloperTools.SimulatorScreenInfo
+        0x00074808  PreviewsDeveloperTools.DeviceFamilyResolver.init(single: PreviewsPipeline.DeviceFamily) -> PreviewsDeveloperTools.DeviceFamilyResolver
+        0x00074870  PreviewsDeveloperTools.DeviceFamilyResolver.deviceFamily(forModelCode: Swift.String) -> PreviewsPipeline.DeviceFamily?
+        0x00074B08  type metadata accessor for PreviewsDeveloperTools.DeviceFamilyResolver.MatchTerm
+        0x00074B60  PreviewsDeveloperTools.DeviceFamilyResolver.MatchTerm.init(term: Swift.String, family: PreviewsPipeline.DeviceFamily) -> PreviewsDeveloperTools.DeviceFamilyResolver.MatchTerm
+        0x00074BB4  PreviewsDeveloperTools.DeviceFamilyResolver.init(modelCodeMatch: [PreviewsDeveloperTools.DeviceFamilyResolver.MatchTerm]) -> PreviewsDeveloperTools.DeviceFamilyResolver
+        0x00074BE8  PreviewsDeveloperTools.DeviceFamilyResolver.MatchTerm.family.getter : PreviewsPipeline.DeviceFamily
+        0x00074C34  PreviewsDeveloperTools.DeviceFamilyResolver.MatchTerm.family.setter : PreviewsPipeline.DeviceFamily
+        0x00074C80  PreviewsDeveloperTools.DeviceFamilyResolver.MatchTerm.family.modify : PreviewsPipeline.DeviceFamily
+        0x00074CA8  static PreviewsDeveloperTools.DeviceFamilyResolver.MatchTerm.== infix(PreviewsDeveloperTools.DeviceFamilyResolver.MatchTerm, PreviewsDeveloperTools.DeviceFamilyResolver.MatchTerm) -> Swift.Bool
+        0x00074D10  PreviewsDeveloperTools.DeviceFamilyResolver.MatchTerm.hash(into: inout Swift.Hasher) -> ()
+        0x00074D84  PreviewsDeveloperTools.DeviceFamilyResolver.MatchTerm.hashValue.getter : Swift.Int
+        0x00075244  PreviewsDeveloperTools.DeviceFamilyResolver.hash(into: inout Swift.Hasher) -> ()
+        0x0007524C  static PreviewsDeveloperTools.DeviceFamilyResolver.== infix(PreviewsDeveloperTools.DeviceFamilyResolver, PreviewsDeveloperTools.DeviceFamilyResolver) -> Swift.Bool
+        0x00075250  PreviewsDeveloperTools.DeviceFamilyResolver.hashValue.getter : Swift.Int
+        0x0007556C  type metadata accessor for PreviewsDeveloperTools.DeviceFamilyResolver
+        0x000766A4  static PreviewsDeveloperTools.BuiltInIntegrationManager.platforms.getter : PreviewsDeveloperTools.SupportedPlatformsContainer
+        0x00076F28  PreviewsDeveloperTools.BuiltInIntegrationManager.resolutions.getter : PreviewsFoundationHost.QueryResolutions
+        0x00077AD0  type metadata accessor for PreviewsDeveloperTools.BuiltInIntegrationManager
+        0x0007B988  PreviewsDeveloperTools.DevicePlatformSupport.init(platform: PreviewsPipeline.Platform, xcodePlatformIdentifier: Swift.String, correspondingSimulatorPlatformSupport: PreviewsDeveloperTools.SimulatorPlatformSupport?, firstVersionWhereInjectionFrameworkMovedToSystemLibraryFrameworks: PreviewsFoundationHost.BuildNumber, devicePreference: PreviewsDeveloperTools.DestinationDevicePreference, deviceFamilyResolver: PreviewsDeveloperTools.DeviceFamilyResolver?, supportsOnDevicePreviews: Swift.Bool, supportsStaticPreviews: Swift.Bool, supportsContinuousLivePreview: Swift.Bool, localDevelopmentSupport: PreviewsDeveloperTools.LocalDevelopmentSupport) -> PreviewsDeveloperTools.DevicePlatformSupport
+        0x0007BC8C  type metadata accessor for PreviewsDeveloperTools.DevicePlatformSupport
+        0x0007BCF0  PreviewsDeveloperTools.DevicePlatformSupport.platform.setter : PreviewsPipeline.Platform
+        0x0007BCF0  PreviewsDeveloperTools.SimulatorPlatformSupport.platform.setter : PreviewsPipeline.Platform
+        0x0007BD28  PreviewsDeveloperTools.DevicePlatformSupport.xcodePlatformIdentifier.getter : Swift.String
+        0x0007BD64  PreviewsDeveloperTools.DevicePlatformSupport.xcodePlatformIdentifier.setter : Swift.String
+        0x0007BDA8  PreviewsDeveloperTools.DevicePlatformSupport.xcodePlatformIdentifier.modify : Swift.String
+        0x0007BDD0  PreviewsDeveloperTools.DevicePlatformSupport.correspondingSimulatorPlatformSupport.getter : PreviewsDeveloperTools.SimulatorPlatformSupport?
+        0x0007BE14  PreviewsDeveloperTools.DevicePlatformSupport.correspondingSimulatorPlatformSupport.setter : PreviewsDeveloperTools.SimulatorPlatformSupport?
+        0x0007BE94  PreviewsDeveloperTools.DevicePlatformSupport.correspondingSimulatorPlatformSupport.modify : PreviewsDeveloperTools.SimulatorPlatformSupport?
+        0x0007BEBC  PreviewsDeveloperTools.DevicePlatformSupport.firstVersionWhereInjectionFrameworkMovedToSystemLibraryFrameworks.getter : PreviewsFoundationHost.BuildNumber
+        0x0007BF08  PreviewsDeveloperTools.DevicePlatformSupport.firstVersionWhereInjectionFrameworkMovedToSystemLibraryFrameworks.setter : PreviewsFoundationHost.BuildNumber
+        0x0007BF54  PreviewsDeveloperTools.DevicePlatformSupport.firstVersionWhereInjectionFrameworkMovedToSystemLibraryFrameworks.modify : PreviewsFoundationHost.BuildNumber
+        0x0007BF7C  PreviewsDeveloperTools.DevicePlatformSupport.devicePreference.getter : PreviewsDeveloperTools.DestinationDevicePreference
+        0x0007BFAC  PreviewsDeveloperTools.DevicePlatformSupport.devicePreference.setter : PreviewsDeveloperTools.DestinationDevicePreference
+        0x0007BFD8  PreviewsDeveloperTools.DevicePlatformSupport.devicePreference.modify : PreviewsDeveloperTools.DestinationDevicePreference
+        0x0007C000  PreviewsDeveloperTools.DevicePlatformSupport.supportsOnDevicePreviews.getter : Swift.Bool
+        0x0007C020  PreviewsDeveloperTools.DevicePlatformSupport.supportsOnDevicePreviews.setter : Swift.Bool
+        0x0007C04C  PreviewsDeveloperTools.DevicePlatformSupport.supportsOnDevicePreviews.modify : Swift.Bool
+        0x0007C074  PreviewsDeveloperTools.DevicePlatformSupport.supportsStaticPreviews.getter : Swift.Bool
+        0x0007C094  PreviewsDeveloperTools.DevicePlatformSupport.supportsStaticPreviews.setter : Swift.Bool
+        0x0007C0C0  PreviewsDeveloperTools.DevicePlatformSupport.supportsStaticPreviews.modify : Swift.Bool
+        0x0007C0E8  PreviewsDeveloperTools.DevicePlatformSupport.supportsContinuousLivePreview.getter : Swift.Bool
+        0x0007C108  PreviewsDeveloperTools.DevicePlatformSupport.supportsContinuousLivePreview.setter : Swift.Bool
+        0x0007C134  PreviewsDeveloperTools.DevicePlatformSupport.supportsContinuousLivePreview.modify : Swift.Bool
+        0x0007C15C  PreviewsDeveloperTools.DevicePlatformSupport.deviceFamilyResolver.getter : PreviewsDeveloperTools.DeviceFamilyResolver
+        0x0007C198  PreviewsDeveloperTools.DevicePlatformSupport.deviceFamilyResolver.setter : PreviewsDeveloperTools.DeviceFamilyResolver
+        0x0007C20C  PreviewsDeveloperTools.DevicePlatformSupport.deviceFamilyResolver.modify : PreviewsDeveloperTools.DeviceFamilyResolver
+        0x0007C234  PreviewsDeveloperTools.DevicePlatformSupport.localDevelopmentSupport.getter : PreviewsDeveloperTools.LocalDevelopmentSupport
+        0x0007C268  PreviewsDeveloperTools.DevicePlatformSupport.localDevelopmentSupport.setter : PreviewsDeveloperTools.LocalDevelopmentSupport
+        0x0007C2A8  PreviewsDeveloperTools.DevicePlatformSupport.localDevelopmentSupport.modify : PreviewsDeveloperTools.LocalDevelopmentSupport
+        0x0007C2D0  PreviewsDeveloperTools.DevicePlatformSupport.init(platform: PreviewsPipeline.Platform, xcodePlatformIdentifier: Swift.String, correspondingSimulatorPlatformSupport: PreviewsDeveloperTools.SimulatorPlatformSupport?, firstVersionWhereInjectionFrameworkMovedToSystemLibraryFrameworks: PreviewsFoundationHost.BuildNumber, devicePreference: PreviewsDeveloperTools.DestinationDevicePreference, deviceFamilyResolver: PreviewsDeveloperTools.DeviceFamilyResolver?, supportsOnDevicePreviews: Swift.Bool, supportsStaticPreview: Swift.Bool, supportsContinuousLivePreview: Swift.Bool, localDevelopmentSupport: PreviewsDeveloperTools.LocalDevelopmentSupport, overrides: () -> [PreviewsDeveloperTools.DeviceOverrideBox]) -> PreviewsDeveloperTools.DevicePlatformSupport
+        0x0007C5EC  static PreviewsDeveloperTools.DevicePlatformSupport.== infix(PreviewsDeveloperTools.DevicePlatformSupport, PreviewsDeveloperTools.DevicePlatformSupport) -> Swift.Bool
+        0x0007C5F0  PreviewsDeveloperTools.DevicePlatformSupport.hash(into: inout Swift.Hasher) -> ()
+        0x0007C888  PreviewsDeveloperTools.DevicePlatformSupport.hashValue.getter : Swift.Int
+        0x0007C8C4  PreviewsDeveloperTools.DevicePlatformSupport.runDestinationStrategy.getter : PreviewsDeveloperTools.RunDestinationStrategy
+        0x0007C8D4  PreviewsDeveloperTools.DevicePlatformSupport.destinationPreferences(for: PreviewsDeveloperTools.UnresolvedRunDestinationComponents, in: PreviewsDeveloperTools.DestinationDomain) -> PreviewsPipeline.DestinationPreferences
+        0x0007CD7C  PreviewsDeveloperTools.DevicePlatformSupport.destinationRecipe(for: PreviewsDeveloperTools.UnresolvedRunDestinationComponents) throws -> PreviewsPipeline.AnyRunDestinationRecipe
+        0x0007D1D8  static PreviewsDeveloperTools.DeviceOverrideBox.== infix(PreviewsDeveloperTools.DeviceOverrideBox, PreviewsDeveloperTools.DeviceOverrideBox) -> Swift.Bool
+        0x0007D1DC  PreviewsDeveloperTools.DeviceOverrideBox.hash(into: inout Swift.Hasher) -> ()
+        0x0007D250  PreviewsDeveloperTools.DeviceOverrideBox.hashValue.getter : Swift.Int
+        0x0007D450  static PreviewsDeveloperTools.DeviceOverrideBuilder.buildExpression<A where A: PreviewsDeveloperTools.DevicePreviewArchiver>((PreviewsMessagingHost.ContentOverride, A.Type)) -> [PreviewsDeveloperTools.DeviceOverrideBox]
+        0x0007D62C  static PreviewsDeveloperTools.DeviceOverrideBuilder.buildPartialBlock(first: [PreviewsDeveloperTools.DeviceOverrideBox]) -> [PreviewsDeveloperTools.DeviceOverrideBox]
+        0x0007D630  static PreviewsDeveloperTools.DeviceOverrideBuilder.buildPartialBlock(accumulated: [PreviewsDeveloperTools.DeviceOverrideBox], next: [PreviewsDeveloperTools.DeviceOverrideBox]) -> [PreviewsDeveloperTools.DeviceOverrideBox]
+        0x0007DF50  type metadata accessor for PreviewsDeveloperTools.DeviceOverrideBox
+        0x0007DFBC  dispatch thunk of PreviewsDeveloperTools.DevicePreviewArchiver.init(device: PreviewsDeveloperTools.AnyHardwareDevice) -> A
+        0x0007DFBC  dispatch thunk of PreviewsDeveloperTools.SimulatorPreviewArchiver.init(screenInfo: PreviewsDeveloperTools.SimulatorScreenInfo) -> A
+        0x000800A8  type metadata accessor for PreviewsDeveloperTools.DeviceOverrideBuilder
+        0x000814DC  PreviewsDeveloperTools.SimulatorDestinationManager.deviceChromeDescription(identifier: Swift.String) -> PreviewsDeveloperTools.DeviceChromeDescription?
+        0x000870A0  PreviewsDeveloperTools.SimulatorDestinationManager.simDeviceCategories(devices: [PreviewsPipeline.AnyRunDestinationRecipe]) -> [PreviewsPipeline.DeviceCategory]
+        0x000870A4  PreviewsDeveloperTools.SimulatorDestinationManager.bootedDevices(from: [PreviewsPipeline.AnyRunDestinationRecipe]) -> [PreviewsPipeline.AnyRunDestinationRecipe]
+        0x00088198  static PreviewsDeveloperTools.SimulatorDestinationManager.shared.getter : PreviewsDeveloperTools.SimulatorDestinationManager
+        0x0008C5B0  PreviewsDeveloperTools.SimulatorDestinationManager.collectDiagnostics(into: PreviewsFoundationHost.DiagnosticsCollector) -> ()
+        0x0008CBD8  PreviewsDeveloperTools.SimulatorDestinationManager.deinit
+        0x0008CC24  PreviewsDeveloperTools.SimulatorDestinationManager.purge(for: PreviewsModel.WorkspaceIdentifier) -> ()
+        0x00090BFC  type metadata accessor for PreviewsDeveloperTools.SimulatorDestinationManager
+        0x00090C1C  method lookup function for PreviewsDeveloperTools.SimulatorDestinationManager
+        0x00091F38  PreviewsDeveloperTools.StaticPreviewViewable.init(rawImage: __C.CGImageRef, scaleFactor: CoreGraphics.CGFloat, selectableRegionsInPixelSpace: [PreviewsPipeline.AddressableSelectableRegion], seed: PreviewsFoundationHost.Identifier, cornerRadius: CoreGraphics.CGFloat, chrome: PreviewsDeveloperTools.StaticPreviewViewable.Chrome, interfaceOrientation: PreviewsMessagingHost.PreviewTraits.Orientation) -> PreviewsDeveloperTools.StaticPreviewViewable
+        0x000920C4  type metadata accessor for PreviewsDeveloperTools.StaticPreviewViewable
+        0x000920D8  type metadata accessor for PreviewsDeveloperTools.StaticPreviewViewable.Chrome
+        0x000920EC  PreviewsDeveloperTools.StaticPreviewViewable.seed.getter : PreviewsFoundationHost.Identifier
+        0x00092138  PreviewsDeveloperTools.StaticPreviewViewable.previewGeometry.getter : PreviewsPipeline.PreviewGeometry
+        0x00092184  PreviewsDeveloperTools.StaticPreviewViewable.chrome.getter : PreviewsDeveloperTools.StaticPreviewViewable.Chrome
+        0x000921B4  PreviewsDeveloperTools.StaticPreviewViewable.interfaceOrientation.getter : PreviewsMessagingHost.PreviewTraits.Orientation
+        0x00092200  PreviewsDeveloperTools.StaticPreviewViewable.geometry.getter : PreviewsPipeline.PreviewGeometry?
+        0x00092270  PreviewsDeveloperTools.StaticPreviewViewable.snapshot() async throws -> __C.CGImageRef?
+        0x00092288  PreviewsDeveloperTools.StaticPreviewViewable.description.getter : Swift.String
+        0x0009233C  PreviewsDeveloperTools.StaticPreviewViewable.publicSuccessfulCompletionDescription.getter : Swift.String
+        0x000924A0  PreviewsDeveloperTools.StaticPreviewViewable.thumbnailViewable(for: __C.CGImageRef, geometry: PreviewsMessagingHost.ThumbnailGeometry) -> PreviewsPipeline.PreviewViewable?
+        0x000927D8  PreviewsDeveloperTools.StaticPreviewViewable.Chrome.maskImage.getter : __C.NSImage?
+        0x000940A4  PreviewsDeveloperTools.SimDeviceTypeInfo.init(PreviewsDeveloperTools.AnySimulatorDeviceType) -> PreviewsDeveloperTools.SimDeviceTypeInfo
+        0x00094BD8  PreviewsDeveloperTools.SimDeviceTypeInfo.matches(PreviewsDeveloperTools.SimDeviceCategoryPreferences) -> Swift.Bool
+        0x00094D4C  PreviewsDeveloperTools.SimDeviceTypeInfo.Feature.description.getter : Swift.String
+        0x00094DD4  PreviewsDeveloperTools.SimDeviceTypeInfo.Feature.init(rawValue: Swift.String) -> PreviewsDeveloperTools.SimDeviceTypeInfo.Feature?
+        0x00095160  PreviewsDeveloperTools.SimDeviceTypeInfo.SizeCategory.init(rawValue: Swift.String) -> PreviewsDeveloperTools.SimDeviceTypeInfo.SizeCategory?
+        0x00095164  PreviewsDeveloperTools.SimDeviceTypeInfo.SizeCategory.rawValue.getter : Swift.String
+        0x000954CC  PreviewsDeveloperTools.SimDeviceTypeInfo.Tag.description.getter : Swift.String
+        0x000954CC  PreviewsDeveloperTools.SimDeviceTypeInfo.Tag.rawValue.getter : Swift.String
+        0x000954DC  PreviewsDeveloperTools.SimDeviceTypeInfo.Tag.init(rawValue: Swift.String) -> PreviewsDeveloperTools.SimDeviceTypeInfo.Tag?
+        0x00095A40  static PreviewsDeveloperTools.SimDeviceTypeInfo.== infix(PreviewsDeveloperTools.SimDeviceTypeInfo, PreviewsDeveloperTools.SimDeviceTypeInfo) -> Swift.Bool
+        0x000982EC  type metadata accessor for PreviewsDeveloperTools.SimDeviceTypeInfo
+        0x0009843C  type metadata accessor for PreviewsDeveloperTools.SimDeviceTypeInfo.Feature
+        0x0009844C  type metadata accessor for PreviewsDeveloperTools.SimDeviceTypeInfo.SizeCategory
+        0x0009845C  type metadata accessor for PreviewsDeveloperTools.SimDeviceTypeInfo.Tag
+        0x0009846C  PreviewsDeveloperTools.SimDeviceTypeInfo.Feature.rawValue.getter : Swift.String
+        0x00098474  PreviewsDeveloperTools.MacOSInteractivePreviewViewable.agentBundle.getter : PreviewsPipeline.PreviewAgentBundle
+        0x000984AC  PreviewsDeveloperTools.MacOSInteractivePreviewViewable.pid.getter : Swift.Int32
+        0x000984CC  type metadata accessor for PreviewsDeveloperTools.MacOSInteractivePreviewViewable
+        0x00098504  PreviewsDeveloperTools.MacOSInteractivePreviewViewable.publicSuccessfulCompletionDescription.getter : Swift.String
+        0x000985AC  PreviewsDeveloperTools.MacOSInteractivePreviewViewable.snapshot() async throws -> __C.CGImageRef?
+        0x00098E0C  PreviewsDeveloperTools.SimulatorPlatformSupport.init(platform: PreviewsPipeline.Platform, xcodePlatformIdentifier: Swift.String, appExtension: PreviewsPlatforms.AppExtension?, supportsSimDisplays: Swift.Bool, supportsOnDevicePreviews: Swift.Bool, devicePreference: PreviewsDeveloperTools.DestinationDevicePreference, deviceFamilyResolver: PreviewsDeveloperTools.DeviceFamilyResolver?, updaterLimit: PreviewsPipeline.PreviewUpdaterLimit, localDevelopmentSupport: PreviewsDeveloperTools.LocalDevelopmentSupport) -> PreviewsDeveloperTools.SimulatorPlatformSupport
+        0x000990B8  type metadata accessor for PreviewsDeveloperTools.SimulatorPlatformSupport
+        0x000990CC  PreviewsDeveloperTools.SimulatorPlatformSupport.xcodePlatformIdentifier.getter : Swift.String
+        0x00099108  PreviewsDeveloperTools.SimulatorPlatformSupport.xcodePlatformIdentifier.setter : Swift.String
+        0x0009914C  PreviewsDeveloperTools.SimulatorPlatformSupport.xcodePlatformIdentifier.modify : Swift.String
+        0x00099174  PreviewsDeveloperTools.SimulatorPlatformSupport.updaterLimit.getter : PreviewsPipeline.PreviewUpdaterLimit
+        0x000991C0  PreviewsDeveloperTools.SimulatorPlatformSupport.updaterLimit.setter : PreviewsPipeline.PreviewUpdaterLimit
+        0x0009920C  PreviewsDeveloperTools.SimulatorPlatformSupport.updaterLimit.modify : PreviewsPipeline.PreviewUpdaterLimit
+        0x00099234  PreviewsDeveloperTools.SimulatorPlatformSupport.appExtension.getter : PreviewsPlatforms.AppExtension?
+        0x00099278  PreviewsDeveloperTools.SimulatorPlatformSupport.appExtension.setter : PreviewsPlatforms.AppExtension?
+        0x000992F8  PreviewsDeveloperTools.SimulatorPlatformSupport.appExtension.modify : PreviewsPlatforms.AppExtension?
+        0x00099320  PreviewsDeveloperTools.SimulatorPlatformSupport.supportsSimDisplays.getter : Swift.Bool
+        0x00099340  PreviewsDeveloperTools.SimulatorPlatformSupport.supportsSimDisplays.setter : Swift.Bool
+        0x0009936C  PreviewsDeveloperTools.SimulatorPlatformSupport.supportsSimDisplays.modify : Swift.Bool
+        0x00099394  PreviewsDeveloperTools.SimulatorPlatformSupport.supportsOnDevicePreviews.getter : Swift.Bool
+        0x000993B4  PreviewsDeveloperTools.SimulatorPlatformSupport.supportsOnDevicePreviews.setter : Swift.Bool
+        0x000993E0  PreviewsDeveloperTools.SimulatorPlatformSupport.supportsOnDevicePreviews.modify : Swift.Bool
+        0x00099408  PreviewsDeveloperTools.SimulatorPlatformSupport.devicePreference.getter : PreviewsDeveloperTools.DestinationDevicePreference
+        0x00099438  PreviewsDeveloperTools.SimulatorPlatformSupport.devicePreference.setter : PreviewsDeveloperTools.DestinationDevicePreference
+        0x00099464  PreviewsDeveloperTools.SimulatorPlatformSupport.devicePreference.modify : PreviewsDeveloperTools.DestinationDevicePreference
+        0x0009948C  PreviewsDeveloperTools.SimulatorPlatformSupport.deviceFamilyResolver.getter : PreviewsDeveloperTools.DeviceFamilyResolver
+        0x000994C8  PreviewsDeveloperTools.SimulatorPlatformSupport.deviceFamilyResolver.setter : PreviewsDeveloperTools.DeviceFamilyResolver
+        0x000994F8  PreviewsDeveloperTools.SimulatorPlatformSupport.deviceFamilyResolver.modify : PreviewsDeveloperTools.DeviceFamilyResolver
+        0x00099520  PreviewsDeveloperTools.SimulatorPlatformSupport.localDevelopmentSupport.getter : PreviewsDeveloperTools.LocalDevelopmentSupport
+        0x00099554  PreviewsDeveloperTools.SimulatorPlatformSupport.localDevelopmentSupport.setter : PreviewsDeveloperTools.LocalDevelopmentSupport
+        0x00099594  PreviewsDeveloperTools.SimulatorPlatformSupport.localDevelopmentSupport.modify : PreviewsDeveloperTools.LocalDevelopmentSupport
+        0x000995BC  PreviewsDeveloperTools.SimulatorPlatformSupport.init(platform: PreviewsPipeline.Platform, xcodePlatformIdentifier: Swift.String, appExtension: PreviewsPlatforms.AppExtension?, supportsSimDisplays: Swift.Bool, supportsOnDevicePreviews: Swift.Bool, devicePreference: PreviewsDeveloperTools.DestinationDevicePreference, deviceFamilyResolver: PreviewsDeveloperTools.DeviceFamilyResolver?, updaterLimit: PreviewsPipeline.PreviewUpdaterLimit, localDevelopmentSupport: PreviewsDeveloperTools.LocalDevelopmentSupport, overrides: () -> [PreviewsDeveloperTools.SimulatorOverrideBox]) -> PreviewsDeveloperTools.SimulatorPlatformSupport
+        0x0009989C  static PreviewsDeveloperTools.SimulatorPlatformSupport.== infix(PreviewsDeveloperTools.SimulatorPlatformSupport, PreviewsDeveloperTools.SimulatorPlatformSupport) -> Swift.Bool
+        0x000998A0  PreviewsDeveloperTools.SimulatorPlatformSupport.hash(into: inout Swift.Hasher) -> ()
+        0x00099B48  PreviewsDeveloperTools.SimulatorPlatformSupport.hashValue.getter : Swift.Int
+        0x00099B94  PreviewsDeveloperTools.SimulatorPlatformSupport.destinationPreferences(for: PreviewsDeveloperTools.UnresolvedRunDestinationComponents, in: PreviewsDeveloperTools.DestinationDomain) -> PreviewsPipeline.DestinationPreferences
+        0x00099BAC  PreviewsDeveloperTools.SimulatorPlatformSupport.destinationRecipe(for: PreviewsDeveloperTools.UnresolvedRunDestinationComponents) throws -> PreviewsPipeline.AnyRunDestinationRecipe
+        0x0009A3E0  static PreviewsDeveloperTools.SimulatorOverrideBox.== infix(PreviewsDeveloperTools.SimulatorOverrideBox, PreviewsDeveloperTools.SimulatorOverrideBox) -> Swift.Bool
+        0x0009A3E4  PreviewsDeveloperTools.SimulatorOverrideBox.hash(into: inout Swift.Hasher) -> ()
+        0x0009A458  PreviewsDeveloperTools.SimulatorOverrideBox.hashValue.getter : Swift.Int
+        0x0009A4DC  static PreviewsDeveloperTools.SimulatorOverrideBuilder.buildExpression<A where A: PreviewsDeveloperTools.SimulatorPreviewArchiver>((PreviewsMessagingHost.ContentOverride, A.Type)) -> [PreviewsDeveloperTools.SimulatorOverrideBox]
+        0x0009A6B8  static PreviewsDeveloperTools.SimulatorOverrideBuilder.buildPartialBlock(first: [PreviewsDeveloperTools.SimulatorOverrideBox]) -> [PreviewsDeveloperTools.SimulatorOverrideBox]
+        0x0009A6BC  static PreviewsDeveloperTools.SimulatorOverrideBuilder.buildPartialBlock(accumulated: [PreviewsDeveloperTools.SimulatorOverrideBox], next: [PreviewsDeveloperTools.SimulatorOverrideBox]) -> [PreviewsDeveloperTools.SimulatorOverrideBox]
+        0x0009A6FC  PreviewsDeveloperTools.SimulatorPlatformSupport.mostRecentDeviceTypeIdentifier(of: __C.SimDeviceProductFamily, scaleFactorPreference: Swift.Float?) -> Swift.String?
+        0x0009B1DC  type metadata accessor for PreviewsDeveloperTools.SimulatorOverrideBox
+        0x0009C354  type metadata accessor for PreviewsDeveloperTools.SimulatorOverrideBuilder
+        0x0009D85C  PreviewsDeveloperTools.makeSimulatorPreviewDestinationRecipe(platformSupport: PreviewsDeveloperTools.SimulatorPlatformSupport, deviceType: __C.SimDeviceType, runtime: __C.SimRuntime, properties: PreviewsPipeline.RunDestinationProperties) -> PreviewsPipeline.AnyRunDestinationRecipe
+        0x000A2250  _PreviewsDeveloperToolsVersionString
+        0x000A2298  _PreviewsDeveloperToolsVersionNumber
+        0x000A2DB0  protocol conformance descriptor for PreviewsDeveloperTools.SimDeviceCategoryPreferences : Swift.Hashable in PreviewsDeveloperTools
+        0x000A2DF0  protocol conformance descriptor for PreviewsDeveloperTools.SimDeviceCategoryPreferences : Swift.Equatable in PreviewsDeveloperTools
+        0x000A2E18  property descriptor for PreviewsDeveloperTools.SimDeviceCategoryPreferences.id : Swift.String
+        0x000A2E1C  property descriptor for PreviewsDeveloperTools.SimDeviceCategoryPreferences.name : Swift.String
+        0x000A2E20  property descriptor for PreviewsDeveloperTools.SimDeviceCategoryPreferences.nameSuffixTags : [Swift.String]
+        0x000A2E24  property descriptor for PreviewsDeveloperTools.SimDeviceCategoryPreferences.rank : Swift.Double
+        0x000A2E28  property descriptor for PreviewsDeveloperTools.SimDeviceCategoryPreferences.deviceFamily : __C.SimDeviceProductFamily
+        0x000A2E2C  property descriptor for PreviewsDeveloperTools.SimDeviceCategoryPreferences.sizeCategory : PreviewsDeveloperTools.SimDeviceTypeInfo.SizeCategory?
+        0x000A2E30  property descriptor for PreviewsDeveloperTools.SimDeviceCategoryPreferences.features : Swift.Set<PreviewsDeveloperTools.SimDeviceTypeInfo.Feature>
+        0x000A2E34  property descriptor for PreviewsDeveloperTools.SimDeviceCategoryPreferences.tags : Swift.Set<PreviewsDeveloperTools.SimDeviceTypeInfo.Tag>
+        0x000A2E38  property descriptor for PreviewsDeveloperTools.SimDeviceCategoryPreferences.hashValue : Swift.Int
+        0x000A3190  property descriptor for PreviewsDeveloperTools.SupportedPlatformsContainer.allPlatformSupports : [PreviewsDeveloperTools.DeveloperToolsPlatformSupport]
+        0x000A3220  async function pointer to PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.snapshot() async throws -> __C.CGImageRef?
+        0x000A32F8  protocol conformance descriptor for PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider.Snapshot.Origin : Swift.Equatable in PreviewsDeveloperTools
+        0x000A3320  protocol conformance descriptor for PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider.Snapshot.Origin : Swift.Hashable in PreviewsDeveloperTools
+        0x000A3360  protocol conformance descriptor for PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider : Combine.ObservableObject in PreviewsDeveloperTools
+        0x000A33A0  protocol conformance descriptor for PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable : PreviewsPipeline.PreviewViewable in PreviewsDeveloperTools
+        0x000A33F0  property descriptor for PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.auditToken : __C.audit_token_t
+        0x000A33F4  property descriptor for PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.windowNumber : Swift.Int
+        0x000A33F8  property descriptor for PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.previewGeometry : PreviewsPipeline.PreviewGeometry
+        0x000A3400  property descriptor for PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.snapshotProvider : PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider
+        0x000A3408  property descriptor for PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.suppressedPresentationPublisher : Combine.PassthroughSubject<PreviewsServicesUI.SuppressedPresentation, Swift.Never>
+        0x000A3410  property descriptor for PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.passdown : PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.PassdownContext
+        0x000A3418  property descriptor for PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.geometry : PreviewsPipeline.PreviewGeometry?
+        0x000A3418  property descriptor for PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.publicSuccessfulCompletionDescription : Swift.String
+        0x000A3418  property descriptor for PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider.Snapshot.Origin.hashValue : Swift.Int
+        0x000A341C  property descriptor for PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider.Snapshot.image : __C.CGImageRef
+        0x000A3420  property descriptor for PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider.Snapshot.scaleFactor : CoreGraphics.CGFloat
+        0x000A3424  property descriptor for PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider.Snapshot.cornerRadius : CoreGraphics.CGFloat
+        0x000A3428  property descriptor for PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider.Snapshot.origin : PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider.Snapshot.Origin
+        0x000A342C  property descriptor for PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.PassdownContext.isConnected : Swift.Bool
+        0x000A34A8  class metadata base offset for PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider
+        0x000A34C8  enum case for PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider.Snapshot.Origin.previous(PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider.Snapshot.Origin.Type) -> PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider.Snapshot.Origin
+        0x000A34CC  enum case for PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider.Snapshot.Origin.initial(PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider.Snapshot.Origin.Type) -> PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider.Snapshot.Origin
+        0x000A34D0  enum case for PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider.Snapshot.Origin.stream(PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider.Snapshot.Origin.Type) -> PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider.Snapshot.Origin
+        0x000A34F0  class metadata base offset for PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.PassdownContext
+        0x000A35A0  async function pointer to PreviewsDeveloperTools.MacOSLayerHostedPreviewViewable.snapshot() async throws -> __C.CGImageRef?
+        0x000A35C0  protocol conformance descriptor for PreviewsDeveloperTools.MacOSLayerHostedPreviewViewable : PreviewsPipeline.PreviewViewable in PreviewsDeveloperTools
+        0x000A3610  property descriptor for PreviewsDeveloperTools.MacOSLayerHostedPreviewViewable.contextID : Swift.UInt32?
+        0x000A3614  property descriptor for PreviewsDeveloperTools.MacOSLayerHostedPreviewViewable.fallbackImage : __C.CGImageRef
+        0x000A3618  property descriptor for PreviewsDeveloperTools.MacOSLayerHostedPreviewViewable.previewGeometry : PreviewsPipeline.PreviewGeometry
+        0x000A3620  property descriptor for PreviewsDeveloperTools.MacOSLayerHostedPreviewViewable.geometry : PreviewsPipeline.PreviewGeometry?
+        0x000A3620  property descriptor for PreviewsDeveloperTools.MacOSLayerHostedPreviewViewable.publicSuccessfulCompletionDescription : Swift.String
+        0x000A36F8  async function pointer to PreviewsDeveloperTools.DevicePreviewViewable.snapshot() async throws -> __C.CGImageRef?
+        0x000A3720  protocol conformance descriptor for PreviewsDeveloperTools.DevicePreviewViewable : PreviewsPipeline.PreviewViewable in PreviewsDeveloperTools
+        0x000A3770  property descriptor for PreviewsDeveloperTools.DevicePreviewViewable.device : PreviewsDeveloperTools.AnyHardwareDevice
+        0x000A3774  property descriptor for PreviewsDeveloperTools.DevicePreviewViewable.family : PreviewsPipeline.DeviceFamily?
+        0x000A377C  property descriptor for PreviewsDeveloperTools.DevicePreviewViewable.geometry : PreviewsPipeline.PreviewGeometry?
+        0x000A377C  property descriptor for PreviewsDeveloperTools.DevicePreviewViewable.publicSuccessfulCompletionDescription : Swift.String
+        0x000A377C  property descriptor for PreviewsDeveloperTools.DevicePreviewViewable.snapshot : __C.CGImageRef?
+        0x000A37E0  property descriptor for PreviewsDeveloperTools.DeviceChromeDescription.chrome : SimulatorKit.SimDeviceChrome
+        0x000A37E8  property descriptor for PreviewsDeveloperTools.DeviceChromeDescription.maskingImage : __C.NSImage?
+        0x000A37F0  property descriptor for PreviewsDeveloperTools.DeviceChromeDescription.mainScreenSize : __C.CGSize
+        0x000A37F8  property descriptor for PreviewsDeveloperTools.DeviceChromeDescription.mainScreenScale : Swift.Float
+        0x000A4548  protocol conformance descriptor for PreviewsServicesUI.SuppressedPresentation : PreviewsFoundationHost.PropertyListRepresentable in PreviewsDeveloperTools
+        0x000A5200  async function pointer to (extension in PreviewsDeveloperTools):__C.SimDevice.launchPreviewShell() async throws -> ()
+        0x000A5234  protocol conformance descriptor for PreviewsDeveloperTools.SimulatorDevice : PreviewsPipeline.AnyDevice in PreviewsDeveloperTools
+        0x000A527C  property descriptor for PreviewsDeveloperTools.SimulatorDevice.simDevice : __C.SimDevice
+        0x000A5280  property descriptor for PreviewsDeveloperTools.SimulatorDevice.buildNumber : PreviewsFoundationHost.BuildNumber
+        0x000A5288  property descriptor for PreviewsDeveloperTools.SimulatorDevice.defaultDisplayScale : Swift.Double
+        0x000A5288  property descriptor for PreviewsDeveloperTools.SimulatorDevice.identifier : Swift.AnyHashable
+        0x000A5288  property descriptor for PreviewsDeveloperTools.SimulatorDevice.name : Swift.String
+        0x000A5338  async function pointer to PreviewsDeveloperTools.IOSurfacePreviewViewable.snapshot() async throws -> __C.CGImageRef?
+        0x000A5348  protocol conformance descriptor for PreviewsDeveloperTools.IOSurfacePreviewViewable : PreviewsPipeline.PreviewViewable in PreviewsDeveloperTools
+        0x000A5398  property descriptor for PreviewsDeveloperTools.IOSurfacePreviewViewable.surfaceID : Swift.UInt32
+        0x000A539C  property descriptor for PreviewsDeveloperTools.IOSurfacePreviewViewable.previewGeometry : PreviewsPipeline.PreviewGeometry
+        0x000A53A4  property descriptor for PreviewsDeveloperTools.IOSurfacePreviewViewable.geometry : PreviewsPipeline.PreviewGeometry?
+        0x000A53A4  property descriptor for PreviewsDeveloperTools.IOSurfacePreviewViewable.publicSuccessfulCompletionDescription : Swift.String
+        0x000A53F8  protocol conformance descriptor for PreviewsDeveloperTools.WorkspaceTeardownHandlersQuery : PreviewsFoundationHost.Query in PreviewsDeveloperTools
+        0x000A5440  protocol conformance descriptor for PreviewsDeveloperTools.WorkspaceTeardownHandlersQuery : Swift.CustomDebugStringConvertible in PreviewsDeveloperTools
+        0x000A5E60  property descriptor for PreviewsDeveloperTools.MacOSDeviceCategoryPreferences.id : Swift.String
+        0x000A5E64  property descriptor for PreviewsDeveloperTools.MacOSDeviceCategoryPreferences.name : Swift.String
+        0x000A5E68  property descriptor for PreviewsDeveloperTools.MacOSDeviceCategoryPreferences.rank : Swift.Double
+        0x000A5E6C  property descriptor for PreviewsDeveloperTools.MacOSDeviceCategoryPreferences.sdkVariant : Swift.String
+        0x000A5EE0  protocol conformance descriptor for PreviewsDeveloperTools.MacOSDestinationManager : PreviewsDeveloperTools.WorkspaceTeardownHandler in PreviewsDeveloperTools
+        0x000A7500  protocol conformance descriptor for PreviewsDeveloperTools.RunDestinationStrategy : Swift.Equatable in PreviewsDeveloperTools
+        0x000A7528  protocol conformance descriptor for PreviewsDeveloperTools.RunDestinationStrategy : Swift.Hashable in PreviewsDeveloperTools
+        0x000A7568  protocol conformance descriptor for PreviewsDeveloperTools.DestinationDomain : Swift.Equatable in PreviewsDeveloperTools
+        0x000A7590  protocol conformance descriptor for PreviewsDeveloperTools.DestinationDomain : Swift.Hashable in PreviewsDeveloperTools
+        0x000A75D0  protocol conformance descriptor for PreviewsDeveloperTools.DestinationDevicePreference : Swift.Equatable in PreviewsDeveloperTools
+        0x000A75F8  protocol conformance descriptor for PreviewsDeveloperTools.DestinationDevicePreference : Swift.Hashable in PreviewsDeveloperTools
+        0x000A7638  protocol conformance descriptor for PreviewsDeveloperTools.LocalDevelopmentSupport : Swift.Hashable in PreviewsDeveloperTools
+        0x000A7678  protocol conformance descriptor for PreviewsDeveloperTools.LocalDevelopmentSupport : Swift.Equatable in PreviewsDeveloperTools
+        0x000A76A0  property descriptor for (extension in PreviewsDeveloperTools):PreviewsDeveloperTools.DeveloperToolsPlatformSupport.localDevelopmentSupport : PreviewsDeveloperTools.LocalDevelopmentSupport
+        0x000A76A0  property descriptor for (extension in PreviewsDeveloperTools):PreviewsDeveloperTools.DeveloperToolsPlatformSupport.supportsInteractiveByDefault : Swift.Bool
+        0x000A76A0  property descriptor for (extension in PreviewsDeveloperTools):PreviewsDeveloperTools.DeveloperToolsPlatformSupport.supportsOnDevicePreviews : Swift.Bool
+        0x000A76A0  property descriptor for PreviewsDeveloperTools.DestinationDevicePreference.hashValue : Swift.Int
+        0x000A76A0  property descriptor for PreviewsDeveloperTools.DestinationDevicePreference.wantsToRunOnProxyDevice : Swift.Bool
+        0x000A76A0  property descriptor for PreviewsDeveloperTools.DestinationDomain.hashValue : Swift.Int
+        0x000A76A0  property descriptor for PreviewsDeveloperTools.LocalDevelopmentSupport.hashValue : Swift.Int
+        0x000A76A0  property descriptor for PreviewsDeveloperTools.RunDestinationStrategy.hashValue : Swift.Int
+        0x000A7708  enum case for PreviewsDeveloperTools.RunDestinationStrategy.unmodified(PreviewsDeveloperTools.RunDestinationStrategy.Type) -> PreviewsDeveloperTools.RunDestinationStrategy
+        0x000A770C  enum case for PreviewsDeveloperTools.RunDestinationStrategy.unthinnedForActiveArchitecture(PreviewsDeveloperTools.RunDestinationStrategy.Type) -> PreviewsDeveloperTools.RunDestinationStrategy
+        0x000A7710  enum case for PreviewsDeveloperTools.RunDestinationStrategy.unthinnedForMultipleArchitectures(PreviewsDeveloperTools.RunDestinationStrategy.Type) -> PreviewsDeveloperTools.RunDestinationStrategy
+        0x000A7734  enum case for PreviewsDeveloperTools.DestinationDomain.externalDevice(PreviewsDeveloperTools.DestinationDomain.Type) -> PreviewsDeveloperTools.DestinationDomain
+        0x000A7738  enum case for PreviewsDeveloperTools.DestinationDomain.localDevice(PreviewsDeveloperTools.DestinationDomain.Type) -> PreviewsDeveloperTools.DestinationDomain
+        0x000A775C  enum case for PreviewsDeveloperTools.DestinationDevicePreference.primary(PreviewsDeveloperTools.DestinationDevicePreference.Type) -> PreviewsDeveloperTools.DestinationDevicePreference
+        0x000A7760  enum case for PreviewsDeveloperTools.DestinationDevicePreference.secondary(PreviewsDeveloperTools.DestinationDevicePreference.Type) -> PreviewsDeveloperTools.DestinationDevicePreference
+        0x000A7788  enum case for PreviewsDeveloperTools.LocalDevelopmentSupport.unsupported(PreviewsDeveloperTools.LocalDevelopmentSupport.Type) -> (Swift.String?) -> PreviewsDeveloperTools.LocalDevelopmentSupport
+        0x000A778C  enum case for PreviewsDeveloperTools.LocalDevelopmentSupport.supported(PreviewsDeveloperTools.LocalDevelopmentSupport.Type) -> PreviewsDeveloperTools.LocalDevelopmentSupport
+        0x000A77A0  property descriptor for static PreviewsDeveloperTools.SimulatorDevice.deviceEvents : PreviewsFoundationHost.EventStream<PreviewsDeveloperTools.CoreSimulatorDeviceEvent>
+        0x000A813C  property descriptor for PreviewsDeveloperTools.DeviceAvailabilityStream.eventStream : PreviewsFoundationHost.EventStream<[PreviewsPipeline.DeviceIdentifier : Swift.Error?]>
+        0x000A81A0  class metadata base offset for PreviewsDeveloperTools.DeviceAvailabilityStream
+        0x000A8208  property descriptor for static PreviewsDeveloperTools.SimulatorPlatformSupport.iOS : PreviewsDeveloperTools.SimulatorPlatformSupport
+        0x000A82E0  protocol conformance descriptor for PreviewsDeveloperTools.SimulatorShutdownUnexpectedlyError : PreviewsFoundationHost.HumanReadableError in PreviewsDeveloperTools
+        0x000A8380  protocol conformance descriptor for PreviewsDeveloperTools.SimulatorShutdownUnexpectedlyError : Foundation.LocalizedError in PreviewsDeveloperTools
+        0x000A83C8  protocol conformance descriptor for PreviewsDeveloperTools.SimulatorShutdownUnexpectedlyError : Swift.CustomStringConvertible in PreviewsDeveloperTools
+        0x000A83F0  protocol conformance descriptor for PreviewsDeveloperTools.SimulatorShutdownUnexpectedlyError : Swift.Error in PreviewsDeveloperTools
+        0x000A8430  property descriptor for PreviewsDeveloperTools.SimulatorShutdownUnexpectedlyError.additionalDiagnostics : Swift.String?
+        0x000A8430  property descriptor for PreviewsDeveloperTools.SimulatorShutdownUnexpectedlyError.additionalInfo : Swift.String?
+        0x000A8430  property descriptor for PreviewsDeveloperTools.SimulatorShutdownUnexpectedlyError.highValueTitle : Swift.String?
+        0x000A9188  protocol conformance descriptor for PreviewsDeveloperTools.PlatformSupportQuery.LookupKey : Swift.Hashable in PreviewsDeveloperTools
+        0x000A91C8  protocol conformance descriptor for PreviewsDeveloperTools.PlatformSupportQuery.LookupKey : Swift.Equatable in PreviewsDeveloperTools
+        0x000A91F8  protocol conformance descriptor for PreviewsDeveloperTools.PlatformSupportQuery : PreviewsFoundationHost.Query in PreviewsDeveloperTools
+        0x000A9240  protocol conformance descriptor for PreviewsDeveloperTools.PlatformSupportQuery : Swift.Hashable in PreviewsDeveloperTools
+        0x000A9280  protocol conformance descriptor for PreviewsDeveloperTools.PlatformSupportQuery : Swift.CustomDebugStringConvertible in PreviewsDeveloperTools
+        0x000A92A8  protocol conformance descriptor for PreviewsDeveloperTools.PlatformSupportQuery : Swift.Equatable in PreviewsDeveloperTools
+        0x000A92D0  property descriptor for PreviewsDeveloperTools.PlatformSupportQuery.hashValue : Swift.Int
+        0x000A92D0  property descriptor for PreviewsDeveloperTools.PlatformSupportQuery.LookupKey.hashValue : Swift.Int
+        0x000A92D4  property descriptor for PreviewsDeveloperTools.PlatformSupportQuery.lookupKey : PreviewsDeveloperTools.PlatformSupportQuery.LookupKey
+        0x000A9338  enum case for PreviewsDeveloperTools.PlatformSupportQuery.LookupKey.platform(PreviewsDeveloperTools.PlatformSupportQuery.LookupKey.Type) -> (PreviewsPipeline.Platform) -> PreviewsDeveloperTools.PlatformSupportQuery.LookupKey
+        0x000A933C  enum case for PreviewsDeveloperTools.PlatformSupportQuery.LookupKey.xcodePlatformIdentifier(PreviewsDeveloperTools.PlatformSupportQuery.LookupKey.Type) -> (Swift.String, Swift.String?) -> PreviewsDeveloperTools.PlatformSupportQuery.LookupKey
+        0x000A9658  protocol conformance descriptor for PreviewsDeveloperTools.AvailableDevicesQuery : PreviewsFoundationHost.Query in PreviewsDeveloperTools
+        0x000A96A0  protocol conformance descriptor for PreviewsDeveloperTools.AvailableDevicesQuery : Swift.CustomDebugStringConvertible in PreviewsDeveloperTools
+        0x000A96D0  protocol conformance descriptor for PreviewsDeveloperTools.BootedDevicesQuery : PreviewsFoundationHost.Query in PreviewsDeveloperTools
+        0x000A9718  protocol conformance descriptor for PreviewsDeveloperTools.BootedDevicesQuery : Swift.CustomDebugStringConvertible in PreviewsDeveloperTools
+        0x000A9748  protocol conformance descriptor for PreviewsDeveloperTools.DeviceAvailabilityQuery : PreviewsFoundationHost.Query in PreviewsDeveloperTools
+        0x000A9790  protocol conformance descriptor for PreviewsDeveloperTools.DeviceAvailabilityQuery : Swift.CustomDebugStringConvertible in PreviewsDeveloperTools
+        0x000A97C0  protocol conformance descriptor for PreviewsDeveloperTools.DeviceCategoriesQuery : PreviewsFoundationHost.Query in PreviewsDeveloperTools
+        0x000A9808  protocol conformance descriptor for PreviewsDeveloperTools.DeviceCategoriesQuery : Swift.CustomDebugStringConvertible in PreviewsDeveloperTools
+        0x000A9838  protocol conformance descriptor for PreviewsDeveloperTools.DeviceFamilyResourcesQuery : PreviewsFoundationHost.Query in PreviewsDeveloperTools
+        0x000A9880  protocol conformance descriptor for PreviewsDeveloperTools.DeviceFamilyResourcesQuery : Swift.CustomDebugStringConvertible in PreviewsDeveloperTools
+        0x000A98A8  property descriptor for PreviewsDeveloperTools.BootedDevicesQuery.availableDestinations : [PreviewsPipeline.AnyRunDestinationRecipe]
+        0x000A98AC  property descriptor for PreviewsDeveloperTools.DeviceAvailabilityQuery.availableDestinations : [PreviewsPipeline.AnyRunDestinationRecipe]
+        0x000A98B0  property descriptor for PreviewsDeveloperTools.DeviceCategoriesQuery.availableDestinations : [PreviewsPipeline.AnyRunDestinationRecipe]
+        0x000A98B4  property descriptor for PreviewsDeveloperTools.DeviceFamilyResourcesQuery.deviceFamilies : [PreviewsPipeline.DeviceFamily]
+        0x000A9F98  protocol conformance descriptor for __C.SimDeviceType : PreviewsDeveloperTools.AnySimulatorDeviceType in PreviewsDeveloperTools
+        0x000A9FC0  async function pointer to PreviewsDeveloperTools.SimulatorInteractivePreviewViewable.snapshot() async throws -> __C.CGImageRef?
+        0x000A9FD0  protocol conformance descriptor for PreviewsDeveloperTools.SimulatorInteractivePreviewViewable : PreviewsPipeline.PreviewViewable in PreviewsDeveloperTools
+        0x000AA020  property descriptor for PreviewsDeveloperTools.SimulatorScreenInfo.device : __C.SimDevice
+        0x000AA024  property descriptor for PreviewsDeveloperTools.SimulatorScreenInfo.sizeInPixels : __C.CGSize
+        0x000AA028  property descriptor for PreviewsDeveloperTools.SimulatorScreenInfo.scaleFactor : CoreGraphics.CGFloat
+        0x000AA02C  property descriptor for PreviewsDeveloperTools.SimulatorInteractivePreviewViewable.screenInfo : PreviewsDeveloperTools.SimulatorScreenInfo
+        0x000AA030  property descriptor for PreviewsDeveloperTools.SimulatorInteractivePreviewViewable.screen : SimulatorKit.SimDeviceScreen
+        0x000AA034  property descriptor for PreviewsDeveloperTools.SimulatorInteractivePreviewViewable.contentDomain : PreviewsMessagingHost.PreviewContentDomain
+        0x000AA03C  property descriptor for PreviewsDeveloperTools.SimulatorInteractivePreviewViewable.traits : PreviewsMessagingHost.PreviewTraits
+        0x000AA044  property descriptor for PreviewsDeveloperTools.SimulatorInteractivePreviewViewable.interfaceOrientation : PreviewsMessagingHost.PreviewTraits.Orientation
+        0x000AA04C  property descriptor for PreviewsDeveloperTools.SimulatorInteractivePreviewViewable.previewGeometry : PreviewsPipeline.PreviewGeometry
+        0x000AA054  property descriptor for PreviewsDeveloperTools.SimulatorInteractivePreviewViewable.deviceChrome : PreviewsDeveloperTools.StaticPreviewViewable.Chrome?
+        0x000AA05C  property descriptor for PreviewsDeveloperTools.SimulatorInteractivePreviewViewable.geometry : PreviewsPipeline.PreviewGeometry?
+        0x000AA05C  property descriptor for PreviewsDeveloperTools.SimulatorInteractivePreviewViewable.publicSuccessfulCompletionDescription : Swift.String
+        0x000AA270  protocol conformance descriptor for PreviewsDeveloperTools.DeviceFamilyResolver.MatchTerm : Swift.Hashable in PreviewsDeveloperTools
+        0x000AA2B0  protocol conformance descriptor for PreviewsDeveloperTools.DeviceFamilyResolver.MatchTerm : Swift.Equatable in PreviewsDeveloperTools
+        0x000AA2D8  protocol conformance descriptor for PreviewsDeveloperTools.DeviceFamilyResolver : Swift.Hashable in PreviewsDeveloperTools
+        0x000AA318  protocol conformance descriptor for PreviewsDeveloperTools.DeviceFamilyResolver : Swift.Equatable in PreviewsDeveloperTools
+        0x000AA340  property descriptor for PreviewsDeveloperTools.DeviceFamilyResolver.MatchTerm.term : Swift.String
+        0x000AA344  property descriptor for PreviewsDeveloperTools.DeviceFamilyResolver.MatchTerm.family : PreviewsPipeline.DeviceFamily
+        0x000AA34C  property descriptor for PreviewsDeveloperTools.DeviceFamilyResolver.hashValue : Swift.Int
+        0x000AA34C  property descriptor for PreviewsDeveloperTools.DeviceFamilyResolver.MatchTerm.hashValue : Swift.Int
+        0x000AA448  protocol conformance descriptor for PreviewsDeveloperTools.BuiltInIntegrationManager : PreviewsFoundationHost.QueryResolver in PreviewsDeveloperTools
+        0x000AA478  property descriptor for PreviewsDeveloperTools.BuiltInIntegrationManager.resolutions : PreviewsFoundationHost.QueryResolutions
+        0x000AA478  property descriptor for static PreviewsDeveloperTools.BuiltInIntegrationManager.default : PreviewsDeveloperTools.BuiltInIntegrationManager
+        0x000AA478  property descriptor for static PreviewsDeveloperTools.BuiltInIntegrationManager.platforms : PreviewsDeveloperTools.SupportedPlatformsContainer
+        0x000AA8E8  protocol conformance descriptor for PreviewsDeveloperTools.DevicePlatformSupport : PreviewsDeveloperTools.DeveloperToolsPlatformSupport in PreviewsDeveloperTools
+        0x000AA8F8  protocol conformance descriptor for PreviewsDeveloperTools.DevicePlatformSupport : Swift.Hashable in PreviewsDeveloperTools
+        0x000AA938  protocol conformance descriptor for PreviewsDeveloperTools.DevicePlatformSupport : Swift.Equatable in PreviewsDeveloperTools
+        0x000AA960  protocol conformance descriptor for PreviewsDeveloperTools.DeviceOverrideBox : Swift.Hashable in PreviewsDeveloperTools
+        0x000AA9A0  protocol conformance descriptor for PreviewsDeveloperTools.DeviceOverrideBox : Swift.Equatable in PreviewsDeveloperTools
+        0x000AA9C8  property descriptor for PreviewsDeveloperTools.DevicePlatformSupport.platform : PreviewsPipeline.Platform
+        0x000AA9D0  property descriptor for PreviewsDeveloperTools.DevicePlatformSupport.xcodePlatformIdentifier : Swift.String
+        0x000AA9D8  property descriptor for PreviewsDeveloperTools.DevicePlatformSupport.correspondingSimulatorPlatformSupport : PreviewsDeveloperTools.SimulatorPlatformSupport?
+        0x000AA9E0  property descriptor for PreviewsDeveloperTools.DevicePlatformSupport.firstVersionWhereInjectionFrameworkMovedToSystemLibraryFrameworks : PreviewsFoundationHost.BuildNumber
+        0x000AA9E8  property descriptor for PreviewsDeveloperTools.DevicePlatformSupport.devicePreference : PreviewsDeveloperTools.DestinationDevicePreference
+        0x000AA9F0  property descriptor for PreviewsDeveloperTools.DevicePlatformSupport.supportsOnDevicePreviews : Swift.Bool
+        0x000AA9F8  property descriptor for PreviewsDeveloperTools.DevicePlatformSupport.supportsStaticPreviews : Swift.Bool
+        0x000AAA00  property descriptor for PreviewsDeveloperTools.DevicePlatformSupport.supportsContinuousLivePreview : Swift.Bool
+        0x000AAA08  property descriptor for PreviewsDeveloperTools.DevicePlatformSupport.deviceFamilyResolver : PreviewsDeveloperTools.DeviceFamilyResolver
+        0x000AAA10  property descriptor for PreviewsDeveloperTools.DevicePlatformSupport.localDevelopmentSupport : PreviewsDeveloperTools.LocalDevelopmentSupport
+        0x000AAA18  property descriptor for PreviewsDeveloperTools.DeviceOverrideBox.hashValue : Swift.Int
+        0x000AAA18  property descriptor for PreviewsDeveloperTools.DevicePlatformSupport.destinationDomain : PreviewsDeveloperTools.DestinationDomain
+        0x000AAA18  property descriptor for PreviewsDeveloperTools.DevicePlatformSupport.hashValue : Swift.Int
+        0x000AAA18  property descriptor for PreviewsDeveloperTools.DevicePlatformSupport.runDestinationStrategy : PreviewsDeveloperTools.RunDestinationStrategy
+        0x000AAD50  protocol conformance descriptor for PreviewsDeveloperTools.SimulatorDestinationManager : PreviewsModel.DiagnosticsProvider in PreviewsDeveloperTools
+        0x000AAD78  protocol conformance descriptor for PreviewsDeveloperTools.SimulatorDestinationManager : PreviewsDeveloperTools.WorkspaceTeardownHandler in PreviewsDeveloperTools
+        0x000AAD88  property descriptor for static PreviewsDeveloperTools.SimulatorDestinationManager.shared : PreviewsDeveloperTools.SimulatorDestinationManager
+        0x000AADE0  class metadata base offset for PreviewsDeveloperTools.SimulatorDestinationManager
+        0x000AB050  async function pointer to PreviewsDeveloperTools.StaticPreviewViewable.snapshot() async throws -> __C.CGImageRef?
+        0x000AB060  protocol conformance descriptor for PreviewsDeveloperTools.StaticPreviewViewable : PreviewsPipeline.PreviewViewable in PreviewsDeveloperTools
+        0x000AB0B0  protocol conformance descriptor for PreviewsDeveloperTools.StaticPreviewViewable : Swift.CustomStringConvertible in PreviewsDeveloperTools
+        0x000AB0D8  property descriptor for PreviewsDeveloperTools.StaticPreviewViewable.rawImage : __C.CGImageRef
+        0x000AB0DC  property descriptor for PreviewsDeveloperTools.StaticPreviewViewable.seed : PreviewsFoundationHost.Identifier
+        0x000AB0E4  property descriptor for PreviewsDeveloperTools.StaticPreviewViewable.previewGeometry : PreviewsPipeline.PreviewGeometry
+        0x000AB0EC  property descriptor for PreviewsDeveloperTools.StaticPreviewViewable.chrome : PreviewsDeveloperTools.StaticPreviewViewable.Chrome
+        0x000AB0F4  property descriptor for PreviewsDeveloperTools.StaticPreviewViewable.interfaceOrientation : PreviewsMessagingHost.PreviewTraits.Orientation
+        0x000AB0FC  property descriptor for PreviewsDeveloperTools.StaticPreviewViewable.Chrome.maskImage : __C.NSImage?
+        0x000AB0FC  property descriptor for PreviewsDeveloperTools.StaticPreviewViewable.description : Swift.String
+        0x000AB0FC  property descriptor for PreviewsDeveloperTools.StaticPreviewViewable.geometry : PreviewsPipeline.PreviewGeometry?
+        0x000AB0FC  property descriptor for PreviewsDeveloperTools.StaticPreviewViewable.publicSuccessfulCompletionDescription : Swift.String
+        0x000AB158  protocol conformance descriptor for PreviewsDeveloperTools.SimDeviceTypeInfo.Feature : Swift.Hashable in PreviewsDeveloperTools
+        0x000AB198  protocol conformance descriptor for PreviewsDeveloperTools.SimDeviceTypeInfo.Feature : Swift.RawRepresentable in PreviewsDeveloperTools
+        0x000AB1D0  protocol conformance descriptor for PreviewsDeveloperTools.SimDeviceTypeInfo.Feature : Swift.CustomStringConvertible in PreviewsDeveloperTools
+        0x000AB1F8  protocol conformance descriptor for PreviewsDeveloperTools.SimDeviceTypeInfo.Feature : Swift.Equatable in PreviewsDeveloperTools
+        0x000AB220  protocol conformance descriptor for PreviewsDeveloperTools.SimDeviceTypeInfo.SizeCategory : Swift.Equatable in PreviewsDeveloperTools
+        0x000AB248  protocol conformance descriptor for PreviewsDeveloperTools.SimDeviceTypeInfo.SizeCategory : Swift.RawRepresentable in PreviewsDeveloperTools
+        0x000AB280  protocol conformance descriptor for PreviewsDeveloperTools.SimDeviceTypeInfo.SizeCategory : Swift.Hashable in PreviewsDeveloperTools
+        0x000AB2C0  protocol conformance descriptor for PreviewsDeveloperTools.SimDeviceTypeInfo.Tag : Swift.Hashable in PreviewsDeveloperTools
+        0x000AB300  protocol conformance descriptor for PreviewsDeveloperTools.SimDeviceTypeInfo.Tag : Swift.RawRepresentable in PreviewsDeveloperTools
+        0x000AB338  protocol conformance descriptor for PreviewsDeveloperTools.SimDeviceTypeInfo.Tag : Swift.CustomStringConvertible in PreviewsDeveloperTools
+        0x000AB360  protocol conformance descriptor for PreviewsDeveloperTools.SimDeviceTypeInfo.Tag : Swift.Equatable in PreviewsDeveloperTools
+        0x000AB388  protocol conformance descriptor for PreviewsDeveloperTools.SimDeviceTypeInfo : Swift.Equatable in PreviewsDeveloperTools
+        0x000AB3B0  property descriptor for PreviewsDeveloperTools.SimDeviceTypeInfo.Feature.description : Swift.String
+        0x000AB3B0  property descriptor for PreviewsDeveloperTools.SimDeviceTypeInfo.Feature.rawValue : Swift.String
+        0x000AB3B0  property descriptor for PreviewsDeveloperTools.SimDeviceTypeInfo.SizeCategory.rawValue : Swift.String
+        0x000AB3B0  property descriptor for PreviewsDeveloperTools.SimDeviceTypeInfo.Tag.description : Swift.String
+        0x000AB3B0  property descriptor for PreviewsDeveloperTools.SimDeviceTypeInfo.Tag.rawValue : Swift.String
+        0x000AB430  async function pointer to PreviewsDeveloperTools.MacOSInteractivePreviewViewable.snapshot() async throws -> __C.CGImageRef?
+        0x000AB440  protocol conformance descriptor for PreviewsDeveloperTools.MacOSInteractivePreviewViewable : PreviewsPipeline.PreviewViewable in PreviewsDeveloperTools
+        0x000AB490  property descriptor for PreviewsDeveloperTools.MacOSInteractivePreviewViewable.agentBundle : PreviewsPipeline.PreviewAgentBundle
+        0x000AB498  property descriptor for PreviewsDeveloperTools.MacOSInteractivePreviewViewable.pid : Swift.Int32
+        0x000AB4A0  property descriptor for PreviewsDeveloperTools.MacOSInteractivePreviewViewable.geometry : PreviewsPipeline.PreviewGeometry?
+        0x000AB4A0  property descriptor for PreviewsDeveloperTools.MacOSInteractivePreviewViewable.publicSuccessfulCompletionDescription : Swift.String
+        0x000AB660  protocol conformance descriptor for PreviewsDeveloperTools.SimulatorPlatformSupport : PreviewsDeveloperTools.DeveloperToolsPlatformSupport in PreviewsDeveloperTools
+        0x000AB670  protocol conformance descriptor for PreviewsDeveloperTools.SimulatorPlatformSupport : Swift.Hashable in PreviewsDeveloperTools
+        0x000AB6B0  protocol conformance descriptor for PreviewsDeveloperTools.SimulatorPlatformSupport : Swift.Equatable in PreviewsDeveloperTools
+        0x000AB6D8  protocol conformance descriptor for PreviewsDeveloperTools.SimulatorOverrideBox : Swift.Hashable in PreviewsDeveloperTools
+        0x000AB718  protocol conformance descriptor for PreviewsDeveloperTools.SimulatorOverrideBox : Swift.Equatable in PreviewsDeveloperTools
+        0x000AB740  property descriptor for PreviewsDeveloperTools.SimulatorPlatformSupport.platform : PreviewsPipeline.Platform
+        0x000AB748  property descriptor for PreviewsDeveloperTools.SimulatorPlatformSupport.xcodePlatformIdentifier : Swift.String
+        0x000AB750  property descriptor for PreviewsDeveloperTools.SimulatorPlatformSupport.updaterLimit : PreviewsPipeline.PreviewUpdaterLimit
+        0x000AB758  property descriptor for PreviewsDeveloperTools.SimulatorPlatformSupport.appExtension : PreviewsPlatforms.AppExtension?
+        0x000AB760  property descriptor for PreviewsDeveloperTools.SimulatorPlatformSupport.supportsSimDisplays : Swift.Bool
+        0x000AB768  property descriptor for PreviewsDeveloperTools.SimulatorPlatformSupport.supportsOnDevicePreviews : Swift.Bool
+        0x000AB770  property descriptor for PreviewsDeveloperTools.SimulatorPlatformSupport.devicePreference : PreviewsDeveloperTools.DestinationDevicePreference
+        0x000AB778  property descriptor for PreviewsDeveloperTools.SimulatorPlatformSupport.deviceFamilyResolver : PreviewsDeveloperTools.DeviceFamilyResolver
+        0x000AB780  property descriptor for PreviewsDeveloperTools.SimulatorPlatformSupport.localDevelopmentSupport : PreviewsDeveloperTools.LocalDevelopmentSupport
+        0x000AB788  property descriptor for PreviewsDeveloperTools.SimulatorOverrideBox.hashValue : Swift.Int
+        0x000AB788  property descriptor for PreviewsDeveloperTools.SimulatorPlatformSupport.destinationDomain : PreviewsDeveloperTools.DestinationDomain
+        0x000AB788  property descriptor for PreviewsDeveloperTools.SimulatorPlatformSupport.hashValue : Swift.Int
+        0x000AB788  property descriptor for PreviewsDeveloperTools.SimulatorPlatformSupport.runDestinationStrategy : PreviewsDeveloperTools.RunDestinationStrategy
+        0x000B4BD4  nominal type descriptor for PreviewsDeveloperTools.SimDeviceCategoryPreferences
+        0x000B4C34  nominal type descriptor for PreviewsDeveloperTools.SupportedPlatformsContainer
+        0x000B4C50  nominal type descriptor for PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable
+        0x000B4C78  nominal type descriptor for PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider
+        0x000B4CC0  nominal type descriptor for PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider.Snapshot
+        0x000B4CDC  nominal type descriptor for PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider.Snapshot.Origin
+        0x000B4CF8  nominal type descriptor for PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.PassdownContext
+        0x000B4D34  protocol descriptor for PreviewsDeveloperTools.AnyHardwareDevice
+        0x000B4D50  protocol requirements base descriptor for PreviewsDeveloperTools.AnyHardwareDevice
+        0x000B4D58  base conformance descriptor for PreviewsDeveloperTools.AnyHardwareDevice: PreviewsPipeline.AnyDevice
+        0x000B4D60  method descriptor for PreviewsDeveloperTools.AnyHardwareDevice.isConnected.getter : Swift.Bool
+        0x000B4D68  method descriptor for PreviewsDeveloperTools.AnyHardwareDevice.addConnectionObserver(() -> ()) -> PreviewsFoundationHost.CancellationToken
+        0x000B4D70  method descriptor for PreviewsDeveloperTools.AnyHardwareDevice.launchWatchApplication(_: PreviewsPipeline.PreviewAgentBundle, environment: [Swift.String : Swift.String], arguments: [Swift.String]) -> PreviewsFoundationHost.Future<()>
+        0x000B4D78  method descriptor for PreviewsDeveloperTools.AnyHardwareDevice.dvtDevice.getter : __C.DVTDevice?
+        0x000B4D80  nominal type descriptor for PreviewsDeveloperTools.MacOSLayerHostedPreviewViewable
+        0x000B4DA8  nominal type descriptor for PreviewsDeveloperTools.DevicePreviewViewable
+        0x000B4DD0  nominal type descriptor for PreviewsDeveloperTools.DeviceChromeDescription
+        0x000B52E8  protocol descriptor for PreviewsDeveloperTools.SimulatorTypeProvider
+        0x000B52F8  protocol requirements base descriptor for PreviewsDeveloperTools.SimulatorTypeProvider
+        0x000B5300  method descriptor for PreviewsDeveloperTools.SimulatorTypeProvider.deviceType.getter : __C.SimDeviceType
+        0x000B539C  nominal type descriptor for PreviewsDeveloperTools.SimulatorDevice
+        0x000B53E8  nominal type descriptor for PreviewsDeveloperTools.IOSurfacePreviewViewable
+        0x000B5410  nominal type descriptor for PreviewsDeveloperTools.WorkspaceTeardownHandlersQuery
+        0x000B542C  protocol descriptor for PreviewsDeveloperTools.WorkspaceTeardownHandler
+        0x000B543C  protocol requirements base descriptor for PreviewsDeveloperTools.WorkspaceTeardownHandler
+        0x000B5444  method descriptor for PreviewsDeveloperTools.WorkspaceTeardownHandler.purge(for: PreviewsModel.WorkspaceIdentifier) -> ()
+        0x000B5670  protocol descriptor for PreviewsDeveloperTools.AnySimulatorDeviceType
+        0x000B5680  protocol requirements base descriptor for PreviewsDeveloperTools.AnySimulatorDeviceType
+        0x000B5688  method descriptor for PreviewsDeveloperTools.AnySimulatorDeviceType.identifier.getter : Swift.String
+        0x000B5690  method descriptor for PreviewsDeveloperTools.AnySimulatorDeviceType.productFamilyID.getter : __C.SimDeviceProductFamily
+        0x000B5698  method descriptor for PreviewsDeveloperTools.AnySimulatorDeviceType.mainScreenSize.getter : __C.CGSize
+        0x000B56A0  method descriptor for PreviewsDeveloperTools.AnySimulatorDeviceType.mainScreenScale.getter : Swift.Float
+        0x000B56A8  method descriptor for PreviewsDeveloperTools.AnySimulatorDeviceType.capabilities.getter : [Swift.AnyHashable : Any]
+        0x000B56B0  nominal type descriptor for PreviewsDeveloperTools.MacOSDeviceCategoryPreferences
+        0x000B56CC  nominal type descriptor for PreviewsDeveloperTools.MacOSDestinationManager
+        0x000B5750  nominal type descriptor for PreviewsDeveloperTools.UnresolvedRunDestinationComponents
+        0x000B5A4C  protocol descriptor for PreviewsDeveloperTools.DeveloperToolsPlatformSupport
+        0x000B5A5C  protocol requirements base descriptor for PreviewsDeveloperTools.DeveloperToolsPlatformSupport
+        0x000B5A64  method descriptor for PreviewsDeveloperTools.DeveloperToolsPlatformSupport.platform.getter : PreviewsPipeline.Platform
+        0x000B5A6C  method descriptor for PreviewsDeveloperTools.DeveloperToolsPlatformSupport.supportsInteractiveByDefault.getter : Swift.Bool
+        0x000B5A74  method descriptor for PreviewsDeveloperTools.DeveloperToolsPlatformSupport.xcodePlatformIdentifier.getter : Swift.String
+        0x000B5A7C  method descriptor for PreviewsDeveloperTools.DeveloperToolsPlatformSupport.devicePreference.getter : PreviewsDeveloperTools.DestinationDevicePreference
+        0x000B5A84  method descriptor for PreviewsDeveloperTools.DeveloperToolsPlatformSupport.destinationDomain.getter : PreviewsDeveloperTools.DestinationDomain
+        0x000B5A8C  method descriptor for PreviewsDeveloperTools.DeveloperToolsPlatformSupport.runDestinationStrategy.getter : PreviewsDeveloperTools.RunDestinationStrategy
+        0x000B5A94  method descriptor for PreviewsDeveloperTools.DeveloperToolsPlatformSupport.supportsOnDevicePreviews.getter : Swift.Bool
+        0x000B5A9C  method descriptor for PreviewsDeveloperTools.DeveloperToolsPlatformSupport.destinationPreferences(for: PreviewsDeveloperTools.UnresolvedRunDestinationComponents, in: PreviewsDeveloperTools.DestinationDomain) -> PreviewsPipeline.DestinationPreferences
+        0x000B5AA4  method descriptor for PreviewsDeveloperTools.DeveloperToolsPlatformSupport.destinationRecipe(for: PreviewsDeveloperTools.UnresolvedRunDestinationComponents) throws -> PreviewsPipeline.AnyRunDestinationRecipe
+        0x000B5AAC  method descriptor for PreviewsDeveloperTools.DeveloperToolsPlatformSupport.deviceFamilyResolver.getter : PreviewsDeveloperTools.DeviceFamilyResolver
+        0x000B5AB4  method descriptor for PreviewsDeveloperTools.DeveloperToolsPlatformSupport.localDevelopmentSupport.getter : PreviewsDeveloperTools.LocalDevelopmentSupport
+        0x000B5ABC  nominal type descriptor for PreviewsDeveloperTools.RunDestinationStrategy
+        0x000B5AD8  nominal type descriptor for PreviewsDeveloperTools.DestinationDomain
+        0x000B5AF4  nominal type descriptor for PreviewsDeveloperTools.DestinationDevicePreference
+        0x000B5B10  nominal type descriptor for PreviewsDeveloperTools.LocalDevelopmentSupport
+        0x000B5B2C  nominal type descriptor for PreviewsDeveloperTools.CoreSimulatorDeviceEvent
+        0x000B5D30  nominal type descriptor for PreviewsDeveloperTools.DeviceAvailabilityStream
+        0x000B5DEC  nominal type descriptor for PreviewsDeveloperTools.SimulatorShutdownUnexpectedlyError
+        0x000B61B4  nominal type descriptor for PreviewsDeveloperTools.PlatformSupportQuery
+        0x000B61DC  nominal type descriptor for PreviewsDeveloperTools.PlatformSupportQuery.LookupKey
+        0x000B62BC  nominal type descriptor for PreviewsDeveloperTools.AvailableDevicesQuery
+        0x000B62D8  nominal type descriptor for PreviewsDeveloperTools.BootedDevicesQuery
+        0x000B62F4  nominal type descriptor for PreviewsDeveloperTools.DeviceAvailabilityQuery
+        0x000B6310  nominal type descriptor for PreviewsDeveloperTools.DeviceCategoriesQuery
+        0x000B632C  nominal type descriptor for PreviewsDeveloperTools.DeviceFamilyResourcesQuery
+        0x000B6414  nominal type descriptor for PreviewsDeveloperTools.SimulatorScreenInfo
+        0x000B6430  nominal type descriptor for PreviewsDeveloperTools.SimulatorInteractivePreviewViewable
+        0x000B6488  nominal type descriptor for PreviewsDeveloperTools.DeviceFamilyResolver
+        0x000B64B0  nominal type descriptor for PreviewsDeveloperTools.DeviceFamilyResolver.MatchTerm
+        0x000B6508  nominal type descriptor for PreviewsDeveloperTools.BuiltInIntegrationManager
+        0x000B65E0  protocol descriptor for PreviewsDeveloperTools.DevicePreviewArchiver
+        0x000B65FC  protocol requirements base descriptor for PreviewsDeveloperTools.DevicePreviewArchiver
+        0x000B6604  base conformance descriptor for PreviewsDeveloperTools.DevicePreviewArchiver: PreviewsPipeline.PreviewArchiver
+        0x000B660C  method descriptor for PreviewsDeveloperTools.DevicePreviewArchiver.init(device: PreviewsDeveloperTools.AnyHardwareDevice) -> A
+        0x000B6614  nominal type descriptor for PreviewsDeveloperTools.DevicePlatformSupport
+        0x000B663C  nominal type descriptor for PreviewsDeveloperTools.DeviceOverrideBox
+        0x000B6664  nominal type descriptor for PreviewsDeveloperTools.DeviceOverrideBuilder
+        0x000B66C0  nominal type descriptor for PreviewsDeveloperTools.SimulatorDestinationManager
+        0x000B67B0  nominal type descriptor for PreviewsDeveloperTools.StaticPreviewViewable
+        0x000B67D8  nominal type descriptor for PreviewsDeveloperTools.StaticPreviewViewable.Chrome
+        0x000B6800  nominal type descriptor for PreviewsDeveloperTools.SimDeviceTypeInfo
+        0x000B681C  nominal type descriptor for PreviewsDeveloperTools.SimDeviceTypeInfo.Feature
+        0x000B6838  nominal type descriptor for PreviewsDeveloperTools.SimDeviceTypeInfo.SizeCategory
+        0x000B6854  nominal type descriptor for PreviewsDeveloperTools.SimDeviceTypeInfo.Tag
+        0x000B6870  nominal type descriptor for PreviewsDeveloperTools.MacOSInteractivePreviewViewable
+        0x000B68BC  protocol descriptor for PreviewsDeveloperTools.SimulatorPreviewArchiver
+        0x000B68D8  protocol requirements base descriptor for PreviewsDeveloperTools.SimulatorPreviewArchiver
+        0x000B68E0  base conformance descriptor for PreviewsDeveloperTools.SimulatorPreviewArchiver: PreviewsPipeline.PreviewArchiver
+        0x000B68E8  method descriptor for PreviewsDeveloperTools.SimulatorPreviewArchiver.init(screenInfo: PreviewsDeveloperTools.SimulatorScreenInfo) -> A
+        0x000B68F0  nominal type descriptor for PreviewsDeveloperTools.SimulatorPlatformSupport
+        0x000B6918  nominal type descriptor for PreviewsDeveloperTools.SimulatorOverrideBox
+        0x000B6940  nominal type descriptor for PreviewsDeveloperTools.SimulatorOverrideBuilder
+        0x000CB238  type metadata for PreviewsDeveloperTools.SimDeviceCategoryPreferences
+        0x000CB420  type metadata for PreviewsDeveloperTools.SupportedPlatformsContainer
+        0x000CB4B0  property descriptor for PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider.snapshot : PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider.Snapshot
+        0x000CB4C0  property descriptor for PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider.$snapshot : Combine.Published<PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider.Snapshot>.Publisher
+        0x000CB4D0  property descriptor for PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider.initialSnapshotFromUpdate : PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider.Snapshot
+        0x000CB4E0  property descriptor for PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider.$initialSnapshotFromUpdate : Combine.Published<PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider.Snapshot>.Publisher
+        0x000CB558  type metadata for PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider.Snapshot
+        0x000CB5F8  type metadata for PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider.Snapshot.Origin
+        0x000CD060  type metadata for PreviewsDeveloperTools.WorkspaceTeardownHandlersQuery
+        0x000CD7E0  type metadata for PreviewsDeveloperTools.MacOSDeviceCategoryPreferences
+        0x000CD830  protocol witness table for PreviewsDeveloperTools.MacOSDestinationManager : PreviewsDeveloperTools.WorkspaceTeardownHandler in PreviewsDeveloperTools
+        0x000CD8A8  type metadata for PreviewsDeveloperTools.MacOSDestinationManager
+        0x000CE5B0  type metadata for PreviewsDeveloperTools.RunDestinationStrategy
+        0x000CE640  type metadata for PreviewsDeveloperTools.DestinationDomain
+        0x000CE6D0  type metadata for PreviewsDeveloperTools.DestinationDevicePreference
+        0x000CE760  type metadata for PreviewsDeveloperTools.LocalDevelopmentSupport
+        0x000CE858  type metadata for PreviewsDeveloperTools.CoreSimulatorDeviceEvent
+        0x000CEF00  property descriptor for (extension in PreviewsDeveloperTools):PreviewsPipeline.PreviewAgentBundle.storeKitConfigurationFilePath : Swift.String?
+        0x000CFCC0  type metadata for PreviewsDeveloperTools.AvailableDevicesQuery
+        0x000CFD38  type metadata for PreviewsDeveloperTools.BootedDevicesQuery
+        0x000CFDB8  type metadata for PreviewsDeveloperTools.DeviceAvailabilityQuery
+        0x000CFE38  type metadata for PreviewsDeveloperTools.DeviceCategoriesQuery
+        0x000CFEB8  type metadata for PreviewsDeveloperTools.DeviceFamilyResourcesQuery
+        0x000D0520  protocol witness table for __C.SimDeviceType : PreviewsDeveloperTools.AnySimulatorDeviceType in PreviewsDeveloperTools
+        0x000D05C0  type metadata for PreviewsDeveloperTools.SimulatorScreenInfo
+        0x000D07A8  type metadata for PreviewsDeveloperTools.BuiltInIntegrationManager
+        0x000D0BA0  protocol witness table for PreviewsDeveloperTools.DevicePlatformSupport : PreviewsDeveloperTools.DeveloperToolsPlatformSupport in PreviewsDeveloperTools
+        0x000D0C68  type metadata for PreviewsDeveloperTools.DeviceOverrideBuilder
+        0x000D0F20  protocol witness table for PreviewsDeveloperTools.SimulatorDestinationManager : PreviewsDeveloperTools.WorkspaceTeardownHandler in PreviewsDeveloperTools
+        0x000D1538  type metadata for PreviewsDeveloperTools.SimDeviceTypeInfo
+        0x000D15E0  type metadata for PreviewsDeveloperTools.SimDeviceTypeInfo.Feature
+        0x000D1670  type metadata for PreviewsDeveloperTools.SimDeviceTypeInfo.SizeCategory
+        0x000D1700  type metadata for PreviewsDeveloperTools.SimDeviceTypeInfo.Tag
+        0x000D1920  protocol witness table for PreviewsDeveloperTools.SimulatorPlatformSupport : PreviewsDeveloperTools.DeveloperToolsPlatformSupport in PreviewsDeveloperTools
+        0x000D19E8  type metadata for PreviewsDeveloperTools.SimulatorOverrideBuilder
+        0x000D67A0  _OBJC_CLASS_$_UVDTXSpringBoardControlMessage
+        0x000D67C8  _OBJC_METACLASS_$_UVDTXSpringBoardControlMessage
+        0x000D67F0  _OBJC_METACLASS_$_UVDTXXPCDebuggingMessage
+        0x000D6818  _OBJC_CLASS_$_UVDTXXPCDebuggingMessage
+        0x000D6840  _OBJC_CLASS_$_UVDTFileTransferMessage
+        0x000D6868  _OBJC_METACLASS_$_UVDTFileTransferMessage
+        0x000D6890  _OBJC_CLASS_$_UVApplicationLauncher
+        0x000D68B8  _OBJC_METACLASS_$_UVApplicationLauncher
+        0x000D68E0  _OBJC_METACLASS_$_UVLayerHost
+        0x000D6908  _OBJC_CLASS_$_UVLayerHost
+        0x000D79E8  type metadata for PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable
+        0x000D7A18  metaclass for PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider
+        0x000D7A70  type metadata for PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.SnapshotProvider
+        0x000D7AD8  metaclass for PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.PassdownContext
+        0x000D7B18  type metadata for PreviewsDeveloperTools.MacOSNSPreviewHostablePreviewViewable.PassdownContext
+        0x000D7C28  type metadata for PreviewsDeveloperTools.MacOSLayerHostedPreviewViewable
+        0x000D7D50  type metadata for PreviewsDeveloperTools.DevicePreviewViewable
+        0x000D7DE8  type metadata for PreviewsDeveloperTools.DeviceChromeDescription
+        0x000D8D50  type metadata for PreviewsDeveloperTools.SimulatorDevice
+        0x000D8DF8  type metadata for PreviewsDeveloperTools.IOSurfacePreviewViewable
+        0x000D9658  type metadata for PreviewsDeveloperTools.UnresolvedRunDestinationComponents
+        0x000DA248  metaclass for PreviewsDeveloperTools.DeviceAvailabilityStream
+        0x000DA288  type metadata for PreviewsDeveloperTools.DeviceAvailabilityStream
+        0x000DA490  type metadata for PreviewsDeveloperTools.SimulatorShutdownUnexpectedlyError
+        0x000DADE8  type metadata for PreviewsDeveloperTools.PlatformSupportQuery
+        0x000DAE90  type metadata for PreviewsDeveloperTools.PlatformSupportQuery.LookupKey
+        0x000DB2B8  type metadata for PreviewsDeveloperTools.SimulatorInteractivePreviewViewable
+        0x000DB420  type metadata for PreviewsDeveloperTools.DeviceFamilyResolver
+        0x000DB4B0  type metadata for PreviewsDeveloperTools.DeviceFamilyResolver.MatchTerm
+        0x000DB770  type metadata for PreviewsDeveloperTools.DevicePlatformSupport
+        0x000DB828  type metadata for PreviewsDeveloperTools.DeviceOverrideBox
+        0x000DB8A0  metaclass for PreviewsDeveloperTools.SimulatorDestinationManager
+        0x000DB8E0  type metadata for PreviewsDeveloperTools.SimulatorDestinationManager
+        0x000DBBC8  type metadata for PreviewsDeveloperTools.StaticPreviewViewable
+        0x000DBC80  type metadata for PreviewsDeveloperTools.StaticPreviewViewable.Chrome
+        0x000DBD48  type metadata for PreviewsDeveloperTools.MacOSInteractivePreviewViewable
+        0x000DBE20  type metadata for PreviewsDeveloperTools.SimulatorPlatformSupport
+        0x000DBED0  type metadata for PreviewsDeveloperTools.SimulatorOverrideBox
+        offset      symbol
+    -exports:
+/Applications/Xcode-26.2.0.app/Contents/SharedFrameworks/PreviewsDeveloperTools.framework/Versions/A/PreviewsDeveloperTools [arm64]:

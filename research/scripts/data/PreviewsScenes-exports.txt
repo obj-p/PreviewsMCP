@@ -1,0 +1,687 @@
+        0x000018C8  PreviewsScenes.PreviewControlsManagerWrapper.underlying.getter : PreviewsScenes.PreviewControlsManager?
+        0x00001AAC  type metadata accessor for PreviewsScenes.PreviewControlsManagerWrapper
+        0x00001AC0  PreviewsScenes.PreviewControlsManagerWrapper.underlying.setter : PreviewsScenes.PreviewControlsManager?
+        0x00001BE4  PreviewsScenes.PreviewControlsManagerWrapper.underlying.modify : PreviewsScenes.PreviewControlsManager?
+        0x00001D68  PreviewsScenes.PreviewControlsManagerWrapper.__allocating_init() -> PreviewsScenes.PreviewControlsManagerWrapper
+        0x00001DAC  PreviewsScenes.PreviewControlsManagerWrapper.init() -> PreviewsScenes.PreviewControlsManagerWrapper
+        0x00001DD4  PreviewsScenes.PreviewControlsManagerWrapper.deinit
+        0x00001E1C  PreviewsScenes.PreviewControlsManagerWrapper.__deallocating_deinit
+        0x00001E70  PreviewsScenes.CanvasControlsManager.invalidationHandle.getter : PreviewsFoundationHost.InvalidationHandle
+        0x00001E70  PreviewsScenes.PreviewControlsManager.editorSettingsRelay.getter : PreviewsPipeline.EditorSettingsRelay
+        0x00001E70  PreviewsScenes.PreviewRemoteEventsManager.invalidationHandle.getter : PreviewsFoundationHost.InvalidationHandle
+        0x00001E70  PreviewsScenes.WorkspaceScene.previewService.getter : PreviewsPipeline.PreviewService
+        0x00001E78  PreviewsScenes.PreviewControlsManager.previewID.getter : PreviewsPipeline.PreviewInstance.ID
+        0x000022D0  PreviewsScenes.PreviewControlsManager.ActiveUpdate.kind.getter : PreviewsScenes.PreviewControlsManager.ActiveUpdate.Kind
+        0x0000230C  type metadata accessor for PreviewsScenes.PreviewControlsManager.ActiveUpdate
+        0x00002320  type metadata accessor for PreviewsScenes.PreviewControlsManager.ActiveUpdate.Kind
+        0x00002334  PreviewsScenes.PreviewControlsManager.activeUpdate.getter : PreviewsScenes.PreviewControlsManager.ActiveUpdate?
+        0x00002604  type metadata accessor for PreviewsScenes.PreviewControlsManager
+        0x000026C4  PreviewsScenes.PreviewControlsManager.__allocating_init(editorSettingsRelay: PreviewsPipeline.EditorSettingsRelay, previewID: PreviewsPipeline.PreviewInstance.ID) -> PreviewsScenes.PreviewControlsManager
+        0x00002784  PreviewsScenes.PreviewControlsManager.init(editorSettingsRelay: PreviewsPipeline.EditorSettingsRelay, previewID: PreviewsPipeline.PreviewInstance.ID) -> PreviewsScenes.PreviewControlsManager
+        0x00002830  PreviewsScenes.PreviewControlsManager.replaceUpdate(with: PreviewsPipeline.ExecutionPointUpdate<PreviewsPipeline.PreviewViewable>, updateMode: PreviewsPipeline.ExecutionPointProperties.UpdateMode) -> ()
+        0x0000848C  PreviewsScenes.PreviewControlsManager.deinit
+        0x00008528  PreviewsScenes.PreviewControlsManager.__deallocating_deinit
+        0x000085D0  PreviewsScenes.PreviewControlsManager.Controller.model.getter : A
+        0x000085E8  PreviewsScenes.PreviewControlsManager.Controller.state.getter : SwiftUI.Binding<A.State>
+        0x0000864C  PreviewsScenes.PreviewControlsManager.Controller.getThumbnail.getter : (A.State) -> PreviewsScenes.PreviewControlsManager.ThumbnailEntry
+        0x00008680  PreviewsScenes.PreviewControlsManager.ThumbnailEntry.thumbnail.getter : __C.CGImageRef?
+        0x000087E4  PreviewsScenes.PreviewControlsManager.ThumbnailEntry.$thumbnail.getter : Combine.Published<__C.CGImageRef?>.Publisher
+        0x0000893C  PreviewsScenes.PreviewControlsManager.ThumbnailEntry.geometry.getter : PreviewsMessagingHost.ThumbnailGeometry?
+        0x00008B20  PreviewsScenes.PreviewControlsManager.ThumbnailEntry.$geometry.getter : Combine.Published<PreviewsMessagingHost.ThumbnailGeometry?>.Publisher
+        0x00008C78  PreviewsScenes.PreviewControlsManager.ThumbnailEntry.viewable.getter : PreviewsPipeline.PreviewViewable?
+        0x00008DFC  PreviewsScenes.PreviewControlsManager.ThumbnailEntry.$viewable.getter : Combine.Published<PreviewsPipeline.PreviewViewable?>.Publisher
+        0x0000A0C8  PreviewsScenes.PreviewControlsManager.ThumbnailEntry.deinit
+        0x0000A1DC  PreviewsScenes.PreviewControlsManager.ThumbnailEntry.__deallocating_deinit
+        0x0000BB00  default argument 0 of PreviewsScenes.WorkspaceScene.makeEditorScene(documents: [any PreviewsScenes.Document<A.Location == A.Location>]) -> PreviewsScenes.EditorScene<A>
+        0x0000BB54  default argument 0 of PreviewsScenes.EditorScene.addRegistryObserver<A where A1: PreviewsPipeline.RegistryProtocol>(for: A1.Type, sidecarIdentifiers: Swift.Set<Foundation.UUID>, continuation: Swift.AsyncStream<PreviewsScenes.RegistryObservationEvent<A1>>.Continuation) -> PreviewsFoundationHost.Identifier
+        0x0000EA64  method lookup function for PreviewsScenes.PreviewControlsManagerWrapper
+        0x0000EA70  dispatch thunk of PreviewsScenes.PreviewControlsManagerWrapper.__allocating_init() -> PreviewsScenes.PreviewControlsManagerWrapper
+        0x0000EB3C  method lookup function for PreviewsScenes.PreviewControlsManager
+        0x0000EB48  dispatch thunk of PreviewsScenes.PreviewControlsManager.__allocating_init(editorSettingsRelay: PreviewsPipeline.EditorSettingsRelay, previewID: PreviewsPipeline.PreviewInstance.ID) -> PreviewsScenes.PreviewControlsManager
+        0x00011A3C  PreviewsScenes.EditorScene.StressCyclingSession.executionPointWillUpdate(_: PreviewsPipeline.AnyExecutionPoint, bundle: PreviewsPipeline.PreviewAgentBundle, loadableProductDescriptors: [PreviewsPipeline.DynamicLoadableProductDescriptor]) -> ()
+        0x00011B74  type metadata accessor for PreviewsScenes.PreviewControlsManager.Controller
+        0x000127C4  type metadata accessor for PreviewsScenes.PreviewControlsManager.ThumbnailEntry
+        0x00012928  method lookup function for PreviewsScenes.PreviewControlsManager.ThumbnailEntry
+        0x00013CF0  PreviewsScenes.DocumentEvent.description.getter : Swift.String
+        0x00013FC4  (extension in PreviewsScenes):PreviewsScenes.Document.thunkableSourceIdentifier.getter : PreviewsModel.SourceIdentifier?
+        0x0001403C  (extension in PreviewsScenes):PreviewsScenes.Document.thunkableTranslationUnit.getter : PreviewsFoundationHost.Staleable<PreviewsModel.Parsable<PreviewsPipeline.PreviewTranslationUnit>>
+        0x0001514C  type metadata accessor for PreviewsScenes.DocumentEvent
+        0x00015158  dispatch thunk of PreviewsScenes.Document.location.getter : A.Location?
+        0x00015160  dispatch thunk of PreviewsScenes.Document.sourceCodeStore.getter : PreviewsModel.DataSourceBackedSourceCodeStore
+        0x00015160  dispatch thunk of PreviewsScenes.RegistryObserving.preflightRequest.getter : PreviewsPipeline.RegistryPreflightRequest
+        0x00015168  dispatch thunk of PreviewsScenes.Document.sourceIdentifier.getter : PreviewsModel.SourceIdentifier
+        0x00015168  dispatch thunk of PreviewsScenes.RegistryViewProvider.makeView() -> A.V
+        0x00015170  dispatch thunk of PreviewsScenes.Document.translationUnit.getter : PreviewsFoundationHost.Staleable<PreviewsModel.Parsable<PreviewsPipeline.PreviewTranslationUnit>>
+        0x00015178  dispatch thunk of PreviewsScenes.CanvasControlModel.fallbackState.getter : A.State
+        0x00015178  dispatch thunk of PreviewsScenes.CanvasRegistryHandler.contentName.getter : Swift.String
+        0x00015178  dispatch thunk of PreviewsScenes.Document.forceNoThunking.getter : Swift.Bool
+        0x00015180  dispatch thunk of PreviewsScenes.CanvasControlModel.controlIndex.getter : Swift.Int
+        0x00015180  dispatch thunk of PreviewsScenes.CanvasRegistryHandler.contentNamePlural.getter : Swift.String
+        0x00015180  dispatch thunk of PreviewsScenes.Document.undoManager.getter : __C.NSUndoManager?
+        0x00015188  dispatch thunk of PreviewsScenes.CanvasControlModel.shouldBeVisible.getter : Swift.Bool
+        0x00015188  dispatch thunk of PreviewsScenes.Document.events.getter : PreviewsFoundationHost.EventStream<PreviewsScenes.DocumentEvent<A.Location>>
+        0x000157C0  PreviewsScenes.WorkspaceScene.filesWithDisabledThunking.getter : Swift.Set<PreviewsModel.SourceIdentifier>
+        0x0001598C  PreviewsScenes.WorkspaceScene.analyticsLogger.getter : PreviewsFoundationHost.AnalyticsLogger
+        0x000159D0  PreviewsScenes.WorkspaceScene.analyticsLogger.setter : PreviewsFoundationHost.AnalyticsLogger
+        0x00015C68  PreviewsScenes.WorkspaceScene.analyticsLogger.modify : PreviewsFoundationHost.AnalyticsLogger
+        0x00015CA8  PreviewsScenes.WorkspaceScene.canvasDiagnosticsProvider.getter : (PreviewsFoundationHost.DiagnosticsCollector) async -> ()
+        0x00015DE0  PreviewsScenes.WorkspaceScene.canvasDiagnosticsProvider.setter : (PreviewsFoundationHost.DiagnosticsCollector) async -> ()
+        0x00015E04  PreviewsScenes.WorkspaceScene.canvasDiagnosticsProvider.modify : (PreviewsFoundationHost.DiagnosticsCollector) async -> ()
+        0x00015E9C  PreviewsScenes.WorkspaceScene.canvasUpdateTimingRecordIDsProvider.getter : () -> [PreviewsFoundationHost.TimingRecord.ID]
+        0x00015F9C  PreviewsScenes.WorkspaceScene.canvasUpdateTimingRecordIDsProvider.setter : () -> [PreviewsFoundationHost.TimingRecord.ID]
+        0x00015FC0  PreviewsScenes.WorkspaceScene.canvasUpdateTimingRecordIDsProvider.modify : () -> [PreviewsFoundationHost.TimingRecord.ID]
+        0x000160D4  PreviewsScenes.WorkspaceScene.thunkDebugInfo.getter : PreviewsFoundationHost.EventStream<Swift.String>
+        0x000160F4  PreviewsScenes.WorkspaceScene.defaultPreviewSettings.getter : PreviewsPipeline.PreviewSettings
+        0x00016248  PreviewsScenes.WorkspaceScene.defaultPreviewSettings.setter : PreviewsPipeline.PreviewSettings
+        0x000163D8  PreviewsScenes.WorkspaceScene.update<A>(_: Swift.WritableKeyPath<PreviewsPipeline.EditorSettings, A1>, to: A1) -> ()
+        0x0001642C  PreviewsScenes.WorkspaceScene.defaultPreviewSettings.modify : PreviewsPipeline.PreviewSettings
+        0x00016854  PreviewsScenes.WorkspaceScene.allThunkingDisabled.getter : Swift.Bool
+        0x00016894  PreviewsScenes.WorkspaceScene.__allocating_init(analyticsLogger: PreviewsFoundationHost.AnalyticsLogger, previewService: PreviewsPipeline.PreviewService, canvasRegistryHandlers: [PreviewsScenes.CanvasRegistryHandler], canvasRegistryTypeMap: PreviewsModel.RegistryTypeMap, registryTypeMap: PreviewsModel.RegistryTypeMap) -> PreviewsScenes.WorkspaceScene<A>
+        0x0001690C  PreviewsScenes.WorkspaceScene.init(analyticsLogger: PreviewsFoundationHost.AnalyticsLogger, previewService: PreviewsPipeline.PreviewService, canvasRegistryHandlers: [PreviewsScenes.CanvasRegistryHandler], canvasRegistryTypeMap: PreviewsModel.RegistryTypeMap, registryTypeMap: PreviewsModel.RegistryTypeMap) -> PreviewsScenes.WorkspaceScene<A>
+        0x00016DBC  PreviewsScenes.WorkspaceScene.makeEditorScene(documents: [any PreviewsScenes.Document<A.Location == A.Location>]) -> PreviewsScenes.EditorScene<A>
+        0x000171B0  PreviewsScenes.WorkspaceScene.remove(editorScene: PreviewsScenes.EditorScene<A>) -> ()
+        0x00017370  PreviewsScenes.WorkspaceScene.collectDiagnostics(into: PreviewsFoundationHost.DiagnosticsCollector) async -> ()
+        0x000177B0  PreviewsScenes.WorkspaceScene.setNeedsUpdate(for: PreviewsPipeline.PreviewUpdateReason) -> ()
+        0x000177D0  PreviewsScenes.WorkspaceScene.pause(for: PreviewsPipeline.PreviewPauseReason) -> ()
+        0x000177F0  PreviewsScenes.WorkspaceScene.toggleThunkingEnabled(for: PreviewsModel.SourceIdentifier) -> ()
+        0x00017980  PreviewsScenes.WorkspaceScene.toggleAllThunkingEnabled() -> ()
+        0x00017AEC  PreviewsScenes.WorkspaceScene.updateDestinationInfo(PreviewsPipeline.RunDestinationInfo) -> ()
+        0x00017CE4  PreviewsScenes.WorkspaceScene.update<A>(Swift.WritableKeyPath<PreviewsPipeline.EditorSettings, A1>, (A1) -> A1) -> ()
+        0x0001816C  PreviewsScenes.WorkspaceScene.update(forRemovedFileLocations: [A.Location]) -> ()
+        0x00018334  PreviewsScenes.WorkspaceScene.isViewSelectionEnabled.getter : Swift.Bool
+        0x00018358  PreviewsScenes.WorkspaceScene.isViewSelectionEnabled.setter : Swift.Bool
+        0x00018378  PreviewsScenes.WorkspaceScene.isViewSelectionEnabled.modify : Swift.Bool
+        0x000183DC  PreviewsScenes.WorkspaceScene.colorNames.getter : PreviewsScenes.ColorNames?
+        0x0001842C  PreviewsScenes.WorkspaceScene.colorNames.setter : PreviewsScenes.ColorNames?
+        0x00018488  PreviewsScenes.WorkspaceScene.colorNames.modify : PreviewsScenes.ColorNames?
+        0x00018574  PreviewsScenes.WorkspaceScene.buildEnvironmentError.getter : PreviewsFoundationHost.HumanReadableError?
+        0x000185C4  PreviewsScenes.WorkspaceScene.buildEnvironmentError.setter : PreviewsFoundationHost.HumanReadableError?
+        0x00018640  PreviewsScenes.WorkspaceScene.buildEnvironmentError.modify : PreviewsFoundationHost.HumanReadableError?
+        0x0001872C  PreviewsScenes.WorkspaceScene.delegateQueryManager.getter : PreviewsFoundationHost.QueryManager?
+        0x00018754  PreviewsScenes.WorkspaceScene.delegateQueryManager.setter : PreviewsFoundationHost.QueryManager?
+        0x0001877C  PreviewsScenes.WorkspaceScene.delegateQueryManager.modify : PreviewsFoundationHost.QueryManager?
+        0x00018814  PreviewsScenes.WorkspaceScene.thunkableSourceIdentifiers.getter : Swift.Set<PreviewsModel.SourceIdentifier>
+        0x00018988  PreviewsScenes.WorkspaceScene.previewables.getter : PreviewsPipeline.Previewables
+        0x00018B6C  PreviewsScenes.WorkspaceScene.events.getter : PreviewsFoundationHost.EventStream<PreviewsScenes.WorkspaceScene<A>.Event>
+        0x00018B94  PreviewsScenes.WorkspaceScene.invalidate() -> ()
+        0x00019010  PreviewsScenes.WorkspaceScene.deinit
+        0x000192E4  PreviewsScenes.WorkspaceScene.__deallocating_deinit
+        0x00019308  static PreviewsScenes.EditorScene.StressCyclingSession.RunningMode.== infix(PreviewsScenes.EditorScene<A>.StressCyclingSession.RunningMode, PreviewsScenes.EditorScene<A>.StressCyclingSession.RunningMode) -> Swift.Bool
+        0x00019308  static PreviewsScenes.WorkspaceScene.Event.== infix(PreviewsScenes.WorkspaceScene<A>.Event, PreviewsScenes.WorkspaceScene<A>.Event) -> Swift.Bool
+        0x00019318  PreviewsScenes.EditorScene.StressCyclingSession.RunningMode.hash(into: inout Swift.Hasher) -> ()
+        0x00019318  PreviewsScenes.WorkspaceScene.Event.hash(into: inout Swift.Hasher) -> ()
+        0x0001933C  PreviewsScenes.EditorScene.StressCyclingSession.RunningMode.hashValue.getter : Swift.Int
+        0x0001933C  PreviewsScenes.WorkspaceScene.Event.hashValue.getter : Swift.Int
+        0x000193D8  (extension in PreviewsScenes):PreviewsScenes.WorkspaceScene< where A.Location == Foundation.URL>.openFileURLs.getter : Swift.Set<Foundation.URL>
+        0x0001B35C  type metadata accessor for PreviewsScenes.WorkspaceScene
+        0x0001B368  method lookup function for PreviewsScenes.WorkspaceScene
+        0x0001B374  dispatch thunk of PreviewsScenes.WorkspaceScene.__allocating_init(analyticsLogger: PreviewsFoundationHost.AnalyticsLogger, previewService: PreviewsPipeline.PreviewService, canvasRegistryHandlers: [PreviewsScenes.CanvasRegistryHandler], canvasRegistryTypeMap: PreviewsModel.RegistryTypeMap, registryTypeMap: PreviewsModel.RegistryTypeMap) -> PreviewsScenes.WorkspaceScene<A>
+        0x0001B37C  type metadata accessor for PreviewsScenes.WorkspaceScene.Event
+        0x0001D67C  PreviewsScenes.ColorNames.names.getter : [Swift.String]
+        0x0001D67C  PreviewsScenes.RegistryDetectionEvent.addedRecords.getter : [PreviewsMessagingHost.RegistryID : PreviewsScenes.RegistryDetectionEvent<A>.Record]
+        0x0001D684  PreviewsScenes.ColorNames.names.setter : [Swift.String]
+        0x0001D6AC  PreviewsScenes.ColorNames.names.modify : [Swift.String]
+        0x0001D6AC  PreviewsScenes.EditorSceneCrash.id.modify : PreviewsFoundationHost.CrashReport.ID
+        0x0001D6AC  PreviewsScenes.RegistryDetectionEvent.Record.registryDefinition.modify : PreviewsModel.RegistryDefinition
+        0x0001D6AC  PreviewsScenes.RegistryObservationEvent.RegistryRecord.registryDefinition.modify : PreviewsModel.RegistryDefinition
+        0x0001D6AC  PreviewsScenes.ViewProviderUpdate.registryDefinition.modify : PreviewsModel.RegistryDefinition
+        0x0001D6BC  PreviewsScenes.ColorNames.indexNames.getter : [Swift.String : [Swift.String]]
+        0x0001D6BC  PreviewsScenes.RegistryDetectionEvent.removedRecords.getter : [PreviewsMessagingHost.RegistryID : PreviewsScenes.RegistryDetectionEvent<A>.Record]
+        0x0001D6C4  PreviewsScenes.ColorNames.indexNames.setter : [Swift.String : [Swift.String]]
+        0x0001D6EC  PreviewsScenes.ColorNames.indexNames.modify : [Swift.String : [Swift.String]]
+        0x0001D6FC  PreviewsScenes.ColorNames.init(names: [Swift.String], indexNames: [Swift.String : [Swift.String]]) -> PreviewsScenes.ColorNames
+        0x0001D6FC  PreviewsScenes.VoiceOverMessage.init(Swift.String) -> PreviewsScenes.VoiceOverMessage
+        0x0001D88C  type metadata accessor for PreviewsScenes.ColorNames
+        0x0001D8A0  static PreviewsScenes.RegistryIconSpecification.== infix(PreviewsScenes.RegistryIconSpecification, PreviewsScenes.RegistryIconSpecification) -> Swift.Bool
+        0x0001D8AC  PreviewsScenes.RegistryIconSpecification.hash(into: inout Swift.Hasher) -> ()
+        0x0001D928  PreviewsScenes.RegistryIconSpecification.hashValue.getter : Swift.Int
+        0x0001DB98  PreviewsScenes.ViewProviderUpdate.init(registryDefinition: PreviewsModel.RegistryDefinition, executionStatus: PreviewsPipeline.ExecutionPointStatus<PreviewsPipeline.RegistryExecutionPoint<A>>) -> PreviewsScenes.ViewProviderUpdate<A>
+        0x0001DC50  PreviewsScenes.RegistryDetectionEvent.Record.registryDefinition.getter : PreviewsModel.RegistryDefinition
+        0x0001DC50  PreviewsScenes.ViewProviderUpdate.registryDefinition.getter : PreviewsModel.RegistryDefinition
+        0x0001DC88  PreviewsScenes.RegistryDetectionEvent.Record.registryDefinition.setter : PreviewsModel.RegistryDefinition
+        0x0001DC88  PreviewsScenes.RegistryObservationEvent.RegistryRecord.registryDefinition.setter : PreviewsModel.RegistryDefinition
+        0x0001DC88  PreviewsScenes.ViewProviderUpdate.registryDefinition.setter : PreviewsModel.RegistryDefinition
+        0x0001DCC0  PreviewsScenes.ViewProviderUpdate.executionStatus.getter : PreviewsPipeline.ExecutionPointStatus<PreviewsPipeline.RegistryExecutionPoint<A>>
+        0x0001DD2C  PreviewsScenes.ViewProviderUpdate.executionStatus.setter : PreviewsPipeline.ExecutionPointStatus<PreviewsPipeline.RegistryExecutionPoint<A>>
+        0x0001DD9C  PreviewsScenes.RegistryDetectionEvent.Record.state.modify : PreviewsScenes.RegistryDetectionEvent<A>.Record.State
+        0x0001DD9C  PreviewsScenes.RegistryObservationEvent.RegistryRecord.state.modify : PreviewsScenes.RegistryObservationEvent<A>.RegistryRecord.State
+        0x0001DD9C  PreviewsScenes.ViewProviderUpdate.executionStatus.modify : PreviewsPipeline.ExecutionPointStatus<PreviewsPipeline.RegistryExecutionPoint<A>>
+        0x0001E020  (extension in PreviewsScenes):PreviewsScenes.CanvasRegistryHandler.registryExecutionPointProvider.getter : PreviewsPipeline.RegistryExecutionPointProvider
+        0x0001E0D8  (extension in PreviewsScenes):PreviewsScenes.CanvasRegistryHandler.registryType.getter : PreviewsMessagingHost.RegistryType
+        0x0001E158  (extension in PreviewsScenes):PreviewsScenes.CanvasRegistryHandler.registryTypeMap.getter : PreviewsModel.RegistryTypeMap
+        0x0001E1D8  (extension in PreviewsScenes):PreviewsScenes.CanvasRegistryHandler.preflightRequest.getter : PreviewsPipeline.RegistryPreflightRequest
+        0x0001E2FC  type metadata accessor for PreviewsScenes.ViewProviderUpdate
+        0x0001E5D0  type metadata accessor for PreviewsScenes.RegistryIconSpecification
+        0x0001E5E0  dispatch thunk of PreviewsScenes.CanvasRegistryHandler.tabIcon.getter : PreviewsScenes.RegistryIconSpecification
+        0x0001E604  dispatch thunk of PreviewsScenes.CanvasRegistryHandler.viewProvider(updates: Swift.AsyncStream<PreviewsScenes.ViewProviderUpdate<A.R>>) -> A.ViewProvider
+        0x0001F4E4  PreviewsScenes.RegistryObservationEvent.translationUnitRecordsSet.getter : PreviewsFoundationHost.OrderedIdentifiedSet<PreviewsScenes.RegistryObservationEvent<A>.TranslationUnitRecord>
+        0x0001F54C  type metadata accessor for PreviewsScenes.RegistryObservationEvent.TranslationUnitRecord
+        0x0001F558  PreviewsScenes.RegistryObservationEvent.translationUnitRecords.getter : [PreviewsScenes.RegistryObservationEvent<A>.TranslationUnitRecord]
+        0x0001F5A0  PreviewsScenes.RegistryObservationEvent.subscript.getter : (Foundation.URL) -> PreviewsScenes.RegistryObservationEvent<A>.TranslationUnitRecord?
+        0x0001F608  PreviewsScenes.RegistryObservationEvent.registryRecordsSet.getter : PreviewsFoundationHost.OrderedIdentifiedSet<PreviewsScenes.RegistryObservationEvent<A>.RegistryRecord>
+        0x0001F674  type metadata accessor for PreviewsScenes.RegistryObservationEvent.RegistryRecord
+        0x0001F680  PreviewsScenes.RegistryObservationEvent.registryRecords.getter : [PreviewsScenes.RegistryObservationEvent<A>.RegistryRecord]
+        0x0001F6DC  PreviewsScenes.RegistryObservationEvent.subscript.getter : (PreviewsMessagingHost.RegistryID) -> PreviewsScenes.RegistryObservationEvent<A>.RegistryRecord?
+        0x0001F758  PreviewsScenes.RegistryObservationEvent.TranslationUnitRecord.state.getter : PreviewsScenes.RegistryObservationEvent<A>.TranslationUnitRecord.State
+        0x0001F798  PreviewsScenes.RegistryObservationEvent.TranslationUnitRecord.id.getter : Foundation.URL
+        0x0001F824  PreviewsScenes.RegistryObservationEvent.TranslationUnitRecord.url.getter : Foundation.URL
+        0x0001F828  PreviewsScenes.RegistryObservationEvent.RegistryRecord.registryDefinition.getter : PreviewsModel.RegistryDefinition
+        0x0001F86C  PreviewsScenes.RegistryObservationEvent.RegistryRecord.state.getter : PreviewsScenes.RegistryObservationEvent<A>.RegistryRecord.State
+        0x0001F8B4  type metadata accessor for PreviewsScenes.RegistryObservationEvent.RegistryRecord.State
+        0x0001F8C0  PreviewsScenes.RegistryObservationEvent.RegistryRecord.state.setter : PreviewsScenes.RegistryObservationEvent<A>.RegistryRecord.State
+        0x0001F90C  PreviewsScenes.RegistryDetectionEvent.Record.id.getter : PreviewsMessagingHost.RegistryID
+        0x0001F90C  PreviewsScenes.RegistryObservationEvent.RegistryRecord.id.getter : PreviewsMessagingHost.RegistryID
+        0x000202CC  type metadata accessor for PreviewsScenes.RegistryObservationEvent
+        0x000208FC  type metadata accessor for PreviewsScenes.RegistryObservationEvent.TranslationUnitRecord.State
+        0x000232B8  PreviewsScenes.VoiceOverMessage.post() -> ()
+        0x00023464  PreviewsScenes.VoiceOverMessage.message.getter : Swift.String
+        0x000235FC  type metadata accessor for PreviewsScenes.VoiceOverMessage
+        0x0002414C  PreviewsScenes.EditorSceneCrash.init(crashReport: PreviewsFoundationHost.CrashReport, symbolicationParameters: PreviewsFoundationHost.CrashLogSymbolicationParameters) -> PreviewsScenes.EditorSceneCrash
+        0x00024218  type metadata accessor for PreviewsScenes.EditorSceneCrash
+        0x00024298  PreviewsScenes.EditorSceneCrash.init(id: PreviewsFoundationHost.CrashReport.ID, symbolicationParameters: PreviewsFoundationHost.CrashLogSymbolicationParameters) -> PreviewsScenes.EditorSceneCrash
+        0x00024F9C  PreviewsScenes.EditorSceneCrash.id.getter : PreviewsFoundationHost.CrashReport.ID
+        0x00024FD4  PreviewsScenes.EditorSceneCrash.id.setter : PreviewsFoundationHost.CrashReport.ID
+        0x0002500C  PreviewsScenes.EditorSceneCrash.crashReport.getter : PreviewsFoundationHost.CrashReport?
+        0x0002508C  PreviewsScenes.EditorSceneCrash.crashReport.setter : PreviewsFoundationHost.CrashReport?
+        0x0002510C  PreviewsScenes.EditorSceneCrash.crashReport.modify : PreviewsFoundationHost.CrashReport?
+        0x00025134  PreviewsScenes.EditorSceneCrash.symbolicationParameters.getter : PreviewsFoundationHost.CrashLogSymbolicationParameters
+        0x00025180  PreviewsScenes.EditorSceneCrash.symbolicationParameters.setter : PreviewsFoundationHost.CrashLogSymbolicationParameters
+        0x000251CC  PreviewsScenes.EditorSceneCrash.symbolicationParameters.modify : PreviewsFoundationHost.CrashLogSymbolicationParameters
+        0x0002CCD8  (extension in PreviewsScenes):PreviewsUI.DisplayableContent.Collector.displayableContent.getter : PreviewsUI.DisplayableContent
+        0x0002CE50  (extension in PreviewsScenes):PreviewsUI.DisplayableContent.Collector.$displayableContent.getter : PreviewsFoundationHost.EventStream<PreviewsUI.DisplayableContent>
+        0x0003E48C  (extension in PreviewsScenes):PreviewsUI.DisplayableContent.Collector.deinit
+        0x0003E630  (extension in PreviewsScenes):PreviewsUI.DisplayableContent.Collector.__deallocating_deinit
+        0x0003E664  type metadata accessor for (extension in PreviewsScenes):PreviewsUI.DisplayableContent.Collector
+        0x0003E840  method lookup function for (extension in PreviewsScenes):PreviewsUI.DisplayableContent.Collector
+        0x0004B2A8  PreviewsScenes.RegistryObserver.invalidationHandle.getter : PreviewsFoundationHost.ConcurrentInvalidationHandle
+        0x0004B524  PreviewsScenes.RegistryObserver.__allocating_init(continuation: Swift.AsyncStream<PreviewsScenes.RegistryObservationEvent<A>>.Continuation, previewService: PreviewsPipeline.PreviewService, sidecarIdentifiers: Swift.Set<Foundation.UUID>) -> PreviewsScenes.RegistryObserver<A>
+        0x0004B58C  PreviewsScenes.RegistryObserver.init(continuation: Swift.AsyncStream<PreviewsScenes.RegistryObservationEvent<A>>.Continuation, previewService: PreviewsPipeline.PreviewService, sidecarIdentifiers: Swift.Set<Foundation.UUID>) -> PreviewsScenes.RegistryObserver<A>
+        0x0004F600  PreviewsScenes.RegistryObserver.deinit
+        0x0004F77C  PreviewsScenes.RegistryObserver.__deallocating_deinit
+        0x0004F794  PreviewsScenes.RegistryObserver.unownedExecutor.getter : Swift.UnownedSerialExecutor
+        0x000507D0  dispatch thunk of PreviewsScenes.RegistryObserving.update(for: [(Foundation.URL, PreviewsModel.Parsable<PreviewsPipeline.PreviewTranslationUnit>)]) -> ()
+        0x0005093C  type metadata accessor for PreviewsScenes.RegistryObserver
+        0x00050948  method lookup function for PreviewsScenes.RegistryObserver
+        0x00050954  dispatch thunk of PreviewsScenes.RegistryObserver.__allocating_init(continuation: Swift.AsyncStream<PreviewsScenes.RegistryObservationEvent<A>>.Continuation, previewService: PreviewsPipeline.PreviewService, sidecarIdentifiers: Swift.Set<Foundation.UUID>) -> PreviewsScenes.RegistryObserver<A>
+        0x0005095C  dispatch thunk of PreviewsScenes.RegistryObserver.update(for: [(Foundation.URL, PreviewsModel.Parsable<PreviewsPipeline.PreviewTranslationUnit>)]) -> ()
+        0x00050968  dispatch thunk of PreviewsScenes.RegistryObserver.preflightRequest.getter : PreviewsPipeline.RegistryPreflightRequest
+        0x000516B8  PreviewsScenes.EditorScene.displayableContentCollector.getter : (extension in PreviewsScenes):PreviewsUI.DisplayableContent.Collector
+        0x000516B8  PreviewsScenes.SourceCodeDocumentStore.dataSource.getter : SourceEditor.SourceEditorDataSource
+        0x000516C0  PreviewsScenes.SourceCodeDocumentStore.sidecarDataSources.getter : [PreviewsModel.SidecarDataSource]
+        0x00051784  PreviewsScenes.SourceCodeDocumentStore.__allocating_init(dataSource: SourceEditor.SourceEditorDataSource, document: PreviewsModel.AnySourceCodeDocument, registryTypeMap: PreviewsModel.RegistryTypeMap) -> PreviewsScenes.SourceCodeDocumentStore
+        0x000517E4  PreviewsScenes.SourceCodeDocumentStore.init(dataSource: SourceEditor.SourceEditorDataSource, document: PreviewsModel.AnySourceCodeDocument, registryTypeMap: PreviewsModel.RegistryTypeMap) -> PreviewsScenes.SourceCodeDocumentStore
+        0x0005189C  PreviewsScenes.SourceCodeDocumentStore.translationUnit.getter : PreviewsFoundationHost.Staleable<PreviewsModel.Parsable<PreviewsPipeline.PreviewTranslationUnit>>
+        0x00051A70  PreviewsScenes.SourceCodeDocumentStore.parseTree.getter : PreviewsFoundationHost.Staleable<PreviewsModel.Parsable<PreviewsModel.ParseTree>>
+        0x00051BC8  PreviewsScenes.SourceCodeDocumentStore.lastChangeSeverity.getter : PreviewsModel.SourceChangeSeverity
+        0x00051E48  PreviewsScenes.SourceCodeDocumentStore.sourceCodeVersion.getter : PreviewsFoundationHost.Identifier?
+        0x000520BC  PreviewsScenes.SourceCodeDocumentStore.modelItem(for: PreviewsModel.ModelPath) -> PreviewsFoundationHost.Staleable<PreviewsModel.Parsable<PreviewsModel.ModelItem?>>
+        0x000522DC  PreviewsScenes.SourceCodeDocumentStore.willClose() -> ()
+        0x000529C8  PreviewsScenes.SourceCodeDocumentStore.addObserver(() -> ()) -> PreviewsFoundationHost.CancellationToken
+        0x00052D28  PreviewsScenes.SourceCodeDocumentStore.add([PreviewsModel.SidecarDataSource]) -> ()
+        0x0005352C  PreviewsScenes.SourceCodeDocumentStore.add(PreviewsModel.SidecarDataSource) -> ()
+        0x00053B94  PreviewsScenes.SourceCodeDocumentStore.remove([PreviewsModel.SidecarDataSource]) -> ()
+        0x0005402C  PreviewsScenes.SourceCodeDocumentStore.remove(PreviewsModel.SidecarDataSource) -> ()
+        0x00054668  PreviewsScenes.SourceCodeDocumentStore.dataSourceBeginEditTransaction() -> ()
+        0x00054704  PreviewsScenes.SourceCodeDocumentStore.dataSourceDidDeleteTextInRange(Swift.Range<SourceEditor.SourceEditorPosition>) -> ()
+        0x00054924  PreviewsScenes.SourceCodeDocumentStore.dataSourceDidInsertTextInRange(Swift.Range<SourceEditor.SourceEditorPosition>) -> ()
+        0x00054B00  PreviewsScenes.SourceCodeDocumentStore.dataSourceWillDeleteTextInRange(Swift.Range<SourceEditor.SourceEditorPosition>) -> ()
+        0x00054DD8  PreviewsScenes.SourceCodeDocumentStore.dataSourceEndEditTransaction() -> ()
+        0x00054F9C  PreviewsScenes.SourceCodeDocumentStore.withSync<A>(() throws -> A) throws -> A
+        0x00055044  PreviewsScenes.SourceCodeDocumentStore.document.getter : PreviewsModel.AnySourceCodeDocument
+        0x00055094  static PreviewsScenes.SourceCodeDocumentStore.== infix(PreviewsScenes.SourceCodeDocumentStore, PreviewsScenes.SourceCodeDocumentStore) -> Swift.Bool
+        0x000550A0  PreviewsScenes.SourceCodeDocumentStore.canRemoveItem(at: PreviewsModel.ModelPath) -> Swift.Bool
+        0x00055244  PreviewsScenes.SourceCodeDocumentStore.changesForRemovingItem(at: PreviewsModel.ModelPath) throws -> [PreviewsModel.ModelChange]
+        0x00055414  PreviewsScenes.SourceCodeDocumentStore.canMoveItem(at: PreviewsModel.ModelPath, to: PreviewsModel.ModelPath, at: Swift.Int) -> Swift.Bool
+        0x000555C4  PreviewsScenes.SourceCodeDocumentStore.changesForMovingItem(at: PreviewsModel.ModelPath, to: PreviewsModel.ModelPath, at: Swift.Int) throws -> [PreviewsModel.ModelChange]
+        0x000557A0  PreviewsScenes.SourceCodeDocumentStore.canReplaceItem(at: PreviewsModel.ModelPath, with: Swift.String) -> Swift.Bool
+        0x00055984  PreviewsScenes.SourceCodeDocumentStore.changesForReplacingItem(at: PreviewsModel.ModelPath, with: Swift.String) throws -> PreviewsModel.ModelChange.Replace?
+        0x00055C38  PreviewsScenes.SourceCodeDocumentStore.deinit
+        0x00055CEC  PreviewsScenes.SourceCodeDocumentStore.__deallocating_deinit
+        0x0005A79C  type metadata accessor for PreviewsScenes.SourceCodeDocumentStore
+        0x0005ABD4  method lookup function for PreviewsScenes.SourceCodeDocumentStore
+        0x0005ABE0  dispatch thunk of PreviewsScenes.SourceCodeDocumentStore.__allocating_init(dataSource: SourceEditor.SourceEditorDataSource, document: PreviewsModel.AnySourceCodeDocument, registryTypeMap: PreviewsModel.RegistryTypeMap) -> PreviewsScenes.SourceCodeDocumentStore
+        0x0005EDFC  PreviewsScenes.EditorScene.documents.getter : [any PreviewsScenes.Document<A.Location == A.Location>]
+        0x00060634  PreviewsScenes.EditorScene.previewables.getter : PreviewsPipeline.Previewables
+        0x00060B0C  static PreviewsScenes.EditorScene.Event.Discriminant.== infix(PreviewsScenes.EditorScene<A>.Event.Discriminant, PreviewsScenes.EditorScene<A>.Event.Discriminant) -> Swift.Bool
+        0x00060B1C  PreviewsScenes.EditorScene.Event.Discriminant.hash(into: inout Swift.Hasher) -> ()
+        0x00060B40  PreviewsScenes.EditorScene.Event.Discriminant.hashValue.getter : Swift.Int
+        0x00060BDC  PreviewsScenes.EditorScene.Event.discriminant.getter : PreviewsScenes.EditorScene<A>.Event.Discriminant
+        0x00060D30  PreviewsScenes.GridCanvasControlModel.shouldBeVisible.getter : Swift.Bool
+        0x00060D38  PreviewsScenes.EditorScene.canvasControlsManager.getter : PreviewsScenes.CanvasControlsManager
+        0x00060D40  PreviewsScenes.EditorScene.previewRemoteEventsManager.getter : PreviewsScenes.PreviewRemoteEventsManager
+        0x00061FD8  PreviewsScenes.EditorScene.id.getter : PreviewsPipeline.EditorIdentifier
+        0x00062020  PreviewsScenes.EditorScene.editorStateSnapshotProvider.getter : PreviewsUI.EditorStateSnapshotProvider
+        0x00062030  PreviewsScenes.EditorScene.queryManager.getter : PreviewsFoundationHost.QueryManager
+        0x00062040  PreviewsScenes.EditorScene.additionalQueryResolvers.getter : [PreviewsFoundationHost.QueryResolver]
+        0x00062068  PreviewsScenes.EditorScene.additionalQueryResolvers.setter : [PreviewsFoundationHost.QueryResolver]
+        0x00062090  PreviewsScenes.EditorScene.additionalQueryResolvers.modify : [PreviewsFoundationHost.QueryResolver]
+        0x0006226C  PreviewsScenes.EditorScene.additionalDiagnostics.getter : ((PreviewsFoundationHost.DiagnosticsCollector) -> ())?
+        0x000622C4  PreviewsScenes.EditorScene.additionalDiagnostics.setter : ((PreviewsFoundationHost.DiagnosticsCollector) -> ())?
+        0x00062320  PreviewsScenes.EditorScene.additionalDiagnostics.modify : ((PreviewsFoundationHost.DiagnosticsCollector) -> ())?
+        0x00062364  PreviewsScenes.EditorScene.documents.setter : [any PreviewsScenes.Document<A.Location == A.Location>]
+        0x00062368  PreviewsScenes.EditorScene.documents.modify : [any PreviewsScenes.Document<A.Location == A.Location>]
+        0x000623E0  PreviewsScenes.EditorScene.activeCrashReports.getter : PreviewsFoundationHost.EventStream<[PreviewsFoundationHost.CrashReport.ID : PreviewsScenes.EditorSceneCrash]>
+        0x00062510  PreviewsScenes.EditorScene.isPinned.getter : Swift.Bool
+        0x000625CC  PreviewsScenes.EditorScene.pinnedPreviewFile.getter : A?
+        0x000626F8  PreviewsScenes.EditorScene.currentDocumentsContainCanvasContent.getter : Swift.Bool
+        0x0006281C  PreviewsScenes.EditorScene.events.getter : PreviewsFoundationHost.EventStream<PreviewsScenes.EditorScene<A>.Event>
+        0x00062844  PreviewsScenes.EditorScene.settingsRelay.getter : PreviewsPipeline.EditorSettingsRelay
+        0x00062A40  PreviewsScenes.EditorScene.addRegistryObserver<A where A1: PreviewsPipeline.RegistryProtocol>(for: A1.Type, sidecarIdentifiers: Swift.Set<Foundation.UUID>, continuation: Swift.AsyncStream<PreviewsScenes.RegistryObservationEvent<A1>>.Continuation) -> PreviewsFoundationHost.Identifier
+        0x00063120  PreviewsScenes.EditorScene.removeRegistryObserver<A where A1: PreviewsPipeline.RegistryProtocol>(for: A1.Type, identifier: PreviewsFoundationHost.Identifier) -> ()
+        0x000675E4  PreviewsScenes.EditorScene.deinit
+        0x00067974  PreviewsScenes.EditorScene.__deallocating_deinit
+        0x00068604  PreviewsScenes.EditorScene.togglePreviewFileIsPinned() -> ()
+        0x00068C88  PreviewsScenes.EditorScene.shouldAllowTogglingPinnedState.getter : Swift.Bool
+        0x00068DA4  PreviewsScenes.EditorScene.exportActivePreviewScreenshots() async throws -> ()
+        0x00068F9C  PreviewsScenes.EditorScene.addPreviewScreenshotToPasteboard() async throws -> ()
+        0x00069104  PreviewsScenes.EditorScene.refreshCanvas() -> ()
+        0x0006918C  PreviewsScenes.EditorScene.restorePinnedPreview(A.Location) -> ()
+        0x0006925C  PreviewsScenes.EditorScene.stressTestingSession.getter : PreviewsFoundationHost.EventStreamObservable<PreviewsScenes.EditorScene<A>.StressCyclingSession?>
+        0x0006BC20  type metadata accessor for PreviewsScenes.EditorScene
+        0x0006BC2C  method lookup function for PreviewsScenes.EditorScene
+        0x0006BFCC  type metadata accessor for PreviewsScenes.EditorScene.Event
+        0x0006C120  type metadata accessor for PreviewsScenes.EditorScene.Event.Discriminant
+        0x0006D080  PreviewsScenes.CanvasControlsManager.__allocating_init(previewService: PreviewsPipeline.PreviewService, editorSettingsRelay: PreviewsPipeline.EditorSettingsRelay) -> PreviewsScenes.CanvasControlsManager
+        0x0006D0E0  PreviewsScenes.CanvasControlsManager.init(previewService: PreviewsPipeline.PreviewService, editorSettingsRelay: PreviewsPipeline.EditorSettingsRelay) -> PreviewsScenes.CanvasControlsManager
+        0x0006D124  PreviewsScenes.CanvasControlsManager.controlsManager(for: PreviewsPipeline.PreviewInstance.ID) -> PreviewsScenes.PreviewControlsManager
+        0x0006D2EC  PreviewsScenes.CanvasControlsManager.updateDidStart(PreviewsPipeline.PreviewService.UpdateGroup) -> ()
+        0x0006DD60  PreviewsScenes.CanvasControlsManager.deinit
+        0x0006DDB8  PreviewsScenes.CanvasControlsManager.__deallocating_deinit
+        0x0006E338  type metadata accessor for PreviewsScenes.CanvasControlsManager
+        0x0006E3FC  method lookup function for PreviewsScenes.CanvasControlsManager
+        0x0006E408  dispatch thunk of PreviewsScenes.CanvasControlsManager.__allocating_init(previewService: PreviewsPipeline.PreviewService, editorSettingsRelay: PreviewsPipeline.EditorSettingsRelay) -> PreviewsScenes.CanvasControlsManager
+        0x0006E5C0  PreviewsScenes.EditorScene.StressCyclingSession.invalidate() -> ()
+        0x0006E7A0  PreviewsScenes.EditorScene.StressCyclingSession.uiState.getter : PreviewsUI.CanvasMetricsModel
+        0x00072780  PreviewsScenes.EditorScene.StressCyclingSession.updateDidStart(PreviewsPipeline.PreviewService.UpdateGroup) -> ()
+        0x00074FC8  PreviewsScenes.EditorScene.StressCyclingSession.OutcomeRecord.description.getter : Swift.String
+        0x00075C84  PreviewsScenes.EditorScene.StressCyclingSession.deinit
+        0x00075D50  PreviewsScenes.EditorScene.StressCyclingSession.__deallocating_deinit
+        0x00075D94  PreviewsScenes.EditorScene.StressCyclingSession.RunningMode.description.getter : Swift.String
+        0x0007670C  type metadata accessor for PreviewsScenes.EditorScene.StressCyclingSession
+        0x00076718  method lookup function for PreviewsScenes.EditorScene.StressCyclingSession
+        0x00076724  type metadata accessor for PreviewsScenes.EditorScene.StressCyclingSession.RunningMode
+        0x00076EC4  type metadata accessor for PreviewsScenes.EditorScene.StressCyclingSession.UpdateRecord
+        0x00077354  type metadata accessor for PreviewsScenes.EditorScene.StressCyclingSession.OutcomeRecord
+        0x00077D18  PreviewsScenes.RegistryDetectionEvent.updatedRecords.getter : [PreviewsMessagingHost.RegistryID : PreviewsScenes.RegistryDetectionEvent<A>.Record]
+        0x00077D20  PreviewsScenes.RegistryDetectionEvent.currentRecords.getter : [PreviewsScenes.RegistryDetectionEvent<A>.Record]
+        0x00077D28  static PreviewsScenes.RegistryDetectionEvent.Record.State.== infix(PreviewsScenes.RegistryDetectionEvent<A>.Record.State, PreviewsScenes.RegistryDetectionEvent<A>.Record.State) -> Swift.Bool
+        0x000781D8  type metadata accessor for PreviewsScenes.RegistryDetectionEvent.Record.State
+        0x000781F0  PreviewsScenes.RegistryDetectionEvent.Record.state.getter : PreviewsScenes.RegistryDetectionEvent<A>.Record.State
+        0x00078238  PreviewsScenes.RegistryDetectionEvent.Record.state.setter : PreviewsScenes.RegistryDetectionEvent<A>.Record.State
+        0x00078284  static PreviewsScenes.RegistryDetectionEvent.Record.== infix(PreviewsScenes.RegistryDetectionEvent<A>.Record, PreviewsScenes.RegistryDetectionEvent<A>.Record) -> Swift.Bool
+        0x000782F4  type metadata accessor for PreviewsScenes.RegistryDetectionEvent.Record
+        0x00078554  type metadata accessor for PreviewsScenes.RegistryDetectionEvent
+        0x0007A800  PreviewsScenes.TimelineCanvasControlModel.shouldBeVisible.getter : Swift.Bool
+        0x0007A82C  (extension in PreviewsScenes):PreviewsScenes.CanvasControlModel.decodeToGuaranteedHashableBox(PreviewsMessagingHost.PlistValueBox) -> PreviewsPipeline.AnyHashablePlistValue
+        0x0007A9DC  (extension in PreviewsScenes):PreviewsScenes.CanvasControlModel.encode(A.State) -> PreviewsMessagingHost.PlistValueBox
+        0x0007AAE8  (extension in PreviewsScenes):PreviewsScenes.CanvasControlModel.decode(PreviewsMessagingHost.PlistValueBox) throws -> A.State
+        0x0007AB80  PreviewsScenes.TimelineCanvasControlModel.configuration.getter : PreviewsMessagingHost.CanvasControlDescription.ControlType.TimelineConfiguration
+        0x0007AB8C  PreviewsScenes.TimelineCanvasControlModel.expectedThumbnailGeometry.getter : PreviewsMessagingHost.ThumbnailGeometry?
+        0x0007ABBC  type metadata accessor for PreviewsScenes.TimelineCanvasControlModel
+        0x0007AC20  PreviewsScenes.TimelineCanvasControlModel.fallbackState.getter : Swift.Int
+        0x0007AC40  PreviewsScenes.TimelineCanvasControlModel.controlIndex.getter : Swift.Int
+        0x0007AC60  PreviewsScenes.TimelineCanvasControlModel.canUseMessageStream.getter : Swift.Bool
+        0x0007AC80  PreviewsScenes.TimelineCanvasControlModel.encode(Swift.Int) -> PreviewsMessagingHost.PlistValueBox
+        0x0007ACB8  PreviewsScenes.TimelineCanvasControlModel.decode(PreviewsMessagingHost.PlistValueBox) throws -> Swift.Int
+        0x0007ADA8  PreviewsScenes.GridCanvasControlModel.configuration.getter : PreviewsMessagingHost.CanvasControlDescription.ControlType.GridConfiguration
+        0x0007ADB4  PreviewsScenes.GridCanvasControlModel.fallbackState.getter : PreviewsMessagingHost.GridIndex
+        0x0007AE00  type metadata accessor for PreviewsScenes.GridCanvasControlModel
+        0x0007AE14  PreviewsScenes.GridCanvasControlModel.controlIndex.getter : Swift.Int
+        0x0007AE34  PreviewsScenes.GridCanvasControlModel.canUseMessageStream.getter : Swift.Bool
+        0x0007AE54  PreviewsScenes.GridCanvasControlModel.encode(PreviewsMessagingHost.GridIndex) -> PreviewsMessagingHost.PlistValueBox
+        0x0007AF28  PreviewsScenes.GridCanvasControlModel.decode(PreviewsMessagingHost.PlistValueBox) throws -> PreviewsMessagingHost.GridIndex
+        0x0007AFE4  PreviewsScenes.ToggleButtonCanvasControlModel.configuration.getter : PreviewsMessagingHost.CanvasControlDescription.ControlType.ToggleConfiguration
+        0x0007B02C  PreviewsScenes.ToggleButtonCanvasControlModel.fallbackState.getter : Swift.Bool
+        0x0007B04C  type metadata accessor for PreviewsScenes.ToggleButtonCanvasControlModel
+        0x0007B060  PreviewsScenes.ToggleButtonCanvasControlModel.controlIndex.getter : Swift.Int
+        0x0007B080  PreviewsScenes.ToggleButtonCanvasControlModel.shouldBeVisible.getter : Swift.Bool
+        0x0007B0A0  PreviewsScenes.ToggleButtonCanvasControlModel.canUseMessageStream.getter : Swift.Bool
+        0x0007B1F0  dispatch thunk of PreviewsScenes.CanvasControlModel.encode(A.State) -> PreviewsMessagingHost.PlistValueBox
+        0x0007B1F8  dispatch thunk of PreviewsScenes.CanvasControlModel.decode(PreviewsMessagingHost.PlistValueBox) throws -> A.State
+        0x0007B210  dispatch thunk of PreviewsScenes.CanvasControlModel.canUseMessageStream.getter : Swift.Bool
+        0x0007C44C  PreviewsScenes.PreviewRemoteEventsManager.gatherScreenshots(for: PreviewsPipeline.PreviewInstance.ID) async throws -> [__C.CGImageRef]
+        0x0007D008  PreviewsScenes.PreviewRemoteEventsManager.__allocating_init(previewService: PreviewsPipeline.PreviewService) -> PreviewsScenes.PreviewRemoteEventsManager
+        0x0007D044  PreviewsScenes.PreviewRemoteEventsManager.init(previewService: PreviewsPipeline.PreviewService) -> PreviewsScenes.PreviewRemoteEventsManager
+        0x0007E50C  PreviewsScenes.PreviewRemoteEventsListener.replaceUpdate(with: PreviewsPipeline.StreamFactory) -> ()
+        0x0007EF38  PreviewsScenes.PreviewRemoteEventsListener.requestScreenshot() -> PreviewsFoundationHost.Future<__C.CGImageRef>
+        0x0007F664  PreviewsScenes.PreviewRemoteEventsManager.deinit
+        0x0007F690  PreviewsScenes.PreviewRemoteEventsManager.__deallocating_deinit
+        0x0007F6C8  PreviewsScenes.PreviewRemoteEventsListener.currentCrashReport.getter : PreviewsFoundationHost.CrashReport?
+        0x0007F72C  PreviewsScenes.PreviewRemoteEventsListener.currentCrashReport.setter : PreviewsFoundationHost.CrashReport?
+        0x0007F788  PreviewsScenes.PreviewRemoteEventsListener.currentCrashReport.modify : PreviewsFoundationHost.CrashReport?
+        0x0007F914  PreviewsScenes.PreviewRemoteEventsListener.crashHandler.getter : ((PreviewsFoundationHost.CrashReport) -> ())?
+        0x0007F96C  PreviewsScenes.PreviewRemoteEventsListener.crashHandler.setter : ((PreviewsFoundationHost.CrashReport) -> ())?
+        0x0007F9C8  PreviewsScenes.PreviewRemoteEventsListener.crashHandler.modify : ((PreviewsFoundationHost.CrashReport) -> ())?
+        0x00082CB0  PreviewsScenes.PreviewRemoteEventsListener.deinit
+        0x00082D20  PreviewsScenes.PreviewRemoteEventsListener.__deallocating_deinit
+        0x000835F0  type metadata accessor for PreviewsScenes.PreviewRemoteEventsManager
+        0x000836A8  method lookup function for PreviewsScenes.PreviewRemoteEventsManager
+        0x000836B4  dispatch thunk of PreviewsScenes.PreviewRemoteEventsManager.__allocating_init(previewService: PreviewsPipeline.PreviewService) -> PreviewsScenes.PreviewRemoteEventsManager
+        0x000836C4  type metadata accessor for PreviewsScenes.PreviewRemoteEventsListener
+        0x00083770  method lookup function for PreviewsScenes.PreviewRemoteEventsListener
+        0x00084944  (extension in PreviewsScenes):PreviewsScenes.RegistryActivating.activate(file: Swift.StaticString, line: Swift.UInt, column: Swift.UInt, function: Swift.StaticString) throws -> PreviewsPipeline.ActivationHandle<PreviewsPipeline.RegistryExecutionPoint<A.R>>
+        0x00084944  dispatch thunk of PreviewsScenes.RegistryActivating.activate(file: Swift.StaticString, line: Swift.UInt, column: Swift.UInt, function: Swift.StaticString) throws -> PreviewsPipeline.ActivationHandle<PreviewsPipeline.RegistryExecutionPoint<A.R>>
+        0x0008B730  _PreviewsScenesVersionString
+        0x0008B778  _PreviewsScenesVersionNumber
+        0x0008B9BC  protocol conformance descriptor for PreviewsScenes.PreviewControlsManager.ThumbnailEntry : Combine.ObservableObject in PreviewsScenes
+        0x0008B9F4  protocol conformance descriptor for PreviewsScenes.PreviewControlsManagerWrapper : Observation.Observable in PreviewsScenes
+        0x0008BA10  protocol conformance descriptor for PreviewsScenes.PreviewControlsManager : Observation.Observable in PreviewsScenes
+        0x0008BA2C  property descriptor for PreviewsScenes.PreviewControlsManager.editorSettingsRelay : PreviewsPipeline.EditorSettingsRelay
+        0x0008BA30  property descriptor for PreviewsScenes.PreviewControlsManager.ActiveUpdate.kind : PreviewsScenes.PreviewControlsManager.ActiveUpdate.Kind
+        0x0008BA38  property descriptor for PreviewsScenes.PreviewControlsManager.Controller.model : A
+        0x0008BA40  property descriptor for PreviewsScenes.PreviewControlsManager.Controller.state : SwiftUI.Binding<A.State>
+        0x0008BA48  property descriptor for PreviewsScenes.PreviewControlsManager.Controller.getThumbnail : (A.State) -> PreviewsScenes.PreviewControlsManager.ThumbnailEntry
+        0x0008BA90  class metadata base offset for PreviewsScenes.PreviewControlsManagerWrapper
+        0x0008BAD8  class metadata base offset for PreviewsScenes.PreviewControlsManager
+        0x0008BB18  enum case for PreviewsScenes.PreviewControlsManager.ActiveUpdate.Kind.timeline(PreviewsScenes.PreviewControlsManager.ActiveUpdate.Kind.Type) -> (PreviewsScenes.PreviewControlsManager.Controller<PreviewsScenes.TimelineCanvasControlModel>, PreviewsScenes.PreviewControlsManager.Controller<PreviewsScenes.ToggleButtonCanvasControlModel>?) -> PreviewsScenes.PreviewControlsManager.ActiveUpdate.Kind
+        0x0008BB1C  enum case for PreviewsScenes.PreviewControlsManager.ActiveUpdate.Kind.grid(PreviewsScenes.PreviewControlsManager.ActiveUpdate.Kind.Type) -> (PreviewsScenes.PreviewControlsManager.Controller<PreviewsScenes.GridCanvasControlModel>) -> PreviewsScenes.PreviewControlsManager.ActiveUpdate.Kind
+        0x0008BB50  class metadata base offset for PreviewsScenes.PreviewControlsManager.ThumbnailEntry
+        0x0008BFB0  protocol conformance descriptor for PreviewsScenes.DocumentEvent<A> : Swift.CustomStringConvertible in PreviewsScenes
+        0x0008BFD8  property descriptor for (extension in PreviewsScenes):PreviewsScenes.Document.thunkableSourceIdentifier : PreviewsModel.SourceIdentifier?
+        0x0008BFD8  property descriptor for (extension in PreviewsScenes):PreviewsScenes.Document.thunkableTranslationUnit : PreviewsFoundationHost.Staleable<PreviewsModel.Parsable<PreviewsPipeline.PreviewTranslationUnit>>
+        0x0008BFD8  property descriptor for PreviewsScenes.DocumentEvent.description : Swift.String
+        0x0008C010  enum case for PreviewsScenes.DocumentEvent.sourceFinishedParsing<A>(PreviewsScenes.DocumentEvent<A>.Type) -> (PreviewsModel.SourceChangeSeverity) -> PreviewsScenes.DocumentEvent<A>
+        0x0008C014  enum case for PreviewsScenes.DocumentEvent.renamed<A>(PreviewsScenes.DocumentEvent<A>.Type) -> (A, A) -> PreviewsScenes.DocumentEvent<A>
+        0x0008C018  enum case for PreviewsScenes.DocumentEvent.documentInvalidated<A>(PreviewsScenes.DocumentEvent<A>.Type) -> PreviewsScenes.DocumentEvent<A>
+        0x0008C01C  enum case for PreviewsScenes.DocumentEvent.sourceCodeChanged<A>(PreviewsScenes.DocumentEvent<A>.Type) -> PreviewsScenes.DocumentEvent<A>
+        0x0008C058  async function pointer to PreviewsScenes.WorkspaceScene.collectDiagnostics(into: PreviewsFoundationHost.DiagnosticsCollector) async -> ()
+        0x0008C0B0  protocol conformance descriptor for PreviewsScenes.WorkspaceScene<A>.Event : Swift.Equatable in PreviewsScenes
+        0x0008C0D8  protocol conformance descriptor for PreviewsScenes.WorkspaceScene<A>.Event : Swift.Hashable in PreviewsScenes
+        0x0008C118  property descriptor for PreviewsScenes.WorkspaceScene.previewService : PreviewsPipeline.PreviewService
+        0x0008C11C  property descriptor for (extension in PreviewsScenes):PreviewsScenes.WorkspaceScene< where A.Location == Foundation.URL>.openFileURLs : Swift.Set<Foundation.URL>
+        0x0008C11C  property descriptor for PreviewsScenes.WorkspaceScene.Event.hashValue : Swift.Int
+        0x0008C11C  property descriptor for PreviewsScenes.WorkspaceScene.events : PreviewsFoundationHost.EventStream<PreviewsScenes.WorkspaceScene<A>.Event>
+        0x0008C11C  property descriptor for PreviewsScenes.WorkspaceScene.filesWithDisabledThunking : Swift.Set<PreviewsModel.SourceIdentifier>
+        0x0008C11C  property descriptor for PreviewsScenes.WorkspaceScene.previewables : PreviewsPipeline.Previewables
+        0x0008C11C  property descriptor for PreviewsScenes.WorkspaceScene.thunkableSourceIdentifiers : Swift.Set<PreviewsModel.SourceIdentifier>
+        0x0008C11C  property descriptor for PreviewsScenes.WorkspaceScene.thunkDebugInfo : PreviewsFoundationHost.EventStream<Swift.String>
+        0x0008C130  class metadata base offset for PreviewsScenes.WorkspaceScene
+        0x0008C378  property descriptor for PreviewsScenes.ColorNames.names : [Swift.String]
+        0x0008C37C  property descriptor for PreviewsScenes.ColorNames.indexNames : [Swift.String : [Swift.String]]
+        0x0008C3A0  protocol conformance descriptor for PreviewsScenes.RegistryIconSpecification : Swift.Hashable in PreviewsScenes
+        0x0008C3E0  protocol conformance descriptor for PreviewsScenes.RegistryIconSpecification : Swift.Equatable in PreviewsScenes
+        0x0008C408  property descriptor for (extension in PreviewsScenes):PreviewsScenes.CanvasRegistryHandler.preflightRequest : PreviewsPipeline.RegistryPreflightRequest
+        0x0008C408  property descriptor for (extension in PreviewsScenes):PreviewsScenes.CanvasRegistryHandler.registryExecutionPointProvider : PreviewsPipeline.RegistryExecutionPointProvider
+        0x0008C408  property descriptor for (extension in PreviewsScenes):PreviewsScenes.CanvasRegistryHandler.registryType : PreviewsMessagingHost.RegistryType
+        0x0008C408  property descriptor for (extension in PreviewsScenes):PreviewsScenes.CanvasRegistryHandler.registryTypeMap : PreviewsModel.RegistryTypeMap
+        0x0008C408  property descriptor for PreviewsScenes.RegistryIconSpecification.hashValue : Swift.Int
+        0x0008C40C  property descriptor for PreviewsScenes.ViewProviderUpdate.registryDefinition : PreviewsModel.RegistryDefinition
+        0x0008C414  property descriptor for PreviewsScenes.ViewProviderUpdate.executionStatus : PreviewsPipeline.ExecutionPointStatus<PreviewsPipeline.RegistryExecutionPoint<A>>
+        0x0008C570  protocol conformance descriptor for PreviewsScenes.RegistryObservationEvent<A>.TranslationUnitRecord : Swift.Identifiable in PreviewsScenes
+        0x0008C5A8  protocol conformance descriptor for PreviewsScenes.RegistryObservationEvent<A>.RegistryRecord : Swift.Identifiable in PreviewsScenes
+        0x0008C5E0  property descriptor for PreviewsScenes.RegistryObservationEvent.translationUnitRecordsSet : PreviewsFoundationHost.OrderedIdentifiedSet<PreviewsScenes.RegistryObservationEvent<A>.TranslationUnitRecord>
+        0x0008C5E8  property descriptor for PreviewsScenes.RegistryObservationEvent.RegistryRecord.id : PreviewsMessagingHost.RegistryID
+        0x0008C5E8  property descriptor for PreviewsScenes.RegistryObservationEvent.registryRecords : [PreviewsScenes.RegistryObservationEvent<A>.RegistryRecord]
+        0x0008C5E8  property descriptor for PreviewsScenes.RegistryObservationEvent.subscript(Foundation.URL) -> PreviewsScenes.RegistryObservationEvent<A>.TranslationUnitRecord?
+        0x0008C5E8  property descriptor for PreviewsScenes.RegistryObservationEvent.subscript(PreviewsMessagingHost.RegistryID) -> PreviewsScenes.RegistryObservationEvent<A>.RegistryRecord?
+        0x0008C5E8  property descriptor for PreviewsScenes.RegistryObservationEvent.TranslationUnitRecord.id : Foundation.URL
+        0x0008C5E8  property descriptor for PreviewsScenes.RegistryObservationEvent.translationUnitRecords : [PreviewsScenes.RegistryObservationEvent<A>.TranslationUnitRecord]
+        0x0008C5EC  property descriptor for PreviewsScenes.RegistryObservationEvent.registryRecordsSet : PreviewsFoundationHost.OrderedIdentifiedSet<PreviewsScenes.RegistryObservationEvent<A>.RegistryRecord>
+        0x0008C5F4  property descriptor for PreviewsScenes.RegistryObservationEvent.TranslationUnitRecord.url : Foundation.URL
+        0x0008C5FC  property descriptor for PreviewsScenes.RegistryObservationEvent.TranslationUnitRecord.state : PreviewsScenes.RegistryObservationEvent<A>.TranslationUnitRecord.State
+        0x0008C604  property descriptor for PreviewsScenes.RegistryObservationEvent.RegistryRecord.registryDefinition : PreviewsModel.RegistryDefinition
+        0x0008C60C  property descriptor for PreviewsScenes.RegistryObservationEvent.RegistryRecord.state : PreviewsScenes.RegistryObservationEvent<A>.RegistryRecord.State
+        0x0008C6B8  enum case for PreviewsScenes.RegistryObservationEvent.TranslationUnitRecord.State.parseFailed<A where A: PreviewsPipeline.RegistryProtocol>(PreviewsScenes.RegistryObservationEvent<A>.TranslationUnitRecord.State.Type) -> ([PreviewsModel.SyntaxError]) -> PreviewsScenes.RegistryObservationEvent<A>.TranslationUnitRecord.State
+        0x0008C6BC  enum case for PreviewsScenes.RegistryObservationEvent.TranslationUnitRecord.State.failed<A where A: PreviewsPipeline.RegistryProtocol>(PreviewsScenes.RegistryObservationEvent<A>.TranslationUnitRecord.State.Type) -> (Swift.Error) -> PreviewsScenes.RegistryObservationEvent<A>.TranslationUnitRecord.State
+        0x0008C6C0  enum case for PreviewsScenes.RegistryObservationEvent.TranslationUnitRecord.State.parsed<A where A: PreviewsPipeline.RegistryProtocol>(PreviewsScenes.RegistryObservationEvent<A>.TranslationUnitRecord.State.Type) -> ([PreviewsModel.SyntaxError]) -> PreviewsScenes.RegistryObservationEvent<A>.TranslationUnitRecord.State
+        0x0008C6C4  enum case for PreviewsScenes.RegistryObservationEvent.TranslationUnitRecord.State.unparsed<A where A: PreviewsPipeline.RegistryProtocol>(PreviewsScenes.RegistryObservationEvent<A>.TranslationUnitRecord.State.Type) -> PreviewsScenes.RegistryObservationEvent<A>.TranslationUnitRecord.State
+        0x0008C72C  enum case for PreviewsScenes.RegistryObservationEvent.RegistryRecord.State.available<A where A: PreviewsPipeline.RegistryProtocol>(PreviewsScenes.RegistryObservationEvent<A>.RegistryRecord.State.Type) -> (any PreviewsScenes.RegistryActivating<Self.R == A>, A.Metadata) -> PreviewsScenes.RegistryObservationEvent<A>.RegistryRecord.State
+        0x0008C730  enum case for PreviewsScenes.RegistryObservationEvent.RegistryRecord.State.unavailable<A where A: PreviewsPipeline.RegistryProtocol>(PreviewsScenes.RegistryObservationEvent<A>.RegistryRecord.State.Type) -> (PreviewsMessagingHost.Explanation) -> PreviewsScenes.RegistryObservationEvent<A>.RegistryRecord.State
+        0x0008C734  enum case for PreviewsScenes.RegistryObservationEvent.RegistryRecord.State.notLocated<A where A: PreviewsPipeline.RegistryProtocol>(PreviewsScenes.RegistryObservationEvent<A>.RegistryRecord.State.Type) -> (PreviewsMessagingHost.Explanation) -> PreviewsScenes.RegistryObservationEvent<A>.RegistryRecord.State
+        0x0008C738  enum case for PreviewsScenes.RegistryObservationEvent.RegistryRecord.State.notSupported<A where A: PreviewsPipeline.RegistryProtocol>(PreviewsScenes.RegistryObservationEvent<A>.RegistryRecord.State.Type) -> (PreviewsMessagingHost.Explanation) -> PreviewsScenes.RegistryObservationEvent<A>.RegistryRecord.State
+        0x0008C73C  enum case for PreviewsScenes.RegistryObservationEvent.RegistryRecord.State.preflightFailed<A where A: PreviewsPipeline.RegistryProtocol>(PreviewsScenes.RegistryObservationEvent<A>.RegistryRecord.State.Type) -> (Swift.Error) -> PreviewsScenes.RegistryObservationEvent<A>.RegistryRecord.State
+        0x0008C740  enum case for PreviewsScenes.RegistryObservationEvent.RegistryRecord.State.parsed<A where A: PreviewsPipeline.RegistryProtocol>(PreviewsScenes.RegistryObservationEvent<A>.RegistryRecord.State.Type) -> PreviewsScenes.RegistryObservationEvent<A>.RegistryRecord.State
+        0x0008C778  property descriptor for PreviewsScenes.VoiceOverMessage.message : Swift.String
+        0x0008C7B8  property descriptor for PreviewsScenes.EditorSceneCrash.id : PreviewsFoundationHost.CrashReport.ID
+        0x0008C7C0  property descriptor for PreviewsScenes.EditorSceneCrash.crashReport : PreviewsFoundationHost.CrashReport?
+        0x0008C7C8  property descriptor for PreviewsScenes.EditorSceneCrash.symbolicationParameters : PreviewsFoundationHost.CrashLogSymbolicationParameters
+        0x0008CC88  property descriptor for (extension in PreviewsScenes):PreviewsUI.DisplayableContent.Collector.$displayableContent : PreviewsFoundationHost.EventStream<PreviewsUI.DisplayableContent>
+        0x0008CCA8  class metadata base offset for (extension in PreviewsScenes):PreviewsUI.DisplayableContent.Collector
+        0x0008D0E0  protocol conformance descriptor for PreviewsScenes.RegistryObserver<A> : Swift.Actor in PreviewsScenes
+        0x0008D108  protocol conformance descriptor for PreviewsScenes.RegistryObserver<A> : PreviewsPipeline.PreviewServiceObserver in PreviewsScenes
+        0x0008D140  protocol conformance descriptor for PreviewsScenes.RegistryObserver<A> : PreviewsScenes.RegistryObserving in PreviewsScenes
+        0x0008D15C  protocol conformance descriptor for PreviewsScenes.RegistryObserver<A> : PreviewsFoundationHost.ConcurrentInvalidatable in PreviewsScenes
+        0x0008D18C  protocol conformance descriptor for PreviewsScenes.RegistryObserver<A> : PreviewsFoundationHost.AnyInvalidatable in PreviewsScenes
+        0x0008D1B4  property descriptor for PreviewsScenes.RegistryObserver.invalidationHandle : PreviewsFoundationHost.ConcurrentInvalidationHandle
+        0x0008D1B8  property descriptor for PreviewsScenes.RegistryObserver.preflightRequest : PreviewsPipeline.RegistryPreflightRequest
+        0x0008D1B8  property descriptor for PreviewsScenes.RegistryObserver.unownedExecutor : Swift.UnownedSerialExecutor
+        0x0008D1F0  class metadata base offset for PreviewsScenes.RegistryObserver
+        0x0008D448  protocol conformance descriptor for PreviewsScenes.SourceCodeDocumentStore : PreviewsModel.DataSourceBackedSourceCodeStore in PreviewsScenes
+        0x0008D4A0  protocol conformance descriptor for PreviewsScenes.SourceCodeDocumentStore : SourceEditor.SourceEditorDataSourceObserver in PreviewsScenes
+        0x0008D538  protocol conformance descriptor for PreviewsScenes.SourceCodeDocumentStore : PreviewsModel.ParseTreeTransformer in PreviewsScenes
+        0x0008D588  protocol conformance descriptor for PreviewsScenes.SourceCodeDocumentStore : Swift.Equatable in PreviewsScenes
+        0x0008D5B0  protocol conformance descriptor for PreviewsScenes.SourceCodeDocumentStore : PreviewsModel.SourceCodeStore in PreviewsScenes
+        0x0008D5E0  property descriptor for PreviewsScenes.SourceCodeDocumentStore.dataSource : SourceEditor.SourceEditorDataSource
+        0x0008D5E4  property descriptor for PreviewsScenes.SourceCodeDocumentStore.document : PreviewsModel.AnySourceCodeDocument
+        0x0008D5E4  property descriptor for PreviewsScenes.SourceCodeDocumentStore.lastChangeSeverity : PreviewsModel.SourceChangeSeverity
+        0x0008D5E4  property descriptor for PreviewsScenes.SourceCodeDocumentStore.parseTree : PreviewsFoundationHost.Staleable<PreviewsModel.Parsable<PreviewsModel.ParseTree>>
+        0x0008D5E4  property descriptor for PreviewsScenes.SourceCodeDocumentStore.sidecarDataSources : [PreviewsModel.SidecarDataSource]
+        0x0008D5E4  property descriptor for PreviewsScenes.SourceCodeDocumentStore.sourceCodeVersion : PreviewsFoundationHost.Identifier?
+        0x0008D5E4  property descriptor for PreviewsScenes.SourceCodeDocumentStore.translationUnit : PreviewsFoundationHost.Staleable<PreviewsModel.Parsable<PreviewsPipeline.PreviewTranslationUnit>>
+        0x0008D638  class metadata base offset for PreviewsScenes.SourceCodeDocumentStore
+        0x0008D700  async function pointer to PreviewsScenes.EditorScene.exportActivePreviewScreenshots() async throws -> ()
+        0x0008D708  async function pointer to PreviewsScenes.EditorScene.addPreviewScreenshotToPasteboard() async throws -> ()
+        0x0008D710  protocol conformance descriptor for PreviewsScenes.EditorScene<A>.Event.Discriminant : Swift.Equatable in PreviewsScenes
+        0x0008D738  protocol conformance descriptor for PreviewsScenes.EditorScene<A>.Event.Discriminant : Swift.Hashable in PreviewsScenes
+        0x0008D778  property descriptor for PreviewsScenes.EditorScene.activeCrashReports : PreviewsFoundationHost.EventStream<[PreviewsFoundationHost.CrashReport.ID : PreviewsScenes.EditorSceneCrash]>
+        0x0008D778  property descriptor for PreviewsScenes.EditorScene.currentDocumentsContainCanvasContent : Swift.Bool
+        0x0008D778  property descriptor for PreviewsScenes.EditorScene.Event.discriminant : PreviewsScenes.EditorScene<A>.Event.Discriminant
+        0x0008D778  property descriptor for PreviewsScenes.EditorScene.Event.Discriminant.hashValue : Swift.Int
+        0x0008D778  property descriptor for PreviewsScenes.EditorScene.events : PreviewsFoundationHost.EventStream<PreviewsScenes.EditorScene<A>.Event>
+        0x0008D778  property descriptor for PreviewsScenes.EditorScene.isPinned : Swift.Bool
+        0x0008D778  property descriptor for PreviewsScenes.EditorScene.pinnedPreviewFile : A?
+        0x0008D778  property descriptor for PreviewsScenes.EditorScene.previewables : PreviewsPipeline.Previewables
+        0x0008D778  property descriptor for PreviewsScenes.EditorScene.shouldAllowTogglingPinnedState : Swift.Bool
+        0x0008D77C  property descriptor for PreviewsScenes.EditorScene.displayableContentCollector : (extension in PreviewsScenes):PreviewsUI.DisplayableContent.Collector
+        0x0008D780  property descriptor for PreviewsScenes.EditorScene.canvasControlsManager : PreviewsScenes.CanvasControlsManager
+        0x0008D784  property descriptor for PreviewsScenes.EditorScene.previewRemoteEventsManager : PreviewsScenes.PreviewRemoteEventsManager
+        0x0008D788  property descriptor for PreviewsScenes.EditorScene.id : PreviewsPipeline.EditorIdentifier
+        0x0008D790  property descriptor for PreviewsScenes.EditorScene.editorStateSnapshotProvider : PreviewsUI.EditorStateSnapshotProvider
+        0x0008D798  property descriptor for PreviewsScenes.EditorScene.queryManager : PreviewsFoundationHost.QueryManager
+        0x0008D7A0  property descriptor for PreviewsScenes.EditorScene.settingsRelay : PreviewsPipeline.EditorSettingsRelay
+        0x0008D7A8  property descriptor for PreviewsScenes.EditorScene.stressTestingSession : PreviewsFoundationHost.EventStreamObservable<PreviewsScenes.EditorScene<A>.StressCyclingSession?>
+        0x0008D7D0  class metadata base offset for PreviewsScenes.EditorScene
+        0x0008DB30  protocol conformance descriptor for PreviewsScenes.CanvasControlsManager : PreviewsPipeline.PreviewServiceObserver in PreviewsScenes
+        0x0008DB68  protocol conformance descriptor for PreviewsScenes.CanvasControlsManager : PreviewsFoundationHost.Invalidatable in PreviewsScenes
+        0x0008DB90  protocol conformance descriptor for PreviewsScenes.CanvasControlsManager : Observation.Observable in PreviewsScenes
+        0x0008DBAC  property descriptor for PreviewsScenes.CanvasControlsManager.invalidationHandle : PreviewsFoundationHost.InvalidationHandle
+        0x0008DBF8  class metadata base offset for PreviewsScenes.CanvasControlsManager
+        0x0008DCA8  protocol conformance descriptor for PreviewsScenes.EditorScene<A>.StressCyclingSession : PreviewsPipeline.PreviewServiceObserver in PreviewsScenes
+        0x0008DCE0  protocol conformance descriptor for PreviewsScenes.EditorScene<A>.StressCyclingSession.RunningMode : Swift.Equatable in PreviewsScenes
+        0x0008DD08  protocol conformance descriptor for PreviewsScenes.EditorScene<A>.StressCyclingSession.RunningMode : Swift.Hashable in PreviewsScenes
+        0x0008DD48  protocol conformance descriptor for PreviewsScenes.EditorScene<A>.StressCyclingSession.RunningMode : Swift.CustomStringConvertible in PreviewsScenes
+        0x0008DD70  protocol conformance descriptor for PreviewsScenes.EditorScene<A>.StressCyclingSession.OutcomeRecord : Swift.CustomStringConvertible in PreviewsScenes
+        0x0008DD98  property descriptor for PreviewsScenes.EditorScene.StressCyclingSession.OutcomeRecord.description : Swift.String
+        0x0008DD98  property descriptor for PreviewsScenes.EditorScene.StressCyclingSession.RunningMode.description : Swift.String
+        0x0008DD98  property descriptor for PreviewsScenes.EditorScene.StressCyclingSession.RunningMode.hashValue : Swift.Int
+        0x0008DDA0  class metadata base offset for PreviewsScenes.EditorScene.StressCyclingSession
+        0x0008DFA0  protocol conformance descriptor for PreviewsScenes.RegistryDetectionEvent<A>.Record.State : Swift.Equatable in PreviewsScenes
+        0x0008DFC8  protocol conformance descriptor for PreviewsScenes.RegistryDetectionEvent<A>.Record : Swift.Identifiable in PreviewsScenes
+        0x0008E000  protocol conformance descriptor for PreviewsScenes.RegistryDetectionEvent<A>.Record : Swift.Equatable in PreviewsScenes
+        0x0008E028  property descriptor for PreviewsScenes.RegistryDetectionEvent.addedRecords : [PreviewsMessagingHost.RegistryID : PreviewsScenes.RegistryDetectionEvent<A>.Record]
+        0x0008E02C  property descriptor for PreviewsScenes.RegistryDetectionEvent.removedRecords : [PreviewsMessagingHost.RegistryID : PreviewsScenes.RegistryDetectionEvent<A>.Record]
+        0x0008E030  property descriptor for PreviewsScenes.RegistryDetectionEvent.updatedRecords : [PreviewsMessagingHost.RegistryID : PreviewsScenes.RegistryDetectionEvent<A>.Record]
+        0x0008E034  property descriptor for PreviewsScenes.RegistryDetectionEvent.currentRecords : [PreviewsScenes.RegistryDetectionEvent<A>.Record]
+        0x0008E038  property descriptor for PreviewsScenes.RegistryDetectionEvent.Record.registryDefinition : PreviewsModel.RegistryDefinition
+        0x0008E040  property descriptor for PreviewsScenes.RegistryDetectionEvent.Record.state : PreviewsScenes.RegistryDetectionEvent<A>.Record.State
+        0x0008E048  property descriptor for PreviewsScenes.RegistryDetectionEvent.Record.id : PreviewsMessagingHost.RegistryID
+        0x0008E0D0  enum case for PreviewsScenes.RegistryDetectionEvent.Record.State.available<A where A: PreviewsPipeline.RegistryProtocol>(PreviewsScenes.RegistryDetectionEvent<A>.Record.State.Type) -> (A.Metadata) -> PreviewsScenes.RegistryDetectionEvent<A>.Record.State
+        0x0008E0D4  enum case for PreviewsScenes.RegistryDetectionEvent.Record.State.unavailable<A where A: PreviewsPipeline.RegistryProtocol>(PreviewsScenes.RegistryDetectionEvent<A>.Record.State.Type) -> (PreviewsMessagingHost.Explanation) -> PreviewsScenes.RegistryDetectionEvent<A>.Record.State
+        0x0008E0D8  enum case for PreviewsScenes.RegistryDetectionEvent.Record.State.notLocated<A where A: PreviewsPipeline.RegistryProtocol>(PreviewsScenes.RegistryDetectionEvent<A>.Record.State.Type) -> (PreviewsMessagingHost.Explanation) -> PreviewsScenes.RegistryDetectionEvent<A>.Record.State
+        0x0008E0DC  enum case for PreviewsScenes.RegistryDetectionEvent.Record.State.notSupported<A where A: PreviewsPipeline.RegistryProtocol>(PreviewsScenes.RegistryDetectionEvent<A>.Record.State.Type) -> (PreviewsMessagingHost.Explanation) -> PreviewsScenes.RegistryDetectionEvent<A>.Record.State
+        0x0008E0E0  enum case for PreviewsScenes.RegistryDetectionEvent.Record.State.parsed<A where A: PreviewsPipeline.RegistryProtocol>(PreviewsScenes.RegistryDetectionEvent<A>.Record.State.Type) -> PreviewsScenes.RegistryDetectionEvent<A>.Record.State
+        0x0008E100  protocol conformance descriptor for PreviewsScenes.TimelineCanvasControlModel : PreviewsScenes.CanvasControlModel in PreviewsScenes
+        0x0008E110  protocol conformance descriptor for PreviewsScenes.GridCanvasControlModel : PreviewsScenes.CanvasControlModel in PreviewsScenes
+        0x0008E12C  protocol conformance descriptor for PreviewsScenes.ToggleButtonCanvasControlModel : PreviewsScenes.CanvasControlModel in PreviewsScenes
+        0x0008E13C  property descriptor for PreviewsScenes.TimelineCanvasControlModel.configuration : PreviewsMessagingHost.CanvasControlDescription.ControlType.TimelineConfiguration
+        0x0008E144  property descriptor for PreviewsScenes.TimelineCanvasControlModel.expectedThumbnailGeometry : PreviewsMessagingHost.ThumbnailGeometry?
+        0x0008E14C  property descriptor for PreviewsScenes.TimelineCanvasControlModel.fallbackState : Swift.Int
+        0x0008E154  property descriptor for PreviewsScenes.TimelineCanvasControlModel.controlIndex : Swift.Int
+        0x0008E15C  property descriptor for PreviewsScenes.GridCanvasControlModel.shouldBeVisible : Swift.Bool
+        0x0008E15C  property descriptor for PreviewsScenes.TimelineCanvasControlModel.shouldBeVisible : Swift.Bool
+        0x0008E15C  property descriptor for PreviewsScenes.ToggleButtonCanvasControlModel.canUseMessageStream : Swift.Bool
+        0x0008E160  property descriptor for PreviewsScenes.TimelineCanvasControlModel.canUseMessageStream : Swift.Bool
+        0x0008E168  property descriptor for PreviewsScenes.GridCanvasControlModel.configuration : PreviewsMessagingHost.CanvasControlDescription.ControlType.GridConfiguration
+        0x0008E170  property descriptor for PreviewsScenes.GridCanvasControlModel.fallbackState : PreviewsMessagingHost.GridIndex
+        0x0008E178  property descriptor for PreviewsScenes.GridCanvasControlModel.controlIndex : Swift.Int
+        0x0008E180  property descriptor for PreviewsScenes.GridCanvasControlModel.canUseMessageStream : Swift.Bool
+        0x0008E188  property descriptor for PreviewsScenes.ToggleButtonCanvasControlModel.configuration : PreviewsMessagingHost.CanvasControlDescription.ControlType.ToggleConfiguration
+        0x0008E190  property descriptor for PreviewsScenes.ToggleButtonCanvasControlModel.fallbackState : Swift.Bool
+        0x0008E198  property descriptor for PreviewsScenes.ToggleButtonCanvasControlModel.controlIndex : Swift.Int
+        0x0008E1A0  property descriptor for PreviewsScenes.ToggleButtonCanvasControlModel.shouldBeVisible : Swift.Bool
+        0x0008E260  async function pointer to PreviewsScenes.PreviewRemoteEventsManager.gatherScreenshots(for: PreviewsPipeline.PreviewInstance.ID) async throws -> [__C.CGImageRef]
+        0x0008E2D0  protocol conformance descriptor for PreviewsScenes.PreviewRemoteEventsManager : PreviewsPipeline.PreviewServiceObserver in PreviewsScenes
+        0x0008E308  protocol conformance descriptor for PreviewsScenes.PreviewRemoteEventsManager : PreviewsFoundationHost.Invalidatable in PreviewsScenes
+        0x0008E340  property descriptor for PreviewsScenes.PreviewRemoteEventsManager.invalidationHandle : PreviewsFoundationHost.InvalidationHandle
+        0x0008E370  class metadata base offset for PreviewsScenes.PreviewRemoteEventsManager
+        0x0008E3A0  class metadata base offset for PreviewsScenes.PreviewRemoteEventsListener
+        0x000954F0  nominal type descriptor for PreviewsScenes.PreviewControlsManagerWrapper
+        0x00095530  method descriptor for PreviewsScenes.PreviewControlsManagerWrapper.__allocating_init() -> PreviewsScenes.PreviewControlsManagerWrapper
+        0x00095538  nominal type descriptor for PreviewsScenes.PreviewControlsManager
+        0x00095578  method descriptor for PreviewsScenes.PreviewControlsManager.__allocating_init(editorSettingsRelay: PreviewsPipeline.EditorSettingsRelay, previewID: PreviewsPipeline.PreviewInstance.ID) -> PreviewsScenes.PreviewControlsManager
+        0x00095580  nominal type descriptor for PreviewsScenes.PreviewControlsManager.ActiveUpdate
+        0x000955A8  nominal type descriptor for PreviewsScenes.PreviewControlsManager.ActiveUpdate.Kind
+        0x000955D0  nominal type descriptor for PreviewsScenes.PreviewControlsManager.Controller
+        0x0009560C  nominal type descriptor for PreviewsScenes.PreviewControlsManager.ThumbnailEntry
+        0x00095730  nominal type descriptor for PreviewsScenes.DocumentEvent
+        0x00095760  protocol descriptor for PreviewsScenes.Document
+        0x00095770  protocol requirements base descriptor for PreviewsScenes.Document
+        0x00095778  associated type descriptor for PreviewsScenes.Document.Location
+        0x00095780  method descriptor for PreviewsScenes.Document.location.getter : A.Location?
+        0x00095788  method descriptor for PreviewsScenes.Document.sourceCodeStore.getter : PreviewsModel.DataSourceBackedSourceCodeStore
+        0x00095790  method descriptor for PreviewsScenes.Document.sourceIdentifier.getter : PreviewsModel.SourceIdentifier
+        0x00095798  method descriptor for PreviewsScenes.Document.translationUnit.getter : PreviewsFoundationHost.Staleable<PreviewsModel.Parsable<PreviewsPipeline.PreviewTranslationUnit>>
+        0x000957A0  method descriptor for PreviewsScenes.Document.forceNoThunking.getter : Swift.Bool
+        0x000957A8  method descriptor for PreviewsScenes.Document.undoManager.getter : __C.NSUndoManager?
+        0x000957B0  method descriptor for PreviewsScenes.Document.events.getter : PreviewsFoundationHost.EventStream<PreviewsScenes.DocumentEvent<A.Location>>
+        0x000957B8  nominal type descriptor for PreviewsScenes.WorkspaceScene
+        0x0009580C  method descriptor for PreviewsScenes.WorkspaceScene.__allocating_init(analyticsLogger: PreviewsFoundationHost.AnalyticsLogger, previewService: PreviewsPipeline.PreviewService, canvasRegistryHandlers: [PreviewsScenes.CanvasRegistryHandler], canvasRegistryTypeMap: PreviewsModel.RegistryTypeMap, registryTypeMap: PreviewsModel.RegistryTypeMap) -> PreviewsScenes.WorkspaceScene<A>
+        0x00095814  nominal type descriptor for PreviewsScenes.WorkspaceScene.Event
+        0x000958C8  nominal type descriptor for PreviewsScenes.ColorNames
+        0x000958E4  nominal type descriptor for PreviewsScenes.RegistryIconSpecification
+        0x00095900  protocol descriptor for PreviewsScenes.CanvasRegistryHandler
+        0x00095928  protocol requirements base descriptor for PreviewsScenes.CanvasRegistryHandler
+        0x00095930  associated conformance descriptor for PreviewsScenes.CanvasRegistryHandler.PreviewsScenes.CanvasRegistryHandler.R: PreviewsPipeline.RegistryProtocol
+        0x00095938  associated conformance descriptor for PreviewsScenes.CanvasRegistryHandler.PreviewsScenes.CanvasRegistryHandler.ViewProvider: PreviewsScenes.RegistryViewProvider
+        0x00095940  associated type descriptor for PreviewsScenes.CanvasRegistryHandler.R
+        0x00095948  associated type descriptor for PreviewsScenes.CanvasRegistryHandler.ViewProvider
+        0x00095950  method descriptor for PreviewsScenes.CanvasRegistryHandler.tabIcon.getter : PreviewsScenes.RegistryIconSpecification
+        0x00095958  method descriptor for PreviewsScenes.CanvasRegistryHandler.contentName.getter : Swift.String
+        0x00095960  method descriptor for PreviewsScenes.CanvasRegistryHandler.contentNamePlural.getter : Swift.String
+        0x00095968  method descriptor for PreviewsScenes.CanvasRegistryHandler.viewProvider(updates: Swift.AsyncStream<PreviewsScenes.ViewProviderUpdate<A.R>>) -> A.ViewProvider
+        0x00095970  nominal type descriptor for PreviewsScenes.ViewProviderUpdate
+        0x000959AC  protocol descriptor for PreviewsScenes.RegistryViewProvider
+        0x000959D4  protocol requirements base descriptor for PreviewsScenes.RegistryViewProvider
+        0x000959DC  base conformance descriptor for PreviewsScenes.RegistryViewProvider: Swift.Identifiable
+        0x000959E4  associated conformance descriptor for PreviewsScenes.RegistryViewProvider.PreviewsScenes.RegistryViewProvider.V: SwiftUI.View
+        0x000959EC  associated type descriptor for PreviewsScenes.RegistryViewProvider.V
+        0x000959F4  method descriptor for PreviewsScenes.RegistryViewProvider.makeView() -> A.V
+        0x00095A74  nominal type descriptor for PreviewsScenes.RegistryObservationEvent
+        0x00095AB0  nominal type descriptor for PreviewsScenes.RegistryObservationEvent.TranslationUnitRecord
+        0x00095AEC  nominal type descriptor for PreviewsScenes.RegistryObservationEvent.TranslationUnitRecord.State
+        0x00095B28  nominal type descriptor for PreviewsScenes.RegistryObservationEvent.RegistryRecord
+        0x00095B64  nominal type descriptor for PreviewsScenes.RegistryObservationEvent.RegistryRecord.State
+        0x00095BA0  nominal type descriptor for PreviewsScenes.VoiceOverMessage
+        0x00095C18  nominal type descriptor for PreviewsScenes.EditorSceneCrash
+        0x00095CB8  nominal type descriptor for (extension in PreviewsScenes):PreviewsUI.DisplayableContent.Collector
+        0x00095D24  protocol descriptor for PreviewsScenes.RegistryObserving
+        0x00095D40  protocol requirements base descriptor for PreviewsScenes.RegistryObserving
+        0x00095D48  base conformance descriptor for PreviewsScenes.RegistryObserving: PreviewsFoundationHost.ConcurrentInvalidatable
+        0x00095D50  method descriptor for PreviewsScenes.RegistryObserving.update(for: [(Foundation.URL, PreviewsModel.Parsable<PreviewsPipeline.PreviewTranslationUnit>)]) -> ()
+        0x00095D58  method descriptor for PreviewsScenes.RegistryObserving.preflightRequest.getter : PreviewsPipeline.RegistryPreflightRequest
+        0x00095D60  nominal type descriptor for PreviewsScenes.RegistryObserver
+        0x00095DFC  method descriptor for PreviewsScenes.RegistryObserver.__allocating_init(continuation: Swift.AsyncStream<PreviewsScenes.RegistryObservationEvent<A>>.Continuation, previewService: PreviewsPipeline.PreviewService, sidecarIdentifiers: Swift.Set<Foundation.UUID>) -> PreviewsScenes.RegistryObserver<A>
+        0x00095E04  method descriptor for PreviewsScenes.RegistryObserver.update(for: [(Foundation.URL, PreviewsModel.Parsable<PreviewsPipeline.PreviewTranslationUnit>)]) -> ()
+        0x00095E0C  method descriptor for PreviewsScenes.RegistryObserver.preflightRequest.getter : PreviewsPipeline.RegistryPreflightRequest
+        0x00095E44  nominal type descriptor for PreviewsScenes.SourceCodeDocumentStore
+        0x00095E84  method descriptor for PreviewsScenes.SourceCodeDocumentStore.__allocating_init(dataSource: SourceEditor.SourceEditorDataSource, document: PreviewsModel.AnySourceCodeDocument, registryTypeMap: PreviewsModel.RegistryTypeMap) -> PreviewsScenes.SourceCodeDocumentStore
+        0x00095E8C  nominal type descriptor for PreviewsScenes.EditorScene
+        0x00095EE8  nominal type descriptor for PreviewsScenes.EditorScene.Event
+        0x00095F24  nominal type descriptor for PreviewsScenes.EditorScene.Event.Discriminant
+        0x00095FEC  nominal type descriptor for PreviewsScenes.CanvasControlsManager
+        0x0009602C  method descriptor for PreviewsScenes.CanvasControlsManager.__allocating_init(previewService: PreviewsPipeline.PreviewService, editorSettingsRelay: PreviewsPipeline.EditorSettingsRelay) -> PreviewsScenes.CanvasControlsManager
+        0x00096034  nominal type descriptor for PreviewsScenes.EditorScene.StressCyclingSession
+        0x00096090  nominal type descriptor for PreviewsScenes.EditorScene.StressCyclingSession.RunningMode
+        0x000960CC  nominal type descriptor for PreviewsScenes.EditorScene.StressCyclingSession.UpdateRecord
+        0x00096108  nominal type descriptor for PreviewsScenes.EditorScene.StressCyclingSession.OutcomeRecord
+        0x00096144  nominal type descriptor for PreviewsScenes.RegistryDetectionEvent
+        0x00096180  nominal type descriptor for PreviewsScenes.RegistryDetectionEvent.Record
+        0x000961BC  nominal type descriptor for PreviewsScenes.RegistryDetectionEvent.Record.State
+        0x000961F8  protocol descriptor for PreviewsScenes.CanvasControlModel
+        0x00096220  protocol requirements base descriptor for PreviewsScenes.CanvasControlModel
+        0x00096228  associated conformance descriptor for PreviewsScenes.CanvasControlModel.PreviewsScenes.CanvasControlModel.State: PreviewsFoundationHost.PropertyListRepresentable
+        0x00096230  associated conformance descriptor for PreviewsScenes.CanvasControlModel.PreviewsScenes.CanvasControlModel.State: Swift.Hashable
+        0x00096238  associated type descriptor for PreviewsScenes.CanvasControlModel.State
+        0x00096240  method descriptor for PreviewsScenes.CanvasControlModel.encode(A.State) -> PreviewsMessagingHost.PlistValueBox
+        0x00096248  method descriptor for PreviewsScenes.CanvasControlModel.decode(PreviewsMessagingHost.PlistValueBox) throws -> A.State
+        0x00096250  method descriptor for PreviewsScenes.CanvasControlModel.fallbackState.getter : A.State
+        0x00096258  method descriptor for PreviewsScenes.CanvasControlModel.controlIndex.getter : Swift.Int
+        0x00096260  method descriptor for PreviewsScenes.CanvasControlModel.shouldBeVisible.getter : Swift.Bool
+        0x00096268  method descriptor for PreviewsScenes.CanvasControlModel.canUseMessageStream.getter : Swift.Bool
+        0x00096270  nominal type descriptor for PreviewsScenes.TimelineCanvasControlModel
+        0x00096298  nominal type descriptor for PreviewsScenes.GridCanvasControlModel
+        0x000962C0  nominal type descriptor for PreviewsScenes.ToggleButtonCanvasControlModel
+        0x000962E8  nominal type descriptor for PreviewsScenes.PreviewRemoteEventsManager
+        0x0009631C  method descriptor for PreviewsScenes.PreviewRemoteEventsManager.__allocating_init(previewService: PreviewsPipeline.PreviewService) -> PreviewsScenes.PreviewRemoteEventsManager
+        0x00096324  nominal type descriptor for PreviewsScenes.PreviewRemoteEventsListener
+        0x000963F8  protocol descriptor for PreviewsScenes.RegistryActivating
+        0x00096414  protocol requirements base descriptor for PreviewsScenes.RegistryActivating
+        0x0009641C  associated conformance descriptor for PreviewsScenes.RegistryActivating.PreviewsScenes.RegistryActivating.R: PreviewsPipeline.RegistryProtocol
+        0x00096424  associated type descriptor for PreviewsScenes.RegistryActivating.R
+        0x0009642C  method descriptor for PreviewsScenes.RegistryActivating.activate(file: Swift.StaticString, line: Swift.UInt, column: Swift.UInt, function: Swift.StaticString) throws -> PreviewsPipeline.ActivationHandle<PreviewsPipeline.RegistryExecutionPoint<A.R>>
+        0x000A31C8  property descriptor for PreviewsScenes.PreviewControlsManagerWrapper.underlying : PreviewsScenes.PreviewControlsManager?
+        0x000A31D8  property descriptor for PreviewsScenes.PreviewControlsManager.previewID : PreviewsPipeline.PreviewInstance.ID
+        0x000A31E0  property descriptor for PreviewsScenes.PreviewControlsManager.activeUpdate : PreviewsScenes.PreviewControlsManager.ActiveUpdate?
+        0x000A31F0  property descriptor for PreviewsScenes.PreviewControlsManager.ThumbnailEntry.thumbnail : __C.CGImageRef?
+        0x000A3200  property descriptor for PreviewsScenes.PreviewControlsManager.ThumbnailEntry.$thumbnail : Combine.Published<__C.CGImageRef?>.Publisher
+        0x000A3210  property descriptor for PreviewsScenes.PreviewControlsManager.ThumbnailEntry.geometry : PreviewsMessagingHost.ThumbnailGeometry?
+        0x000A3220  property descriptor for PreviewsScenes.PreviewControlsManager.ThumbnailEntry.$geometry : Combine.Published<PreviewsMessagingHost.ThumbnailGeometry?>.Publisher
+        0x000A3230  property descriptor for PreviewsScenes.PreviewControlsManager.ThumbnailEntry.viewable : PreviewsPipeline.PreviewViewable?
+        0x000A3240  property descriptor for PreviewsScenes.PreviewControlsManager.ThumbnailEntry.$viewable : Combine.Published<PreviewsPipeline.PreviewViewable?>.Publisher
+        0x000A3758  property descriptor for PreviewsScenes.WorkspaceScene.analyticsLogger : PreviewsFoundationHost.AnalyticsLogger
+        0x000A3774  property descriptor for PreviewsScenes.WorkspaceScene.canvasDiagnosticsProvider : (PreviewsFoundationHost.DiagnosticsCollector) async -> ()
+        0x000A3790  property descriptor for PreviewsScenes.WorkspaceScene.canvasUpdateTimingRecordIDsProvider : () -> [PreviewsFoundationHost.TimingRecord.ID]
+        0x000A37AC  property descriptor for PreviewsScenes.WorkspaceScene.defaultPreviewSettings : PreviewsPipeline.PreviewSettings
+        0x000A37C8  property descriptor for PreviewsScenes.WorkspaceScene.allThunkingDisabled : Swift.Bool
+        0x000A37D0  property descriptor for PreviewsScenes.WorkspaceScene.isViewSelectionEnabled : Swift.Bool
+        0x000A37EC  property descriptor for PreviewsScenes.WorkspaceScene.colorNames : PreviewsScenes.ColorNames?
+        0x000A3808  property descriptor for PreviewsScenes.WorkspaceScene.buildEnvironmentError : PreviewsFoundationHost.HumanReadableError?
+        0x000A3824  property descriptor for PreviewsScenes.WorkspaceScene.delegateQueryManager : PreviewsFoundationHost.QueryManager?
+        0x000A3CC8  type metadata for PreviewsScenes.ColorNames
+        0x000A3D60  type metadata for PreviewsScenes.RegistryIconSpecification
+        0x000A4188  type metadata for PreviewsScenes.VoiceOverMessage
+        0x000A44E0  property descriptor for (extension in PreviewsScenes):PreviewsUI.DisplayableContent.Collector.displayableContent : PreviewsUI.DisplayableContent
+        0x000A4D10  property descriptor for PreviewsScenes.EditorScene.additionalQueryResolvers : [PreviewsFoundationHost.QueryResolver]
+        0x000A4D2C  property descriptor for PreviewsScenes.EditorScene.additionalDiagnostics : ((PreviewsFoundationHost.DiagnosticsCollector) -> ())?
+        0x000A4D48  property descriptor for PreviewsScenes.EditorScene.documents : [any PreviewsScenes.Document<A.Location == A.Location>]
+        0x000A5518  property descriptor for PreviewsScenes.EditorScene.StressCyclingSession.uiState : PreviewsUI.CanvasMetricsModel
+        0x000A5AA0  property descriptor for PreviewsScenes.PreviewRemoteEventsListener.currentCrashReport : PreviewsFoundationHost.CrashReport?
+        0x000A5AA8  property descriptor for PreviewsScenes.PreviewRemoteEventsListener.crashHandler : ((PreviewsFoundationHost.CrashReport) -> ())?
+        0x000A9A20  metaclass for PreviewsScenes.PreviewControlsManagerWrapper
+        0x000A9A70  type metadata for PreviewsScenes.PreviewControlsManagerWrapper
+        0x000A9AD8  metaclass for PreviewsScenes.PreviewControlsManager
+        0x000A9B30  type metadata for PreviewsScenes.PreviewControlsManager
+        0x000A9C48  type metadata for PreviewsScenes.PreviewControlsManager.ActiveUpdate
+        0x000A9D18  type metadata for PreviewsScenes.PreviewControlsManager.ActiveUpdate.Kind
+        0x000A9DB8  metaclass for PreviewsScenes.PreviewControlsManager.ThumbnailEntry
+        0x000A9E28  type metadata for PreviewsScenes.PreviewControlsManager.ThumbnailEntry
+        0x000AA9B8  type metadata for PreviewsScenes.EditorSceneCrash
+        0x000AABB8  metaclass for (extension in PreviewsScenes):PreviewsUI.DisplayableContent.Collector
+        0x000AAC68  type metadata for (extension in PreviewsScenes):PreviewsUI.DisplayableContent.Collector
+        0x000AB360  metaclass for PreviewsScenes.SourceCodeDocumentStore
+        0x000AB3D0  type metadata for PreviewsScenes.SourceCodeDocumentStore
+        0x000AB8F0  metaclass for PreviewsScenes.CanvasControlsManager
+        0x000AB940  type metadata for PreviewsScenes.CanvasControlsManager
+        0x000ABE08  protocol witness table for PreviewsScenes.TimelineCanvasControlModel : PreviewsScenes.CanvasControlModel in PreviewsScenes
+        0x000ABE58  protocol witness table for PreviewsScenes.GridCanvasControlModel : PreviewsScenes.CanvasControlModel in PreviewsScenes
+        0x000ABEA8  protocol witness table for PreviewsScenes.ToggleButtonCanvasControlModel : PreviewsScenes.CanvasControlModel in PreviewsScenes
+        0x000ABF78  type metadata for PreviewsScenes.TimelineCanvasControlModel
+        0x000AC018  type metadata for PreviewsScenes.GridCanvasControlModel
+        0x000AC0B0  type metadata for PreviewsScenes.ToggleButtonCanvasControlModel
+        0x000AC110  metaclass for PreviewsScenes.PreviewRemoteEventsManager
+        0x000AC150  type metadata for PreviewsScenes.PreviewRemoteEventsManager
+        0x000AC1C0  metaclass for PreviewsScenes.PreviewRemoteEventsListener
+        0x000AC210  type metadata for PreviewsScenes.PreviewRemoteEventsListener
+        offset      symbol
+    -exports:
+/Applications/Xcode-26.2.0.app/Contents/SharedFrameworks/PreviewsScenes.framework/Versions/A/PreviewsScenes [arm64]:

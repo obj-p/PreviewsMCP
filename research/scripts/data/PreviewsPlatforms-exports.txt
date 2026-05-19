@@ -1,0 +1,510 @@
+        0x00001568  PreviewsPlatforms.AppExtension.Kind.init(rawValue: Swift.String) -> PreviewsPlatforms.AppExtension.Kind?
+        0x00001640  PreviewsPlatforms.AppExtension.Kind.processType.getter : PreviewsMessagingHost.ProcessType
+        0x00001694  PreviewsPlatforms.AppExtension.Kind.name.getter : Swift.String
+        0x000016CC  PreviewsPlatforms.AppExtension.Kind.rawValue.getter : Swift.String
+        0x00001A10  PreviewsPlatforms.AppExtension.bundleIdentifier.getter : Swift.String
+        0x00001A3C  PreviewsPlatforms.AppExtension.displayName.getter : Swift.String
+        0x00001A68  PreviewsPlatforms.AppExtension.kind.getter : PreviewsPlatforms.AppExtension.Kind
+        0x00001A70  PreviewsPlatforms.AppExtension.signingInformation.getter : PreviewsPipeline.CodeSigningInformation?
+        0x00001AA0  PreviewsPlatforms.AppExtension.init(bundleIdentifier: Swift.String, displayName: Swift.String, signingInformation: PreviewsPipeline.CodeSigningInformation?, kind: PreviewsPlatforms.AppExtension.Kind) -> PreviewsPlatforms.AppExtension
+        0x00001AF4  static PreviewsPlatforms.AppExtension.== infix(PreviewsPlatforms.AppExtension, PreviewsPlatforms.AppExtension) -> Swift.Bool
+        0x00001AF8  type metadata accessor for PreviewsPlatforms.AppExtension
+        0x00001C14  PreviewsPlatforms.AppExtension.hash(into: inout Swift.Hasher) -> ()
+        0x00001DC4  PreviewsPlatforms.AppExtension.hashValue.getter : Swift.Int
+        0x00002AF8  PreviewsPlatforms.RemoteAgentUpdater.stopObservingForInterruption() -> ()
+        0x00002AF8  PreviewsPlatforms.UnsupportedShellRequestInterface.init() -> PreviewsPlatforms.UnsupportedShellRequestInterface
+        0x00002B08  type metadata accessor for PreviewsPlatforms.AppExtension.Kind
+        0x00002CD0  PreviewsPlatforms.PreviewProductTransferStore.init(destinationDescription: Swift.String) -> PreviewsPlatforms.PreviewProductTransferStore
+        0x00002ED0  PreviewsPlatforms.PreviewProductTransferStore.transfer(products: [PreviewsPipeline.PreviewProduct], using: PreviewsPlatforms.PreviewProductTransferrer, installSeed: PreviewsPipeline.PreviewAgentInstallSeed?) -> PreviewsFoundationHost.Future<[(PreviewsPipeline.PreviewProduct, wasTransferred: Swift.Bool)]>
+        0x00007E1C  (extension in PreviewsPlatforms):PreviewsPipeline.PreviewAgentBundle.Agent.idAcrossRelaunches.getter : Swift.String
+        0x000082D0  dispatch thunk of PreviewsPlatforms.PreviewProductTransferrer.transfer(product: PreviewsPipeline.PreviewProduct.PreLinked) throws -> PreviewsFoundationHost.Future<Foundation.URL>
+        0x000082E8  dispatch thunk of PreviewsPlatforms.PreviewProductTransferrer.transfer(product: PreviewsPipeline.PreviewProduct.RuntimeLinked) throws -> PreviewsFoundationHost.Future<[Swift.String : Foundation.URL]>
+        0x00008300  dispatch thunk of PreviewsPlatforms.PreviewProductTransferrer.agentBundleID.getter : Swift.String
+        0x00008300  dispatch thunk of PreviewsPlatforms.ProcessExitInterface.stop() -> ()
+        0x00008300  dispatch thunk of PreviewsPlatforms.ShellRequest.message.getter : PreviewsMessagingHost.ServiceMessage.Content
+        0x0000850C  type metadata accessor for PreviewsPlatforms.PreviewProductTransferStore
+        0x0000A620  PreviewsPlatforms.AgentStreamFactory.__allocating_init(makeTransport: @Sendable () async throws -> PreviewsMessagingHost.Transport) -> PreviewsPlatforms.AgentStreamFactory
+        0x0000A6A0  PreviewsPlatforms.AgentStreamFactory.init(makeTransport: @Sendable () async throws -> PreviewsMessagingHost.Transport) -> PreviewsPlatforms.AgentStreamFactory
+        0x0000A714  PreviewsPlatforms.AgentStreamFactory.handle(_: [PreviewsPipeline.AgentMessageStreamSource.Request], for: Swift.Int32) -> ()
+        0x0000AB14  PreviewsPlatforms.AgentStreamFactory.handle(_: PreviewsPipeline.AgentMessageStreamSource.Request, for: Swift.Int32) -> ()
+        0x0000BBE4  PreviewsPlatforms.AgentStreamFactory.makePerUpdateMessageStream(for: PreviewsMessagingHost.ContentIdentifier, updateSeed: PreviewsMessagingHost.HostUpdateSeed, updatePid: Swift.Int32, instance: PreviewsMessagingHost.MessageStreamInstanceIdentifier) async throws -> PreviewsMessagingHost.MessageStream
+        0x0000C07C  PreviewsPlatforms.AgentStreamFactory.deinit
+        0x0000C0CC  PreviewsPlatforms.AgentStreamFactory.__deallocating_deinit
+        0x0000C1F4  type metadata accessor for PreviewsPlatforms.AgentStreamFactory
+        0x0000C2A4  method lookup function for PreviewsPlatforms.AgentStreamFactory
+        0x0000C2B0  dispatch thunk of PreviewsPlatforms.AgentStreamFactory.__allocating_init(makeTransport: @Sendable () async throws -> PreviewsMessagingHost.Transport) -> PreviewsPlatforms.AgentStreamFactory
+        0x0000C640  static (extension in PreviewsPlatforms):PreviewsPipeline.Platform.watchOSDevice.getter : PreviewsPipeline.Platform
+        0x0000C824  static PreviewsPlatforms.PreviewProcessEnvironmentHandler.effectiveEnvironment(from: [Swift.String : Swift.String]) -> [Swift.String : Swift.String]
+        0x0000CD64  type metadata accessor for PreviewsPlatforms.PreviewProcessEnvironmentHandler
+        0x0000CDBC  (extension in PreviewsPlatforms):PreviewsMessagingHost.DaemonConnection< where A == PreviewsPlatforms.DaemonClientRole>._primitiveSend(serviceMessage: PreviewsMessagingHost.ServiceMessage, reply: PreviewsMessagingHost.TransportReply) -> ()
+        0x0000D0A0  PreviewsPlatforms.PreviewsDaemonInterfaceConnector.__allocating_init(variant: PreviewsServices.PreviewsService.Variant, supportsCapabilities: Swift.Bool, makeTransferInterface: @Sendable (PreviewsMessagingHost.OSCapabilities) -> PreviewsPlatforms.TransferInterface) -> PreviewsPlatforms.PreviewsDaemonInterfaceConnector
+        0x0000DC9C  PreviewsPlatforms.PreviewsDaemonInterfaceConnector.__allocating_init(supportsCapabilities: Swift.Bool, makeTransferInterface: @Sendable (PreviewsMessagingHost.OSCapabilities) -> PreviewsPlatforms.TransferInterface) -> PreviewsPlatforms.PreviewsDaemonInterfaceConnector
+        0x0000E2A8  PreviewsPlatforms.PreviewsDaemonInterfaceConnector.makeInterface(callsite: PreviewsFoundationHost.Callsite) async throws -> PreviewsPlatforms.DestinationInterface
+        0x0000EDAC  PreviewsPlatforms.PreviewsDaemonInterfaceConnector.capabilities.getter : PreviewsMessagingHost.OSCapabilities
+        0x0000F688  PreviewsPlatforms.PreviewsDaemonInterfaceConnector.makeAgentMessagePipeTransport() async throws -> PreviewsMessagingHost.Transport
+        0x0000F74C  PreviewsPlatforms.PreviewsDaemonInterfaceConnector.makeShellMessagePipeTransport() async throws -> PreviewsMessagingHost.Transport
+        0x0000F7D0  PreviewsPlatforms.PreviewsDaemonInterfaceConnector.invalidate() async -> ()
+        0x0000FD28  PreviewsPlatforms.PreviewsDaemonInterfaceConnector.deinit
+        0x0000FDC0  PreviewsPlatforms.PreviewsDaemonInterfaceConnector.__deallocating_deinit
+        0x00010B80  type metadata accessor for PreviewsPlatforms.PreviewsDaemonInterfaceConnector
+        0x00010C58  method lookup function for PreviewsPlatforms.PreviewsDaemonInterfaceConnector
+        0x000117F4  PreviewsPlatforms.ProcessObserver.invalidationHandle.getter : PreviewsFoundationHost.ConcurrentInvalidationHandle
+        0x000117FC  PreviewsPlatforms.ProcessObserver.__allocating_init(interface: PreviewsPlatforms.ProcessExitInterface) async -> PreviewsPlatforms.ProcessObserver
+        0x00011938  PreviewsPlatforms.ProcessObserver.init(interface: PreviewsPlatforms.ProcessExitInterface) async -> PreviewsPlatforms.ProcessObserver
+        0x000127F0  PreviewsPlatforms.ProcessObserver.deinit
+        0x0001282C  PreviewsPlatforms.ProcessObserver.__deallocating_deinit
+        0x00012868  PreviewsPlatforms.FrameworkAgentPool.unownedExecutor.getter : Swift.UnownedSerialExecutor
+        0x00012868  PreviewsPlatforms.ProcessObserver.unownedExecutor.getter : Swift.UnownedSerialExecutor
+        0x00013374  type metadata accessor for PreviewsPlatforms.ProcessObserver
+        0x000133EC  method lookup function for PreviewsPlatforms.ProcessObserver
+        0x000133F8  dispatch thunk of PreviewsPlatforms.ProcessObserver.__allocating_init(interface: PreviewsPlatforms.ProcessExitInterface) async -> PreviewsPlatforms.ProcessObserver
+        0x000134A0  dispatch thunk of PreviewsPlatforms.ProcessObserver.exit(of: Swift.Int32) async throws -> ()
+        0x000135B0  static (extension in PreviewsPlatforms):PreviewsMessagingHost.DaemonConnection< where A == PreviewsPlatforms.DaemonClientRole>.createActivated(for: PreviewsServices.PreviewsService) async throws -> PreviewsMessagingHost.DaemonConnection<PreviewsPlatforms.DaemonClientRole>
+        0x00013610  (extension in PreviewsPlatforms):PreviewsMessagingHost.DaemonConnection< where A == PreviewsPlatforms.DaemonClientRole>.init(for: PreviewsServices.PreviewsService) -> PreviewsMessagingHost.DaemonConnection<PreviewsPlatforms.DaemonClientRole>
+        0x000137B4  static (extension in PreviewsPlatforms):PreviewsMessagingHost.DaemonConnection< where A == PreviewsPlatforms.DaemonClientRole>.createActivated(forLegacyService: PreviewsServices.PreviewsServiceConnection.Service) async throws -> PreviewsMessagingHost.DaemonConnection<PreviewsPlatforms.DaemonClientRole>
+        0x00013860  (extension in PreviewsPlatforms):PreviewsMessagingHost.DaemonConnection< where A == PreviewsPlatforms.DaemonClientRole>.init(forLegacyService: PreviewsServices.PreviewsServiceConnection.Service) -> PreviewsMessagingHost.DaemonConnection<PreviewsPlatforms.DaemonClientRole>
+        0x000139F8  static PreviewsPlatforms.DaemonClientRole.description.getter : Swift.String
+        0x00013A0C  PreviewsPlatforms.DaemonClientRole.interruptions.getter : Swift.AsyncStream<()>
+        0x00013AC4  PreviewsPlatforms.DaemonClientRole.handleInvalidation() -> ()
+        0x00013B74  static (extension in PreviewsPlatforms):PreviewsMessagingHost.DaemonConnection< where A == PreviewsPlatforms.DaemonClientRole>.createActivated(hostToSimConnection: __C.OS_xpc_object, serviceName: Swift.String) async throws -> PreviewsMessagingHost.DaemonConnection<PreviewsPlatforms.DaemonClientRole>
+        0x00013E14  (extension in PreviewsPlatforms):PreviewsMessagingHost.DaemonConnection< where A == PreviewsPlatforms.DaemonClientRole>.init(hostToSimConnection: __C.OS_xpc_object, serviceName: Swift.String) -> PreviewsMessagingHost.DaemonConnection<PreviewsPlatforms.DaemonClientRole>
+        0x00014558  type metadata accessor for PreviewsPlatforms.DaemonClientRole
+        0x000149C0  static (extension in PreviewsPlatforms):PreviewsPipeline.Platform.tvOSSimulator.getter : PreviewsPipeline.Platform
+        0x00014BC0  PreviewsPlatforms.RemoteAgentUpdater.invalidationHandle.getter : PreviewsFoundationHost.InvalidationHandle
+        0x00014BC0  PreviewsPlatforms.RemotePreviewAgent.invalidationHandle.getter : PreviewsFoundationHost.ConcurrentInvalidationHandle
+        0x00014BC8  PreviewsPlatforms.RemoteAgentUpdater.agentBundle.getter : PreviewsPipeline.PreviewAgentBundle
+        0x00014BDC  PreviewsPlatforms.RemoteAgentUpdater.supportsOnDevice.getter : Swift.Bool
+        0x00014BEC  PreviewsPlatforms.RemoteAgentUpdater.wasUsed.getter : PreviewsFoundationHost.SingleFireEvent
+        0x00014BFC  PreviewsPlatforms.RemoteAgentUpdater.wasTornDown.getter : PreviewsFoundationHost.SingleFireEvent
+        0x00014C0C  PreviewsPlatforms.RemoteAgentUpdater.wasRelinquished.getter : PreviewsFoundationHost.EventStream<()>.Sink
+        0x00014C1C  PreviewsPlatforms.RemoteAgentUpdater.identifier.getter : PreviewsFoundationHost.Identifier
+        0x00014C74  PreviewsPlatforms.RemoteAgentUpdater.pid.getter : Swift.Int32
+        0x00014C84  PreviewsPlatforms.RemoteAgentUpdater.describe(with: inout [PreviewsFoundationHost.StructuredDescriptionBuildAction]) -> ()
+        0x00015034  PreviewsPlatforms.RemoteAgentUpdater.__allocating_init<A where A: PreviewsPipeline.PreviewDestination>(agent: (extension in PreviewsPlatforms):PreviewsPipeline.PreviewAgentBundle.Agent, installSeed: PreviewsPipeline.PreviewAgentInstallSeed, agentBundle: PreviewsPipeline.PreviewAgentBundle, destination: A, destinationParameters: A.UpdaterParameters, interface: PreviewsPlatforms.DestinationInterface, platformContext: PreviewsPipeline.PlatformPreviewUpdateContext, transferStore: PreviewsPlatforms.PreviewProductTransferStore, workspaceIdentifier: PreviewsModel.WorkspaceIdentifier, timeoutGroup: PreviewsPipeline.UpdateTimeoutGroup, supportsOnDevice: Swift.Bool, identifier: PreviewsFoundationHost.Identifier) -> PreviewsPlatforms.RemoteAgentUpdater
+        0x00015138  PreviewsPlatforms.RemoteAgentUpdater.init<A where A: PreviewsPipeline.PreviewDestination>(agent: (extension in PreviewsPlatforms):PreviewsPipeline.PreviewAgentBundle.Agent, installSeed: PreviewsPipeline.PreviewAgentInstallSeed, agentBundle: PreviewsPipeline.PreviewAgentBundle, destination: A, destinationParameters: A.UpdaterParameters, interface: PreviewsPlatforms.DestinationInterface, platformContext: PreviewsPipeline.PlatformPreviewUpdateContext, transferStore: PreviewsPlatforms.PreviewProductTransferStore, workspaceIdentifier: PreviewsModel.WorkspaceIdentifier, timeoutGroup: PreviewsPipeline.UpdateTimeoutGroup, supportsOnDevice: Swift.Bool, identifier: PreviewsFoundationHost.Identifier) -> PreviewsPlatforms.RemoteAgentUpdater
+        0x00015774  PreviewsPlatforms.RemoteAgentUpdater.update(executionPoint: PreviewsPipeline.AnyExecutionPoint, in: PreviewsModel.WorkspaceIdentifier, sessionID: PreviewsFoundationHost.Identifier, products: PreviewsPipeline.ProductLoadingParameters, incrementalUpdates: [PreviewsPipeline.SourcedIncrementalUpdate]) -> PreviewsFoundationHost.Future<PreviewsPipeline.ExecutionPointUpdate<PreviewsPipeline.AnyExecutionPoint.Output>>
+        0x00017328  PreviewsPlatforms.RemoteAgentUpdater.applyIncrementalUpdates(_: [PreviewsPipeline.SourcedIncrementalUpdate], for: PreviewsPipeline.AnyExecutionPoint, in: PreviewsModel.WorkspaceIdentifier, sessionID: PreviewsFoundationHost.Identifier, products: PreviewsPipeline.ProductLoadingParameters) -> PreviewsFoundationHost.Future<PreviewsPipeline.ExecutionPointUpdate<PreviewsPipeline.AnyExecutionPoint.Output>>
+        0x00018438  PreviewsPlatforms.RemoteAgentUpdater.stop() -> ()
+        0x000185B4  PreviewsPlatforms.RemoteAgentUpdater.kill() -> ()
+        0x00018FD0  PreviewsPlatforms.RemoteAgentUpdater.deinit
+        0x000191B4  PreviewsPlatforms.RemoteAgentUpdater.__deallocating_deinit
+        0x00019300  PreviewsPlatforms.RemoteAgentUpdater.startObservingForInterruption() -> ()
+        0x00019380  PreviewsPlatforms.RemoteAgentUpdater.primitiveTeardown() -> ()
+        0x0001A3C8  type metadata accessor for PreviewsPlatforms.RemoteAgentUpdater
+        0x0001A884  method lookup function for PreviewsPlatforms.RemoteAgentUpdater
+        0x0001A890  dispatch thunk of PreviewsPlatforms.RemoteAgentUpdater.__allocating_init<A where A: PreviewsPipeline.PreviewDestination>(agent: (extension in PreviewsPlatforms):PreviewsPipeline.PreviewAgentBundle.Agent, installSeed: PreviewsPipeline.PreviewAgentInstallSeed, agentBundle: PreviewsPipeline.PreviewAgentBundle, destination: A, destinationParameters: A.UpdaterParameters, interface: PreviewsPlatforms.DestinationInterface, platformContext: PreviewsPipeline.PlatformPreviewUpdateContext, transferStore: PreviewsPlatforms.PreviewProductTransferStore, workspaceIdentifier: PreviewsModel.WorkspaceIdentifier, timeoutGroup: PreviewsPipeline.UpdateTimeoutGroup, supportsOnDevice: Swift.Bool, identifier: PreviewsFoundationHost.Identifier) -> PreviewsPlatforms.RemoteAgentUpdater
+        0x0001B544  PreviewsPlatforms.RemotePreviewAgent.identifier.getter : PreviewsPipeline.PreviewAgentIdentifier
+        0x0001B558  PreviewsPlatforms.RemotePreviewAgent.agentBundle.getter : PreviewsPipeline.PreviewAgentBundle
+        0x0001B56C  PreviewsPlatforms.RemotePreviewAgent.agentStreamFactory.getter : PreviewsPlatforms.AgentStreamFactory?
+        0x0001B57C  PreviewsPlatforms.RemotePreviewAgent.pid.getter : Swift.Int32
+        0x0001B58C  PreviewsPlatforms.RemotePreviewAgent.describe(with: inout [PreviewsFoundationHost.StructuredDescriptionBuildAction]) -> ()
+        0x0001B8F8  PreviewsPlatforms.RemotePreviewAgent.__allocating_init<A where A: PreviewsPipeline.PreviewDestination>(identifier: PreviewsPipeline.PreviewAgentIdentifier, agent: (extension in PreviewsPlatforms):PreviewsPipeline.PreviewAgentBundle.Agent, installSeed: PreviewsPipeline.PreviewAgentInstallSeed, agentBundle: PreviewsPipeline.PreviewAgentBundle, agentStreamFactory: PreviewsPlatforms.AgentStreamFactory?, destination: A, destinationParameters: A.UpdaterParameters, interface: PreviewsPlatforms.DestinationInterface, platformContext: PreviewsPipeline.PlatformPreviewUpdateContext, transferStore: PreviewsPlatforms.PreviewProductTransferStore, workspaceIdentifier: PreviewsModel.WorkspaceIdentifier, timeoutGroup: PreviewsPipeline.UpdateTimeoutGroup) -> PreviewsPlatforms.RemotePreviewAgent
+        0x0001BA10  PreviewsPlatforms.RemotePreviewAgent.init<A where A: PreviewsPipeline.PreviewDestination>(identifier: PreviewsPipeline.PreviewAgentIdentifier, agent: (extension in PreviewsPlatforms):PreviewsPipeline.PreviewAgentBundle.Agent, installSeed: PreviewsPipeline.PreviewAgentInstallSeed, agentBundle: PreviewsPipeline.PreviewAgentBundle, agentStreamFactory: PreviewsPlatforms.AgentStreamFactory?, destination: A, destinationParameters: A.UpdaterParameters, interface: PreviewsPlatforms.DestinationInterface, platformContext: PreviewsPipeline.PlatformPreviewUpdateContext, transferStore: PreviewsPlatforms.PreviewProductTransferStore, workspaceIdentifier: PreviewsModel.WorkspaceIdentifier, timeoutGroup: PreviewsPipeline.UpdateTimeoutGroup) -> PreviewsPlatforms.RemotePreviewAgent
+        0x0001C134  PreviewsPlatforms.RemotePreviewAgent.run(executionPoint: PreviewsPipeline.AnyExecutionPoint, in: PreviewsPipeline.GroupIdentifier, with: PreviewsPipeline.UpdatePassCapabilities, workspace: PreviewsModel.WorkspaceIdentifier, products: PreviewsPipeline.ProductLoadingParameters, incrementalUpdates: [PreviewsPipeline.SourcedIncrementalUpdate]) async throws -> PreviewsPipeline.ExecutionPointUpdate<PreviewsPipeline.AnyExecutionPoint.Output>
+        0x0001E738  PreviewsPlatforms.RemotePreviewAgent.stopRunning(executionPointID: PreviewsPipeline.AnyExecutionPoint.ID, in: PreviewsModel.WorkspaceIdentifier) -> ()
+        0x0001ECE0  PreviewsPlatforms.RemotePreviewAgent.handleMessageStreamRequests([PreviewsPipeline.AgentMessageStreamSource.Request]) -> ()
+        0x0001F130  PreviewsPlatforms.RemotePreviewAgent.crashReportError.getter : PreviewsFoundationHost.HumanReadableError
+        0x0001F3F0  PreviewsPlatforms.RemotePreviewAgent.deinit
+        0x0001F5C4  PreviewsPlatforms.RemotePreviewAgent.__deallocating_deinit
+        0x00022130  type metadata accessor for PreviewsPlatforms.RemotePreviewAgent
+        0x0002231C  method lookup function for PreviewsPlatforms.RemotePreviewAgent
+        0x00022328  dispatch thunk of PreviewsPlatforms.RemotePreviewAgent.__allocating_init<A where A: PreviewsPipeline.PreviewDestination>(identifier: PreviewsPipeline.PreviewAgentIdentifier, agent: (extension in PreviewsPlatforms):PreviewsPipeline.PreviewAgentBundle.Agent, installSeed: PreviewsPipeline.PreviewAgentInstallSeed, agentBundle: PreviewsPipeline.PreviewAgentBundle, agentStreamFactory: PreviewsPlatforms.AgentStreamFactory?, destination: A, destinationParameters: A.UpdaterParameters, interface: PreviewsPlatforms.DestinationInterface, platformContext: PreviewsPipeline.PlatformPreviewUpdateContext, transferStore: PreviewsPlatforms.PreviewProductTransferStore, workspaceIdentifier: PreviewsModel.WorkspaceIdentifier, timeoutGroup: PreviewsPipeline.UpdateTimeoutGroup) -> PreviewsPlatforms.RemotePreviewAgent
+        0x00022FD4  static (extension in PreviewsPlatforms):PreviewsPipeline.Platform.macOS.getter : PreviewsPipeline.Platform
+        0x00023374  PreviewsPlatforms.CrashReportService.__allocating_init() -> PreviewsPlatforms.CrashReportService
+        0x00023474  PreviewsPlatforms.CrashReportService.init() -> PreviewsPlatforms.CrashReportService
+        0x00023688  static PreviewsPlatforms.CrashReportService.default.getter : PreviewsPlatforms.CrashReportService
+        0x000236C8  PreviewsPlatforms.CrashReportService.startListeningIfNeeded() -> PreviewsFoundationHost.Future<()>
+        0x000240C8  PreviewsPlatforms.CrashReportService.nextCrashReport(for: PreviewsMessagingHost.ProcessIdentifier, timeout: Swift.Double) -> PreviewsFoundationHost.Future<PreviewsFoundationHost.CrashReport>
+        0x00025A88  PreviewsPlatforms.CrashReportService.deinit
+        0x00025AE4  PreviewsPlatforms.CrashReportService.__deallocating_deinit
+        0x00026250  type metadata accessor for PreviewsPlatforms.CrashReportService
+        0x000262DC  method lookup function for PreviewsPlatforms.CrashReportService
+        0x000262E8  dispatch thunk of PreviewsPlatforms.CrashReportService.__allocating_init() -> PreviewsPlatforms.CrashReportService
+        0x00027950  static (extension in PreviewsPlatforms):PreviewsPipeline.PreviewAgentBundle.Handle.== infix((extension in PreviewsPlatforms):PreviewsPipeline.PreviewAgentBundle.Handle, (extension in PreviewsPlatforms):PreviewsPipeline.PreviewAgentBundle.Handle) -> Swift.Bool
+        0x00027960  (extension in PreviewsPlatforms):PreviewsPipeline.PreviewAgentBundle.Handle.hash(into: inout Swift.Hasher) -> ()
+        0x00027984  (extension in PreviewsPlatforms):PreviewsPipeline.PreviewAgentBundle.Handle.hashValue.getter : Swift.Int
+        0x00027A8C  (extension in PreviewsPlatforms):PreviewsPipeline.PreviewAgentBundle.Agent.pid.getter : Swift.Int32
+        0x00027A94  (extension in PreviewsPlatforms):PreviewsPipeline.PreviewAgentBundle.Agent.pid.setter : Swift.Int32
+        0x00027A9C  (extension in PreviewsPlatforms):PreviewsPipeline.PreviewAgentBundle.Agent.pid.modify : Swift.Int32
+        0x00027AAC  (extension in PreviewsPlatforms):PreviewsPipeline.PreviewAgentBundle.Agent.idAcrossRelaunches.setter : Swift.String
+        0x00027AE0  (extension in PreviewsPlatforms):PreviewsPipeline.PreviewAgentBundle.Agent.idAcrossRelaunches.modify : Swift.String
+        0x00027AF0  (extension in PreviewsPlatforms):PreviewsPipeline.PreviewAgentBundle.Agent.processIdentifier.getter : PreviewsPipeline.ResolvedProcessIdentifier
+        0x00027B3C  type metadata accessor for (extension in PreviewsPlatforms):PreviewsPipeline.PreviewAgentBundle.Agent
+        0x00027B50  (extension in PreviewsPlatforms):PreviewsPipeline.PreviewAgentBundle.Agent.processIdentifier.setter : PreviewsPipeline.ResolvedProcessIdentifier
+        0x00027B9C  (extension in PreviewsPlatforms):PreviewsPipeline.PreviewAgentBundle.Agent.processIdentifier.modify : PreviewsPipeline.ResolvedProcessIdentifier
+        0x00027BC4  (extension in PreviewsPlatforms):PreviewsPipeline.PreviewAgentBundle.Agent.processType.getter : PreviewsMessagingHost.ProcessType
+        0x00027C98  (extension in PreviewsPlatforms):PreviewsPipeline.PreviewAgentBundle.installAndLaunch(using: PreviewsPlatforms.DestinationInterface, installer: PreviewsPipeline.PreviewDeviceAgentInstaller, device: PreviewsPipeline.AnyDevice, deviceType: PreviewsMessagingHost.DeviceType, workspaceIdentifier: PreviewsModel.WorkspaceIdentifier, launchTimeout: PreviewsPipeline.PipelineTimeout, injection: PreviewsPipeline.InjectionFramework, handle: (extension in PreviewsPlatforms):PreviewsPipeline.PreviewAgentBundle.Handle, agentIDAcrossRelaunches: Swift.String, additionalEnvironment: [Swift.String : Swift.String]) -> PreviewsFoundationHost.Future<((extension in PreviewsPlatforms):PreviewsPipeline.PreviewAgentBundle.Agent, PreviewsPipeline.PreviewAgentInstallSeed)>
+        0x00028B84  (extension in PreviewsPlatforms):PreviewsPipeline.PreviewAgentBundle.launch(using: PreviewsPlatforms.DestinationInterface, device: PreviewsPipeline.AnyDevice, deviceType: PreviewsMessagingHost.DeviceType, workspaceIdentifier: PreviewsModel.WorkspaceIdentifier, timeout: PreviewsPipeline.PipelineTimeout, injection: PreviewsPipeline.InjectionFramework, handle: (extension in PreviewsPlatforms):PreviewsPipeline.PreviewAgentBundle.Handle, agentIDAcrossRelaunches: Swift.String, additionalEnvironment: [Swift.String : Swift.String], destinationFilePathMap: [Swift.String : Swift.String]) -> PreviewsFoundationHost.Future<(extension in PreviewsPlatforms):PreviewsPipeline.PreviewAgentBundle.Agent>
+        0x00029118  (extension in PreviewsPlatforms):PreviewsPipeline.PreviewAgentBundle.launchedProcessName.getter : Swift.String
+        0x0002C1E0  (extension in PreviewsPlatforms):PreviewsPipeline.PreviewAgentBundle.processInfo(preferring: (extension in PreviewsPlatforms):PreviewsPipeline.PreviewAgentBundle.Handle) -> PreviewsPipeline.ResolvedProcessIdentifier
+        0x0002D204  type metadata accessor for (extension in PreviewsPlatforms):PreviewsPipeline.PreviewAgentBundle.Handle
+        0x00033284  PreviewsPlatforms.PreviewShellCapabilitiesInterface.getCapabilities() async throws -> PreviewsMessagingHost.OSCapabilities
+        0x0003357C  PreviewsPlatforms.PreviewShellUtilityInterface.init(transport: PreviewsPlatforms.PreviewShellServiceTransport) -> PreviewsPlatforms.PreviewShellUtilityInterface
+        0x00033584  PreviewsPlatforms.PreviewShellModernUpdaterInterface.init(transport: PreviewsPlatforms.PreviewShellServiceTransport, capabilities: PreviewsMessagingHost.OSCapabilities) -> PreviewsPlatforms.PreviewShellModernUpdaterInterface
+        0x00033590  PreviewsPlatforms.PreviewShellRequestInterface.init(transport: PreviewsPlatforms.PreviewShellServiceTransport, capabilities: PreviewsMessagingHost.OSCapabilities) -> PreviewsPlatforms.PreviewShellRequestInterface
+        0x000335F8  (extension in PreviewsPlatforms):PreviewsPlatforms.PreviewShellServiceTransport.send(_: PreviewsMessagingHost.ServiceMessage.Content, reply: PreviewsMessagingHost.TransportReply) -> ()
+        0x00033AB0  (extension in PreviewsPlatforms):PreviewsPlatforms.PreviewShellServiceTransport.send(PreviewsMessagingHost.ServiceMessage.Content) async throws -> PreviewsFoundationHost.PropertyList
+        0x00033DDC  type metadata accessor for PreviewsPlatforms.PreviewShellModernUpdaterInterface
+        0x00033DF0  type metadata accessor for PreviewsPlatforms.PreviewShellRequestInterface
+        0x00033F70  (extension in PreviewsPlatforms):PreviewsPlatforms.PreviewShellServiceTransport.send(PreviewsMessagingHost.ServiceMessage.Content) -> PreviewsFoundationHost.Future<PreviewsFoundationHost.PropertyList>
+        0x0003411C  PreviewsPlatforms.PreviewShellLifecycleInterface.relaunch(with: PreviewsMessagingHost.LaunchPayload, deviceType: PreviewsMessagingHost.DeviceType) -> PreviewsFoundationHost.Future<PreviewsMessagingHost.ProcessID>
+        0x00034384  PreviewsPlatforms.PreviewShellLifecycleInterface.stop(pid: Swift.Int32) -> PreviewsFoundationHost.Future<()>
+        0x000343A0  PreviewsPlatforms.PreviewShellLifecycleInterface.kill(pid: Swift.Int32) -> PreviewsFoundationHost.Future<()>
+        0x00034548  PreviewsPlatforms.PreviewShellLifecycleInterface.cleanupAfterCanceledLaunch(of: Swift.Int32) -> ()
+        0x000348E0  PreviewsPlatforms.PreviewShellRequestInterface.makeRequest<A where A: PreviewsPlatforms.ShellRequest>(A) async throws -> A.Response
+        0x00034CF4  PreviewsPlatforms.PreviewShellUtilityInterface.prepareToRelaunch(agentDescriptor: PreviewsMessagingHost.AgentDescriptor) -> PreviewsFoundationHost.Future<()>
+        0x00034F20  PreviewsPlatforms.PreviewShellUtilityInterface.connect(to: Swift.Int32, injection: PreviewsPipeline.InjectionFramework) -> PreviewsFoundationHost.Future<()>
+        0x00034F90  PreviewsPlatforms.PreviewShellUtilityInterface.purge(workspaceID: PreviewsModel.WorkspaceIdentifier, killAgents: Swift.Bool) -> ()
+        0x0003512C  PreviewsPlatforms.PreviewShellLegacyUpdaterInterface.update(updatePayload: PreviewsMessagingHost.ShellUpdatePayload) -> PreviewsFoundationHost.Future<PreviewsFoundationHost.PropertyList>
+        0x000351C4  PreviewsPlatforms.PreviewShellLegacyUpdaterInterface.updateProvider(agentPid: Swift.Int32, updateSeed: PreviewsMessagingHost.HostUpdateSeed, updateGroupSeed: PreviewsMessagingHost.HostUpdateGroupSeed?, setupPayload: PreviewsMessagingHost.UpdateSetupPayload, contentIdentifier: PreviewsMessagingHost.ContentIdentifier, providerPayload: PreviewsMessagingHost.ProviderPayload, isIncremental: Swift.Bool, controlStates: [PreviewsMessagingHost.PlistValueBox]?) -> PreviewsFoundationHost.Future<PreviewsFoundationHost.PropertyList>
+        0x000351C8  PreviewsPlatforms.PreviewShellLegacyUpdaterInterface.updateProviderPreview(agentPid: Swift.Int32, updateSeed: PreviewsMessagingHost.HostUpdateSeed, updateGroupSeed: PreviewsMessagingHost.HostUpdateGroupSeed?, setupPayload: PreviewsMessagingHost.UpdateSetupPayload, previewType: PreviewsMessagingHost.PreviewType, contentIdentifier: PreviewsMessagingHost.ContentIdentifier, contentCategory: PreviewsMessagingHost.ContentCategory, contentOverride: PreviewsMessagingHost.ContentOverride?, providerPreviewPayload: PreviewsMessagingHost.ProviderPreviewPayload, legacyMessageType: PreviewsMessagingHost.AgentMessageType, contentDomain: PreviewsMessagingHost.PreviewContentDomain?, previewOrientation: PreviewsMessagingHost.PreviewTraits.Orientation?, isIncremental: Swift.Bool, controlStates: [PreviewsMessagingHost.PlistValueBox]?) -> PreviewsFoundationHost.Future<PreviewsFoundationHost.PropertyList>
+        0x000351E4  PreviewsPlatforms.PreviewShellModernUpdaterInterface.update(updatePayload: PreviewsMessagingHost.ShellUpdatePayload) -> PreviewsFoundationHost.Future<PreviewsFoundationHost.PropertyList>
+        0x00035424  PreviewsPlatforms.PreviewShellModernUpdaterInterface.updateProvider(agentPid: Swift.Int32, updateSeed: PreviewsMessagingHost.HostUpdateSeed, updateGroupSeed: PreviewsMessagingHost.HostUpdateGroupSeed?, setupPayload: PreviewsMessagingHost.UpdateSetupPayload, contentIdentifier: PreviewsMessagingHost.ContentIdentifier, providerPayload: PreviewsMessagingHost.ProviderPayload, isIncremental: Swift.Bool, controlStates: [PreviewsMessagingHost.PlistValueBox]?) -> PreviewsFoundationHost.Future<PreviewsFoundationHost.PropertyList>
+        0x0003542C  PreviewsPlatforms.PreviewShellModernUpdaterInterface.updateProviderPreview(agentPid: Swift.Int32, updateSeed: PreviewsMessagingHost.HostUpdateSeed, updateGroupSeed: PreviewsMessagingHost.HostUpdateGroupSeed?, setupPayload: PreviewsMessagingHost.UpdateSetupPayload, previewType: PreviewsMessagingHost.PreviewType, contentIdentifier: PreviewsMessagingHost.ContentIdentifier, contentCategory: PreviewsMessagingHost.ContentCategory, contentOverride: PreviewsMessagingHost.ContentOverride?, providerPreviewPayload: PreviewsMessagingHost.ProviderPreviewPayload, legacyMessageType: PreviewsMessagingHost.AgentMessageType, contentDomain: PreviewsMessagingHost.PreviewContentDomain?, previewOrientation: PreviewsMessagingHost.PreviewTraits.Orientation?, isIncremental: Swift.Bool, controlStates: [PreviewsMessagingHost.PlistValueBox]?) -> PreviewsFoundationHost.Future<PreviewsFoundationHost.PropertyList>
+        0x00036CF4  dispatch thunk of PreviewsPlatforms.PreviewShellServiceTransport._primitiveSend(serviceMessage: PreviewsMessagingHost.ServiceMessage, reply: PreviewsMessagingHost.TransportReply) -> ()
+        0x00036DB0  type metadata accessor for PreviewsPlatforms.PreviewShellLifecycleInterface
+        0x00036DC0  type metadata accessor for PreviewsPlatforms.PreviewShellCapabilitiesInterface
+        0x00036E0C  type metadata accessor for PreviewsPlatforms.PreviewShellUtilityInterface
+        0x00036EAC  type metadata accessor for PreviewsPlatforms.PreviewShellLegacyUpdaterInterface
+        0x000372B0  PreviewsPlatforms.PreviewShellCapabilitiesInterface.init(transport: PreviewsPlatforms.PreviewShellServiceTransport) -> PreviewsPlatforms.PreviewShellCapabilitiesInterface
+        0x000372B0  PreviewsPlatforms.PreviewShellLegacyUpdaterInterface.init(transport: PreviewsPlatforms.PreviewShellServiceTransport) -> PreviewsPlatforms.PreviewShellLegacyUpdaterInterface
+        0x000372B0  PreviewsPlatforms.PreviewShellLifecycleInterface.init(transport: PreviewsPlatforms.PreviewShellServiceTransport) -> PreviewsPlatforms.PreviewShellLifecycleInterface
+        0x000372E4  PreviewsPlatforms.FrameworkAgentPool.__allocating_init(signer: PreviewsPlatforms.FrameworkAgentSigner, identityProvider: PreviewsPlatforms.FrameworkAgentSigningIdentityProvider, container: Foundation.URL) -> PreviewsPlatforms.FrameworkAgentPool
+        0x000373BC  PreviewsPlatforms.FrameworkAgentPool.init(signer: PreviewsPlatforms.FrameworkAgentSigner, identityProvider: PreviewsPlatforms.FrameworkAgentSigningIdentityProvider, container: Foundation.URL) -> PreviewsPlatforms.FrameworkAgentPool
+        0x00037BB0  PreviewsPlatforms.FrameworkAgentPool.deinit
+        0x00037C18  PreviewsPlatforms.FrameworkAgentPool.__deallocating_deinit
+        0x0003DB58  type metadata accessor for PreviewsPlatforms.FrameworkAgentPool
+        0x0003DBFC  method lookup function for PreviewsPlatforms.FrameworkAgentPool
+        0x0003DC08  dispatch thunk of PreviewsPlatforms.FrameworkAgentPool.__allocating_init(signer: PreviewsPlatforms.FrameworkAgentSigner, identityProvider: PreviewsPlatforms.FrameworkAgentSigningIdentityProvider, container: Foundation.URL) -> PreviewsPlatforms.FrameworkAgentPool
+        0x0003DC10  dispatch thunk of PreviewsPlatforms.FrameworkAgentPool.frameworkAgent(for: PreviewsPipeline.AnyRunDestinationRecipe, embeddedFrameworks: [PreviewsMessagingHost.DynamicLoadablePreviewProduct]) async throws -> PreviewsPipeline.PreviewAgentBundle
+        0x0003E3A0  PreviewsPlatforms.DestinationInterface.init(invalidationHandle: PreviewsFoundationHost.ConcurrentInvalidationHandle, capabilities: PreviewsMessagingHost.OSCapabilities, lifecycleInterface: PreviewsPlatforms.LifecycleInterface, utilityInterface: PreviewsPlatforms.UtilityInterface, updaterInterface: PreviewsPlatforms.UpdaterInterface, processExitInterface: PreviewsPlatforms.ProcessExitInterface, transferInterface: PreviewsPlatforms.TransferInterface, shellRequestInterface: PreviewsPlatforms.ShellRequestInterface) async -> PreviewsPlatforms.DestinationInterface
+        0x0003E750  type metadata accessor for PreviewsPlatforms.DestinationInterface
+        0x0003E764  (extension in PreviewsPlatforms):PreviewsPlatforms.ShellRequestInterface.cancelUpdate(agentPid: Swift.Int32, contentIdentifier: PreviewsMessagingHost.ContentIdentifier, updateSeed: PreviewsMessagingHost.HostUpdateSeed) async -> ()
+        0x0003EAEC  PreviewsPlatforms.DestinationInterface.invalidationHandle.getter : PreviewsFoundationHost.ConcurrentInvalidationHandle
+        0x0003EAF4  PreviewsPlatforms.DestinationInterface.capabilities.getter : PreviewsMessagingHost.OSCapabilities
+        0x0003EB40  PreviewsPlatforms.DestinationInterface.lifecycleInterface.getter : PreviewsPlatforms.LifecycleInterface
+        0x0003EB74  PreviewsPlatforms.DestinationInterface.utilityInterface.getter : PreviewsPlatforms.UtilityInterface
+        0x0003EBA8  PreviewsPlatforms.DestinationInterface.updaterInterface.getter : PreviewsPlatforms.UpdaterInterface
+        0x0003EBDC  PreviewsPlatforms.DestinationInterface.processObserver.getter : PreviewsPlatforms.ProcessObserver
+        0x0003EBFC  PreviewsPlatforms.DestinationInterface.transferInterface.getter : PreviewsPlatforms.TransferInterface
+        0x0003EC30  PreviewsPlatforms.DestinationInterface.shellRequestInterface.getter : PreviewsPlatforms.ShellRequestInterface
+        0x0003ED34  (extension in PreviewsPlatforms):PreviewsPlatforms.InterfaceConnector.makeInterface(callsite: PreviewsFoundationHost.Callsite) async throws -> PreviewsPlatforms.DestinationInterface
+        0x0003EDF0  static (extension in PreviewsPlatforms):__C.NSNotificationName.purgeInterfaces.getter : __C.NSNotificationName
+        0x0003EE30  (extension in PreviewsPlatforms):PreviewsPlatforms.InterfaceConnector.withInterface<A>(callsite: PreviewsFoundationHost.Callsite, _: (PreviewsPlatforms.DestinationInterface) async throws -> A1) async throws -> A1
+        0x0003F268  PreviewsPlatforms.UnsupportedShellRequestInterface.makeRequest<A where A: PreviewsPlatforms.ShellRequest>(A) async throws -> A.Response
+        0x0003F450  (extension in PreviewsPlatforms):PreviewsPlatforms.ShellRequestInterface.getVariantGroups(for: PreviewsMessagingHost.ContentCategory, with: PreviewsMessagingHost.ContentOverride?) async throws -> [PreviewsMessagingHost.PreviewVariantGroup]
+        0x0003F830  (extension in PreviewsPlatforms):PreviewsPlatforms.ShellRequestInterface.getContentOverride(for: PreviewsMessagingHost.ContentCategory, from: [PreviewsMessagingHost.ContentOverride]) async throws -> PreviewsMessagingHost.ContentOverride?
+        0x000405D0  dispatch thunk of PreviewsPlatforms.InterfaceConnector.makeInterface(callsite: PreviewsFoundationHost.Callsite) async throws -> PreviewsPlatforms.DestinationInterface
+        0x00040658  dispatch thunk of PreviewsPlatforms.InterfaceConnector.makeAgentMessagePipeTransport@Sendable () async throws -> PreviewsMessagingHost.Transport
+        0x000406D4  dispatch thunk of PreviewsPlatforms.InterfaceConnector.makeShellMessagePipeTransport@Sendable () async throws -> PreviewsMessagingHost.Transport
+        0x00040750  dispatch thunk of PreviewsPlatforms.InterfaceConnector.invalidate() async -> ()
+        0x000407BC  dispatch thunk of PreviewsPlatforms.InterfaceConnector.capabilities.getter : PreviewsMessagingHost.OSCapabilities
+        0x00040838  dispatch thunk of PreviewsPlatforms.LifecycleInterface.stop(pid: Swift.Int32) -> PreviewsFoundationHost.Future<()>
+        0x00040838  dispatch thunk of PreviewsPlatforms.ProcessExitInterface.startObserving(pid: Swift.Int32) -> ()
+        0x00040838  dispatch thunk of PreviewsPlatforms.UtilityInterface.prepareToRelaunch(agentDescriptor: PreviewsMessagingHost.AgentDescriptor) -> PreviewsFoundationHost.Future<()>
+        0x00040840  dispatch thunk of PreviewsPlatforms.LifecycleInterface.kill(pid: Swift.Int32) -> PreviewsFoundationHost.Future<()>
+        0x00040848  dispatch thunk of PreviewsPlatforms.LifecycleInterface.cleanupAfterCanceledLaunch(of: Swift.Int32) -> ()
+        0x00040848  dispatch thunk of PreviewsPlatforms.ShellRequest.assertCapabilities(PreviewsMessagingHost.OSCapabilities) -> Swift.Bool
+        0x00040850  dispatch thunk of PreviewsPlatforms.TransferInterface.makeProductTransferrer(for: (extension in PreviewsPlatforms):PreviewsPipeline.PreviewAgentBundle.Agent, bundle: PreviewsPipeline.PreviewAgentBundle) -> PreviewsFoundationHost.Future<PreviewsPlatforms.PreviewProductTransferrer>
+        0x00040850  dispatch thunk of PreviewsPlatforms.UtilityInterface.connect(to: Swift.Int32, injection: PreviewsPipeline.InjectionFramework) -> PreviewsFoundationHost.Future<()>
+        0x00040858  dispatch thunk of PreviewsPlatforms.UtilityInterface.purge(workspaceID: PreviewsModel.WorkspaceIdentifier, killAgents: Swift.Bool) -> ()
+        0x00040860  dispatch thunk of PreviewsPlatforms.CapabilitiesInterface.getCapabilities() async throws -> PreviewsMessagingHost.OSCapabilities
+        0x000408DC  dispatch thunk of PreviewsPlatforms.ProcessExitInterface.exits.getter : Swift.AsyncStream<Swift.Int32>
+        0x000408E4  dispatch thunk of PreviewsPlatforms.ShellRequestInterface.makeRequest<A where A1: PreviewsPlatforms.ShellRequest>(A1) async throws -> A1.Response
+        0x00040984  type metadata accessor for PreviewsPlatforms.UnsupportedShellRequestInterface
+        0x00040994  dispatch thunk of PreviewsPlatforms.ShellRequest.unsupportedFallbackValue.getter : A.Response
+        0x00041A88  dispatch thunk of PreviewsPlatforms.LifecycleInterface.relaunch(with: PreviewsMessagingHost.LaunchPayload, deviceType: PreviewsMessagingHost.DeviceType) -> PreviewsFoundationHost.Future<PreviewsMessagingHost.ProcessID>
+        0x00041AF0  static (extension in PreviewsPlatforms):PreviewsPipeline.DeviceFamily.phone.getter : PreviewsPipeline.DeviceFamily
+        0x00041B74  static (extension in PreviewsPlatforms):PreviewsPipeline.DeviceFamily.pad.getter : PreviewsPipeline.DeviceFamily
+        0x00041C60  static (extension in PreviewsPlatforms):PreviewsPipeline.DeviceFamily.mac.getter : PreviewsPipeline.DeviceFamily
+        0x00041CF8  static (extension in PreviewsPlatforms):PreviewsPipeline.DeviceFamily.watch.getter : PreviewsPipeline.DeviceFamily
+        0x00041D7C  static (extension in PreviewsPlatforms):PreviewsPipeline.DeviceFamily.tv.getter : PreviewsPipeline.DeviceFamily
+        0x00041DF8  static (extension in PreviewsPlatforms):PreviewsPipeline.Platform.iOSSimulator.getter : PreviewsPipeline.Platform
+        0x00041FEC  PreviewsPlatforms.IOSSimulatorPlatform() -> PreviewsPipeline.Platform
+        0x00042050  static (extension in PreviewsPlatforms):PreviewsPipeline.Platform.tvOSDevice.getter : PreviewsPipeline.Platform
+        0x0004215C  PreviewsPlatforms.CrashReportErrorEnhancer.init(bundle: PreviewsPipeline.PreviewAgentBundle, agent: (extension in PreviewsPlatforms):PreviewsPipeline.PreviewAgentBundle.Agent?) -> PreviewsPlatforms.CrashReportErrorEnhancer
+        0x00042388  PreviewsPlatforms.CrashReportErrorEnhancer.enhancedError<A>(error: Swift.Error, symbolicationParameters: PreviewsFoundationHost.CrashLogSymbolicationParameters?) -> PreviewsFoundationHost.Future<A>
+        0x00042758  PreviewsPlatforms.CrashReportErrorEnhancer.makeCrashReportError(symbolicationParameters: PreviewsFoundationHost.CrashLogSymbolicationParameters?) async -> PreviewsFoundationHost.HumanReadableError
+        0x000436A4  type metadata accessor for PreviewsPlatforms.CrashReportErrorEnhancer
+        0x00044314  static (extension in PreviewsPlatforms):PreviewsPipeline.Platform.iOSDevice.getter : PreviewsPipeline.Platform
+        0x0004442C  PreviewsPlatforms.IOSDevicePlatform() -> PreviewsPipeline.Platform
+        0x00044430  (extension in PreviewsPlatforms):PreviewsPipeline.DestinationCapabilitiesCache.init(interfaceConnector: PreviewsPlatforms.InterfaceConnector) -> PreviewsPipeline.DestinationCapabilitiesCache
+        0x000452D4  static (extension in PreviewsPlatforms):PreviewsPipeline.Platform.watchOSSimulator.getter : PreviewsPipeline.Platform
+        0x000454CC  static (extension in PreviewsPlatforms):PreviewsPipeline.Platform.almond.getter : PreviewsPipeline.Platform
+        0x00045650  dispatch thunk of PreviewsPlatforms.FrameworkAgentSigningIdentityProvider.teamID.getter : Swift.String
+        0x00045714  (extension in PreviewsPlatforms):PreviewsPipeline.PreviewAgentBundle.appExtension.getter : PreviewsPlatforms.AppExtension?
+        0x000458E4  (extension in PreviewsPlatforms):PreviewsPipeline.PreviewAgentBundle.appExtension.setter : PreviewsPlatforms.AppExtension?
+        0x00045A10  (extension in PreviewsPlatforms):PreviewsPipeline.PreviewAgentBundle.appExtension.modify : PreviewsPlatforms.AppExtension?
+        0x00045CC4  PreviewsPlatforms.ShellStreamFactory.__allocating_init(makeTransport: @Sendable () async throws -> PreviewsMessagingHost.Transport) -> PreviewsPlatforms.ShellStreamFactory
+        0x00045D2C  PreviewsPlatforms.ShellStreamFactory.init(makeTransport: @Sendable () async throws -> PreviewsMessagingHost.Transport) -> PreviewsPlatforms.ShellStreamFactory
+        0x00045D88  PreviewsPlatforms.ShellStreamFactory.makePerUpdateMessageStream(for: PreviewsMessagingHost.ContentIdentifier, updateSeed: PreviewsMessagingHost.HostUpdateSeed, updatePid: Swift.Int32, instance: PreviewsMessagingHost.MessageStreamInstanceIdentifier) async throws -> PreviewsMessagingHost.MessageStream
+        0x000461D8  PreviewsPlatforms.ShellStreamFactory.deinit
+        0x000461F4  PreviewsPlatforms.ShellStreamFactory.__deallocating_deinit
+        0x00046294  type metadata accessor for PreviewsPlatforms.ShellStreamFactory
+        0x000462B4  method lookup function for PreviewsPlatforms.ShellStreamFactory
+        0x000462C0  dispatch thunk of PreviewsPlatforms.ShellStreamFactory.__allocating_init(makeTransport: @Sendable () async throws -> PreviewsMessagingHost.Transport) -> PreviewsPlatforms.ShellStreamFactory
+        0x000462C8  (extension in PreviewsPlatforms):PreviewsFoundationHost.BuildNumber.embeddedOSInjectionFramework(firstMoveToSystemLibraryFrameworks: PreviewsFoundationHost.BuildNumber) -> PreviewsPipeline.InjectionFramework
+        0x000463F4  static (extension in PreviewsPlatforms):PreviewsPipeline.Platform.macCatalyst.getter : PreviewsPipeline.Platform
+        0x0004667C  PreviewsPlatforms.MacCatalystPlatform() -> PreviewsPipeline.Platform
+        0x00046680  dispatch thunk of PreviewsPlatforms.FrameworkAgentSigner.sign(bundle: PreviewsPipeline.PreviewAgentBundle, platform: PreviewsPipeline.Platform, teamID: Swift.String, outputDirectory: Foundation.URL) async throws -> PreviewsPipeline.PreviewAgentBundle
+        0x000482C0  _PreviewsPlatformsVersionString
+        0x00048308  _PreviewsPlatformsVersionNumber
+        0x00048318  protocol conformance descriptor for PreviewsPlatforms.AppExtension.Kind : Swift.Equatable in PreviewsPlatforms
+        0x00048340  protocol conformance descriptor for PreviewsPlatforms.AppExtension.Kind : Swift.Hashable in PreviewsPlatforms
+        0x00048380  protocol conformance descriptor for PreviewsPlatforms.AppExtension.Kind : Swift.RawRepresentable in PreviewsPlatforms
+        0x000483B8  protocol conformance descriptor for PreviewsPlatforms.AppExtension : Swift.Hashable in PreviewsPlatforms
+        0x000483F8  protocol conformance descriptor for PreviewsPlatforms.AppExtension : Swift.Equatable in PreviewsPlatforms
+        0x00048420  property descriptor for PreviewsPlatforms.AppExtension.hashValue : Swift.Int
+        0x00048420  property descriptor for PreviewsPlatforms.AppExtension.Kind.name : Swift.String
+        0x00048420  property descriptor for PreviewsPlatforms.AppExtension.Kind.processType : PreviewsMessagingHost.ProcessType
+        0x00048420  property descriptor for PreviewsPlatforms.AppExtension.Kind.rawValue : Swift.String
+        0x00048424  property descriptor for PreviewsPlatforms.AppExtension.bundleIdentifier : Swift.String
+        0x00048428  property descriptor for PreviewsPlatforms.AppExtension.displayName : Swift.String
+        0x0004842C  property descriptor for PreviewsPlatforms.AppExtension.kind : PreviewsPlatforms.AppExtension.Kind
+        0x00048430  property descriptor for PreviewsPlatforms.AppExtension.signingInformation : PreviewsPipeline.CodeSigningInformation?
+        0x00048AD8  async function pointer to PreviewsPlatforms.AgentStreamFactory.makePerUpdateMessageStream(for: PreviewsMessagingHost.ContentIdentifier, updateSeed: PreviewsMessagingHost.HostUpdateSeed, updatePid: Swift.Int32, instance: PreviewsMessagingHost.MessageStreamInstanceIdentifier) async throws -> PreviewsMessagingHost.MessageStream
+        0x00048AF0  protocol conformance descriptor for PreviewsPlatforms.AgentStreamFactory : PreviewsPipeline.MessageStreamFactory in PreviewsPlatforms
+        0x00048B58  class metadata base offset for PreviewsPlatforms.AgentStreamFactory
+        0x00048D48  async function pointer to PreviewsPlatforms.PreviewsDaemonInterfaceConnector.makeInterface(callsite: PreviewsFoundationHost.Callsite) async throws -> PreviewsPlatforms.DestinationInterface
+        0x00048D80  async function pointer to PreviewsPlatforms.PreviewsDaemonInterfaceConnector.capabilities.getter : PreviewsMessagingHost.OSCapabilities
+        0x00048D90  async function pointer to PreviewsPlatforms.PreviewsDaemonInterfaceConnector.makeAgentMessagePipeTransport() async throws -> PreviewsMessagingHost.Transport
+        0x00048D98  async function pointer to PreviewsPlatforms.PreviewsDaemonInterfaceConnector.makeShellMessagePipeTransport() async throws -> PreviewsMessagingHost.Transport
+        0x00048DA0  async function pointer to PreviewsPlatforms.PreviewsDaemonInterfaceConnector.invalidate() async -> ()
+        0x00048DA8  protocol conformance descriptor for < where A == PreviewsPlatforms.DaemonClientRole> PreviewsMessagingHost.DaemonConnection<A> : PreviewsPlatforms.PreviewShellServiceTransport in PreviewsPlatforms
+        0x00048DD0  protocol conformance descriptor for PreviewsPlatforms.PreviewsDaemonInterfaceConnector : PreviewsPlatforms.InterfaceConnector in PreviewsPlatforms
+        0x00048E08  property descriptor for PreviewsPlatforms.PreviewsDaemonInterfaceConnector.capabilities : PreviewsMessagingHost.OSCapabilities
+        0x00048E58  class metadata base offset for PreviewsPlatforms.PreviewsDaemonInterfaceConnector
+        0x00048F20  async function pointer to PreviewsPlatforms.ProcessObserver.__allocating_init(interface: PreviewsPlatforms.ProcessExitInterface) async -> PreviewsPlatforms.ProcessObserver
+        0x00048F30  async function pointer to PreviewsPlatforms.ProcessObserver.init(interface: PreviewsPlatforms.ProcessExitInterface) async -> PreviewsPlatforms.ProcessObserver
+        0x00048F50  protocol conformance descriptor for PreviewsPlatforms.ProcessObserver : Swift.Actor in PreviewsPlatforms
+        0x00048F78  protocol conformance descriptor for PreviewsPlatforms.ProcessObserver : PreviewsFoundationHost.ConcurrentInvalidatable in PreviewsPlatforms
+        0x00048FA8  protocol conformance descriptor for PreviewsPlatforms.ProcessObserver : PreviewsFoundationHost.AnyInvalidatable in PreviewsPlatforms
+        0x00048FD0  property descriptor for PreviewsPlatforms.ProcessObserver.invalidationHandle : PreviewsFoundationHost.ConcurrentInvalidationHandle
+        0x00048FD4  property descriptor for PreviewsPlatforms.ProcessObserver.unownedExecutor : Swift.UnownedSerialExecutor
+        0x00049028  async function pointer to dispatch thunk of PreviewsPlatforms.ProcessObserver.__allocating_init(interface: PreviewsPlatforms.ProcessExitInterface) async -> PreviewsPlatforms.ProcessObserver
+        0x00049030  async function pointer to dispatch thunk of PreviewsPlatforms.ProcessObserver.exit(of: Swift.Int32) async throws -> ()
+        0x00049038  class metadata base offset for PreviewsPlatforms.ProcessObserver
+        0x00049090  async function pointer to static (extension in PreviewsPlatforms):PreviewsMessagingHost.DaemonConnection< where A == PreviewsPlatforms.DaemonClientRole>.createActivated(for: PreviewsServices.PreviewsService) async throws -> PreviewsMessagingHost.DaemonConnection<PreviewsPlatforms.DaemonClientRole>
+        0x000490A0  async function pointer to static (extension in PreviewsPlatforms):PreviewsMessagingHost.DaemonConnection< where A == PreviewsPlatforms.DaemonClientRole>.createActivated(forLegacyService: PreviewsServices.PreviewsServiceConnection.Service) async throws -> PreviewsMessagingHost.DaemonConnection<PreviewsPlatforms.DaemonClientRole>
+        0x000490C0  async function pointer to static (extension in PreviewsPlatforms):PreviewsMessagingHost.DaemonConnection< where A == PreviewsPlatforms.DaemonClientRole>.createActivated(hostToSimConnection: __C.OS_xpc_object, serviceName: Swift.String) async throws -> PreviewsMessagingHost.DaemonConnection<PreviewsPlatforms.DaemonClientRole>
+        0x000490D0  protocol conformance descriptor for PreviewsPlatforms.DaemonClientRole : PreviewsMessagingHost.DaemonConnectionRole in PreviewsPlatforms
+        0x00049100  property descriptor for PreviewsPlatforms.DaemonClientRole.interruptions : Swift.AsyncStream<()>
+        0x00049100  property descriptor for static PreviewsPlatforms.DaemonClientRole.description : Swift.String
+        0x000492C0  protocol conformance descriptor for PreviewsPlatforms.RemoteAgentUpdater : PreviewsPipeline.PreviewUpdater in PreviewsPlatforms
+        0x00049320  protocol conformance descriptor for PreviewsPlatforms.RemoteAgentUpdater : PreviewsFoundationHost.Invalidatable in PreviewsPlatforms
+        0x00049348  protocol conformance descriptor for PreviewsPlatforms.RemoteAgentUpdater : PreviewsPipeline.PreviewUpdaterConnection in PreviewsPlatforms
+        0x000493A8  protocol conformance descriptor for PreviewsPlatforms.RemoteAgentUpdater : PreviewsFoundationHost.StructuredStringConvertible in PreviewsPlatforms
+        0x000493D8  protocol conformance descriptor for PreviewsPlatforms.RemoteAgentUpdater : Swift.CustomStringConvertible in PreviewsPlatforms
+        0x00049400  property descriptor for PreviewsPlatforms.RemoteAgentUpdater.invalidationHandle : PreviewsFoundationHost.InvalidationHandle
+        0x00049404  property descriptor for PreviewsPlatforms.RemoteAgentUpdater.pid : Swift.Int32
+        0x00049428  class metadata base offset for PreviewsPlatforms.RemoteAgentUpdater
+        0x000494F8  async function pointer to PreviewsPlatforms.RemotePreviewAgent.run(executionPoint: PreviewsPipeline.AnyExecutionPoint, in: PreviewsPipeline.GroupIdentifier, with: PreviewsPipeline.UpdatePassCapabilities, workspace: PreviewsModel.WorkspaceIdentifier, products: PreviewsPipeline.ProductLoadingParameters, incrementalUpdates: [PreviewsPipeline.SourcedIncrementalUpdate]) async throws -> PreviewsPipeline.ExecutionPointUpdate<PreviewsPipeline.AnyExecutionPoint.Output>
+        0x00049550  async function pointer to PreviewsPlatforms.RemotePreviewAgent.crashReportError.getter : PreviewsFoundationHost.HumanReadableError
+        0x00049570  protocol conformance descriptor for PreviewsPlatforms.RemotePreviewAgent : PreviewsPipeline.PreviewAgent in PreviewsPlatforms
+        0x000495D0  protocol conformance descriptor for PreviewsPlatforms.RemotePreviewAgent : PreviewsFoundationHost.StructuredStringConvertible in PreviewsPlatforms
+        0x00049600  protocol conformance descriptor for PreviewsPlatforms.RemotePreviewAgent : PreviewsFoundationHost.ConcurrentInvalidatable in PreviewsPlatforms
+        0x00049630  protocol conformance descriptor for PreviewsPlatforms.RemotePreviewAgent : Swift.CustomStringConvertible in PreviewsPlatforms
+        0x00049658  protocol conformance descriptor for PreviewsPlatforms.RemotePreviewAgent : PreviewsFoundationHost.AnyInvalidatable in PreviewsPlatforms
+        0x00049680  property descriptor for PreviewsPlatforms.RemotePreviewAgent.invalidationHandle : PreviewsFoundationHost.ConcurrentInvalidationHandle
+        0x00049684  property descriptor for PreviewsPlatforms.RemotePreviewAgent.crashReportError : PreviewsFoundationHost.HumanReadableError
+        0x00049684  property descriptor for PreviewsPlatforms.RemotePreviewAgent.pid : Swift.Int32
+        0x000496A8  class metadata base offset for PreviewsPlatforms.RemotePreviewAgent
+        0x00049918  property descriptor for static PreviewsPlatforms.CrashReportService.default : PreviewsPlatforms.CrashReportService
+        0x00049958  class metadata base offset for PreviewsPlatforms.CrashReportService
+        0x00049A28  protocol conformance descriptor for (extension in PreviewsPlatforms):PreviewsPipeline.PreviewAgentBundle.Handle : Swift.Equatable in PreviewsPlatforms
+        0x00049A50  protocol conformance descriptor for (extension in PreviewsPlatforms):PreviewsPipeline.PreviewAgentBundle.Handle : Swift.Hashable in PreviewsPlatforms
+        0x00049A90  property descriptor for (extension in PreviewsPlatforms):PreviewsPipeline.PreviewAgentBundle.Agent.processType : PreviewsMessagingHost.ProcessType
+        0x00049A90  property descriptor for (extension in PreviewsPlatforms):PreviewsPipeline.PreviewAgentBundle.Handle.hashValue : Swift.Int
+        0x00049A90  property descriptor for (extension in PreviewsPlatforms):PreviewsPipeline.PreviewAgentBundle.launchedProcessName : Swift.String
+        0x00049A94  property descriptor for (extension in PreviewsPlatforms):PreviewsPipeline.PreviewAgentBundle.Agent.pid : Swift.Int32
+        0x00049A98  property descriptor for (extension in PreviewsPlatforms):PreviewsPipeline.PreviewAgentBundle.Agent.idAcrossRelaunches : Swift.String
+        0x00049A9C  property descriptor for (extension in PreviewsPlatforms):PreviewsPipeline.PreviewAgentBundle.Agent.processIdentifier : PreviewsPipeline.ResolvedProcessIdentifier
+        0x0004A820  async function pointer to PreviewsPlatforms.PreviewShellCapabilitiesInterface.getCapabilities() async throws -> PreviewsMessagingHost.OSCapabilities
+        0x0004A828  async function pointer to (extension in PreviewsPlatforms):PreviewsPlatforms.PreviewShellServiceTransport.send(PreviewsMessagingHost.ServiceMessage.Content) async throws -> PreviewsFoundationHost.PropertyList
+        0x0004A850  async function pointer to PreviewsPlatforms.PreviewShellRequestInterface.makeRequest<A where A: PreviewsPlatforms.ShellRequest>(A) async throws -> A.Response
+        0x0004A860  protocol conformance descriptor for PreviewsPlatforms.PreviewShellLifecycleInterface : PreviewsPlatforms.LifecycleInterface in PreviewsPlatforms
+        0x0004A870  protocol conformance descriptor for PreviewsPlatforms.PreviewShellCapabilitiesInterface : PreviewsPlatforms.CapabilitiesInterface in PreviewsPlatforms
+        0x0004A888  protocol conformance descriptor for PreviewsPlatforms.PreviewShellRequestInterface : PreviewsPlatforms.ShellRequestInterface in PreviewsPlatforms
+        0x0004A8A0  protocol conformance descriptor for PreviewsPlatforms.PreviewShellUtilityInterface : PreviewsPlatforms.UtilityInterface in PreviewsPlatforms
+        0x0004A8B0  protocol conformance descriptor for PreviewsPlatforms.PreviewShellLegacyUpdaterInterface : PreviewsPlatforms.UpdaterInterface in PreviewsPlatforms
+        0x0004A8CC  protocol conformance descriptor for PreviewsPlatforms.PreviewShellLegacyUpdaterInterface : PreviewsPipeline.UpdaterProtocol in PreviewsPlatforms
+        0x0004A904  protocol conformance descriptor for PreviewsPlatforms.PreviewShellModernUpdaterInterface : PreviewsPlatforms.UpdaterInterface in PreviewsPlatforms
+        0x0004A920  protocol conformance descriptor for PreviewsPlatforms.PreviewShellModernUpdaterInterface : PreviewsPipeline.UpdaterProtocol in PreviewsPlatforms
+        0x0004AAE0  protocol conformance descriptor for PreviewsPlatforms.FrameworkAgentPool : Swift.Actor in PreviewsPlatforms
+        0x0004AB08  property descriptor for PreviewsPlatforms.FrameworkAgentPool.unownedExecutor : Swift.UnownedSerialExecutor
+        0x0004AB58  async function pointer to dispatch thunk of PreviewsPlatforms.FrameworkAgentPool.frameworkAgent(for: PreviewsPipeline.AnyRunDestinationRecipe, embeddedFrameworks: [PreviewsMessagingHost.DynamicLoadablePreviewProduct]) async throws -> PreviewsPipeline.PreviewAgentBundle
+        0x0004AB60  class metadata base offset for PreviewsPlatforms.FrameworkAgentPool
+        0x0004AC90  async function pointer to PreviewsPlatforms.DestinationInterface.init(invalidationHandle: PreviewsFoundationHost.ConcurrentInvalidationHandle, capabilities: PreviewsMessagingHost.OSCapabilities, lifecycleInterface: PreviewsPlatforms.LifecycleInterface, utilityInterface: PreviewsPlatforms.UtilityInterface, updaterInterface: PreviewsPlatforms.UpdaterInterface, processExitInterface: PreviewsPlatforms.ProcessExitInterface, transferInterface: PreviewsPlatforms.TransferInterface, shellRequestInterface: PreviewsPlatforms.ShellRequestInterface) async -> PreviewsPlatforms.DestinationInterface
+        0x0004ACA0  async function pointer to (extension in PreviewsPlatforms):PreviewsPlatforms.ShellRequestInterface.cancelUpdate(agentPid: Swift.Int32, contentIdentifier: PreviewsMessagingHost.ContentIdentifier, updateSeed: PreviewsMessagingHost.HostUpdateSeed) async -> ()
+        0x0004ACB0  async function pointer to (extension in PreviewsPlatforms):PreviewsPlatforms.InterfaceConnector.makeInterface(callsite: PreviewsFoundationHost.Callsite) async throws -> PreviewsPlatforms.DestinationInterface
+        0x0004ACB8  async function pointer to (extension in PreviewsPlatforms):PreviewsPlatforms.InterfaceConnector.withInterface<A>(callsite: PreviewsFoundationHost.Callsite, _: (PreviewsPlatforms.DestinationInterface) async throws -> A1) async throws -> A1
+        0x0004ACC0  async function pointer to PreviewsPlatforms.UnsupportedShellRequestInterface.makeRequest<A where A: PreviewsPlatforms.ShellRequest>(A) async throws -> A.Response
+        0x0004ACC8  async function pointer to (extension in PreviewsPlatforms):PreviewsPlatforms.ShellRequestInterface.getVariantGroups(for: PreviewsMessagingHost.ContentCategory, with: PreviewsMessagingHost.ContentOverride?) async throws -> [PreviewsMessagingHost.PreviewVariantGroup]
+        0x0004ACD8  async function pointer to (extension in PreviewsPlatforms):PreviewsPlatforms.ShellRequestInterface.getContentOverride(for: PreviewsMessagingHost.ContentCategory, from: [PreviewsMessagingHost.ContentOverride]) async throws -> PreviewsMessagingHost.ContentOverride?
+        0x0004ACE0  protocol conformance descriptor for PreviewsPlatforms.DestinationInterface : PreviewsFoundationHost.ConcurrentInvalidatable in PreviewsPlatforms
+        0x0004AD10  protocol conformance descriptor for PreviewsPlatforms.DestinationInterface : PreviewsFoundationHost.AnyInvalidatable in PreviewsPlatforms
+        0x0004AD38  protocol conformance descriptor for PreviewsPlatforms.UnsupportedShellRequestInterface : PreviewsPlatforms.ShellRequestInterface in PreviewsPlatforms
+        0x0004AD50  property descriptor for PreviewsPlatforms.DestinationInterface.invalidationHandle : PreviewsFoundationHost.ConcurrentInvalidationHandle
+        0x0004AD54  property descriptor for PreviewsPlatforms.DestinationInterface.capabilities : PreviewsMessagingHost.OSCapabilities
+        0x0004AD5C  property descriptor for PreviewsPlatforms.DestinationInterface.lifecycleInterface : PreviewsPlatforms.LifecycleInterface
+        0x0004AD64  property descriptor for PreviewsPlatforms.DestinationInterface.utilityInterface : PreviewsPlatforms.UtilityInterface
+        0x0004AD6C  property descriptor for PreviewsPlatforms.DestinationInterface.updaterInterface : PreviewsPlatforms.UpdaterInterface
+        0x0004AD74  property descriptor for PreviewsPlatforms.DestinationInterface.processObserver : PreviewsPlatforms.ProcessObserver
+        0x0004AD7C  property descriptor for PreviewsPlatforms.DestinationInterface.transferInterface : PreviewsPlatforms.TransferInterface
+        0x0004AD84  property descriptor for PreviewsPlatforms.DestinationInterface.shellRequestInterface : PreviewsPlatforms.ShellRequestInterface
+        0x0004ADF8  async function pointer to dispatch thunk of PreviewsPlatforms.InterfaceConnector.makeInterface(callsite: PreviewsFoundationHost.Callsite) async throws -> PreviewsPlatforms.DestinationInterface
+        0x0004AE08  async function pointer to dispatch thunk of PreviewsPlatforms.InterfaceConnector.makeAgentMessagePipeTransport@Sendable () async throws -> PreviewsMessagingHost.Transport
+        0x0004AE10  async function pointer to dispatch thunk of PreviewsPlatforms.InterfaceConnector.makeShellMessagePipeTransport@Sendable () async throws -> PreviewsMessagingHost.Transport
+        0x0004AE18  async function pointer to dispatch thunk of PreviewsPlatforms.InterfaceConnector.invalidate() async -> ()
+        0x0004AE20  async function pointer to dispatch thunk of PreviewsPlatforms.InterfaceConnector.capabilities.getter : PreviewsMessagingHost.OSCapabilities
+        0x0004AE88  async function pointer to dispatch thunk of PreviewsPlatforms.CapabilitiesInterface.getCapabilities() async throws -> PreviewsMessagingHost.OSCapabilities
+        0x0004AF08  async function pointer to dispatch thunk of PreviewsPlatforms.ShellRequestInterface.makeRequest<A where A1: PreviewsPlatforms.ShellRequest>(A1) async throws -> A1.Response
+        0x0004B260  async function pointer to PreviewsPlatforms.CrashReportErrorEnhancer.makeCrashReportError(symbolicationParameters: PreviewsFoundationHost.CrashLogSymbolicationParameters?) async -> PreviewsFoundationHost.HumanReadableError
+        0x0004B988  async function pointer to dispatch thunk of PreviewsPlatforms.FrameworkAgentSigningIdentityProvider.teamID.getter : Swift.String
+        0x0004BA28  async function pointer to PreviewsPlatforms.ShellStreamFactory.makePerUpdateMessageStream(for: PreviewsMessagingHost.ContentIdentifier, updateSeed: PreviewsMessagingHost.HostUpdateSeed, updatePid: Swift.Int32, instance: PreviewsMessagingHost.MessageStreamInstanceIdentifier) async throws -> PreviewsMessagingHost.MessageStream
+        0x0004BA38  protocol conformance descriptor for PreviewsPlatforms.ShellStreamFactory : PreviewsPipeline.MessageStreamFactory in PreviewsPlatforms
+        0x0004BAA8  class metadata base offset for PreviewsPlatforms.ShellStreamFactory
+        0x0004BC18  async function pointer to dispatch thunk of PreviewsPlatforms.FrameworkAgentSigner.sign(bundle: PreviewsPipeline.PreviewAgentBundle, platform: PreviewsPipeline.Platform, teamID: Swift.String, outputDirectory: Foundation.URL) async throws -> PreviewsPipeline.PreviewAgentBundle
+        0x0004F6A8  nominal type descriptor for PreviewsPlatforms.AppExtension
+        0x0004F6D0  nominal type descriptor for PreviewsPlatforms.AppExtension.Kind
+        0x0004F6EC  protocol descriptor for PreviewsPlatforms.PreviewProductTransferrer
+        0x0004F6FC  protocol requirements base descriptor for PreviewsPlatforms.PreviewProductTransferrer
+        0x0004F704  method descriptor for PreviewsPlatforms.PreviewProductTransferrer.transfer(product: PreviewsPipeline.PreviewProduct.PreLinked) throws -> PreviewsFoundationHost.Future<Foundation.URL>
+        0x0004F70C  method descriptor for PreviewsPlatforms.PreviewProductTransferrer.transfer(product: PreviewsPipeline.PreviewProduct.RuntimeLinked) throws -> PreviewsFoundationHost.Future<[Swift.String : Foundation.URL]>
+        0x0004F714  method descriptor for PreviewsPlatforms.PreviewProductTransferrer.agentBundleID.getter : Swift.String
+        0x0004F71C  nominal type descriptor for PreviewsPlatforms.PreviewProductTransferStore
+        0x0004F7F8  nominal type descriptor for PreviewsPlatforms.AgentStreamFactory
+        0x0004F838  method descriptor for PreviewsPlatforms.AgentStreamFactory.__allocating_init(makeTransport: @Sendable () async throws -> PreviewsMessagingHost.Transport) -> PreviewsPlatforms.AgentStreamFactory
+        0x0004F864  nominal type descriptor for PreviewsPlatforms.PreviewProcessEnvironmentHandler
+        0x0004F880  nominal type descriptor for PreviewsPlatforms.PreviewsDaemonInterfaceConnector
+        0x0004F8F0  nominal type descriptor for PreviewsPlatforms.ProcessObserver
+        0x0004F954  method descriptor for PreviewsPlatforms.ProcessObserver.__allocating_init(interface: PreviewsPlatforms.ProcessExitInterface) async -> PreviewsPlatforms.ProcessObserver
+        0x0004F95C  method descriptor for PreviewsPlatforms.ProcessObserver.exit(of: Swift.Int32) async throws -> ()
+        0x0004F974  nominal type descriptor for PreviewsPlatforms.DaemonClientRole
+        0x0004F9C0  nominal type descriptor for PreviewsPlatforms.RemoteAgentUpdater
+        0x0004FA00  method descriptor for PreviewsPlatforms.RemoteAgentUpdater.__allocating_init<A where A: PreviewsPipeline.PreviewDestination>(agent: (extension in PreviewsPlatforms):PreviewsPipeline.PreviewAgentBundle.Agent, installSeed: PreviewsPipeline.PreviewAgentInstallSeed, agentBundle: PreviewsPipeline.PreviewAgentBundle, destination: A, destinationParameters: A.UpdaterParameters, interface: PreviewsPlatforms.DestinationInterface, platformContext: PreviewsPipeline.PlatformPreviewUpdateContext, transferStore: PreviewsPlatforms.PreviewProductTransferStore, workspaceIdentifier: PreviewsModel.WorkspaceIdentifier, timeoutGroup: PreviewsPipeline.UpdateTimeoutGroup, supportsOnDevice: Swift.Bool, identifier: PreviewsFoundationHost.Identifier) -> PreviewsPlatforms.RemoteAgentUpdater
+        0x0004FA08  nominal type descriptor for PreviewsPlatforms.RemotePreviewAgent
+        0x0004FA48  method descriptor for PreviewsPlatforms.RemotePreviewAgent.__allocating_init<A where A: PreviewsPipeline.PreviewDestination>(identifier: PreviewsPipeline.PreviewAgentIdentifier, agent: (extension in PreviewsPlatforms):PreviewsPipeline.PreviewAgentBundle.Agent, installSeed: PreviewsPipeline.PreviewAgentInstallSeed, agentBundle: PreviewsPipeline.PreviewAgentBundle, agentStreamFactory: PreviewsPlatforms.AgentStreamFactory?, destination: A, destinationParameters: A.UpdaterParameters, interface: PreviewsPlatforms.DestinationInterface, platformContext: PreviewsPipeline.PlatformPreviewUpdateContext, transferStore: PreviewsPlatforms.PreviewProductTransferStore, workspaceIdentifier: PreviewsModel.WorkspaceIdentifier, timeoutGroup: PreviewsPipeline.UpdateTimeoutGroup) -> PreviewsPlatforms.RemotePreviewAgent
+        0x0004FAA4  nominal type descriptor for PreviewsPlatforms.CrashReportService
+        0x0004FAE4  method descriptor for PreviewsPlatforms.CrashReportService.__allocating_init() -> PreviewsPlatforms.CrashReportService
+        0x0004FB64  nominal type descriptor for (extension in PreviewsPlatforms):PreviewsPipeline.PreviewAgentBundle.Handle
+        0x0004FB80  nominal type descriptor for (extension in PreviewsPlatforms):PreviewsPipeline.PreviewAgentBundle.Agent
+        0x0004FD90  protocol descriptor for PreviewsPlatforms.PreviewShellServiceTransport
+        0x0004FDAC  protocol requirements base descriptor for PreviewsPlatforms.PreviewShellServiceTransport
+        0x0004FDB4  base conformance descriptor for PreviewsPlatforms.PreviewShellServiceTransport: PreviewsFoundationHost.ConcurrentInvalidatable
+        0x0004FDBC  method descriptor for PreviewsPlatforms.PreviewShellServiceTransport._primitiveSend(serviceMessage: PreviewsMessagingHost.ServiceMessage, reply: PreviewsMessagingHost.TransportReply) -> ()
+        0x0004FDC4  nominal type descriptor for PreviewsPlatforms.PreviewShellLifecycleInterface
+        0x0004FDE0  nominal type descriptor for PreviewsPlatforms.PreviewShellCapabilitiesInterface
+        0x0004FDFC  nominal type descriptor for PreviewsPlatforms.PreviewShellRequestInterface
+        0x0004FE24  nominal type descriptor for PreviewsPlatforms.PreviewShellUtilityInterface
+        0x0004FE40  nominal type descriptor for PreviewsPlatforms.PreviewShellLegacyUpdaterInterface
+        0x0004FE5C  nominal type descriptor for PreviewsPlatforms.PreviewShellModernUpdaterInterface
+        0x0004FE84  nominal type descriptor for PreviewsPlatforms.FrameworkAgentPool
+        0x0004FEDC  method descriptor for PreviewsPlatforms.FrameworkAgentPool.__allocating_init(signer: PreviewsPlatforms.FrameworkAgentSigner, identityProvider: PreviewsPlatforms.FrameworkAgentSigningIdentityProvider, container: Foundation.URL) -> PreviewsPlatforms.FrameworkAgentPool
+        0x0004FEE4  method descriptor for PreviewsPlatforms.FrameworkAgentPool.frameworkAgent(for: PreviewsPipeline.AnyRunDestinationRecipe, embeddedFrameworks: [PreviewsMessagingHost.DynamicLoadablePreviewProduct]) async throws -> PreviewsPipeline.PreviewAgentBundle
+        0x0004FF9C  nominal type descriptor for PreviewsPlatforms.DestinationInterface
+        0x0004FFC4  protocol descriptor for PreviewsPlatforms.InterfaceConnector
+        0x0004FFD4  protocol requirements base descriptor for PreviewsPlatforms.InterfaceConnector
+        0x0004FFDC  method descriptor for PreviewsPlatforms.InterfaceConnector.makeInterface(callsite: PreviewsFoundationHost.Callsite) async throws -> PreviewsPlatforms.DestinationInterface
+        0x0004FFE4  method descriptor for PreviewsPlatforms.InterfaceConnector.makeAgentMessagePipeTransport@Sendable () async throws -> PreviewsMessagingHost.Transport
+        0x0004FFEC  method descriptor for PreviewsPlatforms.InterfaceConnector.makeShellMessagePipeTransport@Sendable () async throws -> PreviewsMessagingHost.Transport
+        0x0004FFF4  method descriptor for PreviewsPlatforms.InterfaceConnector.invalidate() async -> ()
+        0x0004FFFC  method descriptor for PreviewsPlatforms.InterfaceConnector.capabilities.getter : PreviewsMessagingHost.OSCapabilities
+        0x00050004  protocol descriptor for PreviewsPlatforms.LifecycleInterface
+        0x00050014  protocol requirements base descriptor for PreviewsPlatforms.LifecycleInterface
+        0x0005001C  method descriptor for PreviewsPlatforms.LifecycleInterface.relaunch(with: PreviewsMessagingHost.LaunchPayload, deviceType: PreviewsMessagingHost.DeviceType) -> PreviewsFoundationHost.Future<PreviewsMessagingHost.ProcessID>
+        0x00050024  method descriptor for PreviewsPlatforms.LifecycleInterface.stop(pid: Swift.Int32) -> PreviewsFoundationHost.Future<()>
+        0x0005002C  method descriptor for PreviewsPlatforms.LifecycleInterface.kill(pid: Swift.Int32) -> PreviewsFoundationHost.Future<()>
+        0x00050034  method descriptor for PreviewsPlatforms.LifecycleInterface.cleanupAfterCanceledLaunch(of: Swift.Int32) -> ()
+        0x0005003C  protocol descriptor for PreviewsPlatforms.UtilityInterface
+        0x0005004C  protocol requirements base descriptor for PreviewsPlatforms.UtilityInterface
+        0x00050054  method descriptor for PreviewsPlatforms.UtilityInterface.connect(to: Swift.Int32, injection: PreviewsPipeline.InjectionFramework) -> PreviewsFoundationHost.Future<()>
+        0x0005005C  method descriptor for PreviewsPlatforms.UtilityInterface.prepareToRelaunch(agentDescriptor: PreviewsMessagingHost.AgentDescriptor) -> PreviewsFoundationHost.Future<()>
+        0x00050064  method descriptor for PreviewsPlatforms.UtilityInterface.purge(workspaceID: PreviewsModel.WorkspaceIdentifier, killAgents: Swift.Bool) -> ()
+        0x0005006C  protocol descriptor for PreviewsPlatforms.CapabilitiesInterface
+        0x0005007C  protocol requirements base descriptor for PreviewsPlatforms.CapabilitiesInterface
+        0x00050084  method descriptor for PreviewsPlatforms.CapabilitiesInterface.getCapabilities() async throws -> PreviewsMessagingHost.OSCapabilities
+        0x0005008C  protocol descriptor for PreviewsPlatforms.UpdaterInterface
+        0x000500A8  protocol requirements base descriptor for PreviewsPlatforms.UpdaterInterface
+        0x000500B0  base conformance descriptor for PreviewsPlatforms.UpdaterInterface: PreviewsPipeline.UpdaterProtocol
+        0x000500B8  protocol descriptor for PreviewsPlatforms.ProcessExitInterface
+        0x000500C8  protocol requirements base descriptor for PreviewsPlatforms.ProcessExitInterface
+        0x000500D0  method descriptor for PreviewsPlatforms.ProcessExitInterface.exits.getter : Swift.AsyncStream<Swift.Int32>
+        0x000500D8  method descriptor for PreviewsPlatforms.ProcessExitInterface.startObserving(pid: Swift.Int32) -> ()
+        0x000500E0  method descriptor for PreviewsPlatforms.ProcessExitInterface.stop() -> ()
+        0x000500E8  protocol descriptor for PreviewsPlatforms.TransferInterface
+        0x000500F8  protocol requirements base descriptor for PreviewsPlatforms.TransferInterface
+        0x00050100  method descriptor for PreviewsPlatforms.TransferInterface.makeProductTransferrer(for: (extension in PreviewsPlatforms):PreviewsPipeline.PreviewAgentBundle.Agent, bundle: PreviewsPipeline.PreviewAgentBundle) -> PreviewsFoundationHost.Future<PreviewsPlatforms.PreviewProductTransferrer>
+        0x00050108  protocol descriptor for PreviewsPlatforms.ShellRequestInterface
+        0x00050118  protocol requirements base descriptor for PreviewsPlatforms.ShellRequestInterface
+        0x00050120  method descriptor for PreviewsPlatforms.ShellRequestInterface.makeRequest<A where A1: PreviewsPlatforms.ShellRequest>(A1) async throws -> A1.Response
+        0x00050128  nominal type descriptor for PreviewsPlatforms.UnsupportedShellRequestInterface
+        0x00050144  protocol descriptor for PreviewsPlatforms.ShellRequest
+        0x00050160  protocol requirements base descriptor for PreviewsPlatforms.ShellRequest
+        0x00050168  associated conformance descriptor for PreviewsPlatforms.ShellRequest.PreviewsPlatforms.ShellRequest.Response: PreviewsFoundationHost.PropertyListRepresentable
+        0x00050170  associated type descriptor for PreviewsPlatforms.ShellRequest.Response
+        0x00050178  method descriptor for PreviewsPlatforms.ShellRequest.message.getter : PreviewsMessagingHost.ServiceMessage.Content
+        0x00050180  method descriptor for PreviewsPlatforms.ShellRequest.assertCapabilities(PreviewsMessagingHost.OSCapabilities) -> Swift.Bool
+        0x00050188  method descriptor for PreviewsPlatforms.ShellRequest.unsupportedFallbackValue.getter : A.Response
+        0x00050284  nominal type descriptor for PreviewsPlatforms.CrashReportErrorEnhancer
+        0x00050344  protocol descriptor for PreviewsPlatforms.FrameworkAgentSigningIdentityProvider
+        0x00050354  protocol requirements base descriptor for PreviewsPlatforms.FrameworkAgentSigningIdentityProvider
+        0x0005035C  method descriptor for PreviewsPlatforms.FrameworkAgentSigningIdentityProvider.teamID.getter : Swift.String
+        0x00050388  nominal type descriptor for PreviewsPlatforms.ShellStreamFactory
+        0x000503BC  method descriptor for PreviewsPlatforms.ShellStreamFactory.__allocating_init(makeTransport: @Sendable () async throws -> PreviewsMessagingHost.Transport) -> PreviewsPlatforms.ShellStreamFactory
+        0x000503E8  protocol descriptor for PreviewsPlatforms.FrameworkAgentSigner
+        0x000503F8  protocol requirements base descriptor for PreviewsPlatforms.FrameworkAgentSigner
+        0x00050400  method descriptor for PreviewsPlatforms.FrameworkAgentSigner.sign(bundle: PreviewsPipeline.PreviewAgentBundle, platform: PreviewsPipeline.Platform, teamID: Swift.String, outputDirectory: Foundation.URL) async throws -> PreviewsPipeline.PreviewAgentBundle
+        0x00059B00  type metadata for PreviewsPlatforms.AppExtension.Kind
+        0x00059BF8  type metadata for PreviewsPlatforms.PreviewProductTransferStore
+        0x0005A4B0  type metadata for PreviewsPlatforms.PreviewProcessEnvironmentHandler
+        0x0005A5F0  protocol witness table for PreviewsPlatforms.PreviewsDaemonInterfaceConnector : PreviewsPlatforms.InterfaceConnector in PreviewsPlatforms
+        0x0005A8C8  property descriptor for PreviewsPlatforms.RemoteAgentUpdater.agentBundle : PreviewsPipeline.PreviewAgentBundle
+        0x0005A8D0  property descriptor for PreviewsPlatforms.RemoteAgentUpdater.supportsOnDevice : Swift.Bool
+        0x0005A8D8  property descriptor for PreviewsPlatforms.RemoteAgentUpdater.wasUsed : PreviewsFoundationHost.SingleFireEvent
+        0x0005A8E0  property descriptor for PreviewsPlatforms.RemoteAgentUpdater.wasTornDown : PreviewsFoundationHost.SingleFireEvent
+        0x0005A8E8  property descriptor for PreviewsPlatforms.RemoteAgentUpdater.wasRelinquished : PreviewsFoundationHost.EventStream<()>.Sink
+        0x0005A8F0  property descriptor for PreviewsPlatforms.RemoteAgentUpdater.identifier : PreviewsFoundationHost.Identifier
+        0x0005AB28  property descriptor for PreviewsPlatforms.RemotePreviewAgent.identifier : PreviewsPipeline.PreviewAgentIdentifier
+        0x0005AB30  property descriptor for PreviewsPlatforms.RemotePreviewAgent.agentBundle : PreviewsPipeline.PreviewAgentBundle
+        0x0005AB38  property descriptor for PreviewsPlatforms.RemotePreviewAgent.agentStreamFactory : PreviewsPlatforms.AgentStreamFactory?
+        0x0005AEA0  type metadata for (extension in PreviewsPlatforms):PreviewsPipeline.PreviewAgentBundle.Handle
+        0x0005B5C8  protocol witness table for PreviewsPlatforms.PreviewShellLifecycleInterface : PreviewsPlatforms.LifecycleInterface in PreviewsPlatforms
+        0x0005B5F0  protocol witness table for PreviewsPlatforms.PreviewShellCapabilitiesInterface : PreviewsPlatforms.CapabilitiesInterface in PreviewsPlatforms
+        0x0005B600  protocol witness table for PreviewsPlatforms.PreviewShellRequestInterface : PreviewsPlatforms.ShellRequestInterface in PreviewsPlatforms
+        0x0005B610  protocol witness table for PreviewsPlatforms.PreviewShellUtilityInterface : PreviewsPlatforms.UtilityInterface in PreviewsPlatforms
+        0x0005B630  protocol witness table for PreviewsPlatforms.PreviewShellLegacyUpdaterInterface : PreviewsPlatforms.UpdaterInterface in PreviewsPlatforms
+        0x0005B640  protocol witness table for PreviewsPlatforms.PreviewShellModernUpdaterInterface : PreviewsPlatforms.UpdaterInterface in PreviewsPlatforms
+        0x0005B6B8  type metadata for PreviewsPlatforms.PreviewShellLifecycleInterface
+        0x0005B738  type metadata for PreviewsPlatforms.PreviewShellCapabilitiesInterface
+        0x0005B7B8  type metadata for PreviewsPlatforms.PreviewShellUtilityInterface
+        0x0005B838  type metadata for PreviewsPlatforms.PreviewShellLegacyUpdaterInterface
+        0x0005B910  protocol witness table for PreviewsPlatforms.UnsupportedShellRequestInterface : PreviewsPlatforms.ShellRequestInterface in PreviewsPlatforms
+        0x0005B988  type metadata for PreviewsPlatforms.UnsupportedShellRequestInterface
+        0x0005BC60  type metadata for PreviewsPlatforms.CrashReportErrorEnhancer
+        0x0005C1D8  property descriptor for (extension in PreviewsPlatforms):PreviewsPipeline.PreviewAgentBundle.appExtension : PreviewsPlatforms.AppExtension?
+        0x000610A0  type metadata for PreviewsPlatforms.AppExtension
+        0x00061360  metaclass for PreviewsPlatforms.AgentStreamFactory
+        0x000613B0  type metadata for PreviewsPlatforms.AgentStreamFactory
+        0x000614D0  metaclass for PreviewsPlatforms.PreviewsDaemonInterfaceConnector
+        0x00061528  type metadata for PreviewsPlatforms.PreviewsDaemonInterfaceConnector
+        0x000616E0  metaclass for PreviewsPlatforms.ProcessObserver
+        0x00061720  type metadata for PreviewsPlatforms.ProcessObserver
+        0x000618A0  type metadata for PreviewsPlatforms.DaemonClientRole
+        0x00061970  metaclass for PreviewsPlatforms.RemoteAgentUpdater
+        0x000619C0  type metadata for PreviewsPlatforms.RemoteAgentUpdater
+        0x00061B80  metaclass for PreviewsPlatforms.RemotePreviewAgent
+        0x00061BD0  type metadata for PreviewsPlatforms.RemotePreviewAgent
+        0x00061E08  metaclass for PreviewsPlatforms.CrashReportService
+        0x00061E58  type metadata for PreviewsPlatforms.CrashReportService
+        0x00062100  type metadata for (extension in PreviewsPlatforms):PreviewsPipeline.PreviewAgentBundle.Agent
+        0x00062640  type metadata for PreviewsPlatforms.PreviewShellRequestInterface
+        0x000626D0  type metadata for PreviewsPlatforms.PreviewShellModernUpdaterInterface
+        0x00062780  metaclass for PreviewsPlatforms.FrameworkAgentPool
+        0x000627D0  type metadata for PreviewsPlatforms.FrameworkAgentPool
+        0x00062AE8  type metadata for PreviewsPlatforms.DestinationInterface
+        0x00062F40  metaclass for PreviewsPlatforms.ShellStreamFactory
+        0x00062F80  type metadata for PreviewsPlatforms.ShellStreamFactory
+        offset      symbol
+    -exports:
+/Applications/Xcode-26.2.0.app/Contents/SharedFrameworks/PreviewsPlatforms.framework/Versions/A/PreviewsPlatforms [arm64]:

@@ -1,0 +1,371 @@
+        0x00000ED0  static (extension in PreviewsSyntax):IDESwiftSyntax.SyntaxCollection.empty.getter : A
+        0x00000F7C  (extension in PreviewsSyntax):IDESwiftSyntax.SyntaxCollection.init(compacting: [A.Element?]) -> A
+        0x00001124  (extension in PreviewsSyntax):IDESwiftSyntax.SyntaxCollection.child(at: Swift.Int) -> A.Element?
+        0x000012C0  (extension in PreviewsSyntax):IDESwiftSyntax.SyntaxCollection.replacingLast(with: A.Element) -> A
+        0x00001510  (extension in PreviewsSyntax):IDESwiftSyntax.SyntaxCollection.replacingFirst(with: A.Element) -> A
+        0x00001738  (extension in PreviewsSyntax):IDESwiftSyntax.SyntaxCollection.removingChild(at: IDESwiftSyntax.SyntaxChildrenIndex) -> A
+        0x00001810  (extension in PreviewsSyntax):IDESwiftSyntax.SyntaxCollection.rewriting(childAt: Swift.Int, using: IDESwiftSyntax.SyntaxRewriter) -> A
+        0x00001DC4  (extension in PreviewsSyntax):PreviewsSyntax.CommaSeparatedCollection.prependingWithComma(and: IDESwiftSyntax.Trivia, makeSyntax: () -> A.Element) -> A
+        0x000022E0  default argument 0 of (extension in PreviewsSyntax):PreviewsSyntax.CommaSeparatedCollection.appendingWithComma(and: IDESwiftSyntax.Trivia, makeSyntax: () -> A.Element) -> A
+        0x000022E4  (extension in PreviewsSyntax):PreviewsSyntax.CommaSeparatedCollection.appendingWithComma(and: IDESwiftSyntax.Trivia, makeSyntax: () -> A.Element) -> A
+        0x00002834  (extension in PreviewsSyntax):PreviewsSyntax.CommaSeparatedCollection.removingLastWithComma() -> A
+        0x00002C44  (extension in PreviewsSyntax):PreviewsSyntax.CommaSeparatedCollection.removingWithComma(childAt: Swift.Int) -> A
+        0x00002DD8  default argument 0 of (extension in PreviewsSyntax):IDESwiftSyntax.SyntaxProtocol.trimmingLeadingTrivia(matching: (IDESwiftSyntax.TriviaPiece) -> Swift.Bool) -> A
+        0x00002DD8  default argument 0 of (extension in PreviewsSyntax):IDESwiftSyntax.SyntaxProtocol.trimmingTrailingTrivia(matching: (IDESwiftSyntax.TriviaPiece) -> Swift.Bool) -> A
+        0x00002DE8  default argument 5 of (extension in PreviewsSyntax):IDESwiftSyntax.CodeBlockItemListSyntax.withAvailabilityChecks(for: PreviewsSyntax.AvailabilitySet, relativeTo: PreviewsSyntax.AvailabilitySet, platformAllowList: [PreviewsSyntax.AvailabilitySet.Platform]?, else: PreviewsSyntax.UnavailableBranch, poundElse: PreviewsSyntax.UnavailableBranch, shouldAvoidReformatting: Swift.Bool) -> IDESwiftSyntax.CodeBlockItemListSyntax
+        0x000032EC  default argument 0 of (extension in PreviewsSyntax):PreviewsSyntax.CommaSeparatedCollection.prependingWithComma(and: IDESwiftSyntax.Trivia, makeSyntax: () -> A.Element) -> A
+        0x00003704  PreviewsSyntax.AvailabilitySet.attributeListSyntax.getter : IDESwiftSyntax.AttributeListSyntax
+        0x00008ED0  PreviewsSyntax.Availability.Version.versionTupleSyntax.getter : IDESwiftSyntax.VersionTupleSyntax
+        0x00009F28  PreviewsSyntax.AvailabilityParseError.specList.getter : IDESwiftSyntax.AvailabilityArgumentListSyntax
+        0x00009F60  PreviewsSyntax.AvailabilityParseError.specList.setter : IDESwiftSyntax.AvailabilityArgumentListSyntax
+        0x00009F98  PreviewsSyntax.Availability.Restrictions.introduced.modify : PreviewsSyntax.Availability.Version?
+        0x00009F98  PreviewsSyntax.AvailabilityParseError.specList.modify : IDESwiftSyntax.AvailabilityArgumentListSyntax
+        0x00009F98  PreviewsSyntax.AvailabilitySet.Platform.name.modify : Swift.String
+        0x00009F98  PreviewsSyntax.AvailabilitySet.platformAvailability.modify : [PreviewsSyntax.AvailabilitySet.Platform : PreviewsSyntax.Availability]
+        0x00009FAC  PreviewsSyntax.AvailabilityParseError.problem.getter : PreviewsSyntax.AvailabilityParseError.Problem
+        0x00009FF0  PreviewsSyntax.AvailabilityParseError.problem.setter : PreviewsSyntax.AvailabilityParseError.Problem
+        0x0000A058  PreviewsSyntax.AvailabilityParseError.problem.modify : PreviewsSyntax.AvailabilityParseError.Problem
+        0x0000A090  PreviewsSyntax.AvailabilitySet.Platform.name.getter : Swift.String
+        0x0000A0BC  (extension in PreviewsSyntax):IDESwiftSyntax.AttributeListSyntax.filteredForAvailability() throws -> PreviewsSyntax.AvailabilitySet
+        0x0000ABE8  (extension in PreviewsSyntax):IDESwiftSyntax.AttributeSyntax.availabilitySpec.getter : IDESwiftSyntax.AvailabilityArgumentListSyntax?
+        0x0000AE44  (extension in PreviewsSyntax):IDESwiftSyntax.AvailabilityArgumentListSyntax.parse() -> Swift.Result<PreviewsSyntax.AvailabilitySet, PreviewsSyntax.AvailabilityParseError>
+        0x0000E538  static PreviewsSyntax.Availability.introduced(PreviewsSyntax.Availability.Version) -> PreviewsSyntax.Availability
+        0x0000E538  static PreviewsSyntax.Availability.Restrictions.introduced(PreviewsSyntax.Availability.Version) -> PreviewsSyntax.Availability.Restrictions
+        0x0000E550  static PreviewsSyntax.Availability.deprecated(PreviewsSyntax.Availability.Version) -> PreviewsSyntax.Availability
+        0x0000E550  static PreviewsSyntax.Availability.Restrictions.deprecated(PreviewsSyntax.Availability.Version) -> PreviewsSyntax.Availability.Restrictions
+        0x0000E564  static PreviewsSyntax.Availability.obsoleted(PreviewsSyntax.Availability.Version) -> PreviewsSyntax.Availability
+        0x0000E564  static PreviewsSyntax.Availability.Restrictions.obsoleted(PreviewsSyntax.Availability.Version) -> PreviewsSyntax.Availability.Restrictions
+        0x0000F134  type metadata accessor for PreviewsSyntax.AvailabilityParseError
+        0x00010914  type metadata accessor for PreviewsSyntax.AvailabilityParseError.Problem
+        0x00010D3C  PreviewsSyntax.AvailabilitySet.sortedPlatformIntroductions.getter : [(PreviewsSyntax.AvailabilitySet.Platform, PreviewsSyntax.Availability.Version)]
+        0x00010D48  PreviewsSyntax.AvailabilitySet.sortedPlatformObsoletions.getter : [(PreviewsSyntax.AvailabilitySet.Platform, PreviewsSyntax.Availability.Version)]
+        0x00010DB8  PreviewsSyntax.AvailabilitySet.sortedPlatformRestrictions.getter : [(PreviewsSyntax.AvailabilitySet.Platform, PreviewsSyntax.Availability.Restrictions)]
+        0x00010E8C  PreviewsSyntax.AvailabilitySet.sortedUnavailablePlatforms.getter : [PreviewsSyntax.AvailabilitySet.Platform]
+        0x00010FCC  static PreviewsSyntax.AvailabilitySet.unrestricted.getter : PreviewsSyntax.AvailabilitySet
+        0x00010FD8  static PreviewsSyntax.AvailabilitySet.+ infix(PreviewsSyntax.AvailabilitySet, PreviewsSyntax.AvailabilitySet) -> PreviewsSyntax.AvailabilitySet
+        0x000111A8  static PreviewsSyntax.AvailabilitySet.+= infix(inout PreviewsSyntax.AvailabilitySet, PreviewsSyntax.AvailabilitySet) -> ()
+        0x00011228  PreviewsSyntax.Availability.Version.init(stringLiteral: Swift.String) -> PreviewsSyntax.Availability.Version
+        0x000114AC  static PreviewsSyntax.Availability.Restrictions.none.getter : PreviewsSyntax.Availability.Restrictions
+        0x000114AC  static PreviewsSyntax.Availability.unrestricted.getter : PreviewsSyntax.Availability
+        0x000114C0  static PreviewsSyntax.Availability.deprecated.getter : PreviewsSyntax.Availability
+        0x000114C0  static PreviewsSyntax.Availability.Restrictions.deprecated.getter : PreviewsSyntax.Availability.Restrictions
+        0x000114D0  PreviewsSyntax.AvailabilitySet.init(dictionaryLiteral: (PreviewsSyntax.AvailabilitySet.Platform, PreviewsSyntax.Availability)...) -> PreviewsSyntax.AvailabilitySet
+        0x00011590  static PreviewsSyntax.AvailabilitySet.swift(PreviewsSyntax.Availability.Restrictions) -> PreviewsSyntax.AvailabilitySet
+        0x0001160C  static PreviewsSyntax.AvailabilitySet.globallyUnavailable.getter : PreviewsSyntax.AvailabilitySet
+        0x00011618  static PreviewsSyntax.AvailabilitySet.globallyDeprecated.getter : PreviewsSyntax.AvailabilitySet
+        0x0001167C  PreviewsSyntax.Availability.description.getter : Swift.String
+        0x000116E0  static PreviewsSyntax.Availability.+ infix(PreviewsSyntax.Availability, PreviewsSyntax.Availability) -> PreviewsSyntax.Availability
+        0x00011784  static PreviewsSyntax.Availability.Restrictions.+ infix(PreviewsSyntax.Availability.Restrictions, PreviewsSyntax.Availability.Restrictions) -> PreviewsSyntax.Availability.Restrictions
+        0x00011984  static PreviewsSyntax.Availability.- infix(PreviewsSyntax.Availability, PreviewsSyntax.Availability) -> PreviewsSyntax.Availability
+        0x00011A34  static PreviewsSyntax.Availability.Restrictions.- infix(PreviewsSyntax.Availability.Restrictions, PreviewsSyntax.Availability.Restrictions) -> PreviewsSyntax.Availability.Restrictions
+        0x00011B64  PreviewsSyntax.Availability.restrictions.getter : PreviewsSyntax.Availability.Restrictions?
+        0x00011B98  static PreviewsSyntax.Availability.== infix(PreviewsSyntax.Availability, PreviewsSyntax.Availability) -> Swift.Bool
+        0x00011B9C  static PreviewsSyntax.Availability.Restrictions.== infix(PreviewsSyntax.Availability.Restrictions, PreviewsSyntax.Availability.Restrictions) -> Swift.Bool
+        0x00011BA0  static PreviewsSyntax.Availability.Version.< infix(PreviewsSyntax.Availability.Version, PreviewsSyntax.Availability.Version) -> Swift.Bool
+        0x00011BA4  static PreviewsSyntax.Availability.Version.== infix(PreviewsSyntax.Availability.Version, PreviewsSyntax.Availability.Version) -> Swift.Bool
+        0x00011BA8  PreviewsSyntax.Availability.Version.init(major: Swift.Int, minors: [Swift.Int]) -> PreviewsSyntax.Availability.Version
+        0x00011BA8  PreviewsSyntax.AvailabilitySet.Platform.init(stringLiteral: Swift.String) -> PreviewsSyntax.AvailabilitySet.Platform
+        0x00011BB0  PreviewsSyntax.Availability.Version.description.getter : Swift.String
+        0x00011D44  PreviewsSyntax.Availability.DeprecatedVersion.description.getter : Swift.String
+        0x00011DC0  static PreviewsSyntax.Availability.DeprecatedVersion.< infix(PreviewsSyntax.Availability.DeprecatedVersion, PreviewsSyntax.Availability.DeprecatedVersion) -> Swift.Bool
+        0x00011E1C  static PreviewsSyntax.Availability.DeprecatedVersion.== infix(PreviewsSyntax.Availability.DeprecatedVersion, PreviewsSyntax.Availability.DeprecatedVersion) -> Swift.Bool
+        0x00011F3C  PreviewsSyntax.Availability.Restrictions.introduced.getter : PreviewsSyntax.Availability.Version?
+        0x00011F48  PreviewsSyntax.Availability.Restrictions.introduced.setter : PreviewsSyntax.Availability.Version?
+        0x00011F78  PreviewsSyntax.Availability.Restrictions.obsoleted.getter : PreviewsSyntax.Availability.Version?
+        0x00011F84  PreviewsSyntax.Availability.Restrictions.obsoleted.setter : PreviewsSyntax.Availability.Version?
+        0x00011FB4  PreviewsSyntax.Availability.Restrictions.obsoleted.modify : PreviewsSyntax.Availability.Version?
+        0x00011FC4  PreviewsSyntax.Availability.Restrictions.deprecated.getter : PreviewsSyntax.Availability.DeprecatedVersion?
+        0x00011FD0  PreviewsSyntax.Availability.Restrictions.deprecated.setter : PreviewsSyntax.Availability.DeprecatedVersion?
+        0x00012000  PreviewsSyntax.Availability.Restrictions.deprecated.modify : PreviewsSyntax.Availability.DeprecatedVersion?
+        0x00012010  PreviewsSyntax.Availability.Restrictions.description.getter : Swift.String
+        0x000122D4  PreviewsSyntax.Availability.Value.isAvailable.getter : Swift.Bool
+        0x000122E4  static PreviewsSyntax.Availability.Value.== infix(PreviewsSyntax.Availability.Value, PreviewsSyntax.Availability.Value) -> Swift.Bool
+        0x00012360  PreviewsSyntax.Availability.value(in: PreviewsSyntax.Availability.Version) -> PreviewsSyntax.Availability.Value
+        0x0001242C  PreviewsSyntax.AvailabilitySet.Platform.name.setter : Swift.String
+        0x00012460  static PreviewsSyntax.AvailabilitySet.Platform.== infix(PreviewsSyntax.AvailabilitySet.Platform, PreviewsSyntax.AvailabilitySet.Platform) -> Swift.Bool
+        0x00012490  PreviewsSyntax.AvailabilitySet.Platform.hash(into: inout Swift.Hasher) -> ()
+        0x00012498  PreviewsSyntax.AvailabilitySet.Platform.hashValue.getter : Swift.Int
+        0x00012524  PreviewsSyntax.AvailabilitySet.platformAvailability.getter : [PreviewsSyntax.AvailabilitySet.Platform : PreviewsSyntax.Availability]
+        0x0001252C  PreviewsSyntax.AvailabilitySet.platformAvailability.setter : [PreviewsSyntax.AvailabilitySet.Platform : PreviewsSyntax.Availability]
+        0x00012554  PreviewsSyntax.AvailabilitySet.swiftRestrictions.getter : PreviewsSyntax.Availability.Restrictions
+        0x000125AC  PreviewsSyntax.AvailabilitySet.swiftRestrictions.setter : PreviewsSyntax.Availability.Restrictions
+        0x00012618  PreviewsSyntax.AvailabilitySet.swiftRestrictions.modify : PreviewsSyntax.Availability.Restrictions
+        0x00012628  PreviewsSyntax.AvailabilitySet.isGloballyUnavailable.getter : Swift.Bool
+        0x00012630  PreviewsSyntax.AvailabilitySet.isGloballyUnavailable.setter : Swift.Bool
+        0x00012638  PreviewsSyntax.AvailabilitySet.isGloballyUnavailable.modify : Swift.Bool
+        0x00012648  PreviewsSyntax.AvailabilitySet.isGloballyDeprecated.getter : Swift.Bool
+        0x00012650  PreviewsSyntax.AvailabilitySet.isGloballyDeprecated.setter : Swift.Bool
+        0x00012658  PreviewsSyntax.AvailabilitySet.isGloballyDeprecated.modify : Swift.Bool
+        0x00012668  PreviewsSyntax.AvailabilitySet.description.getter : Swift.String
+        0x00012C8C  static PreviewsSyntax.AvailabilitySet.== infix(PreviewsSyntax.AvailabilitySet, PreviewsSyntax.AvailabilitySet) -> Swift.Bool
+        0x000130E8  static PreviewsSyntax.AvailabilitySet.- infix(PreviewsSyntax.AvailabilitySet, PreviewsSyntax.AvailabilitySet) -> PreviewsSyntax.AvailabilitySet
+        0x000136D0  PreviewsSyntax.AvailabilitySet.availability(on: PreviewsSyntax.AvailabilitySet.Platform) -> PreviewsSyntax.Availability
+        0x00013790  PreviewsSyntax.AvailabilitySet.introducedVersion(on: PreviewsSyntax.AvailabilitySet.Platform) -> PreviewsSyntax.Availability.Version?
+        0x0001382C  static PreviewsSyntax.AvailabilitySet.introduced(_: PreviewsSyntax.Availability.Version, on: PreviewsSyntax.AvailabilitySet.Platform) -> PreviewsSyntax.AvailabilitySet
+        0x0001391C  static PreviewsSyntax.AvailabilitySet.previewRegistryAvailability.getter : PreviewsSyntax.AvailabilitySet
+        0x00013940  static PreviewsSyntax.AvailabilitySet.previewProviderAvailability.getter : PreviewsSyntax.AvailabilitySet
+        0x00013AC8  static PreviewsSyntax.AvailabilitySet.playgroundRegistryAvailability.getter : PreviewsSyntax.AvailabilitySet
+        0x00013C7C  PreviewsSyntax.Availability.Filter.rawValue.getter : Swift.Int
+        0x00013C84  PreviewsSyntax.Availability.Filter.init(rawValue: Swift.Int) -> PreviewsSyntax.Availability.Filter
+        0x00013C8C  static PreviewsSyntax.Availability.Filter.unavailabilities.getter : PreviewsSyntax.Availability.Filter
+        0x00013C98  static PreviewsSyntax.Availability.Filter.introductions.getter : PreviewsSyntax.Availability.Filter
+        0x00013CA4  static PreviewsSyntax.Availability.Filter.obsoletions.getter : PreviewsSyntax.Availability.Filter
+        0x00013CB0  static PreviewsSyntax.Availability.Filter.deprecations.getter : PreviewsSyntax.Availability.Filter
+        0x00013CBC  static PreviewsSyntax.Availability.Filter.all.getter : PreviewsSyntax.Availability.Filter
+        0x00013E94  PreviewsSyntax.Availability.filtered(PreviewsSyntax.Availability.Filter) -> PreviewsSyntax.Availability
+        0x00013F54  PreviewsSyntax.Availability.Restrictions.filtered(PreviewsSyntax.Availability.Filter) -> PreviewsSyntax.Availability.Restrictions
+        0x00013FF0  PreviewsSyntax.AvailabilitySet.filtered(PreviewsSyntax.Availability.Filter) -> PreviewsSyntax.AvailabilitySet
+        0x0001BEE8  type metadata accessor for PreviewsSyntax.Availability
+        0x0001BF00  type metadata accessor for PreviewsSyntax.Availability.Version
+        0x0001BFF0  type metadata accessor for PreviewsSyntax.Availability.DeprecatedVersion
+        0x0001C2C0  type metadata accessor for PreviewsSyntax.Availability.Restrictions
+        0x0001C478  type metadata accessor for PreviewsSyntax.Availability.Value
+        0x0001C7B0  type metadata accessor for PreviewsSyntax.AvailabilitySet
+        0x0001C7C0  type metadata accessor for PreviewsSyntax.AvailabilitySet.Platform
+        0x0001C824  type metadata accessor for PreviewsSyntax.Availability.Filter
+        0x0001C8D0  PreviewsSyntax.AvailabilitySet.Platform.init(name: Swift.String) -> PreviewsSyntax.AvailabilitySet.Platform
+        0x0001CD50  (extension in PreviewsSyntax):IDESwiftSyntax.SyntaxProtocol.trimmingTrailingWhitespace() -> A
+        0x0001D018  (extension in PreviewsSyntax):IDESwiftSyntax.AttributeSyntax.isAttribute(named: Swift.String, definedIn: Swift.String?) -> Swift.Bool
+        0x0001D204  (extension in PreviewsSyntax):IDESwiftSyntax.SyntaxProtocol.trimmingWhitespace() -> A
+        0x0001D2B4  static (extension in PreviewsSyntax):IDESwiftSyntax.Trivia.indent.getter : IDESwiftSyntax.Trivia
+        0x0001D2BC  static (extension in PreviewsSyntax):IDESwiftSyntax.ExprSyntaxProtocol< where A == IDESwiftSyntax.StringLiteralExprSyntax>.stringLiteral(Swift.String) -> IDESwiftSyntax.StringLiteralExprSyntax
+        0x0001DB24  static (extension in PreviewsSyntax):IDESwiftSyntax.ExprSyntaxProtocol< where A == IDESwiftSyntax.IntegerLiteralExprSyntax>.integerLiteral(Swift.Int) -> IDESwiftSyntax.IntegerLiteralExprSyntax
+        0x0001DE64  (extension in PreviewsSyntax):IDESwiftSyntax.AttributeSyntax.unqualifiedName.getter : Swift.String
+        0x0001E008  (extension in PreviewsSyntax):IDESwiftSyntax.AttributeListSyntax.first(named: Swift.String, definedIn: Swift.String?) -> IDESwiftSyntax.AttributeSyntax?
+        0x0001E6E0  (extension in PreviewsSyntax):IDESwiftSyntax.AttributeListSyntax.firstIncludingIfConfigAttributes(named: Swift.String) -> IDESwiftSyntax.AttributeSyntax?
+        0x0001F360  (extension in PreviewsSyntax):IDESwiftSyntax.SyntaxProtocol.trimmingLeadingWhitespaceOnlyLines() -> A
+        0x0001F7E8  (extension in PreviewsSyntax):IDESwiftSyntax.SyntaxProtocol.prependingTrivia(IDESwiftSyntax.TriviaPiece) -> A
+        0x0001F9EC  (extension in PreviewsSyntax):IDESwiftSyntax.SyntaxProtocol.increasingIndentation(by: Swift.Int) -> A
+        0x0001FCC8  (extension in PreviewsSyntax):IDESwiftSyntax.SyntaxProtocol.trimmingTrailingTrivia(matching: (IDESwiftSyntax.TriviaPiece) -> Swift.Bool) -> A
+        0x00020208  (extension in PreviewsSyntax):IDESwiftSyntax.SyntaxProtocol.trimmingLeadingWhitespace() -> A
+        0x00020244  (extension in PreviewsSyntax):IDESwiftSyntax.SyntaxProtocol.trimmingLeadingTrivia(matching: (IDESwiftSyntax.TriviaPiece) -> Swift.Bool) -> A
+        0x0002054C  (extension in PreviewsSyntax):IDESwiftSyntax.SyntaxProtocol.trimmingTrivia() -> A
+        0x000206B4  (extension in PreviewsSyntax):IDESwiftSyntax.SyntaxProtocol.addingNewline() -> A
+        0x00021120  static (extension in PreviewsSyntax):IDESwiftSyntax.CodeBlockItemSyntax.decl(IDESwiftSyntax.DeclSyntax) -> IDESwiftSyntax.CodeBlockItemSyntax
+        0x00021134  static (extension in PreviewsSyntax):IDESwiftSyntax.CodeBlockItemSyntax.expr(IDESwiftSyntax.ExprSyntax) -> IDESwiftSyntax.CodeBlockItemSyntax
+        0x00021148  static (extension in PreviewsSyntax):IDESwiftSyntax.CodeBlockItemSyntax.stmt(IDESwiftSyntax.StmtSyntax) -> IDESwiftSyntax.CodeBlockItemSyntax
+        0x00021420  (extension in PreviewsSyntax):IDESwiftSyntax.DeclSyntaxProtocol.asCodeBlockItem.getter : IDESwiftSyntax.CodeBlockItemSyntax
+        0x0002143C  (extension in PreviewsSyntax):IDESwiftSyntax.DeclSyntaxProtocol.inCodeBlockItemList.getter : IDESwiftSyntax.CodeBlockItemListSyntax
+        0x00021448  (extension in PreviewsSyntax):IDESwiftSyntax.SyntaxProtocol.inList<A where A == A1.Element, A1: IDESwiftSyntax.SyntaxCollection>() -> A1
+        0x00021530  (extension in PreviewsSyntax):IDESwiftSyntax.DeclSyntaxProtocol.asMemberBlockItem.getter : IDESwiftSyntax.MemberBlockItemSyntax
+        0x000217D8  (extension in PreviewsSyntax):IDESwiftSyntax.ExprSyntaxProtocol.asCodeBlockItem.getter : IDESwiftSyntax.CodeBlockItemSyntax
+        0x000218A8  (extension in PreviewsSyntax):IDESwiftSyntax.ExprSyntaxProtocol.inCodeBlockItemList.getter : IDESwiftSyntax.CodeBlockItemListSyntax
+        0x000218B4  (extension in PreviewsSyntax):IDESwiftSyntax.StmtSyntaxProtocol.asCodeBlockItem.getter : IDESwiftSyntax.CodeBlockItemSyntax
+        0x000218D0  (extension in PreviewsSyntax):IDESwiftSyntax.StmtSyntaxProtocol.inCodeBlockItemList.getter : IDESwiftSyntax.CodeBlockItemListSyntax
+        0x00021A64  (extension in PreviewsSyntax):IDESwiftSyntax.AttributeSyntax.nameArgument.getter : IDESwiftSyntax.ExprSyntax?
+        0x00021E90  (extension in PreviewsSyntax):IDESwiftSyntax.AttributeSyntax.literalNameArgument.getter : Swift.String?
+        0x00022518  static (extension in PreviewsSyntax):IDESwiftSyntax.TupleTypeSyntax.formatting(types: [IDESwiftSyntax.TypeSyntax]) -> IDESwiftSyntax.TupleTypeSyntax
+        0x000238B8  (extension in PreviewsSyntax):IDESwiftSyntax.FreestandingMacroExpansionSyntax.attributes.getter : IDESwiftSyntax.AttributeListSyntax?
+        0x000239F4  (extension in PreviewsSyntax):IDESwiftSyntax.FreestandingMacroExpansionSyntax.modifiers.getter : IDESwiftSyntax.DeclModifierListSyntax?
+        0x00023B30  (extension in PreviewsSyntax):IDESwiftSyntax.FreestandingMacroExpansionSyntax.nameArgument.getter : IDESwiftSyntax.ExprSyntax?
+        0x00023D8C  (extension in PreviewsSyntax):IDESwiftSyntax.FreestandingMacroExpansionSyntax.literalNameArgument.getter : Swift.String?
+        0x0002442C  (extension in PreviewsSyntax):IDESwiftSyntax.FreestandingMacroExpansionSyntax.firstArgument(labeled: Swift.String) -> IDESwiftSyntax.ExprSyntax?
+        0x00024904  (extension in PreviewsSyntax):IDESwiftSyntax.FreestandingMacroExpansionSyntax.lastClosureArgument.getter : IDESwiftSyntax.ClosureExprSyntax?
+        0x0002490C  (extension in PreviewsSyntax):IDESwiftSyntax.FreestandingMacroExpansionSyntax.closureArgument(offsetFromLast: Swift.Int) -> (syntax: IDESwiftSyntax.ClosureExprSyntax, location: PreviewsSyntax.ClosureLocation)?
+        0x000250D8  (extension in PreviewsSyntax):IDESwiftSyntax.FreestandingMacroExpansionSyntax.secondToLastClosureArgument.getter : IDESwiftSyntax.ClosureExprSyntax?
+        0x0002522C  (extension in PreviewsSyntax):IDESwiftSyntax.FunctionCallExprSyntax.lastClosureArgument.getter : IDESwiftSyntax.ClosureExprSyntax?
+        0x00025364  (extension in PreviewsSyntax):IDESwiftSyntax.FunctionCallExprSyntax.closureArgument(offsetFromLast: Swift.Int) -> (syntax: IDESwiftSyntax.ClosureExprSyntax, location: PreviewsSyntax.ClosureLocation)?
+        0x00025B18  (extension in PreviewsSyntax):IDESwiftSyntax.VariableDeclSyntax.isStaticProperty.getter : Swift.Bool
+        0x00025D00  (extension in PreviewsSyntax):IDESwiftSyntax.DeclSyntaxProtocol.hasModifier(IDESwiftSyntax.TokenKind) -> Swift.Bool
+        0x00025E34  (extension in PreviewsSyntax):IDESwiftSyntax.VariableDeclSyntax.isGlobal.getter : Swift.Bool
+        0x00026184  (extension in PreviewsSyntax):IDESwiftSyntax.WithAttributesSyntax.firstAttribute(named: Swift.String, definedIn: Swift.String?) -> (index: IDESwiftSyntax.SyntaxChildrenIndex, attr: IDESwiftSyntax.AttributeSyntax)?
+        0x00026C60  (extension in PreviewsSyntax):IDESwiftSyntax.WithAttributesSyntax.removingAttributes(named: Swift.String, definedIn: Swift.String?) -> A
+        0x00027B58  (extension in PreviewsSyntax):IDESwiftSyntax.DeclSyntax.asAttributedDecl.getter : (IDESwiftSyntax.DeclSyntaxProtocol & IDESwiftSyntax.WithAttributesSyntax)?
+        0x00027C34  (extension in PreviewsSyntax):IDESwiftSyntax.PatternBindingSyntax.isComputedProperty.getter : Swift.Bool
+        0x000282D4  (extension in PreviewsSyntax):IDESwiftSyntax.ExprSyntax.stringLiteralValue.getter : Swift.String?
+        0x000287B8  (extension in PreviewsSyntax):IDESwiftSyntax.ExprSyntax.integerLiteralValue.getter : Swift.Int?
+        0x00028C94  (extension in PreviewsSyntax):IDESwiftSyntax.LabeledExprListSyntax.first(labeled: Swift.String) -> IDESwiftSyntax.LabeledExprSyntax?
+        0x0002906C  (extension in PreviewsSyntax):IDESwiftSyntax.LabeledExprListSyntax.firstUnlabeled() -> IDESwiftSyntax.LabeledExprSyntax?
+        0x00029394  (extension in PreviewsSyntax):IDESwiftSyntax.LabeledExprListSyntax.first(labeled: Swift.String?) -> IDESwiftSyntax.LabeledExprSyntax?
+        0x000297AC  type metadata accessor for PreviewsSyntax.ClosureLocation
+        0x0002B524  PreviewsSyntax.PreviewProviderCodeBlockRewriter.__allocating_init(viewMode: IDESwiftSyntax.SyntaxTreeViewMode) -> PreviewsSyntax.PreviewProviderCodeBlockRewriter
+        0x0002B61C  PreviewsSyntax.PreviewProviderCodeBlockRewriter.init(viewMode: IDESwiftSyntax.SyntaxTreeViewMode) -> PreviewsSyntax.PreviewProviderCodeBlockRewriter
+        0x0002B748  PreviewsSyntax.PreviewProviderCodeBlockRewriter.deinit
+        0x0002B7A8  PreviewsSyntax.PreviewProviderCodeBlockRewriter.__deallocating_deinit
+        0x0002B9B8  type metadata accessor for PreviewsSyntax.PreviewProviderCodeBlockRewriter
+        0x0002BA48  method lookup function for PreviewsSyntax.PreviewProviderCodeBlockRewriter
+        0x0002BA54  dispatch thunk of PreviewsSyntax.PreviewProviderCodeBlockRewriter.previewDisplayName.getter : Swift.String?
+        0x0002BA6C  dispatch thunk of PreviewsSyntax.PreviewProviderCodeBlockRewriter.previewLayout.getter : Swift.String?
+        0x0002BA84  dispatch thunk of PreviewsSyntax.PreviewProviderCodeBlockRewriter.previewInterfaceOrientation.getter : Swift.String?
+        0x0002BA9C  dispatch thunk of PreviewsSyntax.PreviewProviderCodeBlockRewriter.hadPreviewDevice.getter : Swift.Bool
+        0x0002BAB4  dispatch thunk of PreviewsSyntax.PreviewProviderCodeBlockRewriter.hadPreviewContext.getter : Swift.Bool
+        0x0002BAD4  (extension in PreviewsSyntax):IDESwiftSyntax.StructDeclSyntax.isView.getter : Swift.Bool
+        0x0002C190  (extension in PreviewsSyntax):IDESwiftSyntax.VariableDeclSyntax.someVarViewCodeBlockItemList(identifierName: Swift.String) -> IDESwiftSyntax.CodeBlockItemListSyntax?
+        0x0002CB60  static PreviewsSyntax.CodeChangeType.== infix(PreviewsSyntax.CodeChangeType, PreviewsSyntax.CodeChangeType) -> Swift.Bool
+        0x0002CB70  PreviewsSyntax.CodeChangeType.hash(into: inout Swift.Hasher) -> ()
+        0x0002CB94  PreviewsSyntax.CodeChangeType.hashValue.getter : Swift.Int
+        0x0002CC9C  (extension in PreviewsSyntax):IDESwiftSyntax.DeclSyntax.copyWithChanges(for: PreviewsSyntax.CodeChangeType, attributes: IDESwiftSyntax.AttributeListSyntax) -> IDESwiftSyntax.DeclSyntax
+        0x0002D244  (extension in PreviewsSyntax):IDESwiftSyntax.WithModifiersSyntax.copyWithChanges(for: PreviewsSyntax.CodeChangeType) -> A
+        0x0002DB00  (extension in PreviewsSyntax):IDESwiftSyntax.DeclModifierSyntax.isStaticModifier.getter : Swift.Bool
+        0x0002EE4C  (extension in PreviewsSyntax):IDESwiftSyntax.VariableDeclSyntax.previewsCodeBlockSyntax.getter : IDESwiftSyntax.CodeBlockItemListSyntax?
+        0x0002F374  type metadata accessor for PreviewsSyntax.CodeChangeType
+        0x00030D98  (extension in PreviewsSyntax):IDESwiftSyntax.CodeBlockItemListSyntax.withAvailabilityChecks(for: PreviewsSyntax.AvailabilitySet, relativeTo: PreviewsSyntax.AvailabilitySet, platformAllowList: [PreviewsSyntax.AvailabilitySet.Platform]?, else: PreviewsSyntax.UnavailableBranch, poundElse: PreviewsSyntax.UnavailableBranch, shouldAvoidReformatting: Swift.Bool) -> IDESwiftSyntax.CodeBlockItemListSyntax
+        0x00031718  static (extension in PreviewsSyntax):IDESwiftSyntax.CodeBlockItemListSyntax.targetEnvironmentConditional(environments: [(identifier: Swift.String, block: IDESwiftSyntax.CodeBlockItemListSyntax)], defaultBlock: IDESwiftSyntax.CodeBlockItemListSyntax?) -> IDESwiftSyntax.CodeBlockItemListSyntax?
+        0x00031E8C  (extension in PreviewsSyntax):IDESwiftSyntax.CodeBlockItemListSyntax.withEnvironmentExclusionCheck(identifiers: [Swift.String]) -> IDESwiftSyntax.CodeBlockItemListSyntax
+        0x000383C0  type metadata accessor for PreviewsSyntax.UnavailableBranch
+        0x00039740  _PreviewsSyntaxVersionString
+        0x00039780  _PreviewsSyntaxVersionNumber
+        0x00039814  protocol conformance descriptor for IDESwiftSyntax.AvailabilityArgumentListSyntax : PreviewsSyntax.CommaSeparatedCollection in PreviewsSyntax
+        0x00039830  protocol conformance descriptor for IDESwiftSyntax.ClosureShorthandParameterListSyntax : PreviewsSyntax.CommaSeparatedCollection in PreviewsSyntax
+        0x0003984C  protocol conformance descriptor for IDESwiftSyntax.LabeledExprListSyntax : PreviewsSyntax.CommaSeparatedCollection in PreviewsSyntax
+        0x00039868  protocol conformance descriptor for IDESwiftSyntax.TuplePatternElementListSyntax : PreviewsSyntax.CommaSeparatedCollection in PreviewsSyntax
+        0x00039884  protocol conformance descriptor for IDESwiftSyntax.TupleTypeElementListSyntax : PreviewsSyntax.CommaSeparatedCollection in PreviewsSyntax
+        0x000398A0  property descriptor for static (extension in PreviewsSyntax):IDESwiftSyntax.SyntaxCollection.empty : A
+        0x000399B0  protocol conformance descriptor for PreviewsSyntax.AvailabilityParseError : Swift.Error in PreviewsSyntax
+        0x000399F0  property descriptor for (extension in PreviewsSyntax):IDESwiftSyntax.AttributeSyntax.availabilitySpec : IDESwiftSyntax.AvailabilityArgumentListSyntax?
+        0x000399F0  property descriptor for PreviewsSyntax.Availability.Version.versionTupleSyntax : IDESwiftSyntax.VersionTupleSyntax
+        0x000399F0  property descriptor for PreviewsSyntax.AvailabilitySet.attributeListSyntax : IDESwiftSyntax.AttributeListSyntax
+        0x000399F4  property descriptor for PreviewsSyntax.AvailabilityParseError.specList : IDESwiftSyntax.AvailabilityArgumentListSyntax
+        0x000399FC  property descriptor for PreviewsSyntax.AvailabilityParseError.problem : PreviewsSyntax.AvailabilityParseError.Problem
+        0x00039A58  enum case for PreviewsSyntax.AvailabilityParseError.Problem.malformedList(PreviewsSyntax.AvailabilityParseError.Problem.Type) -> (Swift.String) -> PreviewsSyntax.AvailabilityParseError.Problem
+        0x00039A5C  enum case for PreviewsSyntax.AvailabilityParseError.Problem.unsupportedEntry(PreviewsSyntax.AvailabilityParseError.Problem.Type) -> (Swift.Int, Swift.String) -> PreviewsSyntax.AvailabilityParseError.Problem
+        0x00039D30  protocol conformance descriptor for PreviewsSyntax.Availability : Swift.Equatable in PreviewsSyntax
+        0x00039D58  protocol conformance descriptor for PreviewsSyntax.Availability : Swift.CustomStringConvertible in PreviewsSyntax
+        0x00039D80  protocol conformance descriptor for PreviewsSyntax.Availability.Version : Swift.Comparable in PreviewsSyntax
+        0x00039DC8  protocol conformance descriptor for PreviewsSyntax.Availability.Version : Swift.CustomStringConvertible in PreviewsSyntax
+        0x00039DF0  protocol conformance descriptor for PreviewsSyntax.Availability.Version : Swift.ExpressibleByStringLiteral in PreviewsSyntax
+        0x00039E30  protocol conformance descriptor for PreviewsSyntax.Availability.Version : Swift.Equatable in PreviewsSyntax
+        0x00039E58  protocol conformance descriptor for PreviewsSyntax.Availability.Version : Swift.ExpressibleByExtendedGraphemeClusterLiteral in PreviewsSyntax
+        0x00039E98  protocol conformance descriptor for PreviewsSyntax.Availability.Version : Swift.ExpressibleByUnicodeScalarLiteral in PreviewsSyntax
+        0x00039ED0  protocol conformance descriptor for PreviewsSyntax.Availability.DeprecatedVersion : Swift.Comparable in PreviewsSyntax
+        0x00039F18  protocol conformance descriptor for PreviewsSyntax.Availability.DeprecatedVersion : Swift.CustomStringConvertible in PreviewsSyntax
+        0x00039F40  protocol conformance descriptor for PreviewsSyntax.Availability.DeprecatedVersion : Swift.Equatable in PreviewsSyntax
+        0x00039F68  protocol conformance descriptor for PreviewsSyntax.Availability.Restrictions : Swift.Equatable in PreviewsSyntax
+        0x00039F90  protocol conformance descriptor for PreviewsSyntax.Availability.Restrictions : Swift.CustomStringConvertible in PreviewsSyntax
+        0x00039FB8  protocol conformance descriptor for PreviewsSyntax.Availability.Value : Swift.Equatable in PreviewsSyntax
+        0x00039FE0  protocol conformance descriptor for PreviewsSyntax.AvailabilitySet.Platform : Swift.Hashable in PreviewsSyntax
+        0x0003A020  protocol conformance descriptor for PreviewsSyntax.AvailabilitySet.Platform : Swift.Equatable in PreviewsSyntax
+        0x0003A048  protocol conformance descriptor for PreviewsSyntax.AvailabilitySet : Swift.Equatable in PreviewsSyntax
+        0x0003A070  protocol conformance descriptor for PreviewsSyntax.AvailabilitySet : Swift.CustomStringConvertible in PreviewsSyntax
+        0x0003A098  protocol conformance descriptor for PreviewsSyntax.AvailabilitySet : Swift.ExpressibleByDictionaryLiteral in PreviewsSyntax
+        0x0003A0D0  protocol conformance descriptor for PreviewsSyntax.AvailabilitySet.Platform : Swift.ExpressibleByStringLiteral in PreviewsSyntax
+        0x0003A110  protocol conformance descriptor for PreviewsSyntax.AvailabilitySet.Platform : Swift.ExpressibleByExtendedGraphemeClusterLiteral in PreviewsSyntax
+        0x0003A150  protocol conformance descriptor for PreviewsSyntax.AvailabilitySet.Platform : Swift.ExpressibleByUnicodeScalarLiteral in PreviewsSyntax
+        0x0003A188  protocol conformance descriptor for PreviewsSyntax.Availability.Filter : Swift.OptionSet in PreviewsSyntax
+        0x0003A1C0  protocol conformance descriptor for PreviewsSyntax.Availability.Filter : Swift.RawRepresentable in PreviewsSyntax
+        0x0003A1F8  protocol conformance descriptor for PreviewsSyntax.Availability.Filter : Swift.SetAlgebra in PreviewsSyntax
+        0x0003A2C0  protocol conformance descriptor for PreviewsSyntax.Availability.Filter : Swift.Equatable in PreviewsSyntax
+        0x0003A2E8  protocol conformance descriptor for PreviewsSyntax.Availability.Filter : Swift.ExpressibleByArrayLiteral in PreviewsSyntax
+        0x0003A318  property descriptor for PreviewsSyntax.Availability.DeprecatedVersion.description : Swift.String
+        0x0003A318  property descriptor for PreviewsSyntax.Availability.description : Swift.String
+        0x0003A318  property descriptor for PreviewsSyntax.Availability.restrictions : PreviewsSyntax.Availability.Restrictions?
+        0x0003A318  property descriptor for PreviewsSyntax.Availability.Restrictions.description : Swift.String
+        0x0003A318  property descriptor for PreviewsSyntax.Availability.Value.isAvailable : Swift.Bool
+        0x0003A318  property descriptor for PreviewsSyntax.Availability.Version.description : Swift.String
+        0x0003A318  property descriptor for PreviewsSyntax.AvailabilitySet.description : Swift.String
+        0x0003A318  property descriptor for PreviewsSyntax.AvailabilitySet.Platform.hashValue : Swift.Int
+        0x0003A318  property descriptor for PreviewsSyntax.AvailabilitySet.sortedPlatformIntroductions : [(PreviewsSyntax.AvailabilitySet.Platform, PreviewsSyntax.Availability.Version)]
+        0x0003A318  property descriptor for PreviewsSyntax.AvailabilitySet.sortedPlatformObsoletions : [(PreviewsSyntax.AvailabilitySet.Platform, PreviewsSyntax.Availability.Version)]
+        0x0003A318  property descriptor for PreviewsSyntax.AvailabilitySet.sortedPlatformRestrictions : [(PreviewsSyntax.AvailabilitySet.Platform, PreviewsSyntax.Availability.Restrictions)]
+        0x0003A318  property descriptor for PreviewsSyntax.AvailabilitySet.sortedUnavailablePlatforms : [PreviewsSyntax.AvailabilitySet.Platform]
+        0x0003A318  property descriptor for static PreviewsSyntax.Availability.deprecated : PreviewsSyntax.Availability
+        0x0003A318  property descriptor for static PreviewsSyntax.Availability.Filter.all : PreviewsSyntax.Availability.Filter
+        0x0003A318  property descriptor for static PreviewsSyntax.Availability.Filter.deprecations : PreviewsSyntax.Availability.Filter
+        0x0003A318  property descriptor for static PreviewsSyntax.Availability.Filter.introductions : PreviewsSyntax.Availability.Filter
+        0x0003A318  property descriptor for static PreviewsSyntax.Availability.Filter.obsoletions : PreviewsSyntax.Availability.Filter
+        0x0003A318  property descriptor for static PreviewsSyntax.Availability.Filter.unavailabilities : PreviewsSyntax.Availability.Filter
+        0x0003A318  property descriptor for static PreviewsSyntax.Availability.Restrictions.deprecated : PreviewsSyntax.Availability.Restrictions
+        0x0003A318  property descriptor for static PreviewsSyntax.Availability.Restrictions.none : PreviewsSyntax.Availability.Restrictions
+        0x0003A318  property descriptor for static PreviewsSyntax.Availability.unrestricted : PreviewsSyntax.Availability
+        0x0003A318  property descriptor for static PreviewsSyntax.AvailabilitySet.globallyDeprecated : PreviewsSyntax.AvailabilitySet
+        0x0003A318  property descriptor for static PreviewsSyntax.AvailabilitySet.globallyUnavailable : PreviewsSyntax.AvailabilitySet
+        0x0003A318  property descriptor for static PreviewsSyntax.AvailabilitySet.playgroundRegistryAvailability : PreviewsSyntax.AvailabilitySet
+        0x0003A318  property descriptor for static PreviewsSyntax.AvailabilitySet.previewProviderAvailability : PreviewsSyntax.AvailabilitySet
+        0x0003A318  property descriptor for static PreviewsSyntax.AvailabilitySet.previewRegistryAvailability : PreviewsSyntax.AvailabilitySet
+        0x0003A318  property descriptor for static PreviewsSyntax.AvailabilitySet.unrestricted : PreviewsSyntax.AvailabilitySet
+        0x0003A31C  property descriptor for PreviewsSyntax.Availability.Restrictions.introduced : PreviewsSyntax.Availability.Version?
+        0x0003A320  property descriptor for PreviewsSyntax.Availability.Restrictions.obsoleted : PreviewsSyntax.Availability.Version?
+        0x0003A324  property descriptor for PreviewsSyntax.Availability.Restrictions.deprecated : PreviewsSyntax.Availability.DeprecatedVersion?
+        0x0003A328  property descriptor for PreviewsSyntax.AvailabilitySet.Platform.name : Swift.String
+        0x0003A32C  property descriptor for PreviewsSyntax.AvailabilitySet.platformAvailability : [PreviewsSyntax.AvailabilitySet.Platform : PreviewsSyntax.Availability]
+        0x0003A330  property descriptor for PreviewsSyntax.AvailabilitySet.swiftRestrictions : PreviewsSyntax.Availability.Restrictions
+        0x0003A334  property descriptor for PreviewsSyntax.AvailabilitySet.isGloballyUnavailable : Swift.Bool
+        0x0003A338  property descriptor for PreviewsSyntax.AvailabilitySet.isGloballyDeprecated : Swift.Bool
+        0x0003A33C  property descriptor for PreviewsSyntax.Availability.Filter.rawValue : Swift.Int
+        0x0003A398  enum case for PreviewsSyntax.Availability.Value.available(PreviewsSyntax.Availability.Value.Type) -> (Swift.Bool) -> PreviewsSyntax.Availability.Value
+        0x0003A39C  enum case for PreviewsSyntax.Availability.Value.unavailable(PreviewsSyntax.Availability.Value.Type) -> PreviewsSyntax.Availability.Value
+        0x0003A630  property descriptor for (extension in PreviewsSyntax):IDESwiftSyntax.AttributeSyntax.literalNameArgument : Swift.String?
+        0x0003A630  property descriptor for (extension in PreviewsSyntax):IDESwiftSyntax.AttributeSyntax.nameArgument : IDESwiftSyntax.ExprSyntax?
+        0x0003A630  property descriptor for (extension in PreviewsSyntax):IDESwiftSyntax.AttributeSyntax.unqualifiedName : Swift.String
+        0x0003A630  property descriptor for (extension in PreviewsSyntax):IDESwiftSyntax.DeclSyntax.asAttributedDecl : (IDESwiftSyntax.DeclSyntaxProtocol & IDESwiftSyntax.WithAttributesSyntax)?
+        0x0003A630  property descriptor for (extension in PreviewsSyntax):IDESwiftSyntax.DeclSyntaxProtocol.asCodeBlockItem : IDESwiftSyntax.CodeBlockItemSyntax
+        0x0003A630  property descriptor for (extension in PreviewsSyntax):IDESwiftSyntax.DeclSyntaxProtocol.asMemberBlockItem : IDESwiftSyntax.MemberBlockItemSyntax
+        0x0003A630  property descriptor for (extension in PreviewsSyntax):IDESwiftSyntax.DeclSyntaxProtocol.inCodeBlockItemList : IDESwiftSyntax.CodeBlockItemListSyntax
+        0x0003A630  property descriptor for (extension in PreviewsSyntax):IDESwiftSyntax.ExprSyntax.integerLiteralValue : Swift.Int?
+        0x0003A630  property descriptor for (extension in PreviewsSyntax):IDESwiftSyntax.ExprSyntax.stringLiteralValue : Swift.String?
+        0x0003A630  property descriptor for (extension in PreviewsSyntax):IDESwiftSyntax.ExprSyntaxProtocol.asCodeBlockItem : IDESwiftSyntax.CodeBlockItemSyntax
+        0x0003A630  property descriptor for (extension in PreviewsSyntax):IDESwiftSyntax.ExprSyntaxProtocol.inCodeBlockItemList : IDESwiftSyntax.CodeBlockItemListSyntax
+        0x0003A630  property descriptor for (extension in PreviewsSyntax):IDESwiftSyntax.FreestandingMacroExpansionSyntax.attributes : IDESwiftSyntax.AttributeListSyntax?
+        0x0003A630  property descriptor for (extension in PreviewsSyntax):IDESwiftSyntax.FreestandingMacroExpansionSyntax.lastClosureArgument : IDESwiftSyntax.ClosureExprSyntax?
+        0x0003A630  property descriptor for (extension in PreviewsSyntax):IDESwiftSyntax.FreestandingMacroExpansionSyntax.literalNameArgument : Swift.String?
+        0x0003A630  property descriptor for (extension in PreviewsSyntax):IDESwiftSyntax.FreestandingMacroExpansionSyntax.modifiers : IDESwiftSyntax.DeclModifierListSyntax?
+        0x0003A630  property descriptor for (extension in PreviewsSyntax):IDESwiftSyntax.FreestandingMacroExpansionSyntax.nameArgument : IDESwiftSyntax.ExprSyntax?
+        0x0003A630  property descriptor for (extension in PreviewsSyntax):IDESwiftSyntax.FreestandingMacroExpansionSyntax.secondToLastClosureArgument : IDESwiftSyntax.ClosureExprSyntax?
+        0x0003A630  property descriptor for (extension in PreviewsSyntax):IDESwiftSyntax.FunctionCallExprSyntax.lastClosureArgument : IDESwiftSyntax.ClosureExprSyntax?
+        0x0003A630  property descriptor for (extension in PreviewsSyntax):IDESwiftSyntax.PatternBindingSyntax.isComputedProperty : Swift.Bool
+        0x0003A630  property descriptor for (extension in PreviewsSyntax):IDESwiftSyntax.StmtSyntaxProtocol.asCodeBlockItem : IDESwiftSyntax.CodeBlockItemSyntax
+        0x0003A630  property descriptor for (extension in PreviewsSyntax):IDESwiftSyntax.StmtSyntaxProtocol.inCodeBlockItemList : IDESwiftSyntax.CodeBlockItemListSyntax
+        0x0003A630  property descriptor for (extension in PreviewsSyntax):IDESwiftSyntax.VariableDeclSyntax.isGlobal : Swift.Bool
+        0x0003A630  property descriptor for (extension in PreviewsSyntax):IDESwiftSyntax.VariableDeclSyntax.isStaticProperty : Swift.Bool
+        0x0003A630  property descriptor for static (extension in PreviewsSyntax):IDESwiftSyntax.Trivia.indent : IDESwiftSyntax.Trivia
+        0x0003A690  enum case for PreviewsSyntax.ClosureLocation.additionalTrailingClosure(PreviewsSyntax.ClosureLocation.Type) -> (IDESwiftSyntax.SyntaxChildrenIndex) -> PreviewsSyntax.ClosureLocation
+        0x0003A694  enum case for PreviewsSyntax.ClosureLocation.argument(PreviewsSyntax.ClosureLocation.Type) -> (IDESwiftSyntax.SyntaxChildrenIndex) -> PreviewsSyntax.ClosureLocation
+        0x0003A698  enum case for PreviewsSyntax.ClosureLocation.trailingClosure(PreviewsSyntax.ClosureLocation.Type) -> PreviewsSyntax.ClosureLocation
+        0x0003A810  property descriptor for (extension in PreviewsSyntax):IDESwiftSyntax.StructDeclSyntax.isView : Swift.Bool
+        0x0003A8D8  protocol conformance descriptor for PreviewsSyntax.CodeChangeType : Swift.Equatable in PreviewsSyntax
+        0x0003A900  protocol conformance descriptor for PreviewsSyntax.CodeChangeType : Swift.Hashable in PreviewsSyntax
+        0x0003A940  property descriptor for (extension in PreviewsSyntax):IDESwiftSyntax.DeclModifierSyntax.isStaticModifier : Swift.Bool
+        0x0003A940  property descriptor for (extension in PreviewsSyntax):IDESwiftSyntax.VariableDeclSyntax.previewsCodeBlockSyntax : IDESwiftSyntax.CodeBlockItemListSyntax?
+        0x0003A940  property descriptor for PreviewsSyntax.CodeChangeType.hashValue : Swift.Int
+        0x0003BA08  protocol descriptor for PreviewsSyntax.CommaSeparatedCollection
+        0x0003BA30  protocol requirements base descriptor for PreviewsSyntax.CommaSeparatedCollection
+        0x0003BA38  base conformance descriptor for PreviewsSyntax.CommaSeparatedCollection: IDESwiftSyntax.SyntaxCollection
+        0x0003BA40  associated conformance descriptor for PreviewsSyntax.CommaSeparatedCollection.Swift.Sequence.Element: IDESwiftSyntax.WithTrailingCommaSyntax
+        0x0003BA48  nominal type descriptor for PreviewsSyntax.AvailabilityParseError
+        0x0003BA70  nominal type descriptor for PreviewsSyntax.AvailabilityParseError.Problem
+        0x0003BAB0  nominal type descriptor for PreviewsSyntax.Availability
+        0x0003BACC  nominal type descriptor for PreviewsSyntax.Availability.Version
+        0x0003BAE8  nominal type descriptor for PreviewsSyntax.Availability.DeprecatedVersion
+        0x0003BB04  nominal type descriptor for PreviewsSyntax.Availability.Restrictions
+        0x0003BB20  nominal type descriptor for PreviewsSyntax.Availability.Value
+        0x0003BB3C  nominal type descriptor for PreviewsSyntax.AvailabilitySet
+        0x0003BB58  nominal type descriptor for PreviewsSyntax.AvailabilitySet.Platform
+        0x0003BB74  nominal type descriptor for PreviewsSyntax.Availability.Filter
+        0x0003BC04  nominal type descriptor for PreviewsSyntax.ClosureLocation
+        0x0003BC2C  nominal type descriptor for PreviewsSyntax.PreviewProviderCodeBlockRewriter
+        0x0003BC70  method descriptor for PreviewsSyntax.PreviewProviderCodeBlockRewriter.previewDisplayName.getter : Swift.String?
+        0x0003BC88  method descriptor for PreviewsSyntax.PreviewProviderCodeBlockRewriter.previewLayout.getter : Swift.String?
+        0x0003BCA0  method descriptor for PreviewsSyntax.PreviewProviderCodeBlockRewriter.previewInterfaceOrientation.getter : Swift.String?
+        0x0003BCB8  method descriptor for PreviewsSyntax.PreviewProviderCodeBlockRewriter.hadPreviewDevice.getter : Swift.Bool
+        0x0003BCD0  method descriptor for PreviewsSyntax.PreviewProviderCodeBlockRewriter.hadPreviewContext.getter : Swift.Bool
+        0x0003BD08  nominal type descriptor for PreviewsSyntax.CodeChangeType
+        0x0003BD24  nominal type descriptor for PreviewsSyntax.UnavailableBranch
+        0x00041348  type metadata for PreviewsSyntax.AvailabilityParseError.Problem
+        0x000414B8  type metadata for PreviewsSyntax.Availability
+        0x00041530  type metadata for PreviewsSyntax.Availability.Version
+        0x000415C8  type metadata for PreviewsSyntax.Availability.DeprecatedVersion
+        0x00041640  type metadata for PreviewsSyntax.Availability.Restrictions
+        0x000416E0  type metadata for PreviewsSyntax.Availability.Value
+        0x00041758  type metadata for PreviewsSyntax.AvailabilitySet
+        0x000417E0  type metadata for PreviewsSyntax.AvailabilitySet.Platform
+        0x00041860  type metadata for PreviewsSyntax.Availability.Filter
+        0x00041AE0  property descriptor for PreviewsSyntax.PreviewProviderCodeBlockRewriter.previewDisplayName : Swift.String?
+        0x00041AF0  property descriptor for PreviewsSyntax.PreviewProviderCodeBlockRewriter.previewLayout : Swift.String?
+        0x00041B00  property descriptor for PreviewsSyntax.PreviewProviderCodeBlockRewriter.previewInterfaceOrientation : Swift.String?
+        0x00041B10  property descriptor for PreviewsSyntax.PreviewProviderCodeBlockRewriter.hadPreviewDevice : Swift.Bool
+        0x00041B20  property descriptor for PreviewsSyntax.PreviewProviderCodeBlockRewriter.hadPreviewContext : Swift.Bool
+        0x00041BE0  type metadata for PreviewsSyntax.CodeChangeType
+        0x00044228  protocol witness table for IDESwiftSyntax.AvailabilityArgumentListSyntax : PreviewsSyntax.CommaSeparatedCollection in PreviewsSyntax
+        0x00044250  protocol witness table for IDESwiftSyntax.ClosureShorthandParameterListSyntax : PreviewsSyntax.CommaSeparatedCollection in PreviewsSyntax
+        0x00044278  protocol witness table for IDESwiftSyntax.LabeledExprListSyntax : PreviewsSyntax.CommaSeparatedCollection in PreviewsSyntax
+        0x000442A0  protocol witness table for IDESwiftSyntax.TuplePatternElementListSyntax : PreviewsSyntax.CommaSeparatedCollection in PreviewsSyntax
+        0x000442C8  protocol witness table for IDESwiftSyntax.TupleTypeElementListSyntax : PreviewsSyntax.CommaSeparatedCollection in PreviewsSyntax
+        0x00044480  type metadata for PreviewsSyntax.AvailabilityParseError
+        0x000449E0  type metadata for PreviewsSyntax.ClosureLocation
+        0x00044AB8  metaclass for PreviewsSyntax.PreviewProviderCodeBlockRewriter
+        0x00044AE8  ObjC resilient class stub for PreviewsSyntax.PreviewProviderCodeBlockRewriter
+        0x00044C80  type metadata for PreviewsSyntax.UnavailableBranch
+        0x00046010  class metadata base offset for PreviewsSyntax.PreviewProviderCodeBlockRewriter
+        offset      symbol
+    -exports:
+/Applications/Xcode-26.2.0.app/Contents/SharedFrameworks/PreviewsSyntax.framework/Versions/A/PreviewsSyntax [arm64]:

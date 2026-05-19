@@ -1,0 +1,300 @@
+        0x00001350  default argument 0 of (extension in PreviewsXcodeUI):SwiftUI.View.visualEffect(blendingMode: __C.NSVisualEffectBlendingMode, material: __C.NSVisualEffectMaterial, state: __C.NSVisualEffectState?) -> some
+        0x00001358  (extension in PreviewsXcodeUI):SwiftUI.View.visualEffect(blendingMode: __C.NSVisualEffectBlendingMode, material: __C.NSVisualEffectMaterial, state: __C.NSVisualEffectState?) -> some
+        0x0000253C  PreviewsXcodeUI.PausedBanner.init(resumeAction: () -> ()) -> PreviewsXcodeUI.PausedBanner
+        0x0000253C  PreviewsXcodeUI.WatermarkDecorationView.init(content: () -> A) -> PreviewsXcodeUI.WatermarkDecorationView<A>
+        0x00002544  PreviewsXcodeUI.WatermarkDecorationView.body.getter : some
+        0x0000296C  type metadata accessor for PreviewsXcodeUI.WatermarkDecorationView
+        0x000029F8  PreviewsXcodeUI.FlatPlaceholderBackground.Modifier.body(content: SwiftUI._ViewModifier_Content<PreviewsXcodeUI.FlatPlaceholderBackground.Modifier>) -> some
+        0x00002BD0  static PreviewsXcodeUI.FlatPlaceholderBackground.modifier.getter : PreviewsXcodeUI.FlatPlaceholderBackground.Modifier
+        0x00002BD0  static PreviewsXcodeUI.VibrantPlaceholderBackground.modifier.getter : PreviewsXcodeUI.VibrantPlaceholderBackground.Modifier
+        0x00002BD4  PreviewsXcodeUI.VibrantPlaceholderBackground.Modifier.body(content: SwiftUI._ViewModifier_Content<PreviewsXcodeUI.VibrantPlaceholderBackground.Modifier>) -> some
+        0x00002D84  PreviewsXcodeUI.PreviewPlaceholder.init(isUpdating: Swift.Bool) -> PreviewsXcodeUI.PreviewPlaceholder<A>
+        0x00002D8C  PreviewsXcodeUI.PreviewPlaceholder.body.getter : some
+        0x000035DC  dispatch thunk of static PreviewsXcodeUI.PlaceholderBackground.modifier.getter : A.Modifier
+        0x000035E8  type metadata accessor for PreviewsXcodeUI.FlatPlaceholderBackground
+        0x00003600  type metadata accessor for PreviewsXcodeUI.FlatPlaceholderBackground.Modifier
+        0x00003610  type metadata accessor for PreviewsXcodeUI.VibrantPlaceholderBackground
+        0x000036EC  type metadata accessor for PreviewsXcodeUI.VibrantPlaceholderBackground.Modifier
+        0x00003858  type metadata accessor for PreviewsXcodeUI.PreviewPlaceholder
+        0x00003C18  (extension in PreviewsXcodeUI):SwiftUI.View.measure(size: SwiftUI.Binding<__C.CGSize>) -> some
+        0x00003DE4  (extension in PreviewsXcodeUI):SwiftUI.View.storeSize(_: Swift.KeyPath<__C.CGSize, CoreGraphics.CGFloat>, on: SwiftUI.Binding<CoreGraphics.CGFloat>, when: (CoreGraphics.CGFloat, CoreGraphics.CGFloat) -> Swift.Bool) -> some
+        0x00004154  static (extension in PreviewsXcodeUI):SwiftUI.Font.system(controlSize: SwiftUI.ControlSize) -> SwiftUI.Font
+        0x000043B8  (extension in PreviewsXcodeUI):SwiftUI.View.preferDisabledViewMenuOptions() -> some
+        0x0000445C  (extension in PreviewsXcodeUI):SwiftUI.View.onDisableViewMenuOptionsPreferenceChange((Swift.Bool) -> ()) -> some
+        0x000047D0  static PreviewsXcodeUI.CanvasNavigationTabButton.Status.== infix(PreviewsXcodeUI.CanvasNavigationTabButton.Status, PreviewsXcodeUI.CanvasNavigationTabButton.Status) -> Swift.Bool
+        0x000047D4  PreviewsXcodeUI.CanvasNavigationTabButton.Status.hash(into: inout Swift.Hasher) -> ()
+        0x000048A0  PreviewsXcodeUI.CanvasNavigationTabButton.Status.hashValue.getter : Swift.Int
+        0x00004B5C  PreviewsXcodeUI.CanvasNavigationTabButton.init(title: Swift.String?, disambiguation: Swift.String?, isSelected: Swift.Bool, status: PreviewsXcodeUI.CanvasNavigationTabButton.Status) -> PreviewsXcodeUI.CanvasNavigationTabButton
+        0x00004C20  PreviewsXcodeUI.CanvasNavigationTabButton.body.getter : some
+        0x00005DB8  type metadata accessor for PreviewsXcodeUI.CanvasNavigationTabButton
+        0x00006BD8  type metadata accessor for PreviewsXcodeUI.CanvasNavigationTabButton.Status
+        0x00007124  (extension in PreviewsXcodeUI):SwiftUI.View.applyWatermarkDecorationFormatting() -> some
+        0x00007498  static PreviewsXcodeUI.PreviewOnExternalDeviceView.DeviceFamily.== infix(PreviewsXcodeUI.PreviewOnExternalDeviceView.DeviceFamily, PreviewsXcodeUI.PreviewOnExternalDeviceView.DeviceFamily) -> Swift.Bool
+        0x000074A8  static PreviewsXcodeUI.PreviewOnExternalDeviceView.DeviceFamily.allCases.getter : [PreviewsXcodeUI.PreviewOnExternalDeviceView.DeviceFamily]
+        0x000074D4  PreviewsXcodeUI.PreviewOnExternalDeviceView.DeviceFamily.hash(into: inout Swift.Hasher) -> ()
+        0x000074F8  PreviewsXcodeUI.PreviewOnExternalDeviceView.DeviceFamily.hashValue.getter : Swift.Int
+        0x0000763C  PreviewsXcodeUI.PreviewOnExternalDeviceView.init(deviceName: Swift.String, deviceFamily: PreviewsXcodeUI.PreviewOnExternalDeviceView.DeviceFamily, bringForwardAction: (() -> ())?) -> PreviewsXcodeUI.PreviewOnExternalDeviceView
+        0x0000764C  PreviewsXcodeUI.PreviewOnExternalDeviceView.body.getter : some
+        0x00007DB8  PreviewsXcodeUI.PreviewOnExternalDeviceContentView.init(deviceName: Swift.String, callToAction: (title: Swift.String, action: () -> ())?, deviceIcon: () -> A) -> PreviewsXcodeUI.PreviewOnExternalDeviceContentView<A>
+        0x00007E44  type metadata accessor for PreviewsXcodeUI.PreviewOnExternalDeviceContentView
+        0x00007E50  PreviewsXcodeUI.PreviewOnExternalDeviceContentView.deviceIcon.getter : A
+        0x00007E68  PreviewsXcodeUI.PreviewOnExternalDeviceContentView.deviceName.getter : Swift.String
+        0x00007E9C  PreviewsXcodeUI.PreviewOnExternalDeviceContentView.callToAction.getter : (title: Swift.String, action: () -> ())?
+        0x00007F20  PreviewsXcodeUI.PreviewOnExternalDeviceContentView.body.getter : some
+        0x00008F9C  type metadata accessor for PreviewsXcodeUI.PreviewOnExternalDeviceView
+        0x000090FC  type metadata accessor for PreviewsXcodeUI.PreviewOnExternalDeviceView.DeviceFamily
+        0x00009D90  PreviewsXcodeUI.CanvasBarButton.init(action: PreviewsXcodeUI.PreviewAction, isActive: Swift.Bool, includeSelection: Swift.Bool, text: Swift.String?, handler: () -> ()) -> PreviewsXcodeUI.CanvasBarButton
+        0x00009E88  type metadata accessor for PreviewsXcodeUI.CanvasBarButton
+        0x00009EC0  PreviewsXcodeUI.CanvasBarButton.init<A where A: SwiftUI.View>(action: PreviewsXcodeUI.PreviewAction, isActive: Swift.Bool, text: Swift.String?, menu: () -> A, primaryAction: (() -> ())?) -> PreviewsXcodeUI.CanvasBarButton
+        0x0000A010  PreviewsXcodeUI.CanvasBarButton.init(text: Swift.String?, handler: () -> ()) -> PreviewsXcodeUI.CanvasBarButton
+        0x0000A0B0  PreviewsXcodeUI.CanvasBarButton.body.getter : some
+        0x0000E550  PreviewsXcodeUI.BarContainerModifier.init(appearance: PreviewsXcodeUI.BarContainerModifier.Appearance) -> PreviewsXcodeUI.BarContainerModifier
+        0x0000E5BC  type metadata accessor for PreviewsXcodeUI.BarContainerModifier
+        0x0000E5F4  PreviewsXcodeUI.BarContainerModifier.body(content: SwiftUI._ViewModifier_Content<PreviewsXcodeUI.BarContainerModifier>) -> some
+        0x0000F1E8  type metadata accessor for PreviewsXcodeUI.BarContainerModifier.Appearance
+        0x0000F3D0  PreviewsXcodeUI.PausedBanner.body.getter : some
+        0x0000FBC4  type metadata accessor for PreviewsXcodeUI.PausedBanner
+        0x0000FC60  PreviewsXcodeUI.PreviewAction.image(active: Swift.Bool) -> SwiftUI.Image
+        0x0000FD04  PreviewsXcodeUI.PreviewAction.init(image: SwiftUI.Image, label: Swift.String) -> PreviewsXcodeUI.PreviewAction
+        0x0000FD1C  PreviewsXcodeUI.Direction.helpText.getter : Swift.String
+        0x0000FD1C  PreviewsXcodeUI.PreviewAction.label.getter : Swift.String
+        0x0000FE24  PreviewsXcodeUI.PreviewAction.init(imageName: Swift.String, activeImageName: Swift.String, label: Swift.String) -> PreviewsXcodeUI.PreviewAction
+        0x0000FE38  PreviewsXcodeUI.PreviewAction.init(imageName: Swift.String, label: Swift.String) -> PreviewsXcodeUI.PreviewAction
+        0x0000FE50  PreviewsXcodeUI.PreviewAction.init(image: SwiftUI.Image, activeImage: SwiftUI.Image, label: Swift.String) -> PreviewsXcodeUI.PreviewAction
+        0x0000FE68  static PreviewsXcodeUI.PreviewAction.previewOnDevice.getter : PreviewsXcodeUI.PreviewAction
+        0x0000FEF8  static PreviewsXcodeUI.PreviewAction.== infix(PreviewsXcodeUI.PreviewAction, PreviewsXcodeUI.PreviewAction) -> Swift.Bool
+        0x00010274  type metadata accessor for PreviewsXcodeUI.PreviewAction
+        0x000106D4  PreviewsXcodeUI.DelayView.init(contentToShow: A, id: B, delay: Swift.Double) -> PreviewsXcodeUI.DelayView<A, B>
+        0x000107F0  type metadata accessor for PreviewsXcodeUI.DelayView
+        0x000107FC  PreviewsXcodeUI.DelayView.body.getter : some
+        0x00011F8C  (extension in PreviewsXcodeUI):SwiftUI.View.delay<A where A1: Swift.Hashable>(by: Swift.Double, id: A1) -> PreviewsXcodeUI.DelayView<A, A1>
+        0x00014490  (extension in PreviewsXcodeUI):SwiftUI.ControlSize.nsControlSize.getter : __C.NSControlSize
+        0x000145B0  static (extension in PreviewsXcodeUI):__C.NSBundle.uvXcodeUIBundle.getter : __C.NSBundle
+        0x00014618  PreviewsXcodeUI.WarningBanner.init(title: Foundation.AttributedString, subtitle: Foundation.AttributedString?, popoverContent: () -> A, closeAction: (() -> ())?) -> PreviewsXcodeUI.WarningBanner<A>
+        0x00014718  type metadata accessor for PreviewsXcodeUI.WarningBanner
+        0x00014774  PreviewsXcodeUI.WarningBanner.body.getter : some
+        0x000155A8  (extension in PreviewsXcodeUI):PreviewsXcodeUI.WarningBanner< where A == SwiftUI.EmptyView>.init(title: Foundation.AttributedString, subtitle: Foundation.AttributedString?, closeAction: (() -> ())?) -> PreviewsXcodeUI.WarningBanner<SwiftUI.EmptyView>
+        0x00020EAC  PreviewsXcodeUI.PreviewActionButtonMetrics.leadingPadding.getter : CoreGraphics.CGFloat
+        0x00020EB4  PreviewsXcodeUI.PreviewActionButtonMetrics.leadingPadding.setter : CoreGraphics.CGFloat
+        0x00020EBC  PreviewsXcodeUI.Direction.systemName.modify : Swift.String
+        0x00020EBC  PreviewsXcodeUI.NoContentView.ContentDetails.contentName.modify : Swift.String
+        0x00020EBC  PreviewsXcodeUI.PreviewActionButtonMetrics.leadingPadding.modify : CoreGraphics.CGFloat
+        0x00020ECC  PreviewsXcodeUI.PreviewActionButtonMetrics.trailingPadding.getter : CoreGraphics.CGFloat
+        0x00020ED4  PreviewsXcodeUI.PreviewActionButtonMetrics.trailingPadding.setter : CoreGraphics.CGFloat
+        0x00020EDC  PreviewsXcodeUI.PreviewActionButtonMetrics.trailingPadding.modify : CoreGraphics.CGFloat
+        0x00020EEC  (extension in PreviewsXcodeUI):SwiftUI.View.previewActionButtonPadding(leading: CoreGraphics.CGFloat, trailing: CoreGraphics.CGFloat) -> some
+        0x00020F68  (extension in PreviewsXcodeUI):SwiftUI.EnvironmentValues.previewActionButtonMetrics.getter : PreviewsXcodeUI.PreviewActionButtonMetrics
+        0x00020FA4  (extension in PreviewsXcodeUI):SwiftUI.EnvironmentValues.previewActionButtonMetrics.setter : PreviewsXcodeUI.PreviewActionButtonMetrics
+        0x00020FE0  (extension in PreviewsXcodeUI):SwiftUI.View.canvasControlSizing() -> some
+        0x0002146C  (extension in PreviewsXcodeUI):SwiftUI.EnvironmentValues.previewActionButtonMetrics.modify : PreviewsXcodeUI.PreviewActionButtonMetrics
+        0x00021528  type metadata accessor for PreviewsXcodeUI.PreviewActionButtonMetrics
+        0x000219B8  PreviewsXcodeUI.Direction.systemName.getter : Swift.String
+        0x000219B8  PreviewsXcodeUI.NoContentView.ContentDetails.contentName.getter : Swift.String
+        0x000219E4  PreviewsXcodeUI.Direction.systemName.setter : Swift.String
+        0x000219E4  PreviewsXcodeUI.NoContentView.ContentDetails.contentName.setter : Swift.String
+        0x00021A18  PreviewsXcodeUI.NoContentView.ContentDetails.contentNamePlural.getter : Swift.String
+        0x00021A44  PreviewsXcodeUI.NoContentView.ContentDetails.contentNamePlural.setter : Swift.String
+        0x00021A78  PreviewsXcodeUI.Direction.alignment.modify : SwiftUI.Alignment
+        0x00021A78  PreviewsXcodeUI.NoContentView.ContentDetails.contentNamePlural.modify : Swift.String
+        0x00021A88  PreviewsXcodeUI.NoContentView.ContentDetails.init(contentName: Swift.String, contentNamePlural: Swift.String) -> PreviewsXcodeUI.NoContentView.ContentDetails
+        0x00021A88  PreviewsXcodeUI.OverridesPreviewTitle.Override.init(displayName: Swift.String, tooltipName: Swift.String) -> PreviewsXcodeUI.OverridesPreviewTitle.Override
+        0x00021A94  PreviewsXcodeUI.NoContentView.init(reason: PreviewsXcodeUI.NoContentView.Reason, contentDetails: PreviewsXcodeUI.NoContentView.ContentDetails?, isShowingDiagnostics: SwiftUI.Binding<Swift.Bool>, jumpToContentDefinition: () -> (), canvasBannerPadding: CoreGraphics.CGFloat, canvasBarMargin: CoreGraphics.CGFloat) -> PreviewsXcodeUI.NoContentView
+        0x00021AB4  PreviewsXcodeUI.NoContentView.body.getter : some
+        0x00022C80  type metadata accessor for PreviewsXcodeUI.NoContentView
+        0x00022E38  type metadata accessor for PreviewsXcodeUI.NoContentView.ContentDetails
+        0x000230B0  type metadata accessor for PreviewsXcodeUI.NoContentView.Reason
+        0x0002707C  PreviewsXcodeUI.Direction.alignment.getter : SwiftUI.Alignment
+        0x00027084  PreviewsXcodeUI.Direction.alignment.setter : SwiftUI.Alignment
+        0x0002708C  PreviewsXcodeUI.Direction.edge.getter : SwiftUI.Edge.Set
+        0x00027094  PreviewsXcodeUI.Direction.edge.setter : SwiftUI.Edge.Set
+        0x0002709C  PreviewsXcodeUI.Direction.edge.modify : SwiftUI.Edge.Set
+        0x000270AC  PreviewsXcodeUI.Direction.helpText.setter : Swift.String
+        0x000270E0  PreviewsXcodeUI.Direction.helpText.modify : Swift.String
+        0x000270F0  PreviewsXcodeUI.Direction.init(systemName: Swift.String, alignment: SwiftUI.Alignment, edge: SwiftUI.Edge.Set, helpText: Swift.String) -> PreviewsXcodeUI.Direction
+        0x00027174  static PreviewsXcodeUI.Direction.backward.getter : PreviewsXcodeUI.Direction
+        0x00027268  static PreviewsXcodeUI.Direction.forward.getter : PreviewsXcodeUI.Direction
+        0x000272E0  PreviewsXcodeUI.NavigationAreaView.init(direction: PreviewsXcodeUI.Direction, action: () -> ()) -> PreviewsXcodeUI.NavigationAreaView
+        0x0002738C  PreviewsXcodeUI.NavigationAreaView.body.getter : some
+        0x00028810  type metadata accessor for PreviewsXcodeUI.Direction
+        0x00028B6C  type metadata accessor for PreviewsXcodeUI.NavigationAreaView
+        0x00028E54  static PreviewsXcodeUI.IconSpecification.== infix(PreviewsXcodeUI.IconSpecification, PreviewsXcodeUI.IconSpecification) -> Swift.Bool
+        0x00028E60  PreviewsXcodeUI.IconSpecification.hash(into: inout Swift.Hasher) -> ()
+        0x00028EDC  PreviewsXcodeUI.IconSpecification.hashValue.getter : Swift.Int
+        0x000293FC  type metadata accessor for PreviewsXcodeUI.IconSpecification
+        0x0002940C  PreviewsXcodeUI.OverridesPreviewTitle.init(firstIsVariant: Swift.Bool, overrides: [PreviewsXcodeUI.OverridesPreviewTitle.Override]) -> PreviewsXcodeUI.OverridesPreviewTitle
+        0x0002949C  PreviewsXcodeUI.OverridesPreviewTitle.body.getter : some
+        0x0002A8C8  (extension in PreviewsXcodeUI):SwiftUI.Text.overridesTitleStyle() -> some
+        0x0002B134  static PreviewsXcodeUI.OverridesPreviewTitle.Override.== infix(PreviewsXcodeUI.OverridesPreviewTitle.Override, PreviewsXcodeUI.OverridesPreviewTitle.Override) -> Swift.Bool
+        0x0002B1C4  PreviewsXcodeUI.OverridesPreviewTitle.Override.hash(into: inout Swift.Hasher) -> ()
+        0x0002B200  PreviewsXcodeUI.OverridesPreviewTitle.Override.hashValue.getter : Swift.Int
+        0x0002B62C  type metadata accessor for PreviewsXcodeUI.OverridesPreviewTitle
+        0x0002B63C  type metadata accessor for PreviewsXcodeUI.OverridesPreviewTitle.Override
+        0x0002BB98  (extension in PreviewsXcodeUI):PreviewsXcodeUI.CanvasBanner< where B == SwiftUI.EmptyView>.init(actions: () -> C, label: () -> A) -> PreviewsXcodeUI.CanvasBanner<A, SwiftUI.EmptyView, C>
+        0x0002BC7C  type metadata accessor for PreviewsXcodeUI.CanvasBanner
+        0x0002BC88  PreviewsXcodeUI.CanvasBanner.init(actions: () -> C, popoverContent: () -> B, label: () -> A) -> PreviewsXcodeUI.CanvasBanner<A, B, C>
+        0x0002C03C  PreviewsXcodeUI.CanvasBanner.body.getter : some
+        0x00030434  PreviewsXcodeUI.ErrorBanner.init(title: Foundation.AttributedString, subtitle: Foundation.AttributedString?, popoverContent: () -> A, diagnosticsAction: () -> (), refreshAction: () -> ()) -> PreviewsXcodeUI.ErrorBanner<A>
+        0x00030544  type metadata accessor for PreviewsXcodeUI.ErrorBanner
+        0x00030550  PreviewsXcodeUI.ErrorBanner.body.getter : some
+        0x00031060  (extension in PreviewsXcodeUI):PreviewsXcodeUI.ErrorBanner< where A == SwiftUI.EmptyView>.init(title: Foundation.AttributedString, subtitle: Foundation.AttributedString?, diagnosticsAction: () -> (), refreshAction: () -> ()) -> PreviewsXcodeUI.ErrorBanner<SwiftUI.EmptyView>
+        0x00031FE0  (extension in PreviewsXcodeUI):SwiftUI.View.preferDisabledZoom() -> some
+        0x00032084  (extension in PreviewsXcodeUI):SwiftUI.View.onDisableZoomPreferenceChange((Swift.Bool) -> ()) -> some
+        0x00033AA0  _PreviewsXcodeUIVersionString
+        0x00033AE0  _PreviewsXcodeUIVersionNumber
+        0x00033CF0  protocol conformance descriptor for PreviewsXcodeUI.WatermarkDecorationView<A> : SwiftUI.View in PreviewsXcodeUI
+        0x00033D40  property descriptor for PreviewsXcodeUI.WatermarkDecorationView.body : some
+        0x00033DE8  protocol conformance descriptor for PreviewsXcodeUI.FlatPlaceholderBackground.Modifier : SwiftUI.ViewModifier in PreviewsXcodeUI
+        0x00033E38  protocol conformance descriptor for PreviewsXcodeUI.FlatPlaceholderBackground : PreviewsXcodeUI.PlaceholderBackground in PreviewsXcodeUI
+        0x00033E54  protocol conformance descriptor for PreviewsXcodeUI.VibrantPlaceholderBackground.Modifier : SwiftUI.ViewModifier in PreviewsXcodeUI
+        0x00033EA4  protocol conformance descriptor for PreviewsXcodeUI.VibrantPlaceholderBackground : PreviewsXcodeUI.PlaceholderBackground in PreviewsXcodeUI
+        0x00033EC0  protocol conformance descriptor for PreviewsXcodeUI.PreviewPlaceholder<A> : SwiftUI.View in PreviewsXcodeUI
+        0x00033F10  property descriptor for PreviewsXcodeUI.PreviewPlaceholder.body : some
+        0x00033F10  property descriptor for static PreviewsXcodeUI.FlatPlaceholderBackground.modifier : PreviewsXcodeUI.FlatPlaceholderBackground.Modifier
+        0x00033F10  property descriptor for static PreviewsXcodeUI.VibrantPlaceholderBackground.modifier : PreviewsXcodeUI.VibrantPlaceholderBackground.Modifier
+        0x00034178  protocol conformance descriptor for PreviewsXcodeUI.CanvasNavigationTabButton.Status : Swift.Hashable in PreviewsXcodeUI
+        0x000341B8  protocol conformance descriptor for PreviewsXcodeUI.CanvasNavigationTabButton.Status : Swift.Equatable in PreviewsXcodeUI
+        0x000341E0  protocol conformance descriptor for PreviewsXcodeUI.CanvasNavigationTabButton : SwiftUI.View in PreviewsXcodeUI
+        0x00034230  property descriptor for PreviewsXcodeUI.CanvasNavigationTabButton.body : some
+        0x00034230  property descriptor for PreviewsXcodeUI.CanvasNavigationTabButton.Status.hashValue : Swift.Int
+        0x000344C8  protocol conformance descriptor for PreviewsXcodeUI.PreviewOnExternalDeviceView.DeviceFamily : Swift.Equatable in PreviewsXcodeUI
+        0x000344F0  protocol conformance descriptor for PreviewsXcodeUI.PreviewOnExternalDeviceView.DeviceFamily : Swift.Hashable in PreviewsXcodeUI
+        0x00034538  protocol conformance descriptor for PreviewsXcodeUI.PreviewOnExternalDeviceView.DeviceFamily : Swift.CaseIterable in PreviewsXcodeUI
+        0x00034570  protocol conformance descriptor for PreviewsXcodeUI.PreviewOnExternalDeviceView : SwiftUI.View in PreviewsXcodeUI
+        0x000345C0  protocol conformance descriptor for PreviewsXcodeUI.PreviewOnExternalDeviceContentView<A> : SwiftUI.View in PreviewsXcodeUI
+        0x00034610  property descriptor for PreviewsXcodeUI.PreviewOnExternalDeviceContentView.body : some
+        0x00034610  property descriptor for PreviewsXcodeUI.PreviewOnExternalDeviceContentView.callToAction : (title: Swift.String, action: () -> ())?
+        0x00034610  property descriptor for PreviewsXcodeUI.PreviewOnExternalDeviceView.body : some
+        0x00034610  property descriptor for PreviewsXcodeUI.PreviewOnExternalDeviceView.DeviceFamily.hashValue : Swift.Int
+        0x00034610  property descriptor for static PreviewsXcodeUI.PreviewOnExternalDeviceView.DeviceFamily.allCases : [PreviewsXcodeUI.PreviewOnExternalDeviceView.DeviceFamily]
+        0x00034614  property descriptor for PreviewsXcodeUI.PreviewOnExternalDeviceContentView.deviceIcon : A
+        0x0003461C  property descriptor for PreviewsXcodeUI.PreviewOnExternalDeviceContentView.deviceName : Swift.String
+        0x00034838  protocol conformance descriptor for PreviewsXcodeUI.CanvasBarButton : SwiftUI.View in PreviewsXcodeUI
+        0x00034888  property descriptor for PreviewsXcodeUI.CanvasBarButton.body : some
+        0x00034B78  protocol conformance descriptor for PreviewsXcodeUI.BarContainerModifier : SwiftUI.ViewModifier in PreviewsXcodeUI
+        0x00034CE0  protocol conformance descriptor for PreviewsXcodeUI.PausedBanner : SwiftUI.View in PreviewsXcodeUI
+        0x00034D30  property descriptor for PreviewsXcodeUI.PausedBanner.body : some
+        0x00034D54  protocol conformance descriptor for PreviewsXcodeUI.PreviewAction : Swift.Equatable in PreviewsXcodeUI
+        0x00034D7C  property descriptor for PreviewsXcodeUI.PreviewAction.label : Swift.String
+        0x00034D80  property descriptor for static PreviewsXcodeUI.PreviewAction.previewOnDevice : PreviewsXcodeUI.PreviewAction
+        0x00034DE0  protocol conformance descriptor for PreviewsXcodeUI.DelayView<A, B> : SwiftUI.View in PreviewsXcodeUI
+        0x00034E30  property descriptor for PreviewsXcodeUI.DelayView.body : some
+        0x00034EF8  property descriptor for (extension in PreviewsXcodeUI):SwiftUI.ControlSize.nsControlSize : __C.NSControlSize
+        0x00034F00  property descriptor for static (extension in PreviewsXcodeUI):__C.NSBundle.uvXcodeUIBundle : __C.NSBundle
+        0x00034F68  protocol conformance descriptor for PreviewsXcodeUI.WarningBanner<A> : SwiftUI.View in PreviewsXcodeUI
+        0x00034FB8  property descriptor for PreviewsXcodeUI.WarningBanner.body : some
+        0x00035488  property descriptor for PreviewsXcodeUI.PreviewActionButtonMetrics.leadingPadding : CoreGraphics.CGFloat
+        0x0003548C  property descriptor for PreviewsXcodeUI.PreviewActionButtonMetrics.trailingPadding : CoreGraphics.CGFloat
+        0x000355F0  protocol conformance descriptor for PreviewsXcodeUI.NoContentView : SwiftUI.View in PreviewsXcodeUI
+        0x00035640  property descriptor for PreviewsXcodeUI.NoContentView.ContentDetails.contentName : Swift.String
+        0x00035644  property descriptor for PreviewsXcodeUI.NoContentView.ContentDetails.contentNamePlural : Swift.String
+        0x00035648  property descriptor for PreviewsXcodeUI.NoContentView.body : some
+        0x000359E0  protocol conformance descriptor for PreviewsXcodeUI.NavigationAreaView : SwiftUI.View in PreviewsXcodeUI
+        0x00035A30  property descriptor for PreviewsXcodeUI.Direction.systemName : Swift.String
+        0x00035A34  property descriptor for PreviewsXcodeUI.Direction.alignment : SwiftUI.Alignment
+        0x00035A38  property descriptor for PreviewsXcodeUI.Direction.edge : SwiftUI.Edge.Set
+        0x00035A3C  property descriptor for PreviewsXcodeUI.Direction.helpText : Swift.String
+        0x00035A40  property descriptor for PreviewsXcodeUI.NavigationAreaView.body : some
+        0x00035A40  property descriptor for static PreviewsXcodeUI.Direction.backward : PreviewsXcodeUI.Direction
+        0x00035A40  property descriptor for static PreviewsXcodeUI.Direction.forward : PreviewsXcodeUI.Direction
+        0x00035AB0  protocol conformance descriptor for PreviewsXcodeUI.IconSpecification : Swift.Hashable in PreviewsXcodeUI
+        0x00035AF0  protocol conformance descriptor for PreviewsXcodeUI.IconSpecification : Swift.Equatable in PreviewsXcodeUI
+        0x00035B18  property descriptor for PreviewsXcodeUI.IconSpecification.hashValue : Swift.Int
+        0x00035BF0  protocol conformance descriptor for PreviewsXcodeUI.OverridesPreviewTitle.Override : Swift.Hashable in PreviewsXcodeUI
+        0x00035C30  protocol conformance descriptor for PreviewsXcodeUI.OverridesPreviewTitle.Override : Swift.Equatable in PreviewsXcodeUI
+        0x00035C58  protocol conformance descriptor for PreviewsXcodeUI.OverridesPreviewTitle : SwiftUI.View in PreviewsXcodeUI
+        0x00035CA8  property descriptor for PreviewsXcodeUI.OverridesPreviewTitle.body : some
+        0x00035CA8  property descriptor for PreviewsXcodeUI.OverridesPreviewTitle.Override.hashValue : Swift.Int
+        0x00035DE8  protocol conformance descriptor for PreviewsXcodeUI.CanvasBanner<A, B, C> : SwiftUI.View in PreviewsXcodeUI
+        0x00035E38  property descriptor for PreviewsXcodeUI.CanvasBanner.body : some
+        0x00035F60  protocol conformance descriptor for PreviewsXcodeUI.ErrorBanner<A> : SwiftUI.View in PreviewsXcodeUI
+        0x00035FB0  property descriptor for PreviewsXcodeUI.ErrorBanner.body : some
+        0x000361B0  opaque type descriptor for <<opaque return type of (extension in PreviewsXcodeUI):SwiftUI.View.visualEffect(blendingMode: __C.NSVisualEffectBlendingMode, material: __C.NSVisualEffectMaterial, state: __C.NSVisualEffectState?) -> some>>
+        0x000362CC  nominal type descriptor for PreviewsXcodeUI.WatermarkDecorationView
+        0x00036308  opaque type descriptor for <<opaque return type of PreviewsXcodeUI.WatermarkDecorationView.body : some>>
+        0x0003633C  protocol descriptor for PreviewsXcodeUI.PlaceholderBackground
+        0x00036358  protocol requirements base descriptor for PreviewsXcodeUI.PlaceholderBackground
+        0x00036360  associated conformance descriptor for PreviewsXcodeUI.PlaceholderBackground.PreviewsXcodeUI.PlaceholderBackground.Modifier: SwiftUI.ViewModifier
+        0x00036368  associated type descriptor for PreviewsXcodeUI.PlaceholderBackground.Modifier
+        0x00036370  method descriptor for static PreviewsXcodeUI.PlaceholderBackground.modifier.getter : A.Modifier
+        0x00036378  nominal type descriptor for PreviewsXcodeUI.FlatPlaceholderBackground
+        0x00036394  nominal type descriptor for PreviewsXcodeUI.FlatPlaceholderBackground.Modifier
+        0x000363B0  nominal type descriptor for PreviewsXcodeUI.VibrantPlaceholderBackground
+        0x000363CC  nominal type descriptor for PreviewsXcodeUI.VibrantPlaceholderBackground.Modifier
+        0x000363E8  nominal type descriptor for PreviewsXcodeUI.PreviewPlaceholder
+        0x00036424  opaque type descriptor for <<opaque return type of PreviewsXcodeUI.FlatPlaceholderBackground.Modifier.body(content: SwiftUI._ViewModifier_Content<PreviewsXcodeUI.FlatPlaceholderBackground.Modifier>) -> some>>
+        0x0003644C  opaque type descriptor for <<opaque return type of PreviewsXcodeUI.VibrantPlaceholderBackground.Modifier.body(content: SwiftUI._ViewModifier_Content<PreviewsXcodeUI.VibrantPlaceholderBackground.Modifier>) -> some>>
+        0x00036474  opaque type descriptor for <<opaque return type of PreviewsXcodeUI.PreviewPlaceholder.body : some>>
+        0x000364C8  opaque type descriptor for <<opaque return type of (extension in PreviewsXcodeUI):SwiftUI.View.measure(size: SwiftUI.Binding<__C.CGSize>) -> some>>
+        0x0003651C  opaque type descriptor for <<opaque return type of (extension in PreviewsXcodeUI):SwiftUI.View.storeSize(_: Swift.KeyPath<__C.CGSize, CoreGraphics.CGFloat>, on: SwiftUI.Binding<CoreGraphics.CGFloat>, when: (CoreGraphics.CGFloat, CoreGraphics.CGFloat) -> Swift.Bool) -> some>>
+        0x00036570  opaque type descriptor for <<opaque return type of (extension in PreviewsXcodeUI):SwiftUI.View.preferDisabledViewMenuOptions() -> some>>
+        0x000365C4  opaque type descriptor for <<opaque return type of (extension in PreviewsXcodeUI):SwiftUI.View.onDisableViewMenuOptionsPreferenceChange((Swift.Bool) -> ()) -> some>>
+        0x0003661C  nominal type descriptor for PreviewsXcodeUI.CanvasNavigationTabButton
+        0x00036644  nominal type descriptor for PreviewsXcodeUI.CanvasNavigationTabButton.Status
+        0x00036660  opaque type descriptor for <<opaque return type of PreviewsXcodeUI.CanvasNavigationTabButton.body : some>>
+        0x000366A8  opaque type descriptor for <<opaque return type of (extension in PreviewsXcodeUI):SwiftUI.View.applyWatermarkDecorationFormatting() -> some>>
+        0x00036728  nominal type descriptor for PreviewsXcodeUI.PreviewOnExternalDeviceView
+        0x00036744  nominal type descriptor for PreviewsXcodeUI.PreviewOnExternalDeviceView.DeviceFamily
+        0x00036760  nominal type descriptor for PreviewsXcodeUI.PreviewOnExternalDeviceContentView
+        0x0003679C  opaque type descriptor for <<opaque return type of PreviewsXcodeUI.PreviewOnExternalDeviceView.body : some>>
+        0x000367C4  opaque type descriptor for <<opaque return type of PreviewsXcodeUI.PreviewOnExternalDeviceContentView.body : some>>
+        0x000367F8  nominal type descriptor for PreviewsXcodeUI.CanvasBarButton
+        0x00036820  opaque type descriptor for <<opaque return type of PreviewsXcodeUI.CanvasBarButton.body : some>>
+        0x000368B0  nominal type descriptor for PreviewsXcodeUI.BarContainerModifier
+        0x000368D8  nominal type descriptor for PreviewsXcodeUI.BarContainerModifier.Appearance
+        0x000368F4  opaque type descriptor for <<opaque return type of PreviewsXcodeUI.BarContainerModifier.body(content: SwiftUI._ViewModifier_Content<PreviewsXcodeUI.BarContainerModifier>) -> some>>
+        0x0003691C  nominal type descriptor for PreviewsXcodeUI.PausedBanner
+        0x00036938  opaque type descriptor for <<opaque return type of PreviewsXcodeUI.PausedBanner.body : some>>
+        0x00036960  nominal type descriptor for PreviewsXcodeUI.PreviewAction
+        0x000369A0  nominal type descriptor for PreviewsXcodeUI.DelayView
+        0x000369E8  opaque type descriptor for <<opaque return type of PreviewsXcodeUI.DelayView.body : some>>
+        0x00036B20  nominal type descriptor for PreviewsXcodeUI.WarningBanner
+        0x00036B5C  opaque type descriptor for <<opaque return type of PreviewsXcodeUI.WarningBanner.body : some>>
+        0x00036CA0  nominal type descriptor for PreviewsXcodeUI.PreviewActionButtonMetrics
+        0x00036CDC  opaque type descriptor for <<opaque return type of (extension in PreviewsXcodeUI):SwiftUI.View.previewActionButtonPadding(leading: CoreGraphics.CGFloat, trailing: CoreGraphics.CGFloat) -> some>>
+        0x00036D30  opaque type descriptor for <<opaque return type of (extension in PreviewsXcodeUI):SwiftUI.View.canvasControlSizing() -> some>>
+        0x00036DD4  nominal type descriptor for PreviewsXcodeUI.NoContentView
+        0x00036DF0  nominal type descriptor for PreviewsXcodeUI.NoContentView.ContentDetails
+        0x00036E0C  nominal type descriptor for PreviewsXcodeUI.NoContentView.Reason
+        0x00036E28  opaque type descriptor for <<opaque return type of PreviewsXcodeUI.NoContentView.body : some>>
+        0x00037000  nominal type descriptor for PreviewsXcodeUI.Direction
+        0x0003701C  nominal type descriptor for PreviewsXcodeUI.NavigationAreaView
+        0x00037038  opaque type descriptor for <<opaque return type of PreviewsXcodeUI.NavigationAreaView.body : some>>
+        0x00037060  nominal type descriptor for PreviewsXcodeUI.IconSpecification
+        0x0003707C  nominal type descriptor for PreviewsXcodeUI.OverridesPreviewTitle
+        0x00037098  nominal type descriptor for PreviewsXcodeUI.OverridesPreviewTitle.Override
+        0x000370B4  opaque type descriptor for <<opaque return type of PreviewsXcodeUI.OverridesPreviewTitle.body : some>>
+        0x000370DC  opaque type descriptor for <<opaque return type of (extension in PreviewsXcodeUI):SwiftUI.Text.overridesTitleStyle() -> some>>
+        0x00037104  nominal type descriptor for PreviewsXcodeUI.CanvasBanner
+        0x00037158  opaque type descriptor for <<opaque return type of PreviewsXcodeUI.CanvasBanner.body : some>>
+        0x000371A4  nominal type descriptor for PreviewsXcodeUI.ErrorBanner
+        0x000371E0  opaque type descriptor for <<opaque return type of PreviewsXcodeUI.ErrorBanner.body : some>>
+        0x00037234  opaque type descriptor for <<opaque return type of (extension in PreviewsXcodeUI):SwiftUI.View.preferDisabledZoom() -> some>>
+        0x00037288  opaque type descriptor for <<opaque return type of (extension in PreviewsXcodeUI):SwiftUI.View.onDisableZoomPreferenceChange((Swift.Bool) -> ()) -> some>>
+        0x00041610  type metadata for PreviewsXcodeUI.FlatPlaceholderBackground
+        0x00041688  type metadata for PreviewsXcodeUI.FlatPlaceholderBackground.Modifier
+        0x00041700  type metadata for PreviewsXcodeUI.VibrantPlaceholderBackground
+        0x00041778  type metadata for PreviewsXcodeUI.VibrantPlaceholderBackground.Modifier
+        0x000419B0  type metadata for PreviewsXcodeUI.CanvasNavigationTabButton.Status
+        0x00041B20  type metadata for PreviewsXcodeUI.PreviewOnExternalDeviceView
+        0x00041BC0  type metadata for PreviewsXcodeUI.PreviewOnExternalDeviceView.DeviceFamily
+        0x00041F88  type metadata for PreviewsXcodeUI.BarContainerModifier.Appearance
+        0x00042050  type metadata for PreviewsXcodeUI.PausedBanner
+        0x00042118  type metadata for PreviewsXcodeUI.PreviewAction
+        0x00042600  property descriptor for (extension in PreviewsXcodeUI):SwiftUI.EnvironmentValues.previewActionButtonMetrics : PreviewsXcodeUI.PreviewActionButtonMetrics
+        0x00042678  type metadata for PreviewsXcodeUI.PreviewActionButtonMetrics
+        0x000427F8  type metadata for PreviewsXcodeUI.NoContentView
+        0x00042888  type metadata for PreviewsXcodeUI.NoContentView.ContentDetails
+        0x00042920  type metadata for PreviewsXcodeUI.NoContentView.Reason
+        0x00042BA0  type metadata for PreviewsXcodeUI.Direction
+        0x00042C28  type metadata for PreviewsXcodeUI.NavigationAreaView
+        0x00042D18  type metadata for PreviewsXcodeUI.IconSpecification
+        0x00042DC8  type metadata for PreviewsXcodeUI.OverridesPreviewTitle
+        0x00042E50  type metadata for PreviewsXcodeUI.OverridesPreviewTitle.Override
+        0x00044430  protocol witness table for PreviewsXcodeUI.FlatPlaceholderBackground : PreviewsXcodeUI.PlaceholderBackground in PreviewsXcodeUI
+        0x00044458  protocol witness table for PreviewsXcodeUI.VibrantPlaceholderBackground : PreviewsXcodeUI.PlaceholderBackground in PreviewsXcodeUI
+        0x00044680  type metadata for PreviewsXcodeUI.CanvasNavigationTabButton
+        0x00044A70  type metadata for PreviewsXcodeUI.CanvasBarButton
+        0x00044C40  type metadata for PreviewsXcodeUI.BarContainerModifier
+        offset      symbol
+    -exports:
+/Applications/Xcode-26.2.0.app/Contents/SharedFrameworks/PreviewsXcodeUI.framework/Versions/A/PreviewsXcodeUI [arm64]:
