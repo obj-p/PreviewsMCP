@@ -1,0 +1,23 @@
+[objc-selref-plugin] graph <MachOHeaderMU>: no __DATA,__objc_selrefs section, nothing to do
+[objc-selref-plugin] graph /opt/homebrew/opt/llvm/lib/clang/22/lib/darwin/liborc_rt_osx.a[7](macho_platform.cpp.o): no __DATA,__objc_selrefs section, nothing to do
+[objc-selref-plugin] graph /opt/homebrew/opt/llvm/lib/clang/22/lib/darwin/liborc_rt_osx.a[3](rtti.cpp.o): no __DATA,__objc_selrefs section, nothing to do
+[objc-selref-plugin] graph /opt/homebrew/opt/llvm/lib/clang/22/lib/darwin/liborc_rt_osx.a[4](log_error_to_stderr.cpp.o): no __DATA,__objc_selrefs section, nothing to do
+[objc-selref-plugin] graph <OrcRTCompleteBootstrap>: no __DATA,__objc_selrefs section, nothing to do
+[objc-selref-plugin] graph <MachOHeaderMU>: no __DATA,__objc_selrefs section, nothing to do
+[objc-selref-plugin] graph build/objc_v1.o: registered sel description -> 0x1fb33fdf8
+[objc-selref-plugin] graph build/objc_v1.o: registered sel processIdentifier -> 0x1fb2ea9f8
+[objc-selref-plugin] graph build/objc_v1.o: registered sel processInfo -> 0x1fb15de78
+[objc-selref-plugin] graph build/objc_v1.o: rewrote 3 selref edge(s), skipped 0, 3 unique selector(s)
+[host] LLJIT target triple: arm64-apple-darwin25.3.0
+[host] dlopened libswiftCore via /usr/lib/swift/libswiftCore.dylib
+[host] dlopened Foundation.framework via /System/Library/Frameworks/Foundation.framework/Foundation
+[host] dlopened libswiftFoundation via /usr/lib/swift/libswiftFoundation.dylib
+[host] canonical sel_registerName("processInfo") = 0x1fb15de78
+[host] canonical sel_registerName("processIdentifier") = 0x1fb2ea9f8
+[host] canonical sel_registerName("description") = 0x1fb33fdf8
+[host] loading ObjC-touching Swift object from build/objc_v1.o
+[host] touchFoundation -> 0x100dc4000; calling...
+touchFoundation: pid=17224
+[host] touchNSString -> 0x100dc4178; calling...
+touchNSString: ns_v1=7 sum=42
+[host] done.
