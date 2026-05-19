@@ -88,15 +88,17 @@ static std::unique_ptr<MemoryBuffer> loadObject(const char *Path) {
 int main(int argc, char **argv) {
     InitLLVM X(argc, argv);
 
-    if (argc != 4) {
+    if (argc != 4 && argc != 6) {
         fprintf(stderr,
-                "usage: %s <Greeter.o> <greeter_v1.o> <greeter_v2.o>\n",
-                argv[0]);
+                "usage: %s <Greeter.o> <greeter_v1.o> <greeter_v2.o>"
+                " [<conform_v1.o> <conform_v2.o>]\n", argv[0]);
         return 2;
     }
     const char *GreeterPath = argv[1];
     const char *V1Path = argv[2];
     const char *V2Path = argv[3];
+    const char *ConformV1Path = (argc == 6) ? argv[4] : nullptr;
+    const char *ConformV2Path = (argc == 6) ? argv[5] : nullptr;
 
     InitializeNativeTarget();
     InitializeNativeTargetAsmPrinter();
@@ -222,6 +224,116 @@ int main(int argc, char **argv) {
         must("addObjectFile(v2)",
              JIT->addObjectFile(V2JD, std::move(Buf)));
         callMakeGreetingIn(V2JD, "v2");
+    }
+
+    // -------- Stretch goal: cross-JITDylib conformance "patch" -----
+    //
+    // Question: if we load conform_v1.o (which exports a
+    // DefaultGreeter conformance whose witness table's `greet` slot
+    // points at v1's body) into MainJD, materialize+call
+    // makeGreeting, and THEN load conform_v2.o (identical symbol
+    // names, different witness body) into a separate JD that's
+    // ordered ahead of MainJD in lookups — does v1's makeGreeting
+    // pointer pick up v2's witness body on the next call?
+    //
+    // Predicted answer: no. JITLink resolves relocations at link
+    // time, not at lookup time. v1's DefaultGreeter type metadata
+    // has its witness-table pointer patched once during link, and
+    // it points at v1's witness-table data. A subsequent JD with
+    // different bytes doesn't retroactively edit those pointers.
+    //
+    // What we DO expect to work: a fresh lookup of makeGreeting via
+    // V2JD (or via a JD whose link order prefers V2JD) returns the
+    // v2 makeGreeting entry, which links against v2's
+    // type-metadata/witness-table — same as Stage B/C above with
+    // matching module names rather than distinct ones.
+    if (ConformV1Path && ConformV2Path) {
+        fprintf(stdout, "\n[host] === stretch goal ===\n");
+        fprintf(stdout, "[host] loading conform_v1 into MainJD: %s\n",
+                ConformV1Path);
+        auto Buf1 = loadObject(ConformV1Path);
+        must("addObjectFile(conform_v1 -> MainJD)",
+             JIT->addObjectFile(JIT->getMainJITDylib(),
+                                std::move(Buf1)));
+
+        auto &ES = JIT->getExecutionSession();
+        auto MangledMG = ES.intern(
+            JIT->getDataLayout().getGlobalPrefix() == '\0'
+                ? "makeGreeting"
+                : "_makeGreeting");
+
+        // Look up conform_v1's makeGreeting via MainJD (its home).
+        // Save the function pointer so we can call it again AFTER
+        // adding conform_v2 to a different JD.
+        auto V1SymOrErr = ES.lookup(
+            {{&JIT->getMainJITDylib(),
+              JITDylibLookupFlags::MatchAllSymbols}},
+            MangledMG);
+        auto V1Sym = must("ES.lookup(_makeGreeting in MainJD pre-v2)",
+                          std::move(V1SymOrErr));
+        auto V1FP = V1Sym.getAddress().toPtr<long(*)()>();
+        fprintf(stdout,
+                "[host] stretch: pre-patch v1 makeGreeting = %p; "
+                "calling...\n", (void *)V1FP);
+        fflush(stdout);
+        V1FP();
+        fflush(stdout);
+
+        // Now load conform_v2 into ConfV2JD, with link order
+        // [ConfV2JD, MainJD]. ConfV2JD's symbols match v1's by name.
+        fprintf(stdout, "[host] loading conform_v2 into ConfV2JD: %s\n",
+                ConformV2Path);
+        auto &ConfV2JD = must("createJITDylib(ConfV2JD)",
+                              JIT->createJITDylib("ConfV2JD"));
+        ConfV2JD.setLinkOrder(
+            {{&ConfV2JD, JITDylibLookupFlags::MatchAllSymbols},
+             {&JIT->getMainJITDylib(),
+              JITDylibLookupFlags::MatchAllSymbols}},
+            /*LinkAgainstThisJITDylibFirst=*/false);
+        auto Buf2 = loadObject(ConformV2Path);
+        must("addObjectFile(conform_v2 -> ConfV2JD)",
+             JIT->addObjectFile(ConfV2JD, std::move(Buf2)));
+
+        // Q1: re-call v1's saved function pointer. Does the dispatch
+        // pick up v2's witness body? Predicted: still prints v1's.
+        fprintf(stdout, "[host] stretch Q1: re-calling SAVED v1 FP "
+                        "after loading conform_v2 into ConfV2JD\n");
+        fflush(stdout);
+        V1FP();
+        fflush(stdout);
+
+        // Q2: fresh lookup of makeGreeting in ConfV2JD. Should
+        // materialize v2's makeGreeting, which calls v2's witness.
+        fprintf(stdout, "[host] stretch Q2: fresh lookup of "
+                        "_makeGreeting in ConfV2JD\n");
+        callMakeGreetingIn(ConfV2JD, "conform_v2");
+
+        // Q3: fresh lookup of makeGreeting via MainJD AFTER prepending
+        // ConfV2JD to MainJD's link order. Predicted: still v1,
+        // because MainJD's local definition already exists and
+        // takes precedence over its link-order references for
+        // symbols it itself defines.
+        JIT->getMainJITDylib().setLinkOrder(
+            {{&JIT->getMainJITDylib(),
+              JITDylibLookupFlags::MatchAllSymbols},
+             {&ConfV2JD, JITDylibLookupFlags::MatchAllSymbols}},
+            /*LinkAgainstThisJITDylibFirst=*/false);
+        auto Q3SymOrErr = ES.lookup(
+            {{&JIT->getMainJITDylib(),
+              JITDylibLookupFlags::MatchAllSymbols}},
+            MangledMG);
+        auto Q3Sym = must("ES.lookup(_makeGreeting in MainJD post-v2)",
+                          std::move(Q3SymOrErr));
+        auto Q3FP = Q3Sym.getAddress().toPtr<long(*)()>();
+        fprintf(stdout,
+                "[host] stretch Q3: post-patch MainJD makeGreeting = %p"
+                " (was %p); calling...\n",
+                (void *)Q3FP, (void *)V1FP);
+        fflush(stdout);
+        Q3FP();
+        fflush(stdout);
+
+        fprintf(stdout, "[host] === stretch goal end ===\n\n");
     }
 
     fprintf(stdout, "[host] done.\n");

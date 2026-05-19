@@ -1,0 +1,28 @@
+[host] LLJIT target triple: arm64-apple-darwin25.3.0
+[host] dlopened libswiftCore via /usr/lib/swift/libswiftCore.dylib
+[host] loading Greeter object from build/Greeter.o
+[host] loading v1 object from build/greeter_v1.o
+[host] v1 makeGreeting resolved to 0x104fa404c; calling...
+hello from v1
+[host] v1 makeGreeting returned 0
+[host] loading v2 object from build/greeter_v2.o
+[host] v2 makeGreeting resolved to 0x104fb404c; calling...
+hello from v2
+[host] v2 makeGreeting returned 0
+
+[host] === stretch goal ===
+[host] loading conform_v1 into MainJD: build/conform_v1.o
+[host] stretch: pre-patch v1 makeGreeting = 0x104fc003c; calling...
+hello from v1 (stretch)
+[host] loading conform_v2 into ConfV2JD: build/conform_v2.o
+[host] stretch Q1: re-calling SAVED v1 FP after loading conform_v2 into ConfV2JD
+hello from v1 (stretch)
+[host] stretch Q2: fresh lookup of _makeGreeting in ConfV2JD
+[host] conform_v2 makeGreeting resolved to 0x104fcc03c; calling...
+hello from v2 (stretch)
+[host] conform_v2 makeGreeting returned 0
+[host] stretch Q3: post-patch MainJD makeGreeting = 0x104fc003c (was 0x104fc003c); calling...
+hello from v1 (stretch)
+[host] === stretch goal end ===
+
+[host] done.

@@ -143,6 +143,22 @@ echo "[build] swiftc greeter_v2.swift -> build/greeter_v2.o"
     -o "${BUILD_DIR}/greeter_v2.o" \
     "${SWIFT_DIR}/greeter_v2.swift"
 
+# Stretch-goal pair: both compiled under the SAME module name
+# `conform`, so their emitted symbols collide by name (only the
+# witness bodies differ). Used to test cross-JITDylib conformance
+# patching — see host_witness.cpp runStretchGoal().
+echo "[build] swiftc conform_v1.swift -> build/conform_v1.o"
+"${SWIFTC}" "${WITNESS_FLAGS[@]}" \
+    -module-name conform \
+    -o "${BUILD_DIR}/conform_v1.o" \
+    "${SWIFT_DIR}/conform_v1.swift"
+
+echo "[build] swiftc conform_v2.swift -> build/conform_v2.o"
+"${SWIFTC}" "${WITNESS_FLAGS[@]}" \
+    -module-name conform \
+    -o "${BUILD_DIR}/conform_v2.o" \
+    "${SWIFT_DIR}/conform_v2.swift"
+
 # -- C++ host harness --------------------------------------------------
 
 LLVM_COMPONENTS=(
