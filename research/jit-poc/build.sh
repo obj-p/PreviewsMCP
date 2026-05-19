@@ -1,10 +1,17 @@
 #!/usr/bin/env bash
-# Phase-1 W2 JITLink POC — build script.
+# W2 JITLink POC — build script.
 #
-# Produces:
-#   build/greet_v1.o   — Swift v1 object via swiftc -emit-object
-#   build/greet_v2.o   — Swift v2 object via swiftc -emit-object
-#   build/host         — C++ host harness linked against brewed LLVM 22
+# Phase 1 outputs (free-function override):
+#   build/greet_v1.o     — Swift v1 free-function object
+#   build/greet_v2.o     — Swift v2 free-function object
+#   build/host           — Phase-1 C++ host harness
+#
+# Phase 2 step 1 outputs (protocol witness override):
+#   build/Greeter.o          — shared protocol descriptor
+#   build/Greeter.swiftmodule — module interface for v1/v2 import
+#   build/greeter_v1.o   — v1 conformance + makeGreeting cdecl
+#   build/greeter_v2.o   — v2 conformance + makeGreeting cdecl
+#   build/host_witness   — Phase-2 step-1 C++ host harness
 #
 # Conventions:
 #   * brewed LLVM's clang++ — NOT xcrun's. xcrun's clang ships with
@@ -91,6 +98,51 @@ echo "[build] swiftc greet_v2.swift -> build/greet_v2.o"
     -o "${BUILD_DIR}/greet_v2.o" \
     "${SWIFT_DIR}/greet_v2.swift"
 
+# -- Phase 2 step 1: Greeter module + v1/v2 witness objects -----------
+#
+# Build the shared Greeter protocol module first. We emit both the
+# object and the .swiftmodule interface so v1/v2 can `import Greeter`.
+# Using a separate -module-name keeps the protocol descriptor symbol
+# stable and shared (not duplicated across v1/v2).
+GREETER_FLAGS=(
+    -parse-as-library
+    -O
+    -sdk "${SDK_PATH}"
+    -module-name Greeter
+    -wmo
+)
+
+echo "[build] swiftc Greeter.swift -> build/Greeter.{o,swiftmodule}"
+"${SWIFTC}" "${GREETER_FLAGS[@]}" \
+    -emit-object \
+    -emit-module \
+    -emit-module-path "${BUILD_DIR}/Greeter.swiftmodule" \
+    -o "${BUILD_DIR}/Greeter.o" \
+    "${SWIFT_DIR}/Greeter.swift"
+
+# v1 and v2 each import Greeter. The -I flag adds the build dir to the
+# module search path so swiftc finds Greeter.swiftmodule.
+WITNESS_FLAGS=(
+    -emit-object
+    -parse-as-library
+    -O
+    -sdk "${SDK_PATH}"
+    -I "${BUILD_DIR}"
+    -wmo
+)
+
+echo "[build] swiftc greeter_v1.swift -> build/greeter_v1.o"
+"${SWIFTC}" "${WITNESS_FLAGS[@]}" \
+    -module-name greeter_v1 \
+    -o "${BUILD_DIR}/greeter_v1.o" \
+    "${SWIFT_DIR}/greeter_v1.swift"
+
+echo "[build] swiftc greeter_v2.swift -> build/greeter_v2.o"
+"${SWIFTC}" "${WITNESS_FLAGS[@]}" \
+    -module-name greeter_v2 \
+    -o "${BUILD_DIR}/greeter_v2.o" \
+    "${SWIFT_DIR}/greeter_v2.swift"
+
 # -- C++ host harness --------------------------------------------------
 
 LLVM_COMPONENTS=(
@@ -137,6 +189,19 @@ echo "[build] clang++ src/host.cpp -> build/host"
     ${LLVM_LDFLAGS} ${LLVM_LIBS} ${LLVM_SYSLIBS} \
     -Wl,-rpath,"${LLVM_PREFIX}/lib"
 
+echo "[build] clang++ src/host_witness.cpp -> build/host_witness"
+# shellcheck disable=SC2086
+"${LLVM_CLANG}" \
+    ${LLVM_CXXFLAGS} ${RTTI_FLAG} ${EXC_FLAG} \
+    -O2 -g -arch arm64 \
+    -o "${BUILD_DIR}/host_witness" \
+    "${SRC_DIR}/host_witness.cpp" \
+    ${LLVM_LDFLAGS} ${LLVM_LIBS} ${LLVM_SYSLIBS} \
+    -Wl,-rpath,"${LLVM_PREFIX}/lib"
+
 echo "[build] OK"
 echo "[build] artifacts:"
-ls -la "${BUILD_DIR}/host" "${BUILD_DIR}/greet_v1.o" "${BUILD_DIR}/greet_v2.o"
+ls -la "${BUILD_DIR}/host" "${BUILD_DIR}/host_witness" \
+       "${BUILD_DIR}/greet_v1.o" "${BUILD_DIR}/greet_v2.o" \
+       "${BUILD_DIR}/Greeter.o" \
+       "${BUILD_DIR}/greeter_v1.o" "${BUILD_DIR}/greeter_v2.o"
