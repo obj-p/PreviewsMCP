@@ -1,0 +1,20 @@
+[objc-selref-plugin] graph <MachOHeaderMU>: no __DATA,__objc_selrefs section, nothing to do
+[objc-selref-plugin] graph /opt/homebrew/opt/llvm/lib/clang/22/lib/darwin/liborc_rt_osx.a[7](macho_platform.cpp.o): no __DATA,__objc_selrefs section, nothing to do
+[objc-selref-plugin] graph /opt/homebrew/opt/llvm/lib/clang/22/lib/darwin/liborc_rt_osx.a[3](rtti.cpp.o): no __DATA,__objc_selrefs section, nothing to do
+[objc-selref-plugin] graph /opt/homebrew/opt/llvm/lib/clang/22/lib/darwin/liborc_rt_osx.a[4](log_error_to_stderr.cpp.o): no __DATA,__objc_selrefs section, nothing to do
+[objc-selref-plugin] graph <OrcRTCompleteBootstrap>: no __DATA,__objc_selrefs section, nothing to do
+[objc-selref-plugin] graph <MachOHeaderMU>: no __DATA,__objc_selrefs section, nothing to do
+[objc-selref-plugin] graph build/async_v2.o: no __DATA,__objc_selrefs section, nothing to do
+[host] pid=23967 (attach with lldb if it hangs)
+[host] LLJIT target triple: arm64-apple-darwin25.3.0
+[host] dlopened libswiftCore via /usr/lib/swift/libswiftCore.dylib
+[host] dlopened libswift_Concurrency via /usr/lib/swift/libswift_Concurrency.dylib
+[host] dlopened Foundation.framework via /System/Library/Frameworks/Foundation.framework/Foundation
+[host] dlopened libswiftFoundation via /usr/lib/swift/libswiftFoundation.dylib
+[host] dlopened libswiftDispatch via /usr/lib/swift/libswiftDispatch.dylib
+[host] v1: loading async object from build/async_v2.o
+[host] v1: runAsync -> 0x1049a4128; calling...
+hello from async v2
+[host] v1: runAsync returned cleanly.
+[host] done.
+exit=0
