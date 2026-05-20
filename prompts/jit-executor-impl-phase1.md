@@ -30,11 +30,11 @@ These docs back the design with evidence; if your implementation matches the mod
 
 The POC is a working in-process LLVM ORC + JITLink harness in C++ that already covers six Swift emission patterns. Phase 1 is mostly wrapping this in Swift + wiring to PreviewsMCP's daemon plumbing.
 
-- [`.worktrees/jit-poc/research/jit-poc/SCOPE.md`](../.worktrees/jit-poc/research/jit-poc/SCOPE.md) — what the POC tested.
-- [`.worktrees/jit-poc/research/jit-poc/src/host_objc.cpp`](../.worktrees/jit-poc/research/jit-poc/src/host_objc.cpp) — the most complete harness. Single-file demonstration of LLJIT + ObjectLinkingLayer + the ObjCSelrefPlugin. Phase 1's harness derives from this.
-- [`.worktrees/jit-poc/research/jit-poc/src/ObjCSelrefPlugin.{cpp,hpp}`](../.worktrees/jit-poc/research/jit-poc/src/ObjCSelrefPlugin.cpp) — the JITLink plugin that walks `__DATA,__objc_selrefs` at link-finalize and calls `sel_registerName` for each cstring. **Pattern for any MachOPlatform-augmenting plugin** — you'll write a structurally-identical `ObjCClassPlugin` for `__DATA,__objc_classlist` early in Phase 1.
-- [`.worktrees/jit-poc/research/jit-poc/build.sh`](../.worktrees/jit-poc/research/jit-poc/build.sh) — the working toolchain incantation. Brewed LLVM 22 + swiftc from Xcode 26.2 SDK + ORC runtime archive. Get this building locally before you touch anything else.
-- [`.worktrees/jit-poc/research/jit-poc/data/`](../.worktrees/jit-poc/research/jit-poc/data/) — per-phase run logs. Skim a few; gives you the "what success looks like" smell.
+- [`research/jit-poc/SCOPE.md`](../research/jit-poc/SCOPE.md) — what the POC tested.
+- [`research/jit-poc/src/host_objc.cpp`](../research/jit-poc/src/host_objc.cpp) — the most complete harness. Single-file demonstration of LLJIT + ObjectLinkingLayer + the ObjCSelrefPlugin. Phase 1's harness derives from this.
+- [`research/jit-poc/src/ObjCSelrefPlugin.{cpp,hpp}`](../research/jit-poc/src/ObjCSelrefPlugin.cpp) — the JITLink plugin that walks `__DATA,__objc_selrefs` at link-finalize and calls `sel_registerName` for each cstring. **Pattern for any MachOPlatform-augmenting plugin** — you'll write a structurally-identical `ObjCClassPlugin` for `__DATA,__objc_classlist` early in Phase 1.
+- [`research/jit-poc/build.sh`](../research/jit-poc/build.sh) — the working toolchain incantation. Brewed LLVM 22 + swiftc from Xcode 26.2 SDK + ORC runtime archive. Get this building locally before you touch anything else.
+- [`research/jit-poc/data/`](../research/jit-poc/data/) — per-phase run logs. Skim a few; gives you the "what success looks like" smell.
 
 ### 4. The daemon side you're integrating into (30 min)
 
@@ -93,7 +93,7 @@ Each test ships as a Swift source + an assertion that the JIT-linked function re
 
 ### Starting move (do this first)
 
-1. **Get the POC building locally.** `cd .worktrees/jit-poc/research/jit-poc && ./build.sh && ./build/host_objc build/objc_v1.o`. If you can't reproduce the POC's success, fix that before integrating anything. The toolchain gotchas in §5 above are the most common failures.
+1. **Get the POC building locally.** `cd research/jit-poc && ./build.sh && ./build/host_objc build/objc_v1.o` (from a checkout of `previews-research`). If you can't reproduce the POC's success, fix that before integrating anything. The toolchain gotchas in §5 above are the most common failures.
 2. **Read the design doc §3 and §4 fully.** §3's symbol-discovery strategy (sidecar from custom linker pass + lazy fallback) is the load-bearing complexity of Phase 1; §4 is the plugin architecture. If you start coding before understanding both, you'll architect the wrong thing.
 3. **Architect the LLVM integration.** The single biggest decision Phase 1 makes: how does PreviewsMCP's Swift Package Manager build link against LLVM 22? Options in priority order: SwiftPM binary-target with prebuilt LLVM xcframework (cleanest, most work to set up); vendor brew LLVM via a CMake-driven build step (matches POC, most familiar); pull from a Swift-wrapped LLVM package (Apple's `swift-llvm-bindings` doesn't expose ORC). Pick this BEFORE writing any Swift code; it determines the whole module's shape.
 4. **Stub the Swift API surface.** Before integrating LLVM, write the Swift types Phase 1 will expose: `JITLinkSession`, `JITLinkResult`, `JITLinkError`, `Symbol`. Mock the implementation. Add to `SessionResolver` as a new session kind. Lands a stable surface for the rest of `previewsmcpd` to consume while you wire LLVM underneath.
@@ -101,10 +101,10 @@ Each test ships as a Swift source + an assertion that the JIT-linked function re
 
 ### Working environment
 
-- Use the `jit-implementation` (or similar) branch off `main`. Don't work on `jit-exploration` — that's the research branch with the VM bundle, the .worktrees/jit-poc reference, and the spike artifacts.
-- The POC is at `.worktrees/jit-poc/` on the `jit-poc` branch. It's read-only reference material — don't edit it; copy patterns into your new code.
+- Use the `jit-implementation` (or similar) branch off `main`. Don't work on `previews-research` — that's the research branch with the VM bundle, the POC, and the spike artifacts.
+- The POC is at `research/jit-poc/` on the `previews-research` branch. It's read-only reference material — don't edit it; copy patterns into your new code.
 - Run tests via `swift test` from the repo root. Integration tests against example projects live under `examples/`.
-- For the test fixtures (the six POC scenarios), translate the Swift sources from `.worktrees/jit-poc/research/jit-poc/swift/*.swift` into proper SwiftPM test targets.
+- For the test fixtures (the six POC scenarios), translate the Swift sources from `research/jit-poc/swift/*.swift` (on `previews-research`) into proper SwiftPM test targets.
 
 ### What "Phase 1 done" looks like
 
@@ -125,9 +125,9 @@ End of seed prompt.
 ## Provenance
 
 - Spike verdict: [`prompts/jit-executor-findings.md`](jit-executor-findings.md), committed on `main` at `5fd21e2`.
-- Design doc: [`prompts/jit-executor-design.md`](jit-executor-design.md), `jit-exploration` branch, commit `c8056de`.
-- Empirical capture: `research/scripts/analysis/w3-empirical-capture.md` + `w3-patch-point-set.md` + `q6-jit-runtime-findings.md`, `jit-exploration` branch.
-- W2 POC: `.worktrees/jit-poc/research/jit-poc/`, `jit-poc` branch, 13 commits, 6 green Phase-2 scenarios.
+- Design doc: [`prompts/jit-executor-design.md`](jit-executor-design.md), on `previews-research`.
+- Empirical capture: `research/scripts/analysis/w3-empirical-capture.md` + `w3-patch-point-set.md` + `q6-jit-runtime-findings.md`, on `previews-research`.
+- W2 POC: `research/jit-poc/`, on `previews-research`, 6 green Phase-2 scenarios.
 - Verified-against: macOS 26.3.1, Xcode 26.2 (Build 17C49), Swift 6.2.3, LLVM 22.
 
 If this file is more than a quarter ahead of the design doc's pace, the design doc is the authority. Update this prompt when Phase 1 lands; it should always reflect the actual state of what's been built and what comes next.
