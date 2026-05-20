@@ -614,8 +614,9 @@ Phase 2 scenarios (witness, TLV, swift_once, ObjC selref, ObjC class, async),
 running in-process inside the test runner. Each test ships as a Swift source
 file + assertion that the JIT-linked function returns the expected value.
 
-**Sizing.** ~6 weeks. Most of the cost is integrating LLVM 22 into PreviewsMCP's
-build (vendoring vs SwiftPM dependency vs CMake bridge).
+**Primary cost.** Integrating LLVM 22 into PreviewsMCP's build (vendoring vs
+SwiftPM dependency vs CMake bridge). The JIT-link logic itself is mostly
+already in the POC.
 
 ### Phase 2 — Agent process + SimpleRemoteEPC
 
@@ -637,8 +638,8 @@ host (Phase 1's harness); a new `PreviewAgent` binary becomes the executor.
 running in the agent and the host driving over the wire. Measured wire-protocol
 latency for a single `WriteMemory` round-trip < 1ms locally (sanity threshold).
 
-**Sizing.** ~4 weeks. The agent itself is small; the cost is the
-`SimpleRemoteEPC` transport plumbing and process-lifecycle management.
+**Primary cost.** `SimpleRemoteEPC` transport plumbing and process-lifecycle
+management. The agent itself is small.
 
 ### Phase 3 — SwiftUI integration + hot-reload
 
@@ -664,9 +665,9 @@ Change a non-literal in the same body → JIT-link reload (new path, target
 <200ms for a single-file edit on a 100-file module). Examples scale up
 through 100-, 500-, 1000-file modules.
 
-**Sizing.** ~8 weeks. The integration is mostly mechanical (the existing
-session/file-watcher/compiler glue is already in place); the cost is in the
-plumbing details and validating the latency targets.
+**Primary cost.** Plumbing details and validating the latency targets. The
+integration is mostly mechanical (existing session/file-watcher/compiler glue
+is in place).
 
 ### Phase 4 — Production hardening + large-module scaling
 
@@ -694,8 +695,6 @@ plumbing details and validating the latency targets.
 
 **Acceptance.** Internal beta against 5-10 real production codebases, with
 documented latency / memory / crash-rate baselines.
-
-**Sizing.** ~10 weeks. The long tail of production-grade work.
 
 ---
 

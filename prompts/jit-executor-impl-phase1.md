@@ -79,7 +79,7 @@ These will bite you on day 1 if you don't know them. Pulled from the POC's "lear
 
 Each test ships as a Swift source + an assertion that the JIT-linked function returns the expected value. The tests run in-process inside the test runner.
 
-**Sizing:** ~6 weeks per design doc. The bulk of the cost is integrating LLVM 22 into PreviewsMCP's build (vendoring vs SwiftPM dependency vs CMake bridge); the JIT-link logic itself is mostly already in the POC.
+**Primary unknown:** integrating LLVM 22 into PreviewsMCP's build (vendoring vs SwiftPM dependency vs CMake bridge). The JIT-link logic itself is mostly already in the POC.
 
 ### Out of scope for Phase 1
 
