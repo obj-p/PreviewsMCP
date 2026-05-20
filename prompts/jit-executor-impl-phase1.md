@@ -111,7 +111,6 @@ Each test ships as a Swift source + an assertion that the JIT-linked function re
 
 - New `Sources/PreviewsJITLink` target builds and links against LLVM 22 inside the daemon.
 - Six unit tests pass, covering each POC Phase-2 scenario.
-- An integration test under `examples/` opens a SwiftUI preview, edits the source, and verifies the JIT-linked output reflects the edit.
 - `prompts/jit-executor-design.md` §8.1 has a closure note pointing at the Phase 1 PR.
 - The Phase-2 (agent + SimpleRemoteEPC) seed prompt gets written as a sibling to this file.
 
