@@ -67,7 +67,7 @@ These will bite you on day 1 if you don't know them. Pulled from the POC's "lear
    - `SwiftEntrySectionPlugin` (new, scans `__TEXT,__swift5_entry` + family, calls Swift runtime registration APIs at link-finalize time).
 4. Resolve the View symbol's address against the daemon's own loaded image table (via `dlsym`) + the JIT'd image.
 5. Invoke the View's body via standard Swift calls. **Phase 1 runs JIT'd code in the daemon's own process; no agent yet.**
-6. On source-file change (`FileWatcher` signal): recompile via Compiler, add the new `.o` to the same `LLJIT`, re-resolve the symbol. The new address replaces the old one in any caller's lookup. Validate by calling the new symbol and observing the change.
+6. On source-file change (`FileWatcher` signal): recompile via Compiler, add the new `.o` to the same `LLJIT`, re-resolve the symbol. Validate that the *re-resolved* symbol now points at the new object and calling it returns the new behavior. **Phase 1 only validates the JIT-link mechanism — propagating the new address into already-running callers (cached pointers, witnessed bodies, async continuations) is Phase 2+.**
 
 **Acceptance:** A new `PreviewsJITLinkTests` test-suite mirroring the POC's six Phase 2 scenarios:
 - Witness override (POC `host_witness.cpp` validates the mechanism).
@@ -84,6 +84,7 @@ Each test ships as a Swift source + an assertion that the JIT-linked function re
 ### Out of scope for Phase 1
 
 - **Out-of-process agent.** That's Phase 2.
+- **User-visible hot-reload.** Phase 1 proves the JIT-link + re-resolution mechanism in unit tests. Delivering an edit to a running SwiftUI view tree (via respawn, witness-table swap-in, or caller-side invalidation) is Phase 2+ — the empirical finding is that Apple uses respawn-only, and that path requires the Phase-2 agent.
 - **Wire protocol.** Phase 2 picks `SimpleRemoteEPC` defaults.
 - **Bazel integration.** Phase 3.
 - **iOS device support.** Phase 4+.
