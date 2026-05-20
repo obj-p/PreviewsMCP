@@ -1,0 +1,16 @@
+=== XOJITExecutor linked_dylibs ===
+/System/Library/PrivateFrameworks/XOJITExecutor.framework/Versions/A/XOJITExecutor [arm64e]:
+    -linked_dylibs:
+        attributes     load path
+                       /System/Library/Frameworks/Foundation.framework/Versions/C/Foundation
+                       /usr/lib/libobjc.A.dylib
+                       /usr/lib/libc++.1.dylib
+                       /usr/lib/libSystem.B.dylib
+                       /usr/lib/swift/libswiftCore.dylib
+                       /usr/lib/swift/libswiftDarwin.dylib
+                       /usr/lib/swift/libswiftDispatch.dylib
+        weak-link      /usr/lib/swift/libswiftObjectiveC.dylib
+                       /usr/lib/swift/libswiftXPC.dylib
+        weak-link      /usr/lib/swift/libswift_Builtin_float.dylib
+                       /usr/lib/swift/libswift_DarwinFoundation1.dylib
+                       /usr/lib/swift/libswiftos.dylib

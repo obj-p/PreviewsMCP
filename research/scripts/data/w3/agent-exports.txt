@@ -1,0 +1,10 @@
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Xcode/Agents/XCPreviewAgent.app/Contents/MacOS/XCPreviewAgent [arm64]:
+    -exports:
+        offset      symbol
+        0x00003004  _$s14XCPreviewAgent7useTaskyyF
+        0x000013A8  ___debug_blank_executor_main
+        0x00001DD8  ___debug_blank_executor_run_user_entry_point
+        0x00002FB4  ___debug_main_executable_dylib_entry_point
+        0x00001EEC  ___previews_blank_executor_run_user_entry_point
+        0x00000000  __mh_execute_header
+        0x00002FB4  _main

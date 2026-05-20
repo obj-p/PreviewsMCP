@@ -1,0 +1,67 @@
+=== file ===
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Xcode/Agents/XCPreviewAgent.app/Contents/MacOS/XCPreviewAgent: Mach-O universal binary with 3 architectures: [x86_64:Mach-O 64-bit executable x86_64] [arm64:Mach-O 64-bit executable arm64] [arm64e:Mach-O 64-bit executable arm64e]
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Xcode/Agents/XCPreviewAgent.app/Contents/MacOS/XCPreviewAgent (for architecture x86_64):	Mach-O 64-bit executable x86_64
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Xcode/Agents/XCPreviewAgent.app/Contents/MacOS/XCPreviewAgent (for architecture arm64):	Mach-O 64-bit executable arm64
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Xcode/Agents/XCPreviewAgent.app/Contents/MacOS/XCPreviewAgent (for architecture arm64e):	Mach-O 64-bit executable arm64e
+=== Info.plist ===
+{
+  "BuildMachineOSBuild" => "23A344014"
+  "CFBundleDevelopmentRegion" => "en"
+  "CFBundleDisplayName" => "Xcode Previews"
+  "CFBundleExecutable" => "XCPreviewAgent"
+  "CFBundleIdentifier" => "previews.com.apple.PreviewAgent.macOS"
+  "CFBundleInfoDictionaryVersion" => "6.0"
+  "CFBundleName" => "XCPreviewAgent"
+  "CFBundlePackageType" => "APPL"
+  "CFBundleShortVersionString" => "16.0"
+  "CFBundleSupportedPlatforms" => [
+    0 => "MacOSX"
+  ]
+  "CFBundleVersion" => "23.20.8"
+  "DTCompiler" => "com.apple.compilers.llvm.clang.1_0"
+  "DTPlatformBuild" => "25C16"
+  "DTPlatformName" => "macosx"
+  "DTPlatformVersion" => "26.2"
+  "DTSDKBuild" => "25C16"
+  "DTSDKName" => "macosx26.2.internal"
+  "DTXcode" => "2620"
+  "DTXcodeBuild" => "17C49"
+  "LSMinimumSystemVersion" => "14.0"
+}
+=== codesign entitlements ===
+Executable=/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Xcode/Agents/XCPreviewAgent.app/Contents/MacOS/XCPreviewAgent
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>com.apple.security.get-task-allow</key>
+	<true/>
+</dict>
+</plist>
+=== codesign display ===
+Executable=/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Xcode/Agents/XCPreviewAgent.app/Contents/MacOS/XCPreviewAgent
+Identifier=previews.com.apple.PreviewAgent.macOS
+Format=app bundle with Mach-O universal (x86_64 arm64e arm64)
+CodeDirectory v=20400 size=1129 flags=0x0(none) hashes=24+7 location=embedded
+VersionPlatform=1
+VersionMin=917504
+VersionSDK=1704448
+Hash type=sha256 size=32
+CandidateCDHash sha256=9b4d60c776700822509c5c39c4e866f917dd095a
+CandidateCDHashFull sha256=9b4d60c776700822509c5c39c4e866f917dd095ad8f672d154b521558db65a4b
+Hash choices=sha256
+CMSDigest=9b4d60c776700822509c5c39c4e866f917dd095ad8f672d154b521558db65a4b
+CMSDigestType=2
+Executable Segment base=0
+Executable Segment limit=32768
+Executable Segment flags=0x1
+Page size=4096
+CDHash=9b4d60c776700822509c5c39c4e866f917dd095a
+Signature size=4412
+Authority=Software Signing
+Authority=Apple Code Signing Certification Authority
+Authority=Apple Root CA
+Info.plist entries=20
+TeamIdentifier=59GAB85EFG
+Sealed Resources version=2 rules=13 files=2
+Internal requirements count=1 size=88

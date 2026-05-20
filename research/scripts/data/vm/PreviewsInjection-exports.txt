@@ -1,0 +1,375 @@
+        0x00005460  _UVMakeAppActive
+        0x000054FC  ___SERVICEHUB_ATTACH_POINT__
+        0x00005C0C  PreviewsInjection.___abort_timed_out_waiting_for_previews_jit_first_link_signal() -> Swift.Never
+        0x00005EE8  ____abort_timed_out_waiting_for_previews_jit_first_link_signal
+        0x00007080  PreviewsInjection.PreviewModifiers.applied<A where A: SwiftUI.View>(to: A) -> SwiftUI.View
+        0x000090F4  type metadata accessor for PreviewsInjection.PreviewModifiers
+        0x0000E27C  PreviewsInjection.LocatedPreview.makeRenderingHostContext(renderEffects: [PreviewsMessagingOS.RenderEffect], allowAnimations: Swift.Bool, safeAreaPolicy: PreviewsInjection.PreviewDisplayContext.SafeAreaPolicy) throws -> PreviewsInjection.PreviewDisplayContext
+        0x0000E6DC  PreviewsInjection.LocatedPreview.makeDisplayContext(requestedGroupIndex: PreviewsMessagingOS.GridIndex?, renderEffects: PreviewsInjection.RenderEffects, previewModifiers: PreviewsInjection.PreviewModifiers, allowAnimations: Swift.Bool, safeAreaPolicy: PreviewsInjection.PreviewDisplayContext.SafeAreaPolicy) throws -> PreviewsInjection.PreviewDisplayContext
+        0x0000EA40  type metadata accessor for PreviewsInjection.LocatedPreview
+        0x0000EC00  (extension in PreviewsInjection):PreviewsMessagingOS.PreviewSpecification.locatePreview() throws -> PreviewsInjection.LocatedPreview
+        0x0000F614  dispatch thunk of PreviewsInjection.PreviewLocating.locatePreview(for: PreviewsMessagingOS.PreviewSpecification) async -> PreviewsMessagingOS.RuntimeLookup<PreviewsInjection.LocatedPreview>
+        0x00011104  PreviewsInjection.PreviewAgentServices.locatePreview(for: PreviewsMessagingOS.PreviewSpecification) async throws -> PreviewsInjection.LocatedPreview
+        0x000114B4  PreviewsInjection.PreviewAgentServices.resolveModifiers(for: PreviewsInjection.LocatedPreview) async throws -> PreviewsInjection.PreviewModifiers
+        0x00011A1C  PreviewsInjection.PreviewAgentServices.resolveRenderEffects([PreviewsMessagingOS.RenderEffect]) async throws -> PreviewsInjection.RenderEffects
+        0x00011BE4  type metadata accessor for PreviewsInjection.PreviewAgentServices
+        0x00012344  PreviewsInjection.DYLDJITLaunchFatalError(Swift.String) -> Swift.Never
+        0x000151A8  static (extension in PreviewsInjection):PreviewsInjection.EntryPointProvider.registerEntryPointTypes(in: inout PreviewsInjection.EntryPointTypeRegistry) -> ()
+        0x000151AC  static (extension in PreviewsInjection):PreviewsInjection.EntryPointProvider.registerRenderEffects(in: inout PreviewsInjection.RenderEffectRegistry) -> ()
+        0x000175F0  PreviewsInjection.EntryPointTypeRegistry.register<A where A: PreviewsInjection.NonUIEntryPoint>(entryPoint: A.Type, for: PreviewsOSSupportUI.EntryPointCategory) -> ()
+        0x000179C8  PreviewsInjection.EntryPointTypeRegistry.register<A where A: PreviewsInjection.SceneEntryPoint>(entryPoint: A.Type, for: PreviewsOSSupportUI.EntryPointCategory) -> ()
+        0x000193F4  dispatch thunk of static PreviewsInjection.EntryPointProvider.registerEntryPointTypes(in: inout PreviewsInjection.EntryPointTypeRegistry) -> ()
+        0x00019408  dispatch thunk of static PreviewsInjection.EntryPointProvider.registerRenderEffects(in: inout PreviewsInjection.RenderEffectRegistry) -> ()
+        0x000194A0  type metadata accessor for PreviewsInjection.EntryPointTypeRegistry
+        0x0001BA80  PreviewsInjection.___abort_timed_out_waiting_for_previews_jit_executor() -> Swift.Never
+        0x0001BE00  ____abort_timed_out_waiting_for_previews_jit_executor
+        0x00022CD4  (extension in PreviewsInjection):PreviewsInjection.EntryPoint.handle(hostMessageStream: PreviewsMessagingOS.MessageStream, instance: PreviewsMessagingOS.MessageStreamInstanceIdentifier) async -> Swift.Bool
+        0x00022F4C  (extension in PreviewsInjection):PreviewsInjection.EntryPoint.handle(shellMessageStream: PreviewsMessagingOS.MessageStream) async -> ()
+        0x000231B8  (extension in PreviewsInjection):PreviewsInjection.EntryPoint.handle(endpoint: __C.NSXPCListenerEndpoint, context: PreviewsFoundationOS.PropertyList) async -> ()
+        0x00023318  (extension in PreviewsInjection):PreviewsInjection.EntryPoint.cancelUpdate() async -> ()
+        0x0002332C  static (extension in PreviewsInjection):PreviewsInjection.EntryPoint< where A.UpdatePayload == ()>.decode(updatePayload: PreviewsFoundationOS.PropertyList) throws -> ()
+        0x00023330  static (extension in PreviewsInjection):PreviewsInjection.EntryPoint< where A.StaticOutput == ()>.encode(staticOutput: ()) -> PreviewsFoundationOS.PropertyList
+        0x00023BBC  (extension in PreviewsInjection):PreviewsInjection.EntryPoint.handleHostMessageStream(_: PreviewsMessagingOS.MessageStream, instance: PreviewsMessagingOS.MessageStreamInstanceIdentifier) -> Swift.Bool
+        0x0002499C  (extension in PreviewsInjection):PreviewsInjection.EntryPoint.handleShellMessageStream(PreviewsMessagingOS.MessageStream) -> ()
+        0x00024CDC  (extension in PreviewsInjection):PreviewsInjection.EntryPoint.handleEndpoint(_: __C.NSXPCListenerEndpoint, context: PreviewsFoundationOS.PropertyList) -> ()
+        0x00024CEC  (extension in PreviewsInjection):PreviewsInjection.EntryPoint.description.getter : Swift.String
+        0x00024F3C  static (extension in PreviewsInjection):PreviewsInjection.EntryPoint< where A.UpdatePayload: PreviewsFoundationOS.PropertyListRepresentable>.decode(updatePayload: PreviewsFoundationOS.PropertyList) throws -> A.UpdatePayload
+        0x000250AC  static (extension in PreviewsInjection):PreviewsInjection.EntryPoint< where A.StaticOutput: PreviewsFoundationOS.PropertyListRepresentable>.encode(staticOutput: A.StaticOutput) -> PreviewsFoundationOS.PropertyList
+        0x00025740  (extension in PreviewsInjection):PreviewsInjection.NonUIEntryPoint.any.getter : PreviewsInjection.AnyNonUIEntryPoint
+        0x00025774  PreviewsInjection.AnyNonUIEntryPoint.deinit
+        0x00025794  PreviewsInjection.AnyNonUIEntryPoint.__deallocating_deinit
+        0x000257CC  (extension in PreviewsInjection):PreviewsInjection.SceneEntryPoint.any.getter : PreviewsInjection.AnySceneEntryPoint
+        0x00029C60  type metadata accessor for PreviewsInjection.AnyNonUIEntryPoint
+        0x00029C84  type metadata accessor for PreviewsInjection.AnySceneEntryPoint
+        0x00029CA8  dispatch thunk of PreviewsInjection.EntryPoint.handle(hostMessageStream: PreviewsMessagingOS.MessageStream, instance: PreviewsMessagingOS.MessageStreamInstanceIdentifier) async -> Swift.Bool
+        0x00029DD8  dispatch thunk of PreviewsInjection.EntryPoint.handle(shellMessageStream: PreviewsMessagingOS.MessageStream) async -> ()
+        0x00029F00  dispatch thunk of PreviewsInjection.EntryPoint.handle(endpoint: __C.NSXPCListenerEndpoint, context: PreviewsFoundationOS.PropertyList) async -> ()
+        0x0002A030  dispatch thunk of PreviewsInjection.EntryPoint.cancelUpdate() async -> ()
+        0x0002A148  dispatch thunk of static PreviewsInjection.EntryPoint.decode(updatePayload: PreviewsFoundationOS.PropertyList) throws -> A.UpdatePayload
+        0x0002A170  dispatch thunk of static PreviewsInjection.EntryPoint.encode(staticOutput: A.StaticOutput) -> PreviewsFoundationOS.PropertyList
+        0x0002A184  dispatch thunk of PreviewsInjection.EntryPoint.handleHostMessageStream(_: PreviewsMessagingOS.MessageStream, instance: PreviewsMessagingOS.MessageStreamInstanceIdentifier) -> Swift.Bool
+        0x0002A198  dispatch thunk of PreviewsInjection.EntryPoint.handleShellMessageStream(PreviewsMessagingOS.MessageStream) -> ()
+        0x0002A1AC  dispatch thunk of PreviewsInjection.EntryPoint.handleEndpoint(_: __C.NSXPCListenerEndpoint, context: PreviewsFoundationOS.PropertyList) -> ()
+        0x0002A1C0  method lookup function for PreviewsInjection.AnyNonUIEntryPoint
+        0x0002A1D8  method lookup function for PreviewsInjection.AnySceneEntryPoint
+        0x0002A1F0  dispatch thunk of static PreviewsInjection.NonUIEntryPointFactory.makeEntryPoint(for: PreviewsMessagingOS.ContentIdentifier) throws -> PreviewsInjection.AnyNonUIEntryPoint
+        0x0002A218  dispatch thunk of static PreviewsInjection.SceneEntryPointFactory.makeEntryPoint(for: PreviewsMessagingOS.ContentIdentifier) throws -> PreviewsInjection.AnySceneEntryPoint
+        0x0002A5B8  PreviewsInjection.AnySceneEntryPoint.deinit
+        0x0002A5CC  PreviewsInjection.AnySceneEntryPoint.__deallocating_deinit
+        0x0002FB28  PreviewsInjection.ProviderPreview.underlyingPreviewHost.getter : SwiftUI._PreviewHost
+        0x0002FB30  PreviewsInjection.ProviderPreview.retrieveUnderlyingPreview() -> SwiftUI._Preview
+        0x0002FBE0  PreviewsInjection.ProviderPreview.id.getter : PreviewsInjection.ProviderPreview.ID
+        0x000303C4  static PreviewsInjection.ProviderPreview.ID.== infix(PreviewsInjection.ProviderPreview.ID, PreviewsInjection.ProviderPreview.ID) -> Swift.Bool
+        0x00030420  PreviewsInjection.ProviderPreview.ID.hash(into: inout Swift.Hasher) -> ()
+        0x00030458  PreviewsInjection.ProviderPreview.ID.hashValue.getter : Swift.Int
+        0x00030A68  type metadata accessor for PreviewsInjection.ProviderPreview
+        0x00030B14  type metadata accessor for PreviewsInjection.ProviderPreview.ID
+        0x00034504  ___previews_injection_jit_link_entrypoint
+        0x00034508  PreviewsInjection.__previewsInjectionJITLinkEntrypoint(argc: Swift.Int32, argv: Swift.UnsafeMutablePointer<Swift.UnsafeMutablePointer<Swift.Int8>?>?, previewsDylibPath: Swift.UnsafeMutablePointer<Swift.Int8>?, previewsDylibEntryPointName: Swift.UnsafeMutablePointer<Swift.Int8>?) -> ()
+        0x00034AF4  ___previews_injection_run_user_entrypoint
+        0x00034B04  PreviewsInjection.__previewsInjectionRunUserEntryPoint() -> Swift.Int32
+        0x00034C64  ___previews_injection_perform_first_jit_link
+        0x00034C80  PreviewsInjection.__previewsInjectionPerformFirstJITLink(argc: Swift.Int32, argv: Swift.UnsafeMutablePointer<Swift.UnsafeMutablePointer<Swift.Int8>?>?) -> Swift.Int32
+        0x00035A30  ___previews_injection_get_debug_dodylib_swift_entry_section_data
+        0x00035A34  PreviewsInjection.__previewsInjectionGetDebugPseudodylibSwiftEntrySectionData() -> Swift.UnsafeRawPointer
+        0x000361C4  ___previews_injection_register_swift_extension_entry_section
+        0x000361E0  PreviewsInjection.__previewsInjectionRegisterSwiftExtensionEntrySection(argc: Swift.Int32, argv: Swift.UnsafeMutablePointer<Swift.UnsafeMutablePointer<Swift.Int8>?>?) -> Swift.Int32
+        0x00038098  PreviewsInjection.PreviewDisplayContext.Configuration.layout.getter : SwiftUI.PreviewLayout
+        0x00038100  PreviewsInjection.PreviewDisplayContext.Configuration.layout.setter : SwiftUI.PreviewLayout
+        0x00038168  PreviewsInjection.PreviewDisplayContext.Configuration.layout.modify : SwiftUI.PreviewLayout
+        0x00038188  PreviewsInjection.PreviewDisplayContext.Configuration.allowAnimations.getter : Swift.Bool
+        0x000381AC  type metadata accessor for PreviewsInjection.PreviewDisplayContext.Configuration
+        0x000381CC  PreviewsInjection.PreviewDisplayContext.Configuration.allowAnimations.setter : Swift.Bool
+        0x000381FC  PreviewsInjection.PreviewDisplayContext.Configuration.allowAnimations.modify : Swift.Bool
+        0x00038244  static PreviewsInjection.PreviewDisplayContext.Configuration.== infix(PreviewsInjection.PreviewDisplayContext.Configuration, PreviewsInjection.PreviewDisplayContext.Configuration) -> Swift.Bool
+        0x00038248  static (extension in PreviewsInjection):SwiftUI.PreviewLayout.== infix(SwiftUI.PreviewLayout, SwiftUI.PreviewLayout) -> Swift.Bool
+        0x0003824C  static PreviewsInjection.PreviewDisplayContext.SafeAreaPolicy.== infix(PreviewsInjection.PreviewDisplayContext.SafeAreaPolicy, PreviewsInjection.PreviewDisplayContext.SafeAreaPolicy) -> Swift.Bool
+        0x00038268  PreviewsInjection.PreviewDisplayContext.description.getter : Swift.String
+        0x00038540  PreviewsInjection.PreviewDisplayContext.SafeAreaPolicy.hash(into: inout Swift.Hasher) -> ()
+        0x0003856C  PreviewsInjection.PreviewDisplayContext.SafeAreaPolicy.hashValue.getter : Swift.Int
+        0x000385B4  PreviewsInjection.PreviewDisplayContext.hostRecipe.getter : PreviewsInjection.PreviewDisplayContext
+        0x00038DF4  type metadata accessor for PreviewsInjection.PreviewDisplayContext
+        0x000390C0  type metadata accessor for PreviewsInjection.PreviewDisplayContext.SafeAreaPolicy
+        0x000390D0  dispatch thunk of PreviewsInjection.PreviewContentHost.content.getter : A.Content
+        0x00039260  (extension in PreviewsInjection):PreviewsInjection.SceneEntryPoint< where A.UpdateInputs == A.UpdatePayload>.prepareToUpdate(with: A.UpdateInputs, services: PreviewsInjection.PreviewAgentServices) async throws -> A.UpdateInputs
+        0x000393C0  (extension in PreviewsInjection):PreviewsInjection.SceneEntryPoint< where A.UpdateInputs == A.UpdatePayload>.init() -> A
+        0x0003940C  static (extension in PreviewsInjection):PreviewsInjection.SceneEntryPoint< where A.HostedOutput == ()>.encode(hostedOutput: ()) -> PreviewsFoundationOS.PropertyList
+        0x00039410  static (extension in PreviewsInjection):PreviewsInjection.SceneEntryPoint< where A.HostedOutput: PreviewsFoundationOS.PropertyListRepresentable>.encode(hostedOutput: A.HostedOutput) -> PreviewsFoundationOS.PropertyList
+        0x0003946C  dispatch thunk of PreviewsInjection.SceneEntryPoint.init() -> A
+        0x00039480  dispatch thunk of PreviewsInjection.SceneEntryPoint.prepareToUpdate(with: A.UpdatePayload, services: PreviewsInjection.PreviewAgentServices) async throws -> A.UpdateInputs
+        0x000395C4  dispatch thunk of static PreviewsInjection.SceneEntryPoint.encode(hostedOutput: A.HostedOutput) -> PreviewsFoundationOS.PropertyList
+        0x0003A198  static PreviewsInjection.UVBSEndpointMonitor.activateMonitor() -> ()
+        0x0003A6EC  PreviewsInjection.UVBSEndpointMonitor.monitor(_: __C.BSServiceConnectionEndpointMonitor, didReceive: __C.BSServiceConnectionEndpoint) -> ()
+        0x0003B58C  PreviewsInjection.UVBSEndpointMonitor.monitor(_: __C.BSServiceConnectionEndpointMonitor, willLose: __C.BSServiceConnectionEndpoint) -> ()
+        0x0003B594  PreviewsInjection.UVBSEndpointMonitor.__deallocating_deinit
+        0x00041F48  type metadata accessor for PreviewsInjection.UVBSEndpointMonitor
+        0x0004339C  (extension in PreviewsInjection):PreviewsInjection.NonUIEntryPoint.update(payload: A.UpdatePayload) throws -> PreviewsFoundationOS.Future<A.StaticOutput>
+        0x000435C4  (extension in PreviewsInjection):PreviewsInjection.NonUIEntryPoint.update(with: A.UpdatePayload, services: PreviewsInjection.PreviewAgentServices) async throws -> A.StaticOutput
+        0x00044438  dispatch thunk of PreviewsInjection.NonUIEntryPoint.init() async -> A
+        0x00044564  dispatch thunk of PreviewsInjection.NonUIEntryPoint.update(with: A.UpdatePayload, services: PreviewsInjection.PreviewAgentServices) async throws -> A.StaticOutput
+        0x000446A8  dispatch thunk of PreviewsInjection.NonUIEntryPoint.update(payload: A.UpdatePayload) throws -> PreviewsFoundationOS.Future<A.StaticOutput>
+        0x0004E810  static PreviewsInjection.RenderEffects.== infix(PreviewsInjection.RenderEffects, PreviewsInjection.RenderEffects) -> Swift.Bool
+        0x0004EA30  static PreviewsInjection.RenderEffects.empty.getter : PreviewsInjection.RenderEffects
+        0x0004EAD0  type metadata accessor for PreviewsInjection.RenderEffects
+        0x0004EAF0  PreviewsInjection.RenderEffects.applied<A where A: SwiftUI.View>(to: A) -> SwiftUI.View
+        0x0004EBC0  PreviewsInjection.RenderEffects.description.getter : Swift.String
+        0x0004EC64  (extension in PreviewsInjection):PreviewsInjection.RenderEffectTransform.orientationOverride.getter : PreviewsMessagingOS.PreviewTraits.Orientation?
+        0x000508B8  PreviewsInjection.RenderEffectRegistry.register<A where A: PreviewsInjection.RenderEffectTransform>(_: A, for: PreviewsMessagingOS.RenderEffect) -> ()
+        0x000515A8  dispatch thunk of PreviewsInjection.RenderEffectTransform.orientationOverride.getter : PreviewsMessagingOS.PreviewTraits.Orientation?
+        0x00051640  type metadata accessor for PreviewsInjection.RenderEffectRegistry
+        0x00053738  static (extension in PreviewsInjection):PreviewsServices.RegistryEntry.typeDescription.getter : Swift.String
+        0x000544A4  PreviewsInjection.PlaygroundRegistryEntry.fileID.getter : Swift.String
+        0x000544CC  PreviewsInjection.PlaygroundRegistryEntry.line.getter : Swift.Int
+        0x000544F4  PreviewsInjection.PlaygroundRegistryEntry.column.getter : Swift.Int
+        0x0005451C  PreviewsInjection.PlaygroundRegistryEntry.makeExecutable() throws -> DeveloperToolsSupport._Playground
+        0x00054544  static PreviewsInjection.PlaygroundRegistryEntry.registryTypeRawValue.getter : Swift.String
+        0x00054560  static PreviewsInjection.PlaygroundRegistryEntry.scrapeRuntimeForEntries() -> [PreviewsInjection.PlaygroundRegistryEntry]
+        0x0005485C  (extension in PreviewsInjection):DeveloperToolsSupport._Playground.metadata.getter : PreviewsMessagingOS.PlaygroundMetadata
+        0x00054894  (extension in PreviewsInjection):DeveloperToolsSupport._Playground.run() -> Swift.AsyncStream<PreviewsMessagingOS.PlaygroundEvent>
+        0x000556D0  type metadata accessor for PreviewsInjection.PlaygroundRegistryEntry
+        0x0005594C  PreviewsInjection.PreviewHostController.__allocating_init() -> PreviewsInjection.PreviewHostController<A>
+        0x00055984  PreviewsInjection.PreviewHostController.update(with: PreviewsInjection.PreviewDisplayContext, debugDescription: Swift.String) -> ()
+        0x00055D24  PreviewsInjection.PreviewHostController.rootViewController.getter : A.ViewController
+        0x00055DF4  PreviewsInjection.PreviewHostController.rootViewController.setter : A.ViewController
+        0x00055ECC  PreviewsInjection.PreviewHostController.rootViewController.modify : A.ViewController
+        0x00055F3C  PreviewsInjection.PreviewHostController.init() -> PreviewsInjection.PreviewHostController<A>
+        0x000567E4  PreviewsInjection.PreviewHostController._forEachIdentifiedView(body: (SwiftUI._IdentifiedViewProxy) -> ()) -> ()
+        0x000568CC  PreviewsInjection.PreviewHostController._render(seconds: Swift.Double) -> ()
+        0x000569A8  PreviewsInjection.PreviewHostController.desiredSize(in: __C.CGSize) -> __C.CGSize?
+        0x00056C4C  PreviewsInjection.PreviewHostController.deinit
+        0x00056D14  PreviewsInjection.PreviewHostController.__deallocating_deinit
+        0x00056F1C  type metadata accessor for PreviewsInjection.PreviewHostController
+        0x00056F34  method lookup function for PreviewsInjection.PreviewHostController
+        0x00056F4C  dispatch thunk of PreviewsInjection.PreviewHostController.__allocating_init() -> PreviewsInjection.PreviewHostController<A>
+        0x00058630  PreviewsInjection.RenderingHostManager.__allocating_init() -> PreviewsInjection.RenderingHostManager<A>
+        0x00058668  PreviewsInjection.RenderingHostManager.init() -> PreviewsInjection.RenderingHostManager<A>
+        0x000586CC  PreviewsInjection.RenderingHostManager.update(using: PreviewsInjection.PreviewDisplayContext, identifier: Swift.String) throws -> PreviewsInjection.PreviewHostController<A>
+        0x00058700  PreviewsInjection.RenderingHostManager.update(using: PreviewsInjection.PreviewDisplayContext, debugDescription: Swift.String) -> PreviewsInjection.PreviewHostController<A>
+        0x00058728  PreviewsInjection.RenderingHostManager.deinit
+        0x00058748  PreviewsInjection.RenderingHostManager.__deallocating_deinit
+        0x000587F0  type metadata accessor for PreviewsInjection.RenderingHostManager
+        0x00058808  method lookup function for PreviewsInjection.RenderingHostManager
+        0x00058820  dispatch thunk of PreviewsInjection.RenderingHostManager.__allocating_init() -> PreviewsInjection.RenderingHostManager<A>
+        0x00068574  dispatch thunk of PreviewsInjection.SelectableRegionProvider._forEachIdentifiedView(body: (SwiftUI._IdentifiedViewProxy) -> ()) -> ()
+        0x00068AFC  static (extension in PreviewsInjection):PreviewsInjection.HostingParadigm.createHostingViewable(view: SwiftUI.AnyView, with: PreviewsInjection.PreviewDisplayContext.Configuration) -> A.HostingViewable
+        0x00068B1C  static (extension in PreviewsInjection):PreviewsInjection.HostingParadigm.rootViewController(for: A.HostingViewable, with: PreviewsInjection.PreviewDisplayContext.Configuration) -> A.ViewController
+        0x00068B68  static (extension in PreviewsInjection):PreviewsInjection.HostingParadigm.configureHostingViewable(_: A.HostingViewable, with: PreviewsInjection.PreviewDisplayContext.Configuration) -> ()
+        0x00068BCC  static (extension in PreviewsInjection):PreviewsInjection.HostingParadigm.createHostingViewable<A where A1: SwiftUI.View>(rootView: A1) -> A.HostingViewable
+        0x00068EBC  static (extension in PreviewsInjection):PreviewsInjection.HostingParadigm.updateHostingViewable(_: A.HostingViewable, with: PreviewsInjection.PreviewDisplayContext.Configuration) -> A.ViewController
+        0x00068F44  static (extension in PreviewsInjection):PreviewsInjection.HostingParadigm< where A.HostModifier == SwiftUI.EmptyModifier>.hostModifier(for: SwiftUI.PreviewLayout) -> SwiftUI.EmptyModifier
+        0x00068F48  (extension in PreviewsInjection):SwiftUI.NSHostingController.size.getter : __C.CGSize
+        0x00068FAC  (extension in PreviewsInjection):SwiftUI.NSHostingController.size.setter : __C.CGSize
+        0x0006902C  (extension in PreviewsInjection):SwiftUI.NSHostingController.size.modify : __C.CGSize
+        0x0006909C  (extension in PreviewsInjection):SwiftUI.NSHostingController.forceLayout() -> ()
+        0x00069664  dispatch thunk of static PreviewsInjection.HostingParadigm.createHostingViewable(view: SwiftUI.AnyView, with: PreviewsInjection.PreviewDisplayContext.Configuration) -> A.HostingViewable
+        0x00069678  dispatch thunk of static PreviewsInjection.HostingParadigm.rootViewController(for: A.HostingViewable, with: PreviewsInjection.PreviewDisplayContext.Configuration) -> A.ViewController
+        0x0006968C  dispatch thunk of static PreviewsInjection.HostingParadigm.configureHostingViewable(_: A.HostingViewable, with: PreviewsInjection.PreviewDisplayContext.Configuration) -> ()
+        0x000696A0  dispatch thunk of static PreviewsInjection.HostingParadigm.createHostingViewable<A where A1: SwiftUI.View>(rootView: A1) -> A.HostingViewable
+        0x000696B4  dispatch thunk of static PreviewsInjection.HostingParadigm.updateHostingViewable(_: A.HostingViewable, with: PreviewsInjection.PreviewDisplayContext.Configuration) -> A.ViewController
+        0x000696C8  dispatch thunk of static PreviewsInjection.HostingParadigm.hostModifier(for: SwiftUI.PreviewLayout) -> A.HostModifier
+        0x000696DC  dispatch thunk of static PreviewsInjection.HostingParadigm.debugOverlay(for: A.HostingViewable) -> PreviewsOSSupportUI.PreviewDebugOverlay
+        0x000696F0  dispatch thunk of PreviewsInjection._HostingViewable._render(seconds: Swift.Double) -> ()
+        0x00069704  dispatch thunk of PreviewsInjection._HostingViewable._forEachIdentifiedView(body: (SwiftUI._IdentifiedViewProxy) -> ()) -> ()
+        0x00069718  dispatch thunk of PreviewsInjection._HostingViewable.sizeThatFits(in: __C.CGSize) -> __C.CGSize
+        0x0006972C  dispatch thunk of PreviewsInjection._HostingViewable.size.getter : __C.CGSize
+        0x00069740  dispatch thunk of PreviewsInjection._HostingViewable.size.setter : __C.CGSize
+        0x00069754  dispatch thunk of PreviewsInjection._HostingViewable.size.modify : __C.CGSize
+        0x00069768  dispatch thunk of PreviewsInjection._HostingViewable.forceLayout() -> ()
+        0x0006A8E0  (extension in PreviewsInjection):SwiftUI.AppPreviewHost.content.getter : some
+        0x0007A90C  PreviewsInjection.RegistryPreview.underlyingPreview.getter : DeveloperToolsSupport.Preview
+        0x0007A974  PreviewsInjection.RegistryPreview.id.getter : PreviewsMessagingOS.RegistryID
+        0x0007A9F0  type metadata accessor for PreviewsInjection.RegistryPreview
+        0x0007FAA0  _PreviewsInjectionVersionString
+        0x0007FAE0  _PreviewsInjectionVersionNumber
+        0x000800D8  async function pointer to dispatch thunk of PreviewsInjection.PreviewLocating.locatePreview(for: PreviewsMessagingOS.PreviewSpecification) async -> PreviewsMessagingOS.RuntimeLookup<PreviewsInjection.LocatedPreview>
+        0x000800F0  enum case for PreviewsInjection.LocatedPreview.provider(PreviewsInjection.LocatedPreview.Type) -> (PreviewsInjection.ProviderPreview) -> PreviewsInjection.LocatedPreview
+        0x000800F4  enum case for PreviewsInjection.LocatedPreview.registry(PreviewsInjection.LocatedPreview.Type) -> (PreviewsInjection.RegistryPreview) -> PreviewsInjection.LocatedPreview
+        0x000802E0  async function pointer to PreviewsInjection.PreviewAgentServices.locatePreview(for: PreviewsMessagingOS.PreviewSpecification) async throws -> PreviewsInjection.LocatedPreview
+        0x000802F0  async function pointer to PreviewsInjection.PreviewAgentServices.resolveModifiers(for: PreviewsInjection.LocatedPreview) async throws -> PreviewsInjection.PreviewModifiers
+        0x000802F8  async function pointer to PreviewsInjection.PreviewAgentServices.resolveRenderEffects([PreviewsMessagingOS.RenderEffect]) async throws -> PreviewsInjection.RenderEffects
+        0x00080E30  async function pointer to (extension in PreviewsInjection):PreviewsInjection.EntryPoint.handle(hostMessageStream: PreviewsMessagingOS.MessageStream, instance: PreviewsMessagingOS.MessageStreamInstanceIdentifier) async -> Swift.Bool
+        0x00080E38  async function pointer to (extension in PreviewsInjection):PreviewsInjection.EntryPoint.handle(shellMessageStream: PreviewsMessagingOS.MessageStream) async -> ()
+        0x00080E40  async function pointer to (extension in PreviewsInjection):PreviewsInjection.EntryPoint.handle(endpoint: __C.NSXPCListenerEndpoint, context: PreviewsFoundationOS.PropertyList) async -> ()
+        0x00080E48  async function pointer to (extension in PreviewsInjection):PreviewsInjection.EntryPoint.cancelUpdate() async -> ()
+        0x00080E50  property descriptor for (extension in PreviewsInjection):PreviewsInjection.EntryPoint.description : Swift.String
+        0x00080E50  property descriptor for (extension in PreviewsInjection):PreviewsInjection.NonUIEntryPoint.any : PreviewsInjection.AnyNonUIEntryPoint
+        0x00080E50  property descriptor for (extension in PreviewsInjection):PreviewsInjection.SceneEntryPoint.any : PreviewsInjection.AnySceneEntryPoint
+        0x00080EA0  async function pointer to dispatch thunk of PreviewsInjection.EntryPoint.handle(hostMessageStream: PreviewsMessagingOS.MessageStream, instance: PreviewsMessagingOS.MessageStreamInstanceIdentifier) async -> Swift.Bool
+        0x00080EB0  async function pointer to dispatch thunk of PreviewsInjection.EntryPoint.handle(shellMessageStream: PreviewsMessagingOS.MessageStream) async -> ()
+        0x00080EC0  async function pointer to dispatch thunk of PreviewsInjection.EntryPoint.handle(endpoint: __C.NSXPCListenerEndpoint, context: PreviewsFoundationOS.PropertyList) async -> ()
+        0x00080ED0  async function pointer to dispatch thunk of PreviewsInjection.EntryPoint.cancelUpdate() async -> ()
+        0x00080F08  class metadata base offset for PreviewsInjection.AnyNonUIEntryPoint
+        0x00080F38  class metadata base offset for PreviewsInjection.AnySceneEntryPoint
+        0x00081740  protocol conformance descriptor for PreviewsInjection.ProviderPreview.ID : Swift.Hashable in PreviewsInjection
+        0x00081780  protocol conformance descriptor for PreviewsInjection.ProviderPreview.ID : Swift.Equatable in PreviewsInjection
+        0x000817B8  property descriptor for PreviewsInjection.ProviderPreview.id : PreviewsInjection.ProviderPreview.ID
+        0x000817B8  property descriptor for PreviewsInjection.ProviderPreview.ID.hashValue : Swift.Int
+        0x000817B8  property descriptor for PreviewsInjection.ProviderPreview.underlyingPreviewHost : SwiftUI._PreviewHost
+        0x00081DA8  protocol conformance descriptor for PreviewsInjection.PreviewDisplayContext.Configuration : Swift.Equatable in PreviewsInjection
+        0x00081DD0  protocol conformance descriptor for PreviewsInjection.PreviewDisplayContext.SafeAreaPolicy : Swift.Equatable in PreviewsInjection
+        0x00081DF8  protocol conformance descriptor for PreviewsInjection.PreviewDisplayContext.SafeAreaPolicy : Swift.Hashable in PreviewsInjection
+        0x00081E38  protocol conformance descriptor for PreviewsInjection.PreviewDisplayContext : Swift.CustomStringConvertible in PreviewsInjection
+        0x00081E74  protocol conformance descriptor for SwiftUI.PreviewLayout : Swift.Equatable in PreviewsInjection
+        0x00081EA0  property descriptor for PreviewsInjection.PreviewDisplayContext.Configuration.layout : SwiftUI.PreviewLayout
+        0x00081EA8  property descriptor for PreviewsInjection.PreviewDisplayContext.Configuration.allowAnimations : Swift.Bool
+        0x00081EB0  property descriptor for PreviewsInjection.PreviewDisplayContext.description : Swift.String
+        0x00081EB0  property descriptor for PreviewsInjection.PreviewDisplayContext.hostRecipe : PreviewsInjection.PreviewDisplayContext
+        0x00081EB0  property descriptor for PreviewsInjection.PreviewDisplayContext.SafeAreaPolicy.hashValue : Swift.Int
+        0x00081EF4  enum case for PreviewsInjection.PreviewDisplayContext.SafeAreaPolicy.trust(PreviewsInjection.PreviewDisplayContext.SafeAreaPolicy.Type) -> PreviewsInjection.PreviewDisplayContext.SafeAreaPolicy
+        0x00081EF8  enum case for PreviewsInjection.PreviewDisplayContext.SafeAreaPolicy.override(PreviewsInjection.PreviewDisplayContext.SafeAreaPolicy.Type) -> PreviewsInjection.PreviewDisplayContext.SafeAreaPolicy
+        0x00081F60  async function pointer to (extension in PreviewsInjection):PreviewsInjection.SceneEntryPoint< where A.UpdateInputs == A.UpdatePayload>.prepareToUpdate(with: A.UpdateInputs, services: PreviewsInjection.PreviewAgentServices) async throws -> A.UpdateInputs
+        0x00081FC0  async function pointer to dispatch thunk of PreviewsInjection.SceneEntryPoint.prepareToUpdate(with: A.UpdatePayload, services: PreviewsInjection.PreviewAgentServices) async throws -> A.UpdateInputs
+        0x00082138  class metadata base offset for PreviewsInjection.UVBSEndpointMonitor
+        0x00082690  async function pointer to (extension in PreviewsInjection):PreviewsInjection.NonUIEntryPoint.update(with: A.UpdatePayload, services: PreviewsInjection.PreviewAgentServices) async throws -> A.StaticOutput
+        0x000826C8  async function pointer to dispatch thunk of PreviewsInjection.NonUIEntryPoint.init() async -> A
+        0x000826D0  async function pointer to dispatch thunk of PreviewsInjection.NonUIEntryPoint.update(with: A.UpdatePayload, services: PreviewsInjection.PreviewAgentServices) async throws -> A.StaticOutput
+        0x00082CA8  protocol conformance descriptor for PreviewsInjection.RenderEffects : Swift.Equatable in PreviewsInjection
+        0x00082CD0  protocol conformance descriptor for PreviewsInjection.RenderEffects : Swift.CustomStringConvertible in PreviewsInjection
+        0x00082CF8  property descriptor for (extension in PreviewsInjection):PreviewsInjection.RenderEffectTransform.orientationOverride : PreviewsMessagingOS.PreviewTraits.Orientation?
+        0x00082CF8  property descriptor for PreviewsInjection.RenderEffects.description : Swift.String
+        0x00082CF8  property descriptor for static PreviewsInjection.RenderEffects.empty : PreviewsInjection.RenderEffects
+        0x000831D8  protocol conformance descriptor for PreviewsInjection.PlaygroundRegistryEntry : PreviewsServices.RegistryEntry in PreviewsInjection
+        0x00083220  protocol conformance descriptor for PreviewsInjection.PlaygroundRegistryEntry : PreviewsServices.MinimalRegistryEntry in PreviewsInjection
+        0x00083294  protocol conformance descriptor for DeveloperToolsSupport._Playground : PreviewsServices.RegistryExecutable in PreviewsInjection
+        0x00083318  property descriptor for (extension in PreviewsInjection):DeveloperToolsSupport._Playground.metadata : PreviewsMessagingOS.PlaygroundMetadata
+        0x00083318  property descriptor for PreviewsInjection.PlaygroundRegistryEntry.column : Swift.Int
+        0x00083318  property descriptor for PreviewsInjection.PlaygroundRegistryEntry.fileID : Swift.String
+        0x00083318  property descriptor for PreviewsInjection.PlaygroundRegistryEntry.line : Swift.Int
+        0x00083318  property descriptor for static (extension in PreviewsInjection):PreviewsServices.RegistryEntry.typeDescription : Swift.String
+        0x00083318  property descriptor for static PreviewsInjection.PlaygroundRegistryEntry.registryTypeRawValue : Swift.String
+        0x000833A0  protocol conformance descriptor for PreviewsInjection.PreviewHostController<A> : PreviewsInjection.SelectableRegionProvider in PreviewsInjection
+        0x000833B0  property descriptor for PreviewsInjection.PreviewHostController.rootViewController : A.ViewController
+        0x000833D0  class metadata base offset for PreviewsInjection.PreviewHostController
+        0x00083758  class metadata base offset for PreviewsInjection.RenderingHostManager
+        0x00084250  protocol conformance descriptor for SwiftUI.NSHostingController<A> : PreviewsInjection._HostingViewable in PreviewsInjection
+        0x00084560  protocol conformance descriptor for SwiftUI.AppPreviewHost : PreviewsInjection.PreviewContentHost in PreviewsInjection
+        0x0008457C  property descriptor for (extension in PreviewsInjection):SwiftUI.AppPreviewHost.content : some
+        0x00084DF0  property descriptor for PreviewsInjection.RegistryPreview.id : PreviewsMessagingOS.RegistryID
+        0x00084DF0  property descriptor for PreviewsInjection.RegistryPreview.underlyingPreview : DeveloperToolsSupport.Preview
+        0x000850D4  nominal type descriptor for PreviewsInjection.PreviewModifiers
+        0x00085494  protocol descriptor for PreviewsInjection.PreviewLocating
+        0x000854A4  protocol requirements base descriptor for PreviewsInjection.PreviewLocating
+        0x000854AC  method descriptor for PreviewsInjection.PreviewLocating.locatePreview(for: PreviewsMessagingOS.PreviewSpecification) async -> PreviewsMessagingOS.RuntimeLookup<PreviewsInjection.LocatedPreview>
+        0x000854B4  nominal type descriptor for PreviewsInjection.LocatedPreview
+        0x00085540  nominal type descriptor for PreviewsInjection.PreviewAgentServices
+        0x000856C0  protocol descriptor for PreviewsInjection.EntryPointProvider
+        0x000856D0  protocol requirements base descriptor for PreviewsInjection.EntryPointProvider
+        0x000856D8  method descriptor for static PreviewsInjection.EntryPointProvider.registerEntryPointTypes(in: inout PreviewsInjection.EntryPointTypeRegistry) -> ()
+        0x000856E0  method descriptor for static PreviewsInjection.EntryPointProvider.registerRenderEffects(in: inout PreviewsInjection.RenderEffectRegistry) -> ()
+        0x000856E8  nominal type descriptor for PreviewsInjection.EntryPointTypeRegistry
+        0x000857E4  protocol descriptor for PreviewsInjection.EntryPoint
+        0x00085800  protocol requirements base descriptor for PreviewsInjection.EntryPoint
+        0x00085808  base conformance descriptor for PreviewsInjection.EntryPoint: Swift.CustomStringConvertible
+        0x00085810  associated type descriptor for PreviewsInjection.EntryPoint.UpdatePayload
+        0x00085818  associated type descriptor for PreviewsInjection.EntryPoint.StaticOutput
+        0x00085820  method descriptor for PreviewsInjection.EntryPoint.handle(hostMessageStream: PreviewsMessagingOS.MessageStream, instance: PreviewsMessagingOS.MessageStreamInstanceIdentifier) async -> Swift.Bool
+        0x00085828  method descriptor for PreviewsInjection.EntryPoint.handle(shellMessageStream: PreviewsMessagingOS.MessageStream) async -> ()
+        0x00085830  method descriptor for PreviewsInjection.EntryPoint.handle(endpoint: __C.NSXPCListenerEndpoint, context: PreviewsFoundationOS.PropertyList) async -> ()
+        0x00085838  method descriptor for PreviewsInjection.EntryPoint.cancelUpdate() async -> ()
+        0x00085840  method descriptor for static PreviewsInjection.EntryPoint.decode(updatePayload: PreviewsFoundationOS.PropertyList) throws -> A.UpdatePayload
+        0x00085848  method descriptor for static PreviewsInjection.EntryPoint.encode(staticOutput: A.StaticOutput) -> PreviewsFoundationOS.PropertyList
+        0x00085850  method descriptor for PreviewsInjection.EntryPoint.handleHostMessageStream(_: PreviewsMessagingOS.MessageStream, instance: PreviewsMessagingOS.MessageStreamInstanceIdentifier) -> Swift.Bool
+        0x00085858  method descriptor for PreviewsInjection.EntryPoint.handleShellMessageStream(PreviewsMessagingOS.MessageStream) -> ()
+        0x00085860  method descriptor for PreviewsInjection.EntryPoint.handleEndpoint(_: __C.NSXPCListenerEndpoint, context: PreviewsFoundationOS.PropertyList) -> ()
+        0x00085868  nominal type descriptor for PreviewsInjection.AnyNonUIEntryPoint
+        0x000858A4  nominal type descriptor for PreviewsInjection.AnySceneEntryPoint
+        0x000858E0  protocol descriptor for PreviewsInjection.NonUIEntryPointFactory
+        0x000858F0  protocol requirements base descriptor for PreviewsInjection.NonUIEntryPointFactory
+        0x000858F8  method descriptor for static PreviewsInjection.NonUIEntryPointFactory.makeEntryPoint(for: PreviewsMessagingOS.ContentIdentifier) throws -> PreviewsInjection.AnyNonUIEntryPoint
+        0x00085900  protocol descriptor for PreviewsInjection.SceneEntryPointFactory
+        0x00085910  protocol requirements base descriptor for PreviewsInjection.SceneEntryPointFactory
+        0x00085918  method descriptor for static PreviewsInjection.SceneEntryPointFactory.makeEntryPoint(for: PreviewsMessagingOS.ContentIdentifier) throws -> PreviewsInjection.AnySceneEntryPoint
+        0x00085AB8  nominal type descriptor for PreviewsInjection.ProviderPreview
+        0x00085AD4  nominal type descriptor for PreviewsInjection.ProviderPreview.ID
+        0x00085C9C  nominal type descriptor for PreviewsInjection.PreviewDisplayContext
+        0x00085CC4  nominal type descriptor for PreviewsInjection.PreviewDisplayContext.Configuration
+        0x00085CEC  nominal type descriptor for PreviewsInjection.PreviewDisplayContext.SafeAreaPolicy
+        0x00085D08  protocol descriptor for PreviewsInjection.PreviewContentHost
+        0x00085D24  protocol requirements base descriptor for PreviewsInjection.PreviewContentHost
+        0x00085D2C  associated conformance descriptor for PreviewsInjection.PreviewContentHost.PreviewsInjection.PreviewContentHost.Content: SwiftUI.View
+        0x00085D34  associated type descriptor for PreviewsInjection.PreviewContentHost.Content
+        0x00085D3C  method descriptor for PreviewsInjection.PreviewContentHost.content.getter : A.Content
+        0x00085D90  protocol descriptor for PreviewsInjection.SceneEntryPoint
+        0x00085DAC  protocol requirements base descriptor for PreviewsInjection.SceneEntryPoint
+        0x00085DB4  base conformance descriptor for PreviewsInjection.SceneEntryPoint: PreviewsInjection.EntryPoint
+        0x00085DBC  associated type descriptor for PreviewsInjection.SceneEntryPoint.HostedOutput
+        0x00085DC4  associated type descriptor for PreviewsInjection.SceneEntryPoint.UpdateInputs
+        0x00085DCC  method descriptor for PreviewsInjection.SceneEntryPoint.init() -> A
+        0x00085DD4  method descriptor for PreviewsInjection.SceneEntryPoint.prepareToUpdate(with: A.UpdatePayload, services: PreviewsInjection.PreviewAgentServices) async throws -> A.UpdateInputs
+        0x00085DDC  method descriptor for static PreviewsInjection.SceneEntryPoint.encode(hostedOutput: A.HostedOutput) -> PreviewsFoundationOS.PropertyList
+        0x00085E00  nominal type descriptor for PreviewsInjection.UVBSEndpointMonitor
+        0x00085F84  protocol descriptor for PreviewsInjection.NonUIEntryPoint
+        0x00085FA0  protocol requirements base descriptor for PreviewsInjection.NonUIEntryPoint
+        0x00085FA8  base conformance descriptor for PreviewsInjection.NonUIEntryPoint: PreviewsInjection.EntryPoint
+        0x00085FB0  method descriptor for PreviewsInjection.NonUIEntryPoint.init() async -> A
+        0x00085FB8  method descriptor for PreviewsInjection.NonUIEntryPoint.update(with: A.UpdatePayload, services: PreviewsInjection.PreviewAgentServices) async throws -> A.StaticOutput
+        0x00085FC0  method descriptor for PreviewsInjection.NonUIEntryPoint.update(payload: A.UpdatePayload) throws -> PreviewsFoundationOS.Future<A.StaticOutput>
+        0x000860DC  nominal type descriptor for PreviewsInjection.RenderEffects
+        0x00086104  protocol descriptor for PreviewsInjection.RenderEffectTransform
+        0x0008612C  protocol requirements base descriptor for PreviewsInjection.RenderEffectTransform
+        0x00086134  base conformance descriptor for PreviewsInjection.RenderEffectTransform: Swift.Equatable
+        0x0008613C  base conformance descriptor for PreviewsInjection.RenderEffectTransform: SwiftUI.ViewModifier
+        0x00086144  method descriptor for PreviewsInjection.RenderEffectTransform.orientationOverride.getter : PreviewsMessagingOS.PreviewTraits.Orientation?
+        0x0008614C  nominal type descriptor for PreviewsInjection.RenderEffectRegistry
+        0x00086310  nominal type descriptor for PreviewsInjection.PlaygroundRegistryEntry
+        0x0008632C  nominal type descriptor for PreviewsInjection.PreviewHostController
+        0x00086380  method descriptor for PreviewsInjection.PreviewHostController.__allocating_init() -> PreviewsInjection.PreviewHostController<A>
+        0x00086550  nominal type descriptor for PreviewsInjection.RenderingHostManager
+        0x000865A4  method descriptor for PreviewsInjection.RenderingHostManager.__allocating_init() -> PreviewsInjection.RenderingHostManager<A>
+        0x0008698C  protocol descriptor for PreviewsInjection.SelectableRegionProvider
+        0x0008699C  protocol requirements base descriptor for PreviewsInjection.SelectableRegionProvider
+        0x000869A4  method descriptor for PreviewsInjection.SelectableRegionProvider._forEachIdentifiedView(body: (SwiftUI._IdentifiedViewProxy) -> ()) -> ()
+        0x000869AC  protocol descriptor for PreviewsInjection.HostingParadigm
+        0x000869D4  protocol requirements base descriptor for PreviewsInjection.HostingParadigm
+        0x000869DC  associated conformance descriptor for PreviewsInjection.HostingParadigm.PreviewsInjection.HostingParadigm.HostModifier: SwiftUI.ViewModifier
+        0x000869E4  associated conformance descriptor for PreviewsInjection.HostingParadigm.PreviewsInjection.HostingParadigm.HostingViewable: PreviewsInjection._HostingViewable
+        0x000869EC  associated type descriptor for PreviewsInjection.HostingParadigm.ViewController
+        0x000869F4  associated type descriptor for PreviewsInjection.HostingParadigm.HostingViewable
+        0x000869FC  associated type descriptor for PreviewsInjection.HostingParadigm.HostModifier
+        0x00086A04  method descriptor for static PreviewsInjection.HostingParadigm.createHostingViewable(view: SwiftUI.AnyView, with: PreviewsInjection.PreviewDisplayContext.Configuration) -> A.HostingViewable
+        0x00086A0C  method descriptor for static PreviewsInjection.HostingParadigm.rootViewController(for: A.HostingViewable, with: PreviewsInjection.PreviewDisplayContext.Configuration) -> A.ViewController
+        0x00086A14  method descriptor for static PreviewsInjection.HostingParadigm.configureHostingViewable(_: A.HostingViewable, with: PreviewsInjection.PreviewDisplayContext.Configuration) -> ()
+        0x00086A1C  method descriptor for static PreviewsInjection.HostingParadigm.createHostingViewable<A where A1: SwiftUI.View>(rootView: A1) -> A.HostingViewable
+        0x00086A24  method descriptor for static PreviewsInjection.HostingParadigm.updateHostingViewable(_: A.HostingViewable, with: PreviewsInjection.PreviewDisplayContext.Configuration) -> A.ViewController
+        0x00086A2C  method descriptor for static PreviewsInjection.HostingParadigm.hostModifier(for: SwiftUI.PreviewLayout) -> A.HostModifier
+        0x00086A34  method descriptor for static PreviewsInjection.HostingParadigm.debugOverlay(for: A.HostingViewable) -> PreviewsOSSupportUI.PreviewDebugOverlay
+        0x00086A3C  protocol descriptor for PreviewsInjection._HostingViewable
+        0x00086A58  protocol requirements base descriptor for PreviewsInjection._HostingViewable
+        0x00086A60  method descriptor for PreviewsInjection._HostingViewable._render(seconds: Swift.Double) -> ()
+        0x00086A68  method descriptor for PreviewsInjection._HostingViewable._forEachIdentifiedView(body: (SwiftUI._IdentifiedViewProxy) -> ()) -> ()
+        0x00086A70  method descriptor for PreviewsInjection._HostingViewable.sizeThatFits(in: __C.CGSize) -> __C.CGSize
+        0x00086A78  method descriptor for PreviewsInjection._HostingViewable.size.getter : __C.CGSize
+        0x00086A80  method descriptor for PreviewsInjection._HostingViewable.size.setter : __C.CGSize
+        0x00086A88  method descriptor for PreviewsInjection._HostingViewable.size.modify : __C.CGSize
+        0x00086A90  method descriptor for PreviewsInjection._HostingViewable.forceLayout() -> ()
+        0x00086BB0  opaque type descriptor for <<opaque return type of (extension in PreviewsInjection):SwiftUI.AppPreviewHost.content : some>>
+        0x00086F30  nominal type descriptor for PreviewsInjection.RegistryPreview
+        0x3183C968  property descriptor for (extension in PreviewsInjection):SwiftUI.NSHostingController.size : __C.CGSize
+        0x39C2B120  _OBJC_METACLASS_$_UVPreviewsInjectionEntryPoint
+        0x39C2B148  _OBJC_CLASS_$_UVPreviewsInjectionEntryPoint
+        0x39C2B188  _OBJC_CLASS_$_PreviewsInjection.UVBSEndpointMonitor
+        0x39C2B188  type metadata for PreviewsInjection.UVBSEndpointMonitor
+        0x39C2B200  _OBJC_METACLASS_$_PreviewsInjection.UVBSEndpointMonitor
+        0x3A890070  type metadata for PreviewsInjection.LocatedPreview
+        0x3A890400  metaclass for PreviewsInjection.AnyNonUIEntryPoint
+        0x3A890440  type metadata for PreviewsInjection.AnyNonUIEntryPoint
+        0x3A8904A0  metaclass for PreviewsInjection.AnySceneEntryPoint
+        0x3A8904E0  type metadata for PreviewsInjection.AnySceneEntryPoint
+        0x3A890950  type metadata for PreviewsInjection.PreviewDisplayContext
+        0x3A8909D8  type metadata for PreviewsInjection.PreviewDisplayContext.Configuration
+        0x3A890E68  type metadata for PreviewsInjection.RenderEffects
+        0x3A8917D8  protocol witness table for SwiftUI.AppPreviewHost : PreviewsInjection.PreviewContentHost in PreviewsInjection
+        0x3A891D58  type metadata for PreviewsInjection.RegistryPreview
+        0x3DECBB00  type metadata for PreviewsInjection.PreviewModifiers
+        0x3DECBE50  type metadata for PreviewsInjection.PreviewAgentServices
+        0x3DECBFC8  type metadata for PreviewsInjection.EntryPointTypeRegistry
+        0x3DECC498  type metadata for PreviewsInjection.ProviderPreview
+        0x3DECC520  type metadata for PreviewsInjection.ProviderPreview.ID
+        0x3DECC840  type metadata for PreviewsInjection.PreviewDisplayContext.SafeAreaPolicy
+        0x3DECCD78  type metadata for PreviewsInjection.RenderEffectRegistry
+        0x3DECCE98  type metadata for PreviewsInjection.PlaygroundRegistryEntry
+        0x3DECCF00  protocol witness table for PreviewsInjection.PreviewHostController<A> : PreviewsInjection.SelectableRegionProvider in PreviewsInjection
+        0x3DECD570  protocol witness table for SwiftUI.NSHostingController<A> : PreviewsInjection._HostingViewable in PreviewsInjection
+        offset      symbol
+    -exports:
+/System/Library/PrivateFrameworks/PreviewsInjection.framework/PreviewsInjection [arm64e]:

@@ -1,0 +1,1297 @@
+        0x000017B8  default argument 3 of PreviewsUI.PreviewDiagnostic.init(updateErrors: [PreviewsFoundationHost.HumanReadableError]?, pausedReason: PreviewsPipeline.PreviewPauseReason?, environmentError: PreviewsFoundationHost.HumanReadableError?, pendingUpdateReasons: [PreviewsPipeline.PreviewUpdateReason], displayableContent: PreviewsUI.DisplayableContent, activeCrash: PreviewsUI.EditorStateSnapshotCrash?) -> PreviewsUI.PreviewDiagnostic
+        0x000017C4  default argument 1 of PreviewsUI.MetadataBundlesQueryResolver.init(directory: Foundation.URL, basePriority: PreviewsModel.MetadataPriority) -> PreviewsUI.MetadataBundlesQueryResolver
+        0x000017C8  default argument 0 of PreviewsUI.CenteringScrollView.init(axis: SwiftUI.Axis.Set, content: () -> A) -> PreviewsUI.CenteringScrollView<A>
+        0x000017CC  default argument 9 of PreviewsUI.DisplayableContent.init(providers: [PreviewsUI.DisplayableContent.Provider], registries: [PreviewsUI.DisplayableContent.Registry], appPreview: PreviewsUI.DisplayableContent.Preview?, sourceIdentifiers: [PreviewsModel.SourceIdentifier], sortedSourceIdentifiers: [PreviewsModel.SourceIdentifier], buildingState: PreviewsPipeline.PipelineBuildingState, updateIdentifier: PreviewsPipeline.PreviewService.UpdateIdentifier, editor: PreviewsPipeline.EditorIdentifier, inJITMode: Swift.Bool, updateSeed: Swift.Int) -> PreviewsUI.DisplayableContent
+        0x000019AC  PreviewsUI.DisplayableContent.Preview.CanvasPreview.VariantMatrix.groups.getter : [PreviewsUI.DisplayableContent.Preview.CanvasPreview.VariantGroup]
+        0x000019AC  PreviewsUI.DisplayableContent.providers.getter : [PreviewsUI.DisplayableContent.Provider]
+        0x000019AC  PreviewsUI.PreviewDiagnostic.updateErrors.getter : [PreviewsFoundationHost.HumanReadableError]?
+        0x000019B4  PreviewsUI.PreviewDiagnostic.pausedReason.getter : PreviewsPipeline.PreviewPauseReason?
+        0x000019F8  type metadata accessor for PreviewsUI.PreviewDiagnostic
+        0x00001A74  PreviewsUI.PreviewDiagnostic.environmentError.getter : PreviewsFoundationHost.HumanReadableError?
+        0x00001AB8  PreviewsUI.PreviewDiagnostic.pendingUpdateReasons.getter : [PreviewsPipeline.PreviewUpdateReason]
+        0x00001AD8  PreviewsUI.PreviewDiagnostic.previewErrors.getter : [PreviewsFoundationHost.HumanReadableError]
+        0x00001AF8  PreviewsUI.PreviewDiagnostic.init(updateErrors: [PreviewsFoundationHost.HumanReadableError]?, pausedReason: PreviewsPipeline.PreviewPauseReason?, environmentError: PreviewsFoundationHost.HumanReadableError?, pendingUpdateReasons: [PreviewsPipeline.PreviewUpdateReason], displayableContent: PreviewsUI.DisplayableContent, activeCrash: PreviewsUI.EditorStateSnapshotCrash?) -> PreviewsUI.PreviewDiagnostic
+        0x0000215C  PreviewsUI.PreviewDiagnostic.allErrorDescriptions.getter : [PreviewsFoundationHost.HumanReadableError]
+        0x00002330  PreviewsUI.PreviewDiagnostic.collectDiagnostics(into: PreviewsFoundationHost.DiagnosticsCollector) -> ()
+        0x00002838  PreviewsUI.DisplayableContent.Preview.State.collectDiagnostics(into: PreviewsFoundationHost.DiagnosticsCollector) -> ()
+        0x00002B00  (extension in PreviewsUI):PreviewsPipeline.PreviewUpdateKind.collectDiagnostics(into: PreviewsFoundationHost.DiagnosticsCollector) -> ()
+        0x00004ACC  PreviewsUI.DisplayableContent.Preview.CanvasPreview.VariantSection.title.getter : Swift.String?
+        0x00004ACC  PreviewsUI.KnownAmberType.rawValue.getter : Swift.String
+        0x00004ACC  PreviewsUI.LibraryProvider.NamespacedCategory.namespace.getter : Swift.String?
+        0x00004ACC  PreviewsUI.LibraryProvider.Section.title.getter : Swift.String
+        0x00004AF8  PreviewsUI.DisplayableContent.Preview.CanvasPreview.VariantSection.variants.getter : [PreviewsUI.DisplayableContent.Preview.CanvasPreview.Variant]
+        0x00004AF8  PreviewsUI.EditorStateSnapshot.documents.getter : [PreviewsUI.EditorStateSnapshot.ParsedDocument]
+        0x00004AF8  PreviewsUI.LibraryProvider.Section.assets.getter : [PreviewsUI.LibraryProvider.Section.Asset]
+        0x00004B00  PreviewsUI.IdentifiedValue.id.getter : Swift.AnyHashable
+        0x00004B00  PreviewsUI.LibraryProvider.Section.Asset.id.getter : Swift.AnyHashable
+        0x00004B48  PreviewsUI.LibraryProvider.Section.Asset.title.getter : Swift.String
+        0x00004B74  PreviewsUI.LibraryProvider.Section.Asset.icon.getter : SwiftUI.Image?
+        0x00004B7C  PreviewsUI.LibraryProvider.Section.Asset.snippet.getter : Swift.String
+        0x00004BA8  PreviewsUI.LibraryProvider.Section.Asset.synonyms.getter : [Swift.String]
+        0x00004BB0  PreviewsUI.LibraryProvider.NamespacedCategory.category.getter : PreviewsModel.LibraryCategoryID
+        0x00004BFC  type metadata accessor for PreviewsUI.LibraryProvider.NamespacedCategory
+        0x00004C34  PreviewsUI.LibraryProvider.NamespacedCategory.init(namespace: Swift.String?, category: PreviewsModel.LibraryCategoryID) -> PreviewsUI.LibraryProvider.NamespacedCategory
+        0x00004C88  static PreviewsUI.LibraryProvider.NamespacedCategory.< infix(PreviewsUI.LibraryProvider.NamespacedCategory, PreviewsUI.LibraryProvider.NamespacedCategory) -> Swift.Bool
+        0x00004CC8  static PreviewsUI.LibraryProvider.NamespacedCategory.== infix(PreviewsUI.LibraryProvider.NamespacedCategory, PreviewsUI.LibraryProvider.NamespacedCategory) -> Swift.Bool
+        0x00004CCC  PreviewsUI.LibraryProvider.NamespacedCategory.hash(into: inout Swift.Hasher) -> ()
+        0x00004D7C  PreviewsUI.LibraryProvider.NamespacedCategory.hashValue.getter : Swift.Int
+        0x0000516C  static PreviewsUI.LibraryProvider.groupedLibrary(_: PreviewsModel.LibraryIdentifier, host: PreviewsModel.LibraryDescription.HostIdentifier, platforms: Swift.Set<PreviewsModel.PlatformAvailabilityIdentifier>, using: PreviewsFoundationHost.QueryManager) -> PreviewsFoundationHost.OrderedDictionary<PreviewsUI.LibraryProvider.NamespacedCategory, PreviewsFoundationHost.Inhabited<[PreviewsModel.LibraryAssetDescription]>>
+        0x000062AC  static PreviewsUI.LibraryProvider.nonTrivialNamespaces<A where A: Swift.Collection, A.Element == PreviewsUI.LibraryProvider.NamespacedCategory>(A) -> Swift.Set<Swift.String>
+        0x00006B80  static PreviewsUI.LibraryProvider.library(_: PreviewsModel.LibraryIdentifier, host: PreviewsModel.LibraryDescription.HostIdentifier, platforms: Swift.Set<PreviewsModel.PlatformAvailabilityIdentifier>, using: PreviewsFoundationHost.QueryManager) -> [PreviewsUI.LibraryProvider.Section]
+        0x00007700  static PreviewsUI.LibraryProvider.categoryTitle(_: PreviewsUI.LibraryProvider.NamespacedCategory, using: PreviewsFoundationHost.QueryManager, nonTrivialNamespaces: Swift.Set<Swift.String>) -> Swift.String
+        0x0000970C  type metadata accessor for PreviewsUI.LibraryProvider
+        0x000098C8  type metadata accessor for PreviewsUI.LibraryProvider.Section
+        0x00009B90  type metadata accessor for PreviewsUI.LibraryProvider.Section.Asset
+        0x0000A11C  PreviewsUI.DisplayableContent.Preview.CanvasPreview.VariantMatrix.init(groups: [PreviewsUI.DisplayableContent.Preview.CanvasPreview.VariantGroup]) -> PreviewsUI.DisplayableContent.Preview.CanvasPreview.VariantMatrix
+        0x0000A11C  PreviewsUI.ImageView.init(content: __C.CGImageRef) -> PreviewsUI.ImageView
+        0x0000A124  PreviewsUI.ImageView.makeNSView(context: SwiftUI.NSViewRepresentableContext<PreviewsUI.ImageView>) -> __C.NSView
+        0x0000A290  PreviewsUI.ImageView.updateNSView(_: __C.NSView, context: SwiftUI.NSViewRepresentableContext<PreviewsUI.ImageView>) -> ()
+        0x0000A290  PreviewsUI.UnselectablePreviewTypesQuery.init() -> PreviewsUI.UnselectablePreviewTypesQuery
+        0x0000A290  static PreviewsUI.KitLevelBuiltInIntegrationManager.default.getter : PreviewsUI.KitLevelBuiltInIntegrationManager
+        0x0000A544  type metadata accessor for PreviewsUI.ImageView
+        0x0000A5AC  (extension in PreviewsUI):SwiftUI.EnvironmentValues.internalInstall.getter : Swift.Bool
+        0x0000A624  (extension in PreviewsUI):SwiftUI.EnvironmentValues.internalInstall.setter : Swift.Bool
+        0x0000A65C  (extension in PreviewsUI):SwiftUI.EnvironmentValues.internalInstall.modify : Swift.Bool
+        0x0000A788  PreviewsUI.DisplayableContent.Preview.defaultSelectionCandidate.getter : Swift.Bool
+        0x0000A788  static PreviewsUI.EditorHost.Destination.== infix(PreviewsUI.EditorHost.Destination, PreviewsUI.EditorHost.Destination) -> Swift.Bool
+        0x0000A848  (extension in PreviewsUI):SwiftUI.EnvironmentValues.editorTheme.getter : PreviewsUI.EditorTheme
+        0x0000A8BC  (extension in PreviewsUI):SwiftUI.EnvironmentValues.editorTheme.setter : PreviewsUI.EditorTheme
+        0x0000A90C  (extension in PreviewsUI):SwiftUI.EnvironmentValues.editorTheme.modify : PreviewsUI.EditorTheme
+        0x0000AA2C  dispatch thunk of PreviewsUI.EditorTheme.solariumEnabled.getter : Swift.Bool
+        0x0000AA2C  dispatch thunk of PreviewsUI.PreviewIdentifiable.previewID.getter : PreviewsPipeline.DiscoveredItem.ID?
+        0x0000AA34  dispatch thunk of PreviewsUI.EditorTheme.vibrantDividerColor.getter : SwiftUI.Color
+        0x0000AA34  dispatch thunk of PreviewsUI.PreviewIdentifiable.defaultSelectionCandidate.getter : Swift.Bool
+        0x0000AA3C  dispatch thunk of PreviewsUI.EditorTheme.statusErrorImage(size: Swift.UInt) -> SwiftUI.Image
+        0x0000AA3C  dispatch thunk of PreviewsUI.PreviewIdentifiable.isPreviewIdentifiableEqual(to: PreviewsUI.PreviewIdentifiable) -> Swift.Bool
+        0x0000AA44  dispatch thunk of PreviewsUI.EditorTheme.statusWarningImage(size: Swift.UInt) -> SwiftUI.Image
+        0x0000AA6C  PreviewsUI.IdentifiedValue.value.getter : A
+        0x0000AA88  PreviewsUI.IdentifiedValue.init(id: Swift.AnyHashable, value: A) -> PreviewsUI.IdentifiedValue<A>
+        0x0000AAE8  type metadata accessor for PreviewsUI.IdentifiedValue
+        0x0000AAF8  (extension in PreviewsUI):Swift.Sequence.indexIdentifiable.getter : [PreviewsUI.IdentifiedValue<A.Element>]
+        0x0000B96C  PreviewsUI.SelectPreviewInEditorAction.callAsFunction(PreviewsPipeline.DiscoveredItem.ID) -> ()
+        0x0000B98C  PreviewsUI.SelectPreviewInEditorAction.deinit
+        0x0000B9A8  PreviewsUI.SelectPreviewInEditorAction.__deallocating_deinit
+        0x0000B9F4  (extension in PreviewsUI):SwiftUI.View.selectPreviewInEditor((PreviewsPipeline.DiscoveredItem.ID) -> ()) -> some
+        0x0000BB1C  type metadata accessor for PreviewsUI.SelectPreviewInEditorAction
+        0x0000BB3C  method lookup function for PreviewsUI.SelectPreviewInEditorAction
+        0x0000BF8C  static PreviewsUI.PreviewNameDisambiguationStrategy.== infix(PreviewsUI.PreviewNameDisambiguationStrategy, PreviewsUI.PreviewNameDisambiguationStrategy) -> Swift.Bool
+        0x0000BFA0  PreviewsUI.PreviewNameDisambiguationStrategy.hash(into: inout Swift.Hasher) -> ()
+        0x0000BFA0  PreviewsUI.SelectionStore.SelectActionOrigin.Responder.hash(into: inout Swift.Hasher) -> ()
+        0x0000BFC8  PreviewsUI.PreviewNameDisambiguationStrategy.hashValue.getter : Swift.Int
+        0x0000BFC8  PreviewsUI.SelectionStore.SelectActionOrigin.Responder.hashValue.getter : Swift.Int
+        0x0000C1EC  type metadata accessor for PreviewsUI.PreviewNameDisambiguationStrategy
+        0x0000C20C  static (extension in PreviewsUI):__C.NSBundle.uvuiBundle.getter : __C.NSBundle
+        0x00010DB0  PreviewsUI.CachedSelectionContainer.init(currentSources: Swift.Set<PreviewsModel.SourceIdentifier>, allSources: Swift.Set<PreviewsModel.SourceIdentifier>, items: [B], content: (SwiftUI.Binding<B?>) -> A) -> PreviewsUI.CachedSelectionContainer<A, B>
+        0x00010E78  PreviewsUI.CachedSelectionContainer.body.getter : some
+        0x00011040  PreviewsUI.CachedSelectionArbiterContainer.init(arbiter: PreviewsUI.CachedItemSelectionArbiter<PreviewsModel.SourceIdentifier, B, PreviewsFoundationHost.DispatchScheduler>, currentSources: Swift.Set<PreviewsModel.SourceIdentifier>, allSources: Swift.Set<PreviewsModel.SourceIdentifier>, items: [B], content: (SwiftUI.Binding<B?>) -> A) -> PreviewsUI.CachedSelectionArbiterContainer<A, B>
+        0x000110C0  type metadata accessor for PreviewsUI.CachedSelectionArbiterContainer
+        0x000113FC  PreviewsUI.CachedSelectionArbiterContainer.body.getter : some
+        0x00011F10  type metadata accessor for PreviewsUI.CachedSelectionContainer
+        0x00012C9C  (extension in PreviewsUI):Swift.BinaryFloatingPoint.rounded(numberOfSignificantDigits: Swift.Int) -> A
+        0x00012FD4  PreviewsUI.CanvasMetricsView.init(model: PreviewsUI.CanvasMetricsModel) -> PreviewsUI.CanvasMetricsView
+        0x00013064  PreviewsUI.CanvasMetricsView.body.getter : some
+        0x00013B40  type metadata accessor for PreviewsUI.CanvasMetricsView
+        0x000143B0  PreviewsUI.EditorHost.Destination.hash(into: inout Swift.Hasher) -> ()
+        0x000143D4  PreviewsUI.EditorHost.Destination.hashValue.getter : Swift.Int
+        0x00014450  default argument 0 of PreviewsUI.EditorHost.init(navigationHandler: (PreviewsUI.EditorHost.Destination) -> ()) -> PreviewsUI.EditorHost
+        0x00014450  default argument 3 of PreviewsUI.CanvasMetricsModel.Cycler.ActiveState.init(runningMode: PreviewsUI.CanvasMetricsModel.Cycler.ActiveState.RunningMode, completedIterations: Swift.Int, remainingIterations: Swift.Int, start: () -> (), pause: () -> (), reset: () -> (), collectStats: () -> Swift.String) -> PreviewsUI.CanvasMetricsModel.Cycler.ActiveState
+        0x00014450  default argument 4 of PreviewsUI.CanvasMetricsModel.Cycler.ActiveState.init(runningMode: PreviewsUI.CanvasMetricsModel.Cycler.ActiveState.RunningMode, completedIterations: Swift.Int, remainingIterations: Swift.Int, start: () -> (), pause: () -> (), reset: () -> (), collectStats: () -> Swift.String) -> PreviewsUI.CanvasMetricsModel.Cycler.ActiveState
+        0x00014450  default argument 5 of PreviewsUI.CanvasMetricsModel.Cycler.ActiveState.init(runningMode: PreviewsUI.CanvasMetricsModel.Cycler.ActiveState.RunningMode, completedIterations: Swift.Int, remainingIterations: Swift.Int, start: () -> (), pause: () -> (), reset: () -> (), collectStats: () -> Swift.String) -> PreviewsUI.CanvasMetricsModel.Cycler.ActiveState
+        0x00014460  PreviewsUI.EditorHost.init(navigationHandler: (PreviewsUI.EditorHost.Destination) -> ()) -> PreviewsUI.EditorHost
+        0x00014460  PreviewsUI.KnownAmberType.init(rawValue: Swift.String) -> PreviewsUI.KnownAmberType
+        0x00014468  PreviewsUI.EditorHost.navigate(to: PreviewsUI.EditorHost.Destination) -> ()
+        0x00014498  (extension in PreviewsUI):SwiftUI.EnvironmentValues.editorHost.getter : PreviewsUI.EditorHost
+        0x00014568  (extension in PreviewsUI):SwiftUI.EnvironmentValues.editorHost.setter : PreviewsUI.EditorHost
+        0x000145A4  (extension in PreviewsUI):SwiftUI.EnvironmentValues.editorHost.modify : PreviewsUI.EditorHost
+        0x00014854  type metadata accessor for PreviewsUI.EditorHost
+        0x0001486C  type metadata accessor for PreviewsUI.EditorHost.Destination
+        0x00014890  PreviewsUI.MetadataBundlesQueryResolver.__allocating_init(directory: Foundation.URL, basePriority: PreviewsModel.MetadataPriority) -> PreviewsUI.MetadataBundlesQueryResolver
+        0x000149C4  PreviewsUI.MetadataBundlesQueryResolver.deinit
+        0x00014A30  PreviewsUI.MetadataBundlesQueryResolver.__deallocating_deinit
+        0x00014AA4  PreviewsUI.MetadataBundlesQueryResolver.__allocating_init(directories: [(Foundation.URL, PreviewsModel.MetadataPriority)]) -> PreviewsUI.MetadataBundlesQueryResolver
+        0x00014AE0  PreviewsUI.MetadataBundlesQueryResolver.init(directories: [(Foundation.URL, PreviewsModel.MetadataPriority)]) -> PreviewsUI.MetadataBundlesQueryResolver
+        0x0001582C  PreviewsUI.MetadataBundlesQueryResolver.sources.getter : [PreviewsModel.MetadataSource]
+        0x00015AC8  PreviewsUI.MetadataBundlesQueryResolver.resolutions.getter : PreviewsFoundationHost.QueryResolutions
+        0x00015D00  type metadata accessor for PreviewsUI.MetadataBundlesQueryResolver
+        0x00015FC4  PreviewsUI.MetadataBundlesQueryResolver.queryResolverPublisher.getter : Combine.AnyPublisher<(), Swift.Never>?
+        0x000166C8  method lookup function for PreviewsUI.MetadataBundlesQueryResolver
+        0x000166D4  dispatch thunk of PreviewsUI.MetadataBundlesQueryResolver.__allocating_init(directories: [(Foundation.URL, PreviewsModel.MetadataPriority)]) -> PreviewsUI.MetadataBundlesQueryResolver
+        0x000169DC  type metadata accessor for PreviewsUI.UnselectablePreviewTypesQuery
+        0x00016AC4  PreviewsUI.CenteringScrollView.init(axis: SwiftUI.Axis.Set, content: () -> A) -> PreviewsUI.CenteringScrollView<A>
+        0x00016B3C  type metadata accessor for PreviewsUI.CenteringScrollView
+        0x00016B88  PreviewsUI.CenteringScrollView.body.getter : some
+        0x000178EC  PreviewsUI.DisplayableContent.Preview.item.getter : PreviewsPipeline.DiscoveredItem
+        0x000178F8  PreviewsUI.DisplayableContent.Preview.item.setter : PreviewsPipeline.DiscoveredItem
+        0x00017904  PreviewsUI.CanvasMetricsModel.Cycler.ActiveState.runningMode.modify : PreviewsUI.CanvasMetricsModel.Cycler.ActiveState.RunningMode
+        0x00017904  PreviewsUI.CanvasMetricsModel.Metrics.lastUpdateDuration.modify : Swift.Double?
+        0x00017904  PreviewsUI.DisplayableContent.Preview.CanvasPreview.instance.modify : PreviewsPipeline.PreviewInstance
+        0x00017904  PreviewsUI.DisplayableContent.Preview.CanvasPreview.SinglePreview.state.modify : PreviewsUI.DisplayableContent.Preview.State
+        0x00017904  PreviewsUI.DisplayableContent.Preview.CanvasPreview.Variant.variant.modify : PreviewsMessagingHost.PreviewVariant
+        0x00017904  PreviewsUI.DisplayableContent.Preview.CanvasPreview.VariantGroup.definition.modify : PreviewsMessagingHost.PreviewVariantGroup
+        0x00017904  PreviewsUI.DisplayableContent.Preview.CanvasPreview.VariantMatrix.groups.modify : [PreviewsUI.DisplayableContent.Preview.CanvasPreview.VariantGroup]
+        0x00017904  PreviewsUI.DisplayableContent.Preview.CanvasPreview.VariantSection.title.modify : Swift.String?
+        0x00017904  PreviewsUI.DisplayableContent.Preview.CanvasRegistry.capabilities.modify : PreviewsPipeline.RegistryCapabilities
+        0x00017904  PreviewsUI.DisplayableContent.Preview.item.modify : PreviewsPipeline.DiscoveredItem
+        0x00017904  PreviewsUI.DisplayableContent.Preview.State.PendingState.capabilities.modify : PreviewsPipeline.PreviewCapabilities?
+        0x00017904  PreviewsUI.DisplayableContent.Preview.State.UpdatingState.groupSeed.modify : PreviewsUI.UpdateGroupSeed
+        0x00017904  PreviewsUI.DisplayableContent.Preview.State.Viewable.status.modify : PreviewsUI.DisplayableContent.Preview.State.Viewable.Status
+        0x00017904  PreviewsUI.DisplayableContent.Provider.source.modify : PreviewsPipeline.ProviderSource
+        0x00017904  PreviewsUI.DisplayableContent.providers.modify : [PreviewsUI.DisplayableContent.Provider]
+        0x00017904  PreviewsUI.DisplayableContent.Registry.definition.modify : PreviewsModel.RegistryDefinition
+        0x00017904  PreviewsUI.EditorStateSnapshotCrash.crashReport.modify : PreviewsFoundationHost.CrashReport?
+        0x00017904  PreviewsUI.KnownAmberType.rawValue.modify : Swift.String
+        0x00017914  PreviewsUI.DisplayableContent.Preview.settingsRelay.getter : PreviewsPipeline.EditorSettingsRelay
+        0x00017934  type metadata accessor for PreviewsUI.DisplayableContent.Preview
+        0x00017948  PreviewsUI.DisplayableContent.Preview.settingsRelay.setter : PreviewsPipeline.EditorSettingsRelay
+        0x0001795C  PreviewsUI.DisplayableContent.Preview.settingsRelay.modify : PreviewsPipeline.EditorSettingsRelay
+        0x00017984  PreviewsUI.DisplayableContent.Preview.canvasContent.getter : PreviewsUI.DisplayableContent.Preview.CanvasContent?
+        0x00017A04  PreviewsUI.DisplayableContent.Preview.canvasContent.setter : PreviewsUI.DisplayableContent.Preview.CanvasContent?
+        0x00017A84  PreviewsUI.DisplayableContent.Preview.canvasContent.modify : PreviewsUI.DisplayableContent.Preview.CanvasContent?
+        0x00017AAC  PreviewsUI.DisplayableContent.Preview.id.getter : PreviewsPipeline.DiscoveredItem.ID
+        0x00017AB0  PreviewsUI.DisplayableContent.Preview.init(item: PreviewsPipeline.DiscoveredItem, settingsRelay: PreviewsPipeline.EditorSettingsRelay, canvasContent: PreviewsUI.DisplayableContent.Preview.CanvasContent?) -> PreviewsUI.DisplayableContent.Preview
+        0x00017B4C  type metadata accessor for PreviewsUI.DisplayableContent.Preview.CanvasContent
+        0x00017B60  PreviewsUI.DisplayableContent.Preview.isAppPreview.getter : Swift.Bool
+        0x00017CF8  PreviewsUI.DisplayableContent.Preview.displayName.getter : Swift.String
+        0x000180A0  (extension in PreviewsUI):PreviewsPipeline.DiscoveredItem.defaultDisplayName.getter : Swift.String
+        0x00018270  type metadata accessor for PreviewsUI.DisplayableContent.Preview.CanvasRegistry
+        0x00018284  type metadata accessor for PreviewsUI.DisplayableContent.Preview.CanvasPreview
+        0x000182DC  PreviewsUI.DisplayableContent.Preview.lineNumber.getter : Swift.Int?
+        0x000186DC  PreviewsUI.DisplayableContent.Preview.displayNameDisambiguation(with: PreviewsUI.PreviewNameDisambiguationStrategy) -> Swift.String?
+        0x00018B44  PreviewsUI.DisplayableContent.Preview.sourceIdentifier.getter : PreviewsModel.SourceIdentifier?
+        0x00019094  PreviewsUI.DisplayableContent.Preview.CanvasRegistry.capabilities.getter : PreviewsPipeline.RegistryCapabilities
+        0x000190A0  PreviewsUI.DisplayableContent.Preview.CanvasRegistry.capabilities.setter : PreviewsPipeline.RegistryCapabilities
+        0x000190AC  PreviewsUI.DisplayableContent.Preview.CanvasRegistry.enabled.getter : Swift.Bool
+        0x000190CC  PreviewsUI.DisplayableContent.Preview.CanvasRegistry.enabled.setter : Swift.Bool
+        0x000190F8  PreviewsUI.DisplayableContent.Preview.CanvasRegistry.enabled.modify : Swift.Bool
+        0x00019120  PreviewsUI.DisplayableContent.Preview.CanvasRegistry.Status.id.getter : PreviewsFoundationHost.Identifier
+        0x0001912C  PreviewsUI.DisplayableContent.Preview.CanvasRegistry.Status.executionStatus.getter : PreviewsPipeline.ExecutionPointStatus<PreviewsPipeline.AnyExecutionPoint>
+        0x00019184  type metadata accessor for PreviewsUI.DisplayableContent.Preview.CanvasRegistry.Status
+        0x00019198  PreviewsUI.DisplayableContent.Preview.CanvasRegistry.Status.init(executionStatus: PreviewsPipeline.ExecutionPointStatus<PreviewsPipeline.AnyExecutionPoint>) -> PreviewsUI.DisplayableContent.Preview.CanvasRegistry.Status
+        0x00019230  PreviewsUI.DisplayableContent.Preview.CanvasRegistry.status.getter : PreviewsUI.DisplayableContent.Preview.CanvasRegistry.Status
+        0x0001926C  PreviewsUI.DisplayableContent.Preview.CanvasRegistry.status.setter : PreviewsUI.DisplayableContent.Preview.CanvasRegistry.Status
+        0x000192A8  PreviewsUI.DisplayableContent.Preview.CanvasRegistry.status.modify : PreviewsUI.DisplayableContent.Preview.CanvasRegistry.Status
+        0x000192D0  PreviewsUI.DisplayableContent.Preview.CanvasRegistry.init(capabilities: PreviewsPipeline.RegistryCapabilities) -> PreviewsUI.DisplayableContent.Preview.CanvasRegistry
+        0x000193A4  PreviewsUI.DisplayableContent.Preview.CanvasPreview.instance.getter : PreviewsPipeline.PreviewInstance
+        0x000193B0  PreviewsUI.DisplayableContent.Preview.CanvasPreview.instance.setter : PreviewsPipeline.PreviewInstance
+        0x000193BC  PreviewsUI.DisplayableContent.Preview.CanvasPreview.location.getter : PreviewsPipeline.PreviewConfiguration.Location
+        0x00019408  PreviewsUI.DisplayableContent.Preview.CanvasPreview.location.setter : PreviewsPipeline.PreviewConfiguration.Location
+        0x00019454  PreviewsUI.DisplayableContent.Preview.CanvasPreview.location.modify : PreviewsPipeline.PreviewConfiguration.Location
+        0x0001947C  PreviewsUI.DisplayableContent.Preview.CanvasPreview.capabilities.getter : PreviewsPipeline.PreviewCapabilities
+        0x000194C8  PreviewsUI.DisplayableContent.Preview.CanvasPreview.capabilities.setter : PreviewsPipeline.PreviewCapabilities
+        0x00019514  PreviewsUI.DisplayableContent.Preview.CanvasPreview.capabilities.modify : PreviewsPipeline.PreviewCapabilities
+        0x0001953C  PreviewsUI.DisplayableContent.Preview.CanvasPreview.canvasMode.getter : PreviewsPipeline.EditorSettings.CanvasMode
+        0x00019578  PreviewsUI.DisplayableContent.Preview.CanvasPreview.canvasMode.setter : PreviewsPipeline.EditorSettings.CanvasMode
+        0x000195F8  PreviewsUI.DisplayableContent.Preview.CanvasPreview.canvasMode.modify : PreviewsPipeline.EditorSettings.CanvasMode
+        0x00019620  PreviewsUI.DisplayableContent.Preview.CanvasPreview.livePreview.getter : PreviewsUI.DisplayableContent.Preview.CanvasPreview.SinglePreview
+        0x0001965C  type metadata accessor for PreviewsUI.DisplayableContent.Preview.CanvasPreview.SinglePreview
+        0x00019670  PreviewsUI.DisplayableContent.Preview.CanvasPreview.livePreview.setter : PreviewsUI.DisplayableContent.Preview.CanvasPreview.SinglePreview
+        0x000196AC  PreviewsUI.DisplayableContent.Preview.CanvasPreview.livePreview.modify : PreviewsUI.DisplayableContent.Preview.CanvasPreview.SinglePreview
+        0x000196D4  PreviewsUI.DisplayableContent.Preview.CanvasPreview.staticPreview.getter : PreviewsUI.DisplayableContent.Preview.CanvasPreview.SinglePreview
+        0x00019710  PreviewsUI.DisplayableContent.Preview.CanvasPreview.staticPreview.setter : PreviewsUI.DisplayableContent.Preview.CanvasPreview.SinglePreview
+        0x0001974C  PreviewsUI.DisplayableContent.Preview.CanvasPreview.staticPreview.modify : PreviewsUI.DisplayableContent.Preview.CanvasPreview.SinglePreview
+        0x00019774  PreviewsUI.DisplayableContent.Preview.CanvasPreview.variantMatrix.getter : PreviewsUI.DisplayableContent.Preview.CanvasPreview.VariantMatrix
+        0x000197A4  PreviewsUI.DisplayableContent.Preview.CanvasPreview.variantMatrix.setter : PreviewsUI.DisplayableContent.Preview.CanvasPreview.VariantMatrix
+        0x000197E0  PreviewsUI.DisplayableContent.Preview.CanvasPreview.variantMatrix.modify : PreviewsUI.DisplayableContent.Preview.CanvasPreview.VariantMatrix
+        0x00019808  PreviewsUI.DisplayableContent.Preview.CanvasPreview.destinationName.getter : Swift.String
+        0x00019834  PreviewsUI.DisplayableContent.Preview.CanvasPreview.init(instance: PreviewsPipeline.PreviewInstance, location: PreviewsPipeline.PreviewConfiguration.Location, capabilities: PreviewsPipeline.PreviewCapabilities, canvasMode: PreviewsPipeline.EditorSettings.CanvasMode, livePreview: PreviewsUI.DisplayableContent.Preview.CanvasPreview.SinglePreview, staticPreview: PreviewsUI.DisplayableContent.Preview.CanvasPreview.SinglePreview, variantMatrix: PreviewsUI.DisplayableContent.Preview.CanvasPreview.VariantMatrix) -> PreviewsUI.DisplayableContent.Preview.CanvasPreview
+        0x00019950  PreviewsUI.DisplayableContent.Preview.CanvasPreview.canvasPage.getter : PreviewsUI.DisplayableContent.Preview.CanvasPreview.CanvasPage
+        0x00019D00  type metadata accessor for PreviewsUI.DisplayableContent.Preview.CanvasPreview.VariantGroup
+        0x00019E90  PreviewsUI.DisplayableContent.Preview.CanvasPreview.VariantGroup.id.getter : PreviewsMessagingHost.PreviewVariantGroup.ID
+        0x00019EB0  type metadata accessor for PreviewsUI.DisplayableContent.Preview.CanvasPreview.CanvasPage
+        0x0001A040  PreviewsUI.DisplayableContent.Preview.CanvasPreview.isStale.getter : Swift.Bool
+        0x0001A190  PreviewsUI.DisplayableContent.Preview.CanvasPreview.SinglePreview.isStale.getter : Swift.Bool
+        0x0001A3D0  PreviewsUI.DisplayableContent.Preview.CanvasPreview.VariantGroup.isStale.getter : Swift.Bool
+        0x0001A7DC  PreviewsUI.DisplayableContent.Preview.singlePreview.getter : PreviewsUI.DisplayableContent.Preview.CanvasPreview.SinglePreview?
+        0x0001AA14  PreviewsUI.DisplayableContent.Preview.CanvasPreview.id.getter : PreviewsPipeline.PreviewInstance.ID
+        0x0001AA18  PreviewsUI.DisplayableContent.Preview.CanvasPreview.SinglePreview.state.getter : PreviewsUI.DisplayableContent.Preview.State
+        0x0001AA3C  PreviewsUI.DisplayableContent.Preview.CanvasPreview.SinglePreview.state.setter : PreviewsUI.DisplayableContent.Preview.State
+        0x0001AA5C  PreviewsUI.DisplayableContent.Preview.CanvasPreview.SinglePreview.init(state: PreviewsUI.DisplayableContent.Preview.State) -> PreviewsUI.DisplayableContent.Preview.CanvasPreview.SinglePreview
+        0x0001AA7C  PreviewsUI.DisplayableContent.Preview.CanvasPreview.VariantMatrix.groups.setter : [PreviewsUI.DisplayableContent.Preview.CanvasPreview.VariantGroup]
+        0x0001AA7C  PreviewsUI.DisplayableContent.providers.setter : [PreviewsUI.DisplayableContent.Provider]
+        0x0001AAA4  PreviewsUI.DisplayableContent.Preview.CanvasPreview.VariantGroup.definition.getter : PreviewsMessagingHost.PreviewVariantGroup
+        0x0001AAB0  PreviewsUI.DisplayableContent.Preview.CanvasPreview.VariantGroup.definition.setter : PreviewsMessagingHost.PreviewVariantGroup
+        0x0001AABC  PreviewsUI.DisplayableContent.Preview.CanvasPreview.VariantGroup.sections.getter : [PreviewsUI.DisplayableContent.Preview.CanvasPreview.VariantSection]
+        0x0001AADC  PreviewsUI.DisplayableContent.Preview.CanvasPreview.VariantGroup.sections.setter : [PreviewsUI.DisplayableContent.Preview.CanvasPreview.VariantSection]
+        0x0001AB30  PreviewsUI.DisplayableContent.Preview.CanvasPreview.VariantGroup.sections.modify : [PreviewsUI.DisplayableContent.Preview.CanvasPreview.VariantSection]
+        0x0001AB58  PreviewsUI.DisplayableContent.Preview.CanvasPreview.VariantGroup.init(definition: PreviewsMessagingHost.PreviewVariantGroup, sections: [PreviewsUI.DisplayableContent.Preview.CanvasPreview.VariantSection]) -> PreviewsUI.DisplayableContent.Preview.CanvasPreview.VariantGroup
+        0x0001ABB4  PreviewsUI.DisplayableContent.Preview.CanvasPreview.VariantSection.title.setter : Swift.String?
+        0x0001ABB4  PreviewsUI.KnownAmberType.rawValue.setter : Swift.String
+        0x0001ABE8  PreviewsUI.DisplayableContent.Preview.CanvasPreview.VariantSection.variants.setter : [PreviewsUI.DisplayableContent.Preview.CanvasPreview.Variant]
+        0x0001AC10  PreviewsUI.CanvasMetricsModel.Cycler.ActiveState.remainingIterations.modify : Swift.Int
+        0x0001AC10  PreviewsUI.CanvasMetricsModel.Metrics.totalNumberOfUpdates.modify : Swift.Int
+        0x0001AC10  PreviewsUI.DisplayableContent.Preview.CanvasPreview.VariantSection.variants.modify : [PreviewsUI.DisplayableContent.Preview.CanvasPreview.Variant]
+        0x0001AC20  PreviewsUI.DisplayableContent.Preview.CanvasPreview.VariantSection.init(title: Swift.String?, variants: [PreviewsUI.DisplayableContent.Preview.CanvasPreview.Variant]) -> PreviewsUI.DisplayableContent.Preview.CanvasPreview.VariantSection
+        0x0001AC2C  PreviewsUI.DisplayableContent.Preview.CanvasPreview.Variant.variant.getter : PreviewsMessagingHost.PreviewVariant
+        0x0001AC74  PreviewsUI.DisplayableContent.Preview.CanvasPreview.Variant.variant.setter : PreviewsMessagingHost.PreviewVariant
+        0x0001ACB8  PreviewsUI.DisplayableContent.Preview.CanvasPreview.Variant.state.getter : PreviewsUI.DisplayableContent.Preview.State
+        0x0001ACF4  PreviewsUI.DisplayableContent.Preview.CanvasPreview.Variant.state.setter : PreviewsUI.DisplayableContent.Preview.State
+        0x0001AD30  PreviewsUI.DisplayableContent.Preview.CanvasPreview.Variant.state.modify : PreviewsUI.DisplayableContent.Preview.State
+        0x0001AD58  PreviewsUI.DisplayableContent.Preview.CanvasPreview.Variant.init(variant: PreviewsMessagingHost.PreviewVariant, state: PreviewsUI.DisplayableContent.Preview.State) -> PreviewsUI.DisplayableContent.Preview.CanvasPreview.Variant
+        0x0001ADC4  PreviewsUI.DisplayableContent.Preview.CanvasPreview.Variant.id.getter : PreviewsMessagingHost.PreviewVariant.ID
+        0x0001ADC8  type metadata accessor for PreviewsUI.DisplayableContent.Preview.CanvasPreview.Variant
+        0x0003FF30  type metadata accessor for PreviewsUI.DisplayableContent.Preview.CanvasPreview.VariantMatrix
+        0x000403A4  type metadata accessor for PreviewsUI.DisplayableContent.Preview.CanvasPreview.VariantSection
+        0x0004450C  PreviewsUI.DelayedValue.__allocating_init(_: A, scheduler: B) -> PreviewsUI.DelayedValue<A, B>
+        0x00044550  PreviewsUI.DelayDataView.init(actual: SwiftUI.Binding<A>, shouldDelay: (A) -> Swift.Bool, delay: Swift.Double, view: (A) -> B) -> PreviewsUI.DelayDataView<A, B>
+        0x00044738  PreviewsUI.DelayDataView.body.getter : some
+        0x00044D58  PreviewsUI.DelayedValue.sendValue(_: A, delay: Swift.Double?) -> ()
+        0x000455FC  PreviewsUI.DelayedValue.current.getter : A
+        0x00045778  PreviewsUI.DelayedValue.current.setter : A
+        0x000457B4  PreviewsUI.DelayedValue.current.modify : A
+        0x000458F0  PreviewsUI.DelayedValue.$current.getter : Combine.Published<A>.Publisher
+        0x00045958  PreviewsUI.DelayedValue.$current.setter : Combine.Published<A>.Publisher
+        0x000459A0  PreviewsUI.DelayedValue.$current.modify : Combine.Published<A>.Publisher
+        0x00045AF8  PreviewsUI.DelayedValue.init(_: A, scheduler: B) -> PreviewsUI.DelayedValue<A, B>
+        0x00045B40  PreviewsUI.DelayedValue.latest.getter : A
+        0x00045C28  PreviewsUI.DelayedValue.pending.getter : A?
+        0x00045CE0  PreviewsUI.DelayedValue.clearPending() -> ()
+        0x00045F4C  PreviewsUI.DelayedValue.deinit
+        0x00045FFC  PreviewsUI.DelayedValue.__deallocating_deinit
+        0x00046208  type metadata accessor for PreviewsUI.DelayDataView
+        0x00046214  type metadata accessor for PreviewsUI.DelayedValue
+        0x00047140  method lookup function for PreviewsUI.DelayedValue
+        0x0004714C  dispatch thunk of PreviewsUI.DelayedValue.__allocating_init(_: A, scheduler: B) -> PreviewsUI.DelayedValue<A, B>
+        0x00049B54  PreviewsUI.KitLevelBuiltInIntegrationManager.resolutions.getter : PreviewsFoundationHost.QueryResolutions
+        0x00049F10  type metadata accessor for PreviewsUI.KitLevelBuiltInIntegrationManager
+        0x00049FAC  (extension in PreviewsUI):SwiftUI.EnvironmentValues.inspectorContentProvider.getter : PreviewsUI.InspectorContentProvider.Type?
+        0x0004A024  (extension in PreviewsUI):SwiftUI.EnvironmentValues.inspectorContentProvider.setter : PreviewsUI.InspectorContentProvider.Type?
+        0x0004A05C  (extension in PreviewsUI):SwiftUI.EnvironmentValues.inspectorContentProvider.modify : PreviewsUI.InspectorContentProvider.Type?
+        0x0004A1B4  dispatch thunk of static PreviewsUI.InspectorContentProvider.makeInspector(selectedPath: PreviewsModel.ModelPath, editorSnapshotProvider: PreviewsUI.EditorStateSnapshotProvider, queryManager: PreviewsFoundationHost.QueryManager) -> () -> SwiftUI.AnyView
+        0x0004A1CC  PreviewsUI.CanvasMetricsModelProvider.model.getter : PreviewsUI.CanvasMetricsModel?
+        0x0004A338  PreviewsUI.CanvasMetricsModelProvider.model.setter : PreviewsUI.CanvasMetricsModel?
+        0x0004A3A4  PreviewsUI.CanvasMetricsModelProvider.model.modify : PreviewsUI.CanvasMetricsModel?
+        0x0004A434  PreviewsUI.CanvasMetricsModelProvider.$model.getter : Combine.Published<PreviewsUI.CanvasMetricsModel?>.Publisher
+        0x0004A638  PreviewsUI.CanvasMetricsModelProvider.$model.setter : Combine.Published<PreviewsUI.CanvasMetricsModel?>.Publisher
+        0x0004A718  PreviewsUI.CanvasMetricsModelProvider.$model.modify : Combine.Published<PreviewsUI.CanvasMetricsModel?>.Publisher
+        0x0004A958  PreviewsUI.CanvasMetricsModelProvider.__allocating_init() -> PreviewsUI.CanvasMetricsModelProvider
+        0x0004A9C0  PreviewsUI.CanvasMetricsModelProvider.init() -> PreviewsUI.CanvasMetricsModelProvider
+        0x0004AA78  PreviewsUI.CanvasMetricsModelProvider.deinit
+        0x0004AAC4  PreviewsUI.CanvasMetricsModelProvider.__deallocating_deinit
+        0x0004AB2C  type metadata accessor for PreviewsUI.CanvasMetricsModelProvider
+        0x0004ABD0  method lookup function for PreviewsUI.CanvasMetricsModelProvider
+        0x0004ABDC  dispatch thunk of PreviewsUI.CanvasMetricsModelProvider.__allocating_init() -> PreviewsUI.CanvasMetricsModelProvider
+        0x0004AC44  PreviewsUI.DisplayableContent.errors.getter : [PreviewsFoundationHost.HumanReadableError]
+        0x0004B7DC  PreviewsUI.DisplayableContent.registries.getter : [PreviewsUI.DisplayableContent.Registry]
+        0x0004B7E4  PreviewsUI.DisplayableContent.registries.setter : [PreviewsUI.DisplayableContent.Registry]
+        0x0004B80C  PreviewsUI.CanvasMetricsModel.Cycler.ActiveState.completedIterations.modify : Swift.Int
+        0x0004B80C  PreviewsUI.DisplayableContent.registries.modify : [PreviewsUI.DisplayableContent.Registry]
+        0x0004B81C  PreviewsUI.DisplayableContent.appPreview.getter : PreviewsUI.DisplayableContent.Preview?
+        0x0004B860  PreviewsUI.DisplayableContent.appPreview.setter : PreviewsUI.DisplayableContent.Preview?
+        0x0004B890  PreviewsUI.DisplayableContent.appPreview.modify : PreviewsUI.DisplayableContent.Preview?
+        0x0004B8B8  PreviewsUI.DisplayableContent.sourceIdentifiers.getter : [PreviewsModel.SourceIdentifier]
+        0x0004B8D8  PreviewsUI.DisplayableContent.sourceIdentifiers.setter : [PreviewsModel.SourceIdentifier]
+        0x0004B914  PreviewsUI.DisplayableContent.sourceIdentifiers.modify : [PreviewsModel.SourceIdentifier]
+        0x0004B93C  PreviewsUI.DisplayableContent.sortedSourceIdentifiers.getter : [PreviewsModel.SourceIdentifier]
+        0x0004B95C  PreviewsUI.DisplayableContent.sortedSourceIdentifiers.setter : [PreviewsModel.SourceIdentifier]
+        0x0004B998  PreviewsUI.DisplayableContent.sortedSourceIdentifiers.modify : [PreviewsModel.SourceIdentifier]
+        0x0004B9C0  PreviewsUI.DisplayableContent.buildingState.getter : PreviewsPipeline.PipelineBuildingState
+        0x0004B9FC  PreviewsUI.DisplayableContent.buildingState.setter : PreviewsPipeline.PipelineBuildingState
+        0x0004BA2C  PreviewsUI.DisplayableContent.buildingState.modify : PreviewsPipeline.PipelineBuildingState
+        0x0004BA54  PreviewsUI.DisplayableContent.isUpdateInProgress.getter : Swift.Bool
+        0x0004BA74  PreviewsUI.DisplayableContent.isUpdateInProgress.setter : Swift.Bool
+        0x0004BAA0  PreviewsUI.DisplayableContent.isUpdateInProgress.modify : Swift.Bool
+        0x0004BAC8  PreviewsUI.DisplayableContent.updateIdentifier.getter : PreviewsPipeline.PreviewService.UpdateIdentifier
+        0x0004BB14  PreviewsUI.DisplayableContent.updateIdentifier.setter : PreviewsPipeline.PreviewService.UpdateIdentifier
+        0x0004BB60  PreviewsUI.DisplayableContent.updateIdentifier.modify : PreviewsPipeline.PreviewService.UpdateIdentifier
+        0x0004BB88  PreviewsUI.DisplayableContent.editor.getter : PreviewsPipeline.EditorIdentifier
+        0x0004BBD4  PreviewsUI.DisplayableContent.editor.setter : PreviewsPipeline.EditorIdentifier
+        0x0004BC20  PreviewsUI.DisplayableContent.editor.modify : PreviewsPipeline.EditorIdentifier
+        0x0004BC48  PreviewsUI.DisplayableContent.inJITMode.getter : Swift.Bool
+        0x0004BC68  PreviewsUI.DisplayableContent.inJITMode.setter : Swift.Bool
+        0x0004BC94  PreviewsUI.DisplayableContent.inJITMode.modify : Swift.Bool
+        0x0004BCBC  PreviewsUI.DisplayableContent.updateSeed.getter : Swift.Int
+        0x0004BCDC  PreviewsUI.DisplayableContent.updateSeed.setter : Swift.Int
+        0x0004BD08  PreviewsUI.DisplayableContent.updateSeed.modify : Swift.Int
+        0x0004BD30  PreviewsUI.DisplayableContent.init(providers: [PreviewsUI.DisplayableContent.Provider], registries: [PreviewsUI.DisplayableContent.Registry], appPreview: PreviewsUI.DisplayableContent.Preview?, sourceIdentifiers: [PreviewsModel.SourceIdentifier], sortedSourceIdentifiers: [PreviewsModel.SourceIdentifier], buildingState: PreviewsPipeline.PipelineBuildingState, updateIdentifier: PreviewsPipeline.PreviewService.UpdateIdentifier, editor: PreviewsPipeline.EditorIdentifier, inJITMode: Swift.Bool, updateSeed: Swift.Int) -> PreviewsUI.DisplayableContent
+        0x0004BE78  static PreviewsUI.DisplayableContent.makeInitial(with: PreviewsPipeline.EditorIdentifier) -> PreviewsUI.DisplayableContent
+        0x0004C08C  PreviewsUI.DisplayableContent.isInitiallyPaused.getter : Swift.Bool
+        0x0004C1E8  PreviewsUI.DisplayableContent.debugDump.getter : Swift.String
+        0x0004CDD8  PreviewsUI.DisplayableContent.Preview.allPreviewStates.getter : [PreviewsUI.DisplayableContent.Preview.State]
+        0x0004D720  PreviewsUI.DisplayableContent.Preview.CanvasPreview.dumpDebugState(into: inout [PreviewsFoundationHost.StructuredDescriptionBuildAction]) -> ()
+        0x0004D7E0  PreviewsUI.DisplayableContent.Preview.CanvasRegistry.dumpDebugState(into: inout [PreviewsFoundationHost.StructuredDescriptionBuildAction]) -> ()
+        0x0004E1CC  PreviewsUI.DisplayableContent.Preview.CanvasPreview.allPreviewStates.getter : [PreviewsUI.DisplayableContent.Preview.State]
+        0x0004E750  static PreviewsUI.UpdateGroupSeed.== infix(PreviewsUI.UpdateGroupSeed, PreviewsUI.UpdateGroupSeed) -> Swift.Bool
+        0x0004E7B0  PreviewsUI.DisplayableContent.groups.getter : [PreviewsUI.DisplayableContent.Group]
+        0x0004EBC0  PreviewsUI.DisplayableContent.sortedGroups.getter : [PreviewsUI.DisplayableContent.Group]
+        0x0004F59C  PreviewsUI.DisplayableContent.groupStatuses.getter : some
+        0x0004F9C0  PreviewsUI.DisplayableContent.allPreviews.getter : [PreviewsUI.DisplayableContent.Preview]
+        0x00050334  PreviewsUI.DisplayableContent.allSelectableRegions(inPointSpace: Swift.Bool) -> [PreviewsPipeline.AddressableSelectableRegion]
+        0x00050918  PreviewsUI.DisplayableContent.previewID(for: PreviewsModel.ModelPath) -> PreviewsPipeline.DiscoveredItem.ID?
+        0x00052620  PreviewsUI.DisplayableContent.Preview.errors.getter : [PreviewsFoundationHost.HumanReadableError]
+        0x00053460  type metadata accessor for PreviewsUI.DisplayableContent
+        0x000667F8  type metadata accessor for PreviewsUI.UpdateGroupSeed
+        0x00066AFC  PreviewsUI.AutoResettingValue.current.getter : A
+        0x00066C24  PreviewsUI.AutoResettingValue.current.setter : A
+        0x00066E5C  PreviewsUI.AutoResettingValue.current.modify : A
+        0x00066F20  PreviewsUI.AutoResettingValue.$current.getter : Combine.Published<A>.Publisher
+        0x00066F88  PreviewsUI.AutoResettingValue.$current.setter : Combine.Published<A>.Publisher
+        0x00066FD0  PreviewsUI.AutoResettingValue.$current.modify : Combine.Published<A>.Publisher
+        0x00067140  PreviewsUI.AutoResettingValue.__allocating_init(base: A, interval: Swift.Double) -> PreviewsUI.AutoResettingValue<A>
+        0x000671B0  PreviewsUI.AutoResettingValue.init(base: A, interval: Swift.Double) -> PreviewsUI.AutoResettingValue<A>
+        0x00067304  PreviewsUI.AutoResettingValue.deinit
+        0x00067380  PreviewsUI.AutoResettingValue.__deallocating_deinit
+        0x000677B0  type metadata accessor for PreviewsUI.AutoResettingValue
+        0x000677BC  method lookup function for PreviewsUI.AutoResettingValue
+        0x000677C8  dispatch thunk of PreviewsUI.AutoResettingValue.__allocating_init(base: A, interval: Swift.Double) -> PreviewsUI.AutoResettingValue<A>
+        0x00067844  PreviewsUI.CachedItemSelectionArbiter.__allocating_init(forceSetDelay: Swift.Double, scheduler: C) -> PreviewsUI.CachedItemSelectionArbiter<A, B, C>
+        0x00067888  PreviewsUI.CachedItemSelectionArbiter.selection.getter : B?
+        0x00067BA4  PreviewsUI.CachedItemSelectionArbiter.selection.setter : B?
+        0x00067F78  PreviewsUI.CachedItemSelectionArbiter.update(sources: Swift.Set<A>?, allSources: Swift.Set<A>, items: [B]) -> ()
+        0x00068870  PreviewsUI.CachedItemSelectionArbiter.selectionDidChange.getter : Combine.PassthroughSubject<B?, Swift.Never>
+        0x00068880  PreviewsUI.CachedItemSelectionArbiter.init(forceSetDelay: Swift.Double, scheduler: C) -> PreviewsUI.CachedItemSelectionArbiter<A, B, C>
+        0x00068E14  PreviewsUI.CachedItemSelectionArbiter.selection.modify : B?
+        0x0006935C  PreviewsUI.CachedItemSelectionArbiter.deinit
+        0x000693F4  PreviewsUI.CachedItemSelectionArbiter.__deallocating_deinit
+        0x0006A194  type metadata accessor for PreviewsUI.CachedItemSelectionArbiter
+        0x0006A1A0  method lookup function for PreviewsUI.CachedItemSelectionArbiter
+        0x0006A1AC  dispatch thunk of PreviewsUI.CachedItemSelectionArbiter.__allocating_init(forceSetDelay: Swift.Double, scheduler: C) -> PreviewsUI.CachedItemSelectionArbiter<A, B, C>
+        0x0006AAEC  PreviewsUI.DisplayableContent.Preview.State.isStale.getter : Swift.Bool
+        0x0006AD2C  PreviewsUI.DisplayableContent.Preview.State.description.getter : Swift.String
+        0x0006B050  PreviewsUI.DisplayableContent.Preview.State.previewViewable.getter : PreviewsPipeline.PreviewViewable?
+        0x0006B3B0  PreviewsUI.DisplayableContent.Preview.State.error.getter : Swift.Error?
+        0x0006B520  PreviewsUI.DisplayableContent.Preview.State.mostRecentViewable.getter : PreviewsUI.DisplayableContent.Preview.State.Viewable?
+        0x0006B6D0  PreviewsUI.DisplayableContent.Preview.State.currentConfiguration.getter : PreviewsPipeline.PreviewConfiguration?
+        0x0006B9B0  PreviewsUI.DisplayableContent.Preview.State.currentCapabilities.getter : PreviewsPipeline.PreviewCapabilities?
+        0x0006BC88  PreviewsUI.DisplayableContent.Preview.State.mostRecentConfiguration.getter : PreviewsPipeline.PreviewConfiguration?
+        0x0006BE60  PreviewsUI.DisplayableContent.Preview.State.mostRecentCapabilities.getter : PreviewsPipeline.PreviewCapabilities?
+        0x0006C038  PreviewsUI.DisplayableContent.Preview.State.validUpdate.getter : PreviewsPipeline.ExecutionPointUpdate<PreviewsPipeline.PreviewViewable>?
+        0x0006C424  PreviewsUI.DisplayableContent.Preview.State.Viewable.previewViewable.getter : PreviewsPipeline.PreviewViewable
+        0x0006C428  PreviewsUI.DisplayableContent.Preview.State.expectedInterfaceOrientation.getter : PreviewsMessagingHost.PreviewTraits.Orientation?
+        0x0006C770  PreviewsUI.DisplayableContent.Preview.State.overrides.getter : [PreviewsMessagingHost.PreviewVariant]?
+        0x0006C844  PreviewsUI.DisplayableContent.Preview.State.Viewable.isStale.getter : Swift.Bool
+        0x0006C8DC  type metadata accessor for PreviewsUI.DisplayableContent.Preview.State.Viewable.Status
+        0x0006C8F0  type metadata accessor for PreviewsUI.DisplayableContent.Preview.State.Viewable
+        0x0006C904  type metadata accessor for PreviewsUI.DisplayableContent.Preview.State
+        0x0006C918  type metadata accessor for PreviewsUI.DisplayableContent.Preview.State.UpdatingState
+        0x0006C92C  type metadata accessor for PreviewsUI.DisplayableContent.Preview.State.PendingState
+        0x0006C940  PreviewsUI.DisplayableContent.Preview.State.FailedReason.error.getter : Swift.Error?
+        0x0006C964  PreviewsUI.DisplayableContent.Preview.State.crashes.getter : Combine.AnyPublisher<PreviewsPipeline.PreviewCrash, Swift.Never>
+        0x0006CD08  PreviewsUI.DisplayableContent.Preview.State.FailedReason.crashes.getter : Combine.AnyPublisher<PreviewsPipeline.PreviewCrash, Swift.Never>
+        0x0006D300  PreviewsUI.DisplayableContent.Preview.State.PendingState.capabilities.getter : PreviewsPipeline.PreviewCapabilities?
+        0x0006D32C  PreviewsUI.DisplayableContent.Preview.State.PendingState.capabilities.setter : PreviewsPipeline.PreviewCapabilities?
+        0x0006D354  PreviewsUI.DisplayableContent.Preview.State.PendingState.configuration.getter : PreviewsPipeline.PreviewConfiguration?
+        0x0006D370  PreviewsUI.DisplayableContent.Preview.State.PendingState.configuration.setter : PreviewsPipeline.PreviewConfiguration?
+        0x0006D38C  PreviewsUI.DisplayableContent.Preview.State.PendingState.configuration.modify : PreviewsPipeline.PreviewConfiguration?
+        0x0006D3B4  PreviewsUI.DisplayableContent.Preview.State.PendingState.init(capabilities: PreviewsPipeline.PreviewCapabilities?, configuration: PreviewsPipeline.PreviewConfiguration?) -> PreviewsUI.DisplayableContent.Preview.State.PendingState
+        0x0006D46C  static PreviewsUI.DisplayableContent.Preview.State.PendingState.empty.getter : PreviewsUI.DisplayableContent.Preview.State.PendingState
+        0x0006D5E0  PreviewsUI.DisplayableContent.Preview.State.UpdatingState.groupSeed.getter : PreviewsUI.UpdateGroupSeed
+        0x0006D5F4  PreviewsUI.DisplayableContent.Preview.State.UpdatingState.groupSeed.setter : PreviewsUI.UpdateGroupSeed
+        0x0006D608  PreviewsUI.DisplayableContent.Preview.State.UpdatingState.capabilities.getter : PreviewsPipeline.PreviewCapabilities?
+        0x0006D674  PreviewsUI.DisplayableContent.Preview.State.UpdatingState.capabilities.setter : PreviewsPipeline.PreviewCapabilities?
+        0x0006D6DC  PreviewsUI.DisplayableContent.Preview.State.UpdatingState.capabilities.modify : PreviewsPipeline.PreviewCapabilities?
+        0x0006D704  PreviewsUI.DisplayableContent.Preview.State.UpdatingState.configuration.getter : PreviewsPipeline.PreviewConfiguration?
+        0x0006D748  PreviewsUI.DisplayableContent.Preview.State.UpdatingState.configuration.setter : PreviewsPipeline.PreviewConfiguration?
+        0x0006D78C  PreviewsUI.DisplayableContent.Preview.State.UpdatingState.configuration.modify : PreviewsPipeline.PreviewConfiguration?
+        0x0006D7B4  PreviewsUI.DisplayableContent.Preview.State.UpdatingState.init(groupSeed: PreviewsUI.UpdateGroupSeed, capabilities: PreviewsPipeline.PreviewCapabilities?, configuration: PreviewsPipeline.PreviewConfiguration?) -> PreviewsUI.DisplayableContent.Preview.State.UpdatingState
+        0x0006D9F8  PreviewsUI.DisplayableContent.Preview.State.Viewable.status.getter : PreviewsUI.DisplayableContent.Preview.State.Viewable.Status
+        0x0006DA1C  PreviewsUI.DisplayableContent.Preview.State.Viewable.status.setter : PreviewsUI.DisplayableContent.Preview.State.Viewable.Status
+        0x0006DA68  PreviewsUI.DisplayableContent.Preview.State.Viewable.capabilities.getter : PreviewsPipeline.PreviewCapabilities
+        0x0006DAB4  PreviewsUI.DisplayableContent.Preview.State.Viewable.capabilities.setter : PreviewsPipeline.PreviewCapabilities
+        0x0006DB00  PreviewsUI.DisplayableContent.Preview.State.Viewable.capabilities.modify : PreviewsPipeline.PreviewCapabilities
+        0x0006DB28  PreviewsUI.DisplayableContent.Preview.State.Viewable.configuration.getter : PreviewsPipeline.PreviewConfiguration
+        0x0006DB74  PreviewsUI.DisplayableContent.Preview.State.Viewable.configuration.setter : PreviewsPipeline.PreviewConfiguration
+        0x0006DBC0  PreviewsUI.DisplayableContent.Preview.State.Viewable.configuration.modify : PreviewsPipeline.PreviewConfiguration
+        0x0006DBE8  PreviewsUI.DisplayableContent.Preview.State.Viewable.init(status: PreviewsUI.DisplayableContent.Preview.State.Viewable.Status, capabilities: PreviewsPipeline.PreviewCapabilities, configuration: PreviewsPipeline.PreviewConfiguration) -> PreviewsUI.DisplayableContent.Preview.State.Viewable
+        0x0006DC7C  PreviewsUI.DisplayableContent.Preview.State.Viewable.staleCopy.getter : PreviewsUI.DisplayableContent.Preview.State.Viewable
+        0x0006DE00  static PreviewsUI.DisplayableContent.Preview.State.placeholder.getter : PreviewsUI.DisplayableContent.Preview.State
+        0x0006DFCC  PreviewsUI.DisplayableContent.Preview.State.status.getter : PreviewsUI.DisplayableContent.Preview.State.Status
+        0x0006E264  static PreviewsUI.CanvasMetricsModel.Metrics.UpdateDiff.== infix(PreviewsUI.CanvasMetricsModel.Metrics.UpdateDiff, PreviewsUI.CanvasMetricsModel.Metrics.UpdateDiff) -> Swift.Bool
+        0x0006E264  static PreviewsUI.DisplayableContent.Preview.State.Status.Discriminant.== infix(PreviewsUI.DisplayableContent.Preview.State.Status.Discriminant, PreviewsUI.DisplayableContent.Preview.State.Status.Discriminant) -> Swift.Bool
+        0x0006E274  PreviewsUI.CanvasMetricsModel.Metrics.UpdateDiff.hash(into: inout Swift.Hasher) -> ()
+        0x0006E274  PreviewsUI.DisplayableContent.Preview.State.Status.Discriminant.hash(into: inout Swift.Hasher) -> ()
+        0x0006E298  PreviewsUI.CanvasMetricsModel.Metrics.UpdateDiff.hashValue.getter : Swift.Int
+        0x0006E298  PreviewsUI.DisplayableContent.Preview.State.Status.Discriminant.hashValue.getter : Swift.Int
+        0x0006E2DC  PreviewsUI.DisplayableContent.Preview.State.Status.discriminant.getter : PreviewsUI.DisplayableContent.Preview.State.Status.Discriminant
+        0x0006E300  PreviewsUI.DisplayableContent.Preview.State.Status.description.getter : Swift.String
+        0x000742C0  type metadata accessor for PreviewsUI.DisplayableContent.Preview.State.FailedReason
+        0x000744C4  type metadata accessor for PreviewsUI.DisplayableContent.Preview.State.Status
+        0x000744D4  type metadata accessor for PreviewsUI.DisplayableContent.Preview.State.Status.Discriminant
+        0x000744EC  PreviewsUI.DisplayableContent.Preview.State.Viewable.Status.previewViewable.getter : PreviewsPipeline.PreviewViewable
+        0x00074964  static PreviewsUI.ImageCache.image(name: Swift.String, in: __C.NSBundle?) -> __C.NSImage?
+        0x00074D10  static PreviewsUI.ImageCache.image(url: Foundation.URL) -> __C.NSImage?
+        0x00074FF8  type metadata accessor for PreviewsUI.ImageCache
+        0x00075834  PreviewsUI.SelectedPreviewManager.State.previousSelection.getter : PreviewsPipeline.DiscoveredItem.ID?
+        0x00075860  PreviewsUI.SelectedPreviewManager.State.currentSelection.getter : PreviewsPipeline.DiscoveredItem.ID?
+        0x00075A18  PreviewsUI.SelectedPreviewManager.state.getter : PreviewsUI.SelectedPreviewManager<A>.State
+        0x00075A24  type metadata accessor for PreviewsUI.SelectedPreviewManager.State
+        0x00075A30  PreviewsUI.SelectedPreviewManager.$state.getter : Swift.AsyncStream<PreviewsUI.SelectedPreviewManager<A>.State>
+        0x00075AF8  PreviewsUI.SelectedPreviewManager.__allocating_init() -> PreviewsUI.SelectedPreviewManager<A>
+        0x00075B2C  PreviewsUI.SelectedPreviewManager.init() -> PreviewsUI.SelectedPreviewManager<A>
+        0x00075D98  PreviewsUI.SelectedPreviewManager.selection.getter : A?
+        0x00075D9C  PreviewsUI.SelectedPreviewManager.selection.setter : A?
+        0x000766C4  PreviewsUI.SelectedPreviewManager.selection.modify : A?
+        0x00076BF4  PreviewsUI.SelectedPreviewManager.updateSelection(to: PreviewsPipeline.DiscoveredItem.ID) -> Swift.Bool
+        0x00077380  PreviewsUI.SelectedPreviewManager.update(currentSources: Swift.Set<PreviewsModel.SourceIdentifier>, selectables: [A], isUpdateInProgress: Swift.Bool) -> ()
+        0x000779A0  (extension in PreviewsUI):Swift.Array<A where A: PreviewsUI.PreviewIdentifiable>.isPreviewIdentifiableEqual(to: [A]) -> Swift.Bool
+        0x00077C08  PreviewsUI.SelectedPreviewManager.deinit
+        0x00077CE0  PreviewsUI.SelectedPreviewManager.__deallocating_deinit
+        0x00078074  (extension in PreviewsUI):PreviewsUI.PreviewIdentifiable.isPreviewIdentifiableEqual(to: PreviewsUI.PreviewIdentifiable) -> Swift.Bool
+        0x000783E0  PreviewsUI.DisplayableContent.Preview.previewID.getter : PreviewsPipeline.DiscoveredItem.ID?
+        0x00079A60  type metadata accessor for PreviewsUI.SelectedPreviewManager
+        0x00079A6C  method lookup function for PreviewsUI.SelectedPreviewManager
+        0x00079A78  dispatch thunk of PreviewsUI.SelectedPreviewManager.__allocating_init() -> PreviewsUI.SelectedPreviewManager<A>
+        0x0007A480  (extension in PreviewsUI):PreviewsFoundationHost.QueryManager.icon(size: PreviewsModel.IconSize, lookupKey: PreviewsModel.IconLookupKey) -> SwiftUI.Image?
+        0x0007A584  type metadata accessor for PreviewsUI.IconQuery
+        0x0007A598  (extension in PreviewsUI):PreviewsFoundationHost.QueryManager.generatedIcon(iconDescription: PreviewsModel.IconDescription) -> __C.NSImage?
+        0x0007A6A0  type metadata accessor for PreviewsUI.GeneratedIconQuery
+        0x0007A6B4  PreviewsUI.PlatformIconQuery.lookupKey.getter : PreviewsModel.IconLookupKey
+        0x0007A6C0  PreviewsUI.PlatformIconQuery.iconSize.getter : PreviewsModel.IconSize
+        0x0007A6E0  PreviewsUI.PlatformIconQuery.init(size: PreviewsModel.IconSize, lookupKey: PreviewsModel.IconLookupKey) -> PreviewsUI.PlatformIconQuery
+        0x0007A728  static PreviewsUI.PlatformIconQuery.== infix(PreviewsUI.PlatformIconQuery, PreviewsUI.PlatformIconQuery) -> Swift.Bool
+        0x0007A748  PreviewsUI.PlatformIconQuery.hash(into: inout Swift.Hasher) -> ()
+        0x0007A754  PreviewsUI.PlatformIconQuery.hashValue.getter : Swift.Int
+        0x0007A7AC  (extension in PreviewsUI):PreviewsFoundationHost.QueryManager.platformIcon(size: PreviewsModel.IconSize, type: PreviewsModel.TypeName, colorScheme: SwiftUI.ColorScheme?) -> __C.NSImage?
+        0x0007A92C  (extension in PreviewsUI):PreviewsFoundationHost.QueryManager.platformIcon(size: PreviewsModel.IconSize, modifier: Swift.String, colorScheme: SwiftUI.ColorScheme?) -> __C.NSImage?
+        0x0007AA54  (extension in PreviewsUI):PreviewsFoundationHost.QueryManager.platformIcon(size: PreviewsModel.IconSize, lookupKey: PreviewsModel.IconLookupKey) -> __C.NSImage?
+        0x0007AB58  PreviewsUI.IconQuery.uncachedValue(in: PreviewsFoundationHost.QueryManager) -> SwiftUI.Image?
+        0x0007AC70  static PreviewsUI.IconQuery.== infix(PreviewsUI.IconQuery, PreviewsUI.IconQuery) -> Swift.Bool
+        0x0007AC90  PreviewsUI.IconQuery.hash(into: inout Swift.Hasher) -> ()
+        0x0007AD34  PreviewsUI.IconQuery.hashValue.getter : Swift.Int
+        0x0007B018  (extension in PreviewsUI):PreviewsFoundationHost.QueryManager.icon(size: PreviewsModel.IconSize, type: PreviewsModel.TypeName, colorScheme: SwiftUI.ColorScheme) -> SwiftUI.Image?
+        0x0007B198  (extension in PreviewsUI):PreviewsFoundationHost.QueryManager.icon(size: PreviewsModel.IconSize, modifier: Swift.String, colorScheme: SwiftUI.ColorScheme) -> SwiftUI.Image?
+        0x0007B2C0  PreviewsUI.GeneratedIconQuery.iconDescription.getter : PreviewsModel.IconDescription
+        0x0007B2F8  PreviewsUI.GeneratedIconQuery.init(iconDescription: PreviewsModel.IconDescription) -> PreviewsUI.GeneratedIconQuery
+        0x0007B334  type metadata accessor for PreviewsUI.PlatformIconQuery
+        0x0007C31C  PreviewsUI.EditorStateSnapshotProvider.editorStateSnapshot.getter : PreviewsUI.EditorStateSnapshot
+        0x0007C488  PreviewsUI.EditorStateSnapshotProvider.editorStateSnapshot.setter : PreviewsUI.EditorStateSnapshot
+        0x0007C4F4  PreviewsUI.EditorStateSnapshotProvider.editorStateSnapshot.modify : PreviewsUI.EditorStateSnapshot
+        0x0007C584  PreviewsUI.EditorStateSnapshotProvider.$editorStateSnapshot.getter : Combine.Published<PreviewsUI.EditorStateSnapshot>.Publisher
+        0x0007C788  PreviewsUI.EditorStateSnapshotProvider.$editorStateSnapshot.setter : Combine.Published<PreviewsUI.EditorStateSnapshot>.Publisher
+        0x0007C868  PreviewsUI.EditorStateSnapshotProvider.$editorStateSnapshot.modify : Combine.Published<PreviewsUI.EditorStateSnapshot>.Publisher
+        0x0007C988  PreviewsUI.EditorStateSnapshotProvider.__allocating_init(PreviewsUI.EditorStateSnapshot) -> PreviewsUI.EditorStateSnapshotProvider
+        0x0007CA0C  PreviewsUI.EditorStateSnapshotProvider.init(PreviewsUI.EditorStateSnapshot) -> PreviewsUI.EditorStateSnapshotProvider
+        0x0007CA7C  type metadata accessor for PreviewsUI.EditorStateSnapshot
+        0x0007CA90  PreviewsUI.EditorStateSnapshotProvider.__allocating_init(editor: PreviewsPipeline.EditorIdentifier) -> PreviewsUI.EditorStateSnapshotProvider
+        0x0007CB88  PreviewsUI.EditorStateSnapshot.__allocating_init(editor: PreviewsPipeline.EditorIdentifier) -> PreviewsUI.EditorStateSnapshot
+        0x0007CB8C  PreviewsUI.EditorStateSnapshotProvider.deinit
+        0x0007CBD8  PreviewsUI.EditorStateSnapshotProvider.__deallocating_deinit
+        0x0007CC30  PreviewsUI.EditorStateSnapshot.allActiveSelectablePaths.getter : Swift.Set<PreviewsModel.ModelPath>
+        0x0007CC38  PreviewsUI.EditorStateSnapshot.colorNames.getter : [Swift.String]
+        0x0007CC40  PreviewsUI.EditorStateSnapshot.indexColorNames.getter : [Swift.String : [Swift.String]]
+        0x0007CC48  PreviewsUI.EditorStateSnapshot.pinningControlsEnabled.getter : Swift.Bool
+        0x0007CC50  PreviewsUI.EditorStateSnapshot.previewFileIsPinned.getter : SwiftUI.Binding<Swift.Bool>
+        0x0007CC94  PreviewsUI.EditorStateSnapshot.showAppPreview.getter : SwiftUI.Binding<Swift.Bool>
+        0x0007CCD8  PreviewsUI.EditorStateSnapshot.previewUpdateState.getter : PreviewsUI.DisplayableContent
+        0x0007CD04  PreviewsUI.EditorStateSnapshot.pendingUpdateReasons.getter : [PreviewsPipeline.PreviewUpdateReason]
+        0x0007CD14  PreviewsUI.EditorStateSnapshot.activeCrash.getter : PreviewsUI.EditorStateSnapshotCrash?
+        0x0007CD48  PreviewsUI.EditorStateSnapshot.analyticsLogger.getter : PreviewsFoundationHost.AnalyticsLogger?
+        0x0007CD7C  PreviewsUI.EditorStateSnapshot.buildEnvironmentError.getter : PreviewsFoundationHost.HumanReadableError?
+        0x0007CDB0  PreviewsUI.EditorStateSnapshot.throttlerStateDescription.getter : Swift.String?
+        0x0007CDE8  PreviewsUI.EditorStateSnapshot.previewDiagnostic.getter : PreviewsUI.PreviewDiagnostic
+        0x0007CE14  PreviewsUI.EditorStateSnapshot.updateTimingRecordIDs.getter : [PreviewsFoundationHost.TimingRecord.ID]
+        0x0007CE24  PreviewsUI.EditorStateSnapshot.ParsedDocument.store.getter : PreviewsModel.DataSourceBackedSourceCodeStore
+        0x0007CE48  PreviewsUI.EditorStateSnapshot.ParsedDocument.translationUnit.getter : PreviewsFoundationHost.Staleable<PreviewsModel.Parsable<PreviewsPipeline.PreviewTranslationUnit>>
+        0x0007CEA0  PreviewsUI.EditorStateSnapshot.ParsedDocument.sourceIdentifier.getter : PreviewsModel.SourceIdentifier
+        0x0007CEEC  PreviewsUI.EditorStateSnapshot.ParsedDocument.undoManager.getter : __C.NSUndoManager?
+        0x0007CF20  PreviewsUI.EditorStateSnapshot.ParsedDocument.parseTree.getter : PreviewsFoundationHost.Staleable<PreviewsModel.Parsable<PreviewsModel.ParseTree>>
+        0x0007D03C  PreviewsUI.EditorStateSnapshot.ParsedDocument.modelItem(for: PreviewsModel.ModelPath) -> PreviewsFoundationHost.Staleable<PreviewsModel.Parsable<PreviewsModel.ModelItem?>>
+        0x0007D1E4  PreviewsUI.EditorStateSnapshot.ParsedDocument.init(store: PreviewsModel.DataSourceBackedSourceCodeStore, translationUnit: PreviewsFoundationHost.Staleable<PreviewsModel.Parsable<PreviewsPipeline.PreviewTranslationUnit>>, sourceIdentifier: PreviewsModel.SourceIdentifier, undoManager: __C.NSUndoManager?) -> PreviewsUI.EditorStateSnapshot.ParsedDocument
+        0x0007D288  PreviewsUI.EditorStateSnapshot.__allocating_init(documents: [PreviewsUI.EditorStateSnapshot.ParsedDocument], colorNames: [Swift.String], indexColorNames: [Swift.String : [Swift.String]], pinningControlsEnabled: Swift.Bool, previewFileIsPinned: SwiftUI.Binding<Swift.Bool>, showAppPreview: SwiftUI.Binding<Swift.Bool>, previewUpdateState: PreviewsUI.DisplayableContent, pendingUpdateReasons: [PreviewsPipeline.PreviewUpdateReason], activeCrash: PreviewsUI.EditorStateSnapshotCrash?, performAction: (PreviewsUI.EditorStateSnapshot.Action) -> (), additionalDiagnostics: (PreviewsFoundationHost.DiagnosticsCollector) async -> (), analyticsLogger: PreviewsFoundationHost.AnalyticsLogger?, buildEnvironmentError: PreviewsFoundationHost.HumanReadableError?, throttlerStateDescription: Swift.String?, updateTimingRecordIDs: [PreviewsFoundationHost.TimingRecord.ID]) -> PreviewsUI.EditorStateSnapshot
+        0x0007E638  PreviewsUI.EditorStateSnapshot.init(documents: [PreviewsUI.EditorStateSnapshot.ParsedDocument], colorNames: [Swift.String], indexColorNames: [Swift.String : [Swift.String]], pinningControlsEnabled: Swift.Bool, previewFileIsPinned: SwiftUI.Binding<Swift.Bool>, showAppPreview: SwiftUI.Binding<Swift.Bool>, previewUpdateState: PreviewsUI.DisplayableContent, pendingUpdateReasons: [PreviewsPipeline.PreviewUpdateReason], activeCrash: PreviewsUI.EditorStateSnapshotCrash?, performAction: (PreviewsUI.EditorStateSnapshot.Action) -> (), additionalDiagnostics: (PreviewsFoundationHost.DiagnosticsCollector) async -> (), analyticsLogger: PreviewsFoundationHost.AnalyticsLogger?, buildEnvironmentError: PreviewsFoundationHost.HumanReadableError?, throttlerStateDescription: Swift.String?, updateTimingRecordIDs: [PreviewsFoundationHost.TimingRecord.ID]) -> PreviewsUI.EditorStateSnapshot
+        0x0007FC80  PreviewsUI.EditorStateSnapshot.perform(action: PreviewsUI.EditorStateSnapshot.Action) -> ()
+        0x0007FCAC  PreviewsUI.EditorStateSnapshot.sourceIdentifiers.getter : Swift.Set<PreviewsModel.SourceIdentifier>
+        0x0007FEE0  PreviewsUI.EditorStateSnapshot.document(for: PreviewsModel.ModelPath?) -> PreviewsUI.EditorStateSnapshot.ParsedDocument?
+        0x0007FF04  PreviewsUI.EditorStateSnapshot.document(for: PreviewsModel.SourceIdentifier?) -> PreviewsUI.EditorStateSnapshot.ParsedDocument?
+        0x000800B0  PreviewsUI.EditorStateSnapshot.effectiveSelection(Swift.Set<PreviewsUI.SelectionItem>) -> Swift.Set<PreviewsUI.SelectionItem>
+        0x00080860  PreviewsUI.EditorStateSnapshot.collectDiagnostics(into: PreviewsFoundationHost.DiagnosticsCollector) async -> ()
+        0x00081D4C  PreviewsUI.EditorStateSnapshot.deinit
+        0x00081EA4  PreviewsUI.EditorStateSnapshot.__deallocating_deinit
+        0x00081ED0  PreviewsUI.EditorStateSnapshotCrash.crashReport.getter : PreviewsFoundationHost.CrashReport?
+        0x00081EFC  PreviewsUI.EditorStateSnapshotCrash.crashReport.setter : PreviewsFoundationHost.CrashReport?
+        0x00081F24  PreviewsUI.EditorStateSnapshotCrash.symbolicationParameters.getter : PreviewsFoundationHost.CrashLogSymbolicationParameters
+        0x00081F70  PreviewsUI.EditorStateSnapshotCrash.symbolicationParameters.setter : PreviewsFoundationHost.CrashLogSymbolicationParameters
+        0x00081FBC  PreviewsUI.EditorStateSnapshotCrash.symbolicationParameters.modify : PreviewsFoundationHost.CrashLogSymbolicationParameters
+        0x00081FE4  PreviewsUI.EditorStateSnapshotCrash.init(crashReport: PreviewsFoundationHost.CrashReport?, symbolicationParameters: PreviewsFoundationHost.CrashLogSymbolicationParameters) -> PreviewsUI.EditorStateSnapshotCrash
+        0x000862C4  type metadata accessor for PreviewsUI.EditorStateSnapshot.ParsedDocument
+        0x000862F0  type metadata accessor for PreviewsUI.EditorStateSnapshotCrash
+        0x000863EC  type metadata accessor for PreviewsUI.EditorStateSnapshotProvider
+        0x00086484  method lookup function for PreviewsUI.EditorStateSnapshotProvider
+        0x00086490  dispatch thunk of PreviewsUI.EditorStateSnapshotProvider.__allocating_init(PreviewsUI.EditorStateSnapshot) -> PreviewsUI.EditorStateSnapshotProvider
+        0x000865B8  method lookup function for PreviewsUI.EditorStateSnapshot
+        0x000865C4  dispatch thunk of PreviewsUI.EditorStateSnapshot.__allocating_init(documents: [PreviewsUI.EditorStateSnapshot.ParsedDocument], colorNames: [Swift.String], indexColorNames: [Swift.String : [Swift.String]], pinningControlsEnabled: Swift.Bool, previewFileIsPinned: SwiftUI.Binding<Swift.Bool>, showAppPreview: SwiftUI.Binding<Swift.Bool>, previewUpdateState: PreviewsUI.DisplayableContent, pendingUpdateReasons: [PreviewsPipeline.PreviewUpdateReason], activeCrash: PreviewsUI.EditorStateSnapshotCrash?, performAction: (PreviewsUI.EditorStateSnapshot.Action) -> (), additionalDiagnostics: (PreviewsFoundationHost.DiagnosticsCollector) async -> (), analyticsLogger: PreviewsFoundationHost.AnalyticsLogger?, buildEnvironmentError: PreviewsFoundationHost.HumanReadableError?, throttlerStateDescription: Swift.String?, updateTimingRecordIDs: [PreviewsFoundationHost.TimingRecord.ID]) -> PreviewsUI.EditorStateSnapshot
+        0x00087294  type metadata accessor for PreviewsUI.EditorStateSnapshot.Action
+        0x00087AC0  PreviewsUI.UVUIImage(name: Swift.String) -> SwiftUI.Image
+        0x00087B38  PreviewsUI.DeviceSizeInfo.sizeInPixels.getter : __C.CGSize
+        0x00087B40  PreviewsUI.DeviceSizeInfo.scaleFactor.getter : CoreGraphics.CGFloat
+        0x00087B48  PreviewsUI.DeviceSizeInfo.sizeInPoints.getter : __C.CGSize
+        0x00087B5C  PreviewsUI.DeviceSizeInfo.init(sizeInPixels: __C.CGSize, scaleFactor: CoreGraphics.CGFloat) -> PreviewsUI.DeviceSizeInfo
+        0x00087BB4  type metadata accessor for PreviewsUI.DeviceSizeInfo
+        0x00087BC4  PreviewsUI.CanvasMetricsModel.cycler.getter : PreviewsUI.CanvasMetricsModel.Cycler?
+        0x00087C28  PreviewsUI.CanvasMetricsModel.metrics.getter : PreviewsUI.CanvasMetricsModel.Metrics?
+        0x00087C8C  PreviewsUI.CanvasMetricsModel.metrics.setter : PreviewsUI.CanvasMetricsModel.Metrics?
+        0x00087D00  PreviewsUI.CanvasMetricsModel.Metrics.init(lastUpdateDuration: Swift.Double?, lastUpdateDiff: PreviewsUI.CanvasMetricsModel.Metrics.UpdateDiff?, totalNumberOfUpdates: Swift.Int, totalNumberOfExecutionPoints: Swift.Int, averageUpdateWorkspace: Swift.Double, averageUpdateThunk: Swift.Double, averageUpdateIncremental: Swift.Double, percentFailed: Swift.Double) -> PreviewsUI.CanvasMetricsModel.Metrics
+        0x00087D2C  PreviewsUI.CanvasMetricsModel.__allocating_init(metrics: PreviewsUI.CanvasMetricsModel.Metrics?, cycler: PreviewsUI.CanvasMetricsModel.Cycler?) -> PreviewsUI.CanvasMetricsModel
+        0x00087D78  default argument 6 of PreviewsUI.CanvasMetricsModel.Cycler.ActiveState.init(runningMode: PreviewsUI.CanvasMetricsModel.Cycler.ActiveState.RunningMode, completedIterations: Swift.Int, remainingIterations: Swift.Int, start: () -> (), pause: () -> (), reset: () -> (), collectStats: () -> Swift.String) -> PreviewsUI.CanvasMetricsModel.Cycler.ActiveState
+        0x00087D88  PreviewsUI.CanvasMetricsModel.Cycler.ActiveState.init(runningMode: PreviewsUI.CanvasMetricsModel.Cycler.ActiveState.RunningMode, completedIterations: Swift.Int, remainingIterations: Swift.Int, start: () -> (), pause: () -> (), reset: () -> (), collectStats: () -> Swift.String) -> PreviewsUI.CanvasMetricsModel.Cycler.ActiveState
+        0x00087EB0  PreviewsUI.CanvasMetricsModel.metrics.modify : PreviewsUI.CanvasMetricsModel.Metrics?
+        0x00087F40  PreviewsUI.CanvasMetricsModel.$metrics.getter : Combine.Published<PreviewsUI.CanvasMetricsModel.Metrics?>.Publisher
+        0x0008807C  PreviewsUI.CanvasMetricsModel.$metrics.setter : Combine.Published<PreviewsUI.CanvasMetricsModel.Metrics?>.Publisher
+        0x0008815C  PreviewsUI.CanvasMetricsModel.$metrics.modify : Combine.Published<PreviewsUI.CanvasMetricsModel.Metrics?>.Publisher
+        0x000883E4  PreviewsUI.CanvasMetricsModel.cycler.setter : PreviewsUI.CanvasMetricsModel.Cycler?
+        0x00088468  PreviewsUI.CanvasMetricsModel.cycler.modify : PreviewsUI.CanvasMetricsModel.Cycler?
+        0x000884FC  PreviewsUI.CanvasMetricsModel.$cycler.getter : Combine.Published<PreviewsUI.CanvasMetricsModel.Cycler?>.Publisher
+        0x00088724  PreviewsUI.CanvasMetricsModel.$cycler.setter : Combine.Published<PreviewsUI.CanvasMetricsModel.Cycler?>.Publisher
+        0x00088804  PreviewsUI.CanvasMetricsModel.$cycler.modify : Combine.Published<PreviewsUI.CanvasMetricsModel.Cycler?>.Publisher
+        0x00088928  PreviewsUI.CanvasMetricsModel.init(metrics: PreviewsUI.CanvasMetricsModel.Metrics?, cycler: PreviewsUI.CanvasMetricsModel.Cycler?) -> PreviewsUI.CanvasMetricsModel
+        0x00088B4C  PreviewsUI.CanvasMetricsModel.deinit
+        0x00088BC8  PreviewsUI.CanvasMetricsModel.__deallocating_deinit
+        0x00088C50  static PreviewsUI.CanvasMetricsModel.Cycler.ActiveState.RunningMode.== infix(PreviewsUI.CanvasMetricsModel.Cycler.ActiveState.RunningMode, PreviewsUI.CanvasMetricsModel.Cycler.ActiveState.RunningMode) -> Swift.Bool
+        0x00088C60  PreviewsUI.CanvasMetricsModel.Cycler.ActiveState.RunningMode.hash(into: inout Swift.Hasher) -> ()
+        0x00088C84  PreviewsUI.CanvasMetricsModel.Cycler.ActiveState.RunningMode.hashValue.getter : Swift.Int
+        0x00088CC8  static PreviewsUI.SelectionStore.SelectActionOrigin.Responder.== infix(PreviewsUI.SelectionStore.SelectActionOrigin.Responder, PreviewsUI.SelectionStore.SelectActionOrigin.Responder) -> Swift.Bool
+        0x00088CE0  PreviewsUI.CanvasMetricsModel.Cycler.ActiveState.runningMode.getter : PreviewsUI.CanvasMetricsModel.Cycler.ActiveState.RunningMode
+        0x00088CE8  PreviewsUI.CanvasMetricsModel.Cycler.ActiveState.runningMode.setter : PreviewsUI.CanvasMetricsModel.Cycler.ActiveState.RunningMode
+        0x00088CF4  PreviewsUI.CanvasMetricsModel.Cycler.ActiveState.completedIterations.getter : Swift.Int
+        0x00088CFC  PreviewsUI.CanvasMetricsModel.Cycler.ActiveState.completedIterations.setter : Swift.Int
+        0x00088D04  PreviewsUI.CanvasMetricsModel.Cycler.ActiveState.remainingIterations.getter : Swift.Int
+        0x00088D04  PreviewsUI.CanvasMetricsModel.Metrics.totalNumberOfUpdates.getter : Swift.Int
+        0x00088D0C  PreviewsUI.CanvasMetricsModel.Cycler.ActiveState.remainingIterations.setter : Swift.Int
+        0x00088D0C  PreviewsUI.CanvasMetricsModel.Metrics.totalNumberOfUpdates.setter : Swift.Int
+        0x00088D78  PreviewsUI.CanvasMetricsModel.Cycler.ActiveState.start.getter : () -> ()
+        0x00088DA4  PreviewsUI.CanvasMetricsModel.Cycler.ActiveState.start.setter : () -> ()
+        0x00088DD8  PreviewsUI.CanvasMetricsModel.Cycler.ActiveState.start.modify : () -> ()
+        0x00088DD8  PreviewsUI.CanvasMetricsModel.Metrics.totalNumberOfExecutionPoints.modify : Swift.Int
+        0x00088E4C  PreviewsUI.CanvasMetricsModel.Cycler.ActiveState.pause.getter : () -> ()
+        0x00088E78  PreviewsUI.CanvasMetricsModel.Cycler.ActiveState.pause.setter : () -> ()
+        0x00088EAC  PreviewsUI.CanvasMetricsModel.Cycler.ActiveState.pause.modify : () -> ()
+        0x00088EAC  PreviewsUI.CanvasMetricsModel.Metrics.averageUpdateThunk.modify : Swift.Double
+        0x00088F20  PreviewsUI.CanvasMetricsModel.Cycler.ActiveState.reset.getter : () -> ()
+        0x00088F4C  PreviewsUI.CanvasMetricsModel.Cycler.ActiveState.reset.setter : () -> ()
+        0x00088F80  PreviewsUI.CanvasMetricsModel.Cycler.ActiveState.reset.modify : () -> ()
+        0x00088F80  PreviewsUI.CanvasMetricsModel.Metrics.percentFailed.modify : Swift.Double
+        0x00088FF4  PreviewsUI.CanvasMetricsModel.Cycler.ActiveState.collectStats.getter : () -> Swift.String
+        0x00089020  PreviewsUI.CanvasMetricsModel.Cycler.ActiveState.collectStats.setter : () -> Swift.String
+        0x00089054  PreviewsUI.CanvasMetricsModel.Cycler.ActiveState.collectStats.modify : () -> Swift.String
+        0x00089070  PreviewsUI.CanvasMetricsModel.Cycler.ActiveState.totalIterations.getter : Swift.Int
+        0x00089084  PreviewsUI.CanvasMetricsModel.Metrics.UpdateDiff.description.getter : Swift.String
+        0x00089148  PreviewsUI.CanvasMetricsModel.Metrics.lastUpdateDuration.getter : Swift.Double?
+        0x00089154  PreviewsUI.CanvasMetricsModel.Metrics.lastUpdateDuration.setter : Swift.Double?
+        0x00089164  PreviewsUI.CanvasMetricsModel.Metrics.lastUpdateDiff.getter : PreviewsUI.CanvasMetricsModel.Metrics.UpdateDiff?
+        0x0008916C  PreviewsUI.CanvasMetricsModel.Metrics.lastUpdateDiff.setter : PreviewsUI.CanvasMetricsModel.Metrics.UpdateDiff?
+        0x00089174  PreviewsUI.CanvasMetricsModel.Metrics.lastUpdateDiff.modify : PreviewsUI.CanvasMetricsModel.Metrics.UpdateDiff?
+        0x00089184  PreviewsUI.CanvasMetricsModel.Metrics.totalNumberOfExecutionPoints.getter : Swift.Int
+        0x0008918C  PreviewsUI.CanvasMetricsModel.Metrics.totalNumberOfExecutionPoints.setter : Swift.Int
+        0x00089194  PreviewsUI.CanvasMetricsModel.Metrics.averageUpdateWorkspace.getter : Swift.Double
+        0x0008919C  PreviewsUI.CanvasMetricsModel.Metrics.averageUpdateWorkspace.setter : Swift.Double
+        0x000891A4  PreviewsUI.CanvasMetricsModel.Metrics.averageUpdateWorkspace.modify : Swift.Double
+        0x000891B4  PreviewsUI.CanvasMetricsModel.Metrics.averageUpdateThunk.getter : Swift.Double
+        0x000891BC  PreviewsUI.CanvasMetricsModel.Metrics.averageUpdateThunk.setter : Swift.Double
+        0x000891C4  PreviewsUI.CanvasMetricsModel.Metrics.averageUpdateIncremental.getter : Swift.Double
+        0x000891CC  PreviewsUI.CanvasMetricsModel.Metrics.averageUpdateIncremental.setter : Swift.Double
+        0x000891D4  PreviewsUI.CanvasMetricsModel.Metrics.averageUpdateIncremental.modify : Swift.Double
+        0x000891E4  PreviewsUI.CanvasMetricsModel.Metrics.percentFailed.getter : Swift.Double
+        0x000891EC  PreviewsUI.CanvasMetricsModel.Metrics.percentFailed.setter : Swift.Double
+        0x00089434  type metadata accessor for PreviewsUI.CanvasMetricsModel
+        0x00089520  method lookup function for PreviewsUI.CanvasMetricsModel
+        0x0008952C  dispatch thunk of PreviewsUI.CanvasMetricsModel.__allocating_init(metrics: PreviewsUI.CanvasMetricsModel.Metrics?, cycler: PreviewsUI.CanvasMetricsModel.Cycler?) -> PreviewsUI.CanvasMetricsModel
+        0x00089A10  type metadata accessor for PreviewsUI.CanvasMetricsModel.Cycler
+        0x00089BF8  type metadata accessor for PreviewsUI.CanvasMetricsModel.Cycler.ActiveState
+        0x00089D54  type metadata accessor for PreviewsUI.CanvasMetricsModel.Cycler.ActiveState.RunningMode
+        0x00089D64  type metadata accessor for PreviewsUI.CanvasMetricsModel.Metrics
+        0x00089D74  type metadata accessor for PreviewsUI.CanvasMetricsModel.Metrics.UpdateDiff
+        0x00089E78  PreviewsUI.StripedView.init(color: __C.CGColorRef, lineWidth: CoreGraphics.CGFloat, widthApart: CoreGraphics.CGFloat, angle: SwiftUI.Angle) -> PreviewsUI.StripedView
+        0x0008A050  PreviewsUI.StripedView.body.getter : some
+        0x0008A224  type metadata accessor for PreviewsUI.StripedView
+        0x0008A480  PreviewsUI.SelectionItem.modelPath.getter : PreviewsModel.ModelPath?
+        0x0008A584  type metadata accessor for PreviewsUI.SelectionItem
+        0x0008A5BC  static PreviewsUI.SelectionItem.== infix(PreviewsUI.SelectionItem, PreviewsUI.SelectionItem) -> Swift.Bool
+        0x0008A5C0  PreviewsUI.SelectionItem.hash(into: inout Swift.Hasher) -> ()
+        0x0008A8C8  PreviewsUI.SelectionItem.hashValue.getter : Swift.Int
+        0x0008A940  static PreviewsUI.SelectionStore.SelectActionOrigin.== infix(PreviewsUI.SelectionStore.SelectActionOrigin, PreviewsUI.SelectionStore.SelectActionOrigin) -> Swift.Bool
+        0x0008A944  PreviewsUI.SelectionStore.selection.getter : Swift.Set<PreviewsUI.SelectionItem>
+        0x0008AA90  PreviewsUI.SelectionStore.__allocating_init() -> PreviewsUI.SelectionStore
+        0x0008AACC  PreviewsUI.SelectionStore.__allocating_init(initialSelection: Swift.Set<PreviewsUI.SelectionItem>) -> PreviewsUI.SelectionStore
+        0x0008AB08  PreviewsUI.SelectionStore.init(initialSelection: Swift.Set<PreviewsUI.SelectionItem>) -> PreviewsUI.SelectionStore
+        0x0008ACDC  PreviewsUI.SelectionStore.selectionItemForPath.getter : ((PreviewsModel.ModelPath) -> PreviewsUI.SelectionItem)?
+        0x0008AD28  PreviewsUI.SelectionStore.selectionItemForPath.setter : ((PreviewsModel.ModelPath) -> PreviewsUI.SelectionItem)?
+        0x0008AD78  PreviewsUI.SelectionStore.selectionItemForPath.modify : ((PreviewsModel.ModelPath) -> PreviewsUI.SelectionItem)?
+        0x0008ADAC  PreviewsUI.SelectionStore.objectWillChange.getter : Combine.PassthroughSubject<(), Swift.Never>
+        0x0008ADB4  PreviewsUI.SelectionStore.didChange.getter : Combine.PassthroughSubject<PreviewsUI.SelectionStore.SelectActionOrigin, Swift.Never>
+        0x0008ADBC  PreviewsUI.SelectionStore.validateSelection(with: PreviewsModel.ParseTree, origin: PreviewsUI.SelectionStore.SelectActionOrigin) -> ()
+        0x0008B084  PreviewsUI.SelectionStore.select(_: Swift.Set<PreviewsUI.SelectionItem>, origin: PreviewsUI.SelectionStore.SelectActionOrigin) -> ()
+        0x0008BA28  PreviewsUI.SelectionStore.select(views: Swift.Set<PreviewsModel.ModelPath>, origin: PreviewsUI.SelectionStore.SelectActionOrigin) -> ()
+        0x0008BB08  PreviewsUI.SelectionStore.select(previews: Swift.Set<PreviewsPipeline.DiscoveredItem.ID>, path: PreviewsModel.ModelPath, origin: PreviewsUI.SelectionStore.SelectActionOrigin) -> ()
+        0x0008BCB8  PreviewsUI.SelectionStore.selection(paths: Swift.Set<PreviewsModel.ModelPath>, origin: PreviewsUI.SelectionStore.SelectActionOrigin) -> ()
+        0x0008BE14  PreviewsUI.SelectionStore.clearSelection(origin: PreviewsUI.SelectionStore.SelectActionOrigin) -> ()
+        0x0008BE4C  PreviewsUI.SelectionStore.selections(with: PreviewsModel.ParseTree, in: PreviewsModel.DataSourceBackedSourceCodeStore) -> Swift.Set<Swift.String>
+        0x0008C0C0  PreviewsUI.SelectionStore.selectionPaths() -> Swift.Set<PreviewsModel.ModelPath>
+        0x0008C450  PreviewsUI.SelectionStore.deinit
+        0x0008C484  PreviewsUI.SelectionStore.__deallocating_deinit
+        0x0008E1A4  type metadata accessor for PreviewsUI.SelectionStore
+        0x0008E1C4  method lookup function for PreviewsUI.SelectionStore
+        0x0008E1D0  dispatch thunk of PreviewsUI.SelectionStore.__allocating_init(initialSelection: Swift.Set<PreviewsUI.SelectionItem>) -> PreviewsUI.SelectionStore
+        0x0008E350  type metadata accessor for PreviewsUI.SelectionStore.SelectActionOrigin
+        0x0008E360  type metadata accessor for PreviewsUI.SelectionStore.SelectActionOrigin.Responder
+        0x00090820  PreviewsUI.UVUIColor(name: Swift.String) -> SwiftUI.Color
+        0x000957B8  PreviewsUI.~= infix(PreviewsUI.KnownAmberType, PreviewsModel.TypeName) -> Swift.Bool
+        0x00095824  static PreviewsUI.KnownAmberType.hStack.getter : PreviewsUI.KnownAmberType
+        0x0009583C  static PreviewsUI.KnownAmberType.vStack.getter : PreviewsUI.KnownAmberType
+        0x00095854  static PreviewsUI.KnownAmberType.text.getter : PreviewsUI.KnownAmberType
+        0x00095868  static PreviewsUI.KnownAmberType.inset.getter : PreviewsUI.KnownAmberType
+        0x00095880  static PreviewsUI.KnownAmberType.color.getter : PreviewsUI.KnownAmberType
+        0x00095898  static PreviewsUI.KnownAmberType.image.getter : PreviewsUI.KnownAmberType
+        0x000958B0  static PreviewsUI.KnownAmberType.font.getter : PreviewsUI.KnownAmberType
+        0x000958C4  static PreviewsUI.KnownAmberType.fontWeight.getter : PreviewsUI.KnownAmberType
+        0x000958E8  static PreviewsUI.KnownAmberType.button.getter : PreviewsUI.KnownAmberType
+        0x00095900  static PreviewsUI.KnownAmberType.colorScheme.getter : PreviewsUI.KnownAmberType
+        0x00095924  static PreviewsUI.KnownAmberType.previewLayout.getter : PreviewsUI.KnownAmberType
+        0x0009594C  static PreviewsUI.KnownAmberType.renderingMode.getter : PreviewsUI.KnownAmberType
+        0x0009596C  static PreviewsUI.KnownAmberType.resizingMode.getter : PreviewsUI.KnownAmberType
+        0x0009598C  static PreviewsUI.KnownAmberType.contentMode.getter : PreviewsUI.KnownAmberType
+        0x000959B0  static PreviewsUI.KnownAmberType.accessibilityChildBehavior.getter : PreviewsUI.KnownAmberType
+        0x000959D0  static PreviewsUI.KnownAmberType.interfaceOrientation.getter : PreviewsUI.KnownAmberType
+        0x000959F0  PreviewsUI.KnownAmberType.typeName.getter : PreviewsModel.TypeName
+        0x00095BD0  PreviewsUI.~= infix(PreviewsUI.KnownAmberType, Swift.String) -> Swift.Bool
+        0x00095C44  type metadata accessor for PreviewsUI.KnownAmberType
+        0x00096054  static PreviewsUI.ReferenceColor.baseType.getter : Swift.String
+        0x00096068  PreviewsUI.ReferenceColor.color.getter : SwiftUI.Color
+        0x000960D8  PreviewsUI.ReferenceColor.init(rawValue: Swift.String) -> PreviewsUI.ReferenceColor?
+        0x0009614C  static PreviewsUI.ReferenceColor.allCases.getter : [PreviewsUI.ReferenceColor]
+        0x00096178  PreviewsUI.ReferenceColor.rawValue.getter : Swift.String
+        0x0009655C  type metadata accessor for PreviewsUI.ReferenceColor
+        0x000967B0  PreviewsUI.DisplayableContent.Registry.id.getter : PreviewsMessagingHost.RegistryID
+        0x000967B4  PreviewsUI.DisplayableContent.Group.origin.getter : PreviewsUI.DisplayableContent.Group.Origin
+        0x00096BD4  type metadata accessor for PreviewsUI.DisplayableContent.Registry
+        0x00096BE8  type metadata accessor for PreviewsUI.DisplayableContent.Provider
+        0x00096BFC  type metadata accessor for PreviewsUI.DisplayableContent.Group
+        0x00096C10  type metadata accessor for PreviewsUI.DisplayableContent.Group.Origin
+        0x00096C24  PreviewsUI.DisplayableContent.Group.status.getter : PreviewsUI.DisplayableContent.Group.Status
+        0x00096DEC  type metadata accessor for PreviewsUI.DisplayableContent.Group.Status.Outcome
+        0x00096E00  type metadata accessor for PreviewsUI.DisplayableContent.Group.Status
+        0x00096E14  PreviewsUI.DisplayableContent.Group.content.getter : PreviewsUI.DisplayableContent.Group.Content?
+        0x000972F4  static PreviewsUI.DisplayableContent.Group.ID.== infix(PreviewsUI.DisplayableContent.Group.ID, PreviewsUI.DisplayableContent.Group.ID) -> Swift.Bool
+        0x000972F8  PreviewsUI.DisplayableContent.Group.ID.hash(into: inout Swift.Hasher) -> ()
+        0x00097570  PreviewsUI.DisplayableContent.Group.ID.hashValue.getter : Swift.Int
+        0x00097598  PreviewsUI.DisplayableContent.Group.id.getter : PreviewsUI.DisplayableContent.Group.ID
+        0x00097778  PreviewsUI.DisplayableContent.Provider.id.getter : PreviewsPipeline.ProviderSource.ID
+        0x0009777C  PreviewsUI.DisplayableContent.Provider.content.getter : PreviewsUI.DisplayableContent.Group.Content?
+        0x000978B0  PreviewsUI.DisplayableContent.Registry.content.getter : PreviewsUI.DisplayableContent.Group.Content?
+        0x00097A90  PreviewsUI.DisplayableContent.Group.Content.init(previews: PreviewsFoundationHost.Inhabited<[PreviewsUI.DisplayableContent.Preview]>, clampingInfo: PreviewsUI.DisplayableContent.Group.ClampingInfo) -> PreviewsUI.DisplayableContent.Group.Content
+        0x00097B08  type metadata accessor for PreviewsUI.DisplayableContent.Group.Content
+        0x00097B6C  PreviewsUI.DisplayableContent.Group.isAppPreview.getter : Swift.Bool
+        0x00097C04  PreviewsUI.DisplayableContent.Group.isPinned.getter : Swift.Bool
+        0x00097D88  PreviewsUI.DisplayableContent.Group.sidecarIdentifier.getter : Foundation.UUID?
+        0x00097EA8  PreviewsUI.DisplayableContent.Group.defaultDisplayName.getter : Swift.String
+        0x00098214  PreviewsUI.DisplayableContent.Registry.defaultDisplayName.getter : Swift.String
+        0x00098218  PreviewsUI.DisplayableContent.Group.lineNumber.getter : Swift.Int?
+        0x00098394  PreviewsUI.DisplayableContent.Group.displayNameDisambiguation(with: PreviewsUI.PreviewNameDisambiguationStrategy) -> Swift.String?
+        0x00098540  PreviewsUI.DisplayableContent.Registry.displayNameDisambiguation(with: PreviewsUI.PreviewNameDisambiguationStrategy) -> Swift.String?
+        0x00098568  PreviewsUI.DisplayableContent.Group.sourceIdentifier.getter : PreviewsModel.SourceIdentifier?
+        0x00098720  PreviewsUI.DisplayableContent.Group.sourceLocation.getter : PreviewsModel.SourceLocation?
+        0x000988D8  static PreviewsUI.DisplayableContent.Group.Origin.== infix(PreviewsUI.DisplayableContent.Group.Origin, PreviewsUI.DisplayableContent.Group.Origin) -> Swift.Bool
+        0x000988DC  PreviewsUI.DisplayableContent.Group.Origin.hash(into: inout Swift.Hasher) -> ()
+        0x00098AD8  PreviewsUI.DisplayableContent.Group.Origin.hashValue.getter : Swift.Int
+        0x00098BBC  PreviewsUI.DisplayableContent.Group.Content.previews.getter : PreviewsFoundationHost.Inhabited<[PreviewsUI.DisplayableContent.Preview]>
+        0x00098C00  PreviewsUI.DisplayableContent.Group.Content.clampingInfo.getter : PreviewsUI.DisplayableContent.Group.ClampingInfo
+        0x00098C28  PreviewsUI.DisplayableContent.Group.ClampingInfo.totalCount.getter : Swift.Int?
+        0x00098C34  PreviewsUI.DisplayableContent.Group.Status.Outcome.description.getter : Swift.String
+        0x00098E98  PreviewsUI.DisplayableContent.Group.Status.description.getter : Swift.String
+        0x0009908C  PreviewsUI.DisplayableContent.Group.Status.outcome.getter : PreviewsUI.DisplayableContent.Group.Status.Outcome
+        0x00099150  PreviewsUI.DisplayableContent.Group.Status.isRunning.getter : Swift.Bool
+        0x00099250  PreviewsUI.DisplayableContent.Provider.source.getter : PreviewsPipeline.ProviderSource
+        0x00099274  PreviewsUI.DisplayableContent.Provider.source.setter : PreviewsPipeline.ProviderSource
+        0x00099294  PreviewsUI.DisplayableContent.Provider.isPinned.getter : Swift.Bool
+        0x000992B4  PreviewsUI.DisplayableContent.Provider.isPinned.setter : Swift.Bool
+        0x000992E0  PreviewsUI.DisplayableContent.Provider.isPinned.modify : Swift.Bool
+        0x00099308  PreviewsUI.DisplayableContent.Provider.status.getter : PreviewsUI.DisplayableContent.Group.Status
+        0x00099314  PreviewsUI.DisplayableContent.Provider.status.setter : PreviewsUI.DisplayableContent.Group.Status
+        0x00099320  PreviewsUI.DisplayableContent.Provider.status.modify : PreviewsUI.DisplayableContent.Group.Status
+        0x00099348  PreviewsUI.DisplayableContent.Provider.previews.getter : [PreviewsUI.DisplayableContent.Preview]
+        0x00099368  PreviewsUI.DisplayableContent.Provider.previews.setter : [PreviewsUI.DisplayableContent.Preview]
+        0x000993A4  PreviewsUI.DisplayableContent.Provider.previews.modify : [PreviewsUI.DisplayableContent.Preview]
+        0x000993CC  PreviewsUI.DisplayableContent.Provider.clampingInfo.getter : PreviewsUI.DisplayableContent.Group.ClampingInfo
+        0x000993F4  PreviewsUI.DisplayableContent.Provider.clampingInfo.setter : PreviewsUI.DisplayableContent.Group.ClampingInfo
+        0x00099438  PreviewsUI.DisplayableContent.Provider.clampingInfo.modify : PreviewsUI.DisplayableContent.Group.ClampingInfo
+        0x00099460  PreviewsUI.DisplayableContent.Provider.init(source: PreviewsPipeline.ProviderSource, isPinned: Swift.Bool) -> PreviewsUI.DisplayableContent.Provider
+        0x000995D4  PreviewsUI.DisplayableContent.Registry.definition.getter : PreviewsModel.RegistryDefinition
+        0x0009960C  PreviewsUI.DisplayableContent.Registry.definition.setter : PreviewsModel.RegistryDefinition
+        0x00099644  PreviewsUI.DisplayableContent.Registry.isPinned.getter : Swift.Bool
+        0x00099664  PreviewsUI.DisplayableContent.Registry.isPinned.setter : Swift.Bool
+        0x00099690  PreviewsUI.DisplayableContent.Registry.isPinned.modify : Swift.Bool
+        0x000996B8  PreviewsUI.DisplayableContent.Registry.status.getter : PreviewsUI.DisplayableContent.Group.Status
+        0x00099704  PreviewsUI.DisplayableContent.Registry.status.setter : PreviewsUI.DisplayableContent.Group.Status
+        0x0009974C  PreviewsUI.DisplayableContent.Registry.status.modify : PreviewsUI.DisplayableContent.Group.Status
+        0x00099774  PreviewsUI.DisplayableContent.Registry.preview.getter : PreviewsUI.DisplayableContent.Preview?
+        0x000997A4  PreviewsUI.DisplayableContent.Registry.preview.setter : PreviewsUI.DisplayableContent.Preview?
+        0x000997D4  PreviewsUI.DisplayableContent.Registry.preview.modify : PreviewsUI.DisplayableContent.Preview?
+        0x000997FC  PreviewsUI.DisplayableContent.Registry.init(definition: PreviewsModel.RegistryDefinition, isPinned: Swift.Bool) -> PreviewsUI.DisplayableContent.Registry
+        0x00099C84  type metadata accessor for PreviewsUI.DisplayableContent.Group.ID
+        0x000AD9D8  type metadata accessor for PreviewsUI.DisplayableContent.Group.ClampingInfo
+        0x000C2C30  _PreviewsUIVersionString
+        0x000C2C70  _PreviewsUIVersionNumber
+        0x000C2D28  property descriptor for PreviewsUI.PreviewDiagnostic.updateErrors : [PreviewsFoundationHost.HumanReadableError]?
+        0x000C2D2C  property descriptor for PreviewsUI.PreviewDiagnostic.pausedReason : PreviewsPipeline.PreviewPauseReason?
+        0x000C2D34  property descriptor for PreviewsUI.PreviewDiagnostic.environmentError : PreviewsFoundationHost.HumanReadableError?
+        0x000C2D3C  property descriptor for PreviewsUI.PreviewDiagnostic.pendingUpdateReasons : [PreviewsPipeline.PreviewUpdateReason]
+        0x000C2D44  property descriptor for PreviewsUI.PreviewDiagnostic.previewErrors : [PreviewsFoundationHost.HumanReadableError]
+        0x000C2D4C  property descriptor for PreviewsUI.PreviewDiagnostic.allErrorDescriptions : [PreviewsFoundationHost.HumanReadableError]
+        0x000C2EB8  protocol conformance descriptor for PreviewsUI.LibraryProvider.NamespacedCategory : Swift.Hashable in PreviewsUI
+        0x000C2EF8  protocol conformance descriptor for PreviewsUI.LibraryProvider.NamespacedCategory : Swift.Comparable in PreviewsUI
+        0x000C2F40  protocol conformance descriptor for PreviewsUI.LibraryProvider.NamespacedCategory : Swift.Equatable in PreviewsUI
+        0x000C2F68  property descriptor for PreviewsUI.LibraryProvider.Section.title : Swift.String
+        0x000C2F6C  property descriptor for PreviewsUI.LibraryProvider.Section.assets : [PreviewsUI.LibraryProvider.Section.Asset]
+        0x000C2F70  property descriptor for PreviewsUI.LibraryProvider.Section.Asset.id : Swift.AnyHashable
+        0x000C2F74  property descriptor for PreviewsUI.LibraryProvider.Section.Asset.title : Swift.String
+        0x000C2F78  property descriptor for PreviewsUI.LibraryProvider.Section.Asset.icon : SwiftUI.Image?
+        0x000C2F7C  property descriptor for PreviewsUI.LibraryProvider.Section.Asset.snippet : Swift.String
+        0x000C2F80  property descriptor for PreviewsUI.LibraryProvider.Section.Asset.synonyms : [Swift.String]
+        0x000C2F84  property descriptor for PreviewsUI.LibraryProvider.NamespacedCategory.namespace : Swift.String?
+        0x000C2F88  property descriptor for PreviewsUI.LibraryProvider.NamespacedCategory.category : PreviewsModel.LibraryCategoryID
+        0x000C2F90  property descriptor for PreviewsUI.LibraryProvider.NamespacedCategory.hashValue : Swift.Int
+        0x000C3030  protocol conformance descriptor for PreviewsUI.ImageView : SwiftUI.NSViewRepresentable in PreviewsUI
+        0x000C30C8  protocol conformance descriptor for PreviewsUI.ImageView : SwiftUI.View in PreviewsUI
+        0x000C3248  protocol conformance descriptor for PreviewsUI.IdentifiedValue<A> : Swift.Identifiable in PreviewsUI
+        0x000C3280  property descriptor for PreviewsUI.IdentifiedValue.id : Swift.AnyHashable
+        0x000C3284  property descriptor for PreviewsUI.IdentifiedValue.value : A
+        0x000C328C  property descriptor for (extension in PreviewsUI):Swift.Sequence.indexIdentifiable : [PreviewsUI.IdentifiedValue<A.Element>]
+        0x000C32E0  protocol conformance descriptor for PreviewsUI.SelectPreviewInEditorAction : Combine.ObservableObject in PreviewsUI
+        0x000C3350  class metadata base offset for PreviewsUI.SelectPreviewInEditorAction
+        0x000C33F0  protocol conformance descriptor for PreviewsUI.PreviewNameDisambiguationStrategy : Swift.Equatable in PreviewsUI
+        0x000C3418  protocol conformance descriptor for PreviewsUI.PreviewNameDisambiguationStrategy : Swift.Hashable in PreviewsUI
+        0x000C3458  property descriptor for PreviewsUI.PreviewNameDisambiguationStrategy.hashValue : Swift.Int
+        0x000C3494  enum case for PreviewsUI.PreviewNameDisambiguationStrategy.none(PreviewsUI.PreviewNameDisambiguationStrategy.Type) -> PreviewsUI.PreviewNameDisambiguationStrategy
+        0x000C3498  enum case for PreviewsUI.PreviewNameDisambiguationStrategy.fileName(PreviewsUI.PreviewNameDisambiguationStrategy.Type) -> PreviewsUI.PreviewNameDisambiguationStrategy
+        0x000C349C  enum case for PreviewsUI.PreviewNameDisambiguationStrategy.index(PreviewsUI.PreviewNameDisambiguationStrategy.Type) -> PreviewsUI.PreviewNameDisambiguationStrategy
+        0x000C34A0  enum case for PreviewsUI.PreviewNameDisambiguationStrategy.lineNumber(PreviewsUI.PreviewNameDisambiguationStrategy.Type) -> PreviewsUI.PreviewNameDisambiguationStrategy
+        0x000C34A4  enum case for PreviewsUI.PreviewNameDisambiguationStrategy.fileNameAndIndex(PreviewsUI.PreviewNameDisambiguationStrategy.Type) -> PreviewsUI.PreviewNameDisambiguationStrategy
+        0x000C34A8  enum case for PreviewsUI.PreviewNameDisambiguationStrategy.fileNameAndLineNumber(PreviewsUI.PreviewNameDisambiguationStrategy.Type) -> PreviewsUI.PreviewNameDisambiguationStrategy
+        0x000C34B0  property descriptor for static (extension in PreviewsUI):__C.NSBundle.uvuiBundle : __C.NSBundle
+        0x000C3760  protocol conformance descriptor for PreviewsUI.CachedSelectionContainer<A, B> : SwiftUI.View in PreviewsUI
+        0x000C37B0  protocol conformance descriptor for PreviewsUI.CachedSelectionArbiterContainer<A, B> : SwiftUI.View in PreviewsUI
+        0x000C3800  property descriptor for PreviewsUI.CachedSelectionArbiterContainer.body : some
+        0x000C3800  property descriptor for PreviewsUI.CachedSelectionContainer.body : some
+        0x000C39B0  protocol conformance descriptor for PreviewsUI.CanvasMetricsView : SwiftUI.View in PreviewsUI
+        0x000C3A00  property descriptor for PreviewsUI.CanvasMetricsView.body : some
+        0x000C3B18  protocol conformance descriptor for PreviewsUI.EditorHost.Destination : Swift.Equatable in PreviewsUI
+        0x000C3B40  protocol conformance descriptor for PreviewsUI.EditorHost.Destination : Swift.Hashable in PreviewsUI
+        0x000C3B80  property descriptor for PreviewsUI.EditorHost.Destination.hashValue : Swift.Int
+        0x000C3C48  protocol conformance descriptor for PreviewsUI.MetadataBundlesQueryResolver : PreviewsFoundationHost.QueryResolver in PreviewsUI
+        0x000C3C80  protocol conformance descriptor for PreviewsUI.MetadataBundlesQueryResolver : PreviewsModel.MetadataCombinator in PreviewsUI
+        0x000C3CC0  protocol conformance descriptor for PreviewsUI.MetadataBundlesQueryResolver : PreviewsModel.MetadataSource in PreviewsUI
+        0x000C3D58  property descriptor for PreviewsUI.MetadataBundlesQueryResolver.queryResolverPublisher : Combine.AnyPublisher<(), Swift.Never>?
+        0x000C3D58  property descriptor for PreviewsUI.MetadataBundlesQueryResolver.resolutions : PreviewsFoundationHost.QueryResolutions
+        0x000C3D58  property descriptor for PreviewsUI.MetadataBundlesQueryResolver.sources : [PreviewsModel.MetadataSource]
+        0x000C3DB0  class metadata base offset for PreviewsUI.MetadataBundlesQueryResolver
+        0x000C3DF8  protocol conformance descriptor for PreviewsUI.UnselectablePreviewTypesQuery : PreviewsFoundationHost.Query in PreviewsUI
+        0x000C3E40  protocol conformance descriptor for PreviewsUI.UnselectablePreviewTypesQuery : Swift.CustomDebugStringConvertible in PreviewsUI
+        0x000C3EC8  protocol conformance descriptor for PreviewsUI.CenteringScrollView<A> : SwiftUI.View in PreviewsUI
+        0x000C3F18  property descriptor for PreviewsUI.CenteringScrollView.body : some
+        0x000C3F98  protocol conformance descriptor for PreviewsUI.DisplayableContent.Preview : Swift.Identifiable in PreviewsUI
+        0x000C3FD0  protocol conformance descriptor for PreviewsUI.DisplayableContent.Preview.CanvasRegistry.Status : Swift.Identifiable in PreviewsUI
+        0x000C4008  protocol conformance descriptor for PreviewsUI.DisplayableContent.Preview.CanvasPreview : Swift.Identifiable in PreviewsUI
+        0x000C4040  protocol conformance descriptor for PreviewsUI.DisplayableContent.Preview.CanvasPreview.VariantGroup : Swift.Identifiable in PreviewsUI
+        0x000C4078  protocol conformance descriptor for PreviewsUI.DisplayableContent.Preview.CanvasPreview.Variant : Swift.Identifiable in PreviewsUI
+        0x000C40B0  property descriptor for PreviewsUI.DisplayableContent.Preview.item : PreviewsPipeline.DiscoveredItem
+        0x000C40B8  property descriptor for PreviewsUI.DisplayableContent.Preview.settingsRelay : PreviewsPipeline.EditorSettingsRelay
+        0x000C40C0  property descriptor for PreviewsUI.DisplayableContent.Preview.canvasContent : PreviewsUI.DisplayableContent.Preview.CanvasContent?
+        0x000C40C8  property descriptor for (extension in PreviewsUI):PreviewsPipeline.DiscoveredItem.defaultDisplayName : Swift.String
+        0x000C40C8  property descriptor for PreviewsUI.DisplayableContent.Preview.CanvasPreview.canvasPage : PreviewsUI.DisplayableContent.Preview.CanvasPreview.CanvasPage
+        0x000C40C8  property descriptor for PreviewsUI.DisplayableContent.Preview.CanvasPreview.destinationName : Swift.String
+        0x000C40C8  property descriptor for PreviewsUI.DisplayableContent.Preview.CanvasPreview.id : PreviewsPipeline.PreviewInstance.ID
+        0x000C40C8  property descriptor for PreviewsUI.DisplayableContent.Preview.CanvasPreview.isStale : Swift.Bool
+        0x000C40C8  property descriptor for PreviewsUI.DisplayableContent.Preview.CanvasPreview.SinglePreview.isStale : Swift.Bool
+        0x000C40C8  property descriptor for PreviewsUI.DisplayableContent.Preview.CanvasPreview.Variant.id : PreviewsMessagingHost.PreviewVariant.ID
+        0x000C40C8  property descriptor for PreviewsUI.DisplayableContent.Preview.CanvasPreview.VariantGroup.id : PreviewsMessagingHost.PreviewVariantGroup.ID
+        0x000C40C8  property descriptor for PreviewsUI.DisplayableContent.Preview.CanvasPreview.VariantGroup.isStale : Swift.Bool
+        0x000C40C8  property descriptor for PreviewsUI.DisplayableContent.Preview.displayName : Swift.String
+        0x000C40C8  property descriptor for PreviewsUI.DisplayableContent.Preview.id : PreviewsPipeline.DiscoveredItem.ID
+        0x000C40C8  property descriptor for PreviewsUI.DisplayableContent.Preview.isAppPreview : Swift.Bool
+        0x000C40C8  property descriptor for PreviewsUI.DisplayableContent.Preview.lineNumber : Swift.Int?
+        0x000C40C8  property descriptor for PreviewsUI.DisplayableContent.Preview.singlePreview : PreviewsUI.DisplayableContent.Preview.CanvasPreview.SinglePreview?
+        0x000C40C8  property descriptor for PreviewsUI.DisplayableContent.Preview.sourceIdentifier : PreviewsModel.SourceIdentifier?
+        0x000C40CC  property descriptor for PreviewsUI.DisplayableContent.Preview.CanvasRegistry.capabilities : PreviewsPipeline.RegistryCapabilities
+        0x000C40D4  property descriptor for PreviewsUI.DisplayableContent.Preview.CanvasRegistry.enabled : Swift.Bool
+        0x000C40DC  property descriptor for PreviewsUI.DisplayableContent.Preview.CanvasRegistry.Status.id : PreviewsFoundationHost.Identifier
+        0x000C40E4  property descriptor for PreviewsUI.DisplayableContent.Preview.CanvasRegistry.Status.executionStatus : PreviewsPipeline.ExecutionPointStatus<PreviewsPipeline.AnyExecutionPoint>
+        0x000C40EC  property descriptor for PreviewsUI.DisplayableContent.Preview.CanvasRegistry.status : PreviewsUI.DisplayableContent.Preview.CanvasRegistry.Status
+        0x000C40F4  property descriptor for PreviewsUI.DisplayableContent.Preview.CanvasPreview.instance : PreviewsPipeline.PreviewInstance
+        0x000C40FC  property descriptor for PreviewsUI.DisplayableContent.Preview.CanvasPreview.location : PreviewsPipeline.PreviewConfiguration.Location
+        0x000C4104  property descriptor for PreviewsUI.DisplayableContent.Preview.CanvasPreview.capabilities : PreviewsPipeline.PreviewCapabilities
+        0x000C410C  property descriptor for PreviewsUI.DisplayableContent.Preview.CanvasPreview.canvasMode : PreviewsPipeline.EditorSettings.CanvasMode
+        0x000C4114  property descriptor for PreviewsUI.DisplayableContent.Preview.CanvasPreview.livePreview : PreviewsUI.DisplayableContent.Preview.CanvasPreview.SinglePreview
+        0x000C411C  property descriptor for PreviewsUI.DisplayableContent.Preview.CanvasPreview.staticPreview : PreviewsUI.DisplayableContent.Preview.CanvasPreview.SinglePreview
+        0x000C4124  property descriptor for PreviewsUI.DisplayableContent.Preview.CanvasPreview.variantMatrix : PreviewsUI.DisplayableContent.Preview.CanvasPreview.VariantMatrix
+        0x000C412C  property descriptor for PreviewsUI.DisplayableContent.Preview.CanvasPreview.SinglePreview.state : PreviewsUI.DisplayableContent.Preview.State
+        0x000C4134  property descriptor for PreviewsUI.DisplayableContent.Preview.CanvasPreview.VariantMatrix.groups : [PreviewsUI.DisplayableContent.Preview.CanvasPreview.VariantGroup]
+        0x000C4138  property descriptor for PreviewsUI.DisplayableContent.Preview.CanvasPreview.VariantGroup.definition : PreviewsMessagingHost.PreviewVariantGroup
+        0x000C4140  property descriptor for PreviewsUI.DisplayableContent.Preview.CanvasPreview.VariantGroup.sections : [PreviewsUI.DisplayableContent.Preview.CanvasPreview.VariantSection]
+        0x000C4148  property descriptor for PreviewsUI.DisplayableContent.Preview.CanvasPreview.VariantSection.title : Swift.String?
+        0x000C414C  property descriptor for PreviewsUI.DisplayableContent.Preview.CanvasPreview.VariantSection.variants : [PreviewsUI.DisplayableContent.Preview.CanvasPreview.Variant]
+        0x000C4150  property descriptor for PreviewsUI.DisplayableContent.Preview.CanvasPreview.Variant.variant : PreviewsMessagingHost.PreviewVariant
+        0x000C4158  property descriptor for PreviewsUI.DisplayableContent.Preview.CanvasPreview.Variant.state : PreviewsUI.DisplayableContent.Preview.State
+        0x000C4188  enum case for PreviewsUI.DisplayableContent.Preview.CanvasContent.preview(PreviewsUI.DisplayableContent.Preview.CanvasContent.Type) -> (PreviewsUI.DisplayableContent.Preview.CanvasPreview) -> PreviewsUI.DisplayableContent.Preview.CanvasContent
+        0x000C418C  enum case for PreviewsUI.DisplayableContent.Preview.CanvasContent.registry(PreviewsUI.DisplayableContent.Preview.CanvasContent.Type) -> (PreviewsUI.DisplayableContent.Preview.CanvasRegistry) -> PreviewsUI.DisplayableContent.Preview.CanvasContent
+        0x000C4278  protocol conformance descriptor for PreviewsUI.DelayDataView<A, B> : SwiftUI.View in PreviewsUI
+        0x000C42C8  protocol conformance descriptor for PreviewsUI.DelayedValue<A, B> : Combine.ObservableObject in PreviewsUI
+        0x000C4300  property descriptor for PreviewsUI.DelayDataView.body : some
+        0x000C4300  property descriptor for PreviewsUI.DelayedValue.latest : A
+        0x000C4300  property descriptor for PreviewsUI.DelayedValue.pending : A?
+        0x000C4348  class metadata base offset for PreviewsUI.DelayedValue
+        0x000C4488  protocol conformance descriptor for PreviewsUI.KitLevelBuiltInIntegrationManager : PreviewsFoundationHost.QueryResolver in PreviewsUI
+        0x000C44B8  property descriptor for PreviewsUI.KitLevelBuiltInIntegrationManager.resolutions : PreviewsFoundationHost.QueryResolutions
+        0x000C44B8  property descriptor for static PreviewsUI.KitLevelBuiltInIntegrationManager.default : PreviewsUI.KitLevelBuiltInIntegrationManager
+        0x000C4640  protocol conformance descriptor for PreviewsUI.CanvasMetricsModelProvider : Combine.ObservableObject in PreviewsUI
+        0x000C46B0  class metadata base offset for PreviewsUI.CanvasMetricsModelProvider
+        0x000C4728  protocol conformance descriptor for PreviewsUI.UpdateGroupSeed : Swift.Equatable in PreviewsUI
+        0x000C4750  property descriptor for PreviewsUI.DisplayableContent.providers : [PreviewsUI.DisplayableContent.Provider]
+        0x000C4754  property descriptor for PreviewsUI.DisplayableContent.registries : [PreviewsUI.DisplayableContent.Registry]
+        0x000C4758  property descriptor for PreviewsUI.DisplayableContent.appPreview : PreviewsUI.DisplayableContent.Preview?
+        0x000C4760  property descriptor for PreviewsUI.DisplayableContent.sourceIdentifiers : [PreviewsModel.SourceIdentifier]
+        0x000C4768  property descriptor for PreviewsUI.DisplayableContent.sortedSourceIdentifiers : [PreviewsModel.SourceIdentifier]
+        0x000C4770  property descriptor for PreviewsUI.DisplayableContent.buildingState : PreviewsPipeline.PipelineBuildingState
+        0x000C4778  property descriptor for PreviewsUI.DisplayableContent.isUpdateInProgress : Swift.Bool
+        0x000C4780  property descriptor for PreviewsUI.DisplayableContent.updateIdentifier : PreviewsPipeline.PreviewService.UpdateIdentifier
+        0x000C4788  property descriptor for PreviewsUI.DisplayableContent.editor : PreviewsPipeline.EditorIdentifier
+        0x000C4790  property descriptor for PreviewsUI.DisplayableContent.inJITMode : Swift.Bool
+        0x000C4798  property descriptor for PreviewsUI.DisplayableContent.updateSeed : Swift.Int
+        0x000C47A0  property descriptor for PreviewsUI.DisplayableContent.allPreviews : [PreviewsUI.DisplayableContent.Preview]
+        0x000C47A0  property descriptor for PreviewsUI.DisplayableContent.debugDump : Swift.String
+        0x000C47A0  property descriptor for PreviewsUI.DisplayableContent.errors : [PreviewsFoundationHost.HumanReadableError]
+        0x000C47A0  property descriptor for PreviewsUI.DisplayableContent.groups : [PreviewsUI.DisplayableContent.Group]
+        0x000C47A0  property descriptor for PreviewsUI.DisplayableContent.groupStatuses : some
+        0x000C47A0  property descriptor for PreviewsUI.DisplayableContent.isInitiallyPaused : Swift.Bool
+        0x000C47A0  property descriptor for PreviewsUI.DisplayableContent.Preview.allPreviewStates : [PreviewsUI.DisplayableContent.Preview.State]
+        0x000C47A0  property descriptor for PreviewsUI.DisplayableContent.Preview.CanvasPreview.allPreviewStates : [PreviewsUI.DisplayableContent.Preview.State]
+        0x000C47A0  property descriptor for PreviewsUI.DisplayableContent.Preview.errors : [PreviewsFoundationHost.HumanReadableError]
+        0x000C47A0  property descriptor for PreviewsUI.DisplayableContent.sortedGroups : [PreviewsUI.DisplayableContent.Group]
+        0x000C4820  enum case for PreviewsUI.UpdateGroupSeed.pipelineV1(PreviewsUI.UpdateGroupSeed.Type) -> (Swift.UInt64) -> PreviewsUI.UpdateGroupSeed
+        0x000C4824  enum case for PreviewsUI.UpdateGroupSeed.pipelineV2(PreviewsUI.UpdateGroupSeed.Type) -> PreviewsUI.UpdateGroupSeed
+        0x000C4A78  protocol conformance descriptor for PreviewsUI.AutoResettingValue<A> : Combine.ObservableObject in PreviewsUI
+        0x000C4AB0  class metadata base offset for PreviewsUI.AutoResettingValue
+        0x000C4B58  protocol conformance descriptor for PreviewsUI.CachedItemSelectionArbiter<A, B, C> : Combine.ObservableObject in PreviewsUI
+        0x000C4B90  property descriptor for PreviewsUI.CachedItemSelectionArbiter.selectionDidChange : Combine.PassthroughSubject<B?, Swift.Never>
+        0x000C4B98  class metadata base offset for PreviewsUI.CachedItemSelectionArbiter
+        0x000C4D58  protocol conformance descriptor for PreviewsUI.DisplayableContent.Preview.State : Swift.CustomStringConvertible in PreviewsUI
+        0x000C4D80  protocol conformance descriptor for PreviewsUI.DisplayableContent.Preview.State.Status.Discriminant : Swift.Hashable in PreviewsUI
+        0x000C4DC0  protocol conformance descriptor for PreviewsUI.DisplayableContent.Preview.State.Status.Discriminant : Swift.Equatable in PreviewsUI
+        0x000C4DE8  protocol conformance descriptor for PreviewsUI.DisplayableContent.Preview.State.Status : Swift.CustomStringConvertible in PreviewsUI
+        0x000C4E10  property descriptor for PreviewsUI.DisplayableContent.Preview.State.crashes : Combine.AnyPublisher<PreviewsPipeline.PreviewCrash, Swift.Never>
+        0x000C4E10  property descriptor for PreviewsUI.DisplayableContent.Preview.State.currentCapabilities : PreviewsPipeline.PreviewCapabilities?
+        0x000C4E10  property descriptor for PreviewsUI.DisplayableContent.Preview.State.currentConfiguration : PreviewsPipeline.PreviewConfiguration?
+        0x000C4E10  property descriptor for PreviewsUI.DisplayableContent.Preview.State.description : Swift.String
+        0x000C4E10  property descriptor for PreviewsUI.DisplayableContent.Preview.State.error : Swift.Error?
+        0x000C4E10  property descriptor for PreviewsUI.DisplayableContent.Preview.State.expectedInterfaceOrientation : PreviewsMessagingHost.PreviewTraits.Orientation?
+        0x000C4E10  property descriptor for PreviewsUI.DisplayableContent.Preview.State.FailedReason.crashes : Combine.AnyPublisher<PreviewsPipeline.PreviewCrash, Swift.Never>
+        0x000C4E10  property descriptor for PreviewsUI.DisplayableContent.Preview.State.FailedReason.error : Swift.Error?
+        0x000C4E10  property descriptor for PreviewsUI.DisplayableContent.Preview.State.isStale : Swift.Bool
+        0x000C4E10  property descriptor for PreviewsUI.DisplayableContent.Preview.State.mostRecentCapabilities : PreviewsPipeline.PreviewCapabilities?
+        0x000C4E10  property descriptor for PreviewsUI.DisplayableContent.Preview.State.mostRecentConfiguration : PreviewsPipeline.PreviewConfiguration?
+        0x000C4E10  property descriptor for PreviewsUI.DisplayableContent.Preview.State.mostRecentViewable : PreviewsUI.DisplayableContent.Preview.State.Viewable?
+        0x000C4E10  property descriptor for PreviewsUI.DisplayableContent.Preview.State.overrides : [PreviewsMessagingHost.PreviewVariant]?
+        0x000C4E10  property descriptor for PreviewsUI.DisplayableContent.Preview.State.previewViewable : PreviewsPipeline.PreviewViewable?
+        0x000C4E10  property descriptor for PreviewsUI.DisplayableContent.Preview.State.status : PreviewsUI.DisplayableContent.Preview.State.Status
+        0x000C4E10  property descriptor for PreviewsUI.DisplayableContent.Preview.State.Status.description : Swift.String
+        0x000C4E10  property descriptor for PreviewsUI.DisplayableContent.Preview.State.Status.discriminant : PreviewsUI.DisplayableContent.Preview.State.Status.Discriminant
+        0x000C4E10  property descriptor for PreviewsUI.DisplayableContent.Preview.State.Status.Discriminant.hashValue : Swift.Int
+        0x000C4E10  property descriptor for PreviewsUI.DisplayableContent.Preview.State.validUpdate : PreviewsPipeline.ExecutionPointUpdate<PreviewsPipeline.PreviewViewable>?
+        0x000C4E10  property descriptor for PreviewsUI.DisplayableContent.Preview.State.Viewable.isStale : Swift.Bool
+        0x000C4E10  property descriptor for PreviewsUI.DisplayableContent.Preview.State.Viewable.previewViewable : PreviewsPipeline.PreviewViewable
+        0x000C4E10  property descriptor for PreviewsUI.DisplayableContent.Preview.State.Viewable.staleCopy : PreviewsUI.DisplayableContent.Preview.State.Viewable
+        0x000C4E10  property descriptor for PreviewsUI.DisplayableContent.Preview.State.Viewable.Status.previewViewable : PreviewsPipeline.PreviewViewable
+        0x000C4E10  property descriptor for static PreviewsUI.DisplayableContent.Preview.State.PendingState.empty : PreviewsUI.DisplayableContent.Preview.State.PendingState
+        0x000C4E10  property descriptor for static PreviewsUI.DisplayableContent.Preview.State.placeholder : PreviewsUI.DisplayableContent.Preview.State
+        0x000C4E14  property descriptor for PreviewsUI.DisplayableContent.Preview.State.PendingState.capabilities : PreviewsPipeline.PreviewCapabilities?
+        0x000C4E1C  property descriptor for PreviewsUI.DisplayableContent.Preview.State.PendingState.configuration : PreviewsPipeline.PreviewConfiguration?
+        0x000C4E24  property descriptor for PreviewsUI.DisplayableContent.Preview.State.UpdatingState.groupSeed : PreviewsUI.UpdateGroupSeed
+        0x000C4E28  property descriptor for PreviewsUI.DisplayableContent.Preview.State.UpdatingState.capabilities : PreviewsPipeline.PreviewCapabilities?
+        0x000C4E30  property descriptor for PreviewsUI.DisplayableContent.Preview.State.UpdatingState.configuration : PreviewsPipeline.PreviewConfiguration?
+        0x000C4E38  property descriptor for PreviewsUI.DisplayableContent.Preview.State.Viewable.status : PreviewsUI.DisplayableContent.Preview.State.Viewable.Status
+        0x000C4E40  property descriptor for PreviewsUI.DisplayableContent.Preview.State.Viewable.capabilities : PreviewsPipeline.PreviewCapabilities
+        0x000C4E48  property descriptor for PreviewsUI.DisplayableContent.Preview.State.Viewable.configuration : PreviewsPipeline.PreviewConfiguration
+        0x000C4ED8  enum case for PreviewsUI.DisplayableContent.Preview.State.Viewable.Status.valid(PreviewsUI.DisplayableContent.Preview.State.Viewable.Status.Type) -> (PreviewsPipeline.ExecutionPointUpdate<PreviewsPipeline.PreviewViewable>) -> PreviewsUI.DisplayableContent.Preview.State.Viewable.Status
+        0x000C4EDC  enum case for PreviewsUI.DisplayableContent.Preview.State.Viewable.Status.stale(PreviewsUI.DisplayableContent.Preview.State.Viewable.Status.Type) -> (PreviewsPipeline.PreviewViewable) -> PreviewsUI.DisplayableContent.Preview.State.Viewable.Status
+        0x000C4FE8  protocol conformance descriptor for PreviewsUI.DisplayableContent.Preview : PreviewsUI.PreviewIdentifiable in PreviewsUI
+        0x000C4FF8  protocol conformance descriptor for PreviewsUI.SelectedPreviewManager<A> : Observation.Observable in PreviewsUI
+        0x000C5014  property descriptor for PreviewsUI.SelectedPreviewManager.State.previousSelection : PreviewsPipeline.DiscoveredItem.ID?
+        0x000C501C  property descriptor for PreviewsUI.SelectedPreviewManager.State.currentSelection : PreviewsPipeline.DiscoveredItem.ID?
+        0x000C5024  property descriptor for PreviewsUI.DisplayableContent.Preview.defaultSelectionCandidate : Swift.Bool
+        0x000C5024  property descriptor for PreviewsUI.DisplayableContent.Preview.previewID : PreviewsPipeline.DiscoveredItem.ID?
+        0x000C5024  property descriptor for PreviewsUI.SelectedPreviewManager.$state : Swift.AsyncStream<PreviewsUI.SelectedPreviewManager<A>.State>
+        0x000C5028  class metadata base offset for PreviewsUI.SelectedPreviewManager
+        0x000C5118  protocol conformance descriptor for PreviewsUI.PlatformIconQuery : PreviewsFoundationHost.Query in PreviewsUI
+        0x000C5160  protocol conformance descriptor for PreviewsUI.PlatformIconQuery : Swift.Hashable in PreviewsUI
+        0x000C51A0  protocol conformance descriptor for PreviewsUI.PlatformIconQuery : Swift.CustomDebugStringConvertible in PreviewsUI
+        0x000C51C8  protocol conformance descriptor for PreviewsUI.PlatformIconQuery : Swift.Equatable in PreviewsUI
+        0x000C51F8  protocol conformance descriptor for PreviewsUI.IconQuery : PreviewsFoundationHost.Query in PreviewsUI
+        0x000C5240  protocol conformance descriptor for PreviewsUI.IconQuery : Swift.Hashable in PreviewsUI
+        0x000C5280  protocol conformance descriptor for PreviewsUI.IconQuery : Swift.CustomDebugStringConvertible in PreviewsUI
+        0x000C52A8  protocol conformance descriptor for PreviewsUI.IconQuery : Swift.Equatable in PreviewsUI
+        0x000C52D0  protocol conformance descriptor for PreviewsUI.GeneratedIconQuery : PreviewsFoundationHost.Query in PreviewsUI
+        0x000C5318  protocol conformance descriptor for PreviewsUI.GeneratedIconQuery : Swift.CustomDebugStringConvertible in PreviewsUI
+        0x000C5340  property descriptor for PreviewsUI.PlatformIconQuery.lookupKey : PreviewsModel.IconLookupKey
+        0x000C5348  property descriptor for PreviewsUI.PlatformIconQuery.iconSize : PreviewsModel.IconSize
+        0x000C5350  property descriptor for PreviewsUI.IconQuery.hashValue : Swift.Int
+        0x000C5350  property descriptor for PreviewsUI.PlatformIconQuery.hashValue : Swift.Int
+        0x000C5354  property descriptor for PreviewsUI.GeneratedIconQuery.iconDescription : PreviewsModel.IconDescription
+        0x000C5520  async function pointer to PreviewsUI.EditorStateSnapshot.collectDiagnostics(into: PreviewsFoundationHost.DiagnosticsCollector) async -> ()
+        0x000C5548  protocol conformance descriptor for PreviewsUI.EditorStateSnapshotProvider : Combine.ObservableObject in PreviewsUI
+        0x000C5580  property descriptor for PreviewsUI.EditorStateSnapshot.documents : [PreviewsUI.EditorStateSnapshot.ParsedDocument]
+        0x000C5584  property descriptor for PreviewsUI.EditorStateSnapshot.allActiveSelectablePaths : Swift.Set<PreviewsModel.ModelPath>
+        0x000C5588  property descriptor for PreviewsUI.EditorStateSnapshot.colorNames : [Swift.String]
+        0x000C558C  property descriptor for PreviewsUI.EditorStateSnapshot.indexColorNames : [Swift.String : [Swift.String]]
+        0x000C5590  property descriptor for PreviewsUI.EditorStateSnapshot.pinningControlsEnabled : Swift.Bool
+        0x000C5594  property descriptor for PreviewsUI.EditorStateSnapshot.previewFileIsPinned : SwiftUI.Binding<Swift.Bool>
+        0x000C5598  property descriptor for PreviewsUI.EditorStateSnapshot.showAppPreview : SwiftUI.Binding<Swift.Bool>
+        0x000C559C  property descriptor for PreviewsUI.EditorStateSnapshot.ParsedDocument.store : PreviewsModel.DataSourceBackedSourceCodeStore
+        0x000C55A0  property descriptor for PreviewsUI.EditorStateSnapshot.ParsedDocument.translationUnit : PreviewsFoundationHost.Staleable<PreviewsModel.Parsable<PreviewsPipeline.PreviewTranslationUnit>>
+        0x000C55A8  property descriptor for PreviewsUI.EditorStateSnapshot.ParsedDocument.sourceIdentifier : PreviewsModel.SourceIdentifier
+        0x000C55B0  property descriptor for PreviewsUI.EditorStateSnapshot.ParsedDocument.undoManager : __C.NSUndoManager?
+        0x000C55B8  property descriptor for PreviewsUI.EditorStateSnapshot.ParsedDocument.parseTree : PreviewsFoundationHost.Staleable<PreviewsModel.Parsable<PreviewsModel.ParseTree>>
+        0x000C55B8  property descriptor for PreviewsUI.EditorStateSnapshot.sourceIdentifiers : Swift.Set<PreviewsModel.SourceIdentifier>
+        0x000C55BC  property descriptor for PreviewsUI.EditorStateSnapshotCrash.crashReport : PreviewsFoundationHost.CrashReport?
+        0x000C55C4  property descriptor for PreviewsUI.EditorStateSnapshotCrash.symbolicationParameters : PreviewsFoundationHost.CrashLogSymbolicationParameters
+        0x000C5600  class metadata base offset for PreviewsUI.EditorStateSnapshotProvider
+        0x000C5668  class metadata base offset for PreviewsUI.EditorStateSnapshot
+        0x000C5728  enum case for PreviewsUI.EditorStateSnapshot.Action.setNeedsUpdate(PreviewsUI.EditorStateSnapshot.Action.Type) -> (PreviewsPipeline.PreviewUpdateReason) -> PreviewsUI.EditorStateSnapshot.Action
+        0x000C572C  enum case for PreviewsUI.EditorStateSnapshot.Action.pausePreviews(PreviewsUI.EditorStateSnapshot.Action.Type) -> PreviewsUI.EditorStateSnapshot.Action
+        0x000C5798  property descriptor for PreviewsUI.DeviceSizeInfo.sizeInPixels : __C.CGSize
+        0x000C579C  property descriptor for PreviewsUI.DeviceSizeInfo.scaleFactor : CoreGraphics.CGFloat
+        0x000C57A0  property descriptor for PreviewsUI.DeviceSizeInfo.sizeInPoints : __C.CGSize
+        0x000C5890  protocol conformance descriptor for PreviewsUI.CanvasMetricsModel : Combine.ObservableObject in PreviewsUI
+        0x000C58C8  protocol conformance descriptor for PreviewsUI.CanvasMetricsModel.Cycler.ActiveState.RunningMode : Swift.Equatable in PreviewsUI
+        0x000C58F0  protocol conformance descriptor for PreviewsUI.CanvasMetricsModel.Cycler.ActiveState.RunningMode : Swift.Hashable in PreviewsUI
+        0x000C5930  protocol conformance descriptor for PreviewsUI.CanvasMetricsModel.Metrics.UpdateDiff : Swift.Equatable in PreviewsUI
+        0x000C5958  protocol conformance descriptor for PreviewsUI.CanvasMetricsModel.Metrics.UpdateDiff : Swift.Hashable in PreviewsUI
+        0x000C5998  protocol conformance descriptor for PreviewsUI.CanvasMetricsModel.Metrics.UpdateDiff : Swift.CustomStringConvertible in PreviewsUI
+        0x000C59C0  property descriptor for PreviewsUI.CanvasMetricsModel.Cycler.ActiveState.RunningMode.hashValue : Swift.Int
+        0x000C59C0  property descriptor for PreviewsUI.CanvasMetricsModel.Cycler.ActiveState.totalIterations : Swift.Int
+        0x000C59C0  property descriptor for PreviewsUI.CanvasMetricsModel.Metrics.UpdateDiff.description : Swift.String
+        0x000C59C0  property descriptor for PreviewsUI.CanvasMetricsModel.Metrics.UpdateDiff.hashValue : Swift.Int
+        0x000C59C4  property descriptor for PreviewsUI.CanvasMetricsModel.Cycler.ActiveState.runningMode : PreviewsUI.CanvasMetricsModel.Cycler.ActiveState.RunningMode
+        0x000C59C8  property descriptor for PreviewsUI.CanvasMetricsModel.Cycler.ActiveState.completedIterations : Swift.Int
+        0x000C59CC  property descriptor for PreviewsUI.CanvasMetricsModel.Cycler.ActiveState.remainingIterations : Swift.Int
+        0x000C59D0  property descriptor for PreviewsUI.CanvasMetricsModel.Metrics.lastUpdateDuration : Swift.Double?
+        0x000C59D4  property descriptor for PreviewsUI.CanvasMetricsModel.Metrics.lastUpdateDiff : PreviewsUI.CanvasMetricsModel.Metrics.UpdateDiff?
+        0x000C59D8  property descriptor for PreviewsUI.CanvasMetricsModel.Metrics.totalNumberOfUpdates : Swift.Int
+        0x000C59DC  property descriptor for PreviewsUI.CanvasMetricsModel.Metrics.totalNumberOfExecutionPoints : Swift.Int
+        0x000C59E0  property descriptor for PreviewsUI.CanvasMetricsModel.Metrics.averageUpdateWorkspace : Swift.Double
+        0x000C59E4  property descriptor for PreviewsUI.CanvasMetricsModel.Metrics.averageUpdateThunk : Swift.Double
+        0x000C59E8  property descriptor for PreviewsUI.CanvasMetricsModel.Metrics.averageUpdateIncremental : Swift.Double
+        0x000C59EC  property descriptor for PreviewsUI.CanvasMetricsModel.Metrics.percentFailed : Swift.Double
+        0x000C5A18  class metadata base offset for PreviewsUI.CanvasMetricsModel
+        0x000C5A68  protocol conformance descriptor for PreviewsUI.StripedView : SwiftUI.View in PreviewsUI
+        0x000C5AB8  property descriptor for PreviewsUI.StripedView.body : some
+        0x000C5AF8  protocol conformance descriptor for PreviewsUI.SelectionItem : Swift.Hashable in PreviewsUI
+        0x000C5B38  protocol conformance descriptor for PreviewsUI.SelectionItem : Swift.Equatable in PreviewsUI
+        0x000C5B60  protocol conformance descriptor for PreviewsUI.SelectionStore.SelectActionOrigin.Responder : Swift.Equatable in PreviewsUI
+        0x000C5B88  protocol conformance descriptor for PreviewsUI.SelectionStore.SelectActionOrigin.Responder : Swift.Hashable in PreviewsUI
+        0x000C5BC8  protocol conformance descriptor for PreviewsUI.SelectionStore.SelectActionOrigin : Swift.Equatable in PreviewsUI
+        0x000C5BF0  protocol conformance descriptor for PreviewsUI.SelectionStore : Combine.ObservableObject in PreviewsUI
+        0x000C5C28  property descriptor for PreviewsUI.SelectionItem.hashValue : Swift.Int
+        0x000C5C28  property descriptor for PreviewsUI.SelectionItem.modelPath : PreviewsModel.ModelPath?
+        0x000C5C28  property descriptor for PreviewsUI.SelectionStore.SelectActionOrigin.Responder.hashValue : Swift.Int
+        0x000C5C28  property descriptor for PreviewsUI.SelectionStore.selection : Swift.Set<PreviewsUI.SelectionItem>
+        0x000C5C2C  property descriptor for PreviewsUI.SelectionStore.objectWillChange : Combine.PassthroughSubject<(), Swift.Never>
+        0x000C5C30  property descriptor for PreviewsUI.SelectionStore.didChange : Combine.PassthroughSubject<PreviewsUI.SelectionStore.SelectActionOrigin, Swift.Never>
+        0x000C5C80  class metadata base offset for PreviewsUI.SelectionStore
+        0x000C5CB0  enum case for PreviewsUI.SelectionStore.SelectActionOrigin.Responder.editor(PreviewsUI.SelectionStore.SelectActionOrigin.Responder.Type) -> PreviewsUI.SelectionStore.SelectActionOrigin.Responder
+        0x000C5CB4  enum case for PreviewsUI.SelectionStore.SelectActionOrigin.Responder.canvas(PreviewsUI.SelectionStore.SelectActionOrigin.Responder.Type) -> PreviewsUI.SelectionStore.SelectActionOrigin.Responder
+        0x000C5CB8  enum case for PreviewsUI.SelectionStore.SelectActionOrigin.canvas(PreviewsUI.SelectionStore.SelectActionOrigin.Type) -> (Swift.Bool, PreviewsUI.SelectionStore.SelectActionOrigin.Responder?, Swift.Bool) -> PreviewsUI.SelectionStore.SelectActionOrigin
+        0x000C5CBC  enum case for PreviewsUI.SelectionStore.SelectActionOrigin.contentChange(PreviewsUI.SelectionStore.SelectActionOrigin.Type) -> PreviewsUI.SelectionStore.SelectActionOrigin
+        0x000C5CC0  enum case for PreviewsUI.SelectionStore.SelectActionOrigin.sourceEditor(PreviewsUI.SelectionStore.SelectActionOrigin.Type) -> PreviewsUI.SelectionStore.SelectActionOrigin
+        0x000C5CC4  enum case for PreviewsUI.SelectionStore.SelectActionOrigin.outline(PreviewsUI.SelectionStore.SelectActionOrigin.Type) -> PreviewsUI.SelectionStore.SelectActionOrigin
+        0x000C6290  protocol conformance descriptor for PreviewsUI.KnownAmberType : Swift.RawRepresentable in PreviewsUI
+        0x000C62C8  protocol conformance descriptor for PreviewsUI.KnownAmberType : Swift.Hashable in PreviewsUI
+        0x000C6308  protocol conformance descriptor for PreviewsUI.KnownAmberType : Swift.Decodable in PreviewsUI
+        0x000C6330  protocol conformance descriptor for PreviewsUI.KnownAmberType : Swift.Encodable in PreviewsUI
+        0x000C6358  protocol conformance descriptor for PreviewsUI.KnownAmberType : Swift.Equatable in PreviewsUI
+        0x000C6380  property descriptor for PreviewsUI.KnownAmberType.rawValue : Swift.String
+        0x000C6384  property descriptor for PreviewsUI.KnownAmberType.typeName : PreviewsModel.TypeName
+        0x000C6384  property descriptor for static PreviewsUI.KnownAmberType.accessibilityChildBehavior : PreviewsUI.KnownAmberType
+        0x000C6384  property descriptor for static PreviewsUI.KnownAmberType.button : PreviewsUI.KnownAmberType
+        0x000C6384  property descriptor for static PreviewsUI.KnownAmberType.color : PreviewsUI.KnownAmberType
+        0x000C6384  property descriptor for static PreviewsUI.KnownAmberType.colorScheme : PreviewsUI.KnownAmberType
+        0x000C6384  property descriptor for static PreviewsUI.KnownAmberType.contentMode : PreviewsUI.KnownAmberType
+        0x000C6384  property descriptor for static PreviewsUI.KnownAmberType.font : PreviewsUI.KnownAmberType
+        0x000C6384  property descriptor for static PreviewsUI.KnownAmberType.fontWeight : PreviewsUI.KnownAmberType
+        0x000C6384  property descriptor for static PreviewsUI.KnownAmberType.hStack : PreviewsUI.KnownAmberType
+        0x000C6384  property descriptor for static PreviewsUI.KnownAmberType.image : PreviewsUI.KnownAmberType
+        0x000C6384  property descriptor for static PreviewsUI.KnownAmberType.inset : PreviewsUI.KnownAmberType
+        0x000C6384  property descriptor for static PreviewsUI.KnownAmberType.interfaceOrientation : PreviewsUI.KnownAmberType
+        0x000C6384  property descriptor for static PreviewsUI.KnownAmberType.previewLayout : PreviewsUI.KnownAmberType
+        0x000C6384  property descriptor for static PreviewsUI.KnownAmberType.renderingMode : PreviewsUI.KnownAmberType
+        0x000C6384  property descriptor for static PreviewsUI.KnownAmberType.resizingMode : PreviewsUI.KnownAmberType
+        0x000C6384  property descriptor for static PreviewsUI.KnownAmberType.text : PreviewsUI.KnownAmberType
+        0x000C6384  property descriptor for static PreviewsUI.KnownAmberType.vStack : PreviewsUI.KnownAmberType
+        0x000C63B8  protocol conformance descriptor for PreviewsUI.ReferenceColor : Swift.Equatable in PreviewsUI
+        0x000C63E0  protocol conformance descriptor for PreviewsUI.ReferenceColor : Swift.Hashable in PreviewsUI
+        0x000C6420  protocol conformance descriptor for PreviewsUI.ReferenceColor : Swift.RawRepresentable in PreviewsUI
+        0x000C6460  protocol conformance descriptor for PreviewsUI.ReferenceColor : Swift.CaseIterable in PreviewsUI
+        0x000C6498  property descriptor for PreviewsUI.ReferenceColor.color : SwiftUI.Color
+        0x000C6498  property descriptor for PreviewsUI.ReferenceColor.rawValue : Swift.String
+        0x000C6498  property descriptor for static PreviewsUI.ReferenceColor.allCases : [PreviewsUI.ReferenceColor]
+        0x000C6498  property descriptor for static PreviewsUI.ReferenceColor.baseType : Swift.String
+        0x000C64B8  enum case for PreviewsUI.ReferenceColor.red(PreviewsUI.ReferenceColor.Type) -> PreviewsUI.ReferenceColor
+        0x000C64BC  enum case for PreviewsUI.ReferenceColor.orange(PreviewsUI.ReferenceColor.Type) -> PreviewsUI.ReferenceColor
+        0x000C64C0  enum case for PreviewsUI.ReferenceColor.yellow(PreviewsUI.ReferenceColor.Type) -> PreviewsUI.ReferenceColor
+        0x000C64C4  enum case for PreviewsUI.ReferenceColor.green(PreviewsUI.ReferenceColor.Type) -> PreviewsUI.ReferenceColor
+        0x000C64C8  enum case for PreviewsUI.ReferenceColor.blue(PreviewsUI.ReferenceColor.Type) -> PreviewsUI.ReferenceColor
+        0x000C64CC  enum case for PreviewsUI.ReferenceColor.purple(PreviewsUI.ReferenceColor.Type) -> PreviewsUI.ReferenceColor
+        0x000C64D0  enum case for PreviewsUI.ReferenceColor.pink(PreviewsUI.ReferenceColor.Type) -> PreviewsUI.ReferenceColor
+        0x000C64D4  enum case for PreviewsUI.ReferenceColor.white(PreviewsUI.ReferenceColor.Type) -> PreviewsUI.ReferenceColor
+        0x000C64D8  enum case for PreviewsUI.ReferenceColor.gray(PreviewsUI.ReferenceColor.Type) -> PreviewsUI.ReferenceColor
+        0x000C64DC  enum case for PreviewsUI.ReferenceColor.black(PreviewsUI.ReferenceColor.Type) -> PreviewsUI.ReferenceColor
+        0x000C64E0  protocol conformance descriptor for PreviewsUI.DisplayableContent.Group.ID : Swift.Hashable in PreviewsUI
+        0x000C6520  protocol conformance descriptor for PreviewsUI.DisplayableContent.Group.ID : Swift.Equatable in PreviewsUI
+        0x000C6548  protocol conformance descriptor for PreviewsUI.DisplayableContent.Group.Origin : Swift.Hashable in PreviewsUI
+        0x000C6588  protocol conformance descriptor for PreviewsUI.DisplayableContent.Group.Origin : Swift.Equatable in PreviewsUI
+        0x000C65B0  protocol conformance descriptor for PreviewsUI.DisplayableContent.Group.Status.Outcome : Swift.CustomStringConvertible in PreviewsUI
+        0x000C65D8  protocol conformance descriptor for PreviewsUI.DisplayableContent.Group.Status : Swift.CustomStringConvertible in PreviewsUI
+        0x000C6600  protocol conformance descriptor for PreviewsUI.DisplayableContent.Group : Swift.Identifiable in PreviewsUI
+        0x000C6638  protocol conformance descriptor for PreviewsUI.DisplayableContent.Provider : Swift.Identifiable in PreviewsUI
+        0x000C6670  protocol conformance descriptor for PreviewsUI.DisplayableContent.Registry : Swift.Identifiable in PreviewsUI
+        0x000C66A8  property descriptor for PreviewsUI.DisplayableContent.Group.ClampingInfo.totalCount : Swift.Int?
+        0x000C66A8  property descriptor for PreviewsUI.DisplayableContent.Group.content : PreviewsUI.DisplayableContent.Group.Content?
+        0x000C66A8  property descriptor for PreviewsUI.DisplayableContent.Group.defaultDisplayName : Swift.String
+        0x000C66A8  property descriptor for PreviewsUI.DisplayableContent.Group.id : PreviewsUI.DisplayableContent.Group.ID
+        0x000C66A8  property descriptor for PreviewsUI.DisplayableContent.Group.ID.hashValue : Swift.Int
+        0x000C66A8  property descriptor for PreviewsUI.DisplayableContent.Group.isAppPreview : Swift.Bool
+        0x000C66A8  property descriptor for PreviewsUI.DisplayableContent.Group.isPinned : Swift.Bool
+        0x000C66A8  property descriptor for PreviewsUI.DisplayableContent.Group.lineNumber : Swift.Int?
+        0x000C66A8  property descriptor for PreviewsUI.DisplayableContent.Group.origin : PreviewsUI.DisplayableContent.Group.Origin
+        0x000C66A8  property descriptor for PreviewsUI.DisplayableContent.Group.Origin.hashValue : Swift.Int
+        0x000C66A8  property descriptor for PreviewsUI.DisplayableContent.Group.sidecarIdentifier : Foundation.UUID?
+        0x000C66A8  property descriptor for PreviewsUI.DisplayableContent.Group.sourceIdentifier : PreviewsModel.SourceIdentifier?
+        0x000C66A8  property descriptor for PreviewsUI.DisplayableContent.Group.sourceLocation : PreviewsModel.SourceLocation?
+        0x000C66A8  property descriptor for PreviewsUI.DisplayableContent.Group.status : PreviewsUI.DisplayableContent.Group.Status
+        0x000C66A8  property descriptor for PreviewsUI.DisplayableContent.Group.Status.description : Swift.String
+        0x000C66A8  property descriptor for PreviewsUI.DisplayableContent.Group.Status.isRunning : Swift.Bool
+        0x000C66A8  property descriptor for PreviewsUI.DisplayableContent.Group.Status.outcome : PreviewsUI.DisplayableContent.Group.Status.Outcome
+        0x000C66A8  property descriptor for PreviewsUI.DisplayableContent.Group.Status.Outcome.description : Swift.String
+        0x000C66A8  property descriptor for PreviewsUI.DisplayableContent.Provider.content : PreviewsUI.DisplayableContent.Group.Content?
+        0x000C66A8  property descriptor for PreviewsUI.DisplayableContent.Provider.id : PreviewsPipeline.ProviderSource.ID
+        0x000C66A8  property descriptor for PreviewsUI.DisplayableContent.Registry.content : PreviewsUI.DisplayableContent.Group.Content?
+        0x000C66A8  property descriptor for PreviewsUI.DisplayableContent.Registry.defaultDisplayName : Swift.String
+        0x000C66A8  property descriptor for PreviewsUI.DisplayableContent.Registry.id : PreviewsMessagingHost.RegistryID
+        0x000C66AC  property descriptor for PreviewsUI.DisplayableContent.Group.Content.previews : PreviewsFoundationHost.Inhabited<[PreviewsUI.DisplayableContent.Preview]>
+        0x000C66B4  property descriptor for PreviewsUI.DisplayableContent.Group.Content.clampingInfo : PreviewsUI.DisplayableContent.Group.ClampingInfo
+        0x000C66BC  property descriptor for PreviewsUI.DisplayableContent.Provider.source : PreviewsPipeline.ProviderSource
+        0x000C66C4  property descriptor for PreviewsUI.DisplayableContent.Provider.isPinned : Swift.Bool
+        0x000C66CC  property descriptor for PreviewsUI.DisplayableContent.Provider.status : PreviewsUI.DisplayableContent.Group.Status
+        0x000C66D4  property descriptor for PreviewsUI.DisplayableContent.Provider.previews : [PreviewsUI.DisplayableContent.Preview]
+        0x000C66DC  property descriptor for PreviewsUI.DisplayableContent.Provider.clampingInfo : PreviewsUI.DisplayableContent.Group.ClampingInfo
+        0x000C66E4  property descriptor for PreviewsUI.DisplayableContent.Registry.definition : PreviewsModel.RegistryDefinition
+        0x000C66EC  property descriptor for PreviewsUI.DisplayableContent.Registry.isPinned : Swift.Bool
+        0x000C66F4  property descriptor for PreviewsUI.DisplayableContent.Registry.status : PreviewsUI.DisplayableContent.Group.Status
+        0x000C66FC  property descriptor for PreviewsUI.DisplayableContent.Registry.preview : PreviewsUI.DisplayableContent.Preview?
+        0x000C75F4  nominal type descriptor for PreviewsUI.PreviewDiagnostic
+        0x000C761C  nominal type descriptor for PreviewsUI.LibraryProvider
+        0x000C7638  nominal type descriptor for PreviewsUI.LibraryProvider.Section
+        0x000C7654  nominal type descriptor for PreviewsUI.LibraryProvider.Section.Asset
+        0x000C7670  nominal type descriptor for PreviewsUI.LibraryProvider.NamespacedCategory
+        0x000C7698  nominal type descriptor for PreviewsUI.ImageView
+        0x000C76D0  protocol descriptor for PreviewsUI.EditorTheme
+        0x000C76E0  protocol requirements base descriptor for PreviewsUI.EditorTheme
+        0x000C76E8  method descriptor for PreviewsUI.EditorTheme.solariumEnabled.getter : Swift.Bool
+        0x000C76F0  method descriptor for PreviewsUI.EditorTheme.vibrantDividerColor.getter : SwiftUI.Color
+        0x000C76F8  method descriptor for PreviewsUI.EditorTheme.statusErrorImage(size: Swift.UInt) -> SwiftUI.Image
+        0x000C7700  method descriptor for PreviewsUI.EditorTheme.statusWarningImage(size: Swift.UInt) -> SwiftUI.Image
+        0x000C7740  nominal type descriptor for PreviewsUI.IdentifiedValue
+        0x000C7770  nominal type descriptor for PreviewsUI.SelectPreviewInEditorAction
+        0x000C77F0  opaque type descriptor for <<opaque return type of (extension in PreviewsUI):SwiftUI.View.selectPreviewInEditor((PreviewsPipeline.DiscoveredItem.ID) -> ()) -> some>>
+        0x000C7870  nominal type descriptor for PreviewsUI.PreviewNameDisambiguationStrategy
+        0x000C7914  nominal type descriptor for PreviewsUI.CachedSelectionContainer
+        0x000C795C  nominal type descriptor for PreviewsUI.CachedSelectionArbiterContainer
+        0x000C79A4  opaque type descriptor for <<opaque return type of PreviewsUI.CachedSelectionContainer.body : some>>
+        0x000C79E4  opaque type descriptor for <<opaque return type of PreviewsUI.CachedSelectionArbiterContainer.body : some>>
+        0x000C7A6C  nominal type descriptor for PreviewsUI.CanvasMetricsView
+        0x000C7A94  opaque type descriptor for <<opaque return type of PreviewsUI.CanvasMetricsView.body : some>>
+        0x000C7ABC  nominal type descriptor for PreviewsUI.EditorHost
+        0x000C7AD8  nominal type descriptor for PreviewsUI.EditorHost.Destination
+        0x000C7B18  nominal type descriptor for PreviewsUI.MetadataBundlesQueryResolver
+        0x000C7B4C  method descriptor for PreviewsUI.MetadataBundlesQueryResolver.__allocating_init(directories: [(Foundation.URL, PreviewsModel.MetadataPriority)]) -> PreviewsUI.MetadataBundlesQueryResolver
+        0x000C7B54  nominal type descriptor for PreviewsUI.UnselectablePreviewTypesQuery
+        0x000C7B70  nominal type descriptor for PreviewsUI.CenteringScrollView
+        0x000C7BAC  opaque type descriptor for <<opaque return type of PreviewsUI.CenteringScrollView.body : some>>
+        0x000C7BE0  nominal type descriptor for PreviewsUI.DisplayableContent.Preview
+        0x000C7C08  nominal type descriptor for PreviewsUI.DisplayableContent.Preview.CanvasContent
+        0x000C7C30  nominal type descriptor for PreviewsUI.DisplayableContent.Preview.CanvasRegistry
+        0x000C7C58  nominal type descriptor for PreviewsUI.DisplayableContent.Preview.CanvasRegistry.Status
+        0x000C7C80  nominal type descriptor for PreviewsUI.DisplayableContent.Preview.CanvasPreview
+        0x000C7CA8  nominal type descriptor for PreviewsUI.DisplayableContent.Preview.CanvasPreview.CanvasPage
+        0x000C7CD0  nominal type descriptor for PreviewsUI.DisplayableContent.Preview.CanvasPreview.SinglePreview
+        0x000C7CF8  nominal type descriptor for PreviewsUI.DisplayableContent.Preview.CanvasPreview.VariantMatrix
+        0x000C7D14  nominal type descriptor for PreviewsUI.DisplayableContent.Preview.CanvasPreview.VariantGroup
+        0x000C7D3C  nominal type descriptor for PreviewsUI.DisplayableContent.Preview.CanvasPreview.VariantSection
+        0x000C7D58  nominal type descriptor for PreviewsUI.DisplayableContent.Preview.CanvasPreview.Variant
+        0x000C7D80  nominal type descriptor for PreviewsUI.DelayDataView
+        0x000C7DC8  nominal type descriptor for PreviewsUI.DelayedValue
+        0x000C7E1C  method descriptor for PreviewsUI.DelayedValue.__allocating_init(_: A, scheduler: B) -> PreviewsUI.DelayedValue<A, B>
+        0x000C7E74  opaque type descriptor for <<opaque return type of PreviewsUI.DelayDataView.body : some>>
+        0x000C7FB4  nominal type descriptor for PreviewsUI.KitLevelBuiltInIntegrationManager
+        0x000C7FD0  protocol descriptor for PreviewsUI.InspectorContentProvider
+        0x000C7FE0  protocol requirements base descriptor for PreviewsUI.InspectorContentProvider
+        0x000C7FE8  method descriptor for static PreviewsUI.InspectorContentProvider.makeInspector(selectedPath: PreviewsModel.ModelPath, editorSnapshotProvider: PreviewsUI.EditorStateSnapshotProvider, queryManager: PreviewsFoundationHost.QueryManager) -> () -> SwiftUI.AnyView
+        0x000C800C  nominal type descriptor for PreviewsUI.CanvasMetricsModelProvider
+        0x000C804C  method descriptor for PreviewsUI.CanvasMetricsModelProvider.__allocating_init() -> PreviewsUI.CanvasMetricsModelProvider
+        0x000C8054  nominal type descriptor for PreviewsUI.DisplayableContent
+        0x000C807C  nominal type descriptor for PreviewsUI.UpdateGroupSeed
+        0x000C8098  opaque type descriptor for <<opaque return type of PreviewsUI.DisplayableContent.groupStatuses : some>>
+        0x000C810C  nominal type descriptor for PreviewsUI.AutoResettingValue
+        0x000C8160  method descriptor for PreviewsUI.AutoResettingValue.__allocating_init(base: A, interval: Swift.Double) -> PreviewsUI.AutoResettingValue<A>
+        0x000C8168  nominal type descriptor for PreviewsUI.CachedItemSelectionArbiter
+        0x000C81D4  method descriptor for PreviewsUI.CachedItemSelectionArbiter.__allocating_init(forceSetDelay: Swift.Double, scheduler: C) -> PreviewsUI.CachedItemSelectionArbiter<A, B, C>
+        0x000C82A8  nominal type descriptor for PreviewsUI.DisplayableContent.Preview.State
+        0x000C82D0  nominal type descriptor for PreviewsUI.DisplayableContent.Preview.State.PendingState
+        0x000C82F8  nominal type descriptor for PreviewsUI.DisplayableContent.Preview.State.UpdatingState
+        0x000C8320  nominal type descriptor for PreviewsUI.DisplayableContent.Preview.State.Viewable
+        0x000C8348  nominal type descriptor for PreviewsUI.DisplayableContent.Preview.State.Viewable.Status
+        0x000C8370  nominal type descriptor for PreviewsUI.DisplayableContent.Preview.State.FailedReason
+        0x000C838C  nominal type descriptor for PreviewsUI.DisplayableContent.Preview.State.Status
+        0x000C83A8  nominal type descriptor for PreviewsUI.DisplayableContent.Preview.State.Status.Discriminant
+        0x000C83C4  nominal type descriptor for PreviewsUI.ImageCache
+        0x000C8434  nominal type descriptor for PreviewsUI.SelectedPreviewManager
+        0x000C8488  method descriptor for PreviewsUI.SelectedPreviewManager.__allocating_init() -> PreviewsUI.SelectedPreviewManager<A>
+        0x000C8490  nominal type descriptor for PreviewsUI.SelectedPreviewManager.State
+        0x000C84CC  protocol descriptor for PreviewsUI.PreviewIdentifiable
+        0x000C84DC  protocol requirements base descriptor for PreviewsUI.PreviewIdentifiable
+        0x000C84E4  method descriptor for PreviewsUI.PreviewIdentifiable.previewID.getter : PreviewsPipeline.DiscoveredItem.ID?
+        0x000C84EC  method descriptor for PreviewsUI.PreviewIdentifiable.defaultSelectionCandidate.getter : Swift.Bool
+        0x000C84F4  method descriptor for PreviewsUI.PreviewIdentifiable.isPreviewIdentifiableEqual(to: PreviewsUI.PreviewIdentifiable) -> Swift.Bool
+        0x000C84FC  nominal type descriptor for PreviewsUI.PlatformIconQuery
+        0x000C8524  nominal type descriptor for PreviewsUI.IconQuery
+        0x000C854C  nominal type descriptor for PreviewsUI.GeneratedIconQuery
+        0x000C8574  nominal type descriptor for PreviewsUI.EditorStateSnapshotProvider
+        0x000C85B4  method descriptor for PreviewsUI.EditorStateSnapshotProvider.__allocating_init(PreviewsUI.EditorStateSnapshot) -> PreviewsUI.EditorStateSnapshotProvider
+        0x000C85BC  nominal type descriptor for PreviewsUI.EditorStateSnapshot
+        0x000C85FC  method descriptor for PreviewsUI.EditorStateSnapshot.__allocating_init(documents: [PreviewsUI.EditorStateSnapshot.ParsedDocument], colorNames: [Swift.String], indexColorNames: [Swift.String : [Swift.String]], pinningControlsEnabled: Swift.Bool, previewFileIsPinned: SwiftUI.Binding<Swift.Bool>, showAppPreview: SwiftUI.Binding<Swift.Bool>, previewUpdateState: PreviewsUI.DisplayableContent, pendingUpdateReasons: [PreviewsPipeline.PreviewUpdateReason], activeCrash: PreviewsUI.EditorStateSnapshotCrash?, performAction: (PreviewsUI.EditorStateSnapshot.Action) -> (), additionalDiagnostics: (PreviewsFoundationHost.DiagnosticsCollector) async -> (), analyticsLogger: PreviewsFoundationHost.AnalyticsLogger?, buildEnvironmentError: PreviewsFoundationHost.HumanReadableError?, throttlerStateDescription: Swift.String?, updateTimingRecordIDs: [PreviewsFoundationHost.TimingRecord.ID]) -> PreviewsUI.EditorStateSnapshot
+        0x000C8604  nominal type descriptor for PreviewsUI.EditorStateSnapshot.ParsedDocument
+        0x000C862C  nominal type descriptor for PreviewsUI.EditorStateSnapshot.Action
+        0x000C8654  nominal type descriptor for PreviewsUI.EditorStateSnapshotCrash
+        0x000C867C  nominal type descriptor for PreviewsUI.DeviceSizeInfo
+        0x000C8698  nominal type descriptor for PreviewsUI.CanvasMetricsModel
+        0x000C86D8  method descriptor for PreviewsUI.CanvasMetricsModel.__allocating_init(metrics: PreviewsUI.CanvasMetricsModel.Metrics?, cycler: PreviewsUI.CanvasMetricsModel.Cycler?) -> PreviewsUI.CanvasMetricsModel
+        0x000C86E0  nominal type descriptor for PreviewsUI.CanvasMetricsModel.Cycler
+        0x000C86FC  nominal type descriptor for PreviewsUI.CanvasMetricsModel.Cycler.ActiveState
+        0x000C8718  nominal type descriptor for PreviewsUI.CanvasMetricsModel.Cycler.ActiveState.RunningMode
+        0x000C8734  nominal type descriptor for PreviewsUI.CanvasMetricsModel.Metrics
+        0x000C8750  nominal type descriptor for PreviewsUI.CanvasMetricsModel.Metrics.UpdateDiff
+        0x000C876C  nominal type descriptor for PreviewsUI.StripedView
+        0x000C8788  opaque type descriptor for <<opaque return type of PreviewsUI.StripedView.body : some>>
+        0x000C87B0  nominal type descriptor for PreviewsUI.SelectionItem
+        0x000C87D8  nominal type descriptor for PreviewsUI.SelectionStore
+        0x000C880C  method descriptor for PreviewsUI.SelectionStore.__allocating_init(initialSelection: Swift.Set<PreviewsUI.SelectionItem>) -> PreviewsUI.SelectionStore
+        0x000C8814  nominal type descriptor for PreviewsUI.SelectionStore.SelectActionOrigin
+        0x000C8830  nominal type descriptor for PreviewsUI.SelectionStore.SelectActionOrigin.Responder
+        0x000C8A6C  nominal type descriptor for PreviewsUI.KnownAmberType
+        0x000C8A88  nominal type descriptor for PreviewsUI.ReferenceColor
+        0x000C8AA4  nominal type descriptor for PreviewsUI.DisplayableContent.Group
+        0x000C8ACC  nominal type descriptor for PreviewsUI.DisplayableContent.Group.ID
+        0x000C8AF4  nominal type descriptor for PreviewsUI.DisplayableContent.Group.Origin
+        0x000C8B1C  nominal type descriptor for PreviewsUI.DisplayableContent.Group.Content
+        0x000C8B44  nominal type descriptor for PreviewsUI.DisplayableContent.Group.ClampingInfo
+        0x000C8B60  nominal type descriptor for PreviewsUI.DisplayableContent.Group.Status
+        0x000C8B88  nominal type descriptor for PreviewsUI.DisplayableContent.Group.Status.Outcome
+        0x000C8BB0  nominal type descriptor for PreviewsUI.DisplayableContent.Provider
+        0x000C8BD8  nominal type descriptor for PreviewsUI.DisplayableContent.Registry
+        0x000D6068  type metadata for PreviewsUI.LibraryProvider
+        0x000D60E0  type metadata for PreviewsUI.LibraryProvider.Section
+        0x000D6160  type metadata for PreviewsUI.LibraryProvider.Section.Asset
+        0x000D6258  type metadata for PreviewsUI.ImageView
+        0x000D6328  property descriptor for (extension in PreviewsUI):SwiftUI.EnvironmentValues.internalInstall : Swift.Bool
+        0x000D6378  property descriptor for (extension in PreviewsUI):SwiftUI.EnvironmentValues.editorTheme : PreviewsUI.EditorTheme
+        0x000D6610  type metadata for PreviewsUI.PreviewNameDisambiguationStrategy
+        0x000D6988  property descriptor for (extension in PreviewsUI):SwiftUI.EnvironmentValues.editorHost : PreviewsUI.EditorHost
+        0x000D6A00  type metadata for PreviewsUI.EditorHost
+        0x000D6A98  type metadata for PreviewsUI.EditorHost.Destination
+        0x000D6CC0  type metadata for PreviewsUI.UnselectablePreviewTypesQuery
+        0x000D6E30  type metadata for PreviewsUI.DisplayableContent.Preview.CanvasPreview.VariantMatrix
+        0x000D6EB0  type metadata for PreviewsUI.DisplayableContent.Preview.CanvasPreview.VariantSection
+        0x000D6F68  property descriptor for PreviewsUI.DelayedValue.current : A
+        0x000D6F84  property descriptor for PreviewsUI.DelayedValue.$current : Combine.Published<A>.Publisher
+        0x000D7310  type metadata for PreviewsUI.KitLevelBuiltInIntegrationManager
+        0x000D7338  property descriptor for (extension in PreviewsUI):SwiftUI.EnvironmentValues.inspectorContentProvider : PreviewsUI.InspectorContentProvider.Type?
+        0x000D7388  property descriptor for PreviewsUI.CanvasMetricsModelProvider.model : PreviewsUI.CanvasMetricsModel?
+        0x000D7398  property descriptor for PreviewsUI.CanvasMetricsModelProvider.$model : Combine.Published<PreviewsUI.CanvasMetricsModel?>.Publisher
+        0x000D7448  type metadata for PreviewsUI.UpdateGroupSeed
+        0x000D7608  property descriptor for PreviewsUI.AutoResettingValue.current : A
+        0x000D7624  property descriptor for PreviewsUI.AutoResettingValue.$current : Combine.Published<A>.Publisher
+        0x000D77C0  property descriptor for PreviewsUI.CachedItemSelectionArbiter.selection : B?
+        0x000D7BD0  type metadata for PreviewsUI.DisplayableContent.Preview.State.FailedReason
+        0x000D7C60  type metadata for PreviewsUI.DisplayableContent.Preview.State.Status
+        0x000D7CF0  type metadata for PreviewsUI.DisplayableContent.Preview.State.Status.Discriminant
+        0x000D7D60  type metadata for PreviewsUI.ImageCache
+        0x000D7DD0  protocol witness table for PreviewsUI.DisplayableContent.Preview : PreviewsUI.PreviewIdentifiable in PreviewsUI
+        0x000D7DF0  property descriptor for PreviewsUI.SelectedPreviewManager.state : PreviewsUI.SelectedPreviewManager<A>.State
+        0x000D7E0C  property descriptor for PreviewsUI.SelectedPreviewManager.selection : A?
+        0x000D7FE0  property descriptor for PreviewsUI.EditorStateSnapshotProvider.editorStateSnapshot : PreviewsUI.EditorStateSnapshot
+        0x000D7FF0  property descriptor for PreviewsUI.EditorStateSnapshotProvider.$editorStateSnapshot : Combine.Published<PreviewsUI.EditorStateSnapshot>.Publisher
+        0x000D8000  property descriptor for PreviewsUI.EditorStateSnapshot.previewUpdateState : PreviewsUI.DisplayableContent
+        0x000D8008  property descriptor for PreviewsUI.EditorStateSnapshot.pendingUpdateReasons : [PreviewsPipeline.PreviewUpdateReason]
+        0x000D8010  property descriptor for PreviewsUI.EditorStateSnapshot.activeCrash : PreviewsUI.EditorStateSnapshotCrash?
+        0x000D8018  property descriptor for PreviewsUI.EditorStateSnapshot.analyticsLogger : PreviewsFoundationHost.AnalyticsLogger?
+        0x000D8020  property descriptor for PreviewsUI.EditorStateSnapshot.buildEnvironmentError : PreviewsFoundationHost.HumanReadableError?
+        0x000D8028  property descriptor for PreviewsUI.EditorStateSnapshot.throttlerStateDescription : Swift.String?
+        0x000D8030  property descriptor for PreviewsUI.EditorStateSnapshot.previewDiagnostic : PreviewsUI.PreviewDiagnostic
+        0x000D8038  property descriptor for PreviewsUI.EditorStateSnapshot.updateTimingRecordIDs : [PreviewsFoundationHost.TimingRecord.ID]
+        0x000D80D8  type metadata for PreviewsUI.DeviceSizeInfo
+        0x000D80F0  property descriptor for PreviewsUI.CanvasMetricsModel.metrics : PreviewsUI.CanvasMetricsModel.Metrics?
+        0x000D8100  property descriptor for PreviewsUI.CanvasMetricsModel.$metrics : Combine.Published<PreviewsUI.CanvasMetricsModel.Metrics?>.Publisher
+        0x000D8110  property descriptor for PreviewsUI.CanvasMetricsModel.cycler : PreviewsUI.CanvasMetricsModel.Cycler?
+        0x000D8120  property descriptor for PreviewsUI.CanvasMetricsModel.$cycler : Combine.Published<PreviewsUI.CanvasMetricsModel.Cycler?>.Publisher
+        0x000D8130  property descriptor for PreviewsUI.CanvasMetricsModel.Cycler.ActiveState.start : () -> ()
+        0x000D8140  property descriptor for PreviewsUI.CanvasMetricsModel.Cycler.ActiveState.pause : () -> ()
+        0x000D8150  property descriptor for PreviewsUI.CanvasMetricsModel.Cycler.ActiveState.reset : () -> ()
+        0x000D8160  property descriptor for PreviewsUI.CanvasMetricsModel.Cycler.ActiveState.collectStats : () -> Swift.String
+        0x000D81F0  type metadata for PreviewsUI.CanvasMetricsModel.Cycler
+        0x000D8270  type metadata for PreviewsUI.CanvasMetricsModel.Cycler.ActiveState
+        0x000D8320  type metadata for PreviewsUI.CanvasMetricsModel.Cycler.ActiveState.RunningMode
+        0x000D8398  type metadata for PreviewsUI.CanvasMetricsModel.Metrics
+        0x000D8448  type metadata for PreviewsUI.CanvasMetricsModel.Metrics.UpdateDiff
+        0x000D8668  type metadata for PreviewsUI.StripedView
+        0x000D8760  property descriptor for PreviewsUI.SelectionStore.selectionItemForPath : ((PreviewsModel.ModelPath) -> PreviewsUI.SelectionItem)?
+        0x000D87F0  type metadata for PreviewsUI.SelectionStore.SelectActionOrigin
+        0x000D8880  type metadata for PreviewsUI.SelectionStore.SelectActionOrigin.Responder
+        0x000D8F58  type metadata for PreviewsUI.KnownAmberType
+        0x000D9068  type metadata for PreviewsUI.ReferenceColor
+        0x000D9170  type metadata for PreviewsUI.DisplayableContent.Group.ClampingInfo
+        0x000DCF60  type metadata for PreviewsUI.PreviewDiagnostic
+        0x000DD130  type metadata for PreviewsUI.LibraryProvider.NamespacedCategory
+        0x000DD288  metaclass for PreviewsUI.SelectPreviewInEditorAction
+        0x000DD2C8  type metadata for PreviewsUI.SelectPreviewInEditorAction
+        0x000DD850  type metadata for PreviewsUI.CanvasMetricsView
+        0x000DD938  metaclass for PreviewsUI.MetadataBundlesQueryResolver
+        0x000DD978  type metadata for PreviewsUI.MetadataBundlesQueryResolver
+        0x000DDBA0  type metadata for PreviewsUI.DisplayableContent.Preview
+        0x000DDC50  type metadata for PreviewsUI.DisplayableContent.Preview.CanvasContent
+        0x000DDCE0  type metadata for PreviewsUI.DisplayableContent.Preview.CanvasRegistry
+        0x000DDD88  type metadata for PreviewsUI.DisplayableContent.Preview.CanvasRegistry.Status
+        0x000DDE18  type metadata for PreviewsUI.DisplayableContent.Preview.CanvasPreview
+        0x000DDED8  type metadata for PreviewsUI.DisplayableContent.Preview.CanvasPreview.CanvasPage
+        0x000DDF68  type metadata for PreviewsUI.DisplayableContent.Preview.CanvasPreview.SinglePreview
+        0x000DDFF8  type metadata for PreviewsUI.DisplayableContent.Preview.CanvasPreview.VariantGroup
+        0x000DE088  type metadata for PreviewsUI.DisplayableContent.Preview.CanvasPreview.Variant
+        0x000DE3B0  metaclass for PreviewsUI.CanvasMetricsModelProvider
+        0x000DE408  type metadata for PreviewsUI.CanvasMetricsModelProvider
+        0x000DE548  type metadata for PreviewsUI.DisplayableContent
+        0x000DE870  type metadata for PreviewsUI.DisplayableContent.Preview.State
+        0x000DE910  type metadata for PreviewsUI.DisplayableContent.Preview.State.PendingState
+        0x000DE9A0  type metadata for PreviewsUI.DisplayableContent.Preview.State.UpdatingState
+        0x000DEA38  type metadata for PreviewsUI.DisplayableContent.Preview.State.Viewable
+        0x000DEAF8  type metadata for PreviewsUI.DisplayableContent.Preview.State.Viewable.Status
+        0x000DEE08  type metadata for PreviewsUI.PlatformIconQuery
+        0x000DEE98  type metadata for PreviewsUI.IconQuery
+        0x000DEF28  type metadata for PreviewsUI.GeneratedIconQuery
+        0x000DEFE8  metaclass for PreviewsUI.EditorStateSnapshotProvider
+        0x000DF040  type metadata for PreviewsUI.EditorStateSnapshotProvider
+        0x000DF0A0  metaclass for PreviewsUI.EditorStateSnapshot
+        0x000DF0F8  type metadata for PreviewsUI.EditorStateSnapshot
+        0x000DF268  type metadata for PreviewsUI.EditorStateSnapshot.ParsedDocument
+        0x000DF318  type metadata for PreviewsUI.EditorStateSnapshot.Action
+        0x000DF3A8  type metadata for PreviewsUI.EditorStateSnapshotCrash
+        0x000DF450  metaclass for PreviewsUI.CanvasMetricsModel
+        0x000DF4B0  type metadata for PreviewsUI.CanvasMetricsModel
+        0x000DF5E8  type metadata for PreviewsUI.SelectionItem
+        0x000DF600  metaclass for PreviewsUI.SelectionStore
+        0x000DF640  type metadata for PreviewsUI.SelectionStore
+        0x000DFB28  type metadata for PreviewsUI.DisplayableContent.Group
+        0x000DFBD0  type metadata for PreviewsUI.DisplayableContent.Group.ID
+        0x000DFC78  type metadata for PreviewsUI.DisplayableContent.Group.Origin
+        0x000DFD18  type metadata for PreviewsUI.DisplayableContent.Group.Content
+        0x000DFDC0  type metadata for PreviewsUI.DisplayableContent.Group.Status
+        0x000DFE68  type metadata for PreviewsUI.DisplayableContent.Group.Status.Outcome
+        0x000DFEF8  type metadata for PreviewsUI.DisplayableContent.Provider
+        0x000DFF98  type metadata for PreviewsUI.DisplayableContent.Registry
+        offset      symbol
+    -exports:
+/Applications/Xcode-26.2.0.app/Contents/SharedFrameworks/PreviewsUI.framework/Versions/A/PreviewsUI [arm64]:

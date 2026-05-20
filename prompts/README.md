@@ -12,7 +12,9 @@ archived — not deleted, since the design rationale is useful as historical rec
 | [modularization.md](modularization.md) | Module layout, target/session split, `PreviewsBuild` extraction | Draft |
 | [filewatcher.md](filewatcher.md) | Replace polling with FSEvents | Implemented (PR #179, pending archive) |
 | [thunk-architecture.md](thunk-architecture.md) | Three-dylib hot-reload via `@_dynamicReplacement` — small-module holdover while JIT research runs | Draft (one open subsection — iOS host wire protocol) |
-| [jit-executor-research.md](jit-executor-research.md) | JIT executor on public layers — path to the full product target (any-scale Xcode Previews replacement, agentic workflows) | Draft (scope) |
+| [jit-executor-research.md](jit-executor-research.md) | JIT executor on public layers — path to the full product target (any-scale Xcode Previews replacement, agentic workflows) | Spike complete — see [jit-executor-findings.md](jit-executor-findings.md) (Verdict #1: buildable; supersedes thunk) |
+| [jit-executor-findings.md](jit-executor-findings.md) | Verdict + evidence trail from the JIT-executor research spike (W1 / W2 / W3). | Spike complete (W1/W2/W3 mechanism-level closure) |
+| [jit-executor-design.md](jit-executor-design.md) | Detailed design for the custom JIT executor: host/agent split per LLVM `SimpleRemoteEPC`, patch-point set, JITLink plugin architecture, four-phase implementation. | Draft (design; authorizes Phase 1 prototype) |
 | [path-resolution.md](path-resolution.md) | Daemon-side path canonicalization (tilde, symlinks, normalization) | Implemented (pending PR + archive) |
 | [dynamic-replacement-spike.md](dynamic-replacement-spike.md) | Per-shape viability of `@_dynamicReplacement` — preserved on branch [`spike/dynamic-replacement`](https://github.com/obj-p/PreviewsMCP/tree/spike/dynamic-replacement) and closed [PR #178](https://github.com/obj-p/PreviewsMCP/pull/178); not merged forward — see doc for the strategic reason | Complete, preserved as research (8/8 rows verified) |
 
@@ -39,9 +41,9 @@ filewatcher             ✅ implemented (PR #179)
 
 modularization          foundational — reusable for either track
 
-jit-executor-research ──▶ JIT executor implementation
-                          (path to full product target;
-                           multi-quarter follow-on if "buildable" verdict)
+jit-executor-research ──▶ jit-executor-findings ──▶ jit-executor-design ──▶ JIT executor implementation
+                          ✅ spike complete    ✅ design draft     (multi-quarter
+                          (Verdict #1: buildable)                   follow-on, Phase 1-4)
 
 thunk-architecture      gated on JIT verdict + 4 unverified risks
                             (codesign cost, implicit-dynamic perf,

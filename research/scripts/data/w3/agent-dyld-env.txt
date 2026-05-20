@@ -1,0 +1,47 @@
+# XCPreviewAgent DYLD_* environment — captured 2026-05-19
+#
+# Captured via `ps -E -ww -p $AGENT_PID | tr ' ' '\n' | grep '^DYLD_'`
+# in the `drive-xcode-preview` preset's "verify interposer loaded in
+# agent" step. Run #4 (clean run on commit 2938154 with the
+# interposer-injection preset).
+#
+# Context: this is what previewsd hands the agent at posix_spawn time.
+# It is hardcoded by previewsd — our launchctl-setenv'd
+# DYLD_INSERT_LIBRARIES (which contained /tmp/w3-interposer.dylib) is
+# NOT propagated, and our launchctl-setenv'd
+# DYLD_FORCE_FLAT_NAMESPACE=1 is NOT propagated. Either previewsd
+# strips inherited DYLD_* before spawn and reconstructs from
+# scratch, or LaunchServices stripped them earlier on the way to
+# previewsd. Either way: this is the universe previewsd presents to
+# the agent.
+
+DYLD_LIBRARY_PATH=/Users/admin/Library/Developer/Xcode/DerivedData/HelloPreview-dgwwqmgmtfsjlpajkhrlvbqtfygz/Build/Products/Debug
+
+DYLD_INSERT_LIBRARIES=/Applications/Xcode.app/Contents/Developer/usr/lib/libLogRedirect.dylib:/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/macosx/libLiveExecutionResultsLogger.dylib:/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/macosx/libPlaygrounds.dylib:/System/Library/PrivateFrameworks/LiveExecutionResultsProbe.framework/LiveExecutionResultsProbe:/System/Library/PrivateFrameworks/PreviewsInjection.framework/PreviewsInjection
+
+DYLD_FRAMEWORK_PATH=/Users/admin/Library/Developer/Xcode/DerivedData/HelloPreview-dgwwqmgmtfsjlpajkhrlvbqtfygz/Build/Products/Debug
+
+# DYLD_INSERT_LIBRARIES split for readability — five paths:
+#   1. Xcode.app/Contents/Developer/usr/lib/libLogRedirect.dylib
+#      → Xcode's stdout/stderr redirector for sub-process logging.
+#   2. .../XcodeDefault.xctoolchain/usr/lib/swift/macosx/libLiveExecutionResultsLogger.dylib
+#      → "Live Results" rendering of let-bound values during preview /
+#        playground execution.
+#   3. .../XcodeDefault.xctoolchain/usr/lib/swift/macosx/libPlaygrounds.dylib
+#      → Playground / preview common runtime hooks.
+#   4. /System/Library/PrivateFrameworks/LiveExecutionResultsProbe.framework/LiveExecutionResultsProbe
+#      → Probe-point insertion for the live-results logger.
+#   5. /System/Library/PrivateFrameworks/PreviewsInjection.framework/PreviewsInjection
+#      → The host↔agent JIT-link entrypoint (the LLVM-ORC ↔
+#        SimpleRemoteEPC bridge documented in w3-patch-point-set.md).
+#
+# Run-to-run observation: across two clean runs of the preset, the
+# ORDER of the five entries differed (run #3 vs run #4 = clean run).
+# Suggests previewsd builds the list with set-like semantics rather
+# than fixed-order append. The set membership is constant.
+#
+# Notably absent (compared to our launchctl-setenv'd env):
+#   - /tmp/w3-interposer.dylib
+#   - DYLD_FORCE_FLAT_NAMESPACE=1
+# These were set via `launchctl setenv` BEFORE Xcode was opened, but
+# neither reached the agent.

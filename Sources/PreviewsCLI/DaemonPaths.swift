@@ -1,4 +1,5 @@
 import Foundation
+import PreviewsCore
 
 /// Filesystem paths for the daemon.
 ///
@@ -15,7 +16,7 @@ enum DaemonPaths {
     /// overridden by the `PREVIEWSMCP_SOCKET_DIR` environment variable.
     static var directory: URL {
         if let override = ProcessInfo.processInfo.environment["PREVIEWSMCP_SOCKET_DIR"] {
-            return URL(fileURLWithPath: override, isDirectory: true)
+            return URL(fileURLWithPath: Path.normalize(override), isDirectory: true)
         }
         return FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".previewsmcp", isDirectory: true)

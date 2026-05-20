@@ -27,6 +27,10 @@
           ],
           "type" : "string"
         },
+        "config" : {
+          "description" : "Path to a .previewsmcp.json config file. When omitted, the daemon auto-discovers by walking up from the source file's directory.",
+          "type" : "string"
+        },
         "deviceUDID" : {
           "description" : "Simulator device UDID (for ios; auto-selects if omitted)",
           "type" : "string"

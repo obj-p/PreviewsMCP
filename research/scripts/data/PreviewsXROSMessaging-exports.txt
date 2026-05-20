@@ -1,0 +1,235 @@
+        0x00001440  PreviewsXROSMessaging.PreviewNetworkSessionError.errorDescription.getter : Swift.String?
+        0x00001440  PreviewsXROSMessaging.PreviewNetworkSessionError.localizedDescription.getter : Swift.String
+        0x000015F8  static PreviewsXROSMessaging.PreviewNetworkSessionError.== infix(PreviewsXROSMessaging.PreviewNetworkSessionError, PreviewsXROSMessaging.PreviewNetworkSessionError) -> Swift.Bool
+        0x0000160C  PreviewsXROSMessaging.PreviewNetworkSessionError.hash(into: inout Swift.Hasher) -> ()
+        0x00001634  PreviewsXROSMessaging.PreviewNetworkSessionError.hashValue.getter : Swift.Int
+        0x000016D8  PreviewsXROSMessaging.PreviewNetworkParticipantError.errorDescription.getter : Swift.String?
+        0x000016D8  PreviewsXROSMessaging.PreviewNetworkParticipantError.localizedDescription.getter : Swift.String
+        0x000016F4  static PreviewsXROSMessaging.PreviewNetworkParticipantError.== infix(PreviewsXROSMessaging.PreviewNetworkParticipantError, PreviewsXROSMessaging.PreviewNetworkParticipantError) -> Swift.Bool
+        0x000016FC  PreviewsXROSMessaging.PreviewNetworkParticipantError.hash(into: inout Swift.Hasher) -> ()
+        0x00001720  PreviewsXROSMessaging.PreviewNetworkParticipantError.hashValue.getter : Swift.Int
+        0x00001A10  type metadata accessor for PreviewsXROSMessaging.PreviewNetworkSessionError
+        0x00001AF8  type metadata accessor for PreviewsXROSMessaging.PreviewNetworkParticipantError
+        0x00001BF4  PreviewsXROSMessaging.RealityPreviewsCamera.Discriminant.init(rawValue: Swift.String) -> PreviewsXROSMessaging.RealityPreviewsCamera.Discriminant?
+        0x00001CAC  PreviewsXROSMessaging.RealityPreviewsCamera.Discriminant.rawValue.getter : Swift.String
+        0x000022A0  PreviewsXROSMessaging.RealityPreviewsCamera.discriminant.getter : PreviewsXROSMessaging.RealityPreviewsCamera.Discriminant
+        0x00002638  PreviewsXROSMessaging.RealityPreviewsCamera.propertyListValue.getter : PreviewsFoundationHost.PropertyList
+        0x00002A74  PreviewsXROSMessaging.RealityPreviewsCamera.init(propertyListValue: PreviewsFoundationHost.PropertyList) throws -> PreviewsXROSMessaging.RealityPreviewsCamera
+        0x00002F7C  type metadata accessor for PreviewsXROSMessaging.RealityPreviewsCamera.Discriminant
+        0x0000341C  PreviewsXROSMessaging.PreviewDebugInformation.careVersion.getter : Swift.String
+        0x0000341C  PreviewsXROSMessaging.PreviewReply.sceneIdentifier.getter : Swift.String
+        0x0000341C  PreviewsXROSMessaging.RealityPreviewsSelectableSourceInfo.identifier.getter : Swift.String
+        0x00003448  PreviewsXROSMessaging.PreviewReply.size.getter : Swift.SIMD3<Swift.Double>
+        0x00003448  PreviewsXROSMessaging.RealityPreviewsSelectableSourceInfo.position.getter : Swift.SIMD3<Swift.Double>
+        0x00003450  PreviewsXROSMessaging.PreviewReply.position.getter : Swift.SIMD3<Swift.Double>
+        0x00003458  PreviewsXROSMessaging.PreviewReply.cameras.getter : [PreviewsXROSMessaging.RealityPreviewsCamera]
+        0x00003460  PreviewsXROSMessaging.PreviewReply.selectableSourceInfos.getter : [PreviewsXROSMessaging.RealityPreviewsSelectableSourceInfo]
+        0x00003468  PreviewsXROSMessaging.PreviewReply.layoutDirection.getter : PreviewsXROSMessaging.RealityPreviewLayoutDirection
+        0x00003474  PreviewsXROSMessaging.PreviewReply.debugInformation.getter : PreviewsXROSMessaging.PreviewDebugInformation
+        0x000034CC  PreviewsXROSMessaging.PreviewReply.supportsImmersionControl.getter : Swift.Bool
+        0x000034D4  PreviewsXROSMessaging.PreviewReply.camera.getter : PreviewsXROSMessaging.RealityPreviewsCamera?
+        0x000037B8  PreviewsXROSMessaging.PreviewReply.propertyListValue.getter : PreviewsFoundationHost.PropertyList
+        0x00003B04  PreviewsXROSMessaging.PreviewReply.init(sceneIdentifier: Swift.String, size: Swift.SIMD3<Swift.Double>, position: Swift.SIMD3<Swift.Double>, cameras: [PreviewsXROSMessaging.RealityPreviewsCamera], selectableSourceInfos: [PreviewsXROSMessaging.RealityPreviewsSelectableSourceInfo], layoutDirection: PreviewsXROSMessaging.RealityPreviewLayoutDirection, debugInformation: PreviewsXROSMessaging.PreviewDebugInformation) -> PreviewsXROSMessaging.PreviewReply
+        0x00003B44  PreviewsXROSMessaging.PreviewReply.init(sceneIdentifier: Swift.String, size: Swift.SIMD3<Swift.Double>, position: Swift.SIMD3<Swift.Double>, cameras: [PreviewsXROSMessaging.RealityPreviewsCamera], selectableSourceInfos: [PreviewsXROSMessaging.RealityPreviewsSelectableSourceInfo], layoutDirection: PreviewsXROSMessaging.RealityPreviewLayoutDirection, debugInformation: PreviewsXROSMessaging.PreviewDebugInformation, supportsImmersionControl: Swift.Bool) -> PreviewsXROSMessaging.PreviewReply
+        0x00003B84  PreviewsXROSMessaging.PreviewReply.init(propertyListValue: PreviewsFoundationHost.PropertyList) throws -> PreviewsXROSMessaging.PreviewReply
+        0x0000424C  PreviewsXROSMessaging.PreviewReply.with(selectableSourceInfos: [PreviewsXROSMessaging.RealityPreviewsSelectableSourceInfo]) -> PreviewsXROSMessaging.PreviewReply
+        0x00004374  static PreviewsXROSMessaging.PreviewReply.== infix(PreviewsXROSMessaging.PreviewReply, PreviewsXROSMessaging.PreviewReply) -> Swift.Bool
+        0x000049B0  type metadata accessor for PreviewsXROSMessaging.PreviewReply
+        0x00004C48  PreviewsXROSMessaging.RealityPreviewLayoutDirection.xAxisMultiplier.getter : Swift.Float
+        0x00004C60  PreviewsXROSMessaging.RealityPreviewLayoutDirection.rawValue.getter : Swift.Int
+        0x00004C74  PreviewsXROSMessaging.RealityPreviewLayoutDirection.init(rawValue: Swift.Int) -> PreviewsXROSMessaging.RealityPreviewLayoutDirection?
+        0x00004FF4  type metadata accessor for PreviewsXROSMessaging.RealityPreviewLayoutDirection
+        0x00005220  (extension in PreviewsXROSMessaging):Swift.SIMD3< where A: PreviewsFoundationHost.PropertyListRepresentable>.propertyListValue.getter : PreviewsFoundationHost.PropertyList
+        0x00005658  (extension in PreviewsXROSMessaging):Swift.SIMD3< where A: PreviewsFoundationHost.PropertyListRepresentable>.init(propertyListValue: PreviewsFoundationHost.PropertyList) throws -> Swift.SIMD3<A>
+        0x00005BBC  (extension in PreviewsXROSMessaging):Swift.SIMD4< where A: PreviewsFoundationHost.PropertyListRepresentable>.propertyListValue.getter : PreviewsFoundationHost.PropertyList
+        0x0000611C  (extension in PreviewsXROSMessaging):Swift.SIMD4< where A: PreviewsFoundationHost.PropertyListRepresentable>.init(propertyListValue: PreviewsFoundationHost.PropertyList) throws -> Swift.SIMD4<A>
+        0x00006610  (extension in PreviewsXROSMessaging):__C.simd_float4x4.propertyListValue.getter : PreviewsFoundationHost.PropertyList
+        0x00006748  (extension in PreviewsXROSMessaging):__C.simd_float4x4.init(propertyListValue: PreviewsFoundationHost.PropertyList) throws -> __C.simd_float4x4
+        0x000069F4  (extension in PreviewsXROSMessaging):RealityKit.BoundingBox.propertyListValue.getter : PreviewsFoundationHost.PropertyList
+        0x00006AD8  (extension in PreviewsXROSMessaging):RealityKit.BoundingBox.init(propertyListValue: PreviewsFoundationHost.PropertyList) throws -> RealityKit.BoundingBox
+        0x00007B64  PreviewsXROSMessaging.RealityPreviewMessage.propertyListValue.getter : PreviewsFoundationHost.PropertyList
+        0x00007D94  PreviewsXROSMessaging.RealityPreviewMessage.init(propertyListValue: PreviewsFoundationHost.PropertyList) throws -> PreviewsXROSMessaging.RealityPreviewMessage
+        0x00008178  type metadata accessor for PreviewsXROSMessaging.RealityPreviewMessage
+        0x000082EC  PreviewsXROSMessaging.PreviewDebugInformation.init() -> PreviewsXROSMessaging.PreviewDebugInformation
+        0x00008550  static PreviewsXROSMessaging.PreviewDebugInformation.== infix(PreviewsXROSMessaging.PreviewDebugInformation, PreviewsXROSMessaging.PreviewDebugInformation) -> Swift.Bool
+        0x00008554  PreviewsXROSMessaging.PreviewDebugInformation.Dependency.init(rawValue: Swift.String) -> PreviewsXROSMessaging.PreviewDebugInformation.Dependency?
+        0x000085C4  PreviewsXROSMessaging.PreviewDebugInformation.Dependency.rawValue.getter : Swift.String
+        0x00008704  PreviewsXROSMessaging.PreviewDebugInformation.careVersion.setter : Swift.String
+        0x00008704  PreviewsXROSMessaging.RealityPreviewsSelectableSourceInfo.identifier.setter : Swift.String
+        0x00008738  PreviewsXROSMessaging.PreviewDebugInformation.careVersion.modify : Swift.String
+        0x00008738  PreviewsXROSMessaging.RealityPreviewsSelectableSourceInfo.identifier.modify : Swift.String
+        0x00008748  PreviewsXROSMessaging.PreviewDebugInformation.osBuild.getter : Swift.String
+        0x00008774  PreviewsXROSMessaging.PreviewDebugInformation.osBuild.setter : Swift.String
+        0x000087A8  PreviewsXROSMessaging.PreviewDebugInformation.osBuild.modify : Swift.String
+        0x000087A8  PreviewsXROSMessaging.RealityPreviewsSelectableSourceInfo.position.modify : Swift.SIMD3<Swift.Double>
+        0x000087B8  PreviewsXROSMessaging.PreviewDebugInformation.dependencyVersions.getter : [Swift.String : Swift.String]
+        0x000087C0  PreviewsXROSMessaging.PreviewDebugInformation.dependencyVersions.setter : [Swift.String : Swift.String]
+        0x000087E8  PreviewsXROSMessaging.PreviewDebugInformation.dependencyVersions.modify : [Swift.String : Swift.String]
+        0x000087F8  PreviewsXROSMessaging.PreviewDebugInformation.agentName.getter : Swift.String
+        0x00008824  PreviewsXROSMessaging.PreviewDebugInformation.agentName.setter : Swift.String
+        0x00008858  PreviewsXROSMessaging.PreviewDebugInformation.agentName.modify : Swift.String
+        0x00008868  PreviewsXROSMessaging.PreviewDebugInformation.hostOSBuild.getter : Swift.String
+        0x000089D8  PreviewsXROSMessaging.PreviewDebugInformation.xcodeBuild.getter : Swift.String
+        0x00008B4C  PreviewsXROSMessaging.PreviewDebugInformation.init(careVersion: Swift.String, osBuild: Swift.String, dependencyVersions: [Swift.String : Swift.String], agentName: Swift.String) -> PreviewsXROSMessaging.PreviewDebugInformation
+        0x00008B60  PreviewsXROSMessaging.PreviewDebugInformation.init(propertyListValue: PreviewsFoundationHost.PropertyList) throws -> PreviewsXROSMessaging.PreviewDebugInformation
+        0x00009158  PreviewsXROSMessaging.PreviewDebugInformation.propertyListValue.getter : PreviewsFoundationHost.PropertyList
+        0x00009580  PreviewsXROSMessaging.PreviewDebugInformation.dependencyVersion(for: PreviewsXROSMessaging.PreviewDebugInformation.Dependency) -> Swift.String
+        0x0000A92C  type metadata accessor for PreviewsXROSMessaging.PreviewDebugInformation
+        0x0000A93C  type metadata accessor for PreviewsXROSMessaging.PreviewDebugInformation.Dependency
+        0x0000AAA0  static PreviewsXROSMessaging.RealityPreviewsCamera.default.getter : PreviewsXROSMessaging.RealityPreviewsCamera
+        0x0000AAB8  PreviewsXROSMessaging.RealityPreviewsCamera.name.getter : Swift.String?
+        0x0000AB18  PreviewsXROSMessaging.RealityPreviewsCamera.applyToCamera(_: RealityKit.PerspectiveCamera, relativeTo: Swift.SIMD3<Swift.Float>, distance: Swift.Float) -> ()
+        0x0000AB60  PreviewsXROSMessaging.RealityPreviewsCamera.applyToCamera(_: RealityKit.PerspectiveCamera, relativeTo: Swift.SIMD3<Swift.Float>, distance: Swift.Float, layoutDirection: PreviewsXROSMessaging.RealityPreviewLayoutDirection) -> ()
+        0x0000ADB0  static PreviewsXROSMessaging.RealityPreviewsCamera.== infix(PreviewsXROSMessaging.RealityPreviewsCamera, PreviewsXROSMessaging.RealityPreviewsCamera) -> Swift.Bool
+        0x0000B6BC  type metadata accessor for PreviewsXROSMessaging.RealityPreviewsCamera
+        0x0000C440  PreviewsXROSMessaging.RealityPreviewsSelectableSourceInfo.position.setter : Swift.SIMD3<Swift.Double>
+        0x0000C448  PreviewsXROSMessaging.RealityPreviewsSelectableSourceInfo.size.getter : Swift.SIMD3<Swift.Float>
+        0x0000C450  PreviewsXROSMessaging.RealityPreviewsSelectableSourceInfo.size.setter : Swift.SIMD3<Swift.Float>
+        0x0000C458  PreviewsXROSMessaging.RealityPreviewsSelectableSourceInfo.size.modify : Swift.SIMD3<Swift.Float>
+        0x0000C468  PreviewsXROSMessaging.RealityPreviewsSelectableSourceInfo.displayListIDs.getter : [Swift.UInt32]
+        0x0000C470  PreviewsXROSMessaging.RealityPreviewsSelectableSourceInfo.displayListIDs.setter : [Swift.UInt32]
+        0x0000C498  PreviewsXROSMessaging.RealityPreviewsSelectableSourceInfo.displayListIDs.modify : [Swift.UInt32]
+        0x0000C81C  PreviewsXROSMessaging.RealityPreviewsSelectableSourceInfo.propertyListValue.getter : PreviewsFoundationHost.PropertyList
+        0x0000C9F8  PreviewsXROSMessaging.RealityPreviewsSelectableSourceInfo.init(identifier: Swift.String, position: Swift.SIMD3<Swift.Double>, size: Swift.SIMD3<Swift.Float>, displayListIDs: [Swift.UInt32]) -> PreviewsXROSMessaging.RealityPreviewsSelectableSourceInfo
+        0x0000CA0C  PreviewsXROSMessaging.RealityPreviewsSelectableSourceInfo.init(propertyListValue: PreviewsFoundationHost.PropertyList) throws -> PreviewsXROSMessaging.RealityPreviewsSelectableSourceInfo
+        0x0000CE28  static PreviewsXROSMessaging.RealityPreviewsSelectableSourceInfo.== infix(PreviewsXROSMessaging.RealityPreviewsSelectableSourceInfo, PreviewsXROSMessaging.RealityPreviewsSelectableSourceInfo) -> Swift.Bool
+        0x0000D104  type metadata accessor for PreviewsXROSMessaging.RealityPreviewsSelectableSourceInfo
+        0x0000D1D0  static (extension in PreviewsXROSMessaging):PreviewsMessagingHost.ContentOverride.xrOSNative.getter : PreviewsMessagingHost.ContentOverride
+        0x0000D1F0  static (extension in PreviewsXROSMessaging):PreviewsMessagingHost.ContentOverride.xrOSBincompat.getter : PreviewsMessagingHost.ContentOverride
+        0x0000D214  static (extension in PreviewsXROSMessaging):PreviewsMessagingHost.ContentOverride.xrOSImplicit.getter : PreviewsMessagingHost.ContentOverride
+        0x0000D5C0  _PreviewsXROSMessagingVersionString
+        0x0000D608  _PreviewsXROSMessagingVersionNumber
+        0x0000D610  protocol conformance descriptor for PreviewsXROSMessaging.PreviewNetworkSessionError : Swift.Equatable in PreviewsXROSMessaging
+        0x0000D638  protocol conformance descriptor for PreviewsXROSMessaging.PreviewNetworkSessionError : Swift.Hashable in PreviewsXROSMessaging
+        0x0000D678  protocol conformance descriptor for PreviewsXROSMessaging.PreviewNetworkSessionError : Foundation.LocalizedError in PreviewsXROSMessaging
+        0x0000D6C0  protocol conformance descriptor for PreviewsXROSMessaging.PreviewNetworkSessionError : Swift.Error in PreviewsXROSMessaging
+        0x0000D700  protocol conformance descriptor for PreviewsXROSMessaging.PreviewNetworkParticipantError : Swift.Equatable in PreviewsXROSMessaging
+        0x0000D728  protocol conformance descriptor for PreviewsXROSMessaging.PreviewNetworkParticipantError : Swift.Hashable in PreviewsXROSMessaging
+        0x0000D768  protocol conformance descriptor for PreviewsXROSMessaging.PreviewNetworkParticipantError : Foundation.LocalizedError in PreviewsXROSMessaging
+        0x0000D7B0  protocol conformance descriptor for PreviewsXROSMessaging.PreviewNetworkParticipantError : Swift.Error in PreviewsXROSMessaging
+        0x0000D7F0  property descriptor for PreviewsXROSMessaging.PreviewNetworkParticipantError.errorDescription : Swift.String?
+        0x0000D7F0  property descriptor for PreviewsXROSMessaging.PreviewNetworkParticipantError.hashValue : Swift.Int
+        0x0000D7F0  property descriptor for PreviewsXROSMessaging.PreviewNetworkParticipantError.localizedDescription : Swift.String
+        0x0000D7F0  property descriptor for PreviewsXROSMessaging.PreviewNetworkSessionError.errorDescription : Swift.String?
+        0x0000D7F0  property descriptor for PreviewsXROSMessaging.PreviewNetworkSessionError.hashValue : Swift.Int
+        0x0000D7F0  property descriptor for PreviewsXROSMessaging.PreviewNetworkSessionError.localizedDescription : Swift.String
+        0x0000D83C  enum case for PreviewsXROSMessaging.PreviewNetworkSessionError.initTimeout(PreviewsXROSMessaging.PreviewNetworkSessionError.Type) -> PreviewsXROSMessaging.PreviewNetworkSessionError
+        0x0000D840  enum case for PreviewsXROSMessaging.PreviewNetworkSessionError.appIdMismatch(PreviewsXROSMessaging.PreviewNetworkSessionError.Type) -> PreviewsXROSMessaging.PreviewNetworkSessionError
+        0x0000D844  enum case for PreviewsXROSMessaging.PreviewNetworkSessionError.protocolVersionMismatch(PreviewsXROSMessaging.PreviewNetworkSessionError.Type) -> PreviewsXROSMessaging.PreviewNetworkSessionError
+        0x0000D848  enum case for PreviewsXROSMessaging.PreviewNetworkSessionError.overflow(PreviewsXROSMessaging.PreviewNetworkSessionError.Type) -> PreviewsXROSMessaging.PreviewNetworkSessionError
+        0x0000D84C  enum case for PreviewsXROSMessaging.PreviewNetworkSessionError.connectionNotFound(PreviewsXROSMessaging.PreviewNetworkSessionError.Type) -> PreviewsXROSMessaging.PreviewNetworkSessionError
+        0x0000D850  enum case for PreviewsXROSMessaging.PreviewNetworkSessionError.invalidRoutingInfo(PreviewsXROSMessaging.PreviewNetworkSessionError.Type) -> PreviewsXROSMessaging.PreviewNetworkSessionError
+        0x0000D854  enum case for PreviewsXROSMessaging.PreviewNetworkSessionError.unknownMessageType(PreviewsXROSMessaging.PreviewNetworkSessionError.Type) -> PreviewsXROSMessaging.PreviewNetworkSessionError
+        0x0000D858  enum case for PreviewsXROSMessaging.PreviewNetworkSessionError.notImplemented(PreviewsXROSMessaging.PreviewNetworkSessionError.Type) -> PreviewsXROSMessaging.PreviewNetworkSessionError
+        0x0000D85C  enum case for PreviewsXROSMessaging.PreviewNetworkSessionError.userRequested(PreviewsXROSMessaging.PreviewNetworkSessionError.Type) -> PreviewsXROSMessaging.PreviewNetworkSessionError
+        0x0000D860  enum case for PreviewsXROSMessaging.PreviewNetworkSessionError.noLeader(PreviewsXROSMessaging.PreviewNetworkSessionError.Type) -> PreviewsXROSMessaging.PreviewNetworkSessionError
+        0x0000D864  enum case for PreviewsXROSMessaging.PreviewNetworkSessionError.invalidError(PreviewsXROSMessaging.PreviewNetworkSessionError.Type) -> PreviewsXROSMessaging.PreviewNetworkSessionError
+        0x0000D868  enum case for PreviewsXROSMessaging.PreviewNetworkSessionError.peerAuthorityMismatch(PreviewsXROSMessaging.PreviewNetworkSessionError.Type) -> PreviewsXROSMessaging.PreviewNetworkSessionError
+        0x0000D890  enum case for PreviewsXROSMessaging.PreviewNetworkParticipantError.invalidError(PreviewsXROSMessaging.PreviewNetworkParticipantError.Type) -> PreviewsXROSMessaging.PreviewNetworkParticipantError
+        0x0000D8B8  protocol conformance descriptor for PreviewsXROSMessaging.RealityPreviewsCamera.Discriminant : Swift.Equatable in PreviewsXROSMessaging
+        0x0000D8E0  protocol conformance descriptor for PreviewsXROSMessaging.RealityPreviewsCamera.Discriminant : Swift.Hashable in PreviewsXROSMessaging
+        0x0000D920  protocol conformance descriptor for PreviewsXROSMessaging.RealityPreviewsCamera.Discriminant : Swift.RawRepresentable in PreviewsXROSMessaging
+        0x0000D958  protocol conformance descriptor for PreviewsXROSMessaging.RealityPreviewsCamera.Discriminant : PreviewsFoundationHost.PropertyListRepresentable in PreviewsXROSMessaging
+        0x0000D998  protocol conformance descriptor for PreviewsXROSMessaging.RealityPreviewsCamera : PreviewsFoundationHost.PropertyListRepresentable in PreviewsXROSMessaging
+        0x0000D9D8  property descriptor for PreviewsXROSMessaging.RealityPreviewsCamera.discriminant : PreviewsXROSMessaging.RealityPreviewsCamera.Discriminant
+        0x0000D9D8  property descriptor for PreviewsXROSMessaging.RealityPreviewsCamera.Discriminant.rawValue : Swift.String
+        0x0000D9D8  property descriptor for PreviewsXROSMessaging.RealityPreviewsCamera.propertyListValue : PreviewsFoundationHost.PropertyList
+        0x0000D9EC  enum case for PreviewsXROSMessaging.RealityPreviewsCamera.Discriminant.front(PreviewsXROSMessaging.RealityPreviewsCamera.Discriminant.Type) -> PreviewsXROSMessaging.RealityPreviewsCamera.Discriminant
+        0x0000D9F0  enum case for PreviewsXROSMessaging.RealityPreviewsCamera.Discriminant.back(PreviewsXROSMessaging.RealityPreviewsCamera.Discriminant.Type) -> PreviewsXROSMessaging.RealityPreviewsCamera.Discriminant
+        0x0000D9F4  enum case for PreviewsXROSMessaging.RealityPreviewsCamera.Discriminant.leading(PreviewsXROSMessaging.RealityPreviewsCamera.Discriminant.Type) -> PreviewsXROSMessaging.RealityPreviewsCamera.Discriminant
+        0x0000D9F8  enum case for PreviewsXROSMessaging.RealityPreviewsCamera.Discriminant.trailing(PreviewsXROSMessaging.RealityPreviewsCamera.Discriminant.Type) -> PreviewsXROSMessaging.RealityPreviewsCamera.Discriminant
+        0x0000D9FC  enum case for PreviewsXROSMessaging.RealityPreviewsCamera.Discriminant.top(PreviewsXROSMessaging.RealityPreviewsCamera.Discriminant.Type) -> PreviewsXROSMessaging.RealityPreviewsCamera.Discriminant
+        0x0000DA00  enum case for PreviewsXROSMessaging.RealityPreviewsCamera.Discriminant.bottom(PreviewsXROSMessaging.RealityPreviewsCamera.Discriminant.Type) -> PreviewsXROSMessaging.RealityPreviewsCamera.Discriminant
+        0x0000DA04  enum case for PreviewsXROSMessaging.RealityPreviewsCamera.Discriminant.from(PreviewsXROSMessaging.RealityPreviewsCamera.Discriminant.Type) -> PreviewsXROSMessaging.RealityPreviewsCamera.Discriminant
+        0x0000DA08  enum case for PreviewsXROSMessaging.RealityPreviewsCamera.Discriminant.lookingAt(PreviewsXROSMessaging.RealityPreviewsCamera.Discriminant.Type) -> PreviewsXROSMessaging.RealityPreviewsCamera.Discriminant
+        0x0000DB00  protocol conformance descriptor for PreviewsXROSMessaging.PreviewReply : PreviewsFoundationHost.PropertyListRepresentable in PreviewsXROSMessaging
+        0x0000DB40  protocol conformance descriptor for PreviewsXROSMessaging.PreviewReply : Swift.Equatable in PreviewsXROSMessaging
+        0x0000DB68  property descriptor for PreviewsXROSMessaging.PreviewReply.sceneIdentifier : Swift.String
+        0x0000DB6C  property descriptor for PreviewsXROSMessaging.PreviewReply.size : Swift.SIMD3<Swift.Double>
+        0x0000DB70  property descriptor for PreviewsXROSMessaging.PreviewReply.position : Swift.SIMD3<Swift.Double>
+        0x0000DB74  property descriptor for PreviewsXROSMessaging.PreviewReply.cameras : [PreviewsXROSMessaging.RealityPreviewsCamera]
+        0x0000DB78  property descriptor for PreviewsXROSMessaging.PreviewReply.selectableSourceInfos : [PreviewsXROSMessaging.RealityPreviewsSelectableSourceInfo]
+        0x0000DB7C  property descriptor for PreviewsXROSMessaging.PreviewReply.layoutDirection : PreviewsXROSMessaging.RealityPreviewLayoutDirection
+        0x0000DB80  property descriptor for PreviewsXROSMessaging.PreviewReply.debugInformation : PreviewsXROSMessaging.PreviewDebugInformation
+        0x0000DB84  property descriptor for PreviewsXROSMessaging.PreviewReply.supportsImmersionControl : Swift.Bool
+        0x0000DB88  property descriptor for PreviewsXROSMessaging.PreviewReply.camera : PreviewsXROSMessaging.RealityPreviewsCamera?
+        0x0000DB88  property descriptor for PreviewsXROSMessaging.PreviewReply.propertyListValue : PreviewsFoundationHost.PropertyList
+        0x0000DC90  protocol conformance descriptor for PreviewsXROSMessaging.RealityPreviewLayoutDirection : Swift.Equatable in PreviewsXROSMessaging
+        0x0000DCB8  protocol conformance descriptor for PreviewsXROSMessaging.RealityPreviewLayoutDirection : Swift.Hashable in PreviewsXROSMessaging
+        0x0000DCF8  protocol conformance descriptor for PreviewsXROSMessaging.RealityPreviewLayoutDirection : Swift.RawRepresentable in PreviewsXROSMessaging
+        0x0000DD30  protocol conformance descriptor for PreviewsXROSMessaging.RealityPreviewLayoutDirection : PreviewsFoundationHost.PropertyListRepresentable in PreviewsXROSMessaging
+        0x0000DD70  property descriptor for PreviewsXROSMessaging.RealityPreviewLayoutDirection.rawValue : Swift.Int
+        0x0000DD70  property descriptor for PreviewsXROSMessaging.RealityPreviewLayoutDirection.xAxisMultiplier : Swift.Float
+        0x0000DDC0  enum case for PreviewsXROSMessaging.RealityPreviewLayoutDirection.leftToRight(PreviewsXROSMessaging.RealityPreviewLayoutDirection.Type) -> PreviewsXROSMessaging.RealityPreviewLayoutDirection
+        0x0000DDC4  enum case for PreviewsXROSMessaging.RealityPreviewLayoutDirection.rightToLeft(PreviewsXROSMessaging.RealityPreviewLayoutDirection.Type) -> PreviewsXROSMessaging.RealityPreviewLayoutDirection
+        0x0000DDF8  protocol conformance descriptor for < where A: PreviewsFoundationHost.PropertyListRepresentable> Swift.SIMD3<A> : PreviewsFoundationHost.PropertyListRepresentable in PreviewsXROSMessaging
+        0x0000DE48  protocol conformance descriptor for < where A: PreviewsFoundationHost.PropertyListRepresentable> Swift.SIMD4<A> : PreviewsFoundationHost.PropertyListRepresentable in PreviewsXROSMessaging
+        0x0000DE98  protocol conformance descriptor for __C.simd_float4x4 : PreviewsFoundationHost.PropertyListRepresentable in PreviewsXROSMessaging
+        0x0000DEDC  protocol conformance descriptor for RealityKit.BoundingBox : PreviewsFoundationHost.PropertyListRepresentable in PreviewsXROSMessaging
+        0x0000DF20  property descriptor for (extension in PreviewsXROSMessaging):__C.simd_float4x4.propertyListValue : PreviewsFoundationHost.PropertyList
+        0x0000DF20  property descriptor for (extension in PreviewsXROSMessaging):RealityKit.BoundingBox.propertyListValue : PreviewsFoundationHost.PropertyList
+        0x0000DF20  property descriptor for (extension in PreviewsXROSMessaging):Swift.SIMD3< where A: PreviewsFoundationHost.PropertyListRepresentable>.propertyListValue : PreviewsFoundationHost.PropertyList
+        0x0000DF20  property descriptor for (extension in PreviewsXROSMessaging):Swift.SIMD4< where A: PreviewsFoundationHost.PropertyListRepresentable>.propertyListValue : PreviewsFoundationHost.PropertyList
+        0x0000E2B0  protocol conformance descriptor for PreviewsXROSMessaging.RealityPreviewMessage : PreviewsFoundationHost.PropertyListRepresentable in PreviewsXROSMessaging
+        0x0000E2F0  property descriptor for PreviewsXROSMessaging.RealityPreviewMessage.propertyListValue : PreviewsFoundationHost.PropertyList
+        0x0000E338  enum case for PreviewsXROSMessaging.RealityPreviewMessage.changeAppPosition(PreviewsXROSMessaging.RealityPreviewMessage.Type) -> (Swift.SIMD3<Swift.Double>) -> PreviewsXROSMessaging.RealityPreviewMessage
+        0x0000E33C  enum case for PreviewsXROSMessaging.RealityPreviewMessage.appPositionChanged(PreviewsXROSMessaging.RealityPreviewMessage.Type) -> (Swift.SIMD3<Swift.Double>) -> PreviewsXROSMessaging.RealityPreviewMessage
+        0x0000E340  enum case for PreviewsXROSMessaging.RealityPreviewMessage.selectionInformationUpdated(PreviewsXROSMessaging.RealityPreviewMessage.Type) -> ([PreviewsXROSMessaging.RealityPreviewsSelectableSourceInfo]) -> PreviewsXROSMessaging.RealityPreviewMessage
+        0x0000E520  protocol conformance descriptor for PreviewsXROSMessaging.PreviewDebugInformation.Dependency : Swift.Equatable in PreviewsXROSMessaging
+        0x0000E548  protocol conformance descriptor for PreviewsXROSMessaging.PreviewDebugInformation.Dependency : Swift.Hashable in PreviewsXROSMessaging
+        0x0000E588  protocol conformance descriptor for PreviewsXROSMessaging.PreviewDebugInformation.Dependency : Swift.RawRepresentable in PreviewsXROSMessaging
+        0x0000E5C0  protocol conformance descriptor for PreviewsXROSMessaging.PreviewDebugInformation : PreviewsFoundationHost.PropertyListRepresentable in PreviewsXROSMessaging
+        0x0000E600  protocol conformance descriptor for PreviewsXROSMessaging.PreviewDebugInformation : Swift.Equatable in PreviewsXROSMessaging
+        0x0000E628  property descriptor for PreviewsXROSMessaging.PreviewDebugInformation.Dependency.rawValue : Swift.String
+        0x0000E628  property descriptor for PreviewsXROSMessaging.PreviewDebugInformation.hostOSBuild : Swift.String
+        0x0000E628  property descriptor for PreviewsXROSMessaging.PreviewDebugInformation.propertyListValue : PreviewsFoundationHost.PropertyList
+        0x0000E628  property descriptor for PreviewsXROSMessaging.PreviewDebugInformation.xcodeBuild : Swift.String
+        0x0000E62C  property descriptor for PreviewsXROSMessaging.PreviewDebugInformation.careVersion : Swift.String
+        0x0000E630  property descriptor for PreviewsXROSMessaging.PreviewDebugInformation.osBuild : Swift.String
+        0x0000E634  property descriptor for PreviewsXROSMessaging.PreviewDebugInformation.dependencyVersions : [Swift.String : Swift.String]
+        0x0000E638  property descriptor for PreviewsXROSMessaging.PreviewDebugInformation.agentName : Swift.String
+        0x0000E684  enum case for PreviewsXROSMessaging.PreviewDebugInformation.Dependency.reKit(PreviewsXROSMessaging.PreviewDebugInformation.Dependency.Type) -> PreviewsXROSMessaging.PreviewDebugInformation.Dependency
+        0x0000E788  protocol conformance descriptor for PreviewsXROSMessaging.RealityPreviewsCamera : Swift.Equatable in PreviewsXROSMessaging
+        0x0000E7B0  property descriptor for PreviewsXROSMessaging.RealityPreviewsCamera.name : Swift.String?
+        0x0000E7B0  property descriptor for static PreviewsXROSMessaging.RealityPreviewsCamera.default : PreviewsXROSMessaging.RealityPreviewsCamera
+        0x0000E7F8  enum case for PreviewsXROSMessaging.RealityPreviewsCamera.from(PreviewsXROSMessaging.RealityPreviewsCamera.Type) -> (Swift.SIMD3<Swift.Float>, Swift.Double, Swift.String?) -> PreviewsXROSMessaging.RealityPreviewsCamera
+        0x0000E7FC  enum case for PreviewsXROSMessaging.RealityPreviewsCamera.lookingAt(PreviewsXROSMessaging.RealityPreviewsCamera.Type) -> (Swift.SIMD3<Swift.Float>, Swift.SIMD3<Swift.Float>, Swift.String?) -> PreviewsXROSMessaging.RealityPreviewsCamera
+        0x0000E800  enum case for PreviewsXROSMessaging.RealityPreviewsCamera.front(PreviewsXROSMessaging.RealityPreviewsCamera.Type) -> PreviewsXROSMessaging.RealityPreviewsCamera
+        0x0000E804  enum case for PreviewsXROSMessaging.RealityPreviewsCamera.back(PreviewsXROSMessaging.RealityPreviewsCamera.Type) -> PreviewsXROSMessaging.RealityPreviewsCamera
+        0x0000E808  enum case for PreviewsXROSMessaging.RealityPreviewsCamera.leading(PreviewsXROSMessaging.RealityPreviewsCamera.Type) -> PreviewsXROSMessaging.RealityPreviewsCamera
+        0x0000E80C  enum case for PreviewsXROSMessaging.RealityPreviewsCamera.trailing(PreviewsXROSMessaging.RealityPreviewsCamera.Type) -> PreviewsXROSMessaging.RealityPreviewsCamera
+        0x0000E810  enum case for PreviewsXROSMessaging.RealityPreviewsCamera.top(PreviewsXROSMessaging.RealityPreviewsCamera.Type) -> PreviewsXROSMessaging.RealityPreviewsCamera
+        0x0000E814  enum case for PreviewsXROSMessaging.RealityPreviewsCamera.bottom(PreviewsXROSMessaging.RealityPreviewsCamera.Type) -> PreviewsXROSMessaging.RealityPreviewsCamera
+        0x0000E828  protocol conformance descriptor for PreviewsXROSMessaging.RealityPreviewsSelectableSourceInfo : PreviewsFoundationHost.PropertyListRepresentable in PreviewsXROSMessaging
+        0x0000E868  protocol conformance descriptor for PreviewsXROSMessaging.RealityPreviewsSelectableSourceInfo : Swift.Equatable in PreviewsXROSMessaging
+        0x0000E890  property descriptor for PreviewsXROSMessaging.RealityPreviewsSelectableSourceInfo.identifier : Swift.String
+        0x0000E894  property descriptor for PreviewsXROSMessaging.RealityPreviewsSelectableSourceInfo.position : Swift.SIMD3<Swift.Double>
+        0x0000E898  property descriptor for PreviewsXROSMessaging.RealityPreviewsSelectableSourceInfo.size : Swift.SIMD3<Swift.Float>
+        0x0000E89C  property descriptor for PreviewsXROSMessaging.RealityPreviewsSelectableSourceInfo.displayListIDs : [Swift.UInt32]
+        0x0000E8A0  property descriptor for PreviewsXROSMessaging.RealityPreviewsSelectableSourceInfo.propertyListValue : PreviewsFoundationHost.PropertyList
+        0x0000E9C0  property descriptor for static (extension in PreviewsXROSMessaging):PreviewsMessagingHost.ContentOverride.xrOSBincompat : PreviewsMessagingHost.ContentOverride
+        0x0000E9C0  property descriptor for static (extension in PreviewsXROSMessaging):PreviewsMessagingHost.ContentOverride.xrOSImplicit : PreviewsMessagingHost.ContentOverride
+        0x0000E9C0  property descriptor for static (extension in PreviewsXROSMessaging):PreviewsMessagingHost.ContentOverride.xrOSNative : PreviewsMessagingHost.ContentOverride
+        0x0000F0A0  nominal type descriptor for PreviewsXROSMessaging.PreviewNetworkSessionError
+        0x0000F0BC  nominal type descriptor for PreviewsXROSMessaging.PreviewNetworkParticipantError
+        0x0000F104  nominal type descriptor for PreviewsXROSMessaging.RealityPreviewsCamera.Discriminant
+        0x0000F144  nominal type descriptor for PreviewsXROSMessaging.PreviewReply
+        0x0000F184  nominal type descriptor for PreviewsXROSMessaging.RealityPreviewLayoutDirection
+        0x0000F348  nominal type descriptor for PreviewsXROSMessaging.RealityPreviewMessage
+        0x0000F3AC  nominal type descriptor for PreviewsXROSMessaging.PreviewDebugInformation
+        0x0000F3C8  nominal type descriptor for PreviewsXROSMessaging.PreviewDebugInformation.Dependency
+        0x0000F460  nominal type descriptor for PreviewsXROSMessaging.RealityPreviewsCamera
+        0x0000F47C  nominal type descriptor for PreviewsXROSMessaging.RealityPreviewsSelectableSourceInfo
+        0x000144C8  type metadata for PreviewsXROSMessaging.PreviewNetworkSessionError
+        0x00014558  type metadata for PreviewsXROSMessaging.PreviewNetworkParticipantError
+        0x000146F8  type metadata for PreviewsXROSMessaging.RealityPreviewsCamera.Discriminant
+        0x00014898  type metadata for PreviewsXROSMessaging.PreviewReply
+        0x00014A68  type metadata for PreviewsXROSMessaging.RealityPreviewLayoutDirection
+        0x00014E10  type metadata for PreviewsXROSMessaging.RealityPreviewMessage
+        0x00015038  type metadata for PreviewsXROSMessaging.PreviewDebugInformation
+        0x000150D8  type metadata for PreviewsXROSMessaging.PreviewDebugInformation.Dependency
+        0x00015288  type metadata for PreviewsXROSMessaging.RealityPreviewsCamera
+        0x00015310  type metadata for PreviewsXROSMessaging.RealityPreviewsSelectableSourceInfo
+        offset      symbol
+    -exports:
+/Applications/Xcode-26.2.0.app/Contents/SharedFrameworks/PreviewsXROSMessaging.framework/Versions/A/PreviewsXROSMessaging [arm64]:

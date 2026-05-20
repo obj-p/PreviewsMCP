@@ -1,0 +1,50 @@
+=== PreviewsInjection linked_dylibs ===
+/System/Library/PrivateFrameworks/PreviewsInjection.framework/Versions/A/PreviewsInjection [arm64e]:
+    -linked_dylibs:
+        attributes     load path
+                       /System/Library/PrivateFrameworks/ChronoKit.framework/Versions/A/ChronoKit
+        weak-link      /System/Library/PrivateFrameworks/XOJITExecutor.framework/Versions/A/XOJITExecutor
+                       /System/Library/PrivateFrameworks/FrontBoardServices.framework/Versions/A/FrontBoardServices
+                       /System/Library/Frameworks/Foundation.framework/Versions/C/Foundation
+                       /usr/lib/libobjc.A.dylib
+                       /usr/lib/libSystem.B.dylib
+                       /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit
+                       /System/Library/Frameworks/Combine.framework/Versions/A/Combine
+                       /System/Library/Frameworks/CoreGraphics.framework/Versions/A/CoreGraphics
+                       /System/Library/Frameworks/DeveloperToolsSupport.framework/Versions/A/DeveloperToolsSupport
+                       /System/Library/Frameworks/IOSurface.framework/Versions/A/IOSurface
+                       /System/Library/Frameworks/QuartzCore.framework/Versions/A/QuartzCore
+                       /System/Library/Frameworks/SwiftUI.framework/Versions/A/SwiftUI
+                       /System/Library/Frameworks/WidgetKit.framework/Versions/A/WidgetKit
+                       /System/Library/PrivateFrameworks/BaseBoard.framework/Versions/A/BaseBoard
+                       /System/Library/PrivateFrameworks/BoardServices.framework/Versions/A/BoardServices
+                       /System/Library/PrivateFrameworks/PreviewsFoundationOS.framework/Versions/A/PreviewsFoundationOS
+                       /System/Library/PrivateFrameworks/PreviewsMessagingOS.framework/Versions/A/PreviewsMessagingOS
+                       /System/Library/PrivateFrameworks/PreviewsOSSupport.framework/Versions/A/PreviewsOSSupport
+                       /System/Library/PrivateFrameworks/PreviewsOSSupportUI.framework/Versions/A/PreviewsOSSupportUI
+                       /System/Library/PrivateFrameworks/PreviewsServices.framework/Versions/A/PreviewsServices
+                       /System/Library/PrivateFrameworks/PreviewsServicesUI.framework/Versions/A/PreviewsServicesUI
+                       /System/Library/PrivateFrameworks/ReflectionInternal.framework/Versions/A/ReflectionInternal
+                       /System/Library/PrivateFrameworks/ViewBridge.framework/Versions/A/ViewBridge
+        weak-link      /usr/lib/swift/libswiftAccelerate.dylib
+                       /usr/lib/swift/libswiftCore.dylib
+        weak-link      /usr/lib/swift/libswiftCoreAudio.dylib
+                       /usr/lib/swift/libswiftCoreFoundation.dylib
+        weak-link      /usr/lib/swift/libswiftCoreImage.dylib
+        weak-link      /usr/lib/swift/libswiftCoreLocation.dylib
+        weak-link      /usr/lib/swift/libswiftCoreMIDI.dylib
+                       /usr/lib/swift/libswiftDispatch.dylib
+        weak-link      /usr/lib/swift/libswiftIOKit.dylib
+        weak-link      /usr/lib/swift/libswiftIntents.dylib
+        weak-link      /usr/lib/swift/libswiftMetal.dylib
+        weak-link      /usr/lib/swift/libswiftOSLog.dylib
+        weak-link      /usr/lib/swift/libswiftObjectiveC.dylib
+        weak-link      /usr/lib/swift/libswiftQuartzCore.dylib
+        weak-link      /usr/lib/swift/libswiftSpatial.dylib
+        weak-link      /usr/lib/swift/libswiftUniformTypeIdentifiers.dylib
+        weak-link      /usr/lib/swift/libswiftXPC.dylib
+        weak-link      /usr/lib/swift/libswift_Builtin_float.dylib
+                       /usr/lib/swift/libswift_Concurrency.dylib
+                       /usr/lib/swift/libswift_DarwinFoundation2.dylib
+                       /usr/lib/swift/libswiftos.dylib
+        weak-link      /usr/lib/swift/libswiftsimd.dylib

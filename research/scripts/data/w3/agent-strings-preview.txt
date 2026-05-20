@@ -1,0 +1,12 @@
+__PREVIEWS_AGENT_SKIP_USER_ENTRY_POINT
+__PREVIEWS_AGENT_STUB_EXECUTOR_STDERR_REDIRECT
+__PREVIEWS_EXECUTABLE_DYLIB_NAME
+__previews_injection_get_debug_dodylib_swift_entry_section_data
+__previews_injection_jit_link_entrypoint
+__PREVIEWS_INTERPOSED_DEBUG_DLIB
+__PREVIEWS_JIT_LINK
+Found Previews JIT link entry point.
+Looking for Previews JIT link entry point.
+No Previews JIT entry point found.
+PreviewsInjection request for JIT link returned.
+Stub executor is JIT linked

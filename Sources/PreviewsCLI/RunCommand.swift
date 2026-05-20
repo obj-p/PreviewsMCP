@@ -79,8 +79,7 @@ struct RunCommand: AsyncParsableCommand {
     var json: Bool = false
 
     mutating func run() async throws {
-        let fileURL = URL(fileURLWithPath: file).standardizedFileURL
-        guard FileManager.default.fileExists(atPath: fileURL.path) else {
+        guard FileManager.default.fileExists(atPath: Path.normalize(file)) else {
             throw ValidationError("File not found: \(file)")
         }
 
@@ -100,7 +99,7 @@ struct RunCommand: AsyncParsableCommand {
         }
 
         try await DaemonClient.withDaemonClient(name: "previewsmcp-run") { client in
-            let arguments = buildPreviewStartArguments(fileURL: fileURL)
+            let arguments = buildPreviewStartArguments()
 
             let response: CallTool.Result
             do {
@@ -171,15 +170,20 @@ struct RunCommand: AsyncParsableCommand {
 
     // MARK: - Helpers
 
-    private func buildPreviewStartArguments(fileURL: URL) -> [String: Value] {
+    private func buildPreviewStartArguments() -> [String: Value] {
+        // CLI must absolutize before transit — the daemon runs in its own
+        // process and does not share our CWD, so relative paths would
+        // resolve against the daemon's launch directory. The daemon
+        // re-normalizes on receipt (idempotent for already-canonical
+        // paths) to also cover non-CLI MCP clients.
         var args: [String: Value] = [
-            "filePath": .string(fileURL.path),
+            "filePath": .string(Path.normalize(file)),
             "previewIndex": .int(preview),
             "width": .int(width),
             "height": .int(height),
         ]
         if let platform { args["platform"] = .string(platform.rawValue) }
-        if let project { args["projectPath"] = .string(project) }
+        if let project { args["projectPath"] = .string(Path.normalize(project)) }
         if let scheme { args["scheme"] = .string(scheme) }
         if let device { args["deviceUDID"] = .string(device) }
         if let colorScheme { args["colorScheme"] = .string(colorScheme) }
@@ -187,6 +191,7 @@ struct RunCommand: AsyncParsableCommand {
         if let locale { args["locale"] = .string(locale) }
         if let layoutDirection { args["layoutDirection"] = .string(layoutDirection) }
         if let legibilityWeight { args["legibilityWeight"] = .string(legibilityWeight) }
+        if let config { args["config"] = .string(Path.normalize(config)) }
         // Always send headless — both the macOS and iOS daemon paths default
         // `extractOptionalBool("headless") ?? true` when the key is absent, so
         // dropping the key on `--headless=false` would silently force a headless

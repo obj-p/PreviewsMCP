@@ -1,0 +1,217 @@
+j687
+j687
+j786
+@(#)PROGRAM:XCPreviewAgent  PROJECT:UltravioletShared-23.20.8
+3333337@
+XCPreviewAgent
+AppDelegate
+com.apple.Previews.StubExecutor
+PreviewsAgentExecutorLibrary
+__PREVIEWS_AGENT_STUB_EXECUTOR_STDERR_REDIRECT
+/tmp/agent-stderr.txt
+================
+%04d-%02d-%02d %02d:%02d:%02d
+__PREVIEWS_AGENT_SKIP_USER_ENTRY_POINT
+CFRunLoopRun
+_dyld_is_pseudodylib
+./%s
+__debug_main_executable_dylib_entry_point
+main
+__previews_injection_get_debug_dodylib_swift_entry_section_data
+__TEXT
+__swift5_entry
+__PREVIEWS_JIT_LINK
+__PREVIEWS_INTERPOSED_DEBUG_DLIB
+__PREVIEWS_EXECUTABLE_DYLIB_NAME
+__previews_injection_jit_link_entrypoint
+__debug_blank_executor_run_user_entry_point
+_TtC14XCPreviewAgent11AppDelegate
+@16@0:8
+v24@0:8@16
+B24@0:8@16
+v16@0:8
+window
+@"NSWindow"
+T@"NSWindow",N,&,Vwindow
+Redirecting agent stderr to %{public}s
+Gave PreviewsInjection a chance to run and it returned, continuing with debug dylib.
+Calling provided entry point.
+__debug_blank_executor_run_user_entry_point called
+Skipping user entry point in favor of just keeping the process alive.
+Failed to find CFRunLoopRun.
+Keeping the process alive by spinning a run loop.
+Calling provided entry point from Previews.
+Stub executor is JIT linked
+Debug dylib is interposed
+Looking up debug dylib by install name '%{public}s'
+Looking up debug dylib by relative path '%{public}s'
+Debug dylib is not interposed
+Opening debug dylib with '%{public}s'
+Debug dylib handle: %p
+Looking for main entry point.
+No debug dylib present, assuming framework agent.
+Could not find framework agent entry point name '__debug_main_executable_dylib_entry_point'. Falling back to other paths.
+Looking up entry point name '%{public}s'
+Could not find provided entry point name '%{public}s
+No entry point found. Checking for alias.
+No alias entry point found. Falling back to look up entry point name 'main'
+No entry point found in debug dylib. Falling back to look up entry point name '%{public}s' globally.
+No entry point found. Checked '%{public}s'
+Failed to load '%{public}s'
+Failed to load '%{public}s': %{public}s
+Stub Executor: Debug dylib mach header not found.
+Stub Executor: Swift entry point not found (entry size: %{public}zu). Failing.
+Stub Executor: Swift entry point address could not be determined.
+Stub Executor: Failed to find Previews injection Swift entry fetcher.
+Stub Executor: Failed to get debug dylib handle for Swift entry fetcher.
+Stub Executor: Failed to lookup debug dylib MachO handle by suffix '%{public}s'.
+Debug dylib is interposed. Looking for entry trampoline in pseudodylib.
+Previews injection Swift entry fetcher not found.
+Received Swift entry section pointer: %{public}p
+dyld image header API not available, falling back
+dyld image header API available
+Mach header found at %{public}p in dylib handle %{public}p
+Entry section %{public}p, offset: %{public}x
+Swift extension entry trampoline called. Jumping to debug dylib entry point.
+Looking for dylib image with suffix: '%s'
+Could not find debug dylib: %s
+Looking for Previews JIT link entry point.
+Found Previews JIT link entry point.
+PreviewsInjection request for JIT link returned.
+No Previews JIT entry point found.
+Looking up debug dylib relative path
+Found debug dylib relative path string `%{public}s`
+No debug dylib relative path defined.
+Stub executor cannot load text section from binary: (%{public}p, %{public}p)
+Size of stub executor text section too large: (%{public}zu > %{public}zu)
+Looking up debug dylib entry point name
+Found debug dylib entry point name string `%{public}s`
+No debug dylib entry point name defined.
+Looking up debug dylib install name
+Found debug dylib install name string `%s`
+No debug dylib install name defined.
+application:delegateHandlesKey:
+T#,R
+dealloc
+T@"NSString",R,C
+release
+.cxx_destruct
+applicationWillFinishLaunching:
+T@"NSString",?,R,C
+isProxy
+TQ,R
+application:continueUserActivity:restorationHandler:
+application:didDecodeRestorableState:
+application:didFailToContinueUserActivityWithType:error:
+application:didFailToRegisterForRemoteNotificationsWithError:
+application:didReceiveRemoteNotification:
+application:didRegisterForRemoteNotificationsWithDeviceToken:
+application:didUpdateUserActivity:
+application:handlerForIntent:
+application:openFile:
+application:openFileWithoutUI:
+application:openFiles:
+application:openTempFile:
+application:openURLs:
+application:printFile:
+application:printFiles:withSettings:showPrintPanels:
+application:userDidAcceptCloudKitShareWithMetadata:
+application:willContinueUserActivityWithType:
+application:willEncodeRestorableState:
+application:willPresentError:
+applicationDidBecomeActive:
+applicationDidChangeOcclusionState:
+applicationDidChangeScreenParameters:
+applicationDidFinishLaunching:
+applicationDidHide:
+applicationDidResignActive:
+applicationDidUnhide:
+applicationDidUpdate:
+applicationDockMenu:
+applicationOpenUntitledFile:
+applicationProtectedDataDidBecomeAvailable:
+applicationProtectedDataWillBecomeUnavailable:
+applicationShouldAutomaticallyLocalizeKeyEquivalents:
+applicationShouldHandleReopen:hasVisibleWindows:
+applicationShouldOpenUntitledFile:
+applicationShouldTerminate:
+applicationShouldTerminateAfterLastWindowClosed:
+applicationSupportsSecureRestorableState:
+applicationWillBecomeActive:
+applicationWillHide:
+applicationWillResignActive:
+applicationWillTerminate:
+applicationWillUnhide:
+applicationWillUpdate:
+autorelease
+class
+conformsToProtocol:
+debugDescription
+description
+hash
+init
+isEqual:
+isKindOfClass:
+isMemberOfClass:
+performSelector:
+performSelector:withObject:
+performSelector:withObject:withObject:
+respondsToSelector:
+retain
+retainCount
+self
+setWindow:
+superclass
+window
+zone
+So8NSObjectC
+So8NSWindowCSg
+ScPSg
+ScA_pSg
+ytIegHr_
+window
+NSApplicationDelegate
+NSObject
+Q24@0:8@16
+v32@0:8@16@24
+B32@0:8@16@24
+B24@0:8@16
+Q44@0:8@16@24@32B40
+B28@0:8@16B24
+@24@0:8@16
+@32@0:8@16@24
+B40@0:8@16@24@?32
+v40@0:8@16@24@32
+v24@0:8@16
+Q24@0:8@"NSApplication"16
+v32@0:8@"NSApplication"16@"NSArray"24
+B32@0:8@"NSApplication"16@"NSString"24
+B24@0:8@"NSApplication"16
+B32@0:8@16@"NSString"24
+Q44@0:8@"NSApplication"16@"NSArray"24@"NSDictionary"32B40
+B28@0:8@"NSApplication"16B24
+@"NSMenu"24@0:8@"NSApplication"16
+@"NSError"32@0:8@"NSApplication"16@"NSError"24
+v32@0:8@"NSApplication"16@"NSData"24
+v32@0:8@"NSApplication"16@"NSError"24
+v32@0:8@"NSApplication"16@"NSDictionary"24
+@32@0:8@"NSApplication"16@"INIntent"24
+v32@0:8@"NSApplication"16@"NSCoder"24
+B40@0:8@"NSApplication"16@"NSUserActivity"24@?<v@?@"NSArray">32
+v40@0:8@"NSApplication"16@"NSString"24@"NSError"32
+v32@0:8@"NSApplication"16@"NSUserActivity"24
+v32@0:8@"NSApplication"16@"CKShareMetadata"24
+v24@0:8@"NSNotification"16
+#16@0:8
+@16@0:8
+@24@0:8:16
+@32@0:8:16@24
+@40@0:8:16@24@32
+B16@0:8
+B24@0:8#16
+B24@0:8:16
+Vv16@0:8
+Q16@0:8
+^{_NSZone=}16@0:8
+B24@0:8@"Protocol"16
+@"NSString"16@0:8

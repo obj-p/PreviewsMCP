@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Required to instantiate VZVirtualMachine. -->
+    <key>com.apple.security.virtualization</key>
+    <true/>
+
+    <!-- NAT networking on macOS hosts. VZNATNetworkDeviceAttachment opens
+         a vmnet pipe, which counts as a network server attachment. -->
+    <key>com.apple.security.network.server</key>
+    <true/>
+    <key>com.apple.security.network.client</key>
+    <true/>
+</dict>
+</plist>

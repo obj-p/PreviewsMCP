@@ -1,0 +1,48 @@
+        0x000014D4  XOJITExecutor.XOJITExecutor.JITDylibHandle.rawValue.getter : Swift.UInt64
+        0x000014DC  XOJITExecutor.XOJITExecutor.JITDylibHandle.rawValue.setter : Swift.UInt64
+        0x000014E4  XOJITExecutor.XOJITExecutor.JITDylibHandle.rawValue.modify : Swift.UInt64
+        0x00001508  static XOJITExecutor.XOJITExecutor.JITDylibHandle.== infix(XOJITExecutor.XOJITExecutor.JITDylibHandle, XOJITExecutor.XOJITExecutor.JITDylibHandle) -> Swift.Bool
+        0x00001520  static XOJITExecutor.XOJITExecutor.TerminationResult.== infix(XOJITExecutor.XOJITExecutor.TerminationResult, XOJITExecutor.XOJITExecutor.TerminationResult) -> Swift.Bool
+        0x00001534  XOJITExecutor.XOJITExecutor.TerminationResult.hash(into: inout Swift.Hasher) -> ()
+        0x00001560  XOJITExecutor.XOJITExecutor.TerminationResult.hashValue.getter : Swift.Int
+        0x0000178C  XOJITExecutor.XOJITExecutor.__allocating_init(connection: __C.OS_xpc_object) -> XOJITExecutor.XOJITExecutor
+        0x000017CC  XOJITExecutor.XOJITExecutor.init(connection: __C.OS_xpc_object) -> XOJITExecutor.XOJITExecutor
+        0x00001FF8  XOJITExecutor.XOJITExecutor.deinit
+        0x000020CC  XOJITExecutor.XOJITExecutor.__deallocating_deinit
+        0x00002100  XOJITExecutor.XOJITExecutor.disconnect() -> ()
+        0x00002258  XOJITExecutor.XOJITExecutor.start(terminationHandler: (XOJITExecutor.XOJITExecutor.TerminationResult) -> ()) -> ()
+        0x000027BC  XOJITExecutor.XOJITExecutor.waitForTermination() -> ()
+        0x000027E0  XOJITExecutor.XOJITExecutor.handleRunProgramOnMainThread() -> ()
+        0x00004A40  type metadata accessor for XOJITExecutor.XOJITExecutor
+        0x00004A64  method lookup function for XOJITExecutor.XOJITExecutor
+        0x00004A7C  dispatch thunk of XOJITExecutor.XOJITExecutor.__allocating_init(connection: __C.OS_xpc_object) -> XOJITExecutor.XOJITExecutor
+        0x00004A90  type metadata accessor for XOJITExecutor.XOJITExecutor.JITDylibHandle
+        0x00004C10  type metadata accessor for XOJITExecutor.XOJITExecutor.TerminationResult
+        0x00005C78  ___xojit_executor_write_mem
+        0x00006168  ___xojit_executor_run_program_on_main_thread
+        0x00006334  ___xojit_executor_run_program_wrapper
+        0x00006A44  ___xojit_run_wrapper
+        0x00006A60  ___jit_debug_register_code
+        0x00006A64  _llvm_orc_registerJITLoaderGDBAllocAction
+        0x0000C658  protocol conformance descriptor for XOJITExecutor.XOJITExecutor.JITDylibHandle : Swift.Equatable in XOJITExecutor
+        0x0000C680  protocol conformance descriptor for XOJITExecutor.XOJITExecutor.TerminationResult : Swift.Equatable in XOJITExecutor
+        0x0000C6A8  protocol conformance descriptor for XOJITExecutor.XOJITExecutor.TerminationResult : Swift.Hashable in XOJITExecutor
+        0x0000C6E8  property descriptor for XOJITExecutor.XOJITExecutor.JITDylibHandle.rawValue : Swift.UInt64
+        0x0000C6EC  property descriptor for XOJITExecutor.XOJITExecutor.TerminationResult.hashValue : Swift.Int
+        0x0000C770  class metadata base offset for XOJITExecutor.XOJITExecutor
+        0x0000C7C4  enum case for XOJITExecutor.XOJITExecutor.TerminationResult.success(XOJITExecutor.XOJITExecutor.TerminationResult.Type) -> XOJITExecutor.XOJITExecutor.TerminationResult
+        0x0000C7C8  enum case for XOJITExecutor.XOJITExecutor.TerminationResult.badCommand(XOJITExecutor.XOJITExecutor.TerminationResult.Type) -> XOJITExecutor.XOJITExecutor.TerminationResult
+        0x0000C7CC  enum case for XOJITExecutor.XOJITExecutor.TerminationResult.remoteDisconnect(XOJITExecutor.XOJITExecutor.TerminationResult.Type) -> XOJITExecutor.XOJITExecutor.TerminationResult
+        0x0000C7D0  enum case for XOJITExecutor.XOJITExecutor.TerminationResult.failedSetup(XOJITExecutor.XOJITExecutor.TerminationResult.Type) -> XOJITExecutor.XOJITExecutor.TerminationResult
+        0x0000C938  nominal type descriptor for XOJITExecutor.XOJITExecutor
+        0x0000C96C  method descriptor for XOJITExecutor.XOJITExecutor.__allocating_init(connection: __C.OS_xpc_object) -> XOJITExecutor.XOJITExecutor
+        0x0000C974  nominal type descriptor for XOJITExecutor.XOJITExecutor.JITDylibHandle
+        0x0000C990  nominal type descriptor for XOJITExecutor.XOJITExecutor.TerminationResult
+        0x1FAFA470  ___jit_debug_descriptor
+        0x21D38B78  metaclass for XOJITExecutor.XOJITExecutor
+        0x21D38BB8  type metadata for XOJITExecutor.XOJITExecutor
+        0x264C3570  type metadata for XOJITExecutor.XOJITExecutor.JITDylibHandle
+        0x264C3608  type metadata for XOJITExecutor.XOJITExecutor.TerminationResult
+        offset      symbol
+    -exports:
+/System/Library/PrivateFrameworks/XOJITExecutor.framework/Versions/A/XOJITExecutor [arm64e]:

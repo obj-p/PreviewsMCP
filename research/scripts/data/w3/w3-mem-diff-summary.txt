@@ -1,0 +1,140 @@
+# W3 mem-diff summary — 12 edit attempts across sessions
+#
+# Compiled across session 5 (4 edits), session 6 (8 edits), and
+# session 7 (12 edits with PreviewsInjection/XPC/dyld-add-image hooks
+# added). Per-edit raw files truncated to head-300 + tail-5 lines for
+# repo hygiene; full diffs are reproducible from the preset.
+
+## Session 7 (latest) — 12 edits attempted
+
+| edit | description                            | PID change       | write_mem | mechanism observed         |
+|------|----------------------------------------|------------------|-----------|----------------------------|
+|  1   | body-literal-same-file (World→Earth)   | 1312→1403        | 0         | full respawn               |
+|  2   | body-literal-cross-file (Model.swift)  | 1403→1487→1496   | 0         | full respawn (×2 — see below) |
+|  3   | add-method (func decorate)             | 1496→1577        | 0         | full respawn               |
+|  4   | add-state (@State counter)             | 1577→1660        | 0         | full respawn               |
+|  5   | remove-stored-property                 | 1660→1739        | 0         | full respawn               |
+|  6   | function-signature change (suffix arg) | 1739→1813        | 0         | full respawn               |
+|  7   | new file Extras.swift + new type       | 1813→**(none)**  | 0         | **agent did NOT respawn** ★ |
+|  8   | conformance addition                   | (none)           | -         | agent still down           |
+|  9   | whitespace-only                        | (none)           | -         | agent still down           |
+| 10   | generic-parameter add                  | (none)           | -         | agent still down           |
+| 11   | simultaneous two-file edit             | (none)           | -         | agent still down           |
+| 12   | touch without content change           | (none)           | -         | agent still down           |
+
+## Major findings
+
+### 1. Respawn-only confirmed for first 6 edit kinds (already established)
+
+Edits 1-6 reproduce the session-6 finding: every single-file content
+mutation — whether simple body literal, structural ABI change
+(@State add/remove), or full mangled-name mutation (function-sig
+change) — triggers full agent respawn. Zero `write_mem`,
+3-call `run_program_*` dispatch pattern per agent.
+
+### 2. NEW: edit 7 (new-file-with-new-type) does NOT respawn the agent
+
+Adding a new `.swift` file to the SwiftPM package — even one with a
+trivial `public struct` — leaves the agent dead. In sessions 5 + 6,
+edit 7 DID respawn (we observed PID 1921). In session 7 with the
+extended interposer (+3 more interpose entries: `xpc_get_value`,
+`xpc_set_event_handler`, `dyld_add_image` + argv/env constructor
+logging), the agent never came back.
+
+Most likely cause: edit 7 takes longer to hot-reload (SwiftPM has to
+re-discover the file, the build pipeline has to compile + index it),
+and the additional interposer overhead pushed the total past
+previewsd's "agent is healthy" timeout. The 5 subsequent edits also
+fail to respawn — once previewsd's state is broken, it doesn't
+self-recover within the preset's window.
+
+Hypothesis worth testing in a future session: revert to the
+minimal-interpose form (just the 4 xojit symbols) but add a 60+
+second wait before edit 7's after-snapshot. If the agent does
+respawn there, the interposer-overhead hypothesis is confirmed.
+
+### 3. Mid-stream double-respawn between edits 1 and 2 (PID 1487)
+
+Between edit 1's after-snapshot (PID 1403) and edit 2's after-snapshot
+(PID 1496), a brief agent process appeared (PID 1487, ~1 second
+before 1496). 8 `open_log` markers in the interposer trace vs 7 PIDs
+caught by pgrep — the missing one is 1487. Suggests previewsd
+sometimes pre-warms or speculatively respawns an agent that then
+gets replaced. Not blocking the respawn-only conclusion.
+
+### 4. XPC C-API: still zero usage by the agent
+
+Even with `xpc_dictionary_get_value` interpose added (filtered to
+log only structured value types — data/dictionary/array/fd/shmem),
+zero calls captured. Combined with prior null results for
+`send_message` / `send_message_with_reply_sync` /
+`set_event_handler`: **the agent makes zero calls to the C XPC
+API.** All XPC traffic is funneled through Swift wrappers
+(`XOJITExecutor` Swift class methods that take `OS_xpc_object`
+parameters). To capture XPC content we'd need Swift-symbol-level
+interpose or function-prologue hooks against the Swift methods.
+
+### 5. dyld_add_image / argv capture: instrumentation didn't fire
+
+The new constructor additions (argv capture via `_NSGetArgv`,
+register-for-add-image callback) didn't write expected events.
+Possible reasons:
+  - `_NSGetArgc()` returns null or argc=0 — perhaps the agent's argv
+    layout differs from a typical-process layout.
+  - dyld's add-image callback fires inside a dyld-internal lock,
+    and our `pthread_once`+`fopen` call can't complete from that
+    context.
+Both are instrumentation bugs to chase in a future session, not
+load-bearing findings.
+
+## Net architectural conclusion
+
+For SINGLE-FILE edits across the spectrum — body literal, structural
+ABI change, function-sig change, conformance addition, etc. —
+Apple's hot-reload is uniformly respawn-only. For NEW-FILE additions,
+Apple's hot-reload either takes much longer than 60s OR doesn't
+handle the case cleanly at all. The latter is plausible: SwiftUI
+preview's "fast iteration" use case is editing existing source, not
+adding new types/files. Our equivalent design should:
+
+- Default to respawn-only for in-place edits (matches Apple).
+- For new-file or major-restructure edits, fall back to a full
+  package re-compile + agent re-spawn (probably what Apple does
+  too — just with a longer cold path).
+
+This refines `prompts/jit-executor-design.md` §2 + §7
+(build-pipeline integration): the per-edit pipeline must handle
+two paths — fast respawn (in-place edits) and slow rebuild (file
+add/remove).
+
+---
+
+## Session 6 (8 edits) — superseded by session 7 above
+
+(Preserved for reference; same shape, same conclusions for edits 1-8.)
+
+| edit | description                            | PID change       | write_mem | DIFF entries |
+|------|----------------------------------------|------------------|-----------|--------------|
+| 1    | body-literal-same-file                 | 1308→1399        | 0         | 2,492        |
+| 2    | body-literal-cross-file (Model.swift)  | 1399→1498        | 0         | 526          |
+| 3    | add-method (decorate)                  | 1498→1585        | 0         | 1,456        |
+| 4    | add-state (@State counter)             | 1585→1666        | 0         | 692,354 ★    |
+| 5    | remove-stored-property                 | 1666→1745        | 0         | 1,009        |
+| 6    | function-sig change (suffix param)     | 1745→1820        | 0         | 1,933        |
+| 7    | new file Extras.swift + new type       | 1820→1921        | 0         | 5,666        |
+| 8    | conformance add (CustomStringCnv)      | 1921→1998        | 0         | 457          |
+
+In session 6, edit 7 DID succeed — probably because the interposer
+was lighter (4 fewer interpose entries) and the agent stayed
+responsive within previewsd's heartbeat window. Edit 4's anomalously
+high DIFF count (692K) is SwiftUI internal property-observer
+machinery churn at the shared-library level.
+
+# Net findings combined
+
+- 14 agent processes across sessions 5+6+7 for single-file edits: 0
+  write_mem calls. Respawn-only is empirically universal for these.
+- 1 new failure mode discovered in session 7: new-file additions are
+  fragile and may not respawn within a reasonable window.
+- 0 C XPC API usage across all sessions: agent uses Swift wrappers
+  exclusively.

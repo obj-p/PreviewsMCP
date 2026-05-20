@@ -24,7 +24,7 @@ public struct StderrProgressReporter: ProgressReporter {
 /// Load project config from explicit path or auto-discover from source file directory.
 public func loadProjectConfig(explicit configPath: String?, fileURL: URL) -> ProjectConfigLoader.Result? {
     if let configPath {
-        let url = URL(fileURLWithPath: configPath)
+        let url = URL(fileURLWithPath: Path.normalize(configPath))
         let dir = url.deletingLastPathComponent()
         guard let data = try? Data(contentsOf: url),
             let config = try? JSONDecoder().decode(ProjectConfig.self, from: data)

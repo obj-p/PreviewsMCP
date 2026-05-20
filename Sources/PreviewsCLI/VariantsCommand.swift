@@ -124,8 +124,7 @@ struct VariantsCommand: AsyncParsableCommand {
             )
         }
         if let file {
-            let fileURL = URL(fileURLWithPath: file).standardizedFileURL
-            guard FileManager.default.fileExists(atPath: fileURL.path) else {
+            guard FileManager.default.fileExists(atPath: Path.normalize(file)) else {
                 throw ValidationError("File not found: \(file)")
             }
         }
@@ -148,7 +147,7 @@ struct VariantsCommand: AsyncParsableCommand {
             seen[v.label] = index
         }
 
-        let outputDirURL = URL(fileURLWithPath: outputDir)
+        let outputDirURL = URL(fileURLWithPath: Path.normalize(outputDir))
         try FileManager.default.createDirectory(
             at: outputDirURL, withIntermediateDirectories: true)
 
@@ -196,7 +195,11 @@ struct VariantsCommand: AsyncParsableCommand {
         outputDir: URL,
         client: Client
     ) async throws -> Int32 {
-        let fileURL = URL(fileURLWithPath: file).standardizedFileURL
+        // Normalize locally — used for client-side helpers (config
+        // discovery, platform inference) and sent to the daemon, which
+        // runs in its own process and does not share our CWD. The daemon
+        // re-normalizes on receipt for non-CLI MCP clients.
+        let fileURL = Path.normalizeURL(file)
         let configResult = loadProjectConfig(explicit: config, fileURL: fileURL)
         let resolvedPlatform = SnapshotCommand.resolvePlatform(
             explicit: platform,
@@ -214,10 +217,10 @@ struct VariantsCommand: AsyncParsableCommand {
             "headless": .bool(true),
             "platform": .string(resolvedPlatform.rawValue),
         ]
-        if let project { startArgs["projectPath"] = .string(project) }
+        if let project { startArgs["projectPath"] = .string(Path.normalize(project)) }
         if let scheme { startArgs["scheme"] = .string(scheme) }
         if let device { startArgs["deviceUDID"] = .string(device) }
-        if let config { startArgs["config"] = .string(config) }
+        if let config { startArgs["config"] = .string(Path.normalize(config)) }
 
         let startResponse = try await client.callToolStructured(
             name: "preview_start", arguments: startArgs

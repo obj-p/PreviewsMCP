@@ -1,0 +1,1 @@
+# NO_AGENT — edit 8 did not respawn the agent (agent died after edit 7 add-new-file and previewsd did not recover)

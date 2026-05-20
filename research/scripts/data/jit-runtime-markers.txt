@@ -1,0 +1,19 @@
+## libPreviewsJITStubExecutor.a markers
+  llvm::               0
+  orc::                0
+  JITLink              0
+  RuntimeDyld          0
+  jitlink              0
+  XOJIT                0
+  pseudodylib          2
+  pseudoDylib          2
+
+## PreviewsInjection.tbd markers
+  llvm::               0
+  orc::                0
+  JITLink              2
+  RuntimeDyld          0
+  jitlink              2
+  XOJIT                0
+  pseudodylib          1
+  pseudoDylib          1

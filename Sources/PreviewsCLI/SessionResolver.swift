@@ -1,5 +1,6 @@
 import Foundation
 import MCP
+import PreviewsCore
 
 /// Resolves CLI session-targeting flags (`--session <uuid>` / `--file <path>`
 /// / no flag) to an active session in the daemon.
@@ -44,7 +45,7 @@ enum SessionResolver {
         file: String?
     ) throws -> Resolution {
         if let file {
-            let targetPath = URL(fileURLWithPath: file).standardizedFileURL.path
+            let targetPath = Path.normalize(file)
             let matches = activeSessions.filter { $0.sourceFilePath == targetPath }
             switch matches.count {
             case 0:

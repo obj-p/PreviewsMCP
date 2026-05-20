@@ -1,0 +1,274 @@
+        0x00001450  PreviewsXROSServices.PreviewNetworkAddress.__allocating_init(Swift.String) -> PreviewsXROSServices.PreviewNetworkAddress
+        0x000014E8  PreviewsXROSServices.PreviewNetworkAddress.init(Swift.String) -> PreviewsXROSServices.PreviewNetworkAddress
+        0x000016B4  type metadata accessor for PreviewsXROSServices.PreviewNetworkAddress
+        0x000016D4  PreviewsXROSServices.PreviewNetworkAddress.deinit
+        0x000016FC  PreviewsXROSServices.PreviewNetworkAddress.__deallocating_deinit
+        0x00001790  static PreviewsXROSServices.PreviewNetworkAddress.== infix(PreviewsXROSServices.PreviewNetworkAddress, PreviewsXROSServices.PreviewNetworkAddress) -> Swift.Bool
+        0x00001918  PreviewsXROSServices.PreviewNetworkPayload.channel.getter : Swift.UInt8
+        0x00001920  PreviewsXROSServices.PreviewNetworkPayload.data.getter : Foundation.Data
+        0x00001950  PreviewsXROSServices.PreviewNetworkPayload.init(channel: Swift.UInt8, data: Foundation.Data) -> PreviewsXROSServices.PreviewNetworkPayload
+        0x00001974  PreviewsXROSServices.PointOfInterest.Event.hashValue.getter : Swift.Int
+        0x000019B8  PreviewsXROSServices.PointOfInterest.Event.hash(into: inout Swift.Hasher) -> ()
+        0x00001B94  PreviewsXROSServices.PreviewNetworkPayload.encode(to: Swift.Encoder) throws -> ()
+        0x00001CE4  PreviewsXROSServices.PreviewNetworkPayload.init(from: Swift.Decoder) throws -> PreviewsXROSServices.PreviewNetworkPayload
+        0x00001E78  (extension in PreviewsXROSServices):PreviewsXROSServices.PreviewNetworkConnectable.setDisconnectTimeout(Swift.Int) -> ()
+        0x00001E78  (extension in PreviewsXROSServices):PreviewsXROSServices.PreviewNetworkConnectable.setEventHandler((PreviewsXROSServices.PreviewNetworkConnectableEvent) -> ()) -> ()
+        0x00001E7C  (extension in PreviewsXROSServices):PreviewsXROSServices.PreviewNetworkConnectable.eventPublisher.getter : Combine.PassthroughSubject<PreviewsXROSServices.PreviewNetworkConnectableEvent, Swift.Never>
+        0x00001F0C  PreviewsXROSServices.AnyPreviewNetworkConnectable.init<A where A: PreviewsXROSServices.PreviewNetworkConnectable>(A) -> PreviewsXROSServices.AnyPreviewNetworkConnectable
+        0x00002730  PreviewsXROSServices.AnyPreviewNetworkConnectable.preferredPacketSize.getter : Swift.Int
+        0x00002750  PreviewsXROSServices.AnyPreviewNetworkConnectable.reliability.getter : PreviewsXROSServices.PreviewNetworkConnectableReliability
+        0x00002770  PreviewsXROSServices.AnyPreviewNetworkConnectable.localAddress.getter : PreviewsXROSServices.PreviewNetworkAddress
+        0x00002790  PreviewsXROSServices.AnyPreviewNetworkConnectable.connectedPeerAddresses.getter : [PreviewsXROSServices.PreviewNetworkAddress]
+        0x000027B0  PreviewsXROSServices.AnyPreviewNetworkConnectable.setEventHandler((PreviewsXROSServices.PreviewNetworkConnectableEvent) -> ()) -> ()
+        0x000027D0  PreviewsXROSServices.AnyPreviewNetworkConnectable.eventPublisher.getter : Combine.AnyPublisher<PreviewsXROSServices.PreviewNetworkConnectableEvent, Swift.Never>
+        0x000027F0  PreviewsXROSServices.AnyPreviewNetworkConnectable.setDisconnectTimeout(Swift.Int) -> ()
+        0x00002810  PreviewsXROSServices.AnyPreviewNetworkConnectable.sendPayload(_: PreviewsXROSServices.PreviewNetworkPayload, to: PreviewsXROSServices.PreviewNetworkAddress) -> Swift.Result<(), Swift.Error>
+        0x00002C24  method lookup function for PreviewsXROSServices.PreviewNetworkAddress
+        0x00002C30  dispatch thunk of PreviewsXROSServices.PreviewNetworkAddress.__allocating_init(Swift.String) -> PreviewsXROSServices.PreviewNetworkAddress
+        0x00002C38  dispatch thunk of PreviewsXROSServices.PreviewNetworkAddress.matches(PreviewsXROSServices.PreviewNetworkAddress) -> Swift.Bool
+        0x00002C44  dispatch thunk of PreviewsXROSServices.PreviewNetworkAddress.hash(into: inout Swift.Hasher) -> ()
+        0x00002C50  dispatch thunk of PreviewsXROSServices.PreviewNetworkAddress.description.getter : Swift.String
+        0x00002C5C  dispatch thunk of PreviewsXROSServices.PreviewNetworkAddress.hashValue.getter : Swift.Int
+        0x00002E00  type metadata accessor for PreviewsXROSServices.PreviewNetworkPayload
+        0x000030EC  type metadata accessor for PreviewsXROSServices.PreviewNetworkConnectableEvent
+        0x0000319C  type metadata accessor for PreviewsXROSServices.PreviewNetworkConnectableReliability
+        0x000031AC  dispatch thunk of PreviewsXROSServices.PreviewNetworkConnectable.preferredPacketSize.getter : Swift.Int
+        0x000031B4  dispatch thunk of PreviewsXROSServices.PreviewNetworkConnectable.reliability.getter : PreviewsXROSServices.PreviewNetworkConnectableReliability
+        0x000031BC  dispatch thunk of PreviewsXROSServices.PreviewNetworkConnectable.localAddress.getter : PreviewsXROSServices.PreviewNetworkAddress
+        0x000031C4  dispatch thunk of PreviewsXROSServices.PreviewNetworkConnectable.connectedPeerAddresses.getter : [PreviewsXROSServices.PreviewNetworkAddress]
+        0x000031CC  dispatch thunk of PreviewsXROSServices.PreviewNetworkConnectable.setEventHandler((PreviewsXROSServices.PreviewNetworkConnectableEvent) -> ()) -> ()
+        0x000031D4  dispatch thunk of PreviewsXROSServices.PreviewNetworkConnectable.eventPublisher.getter : A.EventPublisher
+        0x000031DC  dispatch thunk of PreviewsXROSServices.PreviewNetworkConnectable.setDisconnectTimeout(Swift.Int) -> ()
+        0x000031E4  dispatch thunk of PreviewsXROSServices.PreviewNetworkConnectable.sendPayload(_: PreviewsXROSServices.PreviewNetworkPayload, to: PreviewsXROSServices.PreviewNetworkAddress) -> Swift.Result<(), Swift.Error>
+        0x000035C8  type metadata accessor for PreviewsXROSServices.AnyPreviewNetworkConnectable
+        0x00003888  PreviewsXROSServices.CALayerServiceObserver.publisher.getter : Combine.PassthroughSubject<RealityKit.Entity, Swift.Never>
+        0x00003888  PreviewsXROSServices.PreviewCustomSystem.scene.getter : RealityKit.Scene
+        0x00003890  PreviewsXROSServices.CALayerServiceObserver.__allocating_init() -> PreviewsXROSServices.CALayerServiceObserver?
+        0x000038C0  PreviewsXROSServices.CALayerServiceObserver.init() -> PreviewsXROSServices.CALayerServiceObserver?
+        0x00003DA0  PreviewsXROSServices.CALayerServiceObserver.deinit
+        0x00003F60  PreviewsXROSServices.CALayerServiceObserver.__deallocating_deinit
+        0x00003F98  type metadata accessor for PreviewsXROSServices.CALayerServiceObserver
+        0x00004040  method lookup function for PreviewsXROSServices.CALayerServiceObserver
+        0x0000404C  dispatch thunk of PreviewsXROSServices.CALayerServiceObserver.__allocating_init() -> PreviewsXROSServices.CALayerServiceObserver?
+        0x00004054  PreviewsXROSServices.Signpost.event(_: Swift.StaticString, id: os.OSSignpostID) -> ()
+        0x000043C0  PreviewsXROSServices.Signpost.init(logHandle: __C.OS_os_log, logLevel: __C.os_log_type_t, eventLogPrefix: Swift.String?) -> PreviewsXROSServices.Signpost
+        0x000043D0  static PreviewsXROSServices.Signpost.general.getter : PreviewsXROSServices.Signpost
+        0x000044A8  static PreviewsXROSServices.Signpost.engine.getter : PreviewsXROSServices.Signpost
+        0x00004580  static PreviewsXROSServices.Signpost.streaming.getter : PreviewsXROSServices.Signpost
+        0x00004658  static PreviewsXROSServices.Signpost.hosted.getter : PreviewsXROSServices.Signpost
+        0x00004730  static PreviewsXROSServices.Signpost.uv.getter : PreviewsXROSServices.Signpost
+        0x0000486C  static PreviewsXROSServices.Signpost.pointsOfInterest.getter : PreviewsXROSServices.Signpost
+        0x000048DC  PreviewsXROSServices.Signpost.beginInterval(_: Swift.StaticString, id: os.OSSignpostID) -> PreviewsXROSServices.SignpostInterval?
+        0x00004CE8  PreviewsXROSServices.SignpostInterval.init(signpost: PreviewsXROSServices.Signpost, name: Swift.StaticString, id: os.OSSignpostID, state: Any) -> PreviewsXROSServices.SignpostInterval
+        0x00004F10  PreviewsXROSServices.SignpostInterval.end() -> ()
+        0x0000555C  (extension in PreviewsXROSServices):os.OSSignpostID.description.getter : Swift.String
+        0x0000559C  type metadata accessor for PreviewsXROSServices.SignpostInterval
+        0x000057BC  type metadata accessor for PreviewsXROSServices.Signpost
+        0x00006018  static PreviewsXROSServices.PreviewCustomSystem.SynchronizationError.== infix(PreviewsXROSServices.PreviewCustomSystem<A>.SynchronizationError, PreviewsXROSServices.PreviewCustomSystem<A>.SynchronizationError) -> Swift.Bool
+        0x00006020  PreviewsXROSServices.PreviewCustomSystem.SynchronizationError.hash(into: inout Swift.Hasher) -> ()
+        0x00006044  PreviewsXROSServices.PreviewCustomSystem.SynchronizationError.hashValue.getter : Swift.Int
+        0x000060D0  PreviewsXROSServices.PreviewCustomSystem.syncService.getter : PreviewsXROSServices.PreviewSynchronizationService<A>
+        0x000060D8  PreviewsXROSServices.PreviewCustomSystem.__allocating_init(engine: RealityKit.__Engine, connection: A, scene: RealityKit.Scene, config: PreviewsXROSServices.PreviewSynchronizationServiceConfig, onDisconnection: (() -> ())?) throws -> PreviewsXROSServices.PreviewCustomSystem<A>
+        0x00006184  PreviewsXROSServices.PreviewCustomSystem.init(engine: RealityKit.__Engine, connection: A, scene: RealityKit.Scene, config: PreviewsXROSServices.PreviewSynchronizationServiceConfig, onDisconnection: (() -> ())?) throws -> PreviewsXROSServices.PreviewCustomSystem<A>
+        0x000061D4  PreviewsXROSServices.PreviewCustomSystem.deinit
+        0x00006264  PreviewsXROSServices.PreviewCustomSystem.__deallocating_deinit
+        0x000064E0  type metadata accessor for PreviewsXROSServices.PreviewCustomSystem
+        0x000064EC  method lookup function for PreviewsXROSServices.PreviewCustomSystem
+        0x000064F8  dispatch thunk of PreviewsXROSServices.PreviewCustomSystem.__allocating_init(engine: RealityKit.__Engine, connection: A, scene: RealityKit.Scene, config: PreviewsXROSServices.PreviewSynchronizationServiceConfig, onDisconnection: (() -> ())?) throws -> PreviewsXROSServices.PreviewCustomSystem<A>
+        0x000065F0  type metadata accessor for PreviewsXROSServices.PreviewCustomSystem.SynchronizationError
+        0x00006648  static (extension in PreviewsXROSServices):__C.OS_os_log.previewsXROSLoggingSubsystem.getter : Swift.String
+        0x00006698  static (extension in PreviewsXROSServices):__C.OS_os_log.previewsXROSLoggingSubsystem.setter : Swift.String
+        0x000066F0  static (extension in PreviewsXROSServices):__C.OS_os_log.previewsXROSLoggingSubsystem.modify : Swift.String
+        0x000067C4  static (extension in PreviewsXROSServices):__C.OS_os_log.uv.getter : __C.OS_os_log
+        0x00006920  static PreviewsXROSServices.Log.general.getter : os.Logger
+        0x000069E8  static PreviewsXROSServices.Log.engine.getter : os.Logger
+        0x00006A28  static PreviewsXROSServices.Log.streaming.getter : os.Logger
+        0x00006A68  static PreviewsXROSServices.Log.uv.getter : os.Logger
+        0x00006AA8  static PreviewsXROSServices.Log.staticPreview.getter : os.Logger
+        0x00006AE8  static PreviewsXROSServices.Log.livePreview.getter : os.Logger
+        0x00006B28  static PreviewsXROSServices.Log.temp.getter : os.Logger
+        0x00006BAC  type metadata accessor for PreviewsXROSServices.Log
+        0x00006BFC  PreviewsXROSServices.PointOfInterest.Event.init(rawValue: Swift.StaticString) -> PreviewsXROSServices.PointOfInterest.Event?
+        0x00007CB4  PreviewsXROSServices.PointOfInterest.Event.rawValue.getter : Swift.StaticString
+        0x00008004  static PreviewsXROSServices.PointOfInterest.mark(_: PreviewsXROSServices.PointOfInterest.Event, exclusive: Swift.Bool) -> ()
+        0x000081F4  static PreviewsXROSServices.PointOfInterest.isMarked(PreviewsXROSServices.PointOfInterest.Event) -> Swift.Bool
+        0x00008808  static PreviewsXROSServices.PointOfInterest.unmark(PreviewsXROSServices.PointOfInterest.Event) -> ()
+        0x00008884  static PreviewsXROSServices.PointOfInterest.reset() -> ()
+        0x000088FC  static (extension in PreviewsXROSServices):Swift.StaticString.== infix(Swift.StaticString, Swift.StaticString) -> Swift.Bool
+        0x0000A2A8  type metadata accessor for PreviewsXROSServices.PointOfInterest
+        0x0000A400  type metadata accessor for PreviewsXROSServices.PointOfInterest.Event
+        0x0000A5A4  PreviewsXROSServices.PreviewNetworkPayload.propertyListValue.getter : [Swift.String : Foundation.Data]
+        0x0000A6CC  PreviewsXROSServices.PreviewNetworkPayload.init(propertyListValue: [Swift.String : Foundation.Data]) throws -> PreviewsXROSServices.PreviewNetworkPayload
+        0x0000B508  PreviewsXROSServices.PreviewSynchronizationService.__allocating_init(engine: RealityKit.__Engine, connection: A, config: PreviewsXROSServices.PreviewSynchronizationServiceConfig, onDisconnection: (() -> ())?) -> PreviewsXROSServices.PreviewSynchronizationService<A>?
+        0x0000B744  PreviewsXROSServices.PreviewSynchronizationServiceConfig.transportQueue.getter : __C.OS_dispatch_queue
+        0x0000B74C  PreviewsXROSServices.PreviewSynchronizationServiceConfig.transportQueue.setter : __C.OS_dispatch_queue
+        0x0000B774  PreviewsXROSServices.PreviewSynchronizationServiceConfig.transportQueue.modify : __C.OS_dispatch_queue
+        0x0000B784  PreviewsXROSServices.PreviewSynchronizationServiceConfig.init() -> PreviewsXROSServices.PreviewSynchronizationServiceConfig
+        0x0000EC28  PreviewsXROSServices.PreviewSynchronizationService.__allocating_init(connection: A, config: PreviewsXROSServices.PreviewSynchronizationServiceConfig, onDisconnection: (() -> ())?) -> PreviewsXROSServices.PreviewSynchronizationService<A>?
+        0x0000ED28  PreviewsXROSServices.PreviewSynchronizationService.init(engine: RealityKit.__Engine, connection: A, config: PreviewsXROSServices.PreviewSynchronizationServiceConfig, onDisconnection: (() -> ())?) -> PreviewsXROSServices.PreviewSynchronizationService<A>?
+        0x0000F940  PreviewsXROSServices.PreviewSynchronizationService.deinit
+        0x0000FC2C  PreviewsXROSServices.PreviewSynchronizationService.__deallocating_deinit
+        0x000118E4  type metadata accessor for PreviewsXROSServices.PreviewSynchronizationServiceConfig
+        0x0001195C  type metadata accessor for PreviewsXROSServices.PreviewSynchronizationService
+        0x00011968  method lookup function for PreviewsXROSServices.PreviewSynchronizationService
+        0x00011974  dispatch thunk of PreviewsXROSServices.PreviewSynchronizationService.__allocating_init(engine: RealityKit.__Engine, connection: A, config: PreviewsXROSServices.PreviewSynchronizationServiceConfig, onDisconnection: (() -> ())?) -> PreviewsXROSServices.PreviewSynchronizationService<A>?
+        0x0001197C  dispatch thunk of PreviewsXROSServices.PreviewSynchronizationService.entity(for: Swift.UInt64) -> RealityKit.Entity?
+        0x00011988  dispatch thunk of PreviewsXROSServices.PreviewSynchronizationService.owner(of: RealityKit.Entity) -> RealityKit.SynchronizationPeerID?
+        0x00011994  dispatch thunk of PreviewsXROSServices.PreviewSynchronizationService.giveOwnership(of: RealityKit.Entity, toPeer: RealityKit.SynchronizationPeerID) -> Swift.Bool
+        0x000119A0  dispatch thunk of PreviewsXROSServices.PreviewSynchronizationService.__fromCore(peerID: RealityKit.__PeerIDRef) -> RealityKit.SynchronizationPeerID?
+        0x000119AC  dispatch thunk of PreviewsXROSServices.PreviewSynchronizationService.__toCore(peerID: RealityKit.SynchronizationPeerID) -> RealityKit.__PeerIDRef
+        0x000119B8  dispatch thunk of PreviewsXROSServices.PreviewSynchronizationService.startSync() -> ()
+        0x000119C4  dispatch thunk of PreviewsXROSServices.PreviewSynchronizationService.stopSync() -> ()
+        0x00012CD0  _PreviewsXROSServicesVersionString
+        0x00012D10  _PreviewsXROSServicesVersionNumber
+        0x00012D38  protocol conformance descriptor for PreviewsXROSServices.PreviewNetworkAddress : Swift.Hashable in PreviewsXROSServices
+        0x00012D78  protocol conformance descriptor for PreviewsXROSServices.PreviewNetworkAddress : Swift.CustomStringConvertible in PreviewsXROSServices
+        0x00012DA0  protocol conformance descriptor for PreviewsXROSServices.PreviewNetworkAddress : Swift.Equatable in PreviewsXROSServices
+        0x00012DC8  protocol conformance descriptor for PreviewsXROSServices.PreviewNetworkPayload : Swift.Decodable in PreviewsXROSServices
+        0x00012DF0  protocol conformance descriptor for PreviewsXROSServices.PreviewNetworkPayload : Swift.Encodable in PreviewsXROSServices
+        0x00012E20  protocol conformance descriptor for PreviewsXROSServices.AnyPreviewNetworkConnectable : PreviewsXROSServices.PreviewNetworkConnectable in PreviewsXROSServices
+        0x00012E3C  property descriptor for (extension in PreviewsXROSServices):PreviewsXROSServices.PreviewNetworkConnectable.eventPublisher : Combine.PassthroughSubject<PreviewsXROSServices.PreviewNetworkConnectableEvent, Swift.Never>
+        0x00012E3C  property descriptor for PreviewsXROSServices.AnyPreviewNetworkConnectable.connectedPeerAddresses : [PreviewsXROSServices.PreviewNetworkAddress]
+        0x00012E3C  property descriptor for PreviewsXROSServices.AnyPreviewNetworkConnectable.eventPublisher : Combine.AnyPublisher<PreviewsXROSServices.PreviewNetworkConnectableEvent, Swift.Never>
+        0x00012E3C  property descriptor for PreviewsXROSServices.AnyPreviewNetworkConnectable.localAddress : PreviewsXROSServices.PreviewNetworkAddress
+        0x00012E3C  property descriptor for PreviewsXROSServices.AnyPreviewNetworkConnectable.preferredPacketSize : Swift.Int
+        0x00012E3C  property descriptor for PreviewsXROSServices.AnyPreviewNetworkConnectable.reliability : PreviewsXROSServices.PreviewNetworkConnectableReliability
+        0x00012E3C  property descriptor for PreviewsXROSServices.PreviewNetworkAddress.description : Swift.String
+        0x00012E3C  property descriptor for PreviewsXROSServices.PreviewNetworkAddress.hashValue : Swift.Int
+        0x00012E40  property descriptor for PreviewsXROSServices.PreviewNetworkPayload.channel : Swift.UInt8
+        0x00012E44  property descriptor for PreviewsXROSServices.PreviewNetworkPayload.data : Foundation.Data
+        0x00012E88  class metadata base offset for PreviewsXROSServices.PreviewNetworkAddress
+        0x00012EE0  enum case for PreviewsXROSServices.PreviewNetworkConnectableEvent.connectionOpened(PreviewsXROSServices.PreviewNetworkConnectableEvent.Type) -> (PreviewsXROSServices.PreviewNetworkAddress) -> PreviewsXROSServices.PreviewNetworkConnectableEvent
+        0x00012EE4  enum case for PreviewsXROSServices.PreviewNetworkConnectableEvent.receivedPayload(PreviewsXROSServices.PreviewNetworkConnectableEvent.Type) -> (PreviewsXROSServices.PreviewNetworkPayload, PreviewsXROSServices.PreviewNetworkAddress) -> PreviewsXROSServices.PreviewNetworkConnectableEvent
+        0x00012EE8  enum case for PreviewsXROSServices.PreviewNetworkConnectableEvent.connectionClosed(PreviewsXROSServices.PreviewNetworkConnectableEvent.Type) -> (PreviewsXROSServices.PreviewNetworkAddress) -> PreviewsXROSServices.PreviewNetworkConnectableEvent
+        0x00012F18  enum case for PreviewsXROSServices.PreviewNetworkConnectableReliability.unreliable(PreviewsXROSServices.PreviewNetworkConnectableReliability.Type) -> (Swift.UInt32) -> PreviewsXROSServices.PreviewNetworkConnectableReliability
+        0x00012F1C  enum case for PreviewsXROSServices.PreviewNetworkConnectableReliability.reliable(PreviewsXROSServices.PreviewNetworkConnectableReliability.Type) -> PreviewsXROSServices.PreviewNetworkConnectableReliability
+        0x000130C8  property descriptor for PreviewsXROSServices.CALayerServiceObserver.publisher : Combine.PassthroughSubject<RealityKit.Entity, Swift.Never>
+        0x00013118  class metadata base offset for PreviewsXROSServices.CALayerServiceObserver
+        0x00013188  protocol conformance descriptor for os.OSSignpostID : Swift.CustomStringConvertible in PreviewsXROSServices
+        0x000131B4  property descriptor for (extension in PreviewsXROSServices):os.OSSignpostID.description : Swift.String
+        0x000131B4  property descriptor for static PreviewsXROSServices.Signpost.engine : PreviewsXROSServices.Signpost
+        0x000131B4  property descriptor for static PreviewsXROSServices.Signpost.general : PreviewsXROSServices.Signpost
+        0x000131B4  property descriptor for static PreviewsXROSServices.Signpost.hosted : PreviewsXROSServices.Signpost
+        0x000131B4  property descriptor for static PreviewsXROSServices.Signpost.pointsOfInterest : PreviewsXROSServices.Signpost
+        0x000131B4  property descriptor for static PreviewsXROSServices.Signpost.streaming : PreviewsXROSServices.Signpost
+        0x000131B4  property descriptor for static PreviewsXROSServices.Signpost.uv : PreviewsXROSServices.Signpost
+        0x00013220  protocol conformance descriptor for PreviewsXROSServices.PreviewCustomSystem<A>.SynchronizationError : Swift.Equatable in PreviewsXROSServices
+        0x00013248  protocol conformance descriptor for PreviewsXROSServices.PreviewCustomSystem<A>.SynchronizationError : Swift.Hashable in PreviewsXROSServices
+        0x00013288  protocol conformance descriptor for PreviewsXROSServices.PreviewCustomSystem<A>.SynchronizationError : Swift.Error in PreviewsXROSServices
+        0x000132C8  property descriptor for PreviewsXROSServices.PreviewCustomSystem.SynchronizationError.hashValue : Swift.Int
+        0x000132CC  property descriptor for PreviewsXROSServices.PreviewCustomSystem.syncService : PreviewsXROSServices.PreviewSynchronizationService<A>
+        0x000132D0  property descriptor for PreviewsXROSServices.PreviewCustomSystem.scene : RealityKit.Scene
+        0x000132E8  class metadata base offset for PreviewsXROSServices.PreviewCustomSystem
+        0x00013368  enum case for PreviewsXROSServices.PreviewCustomSystem.SynchronizationError.failedToCreateSynchronizationService<A where A: PreviewsXROSServices.PreviewNetworkConnectable>(PreviewsXROSServices.PreviewCustomSystem<A>.SynchronizationError.Type) -> PreviewsXROSServices.PreviewCustomSystem<A>.SynchronizationError
+        0x00013370  property descriptor for static PreviewsXROSServices.Log.engine : os.Logger
+        0x00013370  property descriptor for static PreviewsXROSServices.Log.general : os.Logger
+        0x00013370  property descriptor for static PreviewsXROSServices.Log.livePreview : os.Logger
+        0x00013370  property descriptor for static PreviewsXROSServices.Log.staticPreview : os.Logger
+        0x00013370  property descriptor for static PreviewsXROSServices.Log.streaming : os.Logger
+        0x00013370  property descriptor for static PreviewsXROSServices.Log.temp : os.Logger
+        0x00013370  property descriptor for static PreviewsXROSServices.Log.uv : os.Logger
+        0x00013488  protocol conformance descriptor for PreviewsXROSServices.PointOfInterest.Event : Swift.Equatable in PreviewsXROSServices
+        0x000134B0  protocol conformance descriptor for PreviewsXROSServices.PointOfInterest.Event : Swift.Hashable in PreviewsXROSServices
+        0x000134F0  protocol conformance descriptor for PreviewsXROSServices.PointOfInterest.Event : Swift.RawRepresentable in PreviewsXROSServices
+        0x00013548  protocol conformance descriptor for Swift.StaticString : Swift.Equatable in PreviewsXROSServices
+        0x00013574  property descriptor for PreviewsXROSServices.PointOfInterest.Event.hashValue : Swift.Int
+        0x00013574  property descriptor for PreviewsXROSServices.PointOfInterest.Event.rawValue : Swift.StaticString
+        0x00013590  enum case for PreviewsXROSServices.PointOfInterest.Event.previewQueryResolversRegistered(PreviewsXROSServices.PointOfInterest.Event.Type) -> PreviewsXROSServices.PointOfInterest.Event
+        0x00013594  enum case for PreviewsXROSServices.PointOfInterest.Event.xcodeExtensionLoaded(PreviewsXROSServices.PointOfInterest.Event.Type) -> PreviewsXROSServices.PointOfInterest.Event
+        0x00013598  enum case for PreviewsXROSServices.PointOfInterest.Event.rekitInitializedInXcode(PreviewsXROSServices.PointOfInterest.Event.Type) -> PreviewsXROSServices.PointOfInterest.Event
+        0x0001359C  enum case for PreviewsXROSServices.PointOfInterest.Event.previewProviderExecutionPointUpdated(PreviewsXROSServices.PointOfInterest.Event.Type) -> PreviewsXROSServices.PointOfInterest.Event
+        0x000135A0  enum case for PreviewsXROSServices.PointOfInterest.Event.previewInstanceExecutionPointUpdated(PreviewsXROSServices.PointOfInterest.Event.Type) -> PreviewsXROSServices.PointOfInterest.Event
+        0x000135A4  enum case for PreviewsXROSServices.PointOfInterest.Event.destinationReady(PreviewsXROSServices.PointOfInterest.Event.Type) -> PreviewsXROSServices.PointOfInterest.Event
+        0x000135A8  enum case for PreviewsXROSServices.PointOfInterest.Event.previewStarted(PreviewsXROSServices.PointOfInterest.Event.Type) -> PreviewsXROSServices.PointOfInterest.Event
+        0x000135AC  enum case for PreviewsXROSServices.PointOfInterest.Event.shellPluginLaunched(PreviewsXROSServices.PointOfInterest.Event.Type) -> PreviewsXROSServices.PointOfInterest.Event
+        0x000135B0  enum case for PreviewsXROSServices.PointOfInterest.Event.hostedContentProviderCreated(PreviewsXROSServices.PointOfInterest.Event.Type) -> PreviewsXROSServices.PointOfInterest.Event
+        0x000135B4  enum case for PreviewsXROSServices.PointOfInterest.Event.streamingContentProviderCreated(PreviewsXROSServices.PointOfInterest.Event.Type) -> PreviewsXROSServices.PointOfInterest.Event
+        0x000135B8  enum case for PreviewsXROSServices.PointOfInterest.Event.agentCrashed(PreviewsXROSServices.PointOfInterest.Event.Type) -> PreviewsXROSServices.PointOfInterest.Event
+        0x000135BC  enum case for PreviewsXROSServices.PointOfInterest.Event.agentRelaunching(PreviewsXROSServices.PointOfInterest.Event.Type) -> PreviewsXROSServices.PointOfInterest.Event
+        0x000135C0  enum case for PreviewsXROSServices.PointOfInterest.Event.agentLaunched(PreviewsXROSServices.PointOfInterest.Event.Type) -> PreviewsXROSServices.PointOfInterest.Event
+        0x000135C4  enum case for PreviewsXROSServices.PointOfInterest.Event.agentDisconnected(PreviewsXROSServices.PointOfInterest.Event.Type) -> PreviewsXROSServices.PointOfInterest.Event
+        0x000135C8  enum case for PreviewsXROSServices.PointOfInterest.Event.streamingAgentLaunched(PreviewsXROSServices.PointOfInterest.Event.Type) -> PreviewsXROSServices.PointOfInterest.Event
+        0x000135CC  enum case for PreviewsXROSServices.PointOfInterest.Event.realityStudioStreamingAgentLaunched(PreviewsXROSServices.PointOfInterest.Event.Type) -> PreviewsXROSServices.PointOfInterest.Event
+        0x000135D0  enum case for PreviewsXROSServices.PointOfInterest.Event.realityEntryPointCreated(PreviewsXROSServices.PointOfInterest.Event.Type) -> PreviewsXROSServices.PointOfInterest.Event
+        0x000135D4  enum case for PreviewsXROSServices.PointOfInterest.Event.realityStudioStreamingEntryPointCreated(PreviewsXROSServices.PointOfInterest.Event.Type) -> PreviewsXROSServices.PointOfInterest.Event
+        0x000135D8  enum case for PreviewsXROSServices.PointOfInterest.Event.realityStudioReceivingEntryPointCreated(PreviewsXROSServices.PointOfInterest.Event.Type) -> PreviewsXROSServices.PointOfInterest.Event
+        0x000135DC  enum case for PreviewsXROSServices.PointOfInterest.Event.realityStreamingPreviewUpdated(PreviewsXROSServices.PointOfInterest.Event.Type) -> PreviewsXROSServices.PointOfInterest.Event
+        0x000135E0  enum case for PreviewsXROSServices.PointOfInterest.Event.realityHostedPreviewUpdated(PreviewsXROSServices.PointOfInterest.Event.Type) -> PreviewsXROSServices.PointOfInterest.Event
+        0x000135E4  enum case for PreviewsXROSServices.PointOfInterest.Event.realityStreamingPreviewResultSent(PreviewsXROSServices.PointOfInterest.Event.Type) -> PreviewsXROSServices.PointOfInterest.Event
+        0x000135E8  enum case for PreviewsXROSServices.PointOfInterest.Event.realitHostedPreviewResultSent(PreviewsXROSServices.PointOfInterest.Event.Type) -> PreviewsXROSServices.PointOfInterest.Event
+        0x000135EC  enum case for PreviewsXROSServices.PointOfInterest.Event.realityStreamingAgentConnected(PreviewsXROSServices.PointOfInterest.Event.Type) -> PreviewsXROSServices.PointOfInterest.Event
+        0x000135F0  enum case for PreviewsXROSServices.PointOfInterest.Event.staticPreviewResultReceived(PreviewsXROSServices.PointOfInterest.Event.Type) -> PreviewsXROSServices.PointOfInterest.Event
+        0x000135F4  enum case for PreviewsXROSServices.PointOfInterest.Event.hostedPreviewResultReceived(PreviewsXROSServices.PointOfInterest.Event.Type) -> PreviewsXROSServices.PointOfInterest.Event
+        0x000135F8  enum case for PreviewsXROSServices.PointOfInterest.Event.previewRenderRequested(PreviewsXROSServices.PointOfInterest.Event.Type) -> PreviewsXROSServices.PointOfInterest.Event
+        0x000135FC  enum case for PreviewsXROSServices.PointOfInterest.Event.interactivePreviewViewCreated(PreviewsXROSServices.PointOfInterest.Event.Type) -> PreviewsXROSServices.PointOfInterest.Event
+        0x00013600  enum case for PreviewsXROSServices.PointOfInterest.Event.staticPreviewViewCreated(PreviewsXROSServices.PointOfInterest.Event.Type) -> PreviewsXROSServices.PointOfInterest.Event
+        0x00013604  enum case for PreviewsXROSServices.PointOfInterest.Event.tleReceivedInXcode(PreviewsXROSServices.PointOfInterest.Event.Type) -> PreviewsXROSServices.PointOfInterest.Event
+        0x00013608  enum case for PreviewsXROSServices.PointOfInterest.Event.tleAnchoredAndActivatedInXcode(PreviewsXROSServices.PointOfInterest.Event.Type) -> PreviewsXROSServices.PointOfInterest.Event
+        0x0001360C  enum case for PreviewsXROSServices.PointOfInterest.Event.windowEntityFound(PreviewsXROSServices.PointOfInterest.Event.Type) -> PreviewsXROSServices.PointOfInterest.Event
+        0x00013610  enum case for PreviewsXROSServices.PointOfInterest.Event.selectableComponentFound(PreviewsXROSServices.PointOfInterest.Event.Type) -> PreviewsXROSServices.PointOfInterest.Event
+        0x00013658  protocol conformance descriptor for PreviewsXROSServices.PreviewNetworkPayload : PreviewsFoundationHost.PropertyListRepresentable in PreviewsXROSServices
+        0x00013698  property descriptor for PreviewsXROSServices.PreviewNetworkPayload.propertyListValue : [Swift.String : Foundation.Data]
+        0x00013748  protocol conformance descriptor for PreviewsXROSServices.PreviewSynchronizationService<A> : RealityKit.SynchronizationService in PreviewsXROSServices
+        0x000137A0  property descriptor for PreviewsXROSServices.PreviewSynchronizationServiceConfig.transportQueue : __C.OS_dispatch_queue
+        0x000138D0  class metadata base offset for PreviewsXROSServices.PreviewSynchronizationService
+        0x000154E0  nominal type descriptor for PreviewsXROSServices.PreviewNetworkAddress
+        0x00015514  method descriptor for PreviewsXROSServices.PreviewNetworkAddress.__allocating_init(Swift.String) -> PreviewsXROSServices.PreviewNetworkAddress
+        0x00015534  method descriptor for PreviewsXROSServices.PreviewNetworkAddress.matches(PreviewsXROSServices.PreviewNetworkAddress) -> Swift.Bool
+        0x0001553C  method descriptor for PreviewsXROSServices.PreviewNetworkAddress.hash(into: inout Swift.Hasher) -> ()
+        0x00015544  method descriptor for PreviewsXROSServices.PreviewNetworkAddress.description.getter : Swift.String
+        0x0001554C  method descriptor for PreviewsXROSServices.PreviewNetworkAddress.hashValue.getter : Swift.Int
+        0x00015554  nominal type descriptor for PreviewsXROSServices.PreviewNetworkPayload
+        0x00015570  nominal type descriptor for PreviewsXROSServices.PreviewNetworkConnectableEvent
+        0x0001558C  nominal type descriptor for PreviewsXROSServices.PreviewNetworkConnectableReliability
+        0x000155A8  protocol descriptor for PreviewsXROSServices.PreviewNetworkConnectable
+        0x000155DC  protocol requirements base descriptor for PreviewsXROSServices.PreviewNetworkConnectable
+        0x000155E4  associated conformance descriptor for PreviewsXROSServices.PreviewNetworkConnectable.PreviewsXROSServices.PreviewNetworkConnectable.EventPublisher: Combine.Publisher
+        0x000155EC  associated type descriptor for PreviewsXROSServices.PreviewNetworkConnectable.EventPublisher
+        0x000155F4  method descriptor for PreviewsXROSServices.PreviewNetworkConnectable.preferredPacketSize.getter : Swift.Int
+        0x000155FC  method descriptor for PreviewsXROSServices.PreviewNetworkConnectable.reliability.getter : PreviewsXROSServices.PreviewNetworkConnectableReliability
+        0x00015604  method descriptor for PreviewsXROSServices.PreviewNetworkConnectable.localAddress.getter : PreviewsXROSServices.PreviewNetworkAddress
+        0x0001560C  method descriptor for PreviewsXROSServices.PreviewNetworkConnectable.connectedPeerAddresses.getter : [PreviewsXROSServices.PreviewNetworkAddress]
+        0x00015614  method descriptor for PreviewsXROSServices.PreviewNetworkConnectable.setEventHandler((PreviewsXROSServices.PreviewNetworkConnectableEvent) -> ()) -> ()
+        0x0001561C  method descriptor for PreviewsXROSServices.PreviewNetworkConnectable.eventPublisher.getter : A.EventPublisher
+        0x00015624  method descriptor for PreviewsXROSServices.PreviewNetworkConnectable.setDisconnectTimeout(Swift.Int) -> ()
+        0x0001562C  method descriptor for PreviewsXROSServices.PreviewNetworkConnectable.sendPayload(_: PreviewsXROSServices.PreviewNetworkPayload, to: PreviewsXROSServices.PreviewNetworkAddress) -> Swift.Result<(), Swift.Error>
+        0x00015634  nominal type descriptor for PreviewsXROSServices.AnyPreviewNetworkConnectable
+        0x000156A0  nominal type descriptor for PreviewsXROSServices.CALayerServiceObserver
+        0x000156EC  method descriptor for PreviewsXROSServices.CALayerServiceObserver.__allocating_init() -> PreviewsXROSServices.CALayerServiceObserver?
+        0x000156F4  nominal type descriptor for PreviewsXROSServices.Signpost
+        0x00015710  nominal type descriptor for PreviewsXROSServices.SignpostInterval
+        0x00015738  nominal type descriptor for PreviewsXROSServices.PreviewCustomSystem
+        0x0001578C  method descriptor for PreviewsXROSServices.PreviewCustomSystem.__allocating_init(engine: RealityKit.__Engine, connection: A, scene: RealityKit.Scene, config: PreviewsXROSServices.PreviewSynchronizationServiceConfig, onDisconnection: (() -> ())?) throws -> PreviewsXROSServices.PreviewCustomSystem<A>
+        0x00015794  nominal type descriptor for PreviewsXROSServices.PreviewCustomSystem.SynchronizationError
+        0x000157D0  nominal type descriptor for PreviewsXROSServices.Log
+        0x000157EC  nominal type descriptor for PreviewsXROSServices.PointOfInterest
+        0x00015808  nominal type descriptor for PreviewsXROSServices.PointOfInterest.Event
+        0x00015848  nominal type descriptor for PreviewsXROSServices.PreviewSynchronizationServiceConfig
+        0x000158EC  nominal type descriptor for PreviewsXROSServices.PreviewSynchronizationService
+        0x00015970  method descriptor for PreviewsXROSServices.PreviewSynchronizationService.__allocating_init(engine: RealityKit.__Engine, connection: A, config: PreviewsXROSServices.PreviewSynchronizationServiceConfig, onDisconnection: (() -> ())?) -> PreviewsXROSServices.PreviewSynchronizationService<A>?
+        0x00015978  method descriptor for PreviewsXROSServices.PreviewSynchronizationService.entity(for: Swift.UInt64) -> RealityKit.Entity?
+        0x00015980  method descriptor for PreviewsXROSServices.PreviewSynchronizationService.owner(of: RealityKit.Entity) -> RealityKit.SynchronizationPeerID?
+        0x00015988  method descriptor for PreviewsXROSServices.PreviewSynchronizationService.giveOwnership(of: RealityKit.Entity, toPeer: RealityKit.SynchronizationPeerID) -> Swift.Bool
+        0x00015990  method descriptor for PreviewsXROSServices.PreviewSynchronizationService.__fromCore(peerID: RealityKit.__PeerIDRef) -> RealityKit.SynchronizationPeerID?
+        0x00015998  method descriptor for PreviewsXROSServices.PreviewSynchronizationService.__toCore(peerID: RealityKit.SynchronizationPeerID) -> RealityKit.__PeerIDRef
+        0x000159A0  method descriptor for PreviewsXROSServices.PreviewSynchronizationService.startSync() -> ()
+        0x000159A8  method descriptor for PreviewsXROSServices.PreviewSynchronizationService.stopSync() -> ()
+        0x00018C50  type metadata for PreviewsXROSServices.PreviewNetworkPayload
+        0x00018CE8  type metadata for PreviewsXROSServices.PreviewNetworkConnectableEvent
+        0x00018D78  type metadata for PreviewsXROSServices.PreviewNetworkConnectableReliability
+        0x00018DF0  type metadata for PreviewsXROSServices.AnyPreviewNetworkConnectable
+        0x00019048  type metadata for PreviewsXROSServices.Signpost
+        0x000192B0  type metadata for PreviewsXROSServices.Log
+        0x00019340  type metadata for PreviewsXROSServices.PointOfInterest
+        0x000193D0  type metadata for PreviewsXROSServices.PointOfInterest.Event
+        0x00019698  type metadata for PreviewsXROSServices.PreviewSynchronizationServiceConfig
+        0x0001C6A0  protocol witness table for PreviewsXROSServices.AnyPreviewNetworkConnectable : PreviewsXROSServices.PreviewNetworkConnectable in PreviewsXROSServices
+        0x0001C6F8  metaclass for PreviewsXROSServices.PreviewNetworkAddress
+        0x0001C738  type metadata for PreviewsXROSServices.PreviewNetworkAddress
+        0x0001C800  metaclass for PreviewsXROSServices.CALayerServiceObserver
+        0x0001C840  type metadata for PreviewsXROSServices.CALayerServiceObserver
+        0x0001CA00  type metadata for PreviewsXROSServices.SignpostInterval
+        offset      symbol
+    -exports:
+/Applications/Xcode-26.2.0.app/Contents/SharedFrameworks/PreviewsXROSServices.framework/Versions/A/PreviewsXROSServices [arm64]:
