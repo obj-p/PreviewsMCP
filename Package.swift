@@ -32,6 +32,29 @@ let package = Package(
             ]
         ),
         .target(
+            name: "PreviewsJITLink",
+            dependencies: ["PreviewsJITLinkCxx"]
+        ),
+        .target(
+            // TODO: need to update to bundled version of LLVM in the future
+            name: "PreviewsJITLinkCxx",
+            cxxSettings: [
+                .unsafeFlags(["-I/opt/homebrew/opt/llvm/include"])
+            ],
+            linkerSettings: [
+                .unsafeFlags([
+                    "-L/opt/homebrew/opt/llvm/lib",
+                    "-lLLVM",
+                    "-Xlinker", "-rpath",
+                    "-Xlinker", "/opt/homebrew/opt/llvm/lib",
+                ])
+            ]
+        ),
+        .testTarget(
+            name: "PreviewsJITLinkTests",
+            dependencies: ["PreviewsJITLink"]
+        ),
+        .target(
             name: "PreviewsSetupKit"
         ),
         .target(
@@ -113,5 +136,6 @@ let package = Package(
                 .product(name: "MCP", package: "swift-sdk"),
             ]
         ),
-    ]
+    ],
+    cxxLanguageStandard: .cxx17
 )
