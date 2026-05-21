@@ -5,7 +5,7 @@ let package = Package(
     name: "PreviewsMCP",
     platforms: [.macOS(.v14), .iOS(.v16)],
     products: [
-        .executable(name: "previewsmcp", targets: ["PreviewsCLI"]),
+        .executable(name: "previewsmcp", targets: ["previewsmcp"]),
         .library(name: "PreviewsCore", targets: ["PreviewsCore"]),
         .library(name: "PreviewsSetupKit", targets: ["PreviewsSetupKit"]),
     ],
@@ -47,7 +47,7 @@ let package = Package(
             name: "PreviewsEngine",
             dependencies: ["PreviewsCore", "PreviewsIOS", "PreviewsMacOS"]
         ),
-        .executableTarget(
+        .target(
             name: "PreviewsCLI",
             dependencies: [
                 "PreviewsCore",
@@ -58,6 +58,10 @@ let package = Package(
                 .product(name: "MCP", package: "swift-sdk"),
             ],
             plugins: [.plugin(name: "GenerateVersion")]
+        ),
+        .executableTarget(
+            name: "previewsmcp",
+            dependencies: ["PreviewsCLI"]
         ),
         .executableTarget(
             name: "GenerateVersionTool"

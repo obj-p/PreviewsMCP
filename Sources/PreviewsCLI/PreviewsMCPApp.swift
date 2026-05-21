@@ -20,9 +20,9 @@ enum ProcessStartup {
     static let time = Date()
 }
 
-@main
-struct PreviewsMCPApp {
-    static func main() {
+public struct PreviewsMCPApp {
+    @MainActor
+    public static func main() {
         // Touch ProcessStartup.time at the earliest possible point so its
         // lazy-init resolves to the actual app-birth instant.
         _ = ProcessStartup.time
