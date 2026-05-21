@@ -50,9 +50,12 @@ Sources/
 ├── PreviewsCore/        # Platform-agnostic: parser, compiler, bridge gen, differ, file watcher
 ├── PreviewsMacOS/       # macOS host: NSApplication + NSWindow + Snapshot (runs inside the daemon)
 ├── PreviewsIOS/         # iOS simulator: SimulatorManager, IOSHostBuilder, IOSPreviewSession
-├── PreviewsCLI/         # CLI (ArgumentParser) + daemon + MCP server (swift-sdk)
+├── PreviewsCLI/         # CLI (ArgumentParser) + daemon + MCP server (swift-sdk) — library target
+├── previewsmcp/         # Thin executable shim: one-line main.swift → PreviewsMCPApp.main()
 └── PreviewsSetupKit/    # Setup plugin protocol (PreviewSetup) — zero-dependency SwiftUI-only library
 ```
+
+`PreviewsCLI` is a library, not an `executableTarget`, so the test targets in `Tests/PreviewsCLITests/` and `Tests/MCPIntegrationTests/` can `@testable import PreviewsCLI` under both `swift test` and Xcode-driven SPM builds (Xcode's dependency scanner refuses to expose an executable target's swiftmodule to dependent tests, which broke `xcodebuild build-for-testing` before PR #184). `Sources/previewsmcp/` is a three-line shim that imports `PreviewsCLI` and calls `PreviewsMCPApp.main()` — the only purpose of that target is to be the executable product. Match the `previewsmcp` directory/target naming if `PreviewsCLI` is sliced further (see `prompts/modularization.md` on the `previews-research` branch).
 
 - **PreviewsCore** has no platform-specific dependencies (no AppKit, no CoreSimulator)
 - **SimulatorBridge** is ObjC because it uses `objc_lookUpClass` / protocol casts for private API access
