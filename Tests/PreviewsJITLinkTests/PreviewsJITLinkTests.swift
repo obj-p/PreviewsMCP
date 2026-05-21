@@ -2,8 +2,11 @@ import PreviewsJITLink
 import Testing
 
 struct PreviewsJITLinkTests {
+    @Test func mainDylibName() throws {
+        #expect(try PreviewsJITLink.mainDylibName() == "main")
+    }
+
     @Test func targetTripleIsArm64Apple() {
-        let triple = PreviewsJITLink.targetTriple()
-        #expect(triple.hasPrefix("arm64-apple"))
+        #expect(PreviewsJITLink.targetTriple().hasPrefix("arm64-apple"))
     }
 }
