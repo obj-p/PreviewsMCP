@@ -1,0 +1,3 @@
+import PreviewsCLI
+
+PreviewsMCPApp.main()
