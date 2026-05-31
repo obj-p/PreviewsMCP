@@ -39,9 +39,21 @@ LLVM ORC harness)." Resume from here across sessions. Update it as work lands.
 - We build on public LLVM ORC + JITLink, not Apple's runtime (verdict #1).
 - Phase 1 validates the JIT-link plus re-resolution mechanism in-process only.
   Propagating new addresses into running callers is Phase 2+.
-- brew LLVM 22 is acceptable scaffolding for Phase 1; bundling is later.
 - The full `MachOPlatform` (via `ExecutorNativePlatform`) performs the ObjC and
   Swift runtime registration that the POC hand-rolled with plugins.
+
+### LLVM source decision (resolves U3, was: brew scaffolding)
+
+Build LLVM from source from `swiftlang/llvm-project` at the tag matching the
+installed Swift (`swift-6.2.3-RELEASE`), not vanilla brew LLVM 22. Rationale:
+the Swift runtime in-process (`libswiftCore`) is built from this fork, and the
+SP1 conformance segfault is most plausibly a registration-mechanism skew between
+brew LLVM 22's ORC `MachOPlatform` and that older runtime. The fork has full ORC
++ JITLink (46 headers) and `compiler-rt/lib/orc` (builds `liborc_rt_osx.a`).
+Note `swift-llvm-bindings` is NOT the vehicle: it is a Swift-API binding layer
+that itself needs a local LLVM checkout. We link the C++ libraries directly.
+Known API skew vs brew 22: `SelfExecutorProcessControl` lives in
+`ExecutorProcessControl.h` here, not its own header.
 
 ## Unknowns
 
@@ -93,6 +105,18 @@ sufficient. This is a legitimate Phase-1 discovery, exactly what the seed prompt
 says to expect.
 
 ## Subproblems and verification criteria
+
+### SP0 — Build LLVM from the Swift fork and repoint the C++ target (prerequisite)
+Build `swiftlang/llvm-project` @ `swift-6.2.3-RELEASE` (matches installed Swift)
+with `compiler-rt` for the orc runtime, AArch64 + X86 targets (X86 for the
+simulator later). Repoint `PreviewsJITLinkCxx` include/lib paths and
+`kOrcRuntimePath` at the build output; fix the `SelfExecutorProcessControl`
+include (now in `ExecutorProcessControl.h`).
+- **Verify:** the existing 8 tests still pass against the fork build, and the
+  `dispatchesThroughWitnessTable` scenario, re-enabled, no longer segfaults. If
+  it passes, the conformance bug was the LLVM/runtime skew and SP0 also resolves
+  U1 for Swift metadata. If it still crashes, the fix is a real plugin/relocation
+  problem, not version skew.
 
 ### SP1 — Port the six POC scenarios as tests (acceptance core)
 Translate `research/jit-poc/swift/*.swift` (greet/witness, tlv, swift_once,
