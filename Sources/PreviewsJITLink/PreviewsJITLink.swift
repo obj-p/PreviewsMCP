@@ -17,7 +17,7 @@ public enum PreviewsJITLink {
         previewsmcp_jit_target_triple().string()
     }
 
-    public static func linkAndCall<T>(objectPaths: [String], symbol: String) throws -> T {
+    public static func linkAndCall<T: FixedWidthInteger>(objectPaths: [String], symbol: String) throws -> T {
         var raw: UInt64 = 0
         let error = objectPaths.withCStringArray { paths in
             previewsmcp_jit_link_and_call(paths, objectPaths.count, symbol, &raw)
