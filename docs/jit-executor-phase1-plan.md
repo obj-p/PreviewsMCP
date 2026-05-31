@@ -155,6 +155,18 @@ registration code is identical fork vs vanilla). So diagnose first:
 - **Verify:** we can name the actual cause, JITLink relocation of `__swift5_proto`
   vs an `orc_rt`↔dyld/objc contract mismatch. That decides whether the fix is a
   relocation/plugin change (no build) or specifically a fork-matched `liborc_rt`.
+- **Findings so far (points at orc_rt section-range registration, not relocs):**
+  - Static: `witness.o`'s `__swift5_proto` record uses a normal
+    `ARM64_RELOC_SUBTRACTOR` + `ARM64_RELOC_UNSIGNED` 32-bit intra-object delta.
+    Not exotic, not out of range. So a gross per-record relocation bug is unlikely.
+  - Dynamic: the crash is `EXC_BAD_ACCESS` reading `0x3000580e8`, which the crash
+    report says is "not in any region, 360681 bytes after previous region." The
+    conformance-registry walk ran ~360KB **off the end of a mapped region** into
+    unmapped space. Consistent with a wrongly-sized/based registered section
+    range (orc_rt registration contract), not a bad relative pointer in a record.
+  - `ORC_RT_DEBUG` is a no-op with brew's release `orc_rt` (logging compiled
+    out). Deeper tracing of the registered range needs either lldb (no build) or
+    a debug/asserts `orc_rt` (build).
 
 ### SP0b — Build LLVM from the Swift fork (ONLY if SP0a points to orc_rt)
 Contingent on SP0a. If the cause is the `orc_rt`↔runtime contract, the lever is
