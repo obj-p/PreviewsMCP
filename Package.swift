@@ -128,7 +128,8 @@ let package = Package(
             dependencies: [
                 "PreviewsCLI",
                 .product(name: "MCP", package: "swift-sdk"),
-            ]
+            ],
+            exclude: ["list_tools_snapshot.json"]
         ),
         .testTarget(
             name: "MCPIntegrationTests",
