@@ -52,7 +52,8 @@ let package = Package(
         ),
         .testTarget(
             name: "PreviewsJITLinkTests",
-            dependencies: ["PreviewsJITLink"]
+            dependencies: ["PreviewsJITLink"],
+            exclude: ["Fixtures"]
         ),
         .target(
             name: "PreviewsSetupKit"
