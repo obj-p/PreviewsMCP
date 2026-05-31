@@ -29,20 +29,22 @@ llvm::Expected<std::string> mainDylibName() {
   return (*jit)->getMainJITDylib().getName();
 }
 
-llvm::Expected<uint64_t> linkAndCall(const char *object_path,
+llvm::Expected<uint64_t> linkAndCall(const char *const *object_paths,
+                                     size_t object_count,
                                      const char *symbol_name) {
   auto jit = makeJIT();
   if (!jit) {
     return jit.takeError();
   }
 
-  auto buf = llvm::MemoryBuffer::getFile(object_path);
-  if (!buf) {
-    return llvm::errorCodeToError(buf.getError());
-  }
-
-  if (auto err = (*jit)->addObjectFile(std::move(*buf))) {
-    return std::move(err);
+  for (size_t i = 0; i < object_count; ++i) {
+    auto buf = llvm::MemoryBuffer::getFile(object_paths[i]);
+    if (!buf) {
+      return llvm::errorCodeToError(buf.getError());
+    }
+    if (auto err = (*jit)->addObjectFile(std::move(*buf))) {
+      return std::move(err);
+    }
   }
 
   auto sym = (*jit)->lookup(symbol_name);
@@ -67,10 +69,11 @@ void previewsmcp_jit_dispose_string(const char *str) {
   free(const_cast<char *>(str));
 }
 
-const char *previewsmcp_jit_link_and_call(const char *object_path,
+const char *previewsmcp_jit_link_and_call(const char *const *object_paths,
+                                          size_t object_count,
                                           const char *symbol_name,
                                           uint64_t *out_value) {
-  return marshal(linkAndCall(object_path, symbol_name),
+  return marshal(linkAndCall(object_paths, object_count, symbol_name),
                  [&](uint64_t value) { *out_value = value; });
 }
 
