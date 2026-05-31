@@ -38,4 +38,22 @@ struct PreviewsJITLinkTests {
         )
         #expect(result == 42)
     }
+
+    @Test func linksTrivialSwiftObject() throws {
+        let object = try FixtureSupport.compile("swift_answer.swift")
+        let result: Int32 = try PreviewsJITLink.linkAndCall(
+            objectPaths: [object.path],
+            symbol: "swift_answer"
+        )
+        #expect(result == 42)
+    }
+
+    @Test func resolvesSwiftMangledSymbol() throws {
+        let object = try FixtureSupport.compile("swift_answer.swift")
+        let result: Int32 = try PreviewsJITLink.linkAndCall(
+            objectPaths: [object.path],
+            symbol: "$s8Fixtures11swiftAnswers5Int32VyF"
+        )
+        #expect(result == 42)
+    }
 }

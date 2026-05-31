@@ -31,7 +31,7 @@ enum FixtureSupport {
             withIntermediateDirectories: true
         )
 
-        let arguments = ["clang", "-c", input.path, "-o", output.path] + extraFlags
+        let arguments = compileArguments(input: input, output: output) + extraFlags
         let result = try run("/usr/bin/xcrun", arguments)
         guard result.status == 0 else {
             throw FixtureError.compileFailed(
@@ -41,6 +41,19 @@ enum FixtureSupport {
             )
         }
         return output
+    }
+
+    private static func compileArguments(input: URL, output: URL) -> [String] {
+        switch input.pathExtension {
+        case "swift":
+            return [
+                "swiftc", "-c", "-parse-as-library",
+                "-module-name", "Fixtures",
+                input.path, "-o", output.path,
+            ]
+        default:
+            return ["clang", "-c", input.path, "-o", output.path]
+        }
     }
 
     private static func outputURL(for source: String) -> URL {
