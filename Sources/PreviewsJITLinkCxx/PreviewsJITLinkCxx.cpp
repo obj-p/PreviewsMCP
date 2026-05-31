@@ -10,6 +10,7 @@
 #include <llvm/ExecutionEngine/Orc/MemoryMapper.h>
 #include <llvm/ExecutionEngine/Orc/ExecutorProcessControl.h>
 #include <llvm/ExecutionEngine/Orc/ObjectLinkingLayer.h>
+#include <llvm/Support/Debug.h>
 #include <llvm/Support/MemoryBuffer.h>
 #include <mutex>
 #include <string>
@@ -46,6 +47,11 @@ llvm::Expected<std::unique_ptr<llvm::orc::LLJIT>> makeJIT() {
   std::call_once(once, [] {
     LLVMInitializeNativeTarget();
     LLVMInitializeNativeAsmPrinter();
+    if (getenv("PREVIEWSMCP_JIT_DEBUG")) {
+      static const char *types[] = {"jitlink", "orc"};
+      llvm::DebugFlag = true;
+      llvm::setCurrentDebugTypes(types, 2);
+    }
   });
 
   auto epc = llvm::orc::SelfExecutorProcessControl::Create();

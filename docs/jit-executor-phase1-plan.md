@@ -192,19 +192,39 @@ include → `ExecutorProcessControl.h`; `slabLinkingLayer` gained the
   Debug orc_rt (logging), and ios/iossim orc runtimes for the Phase 2 simulator
   work. The brew dependency is gone.
 
-### SP0c — Root-cause the conformance relocation (NEXT, the real bug)
-The crash is a relative pointer in the JIT-linked `__swift5_proto` record
-resolving to a wild address. Hypotheses to test: JITLink mis-relocates the
-`SUBTRACTOR/UNSIGNED` delta for these Swift sections; or the slab placement puts
-the conformance target >±2GB from the record (the relative pointer is signed
-32-bit, same reach class as the unwind issue, note the 1GB slab); or a Swift
-relative-*indirectable* pointer (low-bit tag) is mishandled. Use the asserts
-libLLVM (`--debug-only=jitlink` is now possible) and lldb at the crash to read
-the record and the offending pointer. Also worth: a known-issue search and
-checking whether the design's `SwiftEntrySectionPlugin` (explicit conformance
-registration with resolved addresses) sidesteps it.
-- **Verify:** name the exact miscomputation, then `dispatchesThroughWitnessTable`
-  passes.
+### SP0c — Root-cause the conformance crash (DONE; it's a section-address mismatch)
+Enabled JITLink logging (env `PREVIEWSMCP_JIT_DEBUG=1`, works on the asserts
+fork build) and a Debug orc_rt (`ORC_RT_DEBUG=1`). Findings:
+- The conformance record's relative pointers are **correct**. JITLink emits
+  `edge@0x260: Delta32 -> ...DefaultValuedVAA0C0AAMc` (the conformance
+  descriptor) and the descriptor's own `Delta32` edges to protocol/type/witness,
+  all small intra-image deltas. Not a relocation bug.
+- JITLink places the `__swift5_proto` block at `0x124e580e8`. The crash reads
+  `0x3000580e8` — **same low offset `0x580e8`, different base**. So the runtime
+  accesses the section at a `0x300000000`-region address that is **not mapped**,
+  while the linked address is `0x124e...`. A base / address-space mismatch in how
+  the section is registered with the runtime, not the record content.
+- **Not the slab:** removing the slab linking layer still crashes (different
+  memory manager, same class of crash). **Not LLVM version** (SP0b). **Not
+  relocs** (above).
+- Conclusion: `ExecutorNativePlatform`'s automatic Swift-section registration
+  hands the runtime an address the in-process executor doesn't back. This is
+  exactly the gap the design's **`SwiftEntrySectionPlugin`** fills: at
+  link-finalize, walk the new image's `__swift5_*` sections and register them
+  with the Swift runtime using the **correct JIT-final addresses**.
+
+### SP0d — Implement SwiftEntrySectionPlugin (NEXT, the fix)
+Per design §4. A `LinkGraphLinkingLayer::Plugin` that, in `PostFixupPasses` (or
+on emission, when final addresses are known), finds `__swift5_proto` /
+`__swift5_types` / `__swift5_protos` and calls the Swift runtime registration
+entry points (`swift_registerProtocolConformances`,
+`swift_registerTypeMetadataRecords`, …) with the resolved addresses, instead of
+relying on the platform's auto-registration. May also need to suppress the
+platform's own (wrong-address) Swift registration to avoid a double/garbage
+record. Note the POC's plugin constraints (PostPrunePasses, no-op
+`notifyFailed`/`notifyRemovingResources`/`notifyTransferringResources`,
+canonical `__SEG,__sect` names, graceful early-out).
+- **Verify:** `dispatchesThroughWitnessTable` passes; the other 8 stay green.
 
 ### SP1 — Port the six POC scenarios as tests (acceptance core)
 Translate `research/jit-poc/swift/*.swift` (greet/witness, tlv, swift_once,

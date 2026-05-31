@@ -57,7 +57,7 @@ struct PreviewsJITLinkTests {
         #expect(result == 42)
     }
 
-    @Test(.disabled("SP0a/SP0b: JIT-linked Swift conformance records crash swift_conformsToProtocol. Version-independent (reproduces on fork LLVM 19.1.5, the Swift 6.2.3 base, and brew 22). orc_rt registers the metadata fine; a relative pointer in the __swift5_proto record resolves to a wild address. JITLink relocation/layout of Swift conformance metadata."))
+    @Test(.disabled("SP0c: JIT-linked Swift conformance crashes swift_conformsToProtocol. Root-caused: not relocs (Delta32 edges are correct intra-image), not the slab, not LLVM version. The runtime accesses the __swift5_proto section at a wrong base (0x300000000 region, unmapped) vs JITLink's link address (0x124e...). Section-address registration mismatch in ExecutorNativePlatform's Swift handling. Fix is the design's SwiftEntrySectionPlugin: register conformances with the correct final addresses."))
     func dispatchesThroughWitnessTable() throws {
         let object = try FixtureSupport.compile("witness.swift")
         let result: Int32 = try PreviewsJITLink.linkAndCall(
