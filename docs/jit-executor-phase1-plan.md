@@ -58,6 +58,18 @@ LLVM ORC harness)." Resume from here across sessions. Update it as work lands.
     `swift_once` fine, but not conformance/type metadata. This is the gap the
     design's `SwiftEntrySectionPlugin` targets. Test `dispatchesThroughWitnessTable`
     is `.disabled` because the segfault takes down the whole runner.
+  - **Sharpened by two diagnostic probes:** the fault is narrow.
+    - Type metadata is fine: `String(describing: Box.self)` on a JIT'd struct
+      (no protocol) passes, so `__swift5_types` registration and demangling work.
+    - It is conformance-record registration specifically, and it happens at
+      *link time*, not at the call: an object whose called function never touches
+      its protocol still poisons the registry merely by being linked (its
+      `__swift5_proto` record registers). So the broken thing is exactly the
+      JIT-linked protocol-conformance records, not the existential dispatch.
+    - **Open root-cause question:** are the conformance records mis-relocated
+      (relative pointers wrong), double-registered (platform + something), or
+      registered in a form the runtime mis-walks? Decides whether the fix is a
+      relocation fix, suppressing the platform's auto-registration, or the plugin.
 - **U2:** Does the Swift calling convention hold when we call a real `View` body
   thunk, versus the trivial nullary functions tested so far?
 - **U3:** LLVM integration strategy for shipping (vendor xcframework vs CMake
