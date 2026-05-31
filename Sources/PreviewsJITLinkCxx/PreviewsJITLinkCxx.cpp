@@ -8,19 +8,22 @@
 #include <llvm/ExecutionEngine/Orc/LLJIT.h>
 #include <llvm/ExecutionEngine/Orc/MapperJITLinkMemoryManager.h>
 #include <llvm/ExecutionEngine/Orc/MemoryMapper.h>
+#include <llvm/ExecutionEngine/Orc/ExecutorProcessControl.h>
 #include <llvm/ExecutionEngine/Orc/ObjectLinkingLayer.h>
-#include <llvm/ExecutionEngine/Orc/SelfExecutorProcessControl.h>
 #include <llvm/Support/MemoryBuffer.h>
 #include <mutex>
 #include <string>
 
 namespace {
 
-// Brew scaffolding. When LLVM is bundled with the app this path must change
-// to resolve from the bundle, ideally lifted into a Swift-resolved parameter
-// passed into makeJIT rather than a constant here.
-const char *kOrcRuntimePath =
-    "/opt/homebrew/opt/llvm/lib/clang/22/lib/darwin/liborc_rt_osx.a";
+// Path to the orc runtime archive, injected by Package.swift (built from the
+// Swift LLVM fork via scripts/build-jit-llvm.sh). Scaffolding: when LLVM is
+// bundled this should resolve from the bundle, ideally a Swift-resolved param.
+#ifndef PREVIEWSMCP_ORC_RT_PATH
+#define PREVIEWSMCP_ORC_RT_PATH                                                 \
+  "/opt/homebrew/opt/llvm/lib/clang/22/lib/darwin/liborc_rt_osx.a"
+#endif
+const char *kOrcRuntimePath = PREVIEWSMCP_ORC_RT_PATH;
 
 // One contiguous reservation so code, data, and synthesized unwind info land
 // within 32-bit reach of each other. The default per-allocation mmap scatters
@@ -28,7 +31,7 @@ const char *kOrcRuntimePath =
 constexpr size_t kSlabSize = size_t(1) << 30;
 
 llvm::Expected<std::unique_ptr<llvm::orc::ObjectLayer>>
-slabLinkingLayer(llvm::orc::ExecutionSession &es) {
+slabLinkingLayer(llvm::orc::ExecutionSession &es, const llvm::Triple &) {
   auto memMgr = llvm::orc::MapperJITLinkMemoryManager::CreateWithMapper<
       llvm::orc::InProcessMemoryMapper>(kSlabSize);
   if (!memMgr) {

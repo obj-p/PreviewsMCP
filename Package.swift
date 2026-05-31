@@ -1,5 +1,13 @@
 // swift-tools-version: 6.0
+import Foundation
 import PackageDescription
+
+// LLVM built from swiftlang/llvm-project via scripts/build-jit-llvm.sh.
+// Scaffolding: paths are relative to the package dir; shipping will bundle LLVM.
+let packageDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().path
+let llvmBuild = "\(packageDir)/third_party/llvm-build"
+let llvmSrcInclude = "\(packageDir)/third_party/llvm-project/llvm/include"
+let orcRuntimePath = "\(packageDir)/third_party/llvm-build-rt/lib/darwin/liborc_rt_osx.a"
 
 let package = Package(
     name: "PreviewsMCP",
@@ -39,14 +47,18 @@ let package = Package(
             // TODO: need to update to bundled version of LLVM in the future
             name: "PreviewsJITLinkCxx",
             cxxSettings: [
-                .unsafeFlags(["-I/opt/homebrew/opt/llvm/include"])
+                .unsafeFlags([
+                    "-I\(llvmSrcInclude)",
+                    "-I\(llvmBuild)/include",
+                    "-DPREVIEWSMCP_ORC_RT_PATH=\"\(orcRuntimePath)\"",
+                ])
             ],
             linkerSettings: [
                 .unsafeFlags([
-                    "-L/opt/homebrew/opt/llvm/lib",
+                    "-L\(llvmBuild)/lib",
                     "-lLLVM",
                     "-Xlinker", "-rpath",
-                    "-Xlinker", "/opt/homebrew/opt/llvm/lib",
+                    "-Xlinker", "\(llvmBuild)/lib",
                 ])
             ]
         ),

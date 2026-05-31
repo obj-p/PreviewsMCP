@@ -57,7 +57,7 @@ struct PreviewsJITLinkTests {
         #expect(result == 42)
     }
 
-    @Test(.disabled("SP1/U1: JIT-linked Swift conformance records poison the global swift_conformsToProtocol registry under the platform-first path, segfaulting later lookups. Needs explicit Swift metadata-section handling (SwiftEntrySectionPlugin)."))
+    @Test(.disabled("SP0a/SP0b: JIT-linked Swift conformance records crash swift_conformsToProtocol. Version-independent (reproduces on fork LLVM 19.1.5, the Swift 6.2.3 base, and brew 22). orc_rt registers the metadata fine; a relative pointer in the __swift5_proto record resolves to a wild address. JITLink relocation/layout of Swift conformance metadata."))
     func dispatchesThroughWitnessTable() throws {
         let object = try FixtureSupport.compile("witness.swift")
         let result: Int32 = try PreviewsJITLink.linkAndCall(

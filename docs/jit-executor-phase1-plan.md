@@ -168,13 +168,43 @@ registration code is identical fork vs vanilla). So diagnose first:
     out). Deeper tracing of the registered range needs either lldb (no build) or
     a debug/asserts `orc_rt` (build).
 
-### SP0b — Build LLVM from the Swift fork (ONLY if SP0a points to orc_rt)
-Contingent on SP0a. If the cause is the `orc_rt`↔runtime contract, the lever is
-a fork-matched `liborc_rt`, possibly not a full `libLLVM` rebuild. Build per the
-vendoring decision above (pinned-clone script, sparse, out-of-tree cache). Fix
-the `SelfExecutorProcessControl` include (now in `ExecutorProcessControl.h`).
-- **Verify:** re-enabled `dispatchesThroughWitnessTable` no longer segfaults and
-  the existing tests still pass.
+### SP0b — Build LLVM from the Swift fork (DONE; result: did NOT fix it)
+Built `swiftlang/llvm-project` @ `swift-6.2.3-RELEASE` via
+`scripts/build-jit-llvm.sh` (pinned-clone, shallow+sparse+partial, two-phase:
+libLLVM dylib with asserts, then standalone compiler-rt orc runtime).
+Repointed `PreviewsJITLinkCxx` (`Package.swift` computes paths from the package
+dir; orc path injected via `-DPREVIEWSMCP_ORC_RT_PATH`; `SelfExecutorProcessControl`
+include → `ExecutorProcessControl.h`; `slabLinkingLayer` gained the
+`const Triple&` param the older `ObjectLinkingLayerCreator` requires).
+- **Result:** the fork LLVM is **19.1.5** (Swift 6.2.3's exact base; brew was
+  22.1.5). The 8 non-witness tests pass on it. **`dispatchesThroughWitnessTable`
+  still segfaults.** So the version-skew theory is **dead** — matching the
+  runtime's exact LLVM did not fix it. The subagent was right.
+- **What the debug orc_rt trace showed** (`ORC_RT_DEBUG=1`, needs a Debug-built
+  orc_rt, NDEBUG gates the logging): metadata registration **succeeds**
+  (`Registering object sections for 0x11fe4c000` → `Registering Objective-C /
+  Swift metadata`). The crash is in the **content**: `swift_conformsToProtocol`
+  follows a relative pointer in the registered `__swift5_proto` record to a wild
+  address `0x3000580e8` (consistent `0x580e8` = 360681 low offset across runs),
+  ~12GB away from the JIT'd image at `0x11fe4c000`. So the real bug is **JITLink
+  relocation/layout of Swift conformance metadata**, version-independent.
+- **Keep the fork build anyway:** it gives asserts (JITLink diagnostics), a
+  Debug orc_rt (logging), and ios/iossim orc runtimes for the Phase 2 simulator
+  work. The brew dependency is gone.
+
+### SP0c — Root-cause the conformance relocation (NEXT, the real bug)
+The crash is a relative pointer in the JIT-linked `__swift5_proto` record
+resolving to a wild address. Hypotheses to test: JITLink mis-relocates the
+`SUBTRACTOR/UNSIGNED` delta for these Swift sections; or the slab placement puts
+the conformance target >±2GB from the record (the relative pointer is signed
+32-bit, same reach class as the unwind issue, note the 1GB slab); or a Swift
+relative-*indirectable* pointer (low-bit tag) is mishandled. Use the asserts
+libLLVM (`--debug-only=jitlink` is now possible) and lldb at the crash to read
+the record and the offending pointer. Also worth: a known-issue search and
+checking whether the design's `SwiftEntrySectionPlugin` (explicit conformance
+registration with resolved addresses) sidesteps it.
+- **Verify:** name the exact miscomputation, then `dispatchesThroughWitnessTable`
+  passes.
 
 ### SP1 — Port the six POC scenarios as tests (acceptance core)
 Translate `research/jit-poc/swift/*.swift` (greet/witness, tlv, swift_once,
