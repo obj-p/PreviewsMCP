@@ -44,16 +44,54 @@ LLVM ORC harness)." Resume from here across sessions. Update it as work lands.
 
 ### LLVM source decision (resolves U3, was: brew scaffolding)
 
-Build LLVM from source from `swiftlang/llvm-project` at the tag matching the
-installed Swift (`swift-6.2.3-RELEASE`), not vanilla brew LLVM 22. Rationale:
-the Swift runtime in-process (`libswiftCore`) is built from this fork, and the
-SP1 conformance segfault is most plausibly a registration-mechanism skew between
-brew LLVM 22's ORC `MachOPlatform` and that older runtime. The fork has full ORC
-+ JITLink (46 headers) and `compiler-rt/lib/orc` (builds `liborc_rt_osx.a`).
-Note `swift-llvm-bindings` is NOT the vehicle: it is a Swift-API binding layer
-that itself needs a local LLVM checkout. We link the C++ libraries directly.
-Known API skew vs brew 22: `SelfExecutorProcessControl` lives in
-`ExecutorProcessControl.h` here, not its own header.
+Original rationale (now contested, see counter-evidence): the Swift runtime
+in-process (`libswiftCore`) is built from `swiftlang/llvm-project` at
+`swift-6.2.3-RELEASE`, so building our LLVM from that fork might fix the SP1
+conformance segfault by matching the runtime. The fork has full ORC + JITLink
+(46 headers) and `compiler-rt/lib/orc` (builds `liborc_rt_osx.a`).
+`swift-llvm-bindings` is NOT the vehicle: it is a Swift-API binding layer that
+itself needs a local LLVM checkout; we link the C++ libraries directly. Known
+API skew vs brew 22: `SelfExecutorProcessControl` lives in
+`ExecutorProcessControl.h` in the fork, not its own header.
+
+**Counter-evidence (subagent review, do not skip):** building the fork's
+`libLLVM` is unlikely on its own to fix the conformance segfault. A diff of
+`MachOPlatform`'s Swift-section registration between the fork at
+`swift-6.2.3-RELEASE` and vanilla `llvmorg-22.1.5` found it **byte-for-byte
+identical** (same `__swift5_proto` handling, same synthetic
+`__llvm_jitlink_ObjCRuntimeRegistrationObject` + `RegisterObjCRuntimeObject`
+bootstrap). The real runtime coupling lives in **`orc_rt`**
+(`compiler-rt/lib/orc/macho_platform.cpp`), which calls private dyld/objc entry
+points (`_objc_map_images`, `_objc_load_image`) that drive `libswiftCore`'s
+conformance registration; and in **JITLink relocation correctness** of the
+`__swift5_proto` block (bad relative pointers or >±2GB reach would make
+`swift_conformsToProtocol` walk garbage and crash regardless of which LLVM we
+build). So the only thing a rebuild meaningfully changes is a fork-matched
+`liborc_rt`, not the LLVM libraries.
+
+Also confirmed by the review: **no prebuilt Swift-fork LLVM with linkable C++
+ORC/JITLink exists.** swift.org toolchains and Xcode's toolchain ship llvm
+*tools* but no `ExecutionEngine/Orc` headers and no `liborc_rt*.a`. The iOS/sim
+SDK `libLLVM.dylib` is Apple's Metal shader-compiler LLVM (C API only, zero
+`llvm::orc::`/`llvm::jitlink::` symbols). If we ever do build, building from
+source is unavoidable.
+
+**Revised next step:** diagnose cheaply before any LLVM build. Turn on
+`ORC_RT_DEBUG`, and inspect whether `witness.o`'s `__swift5_proto` block is
+correctly relocated (dump section + relocations, check relative-pointer reach,
+same class as the unwind slab issue). Treat `orc_rt` as the lever, not
+`libLLVM`.
+
+**Vendoring decision (when/if we do build):** pinned-clone script, NOT a git
+submodule (mirrors how `swiftlang/swift` pulls llvm-project via
+`update-checkout`, not submodules). Pin a full commit SHA, `git clone --depth 1
+--filter=blob:none` + `git sparse-checkout` over
+`llvm/ compiler-rt/ cmake/ third-party/ runtimes/`, into a gitignored,
+SHA-keyed out-of-tree cache (not in-tree). Build Release `libLLVM` dylib +
+orc_rt only into `.llvm-build/`. Gate behind an opt-in `bootstrap --jit` so
+non-JIT contributors pay nothing. Scoped build est. ~8-15GB, ~20-45min on a
+fast Apple Silicon. Keep `LLVM_ENABLE_RUNTIMES` empty and build compiler-rt
+standalone to avoid pulling in libcxx/libunwind.
 
 ## Unknowns
 
@@ -106,17 +144,25 @@ says to expect.
 
 ## Subproblems and verification criteria
 
-### SP0 — Build LLVM from the Swift fork and repoint the C++ target (prerequisite)
-Build `swiftlang/llvm-project` @ `swift-6.2.3-RELEASE` (matches installed Swift)
-with `compiler-rt` for the orc runtime, AArch64 + X86 targets (X86 for the
-simulator later). Repoint `PreviewsJITLinkCxx` include/lib paths and
-`kOrcRuntimePath` at the build output; fix the `SelfExecutorProcessControl`
-include (now in `ExecutorProcessControl.h`).
-- **Verify:** the existing 8 tests still pass against the fork build, and the
-  `dispatchesThroughWitnessTable` scenario, re-enabled, no longer segfaults. If
-  it passes, the conformance bug was the LLVM/runtime skew and SP0 also resolves
-  U1 for Swift metadata. If it still crashes, the fix is a real plugin/relocation
-  problem, not version skew.
+### SP0a — Diagnose the conformance crash cheaply (do this BEFORE any LLVM build)
+The subagent counter-evidence says a fork rebuild likely won't fix it (platform
+registration code is identical fork vs vanilla). So diagnose first:
+- Dump `witness.o`'s `__swift5_proto` section + relocations
+  (`llvm-objdump`/`otool`), reason about relative-pointer correctness and ±2GB
+  reach after JIT placement (same class as the unwind slab issue).
+- Run with `ORC_RT_DEBUG` to watch the orc_rt registration hand-off
+  (`_objc_map_images` / `_objc_load_image`).
+- **Verify:** we can name the actual cause, JITLink relocation of `__swift5_proto`
+  vs an `orc_rt`↔dyld/objc contract mismatch. That decides whether the fix is a
+  relocation/plugin change (no build) or specifically a fork-matched `liborc_rt`.
+
+### SP0b — Build LLVM from the Swift fork (ONLY if SP0a points to orc_rt)
+Contingent on SP0a. If the cause is the `orc_rt`↔runtime contract, the lever is
+a fork-matched `liborc_rt`, possibly not a full `libLLVM` rebuild. Build per the
+vendoring decision above (pinned-clone script, sparse, out-of-tree cache). Fix
+the `SelfExecutorProcessControl` include (now in `ExecutorProcessControl.h`).
+- **Verify:** re-enabled `dispatchesThroughWitnessTable` no longer segfaults and
+  the existing tests still pass.
 
 ### SP1 — Port the six POC scenarios as tests (acceptance core)
 Translate `research/jit-poc/swift/*.swift` (greet/witness, tlv, swift_once,
