@@ -48,6 +48,16 @@ LLVM ORC harness)." Resume from here across sessions. Update it as work lands.
 - **U1 (load-bearing):** Does `MachOPlatform` + orc runtime fully subsume the
   three prescribed plugins for all six scenarios, or does some scenario still
   need a custom plugin? Resolve empirically by running the six scenarios.
+  - **Partial answer (SP1, witness scenario):** No, not for Swift protocol
+    conformance. A JIT-linked object with a `protocol` + conformance + an
+    `any`-existential call segfaults. The crash is in the Swift runtime, in
+    `swift_conformsToProtocol` → `swift_getTypeByMangledName`, triggered by an
+    *unrelated* later lookup (Swift Testing's own). So our JIT'd `__swift5_proto`
+    / `__swift5_types` records register but are malformed and poison the
+    process-global conformance registry. The platform handles initializers and
+    `swift_once` fine, but not conformance/type metadata. This is the gap the
+    design's `SwiftEntrySectionPlugin` targets. Test `dispatchesThroughWitnessTable`
+    is `.disabled` because the segfault takes down the whole runner.
 - **U2:** Does the Swift calling convention hold when we call a real `View` body
   thunk, versus the trivial nullary functions tested so far?
 - **U3:** LLVM integration strategy for shipping (vendor xcframework vs CMake

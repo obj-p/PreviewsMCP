@@ -56,4 +56,14 @@ struct PreviewsJITLinkTests {
         )
         #expect(result == 42)
     }
+
+    @Test(.disabled("SP1/U1: JIT-linked Swift conformance records poison the global swift_conformsToProtocol registry under the platform-first path, segfaulting later lookups. Needs explicit Swift metadata-section handling (SwiftEntrySectionPlugin)."))
+    func dispatchesThroughWitnessTable() throws {
+        let object = try FixtureSupport.compile("witness.swift")
+        let result: Int32 = try PreviewsJITLink.linkAndCall(
+            objectPaths: [object.path],
+            symbol: "witness_value"
+        )
+        #expect(result == 7)
+    }
 }
