@@ -6,6 +6,7 @@
 #include <llvm-c/Core.h>
 #include <llvm-c/TargetMachine.h>
 #include <llvm/ExecutionEngine/Orc/LLJIT.h>
+#include <llvm/ExecutionEngine/Orc/SelfExecutorProcessControl.h>
 #include <llvm/Support/MemoryBuffer.h>
 #include <mutex>
 #include <string>
@@ -18,7 +19,15 @@ llvm::Expected<std::unique_ptr<llvm::orc::LLJIT>> makeJIT() {
     LLVMInitializeNativeTarget();
     LLVMInitializeNativeAsmPrinter();
   });
-  return llvm::orc::LLJITBuilder().create();
+
+  auto epc = llvm::orc::SelfExecutorProcessControl::Create();
+  if (!epc) {
+    return epc.takeError();
+  }
+
+  return llvm::orc::LLJITBuilder()
+      .setExecutorProcessControl(std::move(*epc))
+      .create();
 }
 
 llvm::Expected<std::string> mainDylibName() {
