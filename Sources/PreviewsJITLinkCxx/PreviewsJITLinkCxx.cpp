@@ -6,12 +6,37 @@
 #include <llvm-c/Core.h>
 #include <llvm-c/TargetMachine.h>
 #include <llvm/ExecutionEngine/Orc/LLJIT.h>
+#include <llvm/ExecutionEngine/Orc/MapperJITLinkMemoryManager.h>
+#include <llvm/ExecutionEngine/Orc/MemoryMapper.h>
+#include <llvm/ExecutionEngine/Orc/ObjectLinkingLayer.h>
 #include <llvm/ExecutionEngine/Orc/SelfExecutorProcessControl.h>
 #include <llvm/Support/MemoryBuffer.h>
 #include <mutex>
 #include <string>
 
 namespace {
+
+// Brew scaffolding. When LLVM is bundled with the app this path must change
+// to resolve from the bundle, ideally lifted into a Swift-resolved parameter
+// passed into makeJIT rather than a constant here.
+const char *kOrcRuntimePath =
+    "/opt/homebrew/opt/llvm/lib/clang/22/lib/darwin/liborc_rt_osx.a";
+
+// One contiguous reservation so code, data, and synthesized unwind info land
+// within 32-bit reach of each other. The default per-allocation mmap scatters
+// them past 4GB under ASLR, which breaks __unwind_info's 32-bit deltas.
+constexpr size_t kSlabSize = size_t(1) << 30;
+
+llvm::Expected<std::unique_ptr<llvm::orc::ObjectLayer>>
+slabLinkingLayer(llvm::orc::ExecutionSession &es) {
+  auto memMgr = llvm::orc::MapperJITLinkMemoryManager::CreateWithMapper<
+      llvm::orc::InProcessMemoryMapper>(kSlabSize);
+  if (!memMgr) {
+    return memMgr.takeError();
+  }
+  return std::make_unique<llvm::orc::ObjectLinkingLayer>(es,
+                                                         std::move(*memMgr));
+}
 
 llvm::Expected<std::unique_ptr<llvm::orc::LLJIT>> makeJIT() {
   static std::once_flag once;
@@ -27,6 +52,8 @@ llvm::Expected<std::unique_ptr<llvm::orc::LLJIT>> makeJIT() {
 
   return llvm::orc::LLJITBuilder()
       .setExecutorProcessControl(std::move(*epc))
+      .setPlatformSetUp(llvm::orc::ExecutorNativePlatform(kOrcRuntimePath))
+      .setObjectLinkingLayerCreator(slabLinkingLayer)
       .create();
 }
 
@@ -54,6 +81,10 @@ llvm::Expected<uint64_t> linkAndCall(const char *const *object_paths,
     if (auto err = (*jit)->addObjectFile(std::move(*buf))) {
       return std::move(err);
     }
+  }
+
+  if (auto err = (*jit)->initialize((*jit)->getMainJITDylib())) {
+    return std::move(err);
   }
 
   auto sym = (*jit)->lookup(symbol_name);
