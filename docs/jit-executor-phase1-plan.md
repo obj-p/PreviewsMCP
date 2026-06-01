@@ -213,18 +213,52 @@ fork build) and a Debug orc_rt (`ORC_RT_DEBUG=1`). Findings:
   link-finalize, walk the new image's `__swift5_*` sections and register them
   with the Swift runtime using the **correct JIT-final addresses**.
 
-### SP0d — Implement SwiftEntrySectionPlugin (NEXT, the fix)
-Per design §4. A `LinkGraphLinkingLayer::Plugin` that, in `PostFixupPasses` (or
-on emission, when final addresses are known), finds `__swift5_proto` /
-`__swift5_types` / `__swift5_protos` and calls the Swift runtime registration
-entry points (`swift_registerProtocolConformances`,
-`swift_registerTypeMetadataRecords`, …) with the resolved addresses, instead of
-relying on the platform's auto-registration. May also need to suppress the
-platform's own (wrong-address) Swift registration to avoid a double/garbage
-record. Note the POC's plugin constraints (PostPrunePasses, no-op
-`notifyFailed`/`notifyRemovingResources`/`notifyTransferringResources`,
-canonical `__SEG,__sect` names, graceful early-out).
-- **Verify:** `dispatchesThroughWitnessTable` passes; the other 8 stay green.
+### SP0d — SwiftEntrySectionPlugin + session lifetime (IN PROGRESS)
+Per design §4. A `ObjectLinkingLayer::Plugin` (`SwiftEntrySectionPlugin`) that, in
+`PrePrunePasses`, moves `__swift5_proto` / `__swift5_types` into private sections
+so the platform's wrong-address registration path skips them, keeping the blocks
+live with anonymous symbols so pruning does not drop the conformance records.
+Then in `PostFixupPasses` it registers each section at its final JIT address via
+`swift_registerProtocolConformances` / `swift_registerTypeMetadataRecords` through
+alloc actions. Built with `-fno-rtti` to match LLVM (the derived plugin otherwise
+needs the base class typeinfo, which LLVM does not export).
+
+**What landed and is verified:** suppression. `dispatchesThroughWitnessTable`
+passes, the witness call dispatches through the statically-emitted witness table
+and never needs the global registry, exactly as the W2 POC's bare layer did.
+
+**Root cause found, this is the real blocker:** the re-registration itself is an
+ownership bug, not an address bug. A new test `resolvesConformanceThroughRuntimeRegistry`
+forces a runtime conformance lookup via a dynamic cast, which is the lookup the
+witness test never exercised. With registration on it segfaults. Same-process
+diagnostics proved the registered record address is correct (e.g.
+`0x300054124`) but unmapped at fault time. `linkAndCall` is spike code that links,
+calls, then destroys a per-call `LLJIT`, freeing the slab. The records were
+registered into the process-global Swift conformance registry, which is then left
+holding a dangling pointer. Confirmed by keeping the `LLJIT` alive (the dynamic
+cast then returns the correct value).
+
+**How Xcode Previews avoids this:** its agent is long-lived and `XOJITExecutor`
+holds the image as a `JITDylibHandle` session (see
+`research/scripts/analysis/q6-jit-runtime-findings.md`). The pseudodylib stays
+resident for the whole preview, edits arrive via dynamic replacement, the image
+memory and the global registry share one lifetime. There is no fire-and-forget.
+
+**Decision (agreed): rearchitect around a session, drop `linkAndCall`.** The
+session owns the image and its lifetime equals the image lifetime. Name to match
+the design's `JITLinkSession` / `SessionResolver` (SP5).
+- **SP0d-A:** `JITSession` C++ type + handle ABI (`session_create`,
+  `session_add_object`, `session_lookup`, `session_destroy`); keep free
+  `target_triple`. Verify: a C smoke test resolves and calls a symbol through a handle.
+- **SP0d-B:** Swift `JITSession` class owning the handle, `deinit` destroys,
+  `lookup` returns an address, typed `call<T>` helper. Verify:
+  `dispatchesThroughWitnessTable` returns 7 and `resolvesConformanceThroughRuntimeRegistry`
+  returns 9 while the test holds the session, no leak hack.
+- **SP0d-C:** port the existing 8 tests onto sessions, delete `linkAndCall` and
+  the spike entry points. Verify: all prior tests stay green, no fire-and-forget path left.
+- **SP0d-D:** teardown / deregister. Deferred. `destroy` is only safe when nothing
+  global was registered, since Swift conformance deregistration is not cleanly
+  public. Document the constraint, revisit in Phase 2.
 
 ### SP1 — Port the six POC scenarios as tests (acceptance core)
 Translate `research/jit-poc/swift/*.swift` (greet/witness, tlv, swift_once,
@@ -265,5 +299,6 @@ and add a `jit-linked` session kind to `SessionResolver`.
 
 ## Immediate next step
 
-SP1. Start with the witness/greet scenario from the POC, confirm it passes under
-path A, and let the six scenarios decide U1.
+SP0d-A. Build the `JITSession` C++ type and handle ABI, then port the witness and
+dynamic-cast tests onto it (SP0d-B). Only after the session lands and both tests
+pass without a leak hack do we move to SP1.

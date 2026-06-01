@@ -1,30 +1,46 @@
-import Foundation
 import PreviewsJITLinkCxx
 
-public enum PreviewsJITLink {
-    public static func mainDylibName() throws -> String {
-        var name: UnsafeMutablePointer<CChar>?
-        if let error = previewsmcp_jit_main_dylib_name(&name) {
+public final class JITSession {
+    private let handle: OpaquePointer
+
+    public init() throws {
+        var session: OpaquePointer?
+        if let error = previewsmcp_jit_session_create(&session) {
             throw JITLinkError.failed(error.string())
         }
-        guard let name else {
-            throw JITLinkError.failed("no name returned")
+        guard let session else {
+            throw JITLinkError.failed("no session returned")
         }
-        return UnsafePointer(name).string()
+        handle = session
     }
 
-    public static func targetTriple() -> String {
-        previewsmcp_jit_target_triple().string()
+    deinit {
+        // TODO(SP0d-D): call previewsmcp_jit_session_destroy once Swift metadata
+        // deregistration exists. Freeing the image now would dangle the
+        // process-global conformance and type registry that
+        // SwiftEntrySectionPlugin populated, and crash a later registry walk.
     }
 
-    public static func linkAndCall<T: FixedWidthInteger>(objectPaths: [String], symbol: String) throws -> T {
-        var raw: UInt64 = 0
-        let error = objectPaths.withCStringArray { paths in
-            previewsmcp_jit_link_and_call(paths, objectPaths.count, symbol, &raw)
-        }
-        if let error {
+    public func addObject(path: String) throws {
+        if let error = previewsmcp_jit_session_add_object(handle, path) {
             throw JITLinkError.failed(error.string())
         }
+    }
+
+    public func address(of symbol: String) throws -> UInt64 {
+        var address: UInt64 = 0
+        if let error = previewsmcp_jit_session_lookup(handle, symbol, &address) {
+            throw JITLinkError.failed(error.string())
+        }
+        return address
+    }
+
+    public func call<T: FixedWidthInteger>(symbol: String) throws -> T {
+        guard let pointer = UnsafeRawPointer(bitPattern: UInt(try address(of: symbol))) else {
+            throw JITLinkError.failed("symbol \(symbol) resolved to null")
+        }
+        let function = unsafeBitCast(pointer, to: (@convention(c) () -> UInt64).self)
+        var raw = function()
         return withUnsafeBytes(of: &raw) { $0.load(as: T.self) }
     }
 }
@@ -37,14 +53,5 @@ private extension UnsafePointer where Pointee == CChar {
     func string() -> String {
         defer { previewsmcp_jit_dispose_string(self) }
         return String(cString: self)
-    }
-}
-
-private extension Array where Element == String {
-    func withCStringArray<R>(_ body: (UnsafePointer<UnsafePointer<CChar>>) -> R) -> R {
-        let cStrings: [UnsafeMutablePointer<CChar>] = map { strdup($0)! }
-        defer { cStrings.forEach { free($0) } }
-        let pointers: [UnsafePointer<CChar>] = cStrings.map { UnsafePointer($0) }
-        return pointers.withUnsafeBufferPointer { body($0.baseAddress!) }
     }
 }

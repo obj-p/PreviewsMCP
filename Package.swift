@@ -51,6 +51,7 @@ let package = Package(
                     "-I\(llvmSrcInclude)",
                     "-I\(llvmBuild)/include",
                     "-DPREVIEWSMCP_ORC_RT_PATH=\"\(orcRuntimePath)\"",
+                    "-fno-rtti",
                 ])
             ],
             linkerSettings: [

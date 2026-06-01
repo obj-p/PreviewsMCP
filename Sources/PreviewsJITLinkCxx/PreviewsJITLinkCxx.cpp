@@ -1,4 +1,5 @@
 #include "PreviewsJITLinkCxx.h"
+#include "SwiftEntrySectionPlugin.hpp"
 
 #include <cstdint>
 #include <cstdlib>
@@ -38,8 +39,10 @@ slabLinkingLayer(llvm::orc::ExecutionSession &es, const llvm::Triple &) {
   if (!memMgr) {
     return memMgr.takeError();
   }
-  return std::make_unique<llvm::orc::ObjectLinkingLayer>(es,
-                                                         std::move(*memMgr));
+  auto layer = std::make_unique<llvm::orc::ObjectLinkingLayer>(
+      es, std::move(*memMgr));
+  layer->addPlugin(std::make_shared<previewsmcp::SwiftEntrySectionPlugin>());
+  return layer;
 }
 
 llvm::Expected<std::unique_ptr<llvm::orc::LLJIT>> makeJIT() {
@@ -66,74 +69,59 @@ llvm::Expected<std::unique_ptr<llvm::orc::LLJIT>> makeJIT() {
       .create();
 }
 
-llvm::Expected<std::string> mainDylibName() {
-  auto jit = makeJIT();
-  if (!jit) {
-    return jit.takeError();
+const char *toCStr(llvm::Error err) {
+  if (!err) {
+    return nullptr;
   }
-  return (*jit)->getMainJITDylib().getName();
-}
-
-llvm::Expected<uint64_t> linkAndCall(const char *const *object_paths,
-                                     size_t object_count,
-                                     const char *symbol_name) {
-  auto jit = makeJIT();
-  if (!jit) {
-    return jit.takeError();
-  }
-
-  for (size_t i = 0; i < object_count; ++i) {
-    auto buf = llvm::MemoryBuffer::getFile(object_paths[i]);
-    if (!buf) {
-      return llvm::errorCodeToError(buf.getError());
-    }
-    if (auto err = (*jit)->addObjectFile(std::move(*buf))) {
-      return std::move(err);
-    }
-  }
-
-  if (auto err = (*jit)->initialize((*jit)->getMainJITDylib())) {
-    return std::move(err);
-  }
-
-  auto sym = (*jit)->lookup(symbol_name);
-  if (!sym) {
-    return sym.takeError();
-  }
-  return sym->toPtr<uint64_t (*)()>()();
-}
-
-template <typename T, typename Writer>
-const char *marshal(llvm::Expected<T> result, Writer write) {
-  if (!result) {
-    return strdup(llvm::toString(result.takeError()).c_str());
-  }
-  write(std::move(*result));
-  return nullptr;
+  return strdup(llvm::toString(std::move(err)).c_str());
 }
 
 } // namespace
+
+struct previewsmcp_jit_session {
+  std::unique_ptr<llvm::orc::LLJIT> jit;
+  bool initialized = false;
+};
 
 void previewsmcp_jit_dispose_string(const char *str) {
   free(const_cast<char *>(str));
 }
 
-const char *previewsmcp_jit_link_and_call(const char *const *object_paths,
-                                          size_t object_count,
-                                          const char *symbol_name,
-                                          uint64_t *out_value) {
-  return marshal(linkAndCall(object_paths, object_count, symbol_name),
-                 [&](uint64_t value) { *out_value = value; });
+const char *previewsmcp_jit_session_create(previewsmcp_jit_session **out_session) {
+  auto jit = makeJIT();
+  if (!jit) {
+    return strdup(llvm::toString(jit.takeError()).c_str());
+  }
+  *out_session = new previewsmcp_jit_session{std::move(*jit), false};
+  return nullptr;
 }
 
-const char *previewsmcp_jit_main_dylib_name(char **out_name) {
-  return marshal(mainDylibName(),
-                 [&](std::string name) { *out_name = strdup(name.c_str()); });
+const char *previewsmcp_jit_session_add_object(previewsmcp_jit_session *session,
+                                               const char *object_path) {
+  auto buf = llvm::MemoryBuffer::getFile(object_path);
+  if (!buf) {
+    return toCStr(llvm::errorCodeToError(buf.getError()));
+  }
+  return toCStr(session->jit->addObjectFile(std::move(*buf)));
 }
 
-const char *previewsmcp_jit_target_triple(void) {
-  char *targetTriple = LLVMGetDefaultTargetTriple();
-  char *copy = strdup(targetTriple);
-  LLVMDisposeMessage(targetTriple);
-  return copy;
+const char *previewsmcp_jit_session_lookup(previewsmcp_jit_session *session,
+                                           const char *symbol_name,
+                                           uint64_t *out_address) {
+  if (!session->initialized) {
+    if (auto err = session->jit->initialize(session->jit->getMainJITDylib())) {
+      return toCStr(std::move(err));
+    }
+    session->initialized = true;
+  }
+  auto sym = session->jit->lookup(symbol_name);
+  if (!sym) {
+    return toCStr(sym.takeError());
+  }
+  *out_address = sym->getValue();
+  return nullptr;
+}
+
+void previewsmcp_jit_session_destroy(previewsmcp_jit_session *session) {
+  delete session;
 }

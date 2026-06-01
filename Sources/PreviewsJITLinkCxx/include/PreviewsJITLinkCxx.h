@@ -13,15 +13,20 @@ extern "C" {
 
 void previewsmcp_jit_dispose_string(const char *str);
 
-const char *_Nullable
-previewsmcp_jit_link_and_call(const char *_Nonnull const *_Nonnull object_paths,
-                             size_t object_count, const char *symbol_name,
-                             uint64_t *out_value);
+typedef struct previewsmcp_jit_session previewsmcp_jit_session;
 
 const char *_Nullable
-previewsmcp_jit_main_dylib_name(char *_Nullable *_Nonnull out_name);
+previewsmcp_jit_session_create(previewsmcp_jit_session *_Nullable *_Nonnull out_session);
 
-const char *previewsmcp_jit_target_triple(void);
+const char *_Nullable
+previewsmcp_jit_session_add_object(previewsmcp_jit_session *session,
+                                   const char *object_path);
+
+const char *_Nullable
+previewsmcp_jit_session_lookup(previewsmcp_jit_session *session,
+                              const char *symbol_name, uint64_t *out_address);
+
+void previewsmcp_jit_session_destroy(previewsmcp_jit_session *session);
 
 #if __has_feature(nullability)
 #pragma clang assume_nonnull end
