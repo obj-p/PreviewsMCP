@@ -1,6 +1,6 @@
 import Foundation
 import PreviewsCore
-import SimulatorBridge
+@preconcurrency import SimulatorBridge
 import os
 
 /// Manages iOS simulator devices via CoreSimulator.framework (loaded at runtime).

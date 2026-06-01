@@ -148,6 +148,36 @@ public actor Compiler {
         return CompilationResult(dylibPath: dylibFile, diagnostics: "")
     }
 
+    public func compileObject(
+        source: String,
+        moduleName: String,
+        extraFlags: [String] = []
+    ) async throws -> URL {
+        compilationCounter += 1
+        let uniqueName = "\(moduleName)_\(compilationCounter)"
+        let sourceFile = workDir.appendingPathComponent("\(uniqueName).swift")
+        let objectFile = workDir.appendingPathComponent("\(uniqueName).o")
+
+        try source.write(to: sourceFile, atomically: true, encoding: .utf8)
+
+        var args: [String] = [
+            swiftcPath,
+            "-emit-object",
+            "-parse-as-library",
+            "-target", targetTriple,
+            "-sdk", sdkPath,
+            "-module-name", moduleName,
+            "-Onone",
+            "-gnone",
+            "-module-cache-path", moduleCachePath.path,
+        ]
+        args += extraFlags
+        args += ["-o", objectFile.path, sourceFile.path]
+
+        try await run(args)
+        return objectFile
+    }
+
     // MARK: - Private
 
     @discardableResult
