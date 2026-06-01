@@ -332,10 +332,21 @@ SP1 passed all six scenarios under path A, so no objc selref/class plugin is
 required. The only custom plugin is `SwiftEntrySectionPlugin` (SP0d). Revisit
 only if a future scenario surfaces a gap.
 
-### SP5 — Swift API surface + SessionResolver (lighter weight, can trail)
-Grow `JITLinkError` toward the design's `JITLinkSession`/`JITLinkResult`/`Symbol`
-and add a `jit-linked` session kind to `SessionResolver`.
-- **Verify:** `SessionResolver` can hand a session to the JIT path and back.
+### SP5 — Swift API surface + SessionResolver (DEFERRED to Phase 3)
+Deferred deliberately. The real `SessionResolver` is CLI session-targeting, not
+an execution backend, and wiring JIT into the session lifecycle is the design's
+Phase 3 goal (FileWatcher + Compiler + SessionResolver routing structural edits
+to JIT-link). A richer API (`JITLinkResult`/`Symbol`) has no consumer in Phase 1,
+the tests already drove the minimal `JITSession` surface (`addObject`,
+`address(of:)`, `call`). Adding types now would be speculative. Let the Phase 3
+daemon consumer pull whatever API it needs.
+
+## Phase 1 status: COMPLETE
+
+The JIT-link mechanism is validated end to end in-process. SP0d (plugin + shared
+`LLJIT`, sessions as `JITDylib`s), SP1 (all six POC scenarios under path A), SP2
+(`Compiler.compileObject`), and SP3 (re-resolution) are done. SP4 is unnecessary
+and SP5 is deferred. 14 tests, stable under the parallel runner.
 
 ## Scope boundaries
 
