@@ -316,10 +316,16 @@ symbol, no direct `swiftc` in that path. The test target gained a `PreviewsCore`
 dependency. The six scenario fixtures stay on `FixtureSupport` (fast, cached).
 - **Verify (met):** `compilesAndLinksObjectViaCompiler` returns 42. 13 tests green.
 
-### SP3 — Re-resolution on source change
-Recompile a changed source, add the new `.o` to the JIT, re-resolve the symbol.
-- **Verify:** the re-resolved symbol points at the new object and calling it
-  returns the new behavior. (Phase 1 stops here; address propagation is Phase 2+.)
+### SP3 — Re-resolution on source change (DONE)
+ORC will not redefine a symbol inside one `JITDylib`, and a session is one
+`JITDylib`, so re-resolution is a fresh `JITSession` per recompile. The
+`reResolvesSymbolAfterRecompile` test compiles two versions of one `@_cdecl`
+symbol (42, then 43) via `Compiler.compileObject`, links each in its own session,
+and confirms v1 resolves to addr1 returning 42, v2 to a different addr2 returning
+43, with no duplicate-definition error. No production code, the existing
+`address(of:)` and `call` cover it.
+- **Verify (met):** values 42 vs 43, addresses differ. Phase 1 stops here,
+  propagating the new address into a running caller is Phase 2.
 
 ### SP4 — Custom plugin(s) only if SP1 demands (NOT NEEDED)
 SP1 passed all six scenarios under path A, so no objc selref/class plugin is
