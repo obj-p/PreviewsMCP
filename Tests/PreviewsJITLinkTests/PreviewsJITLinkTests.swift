@@ -59,4 +59,20 @@ struct PreviewsJITLinkTests {
         let result: Int32 = try session.call(symbol: "dynamic_cast_value")
         #expect(result == 9)
     }
+
+    @Test func resolvesThreadLocalStorage() throws {
+        let object = try FixtureSupport.compile("tlv.c")
+        let session = try JITSession()
+        try session.addObject(path: object.path)
+        let result: Int32 = try session.call(symbol: "tlv_value")
+        #expect(result == 43)
+    }
+
+    @Test func dispatchesObjCSelector() throws {
+        let object = try FixtureSupport.compile("objc_selref.swift")
+        let session = try JITSession()
+        try session.addObject(path: object.path)
+        let result: Int32 = try session.call(symbol: "objc_selref_value")
+        #expect(result == 42)
+    }
 }

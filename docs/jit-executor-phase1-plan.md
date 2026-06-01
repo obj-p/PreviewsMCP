@@ -281,12 +281,29 @@ the design's `JITLinkSession` / `SessionResolver` (SP5).
     memory as non-reclaimable mid-life, bounding it by PID lifetime instead. A
     future Swift deregister API is not on the critical path.
 
-### SP1 — Port the six POC scenarios as tests (acceptance core)
+### SP1 — Port the six POC scenarios as tests (acceptance core, IN PROGRESS)
 Translate `research/jit-poc/swift/*.swift` (greet/witness, tlv, swift_once,
 objc selref, objc class, async) into `PreviewsJITLinkTests` fixtures.
 - **Verify:** each scenario links and its symbol returns the expected value,
   in-process, under path A. Any scenario that fails under A names the specific
   plugin to port (resolves U1).
+- **Probed first (both pass under path A):** real Mach-O TLV via a C
+  `_Thread_local` (`tlv.c`, exercises the platform's `fixTLVSectionsAndEdges`
+  and orc_rt TLV path) and ObjC selref via Foundation (`objc_selref.swift`,
+  `NSString(format:)` + `intValue`). The selref one matters: the POC needed a
+  hand-rolled `ObjCSelrefPlugin` on its bare layer, but under path A the
+  platform's objc-image registration uniques the selectors, so **that plugin is
+  not needed**. Strong evidence path A is sufficient (U1). Remaining: swift_once,
+  objc class, async.
+- **Architecture fix surfaced by the probe:** a per-session `LLJIT` does not
+  work. Each `ExecutorNativePlatform` bootstrap registers process-global state
+  (`findDynamicUnwindSections`), so concurrent sessions under the parallel test
+  runner raced and the second failed to materialize
+  `__orc_rt_macho_complete_bootstrap`. Fixed by one process-shared `LLJIT` built
+  behind `std::call_once`, with each session a `JITDylib` created via
+  `LLJIT::createJITDylib` (which runs platform setup so the dylib resolves
+  process and stdlib symbols). This also matches D3, the shared JIT is
+  process-lived. 9 tests pass, stable across repeated parallel runs.
 
 ### SP2 — Wire `Compiler.swift` for `.o` production
 Replace the test-only `swiftc` shell-out with `Sources/PreviewsCore/Compiler.swift`

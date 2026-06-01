@@ -1,6 +1,7 @@
 #include "PreviewsJITLinkCxx.h"
 #include "SwiftEntrySectionPlugin.hpp"
 
+#include <atomic>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -68,10 +69,30 @@ const char *toCStr(llvm::Error err) {
   return strdup(llvm::toString(std::move(err)).c_str());
 }
 
+llvm::orc::LLJIT *sharedJIT(const char *orc_rt_path, std::string &err) {
+  static std::unique_ptr<llvm::orc::LLJIT> jit;
+  static std::string initError;
+  static std::once_flag once;
+  std::call_once(once, [&] {
+    auto created = makeJIT(orc_rt_path);
+    if (!created) {
+      initError = llvm::toString(created.takeError());
+      return;
+    }
+    jit = std::move(*created);
+  });
+  if (!jit) {
+    err = initError;
+    return nullptr;
+  }
+  return jit.get();
+}
+
 } // namespace
 
 struct previewsmcp_jit_session {
-  std::unique_ptr<llvm::orc::LLJIT> jit;
+  llvm::orc::LLJIT *jit;
+  llvm::orc::JITDylib *jd;
   bool initialized = false;
 };
 
@@ -81,11 +102,18 @@ void previewsmcp_jit_dispose_string(const char *str) {
 
 const char *previewsmcp_jit_session_create(previewsmcp_jit_session **out_session,
                                            const char *orc_rt_path) {
-  auto jit = makeJIT(orc_rt_path);
+  std::string err;
+  auto *jit = sharedJIT(orc_rt_path, err);
   if (!jit) {
-    return strdup(llvm::toString(jit.takeError()).c_str());
+    return strdup(err.c_str());
   }
-  *out_session = new previewsmcp_jit_session{std::move(*jit), false};
+  static std::atomic<uint64_t> counter{0};
+  auto jd = jit->createJITDylib("session." +
+                                std::to_string(counter.fetch_add(1)));
+  if (!jd) {
+    return toCStr(jd.takeError());
+  }
+  *out_session = new previewsmcp_jit_session{jit, &*jd, false};
   return nullptr;
 }
 
@@ -95,19 +123,19 @@ const char *previewsmcp_jit_session_add_object(previewsmcp_jit_session *session,
   if (!buf) {
     return toCStr(llvm::errorCodeToError(buf.getError()));
   }
-  return toCStr(session->jit->addObjectFile(std::move(*buf)));
+  return toCStr(session->jit->addObjectFile(*session->jd, std::move(*buf)));
 }
 
 const char *previewsmcp_jit_session_lookup(previewsmcp_jit_session *session,
                                            const char *symbol_name,
                                            uint64_t *out_address) {
   if (!session->initialized) {
-    if (auto err = session->jit->initialize(session->jit->getMainJITDylib())) {
+    if (auto err = session->jit->initialize(*session->jd)) {
       return toCStr(std::move(err));
     }
     session->initialized = true;
   }
-  auto sym = session->jit->lookup(symbol_name);
+  auto sym = session->jit->lookup(*session->jd, symbol_name);
   if (!sym) {
     return toCStr(sym.takeError());
   }
