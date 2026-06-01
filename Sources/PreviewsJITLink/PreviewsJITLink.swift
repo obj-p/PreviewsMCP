@@ -45,6 +45,9 @@ public final class JITSession {
     }
 }
 
+@available(*, unavailable)
+extension JITSession: Sendable {}
+
 public enum JITLinkError: Error {
     case failed(String)
 }

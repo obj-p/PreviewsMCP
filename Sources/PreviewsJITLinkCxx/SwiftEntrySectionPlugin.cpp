@@ -63,13 +63,15 @@ void registerSection(LinkGraph &G, StringRef Name,
   auto *Sec = G.findSectionByName(Name);
   if (!Sec)
     return;
-  SectionRange R(*Sec);
-  if (R.empty())
-    return;
-  G.allocActions().push_back(
-      {cantFail(WrapperFunctionCall::Create<SPSArgList<SPSExecutorAddrRange>>(
-           ExecutorAddr::fromPtr(Fn), R.getRange())),
-       {}});
+  for (auto *B : Sec->blocks()) {
+    if (B->getSize() == 0)
+      continue;
+    ExecutorAddrRange range(B->getAddress(), B->getAddress() + B->getSize());
+    G.allocActions().push_back(
+        {cantFail(WrapperFunctionCall::Create<SPSArgList<SPSExecutorAddrRange>>(
+             ExecutorAddr::fromPtr(Fn), range)),
+         {}});
+  }
 }
 
 } // namespace

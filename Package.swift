@@ -7,11 +7,15 @@ import PackageDescription
 let packageDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().path
 let llvmBuild = "\(packageDir)/third_party/llvm-build"
 let llvmSrcInclude = "\(packageDir)/third_party/llvm-project/llvm/include"
+let orcRuntimeArchive = "\(packageDir)/third_party/llvm-build-rt/lib/darwin/liborc_rt_osx.a"
 
-// The JIT targets link a locally-built LLVM under third_party/ (gitignored, via
-// `bootstrap --jit`). Omit them when those deps are absent so CI and non-JIT
-// contributors build the rest of the package.
-let jitEnabled = FileManager.default.fileExists(atPath: llvmBuild)
+// The JIT targets link a locally-built LLVM and copy the orc runtime archive,
+// both under third_party/ (gitignored, via `bootstrap --jit`). Require both so a
+// partial build does not turn the targets on with the archive missing. Omit them
+// otherwise so CI and non-JIT contributors build the rest of the package.
+let jitEnabled =
+    FileManager.default.fileExists(atPath: llvmBuild)
+    && FileManager.default.fileExists(atPath: orcRuntimeArchive)
 
 var targets: [Target] = [
     .target(
