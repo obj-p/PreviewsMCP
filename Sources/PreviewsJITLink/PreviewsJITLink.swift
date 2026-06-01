@@ -1,11 +1,17 @@
+import Foundation
 import PreviewsJITLinkCxx
 
 public final class JITSession {
     private let handle: OpaquePointer
 
     public init() throws {
+        guard let orcRuntimePath = Bundle.module
+            .url(forResource: "liborc_rt_osx", withExtension: "a")?.path
+        else {
+            throw JITLinkError.failed("orc runtime archive missing from bundle")
+        }
         var session: OpaquePointer?
-        if let error = previewsmcp_jit_session_create(&session) {
+        if let error = previewsmcp_jit_session_create(&session, orcRuntimePath) {
             throw JITLinkError.failed(error.string())
         }
         guard let session else {

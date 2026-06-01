@@ -18,15 +18,6 @@
 
 namespace {
 
-// Path to the orc runtime archive, injected by Package.swift (built from the
-// Swift LLVM fork via scripts/build-jit-llvm.sh). Scaffolding: when LLVM is
-// bundled this should resolve from the bundle, ideally a Swift-resolved param.
-#ifndef PREVIEWSMCP_ORC_RT_PATH
-#define PREVIEWSMCP_ORC_RT_PATH                                                 \
-  "/opt/homebrew/opt/llvm/lib/clang/22/lib/darwin/liborc_rt_osx.a"
-#endif
-const char *kOrcRuntimePath = PREVIEWSMCP_ORC_RT_PATH;
-
 // One contiguous reservation so code, data, and synthesized unwind info land
 // within 32-bit reach of each other. The default per-allocation mmap scatters
 // them past 4GB under ASLR, which breaks __unwind_info's 32-bit deltas.
@@ -45,7 +36,8 @@ slabLinkingLayer(llvm::orc::ExecutionSession &es, const llvm::Triple &) {
   return layer;
 }
 
-llvm::Expected<std::unique_ptr<llvm::orc::LLJIT>> makeJIT() {
+llvm::Expected<std::unique_ptr<llvm::orc::LLJIT>>
+makeJIT(const char *orc_rt_path) {
   static std::once_flag once;
   std::call_once(once, [] {
     LLVMInitializeNativeTarget();
@@ -64,7 +56,7 @@ llvm::Expected<std::unique_ptr<llvm::orc::LLJIT>> makeJIT() {
 
   return llvm::orc::LLJITBuilder()
       .setExecutorProcessControl(std::move(*epc))
-      .setPlatformSetUp(llvm::orc::ExecutorNativePlatform(kOrcRuntimePath))
+      .setPlatformSetUp(llvm::orc::ExecutorNativePlatform(orc_rt_path))
       .setObjectLinkingLayerCreator(slabLinkingLayer)
       .create();
 }
@@ -87,8 +79,9 @@ void previewsmcp_jit_dispose_string(const char *str) {
   free(const_cast<char *>(str));
 }
 
-const char *previewsmcp_jit_session_create(previewsmcp_jit_session **out_session) {
-  auto jit = makeJIT();
+const char *previewsmcp_jit_session_create(previewsmcp_jit_session **out_session,
+                                           const char *orc_rt_path) {
+  auto jit = makeJIT(orc_rt_path);
   if (!jit) {
     return strdup(llvm::toString(jit.takeError()).c_str());
   }

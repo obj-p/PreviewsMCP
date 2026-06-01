@@ -7,7 +7,6 @@ import PackageDescription
 let packageDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().path
 let llvmBuild = "\(packageDir)/third_party/llvm-build"
 let llvmSrcInclude = "\(packageDir)/third_party/llvm-project/llvm/include"
-let orcRuntimePath = "\(packageDir)/third_party/llvm-build-rt/lib/darwin/liborc_rt_osx.a"
 
 let package = Package(
     name: "PreviewsMCP",
@@ -41,7 +40,8 @@ let package = Package(
         ),
         .target(
             name: "PreviewsJITLink",
-            dependencies: ["PreviewsJITLinkCxx"]
+            dependencies: ["PreviewsJITLinkCxx"],
+            plugins: [.plugin(name: "BundleOrcRuntime")]
         ),
         .target(
             // TODO: need to update to bundled version of LLVM in the future
@@ -50,7 +50,6 @@ let package = Package(
                 .unsafeFlags([
                     "-I\(llvmSrcInclude)",
                     "-I\(llvmBuild)/include",
-                    "-DPREVIEWSMCP_ORC_RT_PATH=\"\(orcRuntimePath)\"",
                     "-fno-rtti",
                 ])
             ],
@@ -115,6 +114,10 @@ let package = Package(
             name: "EmbedHostAppSource",
             capability: .buildTool(),
             dependencies: ["EmbedHostAppSourceTool"]
+        ),
+        .plugin(
+            name: "BundleOrcRuntime",
+            capability: .buildTool()
         ),
         .testTarget(
             name: "PreviewsCoreTests",

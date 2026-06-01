@@ -16,7 +16,8 @@ void previewsmcp_jit_dispose_string(const char *str);
 typedef struct previewsmcp_jit_session previewsmcp_jit_session;
 
 const char *_Nullable
-previewsmcp_jit_session_create(previewsmcp_jit_session *_Nullable *_Nonnull out_session);
+previewsmcp_jit_session_create(previewsmcp_jit_session *_Nullable *_Nonnull out_session,
+                              const char *orc_rt_path);
 
 const char *_Nullable
 previewsmcp_jit_session_add_object(previewsmcp_jit_session *session,
