@@ -2,17 +2,11 @@
 import Foundation
 import PackageDescription
 
-// LLVM built from swiftlang/llvm-project via scripts/build-jit-llvm.sh.
-// Scaffolding: paths are relative to the package dir; shipping will bundle LLVM.
 let packageDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().path
 let llvmBuild = "\(packageDir)/third_party/llvm-build"
 let llvmSrcInclude = "\(packageDir)/third_party/llvm-project/llvm/include"
 let orcRuntimeArchive = "\(packageDir)/third_party/llvm-build-rt/lib/darwin/liborc_rt_osx.a"
 
-// The JIT targets link a locally-built LLVM and copy the orc runtime archive,
-// both under third_party/ (gitignored, via `bootstrap --jit`). Require both so a
-// partial build does not turn the targets on with the archive missing. Omit them
-// otherwise so CI and non-JIT contributors build the rest of the package.
 let jitEnabled =
     FileManager.default.fileExists(atPath: llvmBuild)
     && FileManager.default.fileExists(atPath: orcRuntimeArchive)
@@ -127,7 +121,7 @@ if jitEnabled {
             plugins: [.plugin(name: "BundleOrcRuntime")]
         ),
         .target(
-            // TODO: need to update to bundled version of LLVM in the future
+            // TODO: bundle libLLVM (U3); links the third_party build for now.
             name: "PreviewsJITLinkCxx",
             cxxSettings: [
                 .unsafeFlags([

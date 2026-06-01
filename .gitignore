@@ -6,5 +6,4 @@ DerivedData/
 .claude/worktrees/
 .claude/scheduled_tasks.lock
 
-# JIT LLVM build (scripts/build-jit-llvm.sh)
 /third_party/
