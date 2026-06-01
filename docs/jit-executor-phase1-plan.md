@@ -213,7 +213,7 @@ fork build) and a Debug orc_rt (`ORC_RT_DEBUG=1`). Findings:
   link-finalize, walk the new image's `__swift5_*` sections and register them
   with the Swift runtime using the **correct JIT-final addresses**.
 
-### SP0d — SwiftEntrySectionPlugin + session lifetime (IN PROGRESS)
+### SP0d — SwiftEntrySectionPlugin + session lifetime (DONE)
 Per design §4. A `ObjectLinkingLayer::Plugin` (`SwiftEntrySectionPlugin`) that, in
 `PrePrunePasses`, moves `__swift5_proto` / `__swift5_types` into private sections
 so the platform's wrong-address registration path skips them, keeping the blocks
@@ -223,9 +223,11 @@ Then in `PostFixupPasses` it registers each section at its final JIT address via
 alloc actions. Built with `-fno-rtti` to match LLVM (the derived plugin otherwise
 needs the base class typeinfo, which LLVM does not export).
 
-**What landed and is verified:** suppression. `dispatchesThroughWitnessTable`
-passes, the witness call dispatches through the statically-emitted witness table
-and never needs the global registry, exactly as the W2 POC's bare layer did.
+**What landed and is verified:** suppression plus correct re-registration plus
+session lifetime. `dispatchesThroughWitnessTable` passes via the
+statically-emitted witness table, and `resolvesConformanceThroughRuntimeRegistry`
+forces a real global-registry lookup through a dynamic cast and also passes, both
+driven through a `JITSession` that owns the image. Committed as `cd4e54f`.
 
 **Root cause found, this is the real blocker:** the re-registration itself is an
 ownership bug, not an address bug. A new test `resolvesConformanceThroughRuntimeRegistry`
@@ -248,17 +250,36 @@ memory and the global registry share one lifetime. There is no fire-and-forget.
 session owns the image and its lifetime equals the image lifetime. Name to match
 the design's `JITLinkSession` / `SessionResolver` (SP5).
 - **SP0d-A:** `JITSession` C++ type + handle ABI (`session_create`,
-  `session_add_object`, `session_lookup`, `session_destroy`); keep free
-  `target_triple`. Verify: a C smoke test resolves and calls a symbol through a handle.
-- **SP0d-B:** Swift `JITSession` class owning the handle, `deinit` destroys,
+  `session_add_object`, `session_lookup`). Verify: resolves and calls a symbol through a handle.
+- **SP0d-B:** Swift `JITSession` class owning the handle,
   `lookup` returns an address, typed `call<T>` helper. Verify:
   `dispatchesThroughWitnessTable` returns 7 and `resolvesConformanceThroughRuntimeRegistry`
   returns 9 while the test holds the session, no leak hack.
 - **SP0d-C:** port the existing 8 tests onto sessions, delete `linkAndCall` and
   the spike entry points. Verify: all prior tests stay green, no fire-and-forget path left.
-- **SP0d-D:** teardown / deregister. Deferred. `destroy` is only safe when nothing
-  global was registered, since Swift conformance deregistration is not cleanly
-  public. Document the constraint, revisit in Phase 2.
+- **SP0d-D (resolved):** there is no in-process teardown, by design. A dlsym probe
+  of the in-process `libswiftCore` (Xcode 26.2) confirmed **no public
+  `swift_unregister*` / `swift_deregister*` exists**, only the register entry
+  points. So once `__swift5_proto` / `__swift5_types` records are registered at
+  JIT addresses, that memory can never be safely freed while the process runs.
+  Apple unloads only because its pseudodylib is a real dyld image whose
+  image-remove hook drives the cleanup, a private dyld API we do not have.
+  Decision **D3:** a `JITSession` owns an image that lives until process exit,
+  there is no `session_destroy` and no `deinit` free. This is consistent and
+  honest, the same lifetime the Previews agent uses. The leak is the runtime
+  constraint surfaced, not a shortcut.
+  - **Phase 2 teardown (investigated):** kill the agent process. A subagent
+    confirmed the Swift runtime has no remove-image hook and no deregister on any
+    branch (`ProtocolConformance.cpp`, `ImageInspectionMachO.cpp`), registration
+    is one-way by design. dyld's pseudodylib unload (`_dyld_pseudodylib_deregister`,
+    private SPI) runs deinitializers but does not make the runtime forget the
+    records, and orc_rt's `macho_platform.cpp` has TODOs that a Swift/ObjC image
+    is meant to be permanent and non-dlclose-able. Apple's own `XOJITExecutor`
+    does not unload in-process, it respawns the agent on every edit
+    (`research/scripts/analysis/w3-empirical-capture.md`), so teardown is process
+    death. Phase 2 should adopt the out-of-process agent and treat one agent's JIT
+    memory as non-reclaimable mid-life, bounding it by PID lifetime instead. A
+    future Swift deregister API is not on the critical path.
 
 ### SP1 — Port the six POC scenarios as tests (acceptance core)
 Translate `research/jit-poc/swift/*.swift` (greet/witness, tlv, swift_once,

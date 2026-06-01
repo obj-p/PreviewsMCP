@@ -121,7 +121,3 @@ const char *previewsmcp_jit_session_lookup(previewsmcp_jit_session *session,
   *out_address = sym->getValue();
   return nullptr;
 }
-
-void previewsmcp_jit_session_destroy(previewsmcp_jit_session *session) {
-  delete session;
-}

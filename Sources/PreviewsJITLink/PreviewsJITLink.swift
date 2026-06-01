@@ -14,13 +14,6 @@ public final class JITSession {
         handle = session
     }
 
-    deinit {
-        // TODO(SP0d-D): call previewsmcp_jit_session_destroy once Swift metadata
-        // deregistration exists. Freeing the image now would dangle the
-        // process-global conformance and type registry that
-        // SwiftEntrySectionPlugin populated, and crash a later registry walk.
-    }
-
     public func addObject(path: String) throws {
         if let error = previewsmcp_jit_session_add_object(handle, path) {
             throw JITLinkError.failed(error.string())

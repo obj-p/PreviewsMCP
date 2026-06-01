@@ -26,8 +26,6 @@ const char *_Nullable
 previewsmcp_jit_session_lookup(previewsmcp_jit_session *session,
                               const char *symbol_name, uint64_t *out_address);
 
-void previewsmcp_jit_session_destroy(previewsmcp_jit_session *session);
-
 #if __has_feature(nullability)
 #pragma clang assume_nonnull end
 #endif
