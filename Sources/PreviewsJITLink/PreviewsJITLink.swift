@@ -21,6 +21,34 @@ public final class JITSession {
         handle = session
     }
 
+    public static func bundledAgentPath() throws -> String {
+        let buildDir = Bundle.module.bundleURL.deletingLastPathComponent()
+        let agent = buildDir.appendingPathComponent("PreviewAgent")
+        guard FileManager.default.isExecutableFile(atPath: agent.path) else {
+            throw JITLinkError.failed("PreviewAgent binary not found at \(agent.path)")
+        }
+        return agent.path
+    }
+
+    public init(remoteAgentPath: String) throws {
+        var session: OpaquePointer?
+        if let error = previewsmcp_jit_remote_session_create(&session, remoteAgentPath) {
+            throw JITLinkError.failed(error.string())
+        }
+        guard let session else {
+            throw JITLinkError.failed("no session returned")
+        }
+        handle = session
+    }
+
+    public func runMain(symbol: String) throws -> Int32 {
+        var result: Int32 = 0
+        if let error = previewsmcp_jit_session_run_main(handle, symbol, &result) {
+            throw JITLinkError.failed(error.string())
+        }
+        return result
+    }
+
     public func addObject(path: String) throws {
         if let error = previewsmcp_jit_session_add_object(handle, path) {
             throw JITLinkError.failed(error.string())

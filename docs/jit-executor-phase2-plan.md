@@ -74,15 +74,39 @@ so the wire path builds against the artifacts we have. No LLVM rebuild.
 
 ## Subproblems and verification criteria
 
-### P2.1 — agent + wire + linksCObject (the spine)
+### P2.1 — agent + wire + linksCObject (the spine) — DONE
 New gated `PreviewAgent` C++ executable target mirroring
 `llvm-jitlink-executor.cpp` (FD transport, `SimpleExecutorMemoryManager`,
 `ExecutorSharedMemoryMapperService`, default bootstrap symbols). Host-side spawn
-over a socketpair, swap `SimpleRemoteEPC` into `makeJIT`. Start with the simplest
-object (`answer.c`, no initializers, no platform) to isolate transport + remote
-alloc + remote call.
-- **Verify:** a C symbol resolves and returns 42 through the agent process
-  (`linksCObject`-equivalent). Agent is a separate PID, confirmed.
+over a socketpair (`previewsmcp_jit_remote_session_create`), the simplest object
+(`answer.c`, no initializers, no platform) to isolate transport + remote alloc +
+remote call.
+- **Verify (met):** `linksCObjectRemotely` resolves `answer` and gets 42 through
+  the spawned agent. Full suite is 15 green, in-process path untouched.
+
+**Discoveries (not in the design doc):**
+- A remote call cannot reuse the in-process `call<T>` path: the looked-up address
+  lives in the agent's address space, so calling it locally would crash. We
+  dispatch with `ExecutorProcessControl::runAsMain(addr, {})` (new
+  `previewsmcp_jit_session_run_main`). The richer wrapper-function ABI is P2.5.
+- A bare remote `LLJIT` needs four explicit settings or `create()` aborts (the
+  asserts build destroys the connected EPC on any create failure, so the real
+  error is masked by `~SimpleRemoteEPC "Destroyed without disconnection"`):
+  1. `setPlatformSetUp(setUpInactivePlatform)` — the default platform wants the
+     orc runtime we have not wired remotely yet (P2.2).
+  2. `setObjectLinkingLayerCreator(ObjectLinkingLayer(ES))` — the LLJIT default
+     is `RTDyldObjectLinkingLayer` + in-process `SectionMemoryManager`, wrong for
+     a remote EPC. The one-arg `ObjectLinkingLayer` uses the EPC's memory manager.
+  3. `setLinkProcessSymbolsByDefault(false)` — the default sets up a
+     process-symbols dylib via a dylib-manager bootstrap the agent does not host.
+     `answer.c` has no external symbols. Revisit when a fixture needs process
+     symbols.
+  4. Initialize the native target/asm printer on the remote path too (the
+     in-process `makeJIT` did this in its own `call_once`; the remote path is
+     separate).
+- Agent location for dev/test: `JITSession.bundledAgentPath()` resolves
+  `PreviewAgent` as a sibling of `Bundle.module` in the build dir. The test
+  target depends on `PreviewAgent` so `swift test` builds it first.
 
 ### P2.2 — platform + orc_rt + remote slab over the wire
 Bring up `ExecutorNativePlatform` remotely (U-C) and solve U-A with the

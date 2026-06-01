@@ -11,6 +11,14 @@ struct PreviewsJITLinkTests {
         #expect(result == 42)
     }
 
+    @Test func linksCObjectRemotely() throws {
+        let object = try FixtureSupport.compile("answer.c")
+        let session = try JITSession(remoteAgentPath: JITSession.bundledAgentPath())
+        try session.addObject(path: object.path)
+        let result = try session.runMain(symbol: "answer")
+        #expect(result == 42)
+    }
+
     @Test func linksSwiftObject() throws {
         let object = try FixtureSupport.compile("swift_answer.swift")
         let session = try JITSession()

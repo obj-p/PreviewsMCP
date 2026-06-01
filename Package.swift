@@ -163,7 +163,7 @@ if jitEnabled {
         ),
         .testTarget(
             name: "PreviewsJITLinkTests",
-            dependencies: ["PreviewsJITLink", "PreviewsCore"],
+            dependencies: ["PreviewsJITLink", "PreviewsCore", "PreviewAgent"],
             exclude: ["Fixtures"]
         ),
     ]

@@ -12,10 +12,18 @@
 #include <llvm/ExecutionEngine/Orc/MapperJITLinkMemoryManager.h>
 #include <llvm/ExecutionEngine/Orc/MemoryMapper.h>
 #include <llvm/ExecutionEngine/Orc/ObjectLinkingLayer.h>
+#include <llvm/ExecutionEngine/Orc/Shared/SimpleRemoteEPCUtils.h>
+#include <llvm/ExecutionEngine/Orc/SimpleRemoteEPC.h>
+#include <llvm/ExecutionEngine/Orc/TaskDispatch.h>
 #include <llvm/Support/Debug.h>
 #include <llvm/Support/MemoryBuffer.h>
+#include <crt_externs.h>
 #include <mutex>
+#include <optional>
+#include <spawn.h>
 #include <string>
+#include <sys/socket.h>
+#include <unistd.h>
 
 namespace {
 
@@ -91,8 +99,10 @@ llvm::orc::LLJIT *sharedJIT(const char *orc_rt_path, std::string &err) {
 } // namespace
 
 struct previewsmcp_jit_session {
-  llvm::orc::LLJIT *jit;
-  llvm::orc::JITDylib *jd;
+  std::unique_ptr<llvm::orc::LLJIT> ownedJit;
+  llvm::orc::LLJIT *jit = nullptr;
+  llvm::orc::JITDylib *jd = nullptr;
+  pid_t agentPid = 0;
   bool initialized = false;
 };
 
@@ -114,7 +124,98 @@ previewsmcp_jit_session_create(previewsmcp_jit_session **out_session,
   if (!jd) {
     return toCStr(jd.takeError());
   }
-  *out_session = new previewsmcp_jit_session{jit, &*jd, false};
+  auto *session = new previewsmcp_jit_session{};
+  session->jit = jit;
+  session->jd = &*jd;
+  *out_session = session;
+  return nullptr;
+}
+
+const char *
+previewsmcp_jit_remote_session_create(previewsmcp_jit_session **out_session,
+                                      const char *agent_path) {
+  static std::once_flag targetOnce;
+  std::call_once(targetOnce, [] {
+    LLVMInitializeNativeTarget();
+    LLVMInitializeNativeAsmPrinter();
+  });
+
+  int sv[2];
+  if (socketpair(AF_UNIX, SOCK_STREAM, 0, sv) != 0) {
+    return strdup(("socketpair failed: " + std::string(strerror(errno))).c_str());
+  }
+
+  posix_spawn_file_actions_t actions;
+  posix_spawn_file_actions_init(&actions);
+  posix_spawn_file_actions_addclose(&actions, sv[0]);
+  std::string fdArg =
+      "filedescs=" + std::to_string(sv[1]) + "," + std::to_string(sv[1]);
+  char *const argv[] = {const_cast<char *>(agent_path),
+                        const_cast<char *>(fdArg.c_str()), nullptr};
+  pid_t pid = 0;
+  int rc =
+      posix_spawn(&pid, agent_path, &actions, nullptr, argv, *_NSGetEnviron());
+  posix_spawn_file_actions_destroy(&actions);
+  close(sv[1]);
+  if (rc != 0) {
+    close(sv[0]);
+    return strdup(("posix_spawn failed: " + std::string(strerror(rc))).c_str());
+  }
+
+  auto epc =
+      llvm::orc::SimpleRemoteEPC::Create<llvm::orc::FDSimpleRemoteEPCTransport>(
+          std::make_unique<llvm::orc::DynamicThreadPoolTaskDispatcher>(
+              std::nullopt),
+          llvm::orc::SimpleRemoteEPC::Setup(), sv[0], sv[0]);
+  if (!epc) {
+    return toCStr(epc.takeError());
+  }
+
+  auto jit =
+      llvm::orc::LLJITBuilder()
+          .setExecutorProcessControl(std::move(*epc))
+          .setPlatformSetUp(llvm::orc::setUpInactivePlatform)
+          .setLinkProcessSymbolsByDefault(false)
+          .setObjectLinkingLayerCreator(
+              [](llvm::orc::ExecutionSession &es, const llvm::Triple &)
+                  -> llvm::Expected<std::unique_ptr<llvm::orc::ObjectLayer>> {
+                return std::make_unique<llvm::orc::ObjectLinkingLayer>(es);
+              })
+          .create();
+  if (!jit) {
+    return toCStr(jit.takeError());
+  }
+
+  auto *session = new previewsmcp_jit_session{};
+  session->ownedJit = std::move(*jit);
+  session->jit = session->ownedJit.get();
+  session->agentPid = pid;
+  static std::atomic<uint64_t> counter{0};
+  auto jd = session->jit->createJITDylib("remote." +
+                                         std::to_string(counter.fetch_add(1)));
+  if (!jd) {
+    delete session;
+    return toCStr(jd.takeError());
+  }
+  session->jd = &*jd;
+  *out_session = session;
+  return nullptr;
+}
+
+const char *previewsmcp_jit_session_run_main(previewsmcp_jit_session *session,
+                                             const char *symbol_name,
+                                             int32_t *out_result) {
+  auto sym = session->jit->lookup(*session->jd, symbol_name);
+  if (!sym) {
+    return toCStr(sym.takeError());
+  }
+  auto result = session->jit->getExecutionSession()
+                    .getExecutorProcessControl()
+                    .runAsMain(*sym, {});
+  if (!result) {
+    return toCStr(result.takeError());
+  }
+  *out_result = *result;
   return nullptr;
 }
 
