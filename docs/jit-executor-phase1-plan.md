@@ -307,11 +307,14 @@ completion). 12 tests, stable across repeated parallel runs.
   process and stdlib symbols). This also matches D3, the shared JIT is
   process-lived.
 
-### SP2 — Wire `Compiler.swift` for `.o` production
-Replace the test-only `swiftc` shell-out with `Sources/PreviewsCore/Compiler.swift`
-for producing objects from a Swift source + target View symbol.
-- **Verify:** a test compiles a source via `Compiler.swift`, links it, and calls
-  the View symbol, with no direct `swiftc` invocation in the path.
+### SP2 — Wire `Compiler.swift` for `.o` production (DONE)
+Added `Compiler.compileObject(source:moduleName:extraFlags:) -> URL`, a sibling to
+`compileCombined` that emits a `.o` via `-emit-object -parse-as-library` with no
+link and no codesign. A `CompilerObjectTests` integration test compiles a source
+through `Compiler.swift`, links the object with a `JITSession`, and calls the
+symbol, no direct `swiftc` in that path. The test target gained a `PreviewsCore`
+dependency. The six scenario fixtures stay on `FixtureSupport` (fast, cached).
+- **Verify (met):** `compilesAndLinksObjectViaCompiler` returns 42. 13 tests green.
 
 ### SP3 — Re-resolution on source change
 Recompile a changed source, add the new `.o` to the JIT, re-resolve the symbol.

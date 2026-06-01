@@ -64,7 +64,7 @@ let package = Package(
         ),
         .testTarget(
             name: "PreviewsJITLinkTests",
-            dependencies: ["PreviewsJITLink"],
+            dependencies: ["PreviewsJITLink", "PreviewsCore"],
             exclude: ["Fixtures"]
         ),
         .target(
