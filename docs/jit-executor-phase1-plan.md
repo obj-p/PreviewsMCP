@@ -95,9 +95,11 @@ standalone to avoid pulling in libcxx/libunwind.
 
 ## Unknowns
 
-- **U1 (load-bearing):** Does `MachOPlatform` + orc runtime fully subsume the
-  three prescribed plugins for all six scenarios, or does some scenario still
-  need a custom plugin? Resolve empirically by running the six scenarios.
+- **U1 (load-bearing, RESOLVED):** Does `MachOPlatform` + orc runtime subsume the
+  prescribed plugins? **Yes.** SP1 ran all six scenarios under path A and they
+  pass. The only custom plugin needed is `SwiftEntrySectionPlugin` for Swift
+  conformance/type metadata. The objc selref and class plugins the POC needed on
+  its bare layer are unnecessary under the full platform. History below.
   - **Partial answer (SP1, witness scenario):** No, not for Swift protocol
     conformance. A JIT-linked object with a `protocol` + conformance + an
     `any`-existential call segfaults. The crash is in the Swift runtime, in
@@ -281,20 +283,20 @@ the design's `JITLinkSession` / `SessionResolver` (SP5).
     memory as non-reclaimable mid-life, bounding it by PID lifetime instead. A
     future Swift deregister API is not on the critical path.
 
-### SP1 — Port the six POC scenarios as tests (acceptance core, IN PROGRESS)
-Translate `research/jit-poc/swift/*.swift` (greet/witness, tlv, swift_once,
-objc selref, objc class, async) into `PreviewsJITLinkTests` fixtures.
-- **Verify:** each scenario links and its symbol returns the expected value,
-  in-process, under path A. Any scenario that fails under A names the specific
-  plugin to port (resolves U1).
-- **Probed first (both pass under path A):** real Mach-O TLV via a C
-  `_Thread_local` (`tlv.c`, exercises the platform's `fixTLVSectionsAndEdges`
-  and orc_rt TLV path) and ObjC selref via Foundation (`objc_selref.swift`,
-  `NSString(format:)` + `intValue`). The selref one matters: the POC needed a
-  hand-rolled `ObjCSelrefPlugin` on its bare layer, but under path A the
-  platform's objc-image registration uniques the selectors, so **that plugin is
-  not needed**. Strong evidence path A is sufficient (U1). Remaining: swift_once,
-  objc class, async.
+### SP1 — Port the six POC scenarios as tests (acceptance core, DONE)
+All six POC scenarios are session-driven tests and **all pass under path A**:
+greet/witness conformance (SP0d), real Mach-O TLV (`tlv.c`, C `_Thread_local`),
+swift_once (`swift_once.swift`, lazy global), ObjC selref (`objc_selref.swift`),
+ObjC class (`objc_class.swift`, a JIT-defined `NSObject` subclass instantiated
+and messaged), and async (`async_value.swift`, a suspending `Task` driven to
+completion). 12 tests, stable across repeated parallel runs.
+- **Resolves U1: path A is sufficient, no hand-rolled plugins needed.** The POC
+  needed `ObjCSelrefPlugin` and a planned `ObjCClassPlugin` only because it ran a
+  bare `ObjectLinkingLayer`. Under the full `MachOPlatform` the objc-image-load
+  path (`_objc_map_images` / `_objc_load_image`) uniques selectors and registers
+  classes. Our only custom plugin is `SwiftEntrySectionPlugin` for Swift
+  conformance and type metadata, which the platform mis-registers. So **SP4 is
+  not required**.
 - **Architecture fix surfaced by the probe:** a per-session `LLJIT` does not
   work. Each `ExecutorNativePlatform` bootstrap registers process-global state
   (`findDynamicUnwindSections`), so concurrent sessions under the parallel test
@@ -303,7 +305,7 @@ objc selref, objc class, async) into `PreviewsJITLinkTests` fixtures.
   behind `std::call_once`, with each session a `JITDylib` created via
   `LLJIT::createJITDylib` (which runs platform setup so the dylib resolves
   process and stdlib symbols). This also matches D3, the shared JIT is
-  process-lived. 9 tests pass, stable across repeated parallel runs.
+  process-lived.
 
 ### SP2 — Wire `Compiler.swift` for `.o` production
 Replace the test-only `swiftc` shell-out with `Sources/PreviewsCore/Compiler.swift`
@@ -316,12 +318,10 @@ Recompile a changed source, add the new `.o` to the JIT, re-resolve the symbol.
 - **Verify:** the re-resolved symbol points at the new object and calling it
   returns the new behavior. (Phase 1 stops here; address propagation is Phase 2+.)
 
-### SP4 — Custom plugin(s) only if SP1 demands
-If a scenario fails under path A, port the matching plugin
-(`LinkGraphLinkingLayer::Plugin`, `PostPrunePasses`, canonical `__SEG,__sect`
-names, graceful early-out, no-op `notifyFailed`/`notifyRemovingResources`/
-`notifyTransferringResources`).
-- **Verify:** the previously failing scenario passes with the plugin added.
+### SP4 — Custom plugin(s) only if SP1 demands (NOT NEEDED)
+SP1 passed all six scenarios under path A, so no objc selref/class plugin is
+required. The only custom plugin is `SwiftEntrySectionPlugin` (SP0d). Revisit
+only if a future scenario surfaces a gap.
 
 ### SP5 — Swift API surface + SessionResolver (lighter weight, can trail)
 Grow `JITLinkError` toward the design's `JITLinkSession`/`JITLinkResult`/`Symbol`

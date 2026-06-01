@@ -75,4 +75,28 @@ struct PreviewsJITLinkTests {
         let result: Int32 = try session.call(symbol: "objc_selref_value")
         #expect(result == 42)
     }
+
+    @Test func runsSwiftOnceInitializer() throws {
+        let object = try FixtureSupport.compile("swift_once.swift")
+        let session = try JITSession()
+        try session.addObject(path: object.path)
+        let result: Int32 = try session.call(symbol: "swift_once_value")
+        #expect(result == 5050)
+    }
+
+    @Test func registersObjCClass() throws {
+        let object = try FixtureSupport.compile("objc_class.swift")
+        let session = try JITSession()
+        try session.addObject(path: object.path)
+        let result: Int32 = try session.call(symbol: "objc_class_value")
+        #expect(result == 42)
+    }
+
+    @Test func runsAsyncFunction() throws {
+        let object = try FixtureSupport.compile("async_value.swift")
+        let session = try JITSession()
+        try session.addObject(path: object.path)
+        let result: Int32 = try session.call(symbol: "async_value")
+        #expect(result == 11)
+    }
 }
