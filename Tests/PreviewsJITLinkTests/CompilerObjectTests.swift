@@ -7,9 +7,9 @@ struct CompilerObjectTests {
         let compiler = try await Compiler()
         let object = try await compiler.compileObject(
             source: """
-            @_cdecl("compiler_answer")
-            public func compilerAnswer() -> Int32 { 42 }
-            """,
+                @_cdecl("compiler_answer")
+                public func compilerAnswer() -> Int32 { 42 }
+                """,
             moduleName: "CompilerObjectFixture"
         )
 
@@ -24,16 +24,16 @@ struct CompilerObjectTests {
 
         let v1 = try await compiler.compileObject(
             source: """
-            @_cdecl("reload_value")
-            public func reloadValue() -> Int32 { 42 }
-            """,
+                @_cdecl("reload_value")
+                public func reloadValue() -> Int32 { 42 }
+                """,
             moduleName: "ReloadFixture"
         )
         let v2 = try await compiler.compileObject(
             source: """
-            @_cdecl("reload_value")
-            public func reloadValue() -> Int32 { 43 }
-            """,
+                @_cdecl("reload_value")
+                public func reloadValue() -> Int32 { 43 }
+                """,
             moduleName: "ReloadFixture"
         )
 

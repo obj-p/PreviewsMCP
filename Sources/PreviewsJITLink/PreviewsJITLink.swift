@@ -5,8 +5,9 @@ public final class JITSession {
     private let handle: OpaquePointer
 
     public init() throws {
-        guard let orcRuntimePath = Bundle.module
-            .url(forResource: "liborc_rt_osx", withExtension: "a")?.path
+        guard
+            let orcRuntimePath = Bundle.module
+                .url(forResource: "liborc_rt_osx", withExtension: "a")?.path
         else {
             throw JITLinkError.failed("orc runtime archive missing from bundle")
         }
