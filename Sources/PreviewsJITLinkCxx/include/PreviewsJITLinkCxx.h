@@ -15,13 +15,16 @@ void previewsmcp_jit_dispose_string(const char *str);
 
 typedef struct previewsmcp_jit_session previewsmcp_jit_session;
 
-const char *_Nullable previewsmcp_jit_session_create(
-    previewsmcp_jit_session *_Nullable *_Nonnull out_session,
-    const char *orc_rt_path);
+void previewsmcp_jit_session_destroy(previewsmcp_jit_session *session);
+
+const char *_Nullable
+previewsmcp_jit_session_create(previewsmcp_jit_session *_Nullable *_Nonnull out_session,
+                              const char *orc_rt_path);
 
 const char *_Nullable
 previewsmcp_jit_remote_session_create(previewsmcp_jit_session *_Nullable *_Nonnull out_session,
-                                      const char *agent_path);
+                                      const char *agent_path,
+                                      const char *orc_rt_path);
 
 const char *_Nullable
 previewsmcp_jit_session_run_main(previewsmcp_jit_session *session,

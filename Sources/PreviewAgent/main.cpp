@@ -1,6 +1,7 @@
 #include "llvm/ExecutionEngine/Orc/TargetProcess/ExecutorSharedMemoryMapperService.h"
 #include "llvm/ExecutionEngine/Orc/TargetProcess/JITLoaderGDB.h"
 #include "llvm/ExecutionEngine/Orc/TargetProcess/RegisterEHFrames.h"
+#include "llvm/ExecutionEngine/Orc/TargetProcess/SimpleExecutorDylibManager.h"
 #include "llvm/ExecutionEngine/Orc/TargetProcess/SimpleExecutorMemoryManager.h"
 #include "llvm/ExecutionEngine/Orc/TargetProcess/SimpleRemoteEPCServer.h"
 #include "llvm/Support/Error.h"
@@ -52,6 +53,8 @@ int main(int argc, char *argv[]) {
                 std::make_unique<SimpleRemoteEPCServer::ThreadDispatcher>());
             S.bootstrapSymbols() =
                 SimpleRemoteEPCServer::defaultBootstrapSymbols();
+            S.services().push_back(
+                std::make_unique<rt_bootstrap::SimpleExecutorDylibManager>());
             S.services().push_back(
                 std::make_unique<rt_bootstrap::SimpleExecutorMemoryManager>());
             S.services().push_back(

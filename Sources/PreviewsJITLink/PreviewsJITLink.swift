@@ -21,6 +21,10 @@ public final class JITSession {
         handle = session
     }
 
+    deinit {
+        previewsmcp_jit_session_destroy(handle)
+    }
+
     public static func bundledAgentPath() throws -> String {
         let buildDir = Bundle.module.bundleURL.deletingLastPathComponent()
         let agent = buildDir.appendingPathComponent("PreviewAgent")
@@ -31,8 +35,14 @@ public final class JITSession {
     }
 
     public init(remoteAgentPath: String) throws {
+        guard
+            let orcRuntimePath = Bundle.module
+                .url(forResource: "liborc_rt_osx", withExtension: "a")?.path
+        else {
+            throw JITLinkError.failed("orc runtime archive missing from bundle")
+        }
         var session: OpaquePointer?
-        if let error = previewsmcp_jit_remote_session_create(&session, remoteAgentPath) {
+        if let error = previewsmcp_jit_remote_session_create(&session, remoteAgentPath, orcRuntimePath) {
             throw JITLinkError.failed(error.string())
         }
         guard let session else {

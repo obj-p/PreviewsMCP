@@ -19,6 +19,22 @@ struct PreviewsJITLinkTests {
         #expect(result == 42)
     }
 
+    @Test func runsObjectInitializerRemotely() throws {
+        let object = try FixtureSupport.compile("ctor.c")
+        let session = try JITSession(remoteAgentPath: JITSession.bundledAgentPath())
+        try session.addObject(path: object.path)
+        let result = try session.runMain(symbol: "ctor_answer")
+        #expect(result == 42)
+    }
+
+    @Test func resolvesThreadLocalStorageRemotely() throws {
+        let object = try FixtureSupport.compile("tlv.c")
+        let session = try JITSession(remoteAgentPath: JITSession.bundledAgentPath())
+        try session.addObject(path: object.path)
+        let result = try session.runMain(symbol: "tlv_value")
+        #expect(result == 43)
+    }
+
     @Test func linksSwiftObject() throws {
         let object = try FixtureSupport.compile("swift_answer.swift")
         let session = try JITSession()

@@ -18,11 +18,13 @@
 #include <llvm/Support/Debug.h>
 #include <llvm/Support/MemoryBuffer.h>
 #include <crt_externs.h>
+#include <csignal>
 #include <mutex>
 #include <optional>
 #include <spawn.h>
 #include <string>
 #include <sys/socket.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 namespace {
@@ -110,9 +112,20 @@ void previewsmcp_jit_dispose_string(const char *str) {
   free(const_cast<char *>(str));
 }
 
-const char *
-previewsmcp_jit_session_create(previewsmcp_jit_session **out_session,
-                               const char *orc_rt_path) {
+void previewsmcp_jit_session_destroy(previewsmcp_jit_session *session) {
+  if (!session) {
+    return;
+  }
+  session->ownedJit.reset();
+  if (session->agentPid != 0) {
+    kill(session->agentPid, SIGKILL);
+    waitpid(session->agentPid, nullptr, 0);
+  }
+  delete session;
+}
+
+const char *previewsmcp_jit_session_create(previewsmcp_jit_session **out_session,
+                                           const char *orc_rt_path) {
   std::string err;
   auto *jit = sharedJIT(orc_rt_path, err);
   if (!jit) {
@@ -133,7 +146,8 @@ previewsmcp_jit_session_create(previewsmcp_jit_session **out_session,
 
 const char *
 previewsmcp_jit_remote_session_create(previewsmcp_jit_session **out_session,
-                                      const char *agent_path) {
+                                      const char *agent_path,
+                                      const char *orc_rt_path) {
   static std::once_flag targetOnce;
   std::call_once(targetOnce, [] {
     LLVMInitializeNativeTarget();
@@ -174,8 +188,7 @@ previewsmcp_jit_remote_session_create(previewsmcp_jit_session **out_session,
   auto jit =
       llvm::orc::LLJITBuilder()
           .setExecutorProcessControl(std::move(*epc))
-          .setPlatformSetUp(llvm::orc::setUpInactivePlatform)
-          .setLinkProcessSymbolsByDefault(false)
+          .setPlatformSetUp(llvm::orc::ExecutorNativePlatform(orc_rt_path))
           .setObjectLinkingLayerCreator(
               [](llvm::orc::ExecutionSession &es, const llvm::Triple &)
                   -> llvm::Expected<std::unique_ptr<llvm::orc::ObjectLayer>> {
@@ -205,6 +218,12 @@ previewsmcp_jit_remote_session_create(previewsmcp_jit_session **out_session,
 const char *previewsmcp_jit_session_run_main(previewsmcp_jit_session *session,
                                              const char *symbol_name,
                                              int32_t *out_result) {
+  if (!session->initialized) {
+    if (auto err = session->jit->initialize(*session->jd)) {
+      return toCStr(std::move(err));
+    }
+    session->initialized = true;
+  }
   auto sym = session->jit->lookup(*session->jd, symbol_name);
   if (!sym) {
     return toCStr(sym.takeError());

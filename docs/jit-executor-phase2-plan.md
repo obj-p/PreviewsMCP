@@ -108,11 +108,21 @@ remote call.
   `PreviewAgent` as a sibling of `Bundle.module` in the build dir. The test
   target depends on `PreviewAgent` so `swift test` builds it first.
 
-### P2.2 — platform + orc_rt + remote slab over the wire
-Bring up `ExecutorNativePlatform` remotely (U-C) and solve U-A with the
-shared-memory mapper slab.
-- **Verify:** the C initializer / TLV scenarios (`ctor.c`, `tlv.c`,
-  `runsObjectInitializer`, `resolvesThreadLocalStorage`) pass remotely.
+### P2.2 — platform + orc_rt over the wire — DONE
+Swapped the remote path from the inactive platform to
+`ExecutorNativePlatform(orc_rt_path)`. The agent gained `SimpleExecutorDylibManager`
+so process-symbol lookup works over the wire, and `run_main` now `initialize()`s
+the session (runs constructors in the agent via the platform). The remote create
+takes `orc_rt_path`; the Swift remote init resolves it from `Bundle.module` like
+the in-process init.
+- **Verify (met):** `runsObjectInitializerRemotely` (`ctor.c`, constructor runs
+  in the agent) and `resolvesThreadLocalStorageRemotely` (`tlv.c`) both return
+  through the agent. 17 tests green.
+- **U-C resolved:** the orc runtime bootstraps cleanly over the wire.
+- **U-A did NOT bite for C:** the default remote memory manager
+  (`EPCGenericJITLinkMemoryManager`) handled `ctor.c`/`tlv.c` without the unwind
+  32-bit slab. NOT adding the shared-memory slab speculatively. Revisit only if a
+  Swift object trips it in P2.3.
 
 ### P2.3 — Swift metadata across the wire
 Confirm U-B; port the full suite onto the remote executor.
@@ -120,11 +130,17 @@ Confirm U-B; port the full suite onto the remote executor.
   selref, objc class, async) green through the agent. The 14-test suite passes
   with the remote executor.
 
-### P2.4 — teardown = kill the agent PID
-Session/agent lifecycle ownership; `session_destroy` kills the agent and tears
-down the `LLJIT`/EPC in the right order (U-D).
-- **Verify:** disposing a session kills the agent, no zombie, no hang; a second
-  session in the same test run is unaffected.
+### P2.4 — teardown = kill the agent PID — DONE (pulled forward from P2.2)
+Pulled forward because the parallel test runner hung: spawned agents had no
+teardown, so leaked agents held the test process's inherited stdout/stderr pipe
+open and `swift-test` never saw EOF. `previewsmcp_jit_session_destroy` resets the
+owned `LLJIT` (which calls `ES.endSession()` → `EPC->disconnect()`, line 1633 of
+Core.cpp, closing the wire so the agent's `waitForDisconnect` returns), then
+`kill(SIGKILL)` + `waitpid` the agent PID as the design's backstop. In-process
+sessions just free the handle (the shared `LLJIT` stays, D3). Wired to a Swift
+`deinit`.
+- **Verify (met):** parallel `swift test --filter PreviewsJITLinkTests` passes
+  17/17 in 0.18s with zero leftover `PreviewAgent` processes. U-D resolved.
 
 ### P2.5 — address propagation / patch-point publishing (design §5)
 `write_mem` into running callers; the `cancelUpdate`/Begin/End update handshake
