@@ -165,11 +165,32 @@ sessions just free the handle (the shared `LLJIT` stays, D3). Wired to a Swift
 - **Verify (met):** parallel `swift test --filter PreviewsJITLinkTests` passes
   17/17 in 0.18s with zero leftover `PreviewAgent` processes. U-D resolved.
 
-### P2.5 — address propagation / patch-point publishing (design §5)
-`write_mem` into running callers; the `cancelUpdate`/Begin/End update handshake
-(design §5, §6). Largest chunk, last. Scope sharpened once P2.1–P2.4 land.
-- **Verify:** TBD (re-resolve a symbol, publish the new address into a slot a
-  running caller reads, observe the new value without respawn).
+### P2.5 — address propagation / patch-point publishing (design §5) — DONE
+Exposed the `write_mem` patch primitive over the wire:
+`previewsmcp_jit_session_write_pointer` → Swift `writePointer(at:value:)` →
+`getMemoryAccess().writePointers`. SimpleRemoteEPC has no default memory access
+(`createDefaultMemoryAccess` returns nullptr), and the orc-runtime write wrappers
+are not available at EPC-setup time, so the agent hosts its own SPS
+`write_pointers` wrapper (advertised as the `__previewsmcp_write_pointers`
+bootstrap symbol), and the host's `Setup.CreateMemoryAccess` builds an
+`EPCGenericMemoryAccess` with `FuncAddrs.WritePointers` from it.
+- **Verify (met):** `publishesNewAddressIntoSlotRemotely` (`patch_slot.c`): a
+  function-pointer slot starts dispatching to v1 (returns 1); the host writes the
+  agent address of `impl_v2` into the slot via `writePointer`; the next dispatch
+  returns 2. The write is pointer-width aligned, so atomic against an in-flight
+  read per design §5 point 1. 25 tests green in parallel, zero orphan agents.
+- **Not in scope (Phase 3):** the Begin/End/`cancelUpdate` update handshake
+  (§5/§6) and wiring patch-points to SwiftUI witness/vtable slots on real edits.
+  This chunk proves the publish mechanism, not the edit-driven planner.
+
+## Phase 2 status: COMPLETE (local unix-socket transport)
+
+The executor is out-of-process end to end. All six POC scenarios link, register
+Swift metadata, and run inside a spawned agent over a SimpleRemoteEPC socket;
+sessions tear down by killing the agent PID; and a new address publishes into a
+running slot via `write_mem`. 25 tests green in parallel. Deferred to Phase 3:
+SwiftUI session-lifecycle integration, the update handshake, XPC/gRPC transports,
+the sidecar symbol-discovery format, iOS device agent, and LLVM bundling (U3).
 
 ## Scope boundaries
 

@@ -9,10 +9,12 @@
 #include <llvm-c/TargetMachine.h>
 #include <llvm/ExecutionEngine/Orc/ExecutorProcessControl.h>
 #include <llvm/ExecutionEngine/Orc/LLJIT.h>
+#include <llvm/ExecutionEngine/Orc/EPCGenericMemoryAccess.h>
 #include <llvm/ExecutionEngine/Orc/MapperJITLinkMemoryManager.h>
 #include <llvm/ExecutionEngine/Orc/MemoryMapper.h>
 #include <llvm/ExecutionEngine/Orc/ObjectLinkingLayer.h>
 #include <llvm/ExecutionEngine/Orc/Shared/SimpleRemoteEPCUtils.h>
+#include <llvm/ExecutionEngine/Orc/Shared/TargetProcessControlTypes.h>
 #include <llvm/ExecutionEngine/Orc/SimpleRemoteEPC.h>
 #include <llvm/ExecutionEngine/Orc/TaskDispatch.h>
 #include <llvm/Support/Debug.h>
@@ -176,11 +178,26 @@ previewsmcp_jit_remote_session_create(previewsmcp_jit_session **out_session,
     return strdup(("posix_spawn failed: " + std::string(strerror(rc))).c_str());
   }
 
+  llvm::orc::SimpleRemoteEPC::Setup setup;
+  setup.CreateMemoryAccess =
+      [](llvm::orc::SimpleRemoteEPC &epc)
+      -> llvm::Expected<
+          std::unique_ptr<llvm::orc::ExecutorProcessControl::MemoryAccess>> {
+    llvm::orc::ExecutorAddr writePointers;
+    if (auto err = epc.getBootstrapSymbols(
+            {{writePointers, "__previewsmcp_write_pointers"}})) {
+      return std::move(err);
+    }
+    llvm::orc::EPCGenericMemoryAccess::FuncAddrs fas;
+    fas.WritePointers = writePointers;
+    return std::make_unique<llvm::orc::EPCGenericMemoryAccess>(epc, fas);
+  };
+
   auto epc =
       llvm::orc::SimpleRemoteEPC::Create<llvm::orc::FDSimpleRemoteEPCTransport>(
           std::make_unique<llvm::orc::DynamicThreadPoolTaskDispatcher>(
               std::nullopt),
-          llvm::orc::SimpleRemoteEPC::Setup(), sv[0], sv[0]);
+          std::move(setup), sv[0], sv[0]);
   if (!epc) {
     return toCStr(epc.takeError());
   }
@@ -248,6 +265,18 @@ const char *previewsmcp_jit_session_run_main(previewsmcp_jit_session *session,
   }
   *out_result = *result;
   return nullptr;
+}
+
+const char *
+previewsmcp_jit_session_write_pointer(previewsmcp_jit_session *session,
+                                      uint64_t address, uint64_t value) {
+  llvm::orc::tpctypes::PointerWrite writes[] = {
+      {llvm::orc::ExecutorAddr(address), llvm::orc::ExecutorAddr(value)}};
+  auto err = session->jit->getExecutionSession()
+                 .getExecutorProcessControl()
+                 .getMemoryAccess()
+                 .writePointers(writes);
+  return toCStr(std::move(err));
 }
 
 const char *previewsmcp_jit_session_add_object(previewsmcp_jit_session *session,

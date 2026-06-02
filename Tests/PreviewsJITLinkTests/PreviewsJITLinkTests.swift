@@ -91,6 +91,19 @@ struct PreviewsJITLinkTests {
         #expect(result == 11)
     }
 
+    @Test func publishesNewAddressIntoSlotRemotely() throws {
+        let object = try FixtureSupport.compile("patch_slot.c")
+        let session = try JITSession(remoteAgentPath: JITSession.bundledAgentPath())
+        try session.addObject(path: object.path)
+        #expect(try session.runMain(symbol: "patch_slot_call") == 1)
+
+        let slot = try session.address(of: "patch_slot_fn")
+        let v2 = try session.address(of: "impl_v2")
+        try session.writePointer(at: slot, value: v2)
+
+        #expect(try session.runMain(symbol: "patch_slot_call") == 2)
+    }
+
     @Test func linksSwiftObject() throws {
         let object = try FixtureSupport.compile("swift_answer.swift")
         let session = try JITSession()

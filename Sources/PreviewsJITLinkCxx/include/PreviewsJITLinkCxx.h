@@ -31,6 +31,10 @@ previewsmcp_jit_session_run_main(previewsmcp_jit_session *session,
                                  const char *symbol_name, int32_t *out_result);
 
 const char *_Nullable
+previewsmcp_jit_session_write_pointer(previewsmcp_jit_session *session,
+                                      uint64_t address, uint64_t value);
+
+const char *_Nullable
 previewsmcp_jit_session_add_object(previewsmcp_jit_session *session,
                                    const char *object_path);
 

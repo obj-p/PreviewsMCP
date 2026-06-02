@@ -5,6 +5,7 @@
 #include "llvm/ExecutionEngine/Orc/TargetProcess/SimpleExecutorMemoryManager.h"
 #include "llvm/ExecutionEngine/Orc/TargetProcess/SimpleRemoteEPCServer.h"
 #include "llvm/ExecutionEngine/Orc/Shared/ExecutorAddress.h"
+#include "llvm/ExecutionEngine/Orc/Shared/TargetProcessControlTypes.h"
 #include "llvm/ExecutionEngine/Orc/Shared/WrapperFunctionUtils.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/raw_ostream.h"
@@ -58,6 +59,18 @@ CWrapperFunctionResult previewsmcp_register_types(const char *ArgData,
       .release();
 }
 
+CWrapperFunctionResult previewsmcp_write_pointers(const char *ArgData,
+                                                  size_t ArgSize) {
+  using namespace llvm::orc::tpctypes;
+  return WrapperFunction<void(SPSSequence<SPSMemoryAccessPointerWrite>)>::handle(
+             ArgData, ArgSize,
+             [](std::vector<PointerWrite> Ws) {
+               for (auto &W : Ws)
+                 *W.Addr.toPtr<void **>() = W.Value.toPtr<void *>();
+             })
+      .release();
+}
+
 } // namespace
 
 static void printErrorAndExit(Twine ErrMsg) {
@@ -103,6 +116,8 @@ int main(int argc, char *argv[]) {
                     &previewsmcp_register_conformances);
             S.bootstrapSymbols()["__previewsmcp_register_types"] =
                 llvm::orc::ExecutorAddr::fromPtr(&previewsmcp_register_types);
+            S.bootstrapSymbols()["__previewsmcp_write_pointers"] =
+                llvm::orc::ExecutorAddr::fromPtr(&previewsmcp_write_pointers);
             S.services().push_back(
                 std::make_unique<rt_bootstrap::SimpleExecutorDylibManager>());
             S.services().push_back(

@@ -59,6 +59,12 @@ public final class JITSession {
         return result
     }
 
+    public func writePointer(at address: UInt64, value: UInt64) throws {
+        if let error = previewsmcp_jit_session_write_pointer(handle, address, value) {
+            throw JITLinkError.failed(error.string())
+        }
+    }
+
     public func addObject(path: String) throws {
         if let error = previewsmcp_jit_session_add_object(handle, path) {
             throw JITLinkError.failed(error.string())
