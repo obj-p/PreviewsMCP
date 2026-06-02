@@ -90,6 +90,8 @@ int main(int argc, char *argv[]) {
   dlopen("/usr/lib/swift/libswift_Concurrency.dylib", RTLD_NOW | RTLD_GLOBAL);
   dlopen("/usr/lib/swift/libswiftFoundation.dylib", RTLD_NOW | RTLD_GLOBAL);
   dlopen("/usr/lib/swift/libswiftDispatch.dylib", RTLD_NOW | RTLD_GLOBAL);
+  dlopen("/System/Library/Frameworks/SwiftUI.framework/SwiftUI",
+         RTLD_NOW | RTLD_GLOBAL);
 
   if (argc != 2)
     printErrorAndExit("expected exactly one argument");

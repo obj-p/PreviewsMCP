@@ -91,6 +91,14 @@ struct PreviewsJITLinkTests {
         #expect(result == 11)
     }
 
+    @Test func runsSwiftUIViewBodyRemotely() throws {
+        let object = try FixtureSupport.compile("swiftui_probe.swift")
+        let session = try JITSession(remoteAgentPath: JITSession.bundledAgentPath())
+        try session.addObject(path: object.path)
+        let result = try session.runMain(symbol: "swiftui_probe_value")
+        #expect(result == 7)
+    }
+
     @Test func publishesNewAddressIntoSlotRemotely() throws {
         let object = try FixtureSupport.compile("patch_slot.c")
         let session = try JITSession(remoteAgentPath: JITSession.bundledAgentPath())
