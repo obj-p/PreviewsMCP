@@ -7,10 +7,10 @@
 #include <cstring>
 #include <llvm-c/Core.h>
 #include <llvm-c/TargetMachine.h>
+#include <llvm/ExecutionEngine/Orc/ExecutorProcessControl.h>
 #include <llvm/ExecutionEngine/Orc/LLJIT.h>
 #include <llvm/ExecutionEngine/Orc/MapperJITLinkMemoryManager.h>
 #include <llvm/ExecutionEngine/Orc/MemoryMapper.h>
-#include <llvm/ExecutionEngine/Orc/ExecutorProcessControl.h>
 #include <llvm/ExecutionEngine/Orc/ObjectLinkingLayer.h>
 #include <llvm/Support/Debug.h>
 #include <llvm/Support/MemoryBuffer.h>
@@ -31,8 +31,8 @@ slabLinkingLayer(llvm::orc::ExecutionSession &es, const llvm::Triple &) {
   if (!memMgr) {
     return memMgr.takeError();
   }
-  auto layer = std::make_unique<llvm::orc::ObjectLinkingLayer>(
-      es, std::move(*memMgr));
+  auto layer =
+      std::make_unique<llvm::orc::ObjectLinkingLayer>(es, std::move(*memMgr));
   layer->addPlugin(std::make_shared<previewsmcp::SwiftEntrySectionPlugin>());
   return layer;
 }
@@ -100,16 +100,17 @@ void previewsmcp_jit_dispose_string(const char *str) {
   free(const_cast<char *>(str));
 }
 
-const char *previewsmcp_jit_session_create(previewsmcp_jit_session **out_session,
-                                           const char *orc_rt_path) {
+const char *
+previewsmcp_jit_session_create(previewsmcp_jit_session **out_session,
+                               const char *orc_rt_path) {
   std::string err;
   auto *jit = sharedJIT(orc_rt_path, err);
   if (!jit) {
     return strdup(err.c_str());
   }
   static std::atomic<uint64_t> counter{0};
-  auto jd = jit->createJITDylib("session." +
-                                std::to_string(counter.fetch_add(1)));
+  auto jd =
+      jit->createJITDylib("session." + std::to_string(counter.fetch_add(1)));
   if (!jd) {
     return toCStr(jd.takeError());
   }

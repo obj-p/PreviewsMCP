@@ -7,8 +7,7 @@
 
 namespace previewsmcp {
 
-class SwiftEntrySectionPlugin
-    : public llvm::orc::ObjectLinkingLayer::Plugin {
+class SwiftEntrySectionPlugin : public llvm::orc::ObjectLinkingLayer::Plugin {
 public:
   void modifyPassConfig(llvm::orc::MaterializationResponsibility &MR,
                         llvm::jitlink::LinkGraph &G,

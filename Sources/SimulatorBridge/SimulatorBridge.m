@@ -1,17 +1,19 @@
 #import "SimulatorBridge.h"
-#import <objc/runtime.h>
 #import <CoreImage/CoreImage.h>
 #import <IOSurface/IOSurface.h>
 #import <ImageIO/ImageIO.h>
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
+#import <objc/runtime.h>
 
 #pragma mark - Private API Protocols
 
 // These protocols declare the CoreSimulator methods we call at runtime.
-// No headers or build-time linking needed — classes are resolved via objc_lookUpClass.
+// No headers or build-time linking needed — classes are resolved via
+// objc_lookUpClass.
 
 @protocol _SimServiceContext
-+ (instancetype)sharedServiceContextForDeveloperDir:(NSString *)dir error:(NSError **)error;
++ (instancetype)sharedServiceContextForDeveloperDir:(NSString *)dir
+                                              error:(NSError **)error;
 - (id)defaultDeviceSetWithError:(NSError **)error;
 - (NSArray *)supportedRuntimes;
 @end
@@ -30,13 +32,17 @@
 - (BOOL)isAvailable;
 - (BOOL)bootWithOptions:(NSDictionary *)options error:(NSError **)error;
 - (BOOL)shutdownWithError:(NSError **)error;
-- (BOOL)installApplication:(NSURL *)url withOptions:(NSDictionary *)options error:(NSError **)error;
-- (int)launchApplicationWithID:(NSString *)bundleID options:(NSDictionary *)options error:(NSError **)error;
+- (BOOL)installApplication:(NSURL *)url
+               withOptions:(NSDictionary *)options
+                     error:(NSError **)error;
+- (int)launchApplicationWithID:(NSString *)bundleID
+                       options:(NSDictionary *)options
+                         error:(NSError **)error;
 - (int)spawnWithPath:(NSString *)path
-             options:(NSDictionary *)options
-    terminationQueue:(dispatch_queue_t)queue
-  terminationHandler:(void(^)(int status))handler
-               error:(NSError **)error;
+               options:(NSDictionary *)options
+      terminationQueue:(dispatch_queue_t)queue
+    terminationHandler:(void (^)(int status))handler
+                 error:(NSError **)error;
 @end
 
 @protocol _SimRuntime
@@ -58,197 +64,220 @@ static Class _SimServiceContextClass = Nil;
 static dispatch_once_t _loadOnce;
 
 static NSString *_developerDir(void) {
-    static NSString *cached = nil;
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        NSPipe *pipe = [NSPipe pipe];
-        NSTask *task = [[NSTask alloc] init];
-        task.launchPath = @"/usr/bin/xcode-select";
-        task.arguments = @[@"-p"];
-        task.standardOutput = pipe;
-        task.standardError = [NSFileHandle fileHandleWithNullDevice];
+  static NSString *cached = nil;
+  static dispatch_once_t onceToken;
+  dispatch_once(&onceToken, ^{
+    NSPipe *pipe = [NSPipe pipe];
+    NSTask *task = [[NSTask alloc] init];
+    task.launchPath = @"/usr/bin/xcode-select";
+    task.arguments = @[ @"-p" ];
+    task.standardOutput = pipe;
+    task.standardError = [NSFileHandle fileHandleWithNullDevice];
 
-        @try {
-            [task launch];
-            [task waitUntilExit];
-            if (task.terminationStatus == 0) {
-                NSData *data = [[pipe fileHandleForReading] readDataToEndOfFile];
-                NSString *path = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
-                cached = [path stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
-            }
-        } @catch (NSException *e) {
-            NSLog(@"SimulatorBridge: xcode-select failed: %@", e.reason);
-        }
+    @try {
+      [task launch];
+      [task waitUntilExit];
+      if (task.terminationStatus == 0) {
+        NSData *data = [[pipe fileHandleForReading] readDataToEndOfFile];
+        NSString *path = [[NSString alloc] initWithData:data
+                                               encoding:NSUTF8StringEncoding];
+        cached = [path stringByTrimmingCharactersInSet:
+                           [NSCharacterSet whitespaceAndNewlineCharacterSet]];
+      }
+    } @catch (NSException *e) {
+      NSLog(@"SimulatorBridge: xcode-select failed: %@", e.reason);
+    }
 
-        if (!cached) {
-            cached = @"/Applications/Xcode.app/Contents/Developer";
-        }
-    });
-    return cached;
+    if (!cached) {
+      cached = @"/Applications/Xcode.app/Contents/Developer";
+    }
+  });
+  return cached;
 }
 
 static NSError *_makeError(NSInteger code, NSString *message) {
-    return [NSError errorWithDomain:@"SimulatorBridge" code:code
-                           userInfo:@{NSLocalizedDescriptionKey: message}];
+  return [NSError errorWithDomain:@"SimulatorBridge"
+                             code:code
+                         userInfo:@{NSLocalizedDescriptionKey : message}];
 }
 
 static id _sharedContext(NSError **error) {
-    NSString *devDir = _developerDir();
-    return [(id<_SimServiceContext>)_SimServiceContextClass
-            sharedServiceContextForDeveloperDir:devDir error:error];
+  NSString *devDir = _developerDir();
+  return [(id<_SimServiceContext>)_SimServiceContextClass
+      sharedServiceContextForDeveloperDir:devDir
+                                    error:error];
 }
 
 static id _defaultDeviceSet(NSError **error) {
-    id context = _sharedContext(error);
-    if (!context) return nil;
-    return [(id<_SimServiceContext>)context defaultDeviceSetWithError:error];
+  id context = _sharedContext(error);
+  if (!context)
+    return nil;
+  return [(id<_SimServiceContext>)context defaultDeviceSetWithError:error];
 }
 
 #pragma mark - SBDevice
 
 @interface SBDevice ()
-@property (nonatomic, strong) id simDevice;
+@property(nonatomic, strong) id simDevice;
 @end
 
 @implementation SBDevice
 
 - (instancetype)initWithSimDevice:(id)simDevice {
-    self = [super init];
-    if (self) {
-        _simDevice = simDevice;
-    }
-    return self;
+  self = [super init];
+  if (self) {
+    _simDevice = simDevice;
+  }
+  return self;
 }
 
 - (NSString *)name {
-    return [(id<_SimDevice>)_simDevice name];
+  return [(id<_SimDevice>)_simDevice name];
 }
 
 - (NSUUID *)udid {
-    return [(id<_SimDevice>)_simDevice UDID];
+  return [(id<_SimDevice>)_simDevice UDID];
 }
 
 - (SBDeviceState)state {
-    unsigned long long raw = [(id<_SimDevice>)_simDevice state];
-    return (SBDeviceState)raw;
+  unsigned long long raw = [(id<_SimDevice>)_simDevice state];
+  return (SBDeviceState)raw;
 }
 
 - (NSString *)stateString {
-    return [(id<_SimDevice>)_simDevice stateString] ?: @"Unknown";
+  return [(id<_SimDevice>)_simDevice stateString] ?: @"Unknown";
 }
 
 - (NSString *)runtimeName {
-    id runtime = [(id<_SimDevice>)_simDevice runtime];
-    if (!runtime) return nil;
-    return [(id<_SimRuntime>)runtime name];
+  id runtime = [(id<_SimDevice>)_simDevice runtime];
+  if (!runtime)
+    return nil;
+  return [(id<_SimRuntime>)runtime name];
 }
 
 - (NSString *)runtimeIdentifier {
-    id runtime = [(id<_SimDevice>)_simDevice runtime];
-    if (!runtime) return nil;
-    return [(id<_SimRuntime>)runtime identifier];
+  id runtime = [(id<_SimDevice>)_simDevice runtime];
+  if (!runtime)
+    return nil;
+  return [(id<_SimRuntime>)runtime identifier];
 }
 
 - (NSString *)deviceTypeName {
-    id deviceType = [(id<_SimDevice>)_simDevice deviceType];
-    if (!deviceType) return nil;
-    return [(id<_SimDeviceType>)deviceType name];
+  id deviceType = [(id<_SimDevice>)_simDevice deviceType];
+  if (!deviceType)
+    return nil;
+  return [(id<_SimDeviceType>)deviceType name];
 }
 
 - (BOOL)isAvailable {
-    // isAvailable may not exist on all CoreSimulator versions / may be in a category.
-    // Try isAvailable, then available, then default to YES.
-    if ([_simDevice respondsToSelector:@selector(isAvailable)]) {
-        return [(id<_SimDevice>)_simDevice isAvailable];
-    }
-    if ([_simDevice respondsToSelector:NSSelectorFromString(@"available")]) {
-        return [[_simDevice valueForKey:@"available"] boolValue];
-    }
-    // If neither exists, check if the device has a valid runtime as a proxy.
-    return self.runtimeName != nil;
+  // isAvailable may not exist on all CoreSimulator versions / may be in a
+  // category. Try isAvailable, then available, then default to YES.
+  if ([_simDevice respondsToSelector:@selector(isAvailable)]) {
+    return [(id<_SimDevice>)_simDevice isAvailable];
+  }
+  if ([_simDevice respondsToSelector:NSSelectorFromString(@"available")]) {
+    return [[_simDevice valueForKey:@"available"] boolValue];
+  }
+  // If neither exists, check if the device has a valid runtime as a proxy.
+  return self.runtimeName != nil;
 }
 
 - (BOOL)bootWithError:(NSError **)error {
-    @try {
-        return [(id<_SimDevice>)_simDevice bootWithOptions:nil error:error];
-    } @catch (NSException *exception) {
-        if (error) {
-            *error = _makeError(10, [NSString stringWithFormat:@"Boot exception: %@", exception.reason]);
-        }
-        return NO;
+  @try {
+    return [(id<_SimDevice>)_simDevice bootWithOptions:nil error:error];
+  } @catch (NSException *exception) {
+    if (error) {
+      *error = _makeError(10, [NSString stringWithFormat:@"Boot exception: %@",
+                                                         exception.reason]);
     }
+    return NO;
+  }
 }
 
 - (BOOL)shutdownWithError:(NSError **)error {
-    @try {
-        return [(id<_SimDevice>)_simDevice shutdownWithError:error];
-    } @catch (NSException *exception) {
-        if (error) {
-            *error = _makeError(11, [NSString stringWithFormat:@"Shutdown exception: %@", exception.reason]);
-        }
-        return NO;
+  @try {
+    return [(id<_SimDevice>)_simDevice shutdownWithError:error];
+  } @catch (NSException *exception) {
+    if (error) {
+      *error =
+          _makeError(11, [NSString stringWithFormat:@"Shutdown exception: %@",
+                                                    exception.reason]);
     }
+    return NO;
+  }
 }
 
 - (BOOL)installAppAt:(NSString *)path error:(NSError **)error {
-    @try {
-        NSURL *url = [NSURL fileURLWithPath:path];
-        return [(id<_SimDevice>)_simDevice installApplication:url withOptions:nil error:error];
-    } @catch (NSException *exception) {
-        if (error) {
-            *error = _makeError(12, [NSString stringWithFormat:@"Install exception: %@", exception.reason]);
-        }
-        return NO;
+  @try {
+    NSURL *url = [NSURL fileURLWithPath:path];
+    return [(id<_SimDevice>)_simDevice installApplication:url
+                                              withOptions:nil
+                                                    error:error];
+  } @catch (NSException *exception) {
+    if (error) {
+      *error =
+          _makeError(12, [NSString stringWithFormat:@"Install exception: %@",
+                                                    exception.reason]);
     }
+    return NO;
+  }
 }
 
 - (NSInteger)launchAppWithBundleID:(NSString *)bundleID
                          arguments:(NSArray<NSString *> *)args
                        environment:(NSDictionary<NSString *, NSString *> *)env
                              error:(NSError **)error {
-    @try {
-        NSMutableDictionary *options = [NSMutableDictionary dictionary];
-        if (args) options[@"arguments"] = args;
-        if (env) options[@"environment"] = env;
+  @try {
+    NSMutableDictionary *options = [NSMutableDictionary dictionary];
+    if (args)
+      options[@"arguments"] = args;
+    if (env)
+      options[@"environment"] = env;
 
-        int pid = [(id<_SimDevice>)_simDevice launchApplicationWithID:bundleID
-                                                              options:options
-                                                                error:error];
-        return (NSInteger)pid;
-    } @catch (NSException *exception) {
-        if (error) {
-            *error = _makeError(13, [NSString stringWithFormat:@"Launch exception: %@", exception.reason]);
-        }
-        return -1;
+    int pid = [(id<_SimDevice>)_simDevice launchApplicationWithID:bundleID
+                                                          options:options
+                                                            error:error];
+    return (NSInteger)pid;
+  } @catch (NSException *exception) {
+    if (error) {
+      *error =
+          _makeError(13, [NSString stringWithFormat:@"Launch exception: %@",
+                                                    exception.reason]);
     }
+    return -1;
+  }
 }
 
 - (NSInteger)spawnProcess:(NSString *)path
                 arguments:(NSArray<NSString *> *)args
               environment:(NSDictionary<NSString *, NSString *> *)env
                     error:(NSError **)error {
-    @try {
-        NSMutableDictionary *options = [NSMutableDictionary dictionary];
-        if (args) options[@"arguments"] = args;
-        if (env) options[@"environment"] = env;
+  @try {
+    NSMutableDictionary *options = [NSMutableDictionary dictionary];
+    if (args)
+      options[@"arguments"] = args;
+    if (env)
+      options[@"environment"] = env;
 
-        int pid = [(id<_SimDevice>)_simDevice spawnWithPath:path
-                                                    options:options
-                                           terminationQueue:nil
-                                         terminationHandler:nil
-                                                      error:error];
-        return (NSInteger)pid;
-    } @catch (NSException *exception) {
-        if (error) {
-            *error = _makeError(14, [NSString stringWithFormat:@"Spawn exception: %@", exception.reason]);
-        }
-        return -1;
+    int pid = [(id<_SimDevice>)_simDevice spawnWithPath:path
+                                                options:options
+                                       terminationQueue:nil
+                                     terminationHandler:nil
+                                                  error:error];
+    return (NSInteger)pid;
+  } @catch (NSException *exception) {
+    if (error) {
+      *error = _makeError(14, [NSString stringWithFormat:@"Spawn exception: %@",
+                                                         exception.reason]);
     }
+    return -1;
+  }
 }
 
 - (NSString *)description {
-    return [NSString stringWithFormat:@"<SBDevice: %@ (%@) %@ — %@>",
-            self.name, self.udid.UUIDString, self.stateString, self.runtimeName ?: @"no runtime"];
+  return [NSString stringWithFormat:@"<SBDevice: %@ (%@) %@ — %@>", self.name,
+                                    self.udid.UUIDString, self.stateString,
+                                    self.runtimeName ?: @"no runtime"];
 }
 
 @end
@@ -256,44 +285,46 @@ static id _defaultDeviceSet(NSError **error) {
 #pragma mark - SBRuntime
 
 @interface SBRuntime ()
-@property (nonatomic, strong) id simRuntime;
+@property(nonatomic, strong) id simRuntime;
 @end
 
 @implementation SBRuntime
 
 - (instancetype)initWithSimRuntime:(id)simRuntime {
-    self = [super init];
-    if (self) {
-        _simRuntime = simRuntime;
-    }
-    return self;
+  self = [super init];
+  if (self) {
+    _simRuntime = simRuntime;
+  }
+  return self;
 }
 
 - (NSString *)name {
-    return [(id<_SimRuntime>)_simRuntime name];
+  return [(id<_SimRuntime>)_simRuntime name];
 }
 
 - (NSString *)identifier {
-    return [(id<_SimRuntime>)_simRuntime identifier];
+  return [(id<_SimRuntime>)_simRuntime identifier];
 }
 
 - (NSString *)versionString {
-    return [(id<_SimRuntime>)_simRuntime versionString];
+  return [(id<_SimRuntime>)_simRuntime versionString];
 }
 
 - (BOOL)isAvailable {
-    if ([_simRuntime respondsToSelector:@selector(isAvailable)]) {
-        return [(id<_SimRuntime>)_simRuntime isAvailable];
-    }
-    if ([_simRuntime respondsToSelector:NSSelectorFromString(@"available")]) {
-        return [[_simRuntime valueForKey:@"available"] boolValue];
-    }
-    return YES;
+  if ([_simRuntime respondsToSelector:@selector(isAvailable)]) {
+    return [(id<_SimRuntime>)_simRuntime isAvailable];
+  }
+  if ([_simRuntime respondsToSelector:NSSelectorFromString(@"available")]) {
+    return [[_simRuntime valueForKey:@"available"] boolValue];
+  }
+  return YES;
 }
 
 - (NSString *)description {
-    return [NSString stringWithFormat:@"<SBRuntime: %@ (%@) %@>",
-            self.name, self.versionString, self.isAvailable ? @"available" : @"unavailable"];
+  return [NSString
+      stringWithFormat:@"<SBRuntime: %@ (%@) %@>", self.name,
+                       self.versionString,
+                       self.isAvailable ? @"available" : @"unavailable"];
 }
 
 @end
@@ -301,110 +332,129 @@ static id _defaultDeviceSet(NSError **error) {
 #pragma mark - Public Functions
 
 BOOL SBLoadFramework(NSError **error) {
-    // Fast path: already loaded.
-    if (_frameworkLoaded) return YES;
-
-    // Thread-safe one-time initialization.
-    __block NSError *loadError = nil;
-    dispatch_once(&_loadOnce, ^{
-        NSBundle *bundle = [NSBundle bundleWithPath:
-            @"/Library/Developer/PrivateFrameworks/CoreSimulator.framework"];
-        if (!bundle) {
-            loadError = _makeError(1, @"CoreSimulator.framework not found at /Library/Developer/PrivateFrameworks/");
-            return;
-        }
-
-        NSError *bundleError = nil;
-        if (![bundle loadAndReturnError:&bundleError]) {
-            loadError = bundleError;
-            return;
-        }
-
-        _SimServiceContextClass = objc_lookUpClass("SimServiceContext");
-        if (!_SimServiceContextClass) {
-            loadError = _makeError(2, @"SimServiceContext class not found after loading CoreSimulator");
-            return;
-        }
-
-        _frameworkLoaded = YES;
-    });
-
-    if (!_frameworkLoaded) {
-        if (error && loadError) *error = loadError;
-        return NO;
-    }
+  // Fast path: already loaded.
+  if (_frameworkLoaded)
     return YES;
+
+  // Thread-safe one-time initialization.
+  __block NSError *loadError = nil;
+  dispatch_once(&_loadOnce, ^{
+    NSBundle *bundle = [NSBundle
+        bundleWithPath:
+            @"/Library/Developer/PrivateFrameworks/CoreSimulator.framework"];
+    if (!bundle) {
+      loadError = _makeError(1, @"CoreSimulator.framework not found at "
+                                @"/Library/Developer/PrivateFrameworks/");
+      return;
+    }
+
+    NSError *bundleError = nil;
+    if (![bundle loadAndReturnError:&bundleError]) {
+      loadError = bundleError;
+      return;
+    }
+
+    _SimServiceContextClass = objc_lookUpClass("SimServiceContext");
+    if (!_SimServiceContextClass) {
+      loadError = _makeError(
+          2, @"SimServiceContext class not found after loading CoreSimulator");
+      return;
+    }
+
+    _frameworkLoaded = YES;
+  });
+
+  if (!_frameworkLoaded) {
+    if (error && loadError)
+      *error = loadError;
+    return NO;
+  }
+  return YES;
 }
 
 NSArray<SBDevice *> *SBListDevices(NSError **error) {
-    if (!_frameworkLoaded && !SBLoadFramework(error)) return nil;
+  if (!_frameworkLoaded && !SBLoadFramework(error))
+    return nil;
 
-    id deviceSet = _defaultDeviceSet(error);
-    if (!deviceSet) return nil;
+  id deviceSet = _defaultDeviceSet(error);
+  if (!deviceSet)
+    return nil;
 
-    NSArray *simDevices = [(id<_SimDeviceSet>)deviceSet availableDevices];
-    NSMutableArray<SBDevice *> *result = [NSMutableArray arrayWithCapacity:simDevices.count];
+  NSArray *simDevices = [(id<_SimDeviceSet>)deviceSet availableDevices];
+  NSMutableArray<SBDevice *> *result =
+      [NSMutableArray arrayWithCapacity:simDevices.count];
 
-    for (id simDevice in simDevices) {
-        [result addObject:[[SBDevice alloc] initWithSimDevice:simDevice]];
-    }
+  for (id simDevice in simDevices) {
+    [result addObject:[[SBDevice alloc] initWithSimDevice:simDevice]];
+  }
 
-    return result;
+  return result;
 }
 
 NSArray<SBRuntime *> *SBListRuntimes(NSError **error) {
-    if (!_frameworkLoaded && !SBLoadFramework(error)) return nil;
+  if (!_frameworkLoaded && !SBLoadFramework(error))
+    return nil;
 
-    id context = _sharedContext(error);
-    if (!context) return nil;
+  id context = _sharedContext(error);
+  if (!context)
+    return nil;
 
-    if (![context respondsToSelector:@selector(supportedRuntimes)]) {
-        if (error) *error = _makeError(3, @"supportedRuntimes method not available on SimServiceContext");
-        return nil;
-    }
+  if (![context respondsToSelector:@selector(supportedRuntimes)]) {
+    if (error)
+      *error = _makeError(
+          3, @"supportedRuntimes method not available on SimServiceContext");
+    return nil;
+  }
 
-    NSArray *runtimes = [(id<_SimServiceContext>)context supportedRuntimes];
-    NSMutableArray<SBRuntime *> *result = [NSMutableArray arrayWithCapacity:runtimes.count];
+  NSArray *runtimes = [(id<_SimServiceContext>)context supportedRuntimes];
+  NSMutableArray<SBRuntime *> *result =
+      [NSMutableArray arrayWithCapacity:runtimes.count];
 
-    for (id rt in runtimes) {
-        [result addObject:[[SBRuntime alloc] initWithSimRuntime:rt]];
-    }
+  for (id rt in runtimes) {
+    [result addObject:[[SBRuntime alloc] initWithSimRuntime:rt]];
+  }
 
-    return result;
+  return result;
 }
 
 SBDevice *SBFindDeviceByUDID(NSString *udidString, NSError **error) {
-    NSArray<SBDevice *> *devices = SBListDevices(error);
-    if (!devices) return nil;
-
-    for (SBDevice *device in devices) {
-        if ([device.udid.UUIDString.lowercaseString isEqualToString:udidString.lowercaseString]) {
-            return device;
-        }
-    }
-
-    if (error) *error = _makeError(4, [NSString stringWithFormat:@"No device with UDID: %@", udidString]);
+  NSArray<SBDevice *> *devices = SBListDevices(error);
+  if (!devices)
     return nil;
+
+  for (SBDevice *device in devices) {
+    if ([device.udid.UUIDString.lowercaseString
+            isEqualToString:udidString.lowercaseString]) {
+      return device;
+    }
+  }
+
+  if (error)
+    *error = _makeError(
+        4, [NSString stringWithFormat:@"No device with UDID: %@", udidString]);
+  return nil;
 }
 
 SBDevice *SBFindBootedDevice(NSError **error) {
-    NSArray<SBDevice *> *devices = SBListDevices(error);
-    if (!devices) return nil;
-
-    for (SBDevice *device in devices) {
-        if (device.state == SBDeviceStateBooted) {
-            return device;
-        }
-    }
-
-    if (error) *error = _makeError(5, @"No booted simulator device found");
+  NSArray<SBDevice *> *devices = SBListDevices(error);
+  if (!devices)
     return nil;
+
+  for (SBDevice *device in devices) {
+    if (device.state == SBDeviceStateBooted) {
+      return device;
+    }
+  }
+
+  if (error)
+    *error = _makeError(5, @"No booted simulator device found");
+  return nil;
 }
 
-// Touch injection is handled in-app by the iOS host app using the Hammer approach:
-// IOHIDEvent + BKSHIDEventSetDigitizerInfo + UIApplication._enqueueHIDEvent:
-// See IOSHostAppSource.swift for the implementation.
-// No SimulatorBridge involvement needed for touch.
+// Touch injection is handled in-app by the iOS host app using the Hammer
+// approach: IOHIDEvent + BKSHIDEventSetDigitizerInfo +
+// UIApplication._enqueueHIDEvent: See IOSHostAppSource.swift for the
+// implementation. No SimulatorBridge involvement needed for touch.
 
 #pragma mark - Framebuffer Capture
 
@@ -422,118 +472,139 @@ SBDevice *SBFindBootedDevice(NSError **error) {
 @end
 
 static NSData *_encodeImage(CGImageRef cgImage, double jpegQuality) {
-    BOOL usePNG = (jpegQuality >= 1.0);
-    CFStringRef utType = usePNG
-        ? (__bridge CFStringRef)UTTypePNG.identifier
-        : (__bridge CFStringRef)UTTypeJPEG.identifier;
+  BOOL usePNG = (jpegQuality >= 1.0);
+  CFStringRef utType = usePNG ? (__bridge CFStringRef)UTTypePNG.identifier
+                              : (__bridge CFStringRef)UTTypeJPEG.identifier;
 
-    NSMutableData *data = [NSMutableData data];
-    CGImageDestinationRef dest = CGImageDestinationCreateWithData(
-        (__bridge CFMutableDataRef)data, utType, 1, NULL);
-    if (!dest) return nil;
+  NSMutableData *data = [NSMutableData data];
+  CGImageDestinationRef dest = CGImageDestinationCreateWithData(
+      (__bridge CFMutableDataRef)data, utType, 1, NULL);
+  if (!dest)
+    return nil;
 
-    if (!usePNG) {
-        NSDictionary *props = @{(__bridge NSString *)kCGImageDestinationLossyCompressionQuality:
-                                    @(jpegQuality)};
-        CGImageDestinationAddImage(dest, cgImage, (__bridge CFDictionaryRef)props);
-    } else {
-        CGImageDestinationAddImage(dest, cgImage, NULL);
-    }
+  if (!usePNG) {
+    NSDictionary *props = @{
+      (__bridge NSString *)
+      kCGImageDestinationLossyCompressionQuality : @(jpegQuality)
+    };
+    CGImageDestinationAddImage(dest, cgImage, (__bridge CFDictionaryRef)props);
+  } else {
+    CGImageDestinationAddImage(dest, cgImage, NULL);
+  }
 
-    BOOL ok = CGImageDestinationFinalize(dest);
-    CFRelease(dest);
-    return ok ? [data copy] : nil;
+  BOOL ok = CGImageDestinationFinalize(dest);
+  CFRelease(dest);
+  return ok ? [data copy] : nil;
 }
 
-NSData *SBCaptureFramebuffer(SBDevice *device, double jpegQuality, NSError **error) {
-    if (!_frameworkLoaded && !SBLoadFramework(error)) return nil;
+NSData *SBCaptureFramebuffer(SBDevice *device, double jpegQuality,
+                             NSError **error) {
+  if (!_frameworkLoaded && !SBLoadFramework(error))
+    return nil;
 
-    id simDevice = device.simDevice;
+  id simDevice = device.simDevice;
 
-    // Access SimDevice.io — returns a SimDeviceIOClient
-    if (![simDevice respondsToSelector:@selector(io)]) {
-        if (error) *error = _makeError(20, @"SimDevice does not respond to -io (Xcode version may be unsupported)");
-        return nil;
-    }
+  // Access SimDevice.io — returns a SimDeviceIOClient
+  if (![simDevice respondsToSelector:@selector(io)]) {
+    if (error)
+      *error = _makeError(20, @"SimDevice does not respond to -io (Xcode "
+                              @"version may be unsupported)");
+    return nil;
+  }
 
-    id ioClient = nil;
+  id ioClient = nil;
+  @try {
+    ioClient = [simDevice valueForKey:@"io"];
+  } @catch (NSException *e) {
+    if (error)
+      *error = _makeError(
+          21, [NSString stringWithFormat:@"Failed to access SimDevice.io: %@",
+                                         e.reason]);
+    return nil;
+  }
+
+  if (!ioClient || ![ioClient respondsToSelector:@selector(ioPorts)]) {
+    if (error)
+      *error =
+          _makeError(22, @"SimDeviceIOClient does not respond to -ioPorts");
+    return nil;
+  }
+
+  // Find the display port with an IOSurface
+  NSArray *ports = [(id<_SimDeviceIOClient>)ioClient ioPorts];
+  IOSurfaceRef surface = NULL;
+
+  for (id port in ports) {
+    if (![port respondsToSelector:@selector(ioPortDescriptor)])
+      continue;
+
+    id descriptor = nil;
     @try {
-        ioClient = [simDevice valueForKey:@"io"];
+      descriptor = [(id<_SimDeviceIOPort>)port ioPortDescriptor];
     } @catch (NSException *e) {
-        if (error) *error = _makeError(21, [NSString stringWithFormat:@"Failed to access SimDevice.io: %@", e.reason]);
-        return nil;
+      continue;
     }
+    if (!descriptor)
+      continue;
 
-    if (!ioClient || ![ioClient respondsToSelector:@selector(ioPorts)]) {
-        if (error) *error = _makeError(22, @"SimDeviceIOClient does not respond to -ioPorts");
-        return nil;
+    // Check if this descriptor provides an IOSurface (display port)
+    if ([descriptor respondsToSelector:@selector(ioSurface)]) {
+      @try {
+        surface = [(id<_SimDisplayIOSurfaceRenderable>)descriptor ioSurface];
+      } @catch (NSException *e) {
+        continue;
+      }
+      if (surface)
+        break;
     }
+  }
 
-    // Find the display port with an IOSurface
-    NSArray *ports = [(id<_SimDeviceIOClient>)ioClient ioPorts];
-    IOSurfaceRef surface = NULL;
+  if (!surface) {
+    if (error)
+      *error = _makeError(23, @"No IOSurface found on any display port (device "
+                              @"may not be booted or have no display)");
+    return nil;
+  }
 
-    for (id port in ports) {
-        if (![port respondsToSelector:@selector(ioPortDescriptor)]) continue;
+  // Lock surface for CPU read access
+  IOSurfaceLock(surface, kIOSurfaceLockReadOnly, NULL);
 
-        id descriptor = nil;
-        @try {
-            descriptor = [(id<_SimDeviceIOPort>)port ioPortDescriptor];
-        } @catch (NSException *e) {
-            continue;
-        }
-        if (!descriptor) continue;
+  CIImage *ciImage = [CIImage imageWithIOSurface:surface];
+  CGImageRef cgImage = NULL;
 
-        // Check if this descriptor provides an IOSurface (display port)
-        if ([descriptor respondsToSelector:@selector(ioSurface)]) {
-            @try {
-                surface = [(id<_SimDisplayIOSurfaceRenderable>)descriptor ioSurface];
-            } @catch (NSException *e) {
-                continue;
-            }
-            if (surface) break;
-        }
-    }
+  if (ciImage) {
+    static CIContext *ctx = nil;
+    static dispatch_once_t ciOnce;
+    dispatch_once(&ciOnce, ^{
+      ctx = [CIContext contextWithOptions:@{
+        kCIContextUseSoftwareRenderer : @NO
+      }];
+    });
+    cgImage = [ctx createCGImage:ciImage fromRect:ciImage.extent];
+  }
 
-    if (!surface) {
-        if (error) *error = _makeError(23, @"No IOSurface found on any display port (device may not be booted or have no display)");
-        return nil;
-    }
+  IOSurfaceUnlock(surface, kIOSurfaceLockReadOnly, NULL);
 
-    // Lock surface for CPU read access
-    IOSurfaceLock(surface, kIOSurfaceLockReadOnly, NULL);
+  if (!ciImage) {
+    if (error)
+      *error = _makeError(24, @"Failed to create CIImage from IOSurface");
+    return nil;
+  }
 
-    CIImage *ciImage = [CIImage imageWithIOSurface:surface];
-    CGImageRef cgImage = NULL;
+  if (!cgImage) {
+    if (error)
+      *error = _makeError(25, @"Failed to render CIImage to CGImage");
+    return nil;
+  }
 
-    if (ciImage) {
-        static CIContext *ctx = nil;
-        static dispatch_once_t ciOnce;
-        dispatch_once(&ciOnce, ^{
-            ctx = [CIContext contextWithOptions:@{kCIContextUseSoftwareRenderer: @NO}];
-        });
-        cgImage = [ctx createCGImage:ciImage fromRect:ciImage.extent];
-    }
+  NSData *result = _encodeImage(cgImage, jpegQuality);
+  CGImageRelease(cgImage);
 
-    IOSurfaceUnlock(surface, kIOSurfaceLockReadOnly, NULL);
+  if (!result) {
+    if (error)
+      *error = _makeError(26, @"Failed to encode image data");
+    return nil;
+  }
 
-    if (!ciImage) {
-        if (error) *error = _makeError(24, @"Failed to create CIImage from IOSurface");
-        return nil;
-    }
-
-    if (!cgImage) {
-        if (error) *error = _makeError(25, @"Failed to render CIImage to CGImage");
-        return nil;
-    }
-
-    NSData *result = _encodeImage(cgImage, jpegQuality);
-    CGImageRelease(cgImage);
-
-    if (!result) {
-        if (error) *error = _makeError(26, @"Failed to encode image data");
-        return nil;
-    }
-
-    return result;
+  return result;
 }
