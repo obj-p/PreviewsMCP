@@ -261,6 +261,52 @@ This document, mirroring the Phase 1/2 plan docs, updated as work lands. PR #190
 (draft), watched to green. CI does not build the JIT targets, so JIT tests are
 local-only; the non-JIT build must stay green.
 
+## Recompile-narrowing gaps (uncaptured — these gate the latency target)
+
+P3.4 routes structural edits to the JIT respawn path, but as planned it still
+recompiles the **whole module** every edit (`PreviewSession.compile()` passes the
+full `buildContext.sourceFiles` to swiftc; `Compiler.swift:141`). Respawn +
+JIT-link removes the full *relink*, not the full *compile*. On a 1000-file module
+the compile dominates, so the design's <200ms target is unreachable until the
+recompile is narrowed to the changed file. The design names the prerequisite
+(`prompts/jit-executor-design.md:260`, "incremental swiftc") but neither piece
+below is specified or built.
+
+### G1 — Single-file incremental compile against a prebuilt module
+**Missing.** A way to recompile only the edited file. A Swift module compiles as
+a unit, so a lone file cannot see its siblings' declarations. Narrowing requires
+building the target's stable module once to a reusable `.swiftmodule` (design §3
+"stable module", already emitted to `.o`), then compiling the changed file
+against that interface and handing the single `.o` to the JIT to override the old
+symbols. `Compiler.compileObject` takes one source today but no prebuilt-module
+input; the `.swiftmodule` emission + `-I`/merge wiring does not exist.
+- **Verify:** on a ≥500-file example, edit one file; swiftc runs on exactly one
+  source against the prebuilt `.swiftmodule`; compile wall-clock is sub-second
+  and roughly independent of module size.
+
+### G2 — A file-identifying FileWatcher
+**Missing.** `FileWatcher` signals only "something in the watched set changed",
+not which file (`FileWatcher.swift`). G1 needs the changed path to pick the file
+to recompile. The watch scope is already ~"project sources minus dependencies"
+(deps arrive prebuilt via `-I`/`-L`), so the gap is identity, not scope.
+- **Verify:** editing file X in a multi-file target delivers X's path to the
+  recompile; an edit to unrelated file Y recompiles Y, not X.
+
+### Model mismatch to resolve
+The design's fast path assumes edits land in the **editable/preview layer** on
+top of a rarely-rebuilt **stable module**; an edit to an arbitrary stable-module
+file falls to the slow full-rebuild path. "Any edited file reloads sub-second" is
+a *stronger* guarantee than the design currently makes and needs G1+G2. Decide
+whether Phase 3/4 targets only preview-layer edits or true any-file incremental.
+
+### Apple-evidence caveat
+previews-research **verified** Apple's respawn-only *dispatch* (8 edit kinds,
+zero `write_mem`; `w3-empirical-capture.md`). It did **not** capture the compile
+side: "incremental swiftc" is an *inference* from latency-by-edit-kind, hedged in
+the design ("appears to have only ONE path for edit dispatch"). G1's premise that
+Apple recompiles a single file is unconfirmed; validating it (or just measuring
+our own G1 win) is the gate.
+
 ## Phase 3 status: IN PROGRESS
 
 P3.1 + P3.2 done. The agent links a real SwiftUI preview, runs its body and
