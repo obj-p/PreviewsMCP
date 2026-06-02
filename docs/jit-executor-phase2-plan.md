@@ -201,6 +201,8 @@ the sidecar symbol-discovery format, iOS device agent, and LLVM bundling (U3).
 
 ## Immediate next step
 
-P2.1. First TDD step: a failing test that links `answer.c` through a spawned
-agent and asserts the call returns 42, then the minimal agent + host spawn to
-make it pass. Pause for review before moving to P2.2.
+Phase 2 is merged to `main` via PR #186 (squash `ef3fa61`). The next work is
+Phase 3: wire the JIT executor into the daemon session lifecycle
+(`SessionResolver` + `FileWatcher` + `Compiler`), routing structural edits to
+JIT-link, and add the Begin/End/`cancelUpdate` update handshake (design §5/§6).
+See `prompts/jit-executor-design.md` Phase 3 on `previews-research`.
