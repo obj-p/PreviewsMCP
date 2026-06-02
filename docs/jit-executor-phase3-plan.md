@@ -145,11 +145,51 @@ reading one entry past a section lands in the unmapped gap right after it. This
 is exactly Phase 2's deferred unknown **U-A** ("revisit only if a future large
 object trips it") and the same class as Phase 1's unwind-slab gotcha. The six POC
 scenarios were small enough to dodge it; SwiftUI's heavy metadata walking trips
-it. **Fix:** give the remote agent a **contiguous slab** via the shared-memory
-mapper (`SharedMemoryMapper` + `MapperJITLinkMemoryManager`, mirroring
-`llvm-jitlink`'s `createSharedMemoryManager`); the agent already hosted
-`ExecutorSharedMemoryMapperService`. With the slab the section walks stay
-in-bounds and the suite is **40/40 green** across parallel runs.
+it. **Fix (first attempt, REVERTED — see below):** a **contiguous slab** via the
+shared-memory mapper (`SharedMemoryMapper` + `MapperJITLinkMemoryManager`); the
+agent already hosted `ExecutorSharedMemoryMapperService`. With the slab the
+section walks stay in-bounds and the suite was 40/40 green across parallel runs.
+
+#### P3.1b-iii — the shared-memory slab is macOS-incompatible; anonymous mapper instead — DONE
+The shared-memory slab worked for ~80 runs, then **every** remote session began
+failing with `Failed to materialize symbols { (<Platform>,
+{ ___mh_executable_header, ___dso_handle }) }: Permission denied`, and it did not
+recover across a reboot. Root cause: the orc-rt `ExecutorSharedMemoryMapperService`
+makes JIT memory executable with `mprotect(...PROT_EXEC)` on `MAP_SHARED` memory,
+which **macOS denies (EACCES)**. This is standard macOS hardening, confirmed with
+a standalone C program: `mmap` exec-from-start on shared memory is allowed, the
+`mprotect` transition is not, in every context (unsigned, signed with
+`allow-jit` / `allow-unsigned-executable-memory` / `get-task-allow`, under lldb).
+The earlier 80 green runs were the permissive window; it closed mid-session and
+stayed closed. **This was an expensive diagnosis** (it also masqueraded as a
+"Compiler flags" problem during a confounded P3.2 attempt, since every variant
+failed for the same shared-exec reason). NOTE: do not `pkill -9` loop hundreds of
+JIT agents while debugging.
+
+How Xcode gets around it: Apple's `XCPreviewAgent` carries **no** JIT entitlement
+(only `get-task-allow`, same as ours), and `XOJITExecutor` populates the agent's
+**anonymous** executable memory over the wire (`___xojit_executor_write_mem`),
+never shared memory. `mprotect`-exec on anonymous memory is permitted.
+
+**Fix (final):** replace the shared-memory slab with a **contiguous slab backed
+by anonymous executor memory**, matching Apple. New code, no `third_party` patch:
+- Agent: a mapper service (`__previewsmcp_anon_reserve` = anonymous `mmap`;
+  `__previewsmcp_anon_initialize` = `memcpy` the wire-transferred content +
+  `mprotect` + `InvalidateInstructionCache` + run finalize actions;
+  `deinitialize` = no-op; `release` = `munmap`).
+- Host: `PreviewsAnonymousMapper` (a `MemoryMapper` that keeps a local working
+  buffer and ships segment content over the wire) driving
+  `MapperJITLinkMemoryManager` for one contiguous reservation per session.
+
+Two load-bearing details: (1) the agent must `InvalidateInstructionCache` after
+writing exec segments, or ARM64 executes stale icache (intermittent garbage-
+execution crash); (2) it **discards deallocation actions** — the JIT image is
+process-lived in the respawn model (Phase 1 D3), so running JIT'd destructors at
+teardown is unnecessary and was crashing (`mutex` EINVAL in a JIT'd dealloc
+action). With both, U-A is fixed via anonymous contiguity and **the prior
+post-result SwiftUI-teardown crashes also vanished**.
+- **Verify (met):** suite **15/15 green** across parallel runs, zero agent
+  crashes, zero orphans. Commit `a8d5909`.
 
 **Two supporting fixes surfaced while diagnosing (asserts build, parallel
 runner):**
@@ -169,15 +209,12 @@ runner):**
 **Verify (met):** `rendersViewToBitmapOnMainThreadRemotely` returns a red pixel;
 suite 40/40 green across parallel runs, zero orphan agents.
 
-**Known residual → Phase 4 (crash recovery / hardening).** After the slab fix the
-remaining agent crashes are all **post-result**: the agent returns the correct
-value, the test passes, then the JIT-linked SwiftUI objects deallocate
-(`NSHostingView` deinit, AttributeGraph `Node::destroy`, background conformance
-cleanup) and crash during teardown, before the host's `SIGKILL`. They fail no test
-(hence 40/40) but write crash reports. We deliberately do **not** mask them (e.g.
-by leaking the view): tearing down a JIT'd SwiftUI view is genuinely broken and
-P3.2/P3.4 will dealloc these views for real on every edit, so the signal is worth
-keeping. Hardening JIT'd-SwiftUI teardown is Phase 4.
+**Teardown crashes — RESOLVED by the anonymous mapper.** The shared-memory-slab
+era left post-result teardown crashes (`NSHostingView` deinit, AttributeGraph
+`Node::destroy`) that wrote crash reports without failing tests. Those are **gone**
+with the anonymous mapper (P3.1b-iii): the contiguity removed the metadata
+over-reads, and discarding deallocation actions removed the JIT'd-destructor
+teardown path. The suite now runs with zero agent crash reports.
 
 ### P3.2 — Hot update via agent respawn — TODO
 Edit the preview body, recompile to a new `.o`, respawn the agent, the new
@@ -208,9 +245,11 @@ local-only; the non-JIT build must stay green.
 ## Phase 3 status: IN PROGRESS
 
 P3.1 done. The agent links a real SwiftUI preview, runs its body and renders it
-to a bitmap on the agent's main thread (P3.1a/b-i/b-ii), with the remote slab
-mapper (U-A) the load-bearing fix. Suite 40/40 green in parallel. Next: P3.2
-(hot update via agent respawn).
+to a bitmap on the agent's main thread (P3.1a/b-i/b-ii), over a contiguous
+**anonymous** executor-memory slab (P3.1b-iii) that fixes U-A while staying
+within macOS's executable-memory rules (the shared-memory slab was reverted as
+macOS-incompatible). Suite 28/28, 15/15 parallel runs green, zero crashes. Next:
+P3.2 (hot update via agent respawn).
 
 ## Scope boundaries
 
