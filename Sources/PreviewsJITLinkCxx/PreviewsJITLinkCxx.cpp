@@ -41,9 +41,9 @@ slabLinkingLayer(llvm::orc::ExecutionSession &es, const llvm::Triple &) {
   if (!memMgr) {
     return memMgr.takeError();
   }
-  auto layer =
-      std::make_unique<llvm::orc::ObjectLinkingLayer>(es, std::move(*memMgr));
-  layer->addPlugin(std::make_shared<previewsmcp::SwiftEntrySectionPlugin>());
+  auto layer = std::make_unique<llvm::orc::ObjectLinkingLayer>(
+      es, std::move(*memMgr));
+  layer->addPlugin(previewsmcp::SwiftEntrySectionPlugin::inProcess());
   return layer;
 }
 
@@ -185,14 +185,26 @@ previewsmcp_jit_remote_session_create(previewsmcp_jit_session **out_session,
     return toCStr(epc.takeError());
   }
 
+  llvm::orc::ExecutorAddr registerConformances, registerTypes;
+  if (auto err = (*epc)->getBootstrapSymbols(
+          {{registerConformances, "__previewsmcp_register_conformances"},
+           {registerTypes, "__previewsmcp_register_types"}})) {
+    return toCStr(std::move(err));
+  }
+
   auto jit =
       llvm::orc::LLJITBuilder()
           .setExecutorProcessControl(std::move(*epc))
           .setPlatformSetUp(llvm::orc::ExecutorNativePlatform(orc_rt_path))
           .setObjectLinkingLayerCreator(
-              [](llvm::orc::ExecutionSession &es, const llvm::Triple &)
+              [registerConformances, registerTypes](
+                  llvm::orc::ExecutionSession &es, const llvm::Triple &)
                   -> llvm::Expected<std::unique_ptr<llvm::orc::ObjectLayer>> {
-                return std::make_unique<llvm::orc::ObjectLinkingLayer>(es);
+                auto layer = std::make_unique<llvm::orc::ObjectLinkingLayer>(es);
+                layer->addPlugin(
+                    std::make_shared<previewsmcp::SwiftEntrySectionPlugin>(
+                        registerConformances, registerTypes));
+                return layer;
               })
           .create();
   if (!jit) {

@@ -124,11 +124,34 @@ the in-process init.
   32-bit slab. NOT adding the shared-memory slab speculatively. Revisit only if a
   Swift object trips it in P2.3.
 
-### P2.3 — Swift metadata across the wire
-Confirm U-B; port the full suite onto the remote executor.
-- **Verify:** all six POC scenarios (witness, conformance, swift_once, objc
-  selref, objc class, async) green through the agent. The 14-test suite passes
-  with the remote executor.
+### P2.3 — Swift metadata across the wire — DONE
+Added `SwiftEntrySectionPlugin` to the remote layer and resolved U-B. The full
+suite now has remote variants of all six POC scenarios plus plain Swift; 24
+tests green in parallel, zero orphan agents.
+
+**Discoveries (U-B and the agent's Swift runtime):**
+- The agent is a C++ binary with no Swift link, so Swift objects fail to
+  materialize with "Symbols not found" until the agent loads the runtime. Fix:
+  the agent `dlopen`s `libswiftCore`, `libswift_Concurrency`, `libswiftFoundation`,
+  `libswiftDispatch` (RTLD_GLOBAL) at startup; the process-symbol generator then
+  resolves against them. They live in the dyld shared cache (so `ls` shows
+  nothing) but `dlopen` of the install path works. Real previews will pull SwiftUI
+  the same way in Phase 3.
+- **U-B (the load-bearing risk):** the plugin recorded `ExecutorAddr::fromPtr(Fn)`,
+  the HOST address of its registration shims. In-process that works (host ==
+  executor); remotely the alloc action runs in the agent and jumps to a garbage
+  address (crashed with an Instruction Abort in `SimpleExecutorMemoryManager::finalize`
+  running the alloc action, PC in libLLVM `__LINKEDIT`). Fix: the registration
+  SPS shims now live in the AGENT (calling its own `swift_register*` via `dlsym`),
+  advertised as EPC bootstrap symbols; the host reads their agent addresses with
+  `getBootstrapSymbols` and constructs the plugin with them. `SwiftEntrySectionPlugin`
+  is now address-parameterized; in-process uses a `::inProcess()` factory that
+  passes the host shim addresses. Each executor hosts its own shim.
+- **U-A closed (no slab needed):** the default remote memory manager
+  (`EPCGenericJITLinkMemoryManager`) handled every scenario including Swift
+  conformance, async, and objc, so the unwind 32-bit slab never bit remotely. The
+  shared-memory slab mapper is NOT needed. Revisit only if a future large object
+  trips it.
 
 ### P2.4 — teardown = kill the agent PID — DONE (pulled forward from P2.2)
 Pulled forward because the parallel test runner hung: spawned agents had no

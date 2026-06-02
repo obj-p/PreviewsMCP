@@ -35,6 +35,62 @@ struct PreviewsJITLinkTests {
         #expect(result == 43)
     }
 
+    @Test func linksSwiftObjectRemotely() throws {
+        let object = try FixtureSupport.compile("swift_answer.swift")
+        let session = try JITSession(remoteAgentPath: JITSession.bundledAgentPath())
+        try session.addObject(path: object.path)
+        let result = try session.runMain(symbol: "swift_answer")
+        #expect(result == 42)
+    }
+
+    @Test func dispatchesThroughWitnessTableRemotely() throws {
+        let object = try FixtureSupport.compile("witness.swift")
+        let session = try JITSession(remoteAgentPath: JITSession.bundledAgentPath())
+        try session.addObject(path: object.path)
+        let result = try session.runMain(symbol: "witness_value")
+        #expect(result == 7)
+    }
+
+    @Test func resolvesConformanceThroughRuntimeRegistryRemotely() throws {
+        let object = try FixtureSupport.compile("dynamic_cast.swift")
+        let session = try JITSession(remoteAgentPath: JITSession.bundledAgentPath())
+        try session.addObject(path: object.path)
+        let result = try session.runMain(symbol: "dynamic_cast_value")
+        #expect(result == 9)
+    }
+
+    @Test func runsSwiftOnceInitializerRemotely() throws {
+        let object = try FixtureSupport.compile("swift_once.swift")
+        let session = try JITSession(remoteAgentPath: JITSession.bundledAgentPath())
+        try session.addObject(path: object.path)
+        let result = try session.runMain(symbol: "swift_once_value")
+        #expect(result == 5050)
+    }
+
+    @Test func dispatchesObjCSelectorRemotely() throws {
+        let object = try FixtureSupport.compile("objc_selref.swift")
+        let session = try JITSession(remoteAgentPath: JITSession.bundledAgentPath())
+        try session.addObject(path: object.path)
+        let result = try session.runMain(symbol: "objc_selref_value")
+        #expect(result == 42)
+    }
+
+    @Test func registersObjCClassRemotely() throws {
+        let object = try FixtureSupport.compile("objc_class.swift")
+        let session = try JITSession(remoteAgentPath: JITSession.bundledAgentPath())
+        try session.addObject(path: object.path)
+        let result = try session.runMain(symbol: "objc_class_value")
+        #expect(result == 42)
+    }
+
+    @Test func runsAsyncFunctionRemotely() throws {
+        let object = try FixtureSupport.compile("async_value.swift")
+        let session = try JITSession(remoteAgentPath: JITSession.bundledAgentPath())
+        try session.addObject(path: object.path)
+        let result = try session.runMain(symbol: "async_value")
+        #expect(result == 11)
+    }
+
     @Test func linksSwiftObject() throws {
         let object = try FixtureSupport.compile("swift_answer.swift")
         let session = try JITSession()
