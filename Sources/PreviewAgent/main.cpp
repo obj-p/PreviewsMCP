@@ -10,7 +10,6 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/raw_ostream.h"
 
-#include <atomic>
 #include <cstdlib>
 #include <dispatch/dispatch.h>
 #include <dlfcn.h>
@@ -133,8 +132,7 @@ int main(int argc, char *argv[]) {
   if (OutFDStr.getAsInteger(10, OutFD))
     printErrorAndExit(OutFDStr + " is not a valid file descriptor");
 
-  std::atomic<bool> Done{false};
-  std::thread ServerThread([InFD, OutFD, &Done] {
+  std::thread ServerThread([InFD, OutFD] {
     ExitOnError ExitOnErr;
     ExitOnErr.setBanner("PreviewAgent: ");
     auto Server = ExitOnErr(SimpleRemoteEPCServer::Create<
@@ -164,13 +162,9 @@ int main(int argc, char *argv[]) {
         },
         InFD, OutFD));
     ExitOnErr(Server->waitForDisconnect());
-    Done.store(true);
-    if (auto *GetMain = reinterpret_cast<void *(*)()>(
-            dlsym(RTLD_DEFAULT, "CFRunLoopGetMain")))
-      if (auto *Stop = reinterpret_cast<void (*)(void *)>(
-              dlsym(RTLD_DEFAULT, "CFRunLoopStop")))
-        Stop(GetMain());
+    std::_Exit(0);
   });
+  ServerThread.detach();
 
   if (auto *Load = reinterpret_cast<bool (*)()>(
           dlsym(RTLD_DEFAULT, "NSApplicationLoad")))
@@ -183,9 +177,6 @@ int main(int argc, char *argv[]) {
       dlsym(RTLD_DEFAULT, "kCFRunLoopDefaultMode"));
   if (!RunInMode || !DefaultMode)
     printErrorAndExit("CoreFoundation run loop symbols not found");
-  while (!Done.load())
+  while (true)
     RunInMode(*DefaultMode, 0.25, false);
-
-  ServerThread.join();
-  return 0;
 }

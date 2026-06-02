@@ -17,6 +17,7 @@
 #include <llvm/ExecutionEngine/Orc/MemoryMapper.h>
 #include <llvm/ExecutionEngine/Orc/ObjectLinkingLayer.h>
 #include <llvm/ExecutionEngine/Orc/Shared/ExecutorAddress.h>
+#include <llvm/ExecutionEngine/Orc/Shared/OrcRTBridge.h>
 #include <llvm/ExecutionEngine/Orc/Shared/SimpleRemoteEPCUtils.h>
 #include <llvm/ExecutionEngine/Orc/Shared/TargetProcessControlTypes.h>
 #include <llvm/ExecutionEngine/Orc/Shared/WrapperFunctionUtils.h>
@@ -133,6 +134,8 @@ namespace {
 llvm::Expected<llvm::orc::ExecutorAddr>
 lookupInitialized(previewsmcp_jit_session *session, const char *symbol_name) {
   if (!session->initialized) {
+    static std::mutex initMutex;
+    std::lock_guard<std::mutex> lock(initMutex);
     if (auto err = session->jit->initialize(*session->jd)) {
       return std::move(err);
     }
@@ -242,16 +245,45 @@ previewsmcp_jit_remote_session_create(previewsmcp_jit_session **out_session,
     return toCStr(std::move(err));
   }
 
+  llvm::orc::SharedMemoryMapper::SymbolAddrs mapperSymbols;
+  if (auto err = (*epc)->getBootstrapSymbols(
+          {{mapperSymbols.Instance,
+            llvm::orc::rt::ExecutorSharedMemoryMapperServiceInstanceName},
+           {mapperSymbols.Reserve,
+            llvm::orc::rt::ExecutorSharedMemoryMapperServiceReserveWrapperName},
+           {mapperSymbols.Initialize,
+            llvm::orc::rt::
+                ExecutorSharedMemoryMapperServiceInitializeWrapperName},
+           {mapperSymbols.Deinitialize,
+            llvm::orc::rt::
+                ExecutorSharedMemoryMapperServiceDeinitializeWrapperName},
+           {mapperSymbols.Release,
+            llvm::orc::rt::
+                ExecutorSharedMemoryMapperServiceReleaseWrapperName}})) {
+    llvm::consumeError((*epc)->disconnect());
+    killAgent(pid);
+    return toCStr(std::move(err));
+  }
+
   auto jit =
       llvm::orc::LLJITBuilder()
           .setExecutorProcessControl(std::move(*epc))
           .setPlatformSetUp(llvm::orc::ExecutorNativePlatform(orc_rt_path))
           .setObjectLinkingLayerCreator(
-              [registerConformances, registerTypes](
+              [registerConformances, registerTypes, mapperSymbols](
                   llvm::orc::ExecutionSession &es, const llvm::Triple &)
                   -> llvm::Expected<std::unique_ptr<llvm::orc::ObjectLayer>> {
-                auto layer =
-                    std::make_unique<llvm::orc::ObjectLinkingLayer>(es);
+                auto &srepc = static_cast<llvm::orc::SimpleRemoteEPC &>(
+                    es.getExecutorProcessControl());
+                auto memMgr =
+                    llvm::orc::MapperJITLinkMemoryManager::CreateWithMapper<
+                        llvm::orc::SharedMemoryMapper>(kSlabSize, srepc,
+                                                       mapperSymbols);
+                if (!memMgr) {
+                  return memMgr.takeError();
+                }
+                auto layer = std::make_unique<llvm::orc::ObjectLinkingLayer>(
+                    es, std::move(*memMgr));
                 layer->addPlugin(
                     std::make_shared<previewsmcp::SwiftEntrySectionPlugin>(
                         registerConformances, registerTypes));

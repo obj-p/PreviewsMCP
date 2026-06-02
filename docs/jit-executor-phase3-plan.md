@@ -125,13 +125,59 @@ failure mode) or tripped a `SmallVector` assert. Fixed by unifying both paths
 behind one shared `initNativeTargetOnce()` once-flag. Teardown is unchanged
 (`session_destroy` resets the `LLJIT` then `SIGKILL`s the agent).
 
-#### P3.1b-ii — render the view offscreen to a bitmap — TODO
-Render the `NSHostingView` to pixels on the agent's main thread and return the
-bitmap to the host. Method (NSHostingView-in-window `cacheDisplay` vs SwiftUI
-`ImageRenderer`) decided here. Retires the rendering half of U-A.
-- **Verify (planned):** a test compiles a SwiftUI preview whose body renders a
-  known solid color to `.o`, links it in the agent, renders on the agent's main
-  thread, and gets back a non-empty bitmap whose pixels are the expected color.
+#### P3.1b-ii — render the view to a bitmap — DONE
+Fixture `render_probe.swift` renders a known-color SwiftUI view via
+`ImageRenderer` (`MainActor.assumeIsolated`, since `ImageRenderer.cgImage` is
+main-actor), samples the center pixel from the `CGImage`, and returns it packed
+as `Int32`; the test drives it through `runOnMain` and asserts the channels are
+red. `ImageRenderer` was chosen over an `NSHostingView`-in-window snapshot
+because it rasterizes headless without a window. Retires the rendering half of
+U-A: the agent rasterizes a JIT-linked SwiftUI view to pixels.
+
+**Discovery (the load-bearing one): U-A finally bit, and the slab is the fix.**
+Bringing real SwiftUI into the agent surfaced three `EXC_BAD_ACCESS` crash modes,
+all reading ~4 KB **past a mapped region** while the Swift/SwiftUI runtime walks
+JIT'd type metadata (`swift_conformsToProtocol…`, AttributeGraph
+`LayoutDescriptor` building, `NSHostingView` teardown). Root cause: the **remote**
+path built `ObjectLinkingLayer(es)` with the **default per-allocation mmap**
+memory manager, which scatters each section into its own page-rounded mmap;
+reading one entry past a section lands in the unmapped gap right after it. This
+is exactly Phase 2's deferred unknown **U-A** ("revisit only if a future large
+object trips it") and the same class as Phase 1's unwind-slab gotcha. The six POC
+scenarios were small enough to dodge it; SwiftUI's heavy metadata walking trips
+it. **Fix:** give the remote agent a **contiguous slab** via the shared-memory
+mapper (`SharedMemoryMapper` + `MapperJITLinkMemoryManager`, mirroring
+`llvm-jitlink`'s `createSharedMemoryManager`); the agent already hosted
+`ExecutorSharedMemoryMapperService`. With the slab the section walks stay
+in-bounds and the suite is **40/40 green** across parallel runs.
+
+**Two supporting fixes surfaced while diagnosing (asserts build, parallel
+runner):**
+- **Host target-init race (pre-existing).** `LLVMInitializeNativeTarget` ran under
+  two separate `call_once` flags (in-process `makeJIT` and `remote_session_create`).
+  A concurrent first-time in-process + remote create corrupted LLVM's global
+  `TargetRegistry` (hang via `lookupTarget` spin, or `SmallVector` assert). Unified
+  behind one `initNativeTargetOnce`. (Also serialized the in-process
+  `LLJIT::initialize` with a mutex; `ORCPlatformSupport::initialize` raced across
+  the shared in-process `LLJIT`.)
+- **Agent teardown use-after-free (my regression from P3.1b-i).** The restructure
+  destroyed the `Server` on the background thread right after `waitForDisconnect`,
+  while the transport's listen thread was still in `handleDisconnect`. Fixed by
+  `std::_Exit(0)` on disconnect (the host `SIGKILL`s the agent anyway, so clean
+  unwinding has no value and is racy).
+
+**Verify (met):** `rendersViewToBitmapOnMainThreadRemotely` returns a red pixel;
+suite 40/40 green across parallel runs, zero orphan agents.
+
+**Known residual → Phase 4 (crash recovery / hardening).** After the slab fix the
+remaining agent crashes are all **post-result**: the agent returns the correct
+value, the test passes, then the JIT-linked SwiftUI objects deallocate
+(`NSHostingView` deinit, AttributeGraph `Node::destroy`, background conformance
+cleanup) and crash during teardown, before the host's `SIGKILL`. They fail no test
+(hence 40/40) but write crash reports. We deliberately do **not** mask them (e.g.
+by leaking the view): tearing down a JIT'd SwiftUI view is genuinely broken and
+P3.2/P3.4 will dealloc these views for real on every edit, so the signal is worth
+keeping. Hardening JIT'd-SwiftUI teardown is Phase 4.
 
 ### P3.2 — Hot update via agent respawn — TODO
 Edit the preview body, recompile to a new `.o`, respawn the agent, the new
@@ -161,10 +207,10 @@ local-only; the non-JIT build must stay green.
 
 ## Phase 3 status: IN PROGRESS
 
-P3.1a done (real SwiftUI `View` body evaluates in the agent). P3.1b-i done
-(`NSHostingView` builds on the agent's main thread via a `run_on_main` surface;
-a pre-existing target-init race fixed). Next: P3.1b-ii (offscreen render to a
-bitmap).
+P3.1 done. The agent links a real SwiftUI preview, runs its body and renders it
+to a bitmap on the agent's main thread (P3.1a/b-i/b-ii), with the remote slab
+mapper (U-A) the load-bearing fix. Suite 40/40 green in parallel. Next: P3.2
+(hot update via agent respawn).
 
 ## Scope boundaries
 
@@ -176,6 +222,6 @@ bitmap).
 
 ## Immediate next step
 
-P3.1b-ii. Render the `NSHostingView` (built on the agent's main thread via the
-`run_on_main` surface) offscreen to a bitmap and return it to the host, gated by
-a test that asserts the rendered pixels match a known color.
+P3.2. Hot update via agent respawn: edit the preview body, recompile to a new
+`.o`, respawn the agent, confirm the new render reflects the change (render v1 =
+colorA, edit, respawn, render v2 = colorB).
