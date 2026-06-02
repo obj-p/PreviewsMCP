@@ -248,10 +248,48 @@ from the redo log. New wire verbs.
 - **Verify (planned):** BeginUpdate → writes → EndUpdate → UpdateComplete drives
   a render; CancelUpdate mid-stream leaves the prior image rendering.
 
-### P3.4 — Daemon session-lifecycle integration (pulls in SP5) — TODO
+### P3.4 — Daemon session-lifecycle integration (pulls in SP5) — IN PROGRESS
 Route structural edits from `PreviewSession`/FileWatcher to the JIT path instead
 of dylib rebuild; literal-only edits stay on `DesignTimeStore`. The richer
 `SessionResolver`/JIT API (Phase 1 SP5) lands here.
+
+**Render-surface decision (agreed): agent-rendered bitmaps (model A).** The
+structural path today renders **in the daemon process** (`loadPreview` dlopens
+the dylib, calls `@_cdecl("createPreviewView")`, hosts the returned
+`NSHostingView` in the daemon's window, snapshots via `cacheDisplay`,
+HostApp.swift:80-153, :209). The JIT respawn path renders **inside the agent
+process** instead, and the daemon serves `preview_snapshot` from the agent's
+bitmap. Chosen over in-process JIT-in-daemon because in-process linking
+reintroduces the per-edit Swift-metadata leak that respawn-first exists to avoid
+(no `__swift5_proto`/`__swift5_types` deregister; Phase 1 SP0d-D). The cost of
+model A is small here because **macOS is snapshot-only**: there is no macOS
+touch/interaction tool to re-route (`preview_touch` is iOS-simulator-only and
+already runs in its own on-device host-app process over a TCP socket via
+`IOHIDEvent` injection; it is out of P3.4 scope). So only `preview_snapshot`
+moves to the agent bitmap; interaction is untouched.
+
+**New unknowns under model A (both de-riskable in the JIT module before any
+`HostApp` change):**
+- **U-E:** the agent must return a **variable-size bitmap** to the host, but
+  `runOnMain` only returns an `Int32`. Needs a buffer-return surface (a new EPC
+  byte-returning wrapper, or the agent writes the bitmap to a host-supplied path
+  and the host reads the file).
+- **U-F:** the agent must render the **real `Compiler` bridge** output (a
+  `createPreviewView`-style entry returning a retained `NSHostingView`), not a
+  self-contained `ImageRenderer` probe.
+
+**Chunking (de-risk first):**
+- **P3.4a — agent bitmap-return surface (U-E).** Hand a rendered bitmap from the
+  agent back to the host. *Verify:* a render fixture produces a known bitmap; the
+  host receives matching pixels/bytes.
+- **P3.4b — real bridge renders in the agent (U-F).** Build a trivial SwiftUI
+  `#Preview` through the production bridge, link in the agent, render via the
+  P3.4a surface, assert the known color.
+- **P3.4c — daemon seam (U-D).** Route structural edits to
+  recompile → respawn → agent-render → serve `preview_snapshot`; literal path
+  unchanged.
+- **P3.4d — latency (U-C).** Measure structural respawn vs the <200ms target.
+
 - **Verify (planned):** an `examples/` project: a literal edit hot-reloads via
   `DesignTimeStore` (existing path, ~10ms); a structural edit reloads via the
   JIT path (respawn), same daemon session, no daemon restart.
