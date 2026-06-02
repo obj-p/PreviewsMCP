@@ -1,12 +1,12 @@
+#include "llvm/ExecutionEngine/Orc/Shared/ExecutorAddress.h"
+#include "llvm/ExecutionEngine/Orc/Shared/TargetProcessControlTypes.h"
+#include "llvm/ExecutionEngine/Orc/Shared/WrapperFunctionUtils.h"
 #include "llvm/ExecutionEngine/Orc/TargetProcess/ExecutorSharedMemoryMapperService.h"
 #include "llvm/ExecutionEngine/Orc/TargetProcess/JITLoaderGDB.h"
 #include "llvm/ExecutionEngine/Orc/TargetProcess/RegisterEHFrames.h"
 #include "llvm/ExecutionEngine/Orc/TargetProcess/SimpleExecutorDylibManager.h"
 #include "llvm/ExecutionEngine/Orc/TargetProcess/SimpleExecutorMemoryManager.h"
 #include "llvm/ExecutionEngine/Orc/TargetProcess/SimpleRemoteEPCServer.h"
-#include "llvm/ExecutionEngine/Orc/Shared/ExecutorAddress.h"
-#include "llvm/ExecutionEngine/Orc/Shared/TargetProcessControlTypes.h"
-#include "llvm/ExecutionEngine/Orc/Shared/WrapperFunctionUtils.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -45,8 +45,8 @@ CWrapperFunctionResult previewsmcp_register_conformances(const char *ArgData,
   return WrapperFunction<SPSError(SPSExecutorAddrRange)>::handle(
              ArgData, ArgSize,
              [](llvm::orc::ExecutorAddrRange R) {
-               return registerSwiftSection(
-                   "swift_registerProtocolConformances", R);
+               return registerSwiftSection("swift_registerProtocolConformances",
+                                           R);
              })
       .release();
 }
@@ -56,8 +56,8 @@ CWrapperFunctionResult previewsmcp_register_types(const char *ArgData,
   return WrapperFunction<SPSError(SPSExecutorAddrRange)>::handle(
              ArgData, ArgSize,
              [](llvm::orc::ExecutorAddrRange R) {
-               return registerSwiftSection(
-                   "swift_registerTypeMetadataRecords", R);
+               return registerSwiftSection("swift_registerTypeMetadataRecords",
+                                           R);
              })
       .release();
 }
@@ -65,13 +65,13 @@ CWrapperFunctionResult previewsmcp_register_types(const char *ArgData,
 CWrapperFunctionResult previewsmcp_write_pointers(const char *ArgData,
                                                   size_t ArgSize) {
   using namespace llvm::orc::tpctypes;
-  return WrapperFunction<void(SPSSequence<SPSMemoryAccessPointerWrite>)>::handle(
-             ArgData, ArgSize,
+  return WrapperFunction<void(SPSSequence<SPSMemoryAccessPointerWrite>)>::
+      handle(ArgData, ArgSize,
              [](std::vector<PointerWrite> Ws) {
                for (auto &W : Ws)
                  *W.Addr.toPtr<void **>() = W.Value.toPtr<void *>();
              })
-      .release();
+          .release();
 }
 
 } // namespace

@@ -2,14 +2,17 @@
 #include "SwiftEntrySectionPlugin.hpp"
 
 #include <atomic>
+#include <crt_externs.h>
+#include <csignal>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <fcntl.h>
 #include <llvm-c/Core.h>
 #include <llvm-c/TargetMachine.h>
+#include <llvm/ExecutionEngine/Orc/EPCGenericMemoryAccess.h>
 #include <llvm/ExecutionEngine/Orc/ExecutorProcessControl.h>
 #include <llvm/ExecutionEngine/Orc/LLJIT.h>
-#include <llvm/ExecutionEngine/Orc/EPCGenericMemoryAccess.h>
 #include <llvm/ExecutionEngine/Orc/MapperJITLinkMemoryManager.h>
 #include <llvm/ExecutionEngine/Orc/MemoryMapper.h>
 #include <llvm/ExecutionEngine/Orc/ObjectLinkingLayer.h>
@@ -19,9 +22,6 @@
 #include <llvm/ExecutionEngine/Orc/TaskDispatch.h>
 #include <llvm/Support/Debug.h>
 #include <llvm/Support/MemoryBuffer.h>
-#include <crt_externs.h>
-#include <csignal>
-#include <fcntl.h>
 #include <mutex>
 #include <optional>
 #include <spawn.h>
@@ -44,8 +44,8 @@ slabLinkingLayer(llvm::orc::ExecutionSession &es, const llvm::Triple &) {
   if (!memMgr) {
     return memMgr.takeError();
   }
-  auto layer = std::make_unique<llvm::orc::ObjectLinkingLayer>(
-      es, std::move(*memMgr));
+  auto layer =
+      std::make_unique<llvm::orc::ObjectLinkingLayer>(es, std::move(*memMgr));
   layer->addPlugin(previewsmcp::SwiftEntrySectionPlugin::inProcess());
   return layer;
 }
@@ -145,8 +145,9 @@ void previewsmcp_jit_session_destroy(previewsmcp_jit_session *session) {
   delete session;
 }
 
-const char *previewsmcp_jit_session_create(previewsmcp_jit_session **out_session,
-                                           const char *orc_rt_path) {
+const char *
+previewsmcp_jit_session_create(previewsmcp_jit_session **out_session,
+                               const char *orc_rt_path) {
   std::string err;
   auto *jit = sharedJIT(orc_rt_path, err);
   if (!jit) {
@@ -177,7 +178,8 @@ previewsmcp_jit_remote_session_create(previewsmcp_jit_session **out_session,
 
   int sv[2];
   if (socketpair(AF_UNIX, SOCK_STREAM, 0, sv) != 0) {
-    return strdup(("socketpair failed: " + std::string(strerror(errno))).c_str());
+    return strdup(
+        ("socketpair failed: " + std::string(strerror(errno))).c_str());
   }
   fcntl(sv[0], F_SETFD, FD_CLOEXEC);
   fcntl(sv[1], F_SETFD, FD_CLOEXEC);
@@ -201,8 +203,7 @@ previewsmcp_jit_remote_session_create(previewsmcp_jit_session **out_session,
   }
 
   llvm::orc::SimpleRemoteEPC::Setup setup;
-  setup.CreateMemoryAccess =
-      [](llvm::orc::SimpleRemoteEPC &epc)
+  setup.CreateMemoryAccess = [](llvm::orc::SimpleRemoteEPC &epc)
       -> llvm::Expected<
           std::unique_ptr<llvm::orc::ExecutorProcessControl::MemoryAccess>> {
     llvm::orc::ExecutorAddr writePointers;
@@ -242,7 +243,8 @@ previewsmcp_jit_remote_session_create(previewsmcp_jit_session **out_session,
               [registerConformances, registerTypes](
                   llvm::orc::ExecutionSession &es, const llvm::Triple &)
                   -> llvm::Expected<std::unique_ptr<llvm::orc::ObjectLayer>> {
-                auto layer = std::make_unique<llvm::orc::ObjectLinkingLayer>(es);
+                auto layer =
+                    std::make_unique<llvm::orc::ObjectLinkingLayer>(es);
                 layer->addPlugin(
                     std::make_shared<previewsmcp::SwiftEntrySectionPlugin>(
                         registerConformances, registerTypes));
@@ -278,9 +280,9 @@ const char *previewsmcp_jit_session_run_main(previewsmcp_jit_session *session,
   if (!sym) {
     return toCStr(sym.takeError());
   }
-  auto result = session->jit->getExecutionSession()
-                    .getExecutorProcessControl()
-                    .runAsMain(*sym, {});
+  auto result =
+      session->jit->getExecutionSession().getExecutorProcessControl().runAsMain(
+          *sym, {});
   if (!result) {
     return toCStr(result.takeError());
   }
