@@ -216,11 +216,32 @@ with the anonymous mapper (P3.1b-iii): the contiguity removed the metadata
 over-reads, and discarding deallocation actions removed the JIT'd-destructor
 teardown path. The suite now runs with zero agent crash reports.
 
-### P3.2 — Hot update via agent respawn — TODO
+### P3.2 — Hot update via agent respawn — TODO (resume here)
 Edit the preview body, recompile to a new `.o`, respawn the agent, the new
-render reflects the change. No in-place patching.
-- **Verify (planned):** render v1 = colorA; apply edit; respawn; render v2 =
-  colorB. (PID differs across the respawn by design.)
+render reflects the change. No in-place patching. "Respawn" at the `JITSession`
+layer = destroy the old session (kills its agent) + create a new one (spawns a
+fresh agent); the daemon orchestration (FileWatcher → recompile → respawn) is
+P3.4.
+- **Planned test** (in `CompilerObjectTests`, mirrors `reResolvesSymbolAfterRecompile`,
+  needs no new production code): compile a render-probe-style source set to
+  color A via `Compiler.compileObject`, link in a remote session, `runOnMain`
+  the render entry, assert the sampled pixel is red; then compile the **same
+  source edited to color B**, link in a **fresh** remote session, render, assert
+  blue. Proves recompile → respawn → re-render with the real `Compiler`.
+- **CAVEAT — re-verify cleanly, prior finding is confounded.** A first P3.2
+  attempt concluded `Compiler.compileObject`'s default `-target
+  arm64-apple-macosx14.0` produces objects that fail in the JIT (minos 14 →
+  Swift back-deployment referencing `___mh_executable_header`/`___dso_handle`)
+  and that the JIT path needs the **host-OS** target. **That whole diagnosis ran
+  during the macOS shared-exec outage, so every compile variant failed for the
+  unrelated shm reason — the target/minos/arch conclusions are unreliable.**
+  Start P3.2 by re-checking, on the now-working anonymous mapper, whether the
+  default `Compiler` target links in the agent at all. Only add a host-OS
+  `target:` option to `Compiler.compileObject` if it genuinely fails (it may
+  not). The fixtures compile with `xcrun swiftc` and no `-target` (host default),
+  which is the known-good recipe.
+- **Verify (planned):** render v1 = red; recompile edited source; render v2 =
+  blue, in a fresh agent. (PID differs across the respawn by design.)
 
 ### P3.3 — Begin/End/cancelUpdate handshake (§5/§6) — CONDITIONAL
 Only if no-restart with `@State` preservation later earns its keep. Bracket an
@@ -259,8 +280,30 @@ P3.2 (hot update via agent respawn).
   not pulled in); large-module scaling; XPC/gRPC transports; iOS device agent;
   LLVM bundling; crash recovery; multi-session.
 
-## Immediate next step
+## Immediate next step (resume pointer for a fresh session)
 
-P3.2. Hot update via agent respawn: edit the preview body, recompile to a new
-`.o`, respawn the agent, confirm the new render reflects the change (render v1 =
-colorA, edit, respawn, render v2 = colorB).
+**State:** P3.1 is DONE and on `main`-bound PR #190, CI green. Branch
+`jit-phase3-session-integration`, baseline commit **`a8d5909`** (anonymous
+contiguous mapper). Working tree clean. Run JIT tests with
+`swift test --filter PreviewsJITLinkTests` (builds `PreviewAgent` too); expect
+28 tests green, zero orphan `PreviewAgent` processes. If `third_party/llvm-build`
+is missing, run the bootstrap skill with `--jit` (do NOT rebuild LLVM if it
+exists).
+
+**Next:** P3.2 (hot update via agent respawn) — see the P3.2 subproblem above
+for the test design and the **confounded-finding caveat** (re-verify whether
+`Compiler.compileObject`'s default target works in the JIT before assuming it
+needs a host-OS target).
+
+**Pitfalls carried forward:**
+- macOS denies `mprotect`-to-exec on `MAP_SHARED` memory (no entitlement / reboot
+  helps). The slab is anonymous now; never reintroduce the shared-memory mapper.
+- When debugging, do NOT `pkill -9` loop hundreds of JIT agents. Use modest
+  verification loops (10–15 runs). Clean session teardown reclaims memory; only
+  kill stray agents at the end.
+- The agent's anonymous mapper must `InvalidateInstructionCache` on exec segments
+  and discards deallocation actions (process-lived image, D3). Don't re-add
+  dealloc-action running.
+- macOS crash reports for the agent live in `~/Library/Logs/DiagnosticReports/
+  PreviewAgent-*.ips` (parseable JSON after the first line); the faulting-thread
+  backtrace is the fastest way to localize an agent crash.
