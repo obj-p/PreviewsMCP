@@ -16,8 +16,10 @@
 #include <llvm/ExecutionEngine/Orc/MapperJITLinkMemoryManager.h>
 #include <llvm/ExecutionEngine/Orc/MemoryMapper.h>
 #include <llvm/ExecutionEngine/Orc/ObjectLinkingLayer.h>
+#include <llvm/ExecutionEngine/Orc/Shared/ExecutorAddress.h>
 #include <llvm/ExecutionEngine/Orc/Shared/SimpleRemoteEPCUtils.h>
 #include <llvm/ExecutionEngine/Orc/Shared/TargetProcessControlTypes.h>
+#include <llvm/ExecutionEngine/Orc/Shared/WrapperFunctionUtils.h>
 #include <llvm/ExecutionEngine/Orc/SimpleRemoteEPC.h>
 #include <llvm/ExecutionEngine/Orc/TaskDispatch.h>
 #include <llvm/Support/Debug.h>
@@ -50,12 +52,19 @@ slabLinkingLayer(llvm::orc::ExecutionSession &es, const llvm::Triple &) {
   return layer;
 }
 
-llvm::Expected<std::unique_ptr<llvm::orc::LLJIT>>
-makeJIT(const char *orc_rt_path) {
+void initNativeTargetOnce() {
   static std::once_flag once;
   std::call_once(once, [] {
     LLVMInitializeNativeTarget();
     LLVMInitializeNativeAsmPrinter();
+  });
+}
+
+llvm::Expected<std::unique_ptr<llvm::orc::LLJIT>>
+makeJIT(const char *orc_rt_path) {
+  initNativeTargetOnce();
+  static std::once_flag debugOnce;
+  std::call_once(debugOnce, [] {
     if (getenv("PREVIEWSMCP_JIT_DEBUG")) {
       static const char *types[] = {"jitlink", "orc"};
       llvm::DebugFlag = true;
@@ -115,6 +124,7 @@ struct previewsmcp_jit_session {
   std::unique_ptr<llvm::orc::LLJIT> ownedJit;
   llvm::orc::LLJIT *jit = nullptr;
   llvm::orc::JITDylib *jd = nullptr;
+  llvm::orc::ExecutorAddr runOnMain;
   pid_t agentPid = 0;
   bool initialized = false;
 };
@@ -170,11 +180,7 @@ const char *
 previewsmcp_jit_remote_session_create(previewsmcp_jit_session **out_session,
                                       const char *agent_path,
                                       const char *orc_rt_path) {
-  static std::once_flag targetOnce;
-  std::call_once(targetOnce, [] {
-    LLVMInitializeNativeTarget();
-    LLVMInitializeNativeAsmPrinter();
-  });
+  initNativeTargetOnce();
 
   int sv[2];
   if (socketpair(AF_UNIX, SOCK_STREAM, 0, sv) != 0) {
@@ -226,10 +232,11 @@ previewsmcp_jit_remote_session_create(previewsmcp_jit_session **out_session,
     return toCStr(epc.takeError());
   }
 
-  llvm::orc::ExecutorAddr registerConformances, registerTypes;
+  llvm::orc::ExecutorAddr registerConformances, registerTypes, runOnMain;
   if (auto err = (*epc)->getBootstrapSymbols(
           {{registerConformances, "__previewsmcp_register_conformances"},
-           {registerTypes, "__previewsmcp_register_types"}})) {
+           {registerTypes, "__previewsmcp_register_types"},
+           {runOnMain, "__previewsmcp_run_on_main"}})) {
     llvm::consumeError((*epc)->disconnect());
     killAgent(pid);
     return toCStr(std::move(err));
@@ -259,6 +266,7 @@ previewsmcp_jit_remote_session_create(previewsmcp_jit_session **out_session,
   auto *session = new previewsmcp_jit_session{};
   session->ownedJit = std::move(*jit);
   session->jit = session->ownedJit.get();
+  session->runOnMain = runOnMain;
   session->agentPid = pid;
   static std::atomic<uint64_t> counter{0};
   auto jd = session->jit->createJITDylib("remote." +
@@ -287,6 +295,28 @@ const char *previewsmcp_jit_session_run_main(previewsmcp_jit_session *session,
     return toCStr(result.takeError());
   }
   *out_result = *result;
+  return nullptr;
+}
+
+const char *
+previewsmcp_jit_session_run_on_main(previewsmcp_jit_session *session,
+                                    const char *symbol_name,
+                                    int32_t *out_result) {
+  if (!session->runOnMain) {
+    return strdup("run_on_main requires a remote session");
+  }
+  auto sym = lookupInitialized(session, symbol_name);
+  if (!sym) {
+    return toCStr(sym.takeError());
+  }
+  auto &epc = session->jit->getExecutionSession().getExecutorProcessControl();
+  int32_t result = 0;
+  if (auto err =
+          epc.callSPSWrapper<int32_t(llvm::orc::shared::SPSExecutorAddr)>(
+              session->runOnMain, result, *sym)) {
+    return toCStr(std::move(err));
+  }
+  *out_result = result;
   return nullptr;
 }
 

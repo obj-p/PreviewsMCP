@@ -97,14 +97,41 @@ AppKit-free and main-thread-free on purpose, to isolate one unknown.
 - **Verify (met):** `runsSwiftUIViewBodyRemotely` returns 7. 26 tests green in
   parallel, zero orphan agents. Commit `1fe37b3`.
 
-#### P3.1b — render the view offscreen to a bitmap — TODO
-Extend the agent to host `NSApplication` (`.accessory`) and add a main-thread
-calling surface (a `RunOnMainThread`-style verb) to invoke a real
-`createPreviewView`-style entry, build an `NSHostingView`, and render it
-offscreen to a bitmap. Retires U-A and U-B.
+#### P3.1b-i — main-thread invoke surface + `NSHostingView` construction — DONE
+Restructured the agent so the EPC server runs on a background thread and the
+main thread runs a CoreFoundation run loop (`CFRunLoopRunInMode` after
+`NSApplicationLoad()`), freeing the main thread for AppKit. Added an executor
+wrapper `__previewsmcp_run_on_main` (a bootstrap symbol) that `dispatch_sync`s a
+JIT'd function onto the main queue and returns its `int32_t`, mirroring Apple's
+`run_program_on_main_thread`. Host side: `previewsmcp_jit_session_run_on_main`
+fetches that bootstrap symbol and calls it via
+`callSPSWrapper<int32_t(SPSExecutorAddr)>`; Swift `runOnMain(symbol:)`. Fixture
+`hosting_probe.swift` builds an `NSHostingView` on the main thread and returns 1
+if its `fittingSize.width > 0`.
+- **Verify (met):** `buildsHostingViewOnMainThreadRemotely` returns 1. Full
+  suite 27 tests green, 12/12 parallel runs clean, zero orphan agents. U-A
+  (Cocoa hosts in a headless agent) and U-B (Swift `View` entry on the main
+  thread) retired for the construction case.
+
+**Discovery (pre-existing race, fixed here):** moving the server off the main
+thread changed timing enough to surface a latent data race. Native-target init
+(`LLVMInitializeNativeTarget` / `…AsmPrinter`) ran under two separate
+`std::call_once` flags, one in the in-process `makeJIT` and one in
+`remote_session_create`. A concurrent first-time in-process + remote session
+create then mutated LLVM's global `TargetRegistry` linked list from two threads,
+corrupting it: `lookupTarget` either span forever (a hang, surfaced as agents
+never torn down holding the test's inherited stdout pipe open, the P2.4 EOF
+failure mode) or tripped a `SmallVector` assert. Fixed by unifying both paths
+behind one shared `initNativeTargetOnce()` once-flag. Teardown is unchanged
+(`session_destroy` resets the `LLJIT` then `SIGKILL`s the agent).
+
+#### P3.1b-ii — render the view offscreen to a bitmap — TODO
+Render the `NSHostingView` to pixels on the agent's main thread and return the
+bitmap to the host. Method (NSHostingView-in-window `cacheDisplay` vs SwiftUI
+`ImageRenderer`) decided here. Retires the rendering half of U-A.
 - **Verify (planned):** a test compiles a SwiftUI preview whose body renders a
   known solid color to `.o`, links it in the agent, renders on the agent's main
-  thread, and gets back a non-empty PNG whose pixels are the expected color.
+  thread, and gets back a non-empty bitmap whose pixels are the expected color.
 
 ### P3.2 — Hot update via agent respawn — TODO
 Edit the preview body, recompile to a new `.o`, respawn the agent, the new
@@ -134,8 +161,10 @@ local-only; the non-JIT build must stay green.
 
 ## Phase 3 status: IN PROGRESS
 
-P3.1a done (real SwiftUI `View` body evaluates in the agent). Next: P3.1b
-(offscreen render to a bitmap).
+P3.1a done (real SwiftUI `View` body evaluates in the agent). P3.1b-i done
+(`NSHostingView` builds on the agent's main thread via a `run_on_main` surface;
+a pre-existing target-init race fixed). Next: P3.1b-ii (offscreen render to a
+bitmap).
 
 ## Scope boundaries
 
@@ -147,6 +176,6 @@ P3.1a done (real SwiftUI `View` body evaluates in the agent). Next: P3.1b
 
 ## Immediate next step
 
-P3.1b. Stand up the agent's `NSApplication` + main-thread invoke surface and
-render an `NSHostingView` offscreen to a bitmap, gated by a test that asserts
-the rendered pixels match a known color.
+P3.1b-ii. Render the `NSHostingView` (built on the agent's main thread via the
+`run_on_main` surface) offscreen to a bitmap and return it to the host, gated by
+a test that asserts the rendered pixels match a known color.

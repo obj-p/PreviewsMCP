@@ -57,6 +57,14 @@ public final class JITSession {
         return result
     }
 
+    public func runOnMain(symbol: String) throws -> Int32 {
+        var result: Int32 = 0
+        if let error = previewsmcp_jit_session_run_on_main(handle, symbol, &result) {
+            throw JITLinkError.failed(error.string())
+        }
+        return result
+    }
+
     public func writePointer(at address: UInt64, value: UInt64) throws {
         if let error = previewsmcp_jit_session_write_pointer(handle, address, value) {
             throw JITLinkError.failed(error.string())
