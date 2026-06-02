@@ -1,4 +1,6 @@
+#include "llvm/ExecutionEngine/Orc/Shared/AllocationActions.h"
 #include "llvm/ExecutionEngine/Orc/Shared/ExecutorAddress.h"
+#include "llvm/ExecutionEngine/Orc/Shared/MemoryFlags.h"
 #include "llvm/ExecutionEngine/Orc/Shared/TargetProcessControlTypes.h"
 #include "llvm/ExecutionEngine/Orc/Shared/WrapperFunctionUtils.h"
 #include "llvm/ExecutionEngine/Orc/TargetProcess/ExecutorSharedMemoryMapperService.h"
@@ -8,13 +10,18 @@
 #include "llvm/ExecutionEngine/Orc/TargetProcess/SimpleExecutorMemoryManager.h"
 #include "llvm/ExecutionEngine/Orc/TargetProcess/SimpleRemoteEPCServer.h"
 #include "llvm/Support/Error.h"
+#include "llvm/Support/Memory.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include <cstdlib>
+#include <cstring>
 #include <dispatch/dispatch.h>
 #include <dlfcn.h>
+#include <map>
+#include <mutex>
 #include <string>
 #include <thread>
+#include <vector>
 
 using namespace llvm;
 using namespace llvm::orc;
@@ -86,6 +93,88 @@ CWrapperFunctionResult previewsmcp_run_on_main(const char *ArgData,
       .release();
 }
 
+std::mutex AnonMapperMutex;
+std::map<void *, size_t> AnonReservations;
+
+CWrapperFunctionResult previewsmcp_anon_reserve(const char *ArgData,
+                                                size_t ArgSize) {
+  return WrapperFunction<SPSExpected<SPSExecutorAddr>(uint64_t)>::handle(
+             ArgData, ArgSize,
+             [](uint64_t Size) -> Expected<llvm::orc::ExecutorAddr> {
+               std::error_code EC;
+               auto MB = sys::Memory::allocateMappedMemory(
+                   Size, nullptr, sys::Memory::MF_READ | sys::Memory::MF_WRITE,
+                   EC);
+               if (EC)
+                 return errorCodeToError(EC);
+               std::lock_guard<std::mutex> Lock(AnonMapperMutex);
+               AnonReservations[MB.base()] = Size;
+               return llvm::orc::ExecutorAddr::fromPtr(MB.base());
+             })
+      .release();
+}
+
+CWrapperFunctionResult previewsmcp_anon_initialize(const char *ArgData,
+                                                   size_t ArgSize) {
+  using namespace llvm::orc::tpctypes;
+  return WrapperFunction<SPSExpected<SPSExecutorAddr>(SPSFinalizeRequest)>::
+      handle(ArgData, ArgSize,
+             [](FinalizeRequest FR) -> Expected<llvm::orc::ExecutorAddr> {
+               llvm::orc::ExecutorAddr Base(~0ULL);
+               for (auto &Seg : FR.Segments)
+                 Base = std::min(Base, Seg.Addr);
+               for (auto &Seg : FR.Segments) {
+                 char *Mem = Seg.Addr.toPtr<char *>();
+                 if (!Seg.Content.empty())
+                   memcpy(Mem, Seg.Content.data(), Seg.Content.size());
+                 memset(Mem + Seg.Content.size(), 0,
+                        Seg.Size - Seg.Content.size());
+                 sys::MemoryBlock MB(Mem, Seg.Size);
+                 if (auto EC = sys::Memory::protectMappedMemory(
+                         MB, toSysMemoryProtectionFlags(Seg.RAG.Prot)))
+                   return errorCodeToError(EC);
+                 if ((Seg.RAG.Prot & MemProt::Exec) == MemProt::Exec)
+                   sys::Memory::InvalidateInstructionCache(Mem, Seg.Size);
+               }
+               auto Dealloc = runFinalizeActions(FR.Actions);
+               if (!Dealloc)
+                 return Dealloc.takeError();
+               return Base;
+             })
+          .release();
+}
+
+CWrapperFunctionResult previewsmcp_anon_deinitialize(const char *ArgData,
+                                                     size_t ArgSize) {
+  return WrapperFunction<SPSError(SPSSequence<SPSExecutorAddr>)>::handle(
+             ArgData, ArgSize,
+             [](std::vector<llvm::orc::ExecutorAddr>) -> Error {
+               return Error::success();
+             })
+      .release();
+}
+
+CWrapperFunctionResult previewsmcp_anon_release(const char *ArgData,
+                                                size_t ArgSize) {
+  return WrapperFunction<SPSError(SPSSequence<SPSExecutorAddr>)>::handle(
+             ArgData, ArgSize,
+             [](std::vector<llvm::orc::ExecutorAddr> Bases) -> Error {
+               Error Err = Error::success();
+               std::lock_guard<std::mutex> Lock(AnonMapperMutex);
+               for (auto B : Bases) {
+                 auto I = AnonReservations.find(B.toPtr<void *>());
+                 if (I == AnonReservations.end())
+                   continue;
+                 sys::MemoryBlock MB(I->first, I->second);
+                 if (auto EC = sys::Memory::releaseMappedMemory(MB))
+                   Err = joinErrors(std::move(Err), errorCodeToError(EC));
+                 AnonReservations.erase(I);
+               }
+               return Err;
+             })
+      .release();
+}
+
 CWrapperFunctionResult previewsmcp_write_pointers(const char *ArgData,
                                                   size_t ArgSize) {
   using namespace llvm::orc::tpctypes;
@@ -151,6 +240,14 @@ int main(int argc, char *argv[]) {
               llvm::orc::ExecutorAddr::fromPtr(&previewsmcp_write_pointers);
           S.bootstrapSymbols()["__previewsmcp_run_on_main"] =
               llvm::orc::ExecutorAddr::fromPtr(&previewsmcp_run_on_main);
+          S.bootstrapSymbols()["__previewsmcp_anon_reserve"] =
+              llvm::orc::ExecutorAddr::fromPtr(&previewsmcp_anon_reserve);
+          S.bootstrapSymbols()["__previewsmcp_anon_initialize"] =
+              llvm::orc::ExecutorAddr::fromPtr(&previewsmcp_anon_initialize);
+          S.bootstrapSymbols()["__previewsmcp_anon_deinitialize"] =
+              llvm::orc::ExecutorAddr::fromPtr(&previewsmcp_anon_deinitialize);
+          S.bootstrapSymbols()["__previewsmcp_anon_release"] =
+              llvm::orc::ExecutorAddr::fromPtr(&previewsmcp_anon_release);
           S.services().push_back(
               std::make_unique<rt_bootstrap::SimpleExecutorDylibManager>());
           S.services().push_back(

@@ -17,7 +17,6 @@
 #include <llvm/ExecutionEngine/Orc/MemoryMapper.h>
 #include <llvm/ExecutionEngine/Orc/ObjectLinkingLayer.h>
 #include <llvm/ExecutionEngine/Orc/Shared/ExecutorAddress.h>
-#include <llvm/ExecutionEngine/Orc/Shared/OrcRTBridge.h>
 #include <llvm/ExecutionEngine/Orc/Shared/SimpleRemoteEPCUtils.h>
 #include <llvm/ExecutionEngine/Orc/Shared/TargetProcessControlTypes.h>
 #include <llvm/ExecutionEngine/Orc/Shared/WrapperFunctionUtils.h>
@@ -25,6 +24,7 @@
 #include <llvm/ExecutionEngine/Orc/TaskDispatch.h>
 #include <llvm/Support/Debug.h>
 #include <llvm/Support/MemoryBuffer.h>
+#include <map>
 #include <mutex>
 #include <optional>
 #include <spawn.h>
@@ -60,6 +60,144 @@ void initNativeTargetOnce() {
     LLVMInitializeNativeAsmPrinter();
   });
 }
+
+struct AnonMapperSymbols {
+  llvm::orc::ExecutorAddr Reserve;
+  llvm::orc::ExecutorAddr Initialize;
+  llvm::orc::ExecutorAddr Deinitialize;
+  llvm::orc::ExecutorAddr Release;
+};
+
+class PreviewsAnonymousMapper : public llvm::orc::MemoryMapper {
+public:
+  PreviewsAnonymousMapper(llvm::orc::SimpleRemoteEPC &epc,
+                          AnonMapperSymbols sas)
+      : epc(epc), sas(sas) {}
+
+  unsigned int getPageSize() override { return epc.getPageSize(); }
+
+  void reserve(size_t numBytes, OnReservedFunction onReserved) override {
+    epc.callSPSWrapperAsync<llvm::orc::shared::SPSExpected<
+        llvm::orc::shared::SPSExecutorAddr>(uint64_t)>(
+        sas.Reserve,
+        [this, numBytes, onReserved = std::move(onReserved)](
+            llvm::Error serErr,
+            llvm::Expected<llvm::orc::ExecutorAddr> result) mutable {
+          if (serErr) {
+            llvm::consumeError(result.takeError());
+            return onReserved(std::move(serErr));
+          }
+          if (!result) {
+            return onReserved(result.takeError());
+          }
+          auto base = *result;
+          auto *buf = static_cast<char *>(malloc(numBytes));
+          {
+            std::lock_guard<std::mutex> lock(mutex);
+            reservations[base] = {buf, numBytes};
+          }
+          onReserved(llvm::orc::ExecutorAddrRange(base, base + numBytes));
+        },
+        static_cast<uint64_t>(numBytes));
+  }
+
+  char *prepare(llvm::orc::ExecutorAddr addr, size_t contentSize) override {
+    std::lock_guard<std::mutex> lock(mutex);
+    auto r = reservations.upper_bound(addr);
+    --r;
+    return r->second.workingBuf + (addr - r->first);
+  }
+
+  void initialize(AllocInfo &ai, OnInitializedFunction onInitialized) override {
+    llvm::orc::tpctypes::FinalizeRequest fr;
+    fr.Actions = std::move(ai.Actions);
+    char *base;
+    {
+      std::lock_guard<std::mutex> lock(mutex);
+      auto r = reservations.upper_bound(ai.MappingBase);
+      --r;
+      base = r->second.workingBuf + (ai.MappingBase - r->first);
+    }
+    fr.Segments.reserve(ai.Segments.size());
+    for (auto &seg : ai.Segments) {
+      char *segBuf = base + seg.Offset;
+      memset(segBuf + seg.ContentSize, 0, seg.ZeroFillSize);
+      llvm::orc::tpctypes::SegFinalizeRequest sr;
+      sr.RAG = {seg.AG.getMemProt(),
+                seg.AG.getMemLifetime() == llvm::orc::MemLifetime::Finalize};
+      sr.Addr = ai.MappingBase + seg.Offset;
+      sr.Size = seg.ContentSize + seg.ZeroFillSize;
+      sr.Content = llvm::ArrayRef<char>(segBuf, seg.ContentSize);
+      fr.Segments.push_back(sr);
+    }
+    epc.callSPSWrapperAsync<
+        llvm::orc::shared::SPSExpected<llvm::orc::shared::SPSExecutorAddr>(
+            llvm::orc::shared::SPSFinalizeRequest)>(
+        sas.Initialize,
+        [onInitialized = std::move(onInitialized)](
+            llvm::Error serErr,
+            llvm::Expected<llvm::orc::ExecutorAddr> result) mutable {
+          if (serErr) {
+            llvm::consumeError(result.takeError());
+            return onInitialized(std::move(serErr));
+          }
+          onInitialized(std::move(result));
+        },
+        std::move(fr));
+  }
+
+  void deinitialize(llvm::ArrayRef<llvm::orc::ExecutorAddr> allocs,
+                    OnDeinitializedFunction onDeinit) override {
+    epc.callSPSWrapperAsync<llvm::orc::shared::SPSError(
+        llvm::orc::shared::SPSSequence<llvm::orc::shared::SPSExecutorAddr>)>(
+        sas.Deinitialize,
+        [onDeinit = std::move(onDeinit)](llvm::Error serErr,
+                                         llvm::Error result) mutable {
+          if (serErr) {
+            llvm::consumeError(std::move(result));
+            return onDeinit(std::move(serErr));
+          }
+          onDeinit(std::move(result));
+        },
+        allocs);
+  }
+
+  void release(llvm::ArrayRef<llvm::orc::ExecutorAddr> bases,
+               OnReleasedFunction onReleased) override {
+    {
+      std::lock_guard<std::mutex> lock(mutex);
+      for (auto b : bases) {
+        auto i = reservations.find(b);
+        if (i != reservations.end()) {
+          free(i->second.workingBuf);
+          reservations.erase(i);
+        }
+      }
+    }
+    epc.callSPSWrapperAsync<llvm::orc::shared::SPSError(
+        llvm::orc::shared::SPSSequence<llvm::orc::shared::SPSExecutorAddr>)>(
+        sas.Release,
+        [onReleased = std::move(onReleased)](llvm::Error serErr,
+                                             llvm::Error result) mutable {
+          if (serErr) {
+            llvm::consumeError(std::move(result));
+            return onReleased(std::move(serErr));
+          }
+          onReleased(std::move(result));
+        },
+        bases);
+  }
+
+private:
+  struct Reservation {
+    char *workingBuf;
+    size_t size;
+  };
+  llvm::orc::SimpleRemoteEPC &epc;
+  AnonMapperSymbols sas;
+  std::mutex mutex;
+  std::map<llvm::orc::ExecutorAddr, Reservation> reservations;
+};
 
 llvm::Expected<std::unique_ptr<llvm::orc::LLJIT>>
 makeJIT(const char *orc_rt_path) {
@@ -245,21 +383,12 @@ previewsmcp_jit_remote_session_create(previewsmcp_jit_session **out_session,
     return toCStr(std::move(err));
   }
 
-  llvm::orc::SharedMemoryMapper::SymbolAddrs mapperSymbols;
+  AnonMapperSymbols anonSyms;
   if (auto err = (*epc)->getBootstrapSymbols(
-          {{mapperSymbols.Instance,
-            llvm::orc::rt::ExecutorSharedMemoryMapperServiceInstanceName},
-           {mapperSymbols.Reserve,
-            llvm::orc::rt::ExecutorSharedMemoryMapperServiceReserveWrapperName},
-           {mapperSymbols.Initialize,
-            llvm::orc::rt::
-                ExecutorSharedMemoryMapperServiceInitializeWrapperName},
-           {mapperSymbols.Deinitialize,
-            llvm::orc::rt::
-                ExecutorSharedMemoryMapperServiceDeinitializeWrapperName},
-           {mapperSymbols.Release,
-            llvm::orc::rt::
-                ExecutorSharedMemoryMapperServiceReleaseWrapperName}})) {
+          {{anonSyms.Reserve, "__previewsmcp_anon_reserve"},
+           {anonSyms.Initialize, "__previewsmcp_anon_initialize"},
+           {anonSyms.Deinitialize, "__previewsmcp_anon_deinitialize"},
+           {anonSyms.Release, "__previewsmcp_anon_release"}})) {
     llvm::consumeError((*epc)->disconnect());
     killAgent(pid);
     return toCStr(std::move(err));
@@ -270,20 +399,17 @@ previewsmcp_jit_remote_session_create(previewsmcp_jit_session **out_session,
           .setExecutorProcessControl(std::move(*epc))
           .setPlatformSetUp(llvm::orc::ExecutorNativePlatform(orc_rt_path))
           .setObjectLinkingLayerCreator(
-              [registerConformances, registerTypes, mapperSymbols](
-                  llvm::orc::ExecutionSession &es, const llvm::Triple &)
+              [registerConformances, registerTypes,
+               anonSyms](llvm::orc::ExecutionSession &es, const llvm::Triple &)
                   -> llvm::Expected<std::unique_ptr<llvm::orc::ObjectLayer>> {
                 auto &srepc = static_cast<llvm::orc::SimpleRemoteEPC &>(
                     es.getExecutorProcessControl());
                 auto memMgr =
-                    llvm::orc::MapperJITLinkMemoryManager::CreateWithMapper<
-                        llvm::orc::SharedMemoryMapper>(kSlabSize, srepc,
-                                                       mapperSymbols);
-                if (!memMgr) {
-                  return memMgr.takeError();
-                }
+                    std::make_unique<llvm::orc::MapperJITLinkMemoryManager>(
+                        kSlabSize, std::make_unique<PreviewsAnonymousMapper>(
+                                       srepc, anonSyms));
                 auto layer = std::make_unique<llvm::orc::ObjectLinkingLayer>(
-                    es, std::move(*memMgr));
+                    es, std::move(memMgr));
                 layer->addPlugin(
                     std::make_shared<previewsmcp::SwiftEntrySectionPlugin>(
                         registerConformances, registerTypes));
