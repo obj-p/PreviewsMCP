@@ -21,6 +21,7 @@
 #include <llvm/Support/MemoryBuffer.h>
 #include <crt_externs.h>
 #include <csignal>
+#include <fcntl.h>
 #include <mutex>
 #include <optional>
 #include <spawn.h>
@@ -81,6 +82,14 @@ const char *toCStr(llvm::Error err) {
   return strdup(llvm::toString(std::move(err)).c_str());
 }
 
+void killAgent(pid_t pid) {
+  if (pid == 0) {
+    return;
+  }
+  kill(pid, SIGKILL);
+  waitpid(pid, nullptr, 0);
+}
+
 llvm::orc::LLJIT *sharedJIT(const char *orc_rt_path, std::string &err) {
   static std::unique_ptr<llvm::orc::LLJIT> jit;
   static std::string initError;
@@ -110,6 +119,19 @@ struct previewsmcp_jit_session {
   bool initialized = false;
 };
 
+namespace {
+llvm::Expected<llvm::orc::ExecutorAddr>
+lookupInitialized(previewsmcp_jit_session *session, const char *symbol_name) {
+  if (!session->initialized) {
+    if (auto err = session->jit->initialize(*session->jd)) {
+      return std::move(err);
+    }
+    session->initialized = true;
+  }
+  return session->jit->lookup(*session->jd, symbol_name);
+}
+} // namespace
+
 void previewsmcp_jit_dispose_string(const char *str) {
   free(const_cast<char *>(str));
 }
@@ -119,10 +141,7 @@ void previewsmcp_jit_session_destroy(previewsmcp_jit_session *session) {
     return;
   }
   session->ownedJit.reset();
-  if (session->agentPid != 0) {
-    kill(session->agentPid, SIGKILL);
-    waitpid(session->agentPid, nullptr, 0);
-  }
+  killAgent(session->agentPid);
   delete session;
 }
 
@@ -160,12 +179,15 @@ previewsmcp_jit_remote_session_create(previewsmcp_jit_session **out_session,
   if (socketpair(AF_UNIX, SOCK_STREAM, 0, sv) != 0) {
     return strdup(("socketpair failed: " + std::string(strerror(errno))).c_str());
   }
+  fcntl(sv[0], F_SETFD, FD_CLOEXEC);
+  fcntl(sv[1], F_SETFD, FD_CLOEXEC);
 
+  int childFd = (sv[0] > sv[1] ? sv[0] : sv[1]) + 1;
   posix_spawn_file_actions_t actions;
   posix_spawn_file_actions_init(&actions);
-  posix_spawn_file_actions_addclose(&actions, sv[0]);
+  posix_spawn_file_actions_adddup2(&actions, sv[1], childFd);
   std::string fdArg =
-      "filedescs=" + std::to_string(sv[1]) + "," + std::to_string(sv[1]);
+      "filedescs=" + std::to_string(childFd) + "," + std::to_string(childFd);
   char *const argv[] = {const_cast<char *>(agent_path),
                         const_cast<char *>(fdArg.c_str()), nullptr};
   pid_t pid = 0;
@@ -199,6 +221,7 @@ previewsmcp_jit_remote_session_create(previewsmcp_jit_session **out_session,
               std::nullopt),
           std::move(setup), sv[0], sv[0]);
   if (!epc) {
+    killAgent(pid);
     return toCStr(epc.takeError());
   }
 
@@ -206,6 +229,8 @@ previewsmcp_jit_remote_session_create(previewsmcp_jit_session **out_session,
   if (auto err = (*epc)->getBootstrapSymbols(
           {{registerConformances, "__previewsmcp_register_conformances"},
            {registerTypes, "__previewsmcp_register_types"}})) {
+    llvm::consumeError((*epc)->disconnect());
+    killAgent(pid);
     return toCStr(std::move(err));
   }
 
@@ -225,6 +250,7 @@ previewsmcp_jit_remote_session_create(previewsmcp_jit_session **out_session,
               })
           .create();
   if (!jit) {
+    killAgent(pid);
     return toCStr(jit.takeError());
   }
 
@@ -236,8 +262,9 @@ previewsmcp_jit_remote_session_create(previewsmcp_jit_session **out_session,
   auto jd = session->jit->createJITDylib("remote." +
                                          std::to_string(counter.fetch_add(1)));
   if (!jd) {
-    delete session;
-    return toCStr(jd.takeError());
+    auto err = toCStr(jd.takeError());
+    previewsmcp_jit_session_destroy(session);
+    return err;
   }
   session->jd = &*jd;
   *out_session = session;
@@ -247,13 +274,7 @@ previewsmcp_jit_remote_session_create(previewsmcp_jit_session **out_session,
 const char *previewsmcp_jit_session_run_main(previewsmcp_jit_session *session,
                                              const char *symbol_name,
                                              int32_t *out_result) {
-  if (!session->initialized) {
-    if (auto err = session->jit->initialize(*session->jd)) {
-      return toCStr(std::move(err));
-    }
-    session->initialized = true;
-  }
-  auto sym = session->jit->lookup(*session->jd, symbol_name);
+  auto sym = lookupInitialized(session, symbol_name);
   if (!sym) {
     return toCStr(sym.takeError());
   }
@@ -291,13 +312,7 @@ const char *previewsmcp_jit_session_add_object(previewsmcp_jit_session *session,
 const char *previewsmcp_jit_session_lookup(previewsmcp_jit_session *session,
                                            const char *symbol_name,
                                            uint64_t *out_address) {
-  if (!session->initialized) {
-    if (auto err = session->jit->initialize(*session->jd)) {
-      return toCStr(std::move(err));
-    }
-    session->initialized = true;
-  }
-  auto sym = session->jit->lookup(*session->jd, symbol_name);
+  auto sym = lookupInitialized(session, symbol_name);
   if (!sym) {
     return toCStr(sym.takeError());
   }

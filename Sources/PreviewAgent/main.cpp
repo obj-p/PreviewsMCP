@@ -32,8 +32,11 @@ llvm::Error registerSwiftSection(const char *Symbol,
                                  llvm::orc::ExecutorAddrRange R) {
   using Fn = void (*)(const void *, const void *);
   auto *fn = reinterpret_cast<Fn>(dlsym(RTLD_DEFAULT, Symbol));
-  if (fn)
-    fn(R.Start.toPtr<const void *>(), R.End.toPtr<const void *>());
+  if (!fn)
+    return llvm::make_error<llvm::StringError>(
+        std::string("PreviewAgent: Swift runtime symbol not found: ") + Symbol,
+        llvm::inconvertibleErrorCode());
+  fn(R.Start.toPtr<const void *>(), R.End.toPtr<const void *>());
   return llvm::Error::success();
 }
 

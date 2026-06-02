@@ -4,15 +4,19 @@ import PreviewsJITLinkCxx
 public final class JITSession {
     private let handle: OpaquePointer
 
-    public init() throws {
+    private static func orcRuntimePath() throws -> String {
         guard
-            let orcRuntimePath = Bundle.module
+            let path = Bundle.module
                 .url(forResource: "liborc_rt_osx", withExtension: "a")?.path
         else {
             throw JITLinkError.failed("orc runtime archive missing from bundle")
         }
+        return path
+    }
+
+    public init() throws {
         var session: OpaquePointer?
-        if let error = previewsmcp_jit_session_create(&session, orcRuntimePath) {
+        if let error = previewsmcp_jit_session_create(&session, try Self.orcRuntimePath()) {
             throw JITLinkError.failed(error.string())
         }
         guard let session else {
@@ -35,14 +39,8 @@ public final class JITSession {
     }
 
     public init(remoteAgentPath: String) throws {
-        guard
-            let orcRuntimePath = Bundle.module
-                .url(forResource: "liborc_rt_osx", withExtension: "a")?.path
-        else {
-            throw JITLinkError.failed("orc runtime archive missing from bundle")
-        }
         var session: OpaquePointer?
-        if let error = previewsmcp_jit_remote_session_create(&session, remoteAgentPath, orcRuntimePath) {
+        if let error = previewsmcp_jit_remote_session_create(&session, remoteAgentPath, try Self.orcRuntimePath()) {
             throw JITLinkError.failed(error.string())
         }
         guard let session else {
