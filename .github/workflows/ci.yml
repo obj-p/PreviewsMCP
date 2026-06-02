@@ -38,6 +38,11 @@ jobs:
       - name: SwiftLint
         run: swiftlint lint --quiet Sources/ Tests/
 
+      - name: Check C/C++ formatting
+        run: |
+          find Sources -type f \( -name '*.c' -o -name '*.cc' -o -name '*.cpp' -o -name '*.h' -o -name '*.hpp' -o -name '*.m' -o -name '*.mm' \) -print0 \
+            | xargs -0 clang-format --dry-run --Werror
+
   changes:
     runs-on: macos-15
     outputs:
