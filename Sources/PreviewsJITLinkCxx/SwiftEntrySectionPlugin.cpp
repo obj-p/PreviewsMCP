@@ -1,9 +1,9 @@
 #include "SwiftEntrySectionPlugin.hpp"
 
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/ExecutionEngine/Orc/Shared/AllocationActions.h"
 #include "llvm/ExecutionEngine/Orc/Shared/ExecutorAddress.h"
 #include "llvm/ExecutionEngine/Orc/Shared/WrapperFunctionUtils.h"
-#include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Error.h"
 
 using namespace llvm;
@@ -29,8 +29,8 @@ CWrapperFunctionResult registerConformances(const char *ArgData,
   return WrapperFunction<SPSError(SPSExecutorAddrRange)>::handle(
              ArgData, ArgSize,
              [](ExecutorAddrRange R) -> Error {
-               swift_registerProtocolConformances(
-                   R.Start.toPtr<const void *>(), R.End.toPtr<const void *>());
+               swift_registerProtocolConformances(R.Start.toPtr<const void *>(),
+                                                  R.End.toPtr<const void *>());
                return Error::success();
              })
       .release();
@@ -40,8 +40,8 @@ CWrapperFunctionResult registerTypes(const char *ArgData, size_t ArgSize) {
   return WrapperFunction<SPSError(SPSExecutorAddrRange)>::handle(
              ArgData, ArgSize,
              [](ExecutorAddrRange R) -> Error {
-               swift_registerTypeMetadataRecords(
-                   R.Start.toPtr<const void *>(), R.End.toPtr<const void *>());
+               swift_registerTypeMetadataRecords(R.Start.toPtr<const void *>(),
+                                                 R.End.toPtr<const void *>());
                return Error::success();
              })
       .release();

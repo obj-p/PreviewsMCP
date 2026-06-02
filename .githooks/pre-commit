@@ -6,6 +6,13 @@ if ! command -v swift-format &>/dev/null; then
     exit 1
 fi
 
+# clang-format only staged C/C++/Obj-C files under Sources/ (null-delimited to handle spaces in paths)
+if command -v clang-format &>/dev/null; then
+    if git diff --cached --name-only --diff-filter=ACM -z -- '*.c' '*.cc' '*.cpp' '*.h' '*.hpp' '*.m' '*.mm' | grep -qz '^Sources/'; then
+        git diff --cached --name-only --diff-filter=ACM -z -- '*.c' '*.cc' '*.cpp' '*.h' '*.hpp' '*.m' '*.mm' | grep -z '^Sources/' | xargs -0 clang-format --dry-run --Werror 2>&1
+    fi
+fi
+
 # Lint only staged .swift files (null-delimited to handle spaces in paths)
 if ! git diff --cached --name-only --diff-filter=ACM -z -- '*.swift' | grep -qz .; then
     exit 0
