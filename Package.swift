@@ -143,9 +143,27 @@ if jitEnabled {
             name: "BundleOrcRuntime",
             capability: .buildTool()
         ),
+        .executableTarget(
+            name: "PreviewAgent",
+            cxxSettings: [
+                .unsafeFlags([
+                    "-I\(llvmSrcInclude)",
+                    "-I\(llvmBuild)/include",
+                    "-fno-rtti",
+                ])
+            ],
+            linkerSettings: [
+                .unsafeFlags([
+                    "-L\(llvmBuild)/lib",
+                    "-lLLVM",
+                    "-Xlinker", "-rpath",
+                    "-Xlinker", "\(llvmBuild)/lib",
+                ])
+            ]
+        ),
         .testTarget(
             name: "PreviewsJITLinkTests",
-            dependencies: ["PreviewsJITLink", "PreviewsCore"],
+            dependencies: ["PreviewsJITLink", "PreviewsCore", "PreviewAgent"],
             exclude: ["Fixtures"]
         ),
     ]

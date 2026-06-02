@@ -58,8 +58,7 @@ void hideSection(LinkGraph &G, StringRef From, StringRef To) {
     G.addAnonymousSymbol(*B, 0, B->getSize(), false, true);
 }
 
-void registerSection(LinkGraph &G, StringRef Name,
-                     CWrapperFunctionResult (*Fn)(const char *, size_t)) {
+void registerSection(LinkGraph &G, StringRef Name, ExecutorAddr Fn) {
   auto *Sec = G.findSectionByName(Name);
   if (!Sec)
     return;
@@ -69,12 +68,18 @@ void registerSection(LinkGraph &G, StringRef Name,
     ExecutorAddrRange range(B->getAddress(), B->getAddress() + B->getSize());
     G.allocActions().push_back(
         {cantFail(WrapperFunctionCall::Create<SPSArgList<SPSExecutorAddrRange>>(
-             ExecutorAddr::fromPtr(Fn), range)),
+             Fn, range)),
          {}});
   }
 }
 
 } // namespace
+
+std::shared_ptr<SwiftEntrySectionPlugin> SwiftEntrySectionPlugin::inProcess() {
+  return std::make_shared<SwiftEntrySectionPlugin>(
+      ExecutorAddr::fromPtr(&registerConformances),
+      ExecutorAddr::fromPtr(&registerTypes));
+}
 
 void SwiftEntrySectionPlugin::modifyPassConfig(
     MaterializationResponsibility &MR, LinkGraph &G,
@@ -84,11 +89,13 @@ void SwiftEntrySectionPlugin::modifyPassConfig(
     hideSection(G, Swift5TypesSection, HiddenTypesSection);
     return Error::success();
   });
-  Config.PostFixupPasses.push_back([](LinkGraph &G) -> Error {
-    registerSection(G, HiddenProtoSection, registerConformances);
-    registerSection(G, HiddenTypesSection, registerTypes);
-    return Error::success();
-  });
+  Config.PostFixupPasses.push_back(
+      [Conformances = RegisterConformances,
+       Types = RegisterTypes](LinkGraph &G) -> Error {
+        registerSection(G, HiddenProtoSection, Conformances);
+        registerSection(G, HiddenTypesSection, Types);
+        return Error::success();
+      });
 }
 
 } // namespace previewsmcp

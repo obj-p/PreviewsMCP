@@ -15,9 +15,22 @@ void previewsmcp_jit_dispose_string(const char *str);
 
 typedef struct previewsmcp_jit_session previewsmcp_jit_session;
 
+void previewsmcp_jit_session_destroy(previewsmcp_jit_session *session);
+
 const char *_Nullable previewsmcp_jit_session_create(
     previewsmcp_jit_session *_Nullable *_Nonnull out_session,
     const char *orc_rt_path);
+
+const char *_Nullable previewsmcp_jit_remote_session_create(
+    previewsmcp_jit_session *_Nullable *_Nonnull out_session,
+    const char *agent_path, const char *orc_rt_path);
+
+const char *_Nullable previewsmcp_jit_session_run_main(
+    previewsmcp_jit_session *session, const char *symbol_name,
+    int32_t *out_result);
+
+const char *_Nullable previewsmcp_jit_session_write_pointer(
+    previewsmcp_jit_session *session, uint64_t address, uint64_t value);
 
 const char *_Nullable previewsmcp_jit_session_add_object(
     previewsmcp_jit_session *session, const char *object_path);
