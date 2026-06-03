@@ -162,4 +162,52 @@ struct CompilerObjectTests {
         #expect(color.greenComponent < 0.2)
         #expect(color.blueComponent < 0.2)
     }
+
+    @Test func rendersRealBridgeToFileFromAgent() async throws {
+        let outURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("p34b-bridge-\(UUID().uuidString).png")
+        defer { try? FileManager.default.removeItem(at: outURL) }
+
+        let originalSource = """
+            import SwiftUI
+
+            struct ColorView: View {
+                var body: some View {
+                    Color(red: 0, green: 1, blue: 0).frame(width: 8, height: 8)
+                }
+            }
+
+            #Preview {
+                ColorView()
+            }
+            """
+
+        let generated = BridgeGenerator.generateCombinedSource(
+            originalSource: originalSource,
+            closureBody: "ColorView()",
+            renderOutputPath: outURL.path
+        )
+
+        let compiler = try await Compiler()
+        let object = try await compiler.compileObject(
+            source: generated.source,
+            moduleName: "RealBridgeFixture"
+        )
+
+        let session = try JITSession(remoteAgentPath: JITSession.bundledAgentPath())
+        try session.addObject(path: object.path)
+        let status = try session.runOnMain(symbol: "renderPreviewToFile")
+        #expect(status == 0)
+
+        let data = try Data(contentsOf: outURL)
+        #expect(!data.isEmpty)
+        let rep = try #require(NSBitmapImageRep(data: data))
+        let color = try #require(
+            rep.colorAt(x: rep.pixelsWide / 2, y: rep.pixelsHigh / 2)?
+                .usingColorSpace(.deviceRGB)
+        )
+        #expect(color.greenComponent > 0.8)
+        #expect(color.redComponent < 0.2)
+        #expect(color.blueComponent < 0.2)
+    }
 }

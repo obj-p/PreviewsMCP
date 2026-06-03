@@ -21,7 +21,8 @@ public enum BridgeGenerator {
         platform: PreviewPlatform = .macOS,
         traits: PreviewTraits = PreviewTraits(),
         setupModule: String? = nil,
-        setupType: String? = nil
+        setupType: String? = nil,
+        renderOutputPath: String? = nil
     ) -> (source: String, literals: [LiteralEntry]) {
         // Transform source to replace literals with DesignTimeStore lookups
         let thunkResult = ThunkGenerator.transform(source: originalSource)
@@ -53,6 +54,8 @@ public enum BridgeGenerator {
             """
 
         let bodyKindEntry = bodyKindEntryPoint(closureBody: transformedClosureBody)
+        let renderEntry =
+            renderOutputPath.map { renderToFileEntryPoint(viewCode: viewCode, path: $0) } ?? ""
         let bridgeCode: String
         switch platform {
         case .macOS:
@@ -68,6 +71,8 @@ public enum BridgeGenerator {
                 }
 
                 \(bodyKindEntry)
+
+                \(renderEntry)
                 """
         case .iOS:
             bridgeCode = """
@@ -241,6 +246,34 @@ public enum BridgeGenerator {
         public func previewBodyKind() -> Int32 {
             return __PreviewBodyKindProbe.detect {
                 \(closureBody)
+            }
+        }
+        """
+    }
+
+    /// Generate the `@_cdecl("renderPreviewToFile")` entry point (macOS, model-A JIT path).
+    /// Builds the same preview view as `createPreviewView`, rasterizes it headless via
+    /// `ImageRenderer`, and writes a PNG to `path`. Nullary so it runs over the agent's
+    /// `runOnMain` surface; the path is baked in (the daemon recompiles per structural edit).
+    private static func renderToFileEntryPoint(viewCode: String, path: String) -> String {
+        """
+        @_cdecl("renderPreviewToFile")
+        public func renderPreviewToFile() -> Int32 {
+            MainActor.assumeIsolated {
+                let view = \(viewCode)
+                let renderer = ImageRenderer(content: view)
+                renderer.scale = 1
+                guard let cgImage = renderer.cgImage else { return Int32(-1) }
+                let rep = NSBitmapImageRep(cgImage: cgImage)
+                guard let data = rep.representation(using: .png, properties: [:]) else {
+                    return Int32(-2)
+                }
+                do {
+                    try data.write(to: URL(fileURLWithPath: "\(path)"))
+                } catch {
+                    return Int32(-3)
+                }
+                return 0
             }
         }
         """

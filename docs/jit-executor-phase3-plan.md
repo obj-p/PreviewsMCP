@@ -289,9 +289,19 @@ moves to the agent bitmap; interaction is untouched.
   pixel is red. The EPC byte-return wrapper stays the fallback if file transport
   proves inadequate (it won't for snapshots). *Verify (met):* 30/30 green, 3/3
   parallel runs, zero orphans, zero crash reports. Commit pending.
-- **P3.4b — real bridge renders in the agent (U-F).** Build a trivial SwiftUI
-  `#Preview` through the production bridge, link in the agent, render via the
-  P3.4a surface, assert the known color.
+- **P3.4b — real bridge renders in the agent (U-F) — DONE.** Added the render
+  seam to `BridgeGenerator` (model A): `generateCombinedSource(renderOutputPath:)`
+  emits a nullary `@_cdecl("renderPreviewToFile")` for macOS that builds the
+  **same** `viewCode` as `createPreviewView`, rasterizes it headless via
+  `ImageRenderer`, and writes a PNG to the baked path. Nullary keeps it on the
+  `runOnMain` surface; the path is baked because the daemon recompiles per
+  structural edit. `createPreviewView` is untouched, so the in-daemon path is
+  undisturbed. Test `CompilerObjectTests.rendersRealBridgeToFileFromAgent` drives
+  a real combined bridge (DesignTimeStore + `__PreviewBridge` + thunk'd user
+  `#Preview`) through the agent and asserts the host-decoded PNG is green. No
+  extra agent `dlopen` was needed (Observation comes in transitively via SwiftUI).
+  *Verify (met):* 31/31 JIT green, 69/69 `BridgeGenerator` core green, zero
+  orphan agents. Commit pending.
 - **P3.4c — daemon seam (U-D).** Route structural edits to
   recompile → respawn → agent-render → serve `preview_snapshot`; literal path
   unchanged.
