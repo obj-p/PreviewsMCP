@@ -279,9 +279,16 @@ moves to the agent bitmap; interaction is untouched.
   self-contained `ImageRenderer` probe.
 
 **Chunking (de-risk first):**
-- **P3.4a — agent bitmap-return surface (U-E).** Hand a rendered bitmap from the
-  agent back to the host. *Verify:* a render fixture produces a known bitmap; the
-  host receives matching pixels/bytes.
+- **P3.4a — agent bitmap-return surface (U-E) — DONE.** File transport chosen:
+  the agent renders and writes the bitmap to a host-supplied path, the host reads
+  it. Needs **zero new EPC/C++ wire code** — it reuses the `runOnMain` `Int32`
+  status surface and the existing bridge-source-templating pattern. Test
+  `CompilerObjectTests.rendersBitmapToFileFromAgent`: template a render source
+  with a unique temp PNG path, compile via `Compiler.compileObject`, link
+  remotely, `runOnMain` render-and-write, host reads + decodes the PNG, center
+  pixel is red. The EPC byte-return wrapper stays the fallback if file transport
+  proves inadequate (it won't for snapshots). *Verify (met):* 30/30 green, 3/3
+  parallel runs, zero orphans, zero crash reports. Commit pending.
 - **P3.4b — real bridge renders in the agent (U-F).** Build a trivial SwiftUI
   `#Preview` through the production bridge, link in the agent, render via the
   P3.4a surface, assert the known color.

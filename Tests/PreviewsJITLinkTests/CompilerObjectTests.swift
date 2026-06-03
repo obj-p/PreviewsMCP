@@ -1,3 +1,5 @@
+import AppKit
+import Foundation
 import PreviewsCore
 import PreviewsJITLink
 import Testing
@@ -109,5 +111,55 @@ struct CompilerObjectTests {
         let g2 = (packed2 >> 8) & 0xFF
         let b2 = packed2 & 0xFF
         #expect(b2 > 200 && r2 < 60 && g2 < 60)
+    }
+
+    @Test func rendersBitmapToFileFromAgent() async throws {
+        let outURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("p34a-render-\(UUID().uuidString).png")
+        defer { try? FileManager.default.removeItem(at: outURL) }
+
+        let compiler = try await Compiler()
+        let object = try await compiler.compileObject(
+            source: """
+                import SwiftUI
+
+                @_cdecl("render_to_file")
+                public func render_to_file() -> Int32 {
+                    MainActor.assumeIsolated {
+                        let content = Color(red: 1, green: 0, blue: 0).frame(width: 8, height: 8)
+                        let renderer = ImageRenderer(content: content)
+                        renderer.scale = 1
+                        guard let cgImage = renderer.cgImage else { return Int32(-1) }
+                        let rep = NSBitmapImageRep(cgImage: cgImage)
+                        guard let data = rep.representation(using: .png, properties: [:]) else {
+                            return Int32(-2)
+                        }
+                        do {
+                            try data.write(to: URL(fileURLWithPath: "\(outURL.path)"))
+                        } catch {
+                            return Int32(-3)
+                        }
+                        return 0
+                    }
+                }
+                """,
+            moduleName: "RenderToFileFixture"
+        )
+
+        let session = try JITSession(remoteAgentPath: JITSession.bundledAgentPath())
+        try session.addObject(path: object.path)
+        let status = try session.runOnMain(symbol: "render_to_file")
+        #expect(status == 0)
+
+        let data = try Data(contentsOf: outURL)
+        #expect(!data.isEmpty)
+        let rep = try #require(NSBitmapImageRep(data: data))
+        let color = try #require(
+            rep.colorAt(x: rep.pixelsWide / 2, y: rep.pixelsHigh / 2)?
+                .usingColorSpace(.deviceRGB)
+        )
+        #expect(color.redComponent > 0.8)
+        #expect(color.greenComponent < 0.2)
+        #expect(color.blueComponent < 0.2)
     }
 }
