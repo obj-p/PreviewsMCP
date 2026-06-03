@@ -127,11 +127,24 @@ b) RECONSTRUCTION (autonomous, this host): a faithful single-file thunk compile
      SwiftUI.__designTimeString<A>(_: String, fallback: A) -> A
      SwiftUI.__designTimeInteger<A>(_: String, fallback: A) -> A
 
-c) LIVE CAPTURE (one manual step): `capture-thunk-compile.sh` (sudo-free ps
-   poller, anchored on the swift-frontend/swiftc executable) is verified to
-   catch a live frontend whose argv carries a preview thunk:
-     /Appl.../swift-frontend -primary-file .../ToDoView.swift \
-       -vfsoverlay .../vfsoverlay-...preview-thunk.json -module-name W4 -I ...
-   To capture APPLE's exact argv: open a #Preview canvas in Xcode, run the
-   script, change one body literal. The script writes the argv to
-   w4-thunk-argv.txt. That is the only step needing a GUI canvas.
+c) LIVE CAPTURE (DONE): `capture-thunk-compile.sh` (sudo-free ps poller,
+   anchored on the swift-frontend/swiftc executable) captured APPLE's exact
+   thunk-compile argv on the host while editing the preview-fixture canvas.
+   Full line in w4-thunk-argv.txt. Confirmed from Apple's own command:
+     swift-frontend -frontend -c \
+       -primary-file .../ContentView.swift  .../PreviewFixtureApp.swift \   <- 1 primary of 2
+       -vfsoverlay .../vfsoverlay-ContentView.1.preview-thunk.swift.json \
+       -disable-implicit-swift-modules \
+       -explicit-swift-module-map-file .../PreviewFixture-dependencies-5.json \   <- G2 prebuilt modules
+       -I .../Build/Products/Debug -module-name PreviewFixture -Onone -swift-version 6 \
+       -load-resolved-plugin .../PreviewsMacros ... \
+       -o .../ContentView.1.preview-thunk.o
+   No -enable-implicit-dynamic / no dynamic-replacement flag (PreviewRegistry,
+   not dynrepl). Matches the reconstruction in (b) exactly.
+
+   How it was caught: a 1-file-app thunk compiles in milliseconds, too fast for
+   ps. Loading a deliberately heavy ContentView (~250 filler structs) stretched
+   the compile to ~2.7s, easily sampled. GUI gotchas learned: the canvas must be
+   VISIBLE (a hidden canvas never compiles), and only a GENUINE typed keystroke
+   triggers a preview rebuild — AppleScript `set text of source document` does
+   not fire the editor-change event.

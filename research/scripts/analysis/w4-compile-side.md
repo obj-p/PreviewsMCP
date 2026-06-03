@@ -133,28 +133,39 @@ and is W3's domain (respawn-dominated); W4's scope is the compile step.
   not recompilation (`__designTimeString` + fallback). For literal-only edits a
   JIT executor could mirror this and skip compile entirely. Worth a follow-up.
 
-## Open item — the thunk-compile argv (mostly closed)
+## Apple's thunk-compile argv — CAPTURED
 
-The single-file *scope* and *mechanism* are proven from disk. The one piece that
-needs a live canvas is Apple's exact thunk `swift-frontend` argv (not logged, no
-response file persisted). Three angles, in
-[`../data/w4/w4-compile-trace.txt`](../data/w4/w4-compile-trace.txt):
+The exact `swift-frontend` argv is now captured live, not just reconstructed.
+Full command line in
+[`../data/w4/w4-thunk-argv.txt`](../data/w4/w4-thunk-argv.txt). It was grabbed
+on the host with `capture-thunk-compile.sh` (sudo-free `ps` poller) while
+editing the `preview-fixture` canvas. The catch trick: a body edit on a
+*deliberately heavy* file (~250 filler structs) stretches the compile to ~2.7s,
+long enough for `ps` to see the otherwise-millisecond frontend. The argv
+confirms, from Apple's own command, what the reconstruction predicted:
 
-- **Disk:** thunk source + VFS overlay = one substituted file; PreviewRegistry
-  object = the mechanism. No depfile, so disk gives scope, not flags.
-- **Reconstruction (done, autonomous):** a hand-assembled single-file thunk
-  compile on the W4 project compiles clean and links the design-time externals.
-  Shape: `swift-frontend -primary-file <one>.swift <rest secondary>
-  -vfsoverlay <overlay> -I <prebuilt module>`. Ours, not Apple's, but faithful.
-- **Live capture (tool ready):** `capture-thunk-compile.sh` is a verified,
-  sudo-free `ps` poller that catches a thunk-compile frontend by argv. Capturing
-  Apple's exact argv needs one manual step — open a `#Preview` canvas, run the
-  script, change a body literal — which is the only GUI-dependent action and was
-  out of headless reach here (Xcode not running, no non-interactive sudo).
+- **Single primary:** exactly one `-primary-file ContentView.swift` (the edited
+  file); the other target file is a plain secondary input. 1 primary of 2
+  sources — single-file incremental.
+- **VFS substitution:** `-vfsoverlay vfsoverlay-ContentView.1.preview-thunk.swift.json`,
+  output `-o ContentView.1.preview-thunk.o`.
+- **Prebuilt-module reuse (G2):** `-disable-implicit-swift-modules` +
+  `-explicit-swift-module-map-file …PreviewFixture-dependencies-5.json` +
+  `-I …/Build/Products/Debug`. Dependencies are consumed as prebuilt explicit
+  modules — direct evidence for the plan's G2 assumption.
+- **No dynamic replacement:** no `-enable-implicit-dynamic`, no
+  dynamic-replacement flag. Reconfirms the PreviewRegistry-reentry mechanism.
+- `-load-resolved-plugin …PreviewsMacros…` expands `#Preview`; `-Onone`,
+  `-swift-version 6`; experimental features `DebugDescriptionMacro`,
+  `OpaqueTypeErasure`.
+
+GUI-driving note (for whoever automates this next): the preview only rebuilds on
+a *genuine* editor change event. AppleScript `set text of source document` does
+NOT fire it; a real typed keystroke does. The canvas must also be visible —
+a hidden canvas never compiles.
 
 ## What this does NOT close
 
-- Apple's literal thunk-compile argv (the manual canvas step above).
 - All capture is macOS 26.2 / Xcode 26.2. Not swept across Xcode versions.
 - Dependency fan-out for public-API edits was reasoned, not measured at scale;
   the swept edits all had blast radius 1.
