@@ -1,0 +1,77 @@
+W7 — auto thunk-split feasibility: raw probes
+Host: macOS 26.2, Xcode 26.2 swiftc. Captured 2026-06-02. Harness: /tmp/w7.
+Method: build a stable module "Bulk" (-emit-module to a .swiftmodule), then
+compile a separate preview unit "Prev" that references Bulk decls, varying the
+import form and the stable module's build flags. PASS = preview unit compiled.
+
+================================================================================
+S4 — access-level matrix (can the preview unit reference the decl?)
+================================================================================
+  access            plain import     @testable import (+ -enable-testing)
+  open / public     PASS             PASS
+  package           PASS*            PASS*        (* requires shared -package-name)
+  internal          FAIL             PASS
+  private           FAIL             FAIL
+  fileprivate       FAIL             FAIL
+  @_spi(X) public   FAIL             needs `@_spi(X) import Bulk` (then PASS)
+
+  internal property wrapper (@testable):  PASS
+  internal custom operator  (@testable):  PASS
+
+Error signatures:
+  internal via plain import     -> "cannot find 'InternalView' in scope"
+  @testable, module not -enable-testing -> "module 'Bulk' was not compiled for testing"
+  @_spi via plain import        -> "cannot find 'SpiThing' in scope"
+
+================================================================================
+S1 — visibility POC
+================================================================================
+An `internal struct InternalView: View` in Bulk is referenced from a separate
+Prev unit via `@testable import Bulk` and compiles, when Bulk is built
+-enable-testing. This is the typical SwiftUI preview case (views are internal).
+
+================================================================================
+S3 — flatness with @testable + internal ref (does reload stay flat vs N?)
+================================================================================
+  N_stable   bulk build once (s)   testable preview edit, median (s)
+  200        13.25                 0.140
+  1000       83.37                 0.136
+
+Per-edit relink is flat ~0.14 s regardless of stable-module size. Matches W5 M3
+(which used plain import + public); confirmed here for the @testable+internal
+case. Bulk built once per session; not paid per edit.
+
+================================================================================
+S2 — symbol override (cited, not re-derived)
+================================================================================
+JIT-link symbol override is already established by the spike's witness POC:
+  research/jit-poc/src/host_witness.cpp + swift/{greet_v1,greet_v2,conform_v1,
+  conform_v2}.swift + data/run-witness-*.log
+It demonstrates a JIT'd object's function (and protocol-witness) overriding a
+prior definition with the base module loaded — exactly S2's requirement. Full
+per-emission-pattern override (TLVs, async, generic metadata) had partial
+Phase-1/2 coverage and is not re-run here.
+
+================================================================================
+Build-flag requirements / caveats
+================================================================================
+- Stable module MUST be built `-enable-testing` for @testable to reach internal.
+  Previews always build Debug, so this is free in practice.
+- `-enable-library-evolution` does NOT block @testable internal access (when
+  -enable-testing is also set). But keep the stable module NON-resilient for
+  app-internal previews; resilience changes ABI/runtime and is unneeded here.
+- `package` decls need the preview unit compiled with the same `-package-name`.
+
+================================================================================
+Edit kinds that BREAK the split
+================================================================================
+1. Preview references a `private`/`fileprivate` decl in the bulk -> invisible
+   across the module boundary at any import level. Must promote to internal or
+   keep that decl inside the editable unit.
+2. Preview references an `@_spi(X)` decl -> needs a generated matching
+   `@_spi(X) import`, not a plain import.
+3. Editing the stable module's OWN interface (a bulk decl), not the preview ->
+   re-emits the .swiftmodule => falls back to W5 same-module cost (grows with N)
+   and relinks 1+K objects (W5 fan-out). The split only keeps PREVIEW-side edits
+   flat.
+4. `package` decls require shared `-package-name` across the boundary.

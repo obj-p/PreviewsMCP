@@ -1,7 +1,13 @@
 # W7 — Auto thunk-split feasibility
 
-**Status:** OPEN. Seed prompt for a fresh agent. Run on `previews-research`,
-build host.
+**Status:** CLOSED (2026-06-02). Verdict: **FEASIBLE for the common case.** An
+`internal` SwiftUI view splits into a separate unit via `@testable import` against
+a stable module built `-enable-testing`, and edit→relink stays flat (~0.14 s) at
+stable N=200 and 1000. Breaks when the preview references `private`/`fileprivate`
+decls (invisible across the boundary). S2 symbol-override cited from the
+`research/jit-poc` witness POC. See
+[`../../analysis/w7-autosplit.md`](../../analysis/w7-autosplit.md) and raw
+[`w7-autosplit.txt`](w7-autosplit.txt).
 
 ## The question
 
