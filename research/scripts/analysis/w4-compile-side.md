@@ -93,6 +93,26 @@ per-file (`FeatureModule/FeatureView`, `ViewLibrary/Previews`). These compiles
 are run by the preview build service out-of-band and do not appear in
 `Logs/Build`, matching the seed prompt's XCBBuildService warning.
 
+### Mechanism: PreviewRegistry re-entry, NOT dynamic replacement
+
+Inspecting the compiled thunk object (`nm` + `otool` on
+`ContentView.1.preview-thunk.o`) settles how the new code is dispatched:
+
+| probe | result |
+|-------|--------|
+| dynamic-replacement symbols (`@_dynamicReplacement`) | 0 |
+| `__swift5_replace` section | 0 |
+| `PreviewRegistry.makePreview()` symbols | 4 |
+
+The thunk does **not** patch the original body via dynamic replacement. It
+compiles a fresh `DeveloperToolsSupport.PreviewRegistry` conformance whose
+`makePreview()` builds the edited view, and the (respawned) preview host calls
+that. This corroborates W3's dispatch finding from the compile side: the
+body-edit path is **recompile-a-new-entry + respawn**, not in-place patching.
+(Note for the JIT plan: this is evidence *against* leaning on Swift dynamic
+replacement as "what Apple does" — Apple does not, at least for body edits in
+26.2.)
+
 ## M3 — wall-clock
 
 Build-system incremental: **~1.3 s** save→rebuilt object on 61 files (compile
@@ -113,13 +133,28 @@ and is W3's domain (respawn-dominated); W4's scope is the compile step.
   not recompilation (`__designTimeString` + fallback). For literal-only edits a
   JIT executor could mirror this and skip compile entirely. Worth a follow-up.
 
+## Open item — the thunk-compile argv (mostly closed)
+
+The single-file *scope* and *mechanism* are proven from disk. The one piece that
+needs a live canvas is Apple's exact thunk `swift-frontend` argv (not logged, no
+response file persisted). Three angles, in
+[`../data/w4/w4-compile-trace.txt`](../data/w4/w4-compile-trace.txt):
+
+- **Disk:** thunk source + VFS overlay = one substituted file; PreviewRegistry
+  object = the mechanism. No depfile, so disk gives scope, not flags.
+- **Reconstruction (done, autonomous):** a hand-assembled single-file thunk
+  compile on the W4 project compiles clean and links the design-time externals.
+  Shape: `swift-frontend -primary-file <one>.swift <rest secondary>
+  -vfsoverlay <overlay> -I <prebuilt module>`. Ours, not Apple's, but faithful.
+- **Live capture (tool ready):** `capture-thunk-compile.sh` is a verified,
+  sudo-free `ps` poller that catches a thunk-compile frontend by argv. Capturing
+  Apple's exact argv needs one manual step — open a `#Preview` canvas, run the
+  script, change a body literal — which is the only GUI-dependent action and was
+  out of headless reach here (Xcode not running, no non-interactive sudo).
+
 ## What this does NOT close
 
-- The thunk-compile **command line** itself is not quoted (it is not logged;
-  only its output artifacts are on disk). A live `fs_usage -f exec` during a
-  canvas edit would capture the exact `swift-frontend` argv for the thunk. The
-  artifacts make the single-file conclusion unambiguous, but the literal command
-  line for the canvas path remains uncaptured.
+- Apple's literal thunk-compile argv (the manual canvas step above).
 - All capture is macOS 26.2 / Xcode 26.2. Not swept across Xcode versions.
 - Dependency fan-out for public-API edits was reasoned, not measured at scale;
   the swept edits all had blast radius 1.

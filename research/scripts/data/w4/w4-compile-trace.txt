@@ -92,3 +92,46 @@ Note: these thunk compiles do NOT appear in DerivedData/*/Logs/Build
 .xcactivitylog (grep for `preview-thunk*.swift` in decoded logs = empty). The
 preview build service compiles them out-of-band, consistent with the handoff's
 XCBBuildService warning. The on-disk artifacts are the primary evidence.
+
+Mechanism (object inspection of ContentView.1.preview-thunk.o):
+  dynamic-replacement symbols : 0
+  __swift5_replace sections   : 0
+  PreviewRegistry.makePreview : 4   <- the thunk's entry point
+So the body-edit path is NOT in-place dynamic replacement. The thunk compiles a
+fresh `DeveloperToolsSupport.PreviewRegistry` conformance with a new
+`makePreview()`; the (respawned) preview host calls it. This matches W3's
+respawn-only, no-write_mem dispatch finding — recompile a new entry + respawn,
+not patch the old body.
+
+================================================================================
+OPEN ITEM — the thunk-compile swift-frontend argv
+================================================================================
+The exact argv of Apple's thunk compile is not logged and no response file
+persists it (XCBBuildService runs it in memory). Status of the three angles:
+
+a) DISK (no canvas needed): single-file SCOPE is already proven by the thunk
+   source + VFS overlay (one substituted file) and the PreviewRegistry object.
+   No depfile is emitted, so disk does not yield the literal flags.
+
+b) RECONSTRUCTION (autonomous, this host): a faithful single-file thunk compile
+   assembled by hand on the W4 project, compiles clean (exit 0) and links the
+   design-time externals. This is OUR argv, not Apple's, but shows the shape:
+     swift-frontend -c \
+       -primary-file Sources/ToDo/ToDoView.swift \
+       Sources/ToDo/Filler*.swift            <- rest of module as secondary inputs
+       -vfsoverlay vfsoverlay-ToDoView.preview-thunk.json \   <- substitutes 1 file
+       -module-name W4 -sdk <macosx> -target arm64-apple-macos14.0 \
+       -I <W4.build/.../arm64>               <- prebuilt module dir
+       -o thunk-recon.o
+   `nm -u` on the result shows the design-time literal functions as externals:
+     SwiftUI.__designTimeString<A>(_: String, fallback: A) -> A
+     SwiftUI.__designTimeInteger<A>(_: String, fallback: A) -> A
+
+c) LIVE CAPTURE (one manual step): `capture-thunk-compile.sh` (sudo-free ps
+   poller, anchored on the swift-frontend/swiftc executable) is verified to
+   catch a live frontend whose argv carries a preview thunk:
+     /Appl.../swift-frontend -primary-file .../ToDoView.swift \
+       -vfsoverlay .../vfsoverlay-...preview-thunk.json -module-name W4 -I ...
+   To capture APPLE's exact argv: open a #Preview canvas in Xcode, run the
+   script, change one body literal. The script writes the argv to
+   w4-thunk-argv.txt. That is the only step needing a GUI canvas.
