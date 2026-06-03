@@ -8,9 +8,9 @@
 # new full command line it sees. (fs_usage/dtrace would be lower-overhead but
 # need root; ps polling needs nothing.)
 #
-# Usage:
-#   1. Open a SwiftUI project in Xcode and show the canvas for a #Preview.
-#      Wait for the first render (cold build done).
+# Usage (fixture flow — see preview-fixture/README.md):
+#   1. cd preview-fixture && xcodegen generate && xed PreviewFixture.xcodeproj
+#      Show the canvas for ContentView's #Preview, wait for the first render.
 #   2. Run this script:  ./capture-thunk-compile.sh [seconds]   (default 60)
 #   3. While it runs, change ONE literal in the previewed View's body and save.
 #      Repeat the edit a couple times so a short-lived frontend is caught.
