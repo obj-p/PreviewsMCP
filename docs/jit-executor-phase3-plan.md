@@ -317,17 +317,35 @@ recompile is narrowed to the changed file. The design names the prerequisite
 (`prompts/jit-executor-design.md:260`, "incremental swiftc") but neither piece
 below is specified or built.
 
-### G1 — Single-file incremental compile against a prebuilt module
-**Missing.** A way to recompile only the edited file. A Swift module compiles as
-a unit, so a lone file cannot see its siblings' declarations. Narrowing requires
-building the target's stable module once to a reusable `.swiftmodule` (design §3
-"stable module", already emitted to `.o`), then compiling the changed file
-against that interface and handing the single `.o` to the JIT to override the old
-symbols. `Compiler.compileObject` takes one source today but no prebuilt-module
-input; the `.swiftmodule` emission + `-I`/merge wiring does not exist.
-- **Verify:** on a ≥500-file example, edit one file; swiftc runs on exactly one
-  source against the prebuilt `.swiftmodule`; compile wall-clock is sub-second
-  and roughly independent of module size.
+### G1 — Incremental compile (refined by W4)
+**Missing.** A way to re-emit only the edited file's object. W4
+(`research/scripts/analysis/w4-compile-side.md`) captured how Apple does this and
+it splits by module boundary, because Swift compiles a module as a unit and a
+module cannot import itself:
+- **Cross-module (size-independent).** Dependency modules are built once to a
+  `.swiftmodule` and consumed as prebuilt inputs (`-experimental-emit-module-
+  separately`, `-I` + explicit `.swiftmodule`). An edit never re-parses them.
+  This is the real "compile against a prebuilt module" shape.
+- **Same module (size-dependent).** There is no prebuilt-interface trick. The
+  frontend is handed the **full filelist** every edit to parse and type-check;
+  `-incremental` + the `-output-file-map` then restrict the back end
+  (SILgen/IRGen) to the changed file's `.o`. So per-edit cost = parse/bind all N
+  files + codegen one file. Apple measured ~1.3s on 61 files; this grows with N.
+  An edit to a referenced public declaration also re-emits its dependents, so the
+  JIT must relink the **set** of changed objects, not always one.
+
+`Compiler.compileObject` takes one source today and does neither: no persistent
+`-incremental`/output-file-map state, no prebuilt-`.swiftmodule` inputs. Two
+implementation paths follow: (a) adopt swiftc incremental honestly (persistent
+per-session build dir, full filelist, re-emit changed objects) — accepts the
+same-module size scaling; (b) the stable-module/thunk split — put the editable
+preview in a **separate** module that imports the bulk as a prebuilt
+`.swiftmodule`, which is the only way to make reload time independent of the big
+module's size (it turns same-module cost into cross-module reuse).
+- **Verify:** on 500- and 1000-file modules, measure incremental same-module
+  re-emit vs the split. Same-module compile scales with N (parse/type-check
+  bound); the split stays roughly flat. The <200ms target holds for the split
+  (or small modules), not for same-module at scale.
 
 ### G2 — A file-identifying FileWatcher
 **Missing.** `FileWatcher` signals only "something in the watched set changed",
@@ -344,13 +362,16 @@ file falls to the slow full-rebuild path. "Any edited file reloads sub-second" i
 a *stronger* guarantee than the design currently makes and needs G1+G2. Decide
 whether Phase 3/4 targets only preview-layer edits or true any-file incremental.
 
-### Apple-evidence caveat
-previews-research **verified** Apple's respawn-only *dispatch* (8 edit kinds,
-zero `write_mem`; `w3-empirical-capture.md`). It did **not** capture the compile
-side: "incremental swiftc" is an *inference* from latency-by-edit-kind, hedged in
-the design ("appears to have only ONE path for edit dispatch"). G1's premise that
-Apple recompiles a single file is unconfirmed; validating it (or just measuring
-our own G1 win) is the gate.
+### Apple-evidence status (W4 — CLOSED)
+W3 verified Apple's respawn-only *dispatch* (8 edit kinds, zero `write_mem`;
+`w3-empirical-capture.md`). W4 (`w4-compile-side.md`) now closes the compile
+side: Apple recompiles **one file**, confirmed by object-mtime diff (1 of 61 per
+edit) and the quoted swiftc line. Two residual gaps W4 leaves open: the canvas
+thunk-compile **command line** is not captured (SIP blocked dtrace; only its
+on-disk artifacts), and dependency fan-out for a public-API edit was reasoned,
+not measured at scale. W4 also surfaced a bonus: Apple's literal fast-path is
+**data injection** (`__designTimeString`/`Integer` + fallback), not
+recompilation — the same idea as this project's `DesignTimeStore`.
 
 ## Phase 3 status: IN PROGRESS
 
