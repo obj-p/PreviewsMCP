@@ -1,7 +1,11 @@
 # W4 — Compile-side capture: does Apple recompile one file or the whole module?
 
-**Status:** OPEN. Seed prompt for a fresh agent. Run start to finish on
-`previews-research`.
+**Status:** CLOSED (2026-06-02). Verdict: **ONE file, not the module** — Xcode
+recompiles only the changed file against prebuilt modules, on every edit kind
+swept. G1's single-file-incremental premise CONFIRMED. See
+[`../../analysis/w4-compile-side.md`](../../analysis/w4-compile-side.md) and raw
+capture [`w4-compile-trace.txt`](w4-compile-trace.txt). Run on the build host
+(not the VM) — Xcode 26.2 toolchain is identical and the question is host-side.
 
 ## The question
 
@@ -19,6 +23,11 @@ hedges it ("appears to have only ONE path for edit dispatch"). The PreviewsMCP
 JIT plan now flags it as an unverified premise (G1 in
 `docs/jit-executor-phase3-plan.md`, "Recompile-narrowing gaps"). W4 confirms or
 refutes it with a capture.
+
+> Note: `docs/jit-executor-phase3-plan.md` lives on the `#189` JIT branch, not
+> on `previews-research`. The same premise is quoted inline at
+> `prompts/jit-executor-design.md:260` ("incremental swiftc"), which IS present
+> here, so use that as the on-branch source.
 
 ## Why it matters
 

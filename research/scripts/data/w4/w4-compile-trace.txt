@@ -1,0 +1,94 @@
+W4 — compile-side raw capture
+Host: macOS 26 (build host, not the W3 VM), Xcode 26.2 (17C52),
+swiftc/swift-frontend from XcodeDefault.xctoolchain. Captured 2026-06-02.
+
+Two independent capture tracks. Track A is a live controlled experiment on a
+60-file target (the build-system incremental path). Track B reads on-disk
+Xcode Previews thunk artifacts from prior real preview sessions (the canvas
+hot-reload path, which does NOT route through `xcodebuild`/Logs/Build).
+
+================================================================================
+TRACK A — live incremental-build experiment  (xcodebuild path)
+================================================================================
+Target: /tmp/w4-compile  — single macOS framework "W4", 61 .swift files:
+  ToDoView.swift (one SwiftUI View + #Preview) + Filler1..60.swift (independent
+  trivial structs, no cross-references). Built with isolated derivedDataPath.
+
+Cold clean build: 62 object files produced (61 swift + asset symbols).
+
+Method: snapshot mtimes of all */*.o, apply one edit, incremental rebuild,
+diff mtimes to list objects actually recompiled. (No dtrace; SIP on.)
+
+  EDIT 1  body literal   "hello world 0" -> "hello world 1"
+          recompiled objects: ToDoView.o          (1 of 61)
+          wall-clock: real 1.25 s
+
+  EDIT 2  structural     add `func helper() -> Int { 42 }` to ToDoView
+          recompiled objects: ToDoView.o          (1 of 61)
+          wall-clock: real 1.38 s
+
+  EDIT 3  graph          add new file Filler61.swift (regenerate project)
+          recompiled objects: Filler61.o          (1 of 61)
+          wall-clock: real 1.39 s
+
+M2 — the incremental swiftc driver invocation (key flags, verbatim subset):
+  /Applications/Xcode-26.2.0.app/.../usr/bin/swiftc
+    -module-name W4
+    @.../W4.SwiftFileList            <- filelist = ALL 61 files
+    -c
+    -enable-batch-mode
+    -incremental
+    -output-file-map ...
+    -emit-module-path .../W4.swiftmodule
+    -experimental-emit-module-separately
+
+  W4.SwiftFileList line count: 61   (full module membership passed every build)
+
+Reading: the driver is handed the full 61-file filelist for type-checking, but
+`-incremental` + the output-file-map make swift-frontend rebuild ONLY the
+changed file's object. Quoted-command-line confirmation of the handoff's
+"all files listed, -primary-file <one>" caveat: path count != recompile scope.
+Cross-module case (MultiModuleTest log): each module emits its own
+`.swiftmodule` (`-experimental-emit-module-separately`) and downstream modules
+consume it via `-I` + explicit `.swiftmodule` input -> prebuilt module reuse.
+
+================================================================================
+TRACK B — Xcode Previews thunk artifacts  (canvas hot-reload path)
+================================================================================
+Source: prior real preview sessions on this host (not driven by W4 experiment):
+  DerivedData/PreviewTestApp-*/.../Objects-normal/arm64/
+  DerivedData/MultiModuleTest-*/.../Objects-normal/arm64/
+
+Per edited file, the preview pipeline emits (PreviewTestApp, app target):
+  ContentView.1.preview-thunk.swift          <- generated thunk SOURCE (1 file)
+  ContentView.1.preview-thunk.o              <- its object
+  ContentView.1.preview-thunk-launch.o
+  ContentView.1.preview-thunk.dia
+  vfsoverlay-ContentView.1.preview-thunk.swift.json
+  vfsoverlay-ContentView.__XCPREVIEW_THUNKSUFFIX__.preview-thunk.swift.json
+
+VFS overlay (verbatim) — maps the REAL source path to the generated thunk, so
+the compiler sees exactly one substituted file:
+  {"roots":[{"contents":[{"external-contents":".../ContentView.1.preview-thunk.swift",
+    "name":"ContentView.swift","type":"file"}],
+    "name":".../PreviewTestApp","type":"directory"}], ...}
+
+Generated thunk source (head) — literals rewritten to design-time calls:
+  import func SwiftUI.__designTimeString
+  import func SwiftUI.__designTimeInteger          (also Float, Boolean)
+  #sourceLocation(file: ".../ContentView.swift", line: 1)
+  ...
+    VStack(spacing: __designTimeInteger("#7210_0", fallback: 20)) { ... }
+    Button(__designTimeString("#7210_1", fallback: "Increment")) { ... }
+
+Generation counter is per-file and bumps per edit:
+  ViewLibrary: Previews.0.preview-thunk.swift  AND  Previews.1.preview-thunk.swift
+
+Multi-module scope (MultiModuleTest) — thunk is per-module, per-file:
+  FeatureModule.build/.../FeatureView.1.preview-thunk.swift
+  ViewLibrary.build/.../Previews.1.preview-thunk.swift
+
+Note: these thunk compiles do NOT appear in DerivedData/*/Logs/Build
+.xcactivitylog (grep for `preview-thunk*.swift` in decoded logs = empty). The
+preview build service compiles them out-of-band, consistent with the handoff's
+XCBBuildService warning. The on-disk artifacts are the primary evidence.
