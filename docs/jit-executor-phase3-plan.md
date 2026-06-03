@@ -346,16 +346,26 @@ module cannot import itself:
 
 `Compiler.compileObject` takes one source today and does neither: no persistent
 `-incremental`/output-file-map state, no prebuilt-`.swiftmodule` inputs. Two
-implementation paths follow: (a) adopt swiftc incremental honestly (persistent
-per-session build dir, full filelist, re-emit changed objects) — accepts the
-same-module size scaling; (b) the stable-module/thunk split — put the editable
-preview in a **separate** module that imports the bulk as a prebuilt
-`.swiftmodule`, which is the only way to make reload time independent of the big
-module's size (it turns same-module cost into cross-module reuse).
-- **Verify:** on 500- and 1000-file modules, measure incremental same-module
-  re-emit vs the split. Same-module compile scales with N (parse/type-check
-  bound); the split stays roughly flat. The <200ms target holds for the split
-  (or small modules), not for same-module at scale.
+implementation paths were considered: (a) adopt swiftc incremental honestly
+(persistent per-session build dir, full filelist, re-emit changed objects);
+(b) the stable-module/editable-unit split — put the editable preview in a
+**separate** module that imports the bulk as a prebuilt `.swiftmodule`.
+
+**Verdict (W5, `research/scripts/analysis/w5-scaling.md`, CLOSED): path (b) is
+mandatory.** Path (a) does not scale. Same-module incremental re-emits only 1
+object but pays whole-module front-end (parse+bind all N files) every edit:
+0.65 / 1.41 / 2.82 / 6.06 s at N = 100 / 250 / 500 / 1000 (~45ms + 6ms/file), so
+the 200ms budget breaks at ~25 files — a conservative lower bound on trivial
+bodies, real SwiftUI breaks sooner. The split holds per-edit time **flat
+~0.144s** from N=100 to 1000 (bulk built once, not per edit). This is what Apple
+already does (W4 thunk: one `-primary-file` against prebuilt `.swiftmodule`s).
+Fan-out (W5 M2): a body edit is **1 object** regardless of dependents; an
+interface edit to a decl referenced by K files is **1+K** objects — the JIT must
+budget relinking that set. The auto-split mechanism is W7; W5 is its
+justification.
+- **Verify (met by W5):** the same-module-vs-split curves above. Remaining build
+  question is W7 — can we auto-split an arbitrary target without the user
+  restructuring their package (access-level visibility, symbol override).
 
 ### G2 — A file-identifying FileWatcher
 **Missing.** `FileWatcher` signals only "something in the watched set changed",
@@ -372,16 +382,28 @@ file falls to the slow full-rebuild path. "Any edited file reloads sub-second" i
 a *stronger* guarantee than the design currently makes and needs G1+G2. Decide
 whether Phase 3/4 targets only preview-layer edits or true any-file incremental.
 
-### Apple-evidence status (W4 — CLOSED)
+### Apple-evidence status (W3/W4/W5 — CLOSED)
 W3 verified Apple's respawn-only *dispatch* (8 edit kinds, zero `write_mem`;
-`w3-empirical-capture.md`). W4 (`w4-compile-side.md`) now closes the compile
-side: Apple recompiles **one file**, confirmed by object-mtime diff (1 of 61 per
-edit) and the quoted swiftc line. Two residual gaps W4 leaves open: the canvas
-thunk-compile **command line** is not captured (SIP blocked dtrace; only its
-on-disk artifacts), and dependency fan-out for a public-API edit was reasoned,
-not measured at scale. W4 also surfaced a bonus: Apple's literal fast-path is
-**data injection** (`__designTimeString`/`Integer` + fallback), not
-recompilation — the same idea as this project's `DesignTimeStore`.
+`w3-empirical-capture.md`). W4 (`w4-compile-side.md`, `w4-thunk-argv.txt`) closes
+the compile side: Apple recompiles **one file**, confirmed by object-mtime diff
+(1 of 61) **and a live capture of the preview thunk `swift-frontend` argv** —
+exactly one `-primary-file` (the edited file), `-vfsoverlay` thunk substitution,
+prebuilt-module reuse via `-disable-implicit-swift-modules` +
+`-explicit-swift-module-map-file` + `-I` (the G1 cross-module shape, confirmed).
+W5 (`w5-scaling.md`) measured the scaling and **makes the stable-module/editable-
+unit split mandatory** (numbers in G1).
+
+**Mechanism correction (W4):** Apple does **not** use Swift dynamic replacement
+for previews on Xcode 26.x — no `-enable-implicit-dynamic`, zero `__swift5_replace`
+sections in thunk objects. It recompiles the edited file into a fresh
+`PreviewRegistry` entry and **respawns** (PreviewRegistry-reentry, matching W3
+respawn-only dispatch). This corrects the prior `project_jit_dynamic_replacement`
+assumption; our respawn-first decision is unaffected (only the rationale changes).
+
+**Bonus (W4):** Apple's literal fast-path is **data injection**
+(`__designTimeString`/`Integer` + fallback), not recompilation — the same idea as
+this project's `DesignTimeStore`. Modeling it is W6. **Open:** W7 (auto-split
+feasibility) is now the critical path.
 
 ## Phase 3 status: IN PROGRESS
 
