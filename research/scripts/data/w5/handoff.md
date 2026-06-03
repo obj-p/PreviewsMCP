@@ -1,7 +1,12 @@
 # W5 — Same-module scaling curve + dependency fan-out
 
-**Status:** OPEN. Seed prompt for a fresh agent. Run on `previews-research`,
-build host (no VM needed; the compile question is host-side).
+**Status:** CLOSED (2026-06-02). Verdict: **the stable-module / thunk split is
+MANDATORY at scale.** Same-module incremental recompiles 1 object but pays
+whole-module front-end cost (~45 ms + 6 ms/file), breaking the 200 ms budget at
+~25 files; a split holds per-edit latency flat (~140 ms) to ≥1000 files. Fan-out:
+1 object for a body edit, 1+K for an interface edit touching K dependents. See
+[`../../analysis/w5-scaling.md`](../../analysis/w5-scaling.md) and raw
+[`w5-scaling.txt`](w5-scaling.txt).
 
 ## The question
 

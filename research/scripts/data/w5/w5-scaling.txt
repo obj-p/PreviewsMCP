@@ -1,0 +1,68 @@
+W5 — same-module scaling curve + dependency fan-out + split comparison
+Host: macOS 26.2, Xcode 26.2 toolchain swiftc. Captured 2026-06-02.
+Method: raw `swiftc -c -incremental -enable-batch-mode` with a persisted
+output-file-map (handoff-sanctioned alternative to xcodebuild; faster across
+sizes, same compiler). One-file body edit, incremental rebuild, median of 3
+reps. Object-recompile counts via *.o mtime diff (W4 Track A method).
+Synthetic caveat: filler files are trivial structs; they understate real
+body type-check cost, so same-module numbers are a LOWER bound (real code is
+worse). Harness: /tmp/w5/{m1,m2,m3}.sh.
+
+================================================================================
+M1 — same-module incremental, one-file body edit
+================================================================================
+  N     cold(s)   inc median(s)   objects re-emitted
+  100   0.693     0.646           1
+  250   1.570     1.410           1
+  500   3.131     2.816           1
+  1000  6.729     6.055           1
+
+Only 1 object (View.o) re-emitted at every N, yet wall-clock grows ~linearly.
+inc ≈ 90% of cold (1000: 6.06 vs 6.73) -> codegen of the other 999 files adds
+only ~0.7s; the dominant cost is front-end work (parse + bind ALL N files),
+which a same-module edit must redo because a module cannot import itself.
+Linear fit: ~45 ms fixed + ~6.0 ms/file. 200 ms budget => breaks at ~25 files
+(trivial structs; fewer for real SwiftUI files).
+-stats note: per-frontend-job stats (one per primary in batch mode) do not
+aggregate into a clean parse/sema/codegen wall split; reported the inc-vs-cold
+inference instead, which is decisive (codegen is not the cost).
+
+================================================================================
+M2 — dependency fan-out at N=200 (shared decl referenced by K files)
+================================================================================
+  K    edit kind          objects re-emitted
+  1    body-local         1
+  1    interface-change   2
+  10   body-local         1
+  10   interface-change   11
+  50   body-local         1
+  50   interface-change   51
+
+Body-local edit (change a literal inside the shared method): always 1,
+independent of K. Interface change (add a defaulted parameter to a method K
+files call): 1 + K — the changed file plus every dependent. So per-edit object
+count is 1 for body edits, 1+K for a public/internal interface edit.
+
+================================================================================
+M3 — split: bulk as prebuilt .swiftmodule + separate view module
+================================================================================
+  N     bulk build once(s)   view edit inc median(s)   objects re-emitted
+  100   5.85                 0.144                     1
+  250   15.99                0.148                     1
+  500   36.91                0.143                     1
+  1000  95.64                0.145                     1
+
+Per-edit time is FLAT at ~0.144 s regardless of bulk size (100 -> 1000). The
+bulk is parsed/bound once into a binary .swiftmodule; editing the view only
+parses the view + loads the prebuilt module interface. The big one-time bulk
+build is NOT paid per edit. This is the direct test of G1 path (b).
+
+================================================================================
+VERDICT
+================================================================================
+Same-module incremental is single-file in CODEGEN (1 object) but whole-module
+in FRONT-END cost, so per-edit latency grows ~6 ms/file and blows the 200 ms
+budget past ~25 files. The stable-module / thunk split holds per-edit latency
+flat (~140 ms) to at least 1000 files. => The split (G1 path b) is MANDATORY at
+scale, not optional. Fan-out: a JIT must relink 1 object for a body edit, 1+K
+for an interface edit touching K dependents.
