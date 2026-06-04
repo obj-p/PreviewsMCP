@@ -1,0 +1,31 @@
+W6 M1 — canvas preview-thunk swift-frontend argv
+Host: macOS 26.2, Xcode 26.2. Captured 2026-06-03/04.
+
+NOTE: M1 was closed during W4, not in the VM. The seed prompt predates that —
+it assumed SIP blocked dtrace and pointed at the post-sip VM. Instead the argv
+was caught live on the BUILD HOST with a sudo-free ps poller
+(research/scripts/data/w4/capture-thunk-compile.sh) while editing a #Preview
+canvas, using a deliberately heavy file to stretch the compile past ps cadence.
+Full verbatim command line: research/scripts/data/w4/w4-thunk-argv.txt.
+
+M1 answer — the canvas thunk compile is NARROWER than the build-system path:
+  present : -frontend -c  -primary-file <edited>.swift  <other target files...>
+            -vfsoverlay vfsoverlay-<View>.<gen>.preview-thunk.swift.json
+            -disable-implicit-swift-modules
+            -explicit-swift-module-map-file <target>-dependencies-N.json
+            -I <DerivedData>/Build/Products/Debug
+            -module-name <Target> -Onone -swift-version 6
+            -load-resolved-plugin .../PreviewsMacros (+ Foundation/Observation/...)
+            -o <View>.<gen>.preview-thunk.o
+  ABSENT  : -filelist        (files are listed explicitly, not via a filelist)
+            -incremental     (NOT swiftc incremental mode)
+            -enable-batch-mode
+            -enable-implicit-dynamic / any dynamic-replacement flag
+
+Reading: the canvas fast path is a single-shot, single-`-primary-file` compile
+of just the edited file against PREBUILT explicit modules (the rest of the
+target + SDK as .swiftmodules via the explicit module map). It is NOT the
+build-system's full-filelist `-incremental` mode (W5 M1). In other words Apple's
+canvas path already does the W5/W7 "split": compile one file, reuse prebuilt
+modules — which is why it is fast and module-size-independent on the compile
+side, exactly the shape W7 recommends for the JIT executor.

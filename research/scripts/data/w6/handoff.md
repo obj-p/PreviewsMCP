@@ -1,6 +1,14 @@
 # W6 — Canvas thunk-compile argv + design-time literal injection
 
-**Status:** OPEN. Seed prompt for a fresh agent. Run on `previews-research`.
+**Status:** CLOSED (2026-06-04). M1 thunk argv was captured live on the host in
+W4 (no VM needed) — single `-primary-file` + `-vfsoverlay` + explicit module map,
+NO filelist/incremental. M2 design-time lifecycle modeled: generate `#salt_n`
+IDs → `@Observable` store keyed by ID → re-inject via `PreviewsInjection`
+`EntryPoint` `UpdatePayload` over XPC, no recompile. M3 boundary = skeleton-equal
++ literal-only + SwiftUI region → injection; else (skeleton change OR UIKit-region
+literal) → recompile. See
+[`../../analysis/w6-designtime.md`](../../analysis/w6-designtime.md) and
+[`w6-canvas-argv.txt`](w6-canvas-argv.txt).
 
 ## The question
 
