@@ -299,7 +299,7 @@ private func handleIOSPreviewStart(
     let sessionID = session.id
     let allPaths = [fileURL.path] + (buildContext?.sourceFiles?.map(\.path) ?? [])
     let iosState = ctx.iosState
-    let watcher = try? FileWatcher(paths: allPaths) {
+    let watcher = try? FileWatcher(paths: allPaths) { _ in
         Task {
             Log.info("MCP: iOS file change detected, reloading session \(sessionID)...")
             do {

@@ -177,7 +177,7 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
         let fileURL = URL(fileURLWithPath: filePath)
         let allPaths = [filePath] + additionalPaths
         fileWatchers[sessionID]?.stop()
-        fileWatchers[sessionID] = try? FileWatcher(paths: allPaths) { [weak self] in
+        fileWatchers[sessionID] = try? FileWatcher(paths: allPaths) { [weak self] _ in
             Task {
                 guard let self else { return }
 
