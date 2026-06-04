@@ -328,7 +328,11 @@ jobs:
       - name: JIT tests
         # The suite builds PreviewAgent and renders real previews in spawned
         # agents; 20m covers the cold test-target + agent compile plus runs.
+        # --no-parallel: the JIT layer (shared in-process LLJIT + LLVM ORC) is
+        # not safe under Swift Testing's default parallel execution; concurrent
+        # compile/link/teardown trips LLVM assertions (assertions are on in our
+        # build) and SIGABRTs intermittently. Serial is stable.
         timeout-minutes: 20
         env:
           NSUnbufferedIO: "YES"
-        run: swift test --filter "PreviewsJITLinkTests"
+        run: swift test --filter "PreviewsJITLinkTests" --no-parallel
