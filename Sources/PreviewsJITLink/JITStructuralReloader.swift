@@ -10,6 +10,7 @@ public actor JITStructuralReloader: StructuralReloader {
     private let generationCap: Int
     private var session: JITSession?
     private var generation = 0
+    private var lastObjectPath: URL?
 
     public init(generationCap: Int = 100) {
         self.generationCap = generationCap
@@ -19,6 +20,14 @@ public actor JITStructuralReloader: StructuralReloader {
         at objectPath: URL, supportObjectPaths: [URL], archivePaths: [URL], dylibPaths: [URL],
         entrySymbol: String
     ) async throws {
+        // Literal re-render: the same object is already linked in the live generation, so just
+        // re-run its entry. It re-seeds DesignTimeStore from the (rewritten) values JSON, with
+        // no new JITDylib and no re-link (which would re-register the object's classes).
+        if let session, objectPath == lastObjectPath {
+            try Self.run(session, entrySymbol)
+            return
+        }
+
         let session = try nextSession()
         for dylib in dylibPaths {
             try session.addDylib(path: dylib.path)
@@ -30,6 +39,11 @@ public actor JITStructuralReloader: StructuralReloader {
             try session.addObject(path: support.path)
         }
         try session.addObject(path: objectPath.path)
+        lastObjectPath = objectPath
+        try Self.run(session, entrySymbol)
+    }
+
+    private static func run(_ session: JITSession, _ entrySymbol: String) throws {
         let status = try session.runOnMain(symbol: entrySymbol)
         guard status == 0 else {
             throw JITReloadError.renderFailed(status: status)

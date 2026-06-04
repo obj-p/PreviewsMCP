@@ -247,13 +247,13 @@ public actor PreviewSession {
             dylibPaths = Self.dependencyDylibs(in: ctx.compilerFlags)
             objectPath = try await compiler.compileObject(
                 source: generated.source,
-                moduleName: "PreviewEdit_\(ctx.moduleName)",
+                moduleName: "PreviewEdit_\(ctx.moduleName)_\(Self.uniqueModuleToken())",
                 extraFlags: ["-I", stable.modulesDir.path] + ctx.compilerFlags
             )
         } else {
             objectPath = try await compiler.compileObject(
                 source: generated.source,
-                moduleName: Self.moduleName(for: sourceFile)
+                moduleName: "\(Self.moduleName(for: sourceFile))_\(Self.uniqueModuleToken())"
             )
         }
         try Self.writeDesignTimeValues(generated.literals, to: valuesPath)
@@ -457,6 +457,13 @@ public actor PreviewSession {
     public func setTraits(_ newTraits: PreviewTraits) async throws -> CompileResult {
         self.traits = newTraits
         return try await compile()
+    }
+
+    /// A fresh, globally-unique module-name suffix (a valid Swift identifier) so the editable
+    /// unit's classes (e.g. `DesignTimeStore`) mangle distinctly on every compile. Without it,
+    /// the capped-persistent agent re-registers the same ObjC class across generations.
+    private static func uniqueModuleToken() -> String {
+        "g" + UUID().uuidString.replacingOccurrences(of: "-", with: "").prefix(12)
     }
 
     private static func moduleName(for file: URL) -> String {

@@ -520,17 +520,28 @@ One agent serves many edits, each in a fresh `JITDylib`, respawning at a cap.
   `splitRendersRealPreviewAcrossGenerations` (the real Summary preview rendered
   twice → gen2 re-links ToDoExtras/Lottie/builtins) are green, so U2 (duplicate dep
   registration) does not crash at low generation counts.
-- **Chunk 2b — OPEN (duplicate-class risk).** Each generation re-links the editable
-  object, which defines `DesignTimeStore` under the **same module name**, so the ObjC
-  runtime warns `Class _TtC…DesignTimeStore is implemented in both …` (duplicate
-  registration across generations). Renders still succeed, but the warning says it
-  "may cause spurious casting failures and mysterious crashes," and it accumulates
-  toward the cap (the soak never hit this — minimal object, no such class). Fix:
-  give the editable unit a **unique `-module-name` per compile** (e.g.
-  `PreviewEdit_<moduleName>_<counter>`; the stable module name stays `ctx.moduleName`
-  for `@testable`), so each generation's classes mangle distinctly. Verify: render the
-  same preview many times through one reloader with no `objc[...] implemented in both`
-  warning.
+- **Chunk 2b — DONE (commit pending).** The duplicate-class warning had two causes,
+  both fixed. (i) Distinct structural compiles reused the same editable module name;
+  fix = a **unique `-module-name` per compile** (`PreviewEdit_<moduleName>_<token>` /
+  `<standalone>_<token>`, token = `PreviewSession.uniqueModuleToken()` = `"g"` + a
+  fresh UUID hex prefix; the stable module stays `ctx.moduleName` for `@testable`).
+  (ii) The **literal** re-render re-linked the *same* object into a new generation;
+  fix = the reloader re-runs the entry **in place** when `objectPath == lastObjectPath`
+  (no `newGeneration`, no re-link) — also the design's "literal path is in-place ~10ms".
+  Verified: `editableModuleNameIsUniquePerCompile` (two compiles → disjoint `_$s…
+  DesignTimeStore` symbols) + the full JIT suite renders across generations with zero
+  `objc[...] implemented in both` warnings.
+  - **Layout-sensitive crash (worth knowing).** The token is computed statelessly *on
+    purpose*. The first attempt stored a `jitCompileCounter` property on the
+    `PreviewSession` actor; adding that stored field shifted the actor's layout and
+    deterministically surfaced a latent `EXC_ARM_DA_ALIGN` (SIGBUS) in the Swift async
+    main-queue drain at process exit of `PreviewHostJITReloadTests` (a mock-reloader
+    test that never runs JIT'd code). A trivial whitespace recompile did NOT trigger it,
+    so it is layout-sensitivity surfacing a pre-existing UAF/over-release near
+    PreviewSession's async teardown, not the counter logic. The stateless UUID token adds
+    no stored property and sidesteps it (and is globally unique, fixing a cross-session
+    `g1` collision the per-session counter would have had). The underlying latent
+    corruption is unfixed and uncharacterized — flagged for a future pass.
 
 ### Model mismatch — RESOLVED (by W5+W7)
 The design's fast path assumes edits land in the **editable/preview layer** on
