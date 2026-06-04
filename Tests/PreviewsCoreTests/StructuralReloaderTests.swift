@@ -54,6 +54,40 @@ struct StructuralReloaderTests {
         #expect(calls.first?.entrySymbol == "renderPreviewToFile")
     }
 
+    @Test("compileObjectForJIT writes design-time values JSON for seeding")
+    func writesDesignTimeValues() async throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("p34cii1-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let sourceFile = dir.appendingPathComponent("HelloView.swift")
+        try """
+            import SwiftUI
+
+            struct HelloView: View {
+                var body: some View {
+                    Text("hello")
+                }
+            }
+
+            #Preview {
+                HelloView()
+            }
+            """.write(to: sourceFile, atomically: true, encoding: .utf8)
+
+        let compiler = try await Compiler()
+        let session = PreviewSession(sourceFile: sourceFile, compiler: compiler)
+        let build = try await session.compileObjectForJIT()
+
+        #expect(FileManager.default.fileExists(atPath: build.valuesPath.path))
+        #expect(!build.literals.isEmpty)
+
+        let data = try Data(contentsOf: build.valuesPath)
+        let values = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        #expect(values.values.contains { ($0 as? String) == "hello" })
+    }
+
     private static func symbols(in object: URL) throws -> String {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/nm")

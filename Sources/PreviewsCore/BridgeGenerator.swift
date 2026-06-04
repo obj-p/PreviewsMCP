@@ -22,7 +22,8 @@ public enum BridgeGenerator {
         traits: PreviewTraits = PreviewTraits(),
         setupModule: String? = nil,
         setupType: String? = nil,
-        renderOutputPath: String? = nil
+        renderOutputPath: String? = nil,
+        designTimeValuesPath: String? = nil
     ) -> (source: String, literals: [LiteralEntry]) {
         // Transform source to replace literals with DesignTimeStore lookups
         let thunkResult = ThunkGenerator.transform(source: originalSource)
@@ -55,7 +56,10 @@ public enum BridgeGenerator {
 
         let bodyKindEntry = bodyKindEntryPoint(closureBody: transformedClosureBody)
         let renderEntry =
-            renderOutputPath.map { renderToFileEntryPoint(viewCode: viewCode, path: $0) } ?? ""
+            renderOutputPath.map {
+                renderToFileEntryPoint(
+                    viewCode: viewCode, path: $0, valuesPath: designTimeValuesPath)
+            } ?? ""
         let bridgeCode: String
         switch platform {
         case .macOS:
@@ -255,28 +259,42 @@ public enum BridgeGenerator {
     /// Builds the same preview view as `createPreviewView`, rasterizes it headless via
     /// `ImageRenderer`, and writes a PNG to `path`. Nullary so it runs over the agent's
     /// `runOnMain` surface; the path is baked in (the daemon recompiles per structural edit).
-    private static func renderToFileEntryPoint(viewCode: String, path: String) -> String {
-        """
-        @_cdecl("renderPreviewToFile")
-        public func renderPreviewToFile() -> Int32 {
-            MainActor.assumeIsolated {
-                let view = \(viewCode)
-                let renderer = ImageRenderer(content: view)
-                renderer.scale = 1
-                guard let cgImage = renderer.cgImage else { return Int32(-1) }
-                let rep = NSBitmapImageRep(cgImage: cgImage)
-                guard let data = rep.representation(using: .png, properties: [:]) else {
-                    return Int32(-2)
+    private static func renderToFileEntryPoint(
+        viewCode: String, path: String, valuesPath: String?
+    ) -> String {
+        let seed =
+            valuesPath.map {
+                """
+                if let __dtData = try? Data(contentsOf: URL(fileURLWithPath: "\($0)")),
+                    let __dtValues = try? JSONSerialization.jsonObject(with: __dtData)
+                        as? [String: Any]
+                {
+                    DesignTimeStore.shared.values = __dtValues
                 }
-                do {
-                    try data.write(to: URL(fileURLWithPath: "\(path)"))
-                } catch {
-                    return Int32(-3)
+                """
+            } ?? ""
+        return """
+            @_cdecl("renderPreviewToFile")
+            public func renderPreviewToFile() -> Int32 {
+                MainActor.assumeIsolated {
+                    \(seed)
+                    let view = \(viewCode)
+                    let renderer = ImageRenderer(content: view)
+                    renderer.scale = 1
+                    guard let cgImage = renderer.cgImage else { return Int32(-1) }
+                    let rep = NSBitmapImageRep(cgImage: cgImage)
+                    guard let data = rep.representation(using: .png, properties: [:]) else {
+                        return Int32(-2)
+                    }
+                    do {
+                        try data.write(to: URL(fileURLWithPath: "\(path)"))
+                    } catch {
+                        return Int32(-3)
+                    }
+                    return 0
                 }
-                return 0
             }
-        }
-        """
+            """
     }
 
     /// Generate the `@_cdecl("previewSetUp")` entry point that bridges async setUp.

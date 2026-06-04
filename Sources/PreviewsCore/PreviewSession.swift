@@ -8,10 +8,15 @@ public struct CompileResult: Sendable {
 
 /// Result of compiling a preview for the JIT structural-reload path: a `.o` whose
 /// `entrySymbol` renders the preview to a PNG at `imagePath` when run in the agent.
+/// The render entry seeds `DesignTimeStore` from `valuesPath` (JSON) first, so a
+/// literal-only edit can rewrite that file and re-render the same `.o` without
+/// recompiling. `literals` are the design-time values baked at compile time.
 public struct JITRenderBuild: Sendable {
     public let objectPath: URL
     public let imagePath: URL
+    public let valuesPath: URL
     public let entrySymbol: String
+    public let literals: [LiteralEntry]
 }
 
 /// Orchestrates the full preview pipeline: parse → generate bridge → compile → return dylib path.
@@ -170,8 +175,11 @@ public actor PreviewSession {
         }
         let preview = previews[previewIndex]
 
+        let stem = "previewsmcp-jit-\(id)-\(UUID().uuidString)"
         let imagePath = FileManager.default.temporaryDirectory
-            .appendingPathComponent("previewsmcp-jit-\(id)-\(UUID().uuidString).png")
+            .appendingPathComponent("\(stem).png")
+        let valuesPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent("\(stem).json")
 
         let generated = BridgeGenerator.generateCombinedSource(
             originalSource: source,
@@ -179,13 +187,15 @@ public actor PreviewSession {
             previewIndex: previewIndex,
             platform: platform,
             traits: traits,
-            renderOutputPath: imagePath.path
+            renderOutputPath: imagePath.path,
+            designTimeValuesPath: valuesPath.path
         )
 
         let objectPath = try await compiler.compileObject(
             source: generated.source,
             moduleName: Self.moduleName(for: sourceFile)
         )
+        try Self.writeDesignTimeValues(generated.literals, to: valuesPath)
 
         lastOriginalSource = source
         lastLiterals = generated.literals
@@ -193,8 +203,25 @@ public actor PreviewSession {
         return JITRenderBuild(
             objectPath: objectPath,
             imagePath: imagePath,
-            entrySymbol: "renderPreviewToFile"
+            valuesPath: valuesPath,
+            entrySymbol: "renderPreviewToFile",
+            literals: generated.literals
         )
+    }
+
+    /// Serialize design-time literal values to the JSON the render bridge seeds from.
+    static func writeDesignTimeValues(_ literals: [LiteralEntry], to path: URL) throws {
+        var dict: [String: Any] = [:]
+        for entry in literals {
+            switch entry.value {
+            case .string(let s): dict[entry.id] = s
+            case .integer(let n): dict[entry.id] = n
+            case .float(let d): dict[entry.id] = d
+            case .boolean(let b): dict[entry.id] = b
+            }
+        }
+        let data = try JSONSerialization.data(withJSONObject: dict)
+        try data.write(to: path)
     }
 
     /// Attempt a fast literal-only update. Returns changed literal IDs and new values,

@@ -357,17 +357,32 @@ moves to the agent bitmap; interaction is untouched.
       through) + `MacOSPreviewHandleAgentSnapshotTests` (snapshot returns the agent
       PNG); macOS 3 / engine 9 / JIT 32 green; full JIT `swift build` green. The
       non-JIT build (`jitEnabled=false`) is verified by CI on push.
-  - **P3.4c-ii — literal-after-structural — DONE (fallback).** Once a session is
-    agent-rendered the view lives in the agent, so the in-daemon `DesignTimeStore`
-    literal path can no longer update it (`applyLiteralChanges` would no-op for
-    lack of a loader). `watchFile` now gates the literal fast path on
-    `agentSnapshotPath(for:) == nil`, so an agent-backed session routes **any**
-    edit through the structural JIT reload (re-renders in the agent). Correct but
-    not the ~10ms path. The **proper** cheap path — re-seed the agent's
-    `DesignTimeStore` over the wire and re-render without recompiling — is deferred
-    (needs an agent setter surface). The routing lives in the `FileWatcher`
-    closure (not unit-tested); covered by the deferred `examples/` E2E. *Verify
-    (met):* full `swift build` green, macOS/engine/JIT suites green.
+  - **P3.4c-ii — literal-after-structural.** Once a session is agent-rendered the
+    view lives in the agent, so the in-daemon `DesignTimeStore` literal path can no
+    longer update it (`applyLiteralChanges` would no-op for lack of a loader).
+    - **Fallback — DONE.** `watchFile` gates the literal fast path on
+      `agentSnapshotPath(for:) == nil`, so an agent-backed session routes **any**
+      edit through the structural JIT reload. Correct but full-recompile.
+    - **Proper path (value file-transport, mirrors the PNG choice).** The agent
+      runs only nullary entries, so instead of calling the `designTimeSet*` setters
+      over the wire, the render bridge **seeds `DesignTimeStore` from a baked JSON
+      path** before rendering; a literal edit rewrites that JSON and re-renders the
+      **same `.o`** (no recompile; ~62ms relink+render vs 281ms). Caveat: with the
+      respawn-per-edit reloader each call still relinks; true ~10ms needs the
+      capped-persistent agent (re-seed + re-render in place).
+      - **c-ii-1 — DONE.** `BridgeGenerator.renderToFileEntryPoint` seeds
+        `DesignTimeStore.shared.values` from `designTimeValuesPath` (JSON) before
+        building the view; `compileObjectForJIT` bakes the path, writes the
+        literals' initial values (`writeDesignTimeValues`), and `JITRenderBuild`
+        gains `valuesPath` + `literals`. *Verify (met):* values JSON written with
+        the literals (`StructuralReloaderTests.writesDesignTimeValues`); the agent
+        render still produces the correct color through the seeded path; JIT 33 /
+        BridgeGenerator 69 / PreviewsCore 306 green.
+      - **c-ii-2 — TODO.** Rewrite the JSON to new values, `renderObject` the same
+        `.o`, assert the pixel changed with no recompile.
+      - **c-ii-3 — TODO.** `PreviewSession` caches the last `JITRenderBuild`;
+        agent-backed literal edits rewrite values + re-render instead of the
+        fallback full reload.
 - **P3.4d — latency (U-C) — DONE (measured; compile-bound).** Integrated
   `compileObjectForJIT()` + `JITStructuralReloader.renderObject()` on a small
   module, steady-state (warm module cache), respawn-per-edit:
