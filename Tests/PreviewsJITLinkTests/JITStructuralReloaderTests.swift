@@ -31,10 +31,7 @@ struct JITStructuralReloaderTests {
         let build = try await session.compileObjectForJIT()
 
         let reloader = JITStructuralReloader()
-        try await reloader.renderObject(
-            at: build.objectPath, supportObjectPaths: build.supportObjectPaths,
-            archivePaths: build.archivePaths, dylibPaths: build.dylibPaths,
-            entrySymbol: build.entrySymbol)
+        try await reloader.render(build)
 
         let data = try Data(contentsOf: build.imagePath)
         #expect(!data.isEmpty)
@@ -74,10 +71,7 @@ struct JITStructuralReloaderTests {
         let build = try await session.compileObjectForJIT()
         let reloader = JITStructuralReloader()
 
-        try await reloader.renderObject(
-            at: build.objectPath, supportObjectPaths: build.supportObjectPaths,
-            archivePaths: build.archivePaths, dylibPaths: build.dylibPaths,
-            entrySymbol: build.entrySymbol)
+        try await reloader.render(build)
         let b1 = try Self.centerBrightness(build.imagePath)
         #expect(b1 < 0.4)
 
@@ -90,10 +84,7 @@ struct JITStructuralReloaderTests {
         values[whiteLiteral.id] = 0.9
         try JSONSerialization.data(withJSONObject: values).write(to: build.valuesPath)
 
-        try await reloader.renderObject(
-            at: build.objectPath, supportObjectPaths: build.supportObjectPaths,
-            archivePaths: build.archivePaths, dylibPaths: build.dylibPaths,
-            entrySymbol: build.entrySymbol)
+        try await reloader.render(build)
         let b2 = try Self.centerBrightness(build.imagePath)
         #expect(b2 > 0.7)
         #expect(b2 > b1)

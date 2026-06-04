@@ -73,13 +73,7 @@ struct ExamplesSplitE2ETests {
         let build = try await session.compileObjectForJIT()
 
         let reloader = JITStructuralReloader()
-        try await reloader.renderObject(
-            at: build.objectPath,
-            supportObjectPaths: build.supportObjectPaths,
-            archivePaths: build.archivePaths,
-            dylibPaths: build.dylibPaths,
-            entrySymbol: build.entrySymbol
-        )
+        try await reloader.render(build)
         let png = try Data(contentsOf: build.imagePath)
         #expect(!png.isEmpty)
         #expect(NSBitmapImageRep(data: png) != nil)
@@ -98,13 +92,7 @@ struct ExamplesSplitE2ETests {
 
         for _ in 0..<2 {
             let build = try await session.compileObjectForJIT()
-            try await reloader.renderObject(
-                at: build.objectPath,
-                supportObjectPaths: build.supportObjectPaths,
-                archivePaths: build.archivePaths,
-                dylibPaths: build.dylibPaths,
-                entrySymbol: build.entrySymbol
-            )
+            try await reloader.render(build)
             let png = try Data(contentsOf: build.imagePath)
             #expect(!png.isEmpty)
             #expect(NSBitmapImageRep(data: png) != nil)

@@ -8,11 +8,8 @@ struct StructuralReloaderTests {
 
     private actor MockReloader: StructuralReloader {
         private(set) var calls: [(objectPath: URL, entrySymbol: String)] = []
-        func renderObject(
-            at objectPath: URL, supportObjectPaths: [URL], archivePaths: [URL], dylibPaths: [URL],
-            entrySymbol: String
-        ) async throws {
-            calls.append((objectPath: objectPath, entrySymbol: entrySymbol))
+        func render(_ build: JITRenderBuild) async throws {
+            calls.append((objectPath: build.objectPath, entrySymbol: build.entrySymbol))
         }
         func recorded() -> [(objectPath: URL, entrySymbol: String)] { calls }
     }
@@ -50,10 +47,7 @@ struct StructuralReloaderTests {
         #expect(symbols.contains("_renderPreviewToFile"))
 
         let reloader = MockReloader()
-        try await reloader.renderObject(
-            at: build.objectPath, supportObjectPaths: build.supportObjectPaths,
-            archivePaths: build.archivePaths, dylibPaths: build.dylibPaths,
-            entrySymbol: build.entrySymbol)
+        try await reloader.render(build)
         let calls = await reloader.recorded()
         #expect(calls.count == 1)
         #expect(calls.first?.objectPath == build.objectPath)

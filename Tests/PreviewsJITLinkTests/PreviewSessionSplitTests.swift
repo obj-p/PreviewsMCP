@@ -135,13 +135,7 @@ struct PreviewSessionSplitTests {
         let build = try await session.compileObjectForJIT()
 
         let reloader = JITStructuralReloader()
-        try await reloader.renderObject(
-            at: build.objectPath,
-            supportObjectPaths: build.supportObjectPaths,
-            archivePaths: build.archivePaths,
-            dylibPaths: build.dylibPaths,
-            entrySymbol: build.entrySymbol
-        )
+        try await reloader.render(build)
 
         let rep = try #require(NSBitmapImageRep(data: Data(contentsOf: build.imagePath)))
         let color = try #require(

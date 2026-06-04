@@ -95,13 +95,7 @@ struct CappedPersistentTests {
 
         for _ in 0..<5 {
             let build = try await session.compileObjectForJIT()
-            try await reloader.renderObject(
-                at: build.objectPath,
-                supportObjectPaths: build.supportObjectPaths,
-                archivePaths: build.archivePaths,
-                dylibPaths: build.dylibPaths,
-                entrySymbol: build.entrySymbol
-            )
+            try await reloader.render(build)
             let data = try Data(contentsOf: build.imagePath)
             #expect(!data.isEmpty)
         }
