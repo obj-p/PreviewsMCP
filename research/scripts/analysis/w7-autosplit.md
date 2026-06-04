@@ -127,6 +127,32 @@ runtime conformance lookups segfault in the JIT'd code (first crash we hit).
 The `ObjCSelrefPlugin` + `ExecutorNativePlatform` stack from the jit-poc is
 also required (SwiftUI is selref-heavy).
 
+### Generation soak — persistent-agent viability (500 generations)
+
+Risk probed: Swift has no deregistration for `__swift5_proto`/`__swift5_types`,
+so each generation's `initialize(JD)` permanently grows the runtime registries.
+Soak: one persistent host, 500 generations (fresh JD each, alternating v1/v2),
+per-generation latency + RSS every 50
+(`research/jit-poc/data/run-soak-20260604T024308Z.log`):
+
+| metric | result |
+|--------|--------|
+| link median | flat, ~0.37–0.47 ms across all 500 |
+| render median | flat, ~0.33–0.43 ms across all 500 |
+| RSS | 57.9 → 101.5 MB, **~8.7 MB per 100 generations**, linear |
+| mprotect/MAP_JIT failures | none |
+| wrong-pixel generations | none |
+
+Latency does NOT creep — conformance scans stay flat to 500 registered
+generations. RSS grows linearly (~87 KB/generation: JIT'd object memory +
+registered metadata, both unreclaimable — JD removal would free memory but
+cannot deregister Swift metadata, leaving dangling registry pointers, so
+freeing is unsafe). Against the adoption rule (<1 MB per 100 generations) the
+RSS growth FAILS by ~9×. The flat latency, however, makes a **generation cap +
+periodic background respawn** workable: respawning every ~100 edits costs one
+~70 ms warmup per 100 edits (~0.7 ms/edit amortized) and caps RSS at ~+9 MB.
+Trade-off: capped-persistent ≈167 ms/edit vs respawn-per-edit ≈233 ms/edit.
+
 ### private/fileprivate frequency — first read
 
 Two-part answer. By language rule, `private`/`fileprivate` cannot be referenced

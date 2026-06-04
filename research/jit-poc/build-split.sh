@@ -96,6 +96,18 @@ echo "[split] running host_split (v1 + v2 pixel check)"
     "${BUILD_DIR}/split_preview_v1.o" \
     "${BUILD_DIR}/split_preview_v2.o"
 
+# -- optional: generation soak (persistent-agent viability) -------------
+if [[ "${1:-}" == "soak" ]]; then
+    N="${2:-500}"
+    echo "[split] soaking ${N} generations in one persistent host"
+    "${BUILD_DIR}/host_split" \
+        "${ORC_RT}" \
+        "${BUILD_DIR}/libStable.dylib" \
+        "${BUILD_DIR}/split_preview_v1.o" \
+        "${BUILD_DIR}/split_preview_v2.o" \
+        "${N}"
+fi
+
 # -- optional: edit->pixels wall-clock (respawn semantics) --------------
 if [[ "${1:-}" == "time" ]]; then
     echo "[split] timing edit->pixels (compile v2 + spawn host + link + render)"

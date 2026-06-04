@@ -1,0 +1,41 @@
+swift-driver version: 1.127.14.1 [split] swiftc: Apple Swift version 6.2.3 (swiftlang-6.2.3.3.21 clang-1700.6.3.2)
+[split] swiftc Stable.swift -> build/libStable.dylib + Stable.swiftmodule
+[split] swiftc split_preview_v1.swift -> build/split_preview_v1.o
+[split] swiftc split_preview_v2.swift -> build/split_preview_v2.o
+[split] clang++ src/ObjCSelrefPlugin.cpp + host_split.cpp -> build/host_split
+[split] ORC runtime: /opt/homebrew/opt/llvm/lib/clang/22/lib/darwin/liborc_rt_osx.a
+[split] running host_split (v1 + v2 pixel check)
+[host] LLJIT target triple: arm64-apple-darwin25.5.0
+[host] dlopened libswiftCore via /usr/lib/swift/libswiftCore.dylib
+[host] dlopened stable module /Users/jasonprasad/Projects/PreviewsMCP/.worktrees/previews-research/research/jit-poc/build/libStable.dylib (142.6 ms)
+[host] v1 preview_render_pixel resolved to 0x104d4c970 (link 4.7 ms); rendering...
+[host] v1 pixel(0,0) = 0xFF0000 (render 72.0 ms)
+[host] v2 preview_render_pixel resolved to 0x10e8c0970 (link 0.8 ms); rendering...
+[host] v2 pixel(0,0) = 0x0000FF (render 1.4 ms)
+[host] VERDICT: PASS — pixels differ across the edit (v1=0xFF0000 v2=0x0000FF)
+[host] done.
+[split] soaking 500 generations in one persistent host
+[host] LLJIT target triple: arm64-apple-darwin25.5.0
+[host] dlopened libswiftCore via /usr/lib/swift/libswiftCore.dylib
+[host] dlopened stable module /Users/jasonprasad/Projects/PreviewsMCP/.worktrees/previews-research/research/jit-poc/build/libStable.dylib (2.5 ms)
+[host] v1 preview_render_pixel resolved to 0x1043e8970 (link 1.2 ms); rendering...
+[host] v1 pixel(0,0) = 0xFF0000 (render 41.8 ms)
+[host] v2 preview_render_pixel resolved to 0x1056c4970 (link 0.7 ms); rendering...
+[host] v2 pixel(0,0) = 0x0000FF (render 1.1 ms)
+[host] VERDICT: PASS — pixels differ across the edit (v1=0xFF0000 v2=0x0000FF)
+
+[host] === soak: 500 generations ===
+[soak] gen_window  link_med_ms  render_med_ms  rss_mb
+[soak] baseline rss 57.9 MB
+[soak]    1-50        0.47        0.43     62.4
+[soak]   51-100       0.44        0.36     66.6
+[soak]  101-150       0.37        0.33     70.8
+[soak]  151-200       0.38        0.33     75.2
+[soak]  201-250       0.38        0.33     79.5
+[soak]  251-300       0.36        0.32     83.9
+[soak]  301-350       0.36        0.33     88.2
+[soak]  351-400       0.38        0.34     92.7
+[soak]  401-450       0.38        0.33     97.1
+[soak]  451-500       0.37        0.33    101.5
+[soak] done: 500 generations, rss 57.9 -> 101.5 MB (8.72 MB per 100 generations)
+[host] done.

@@ -38,13 +38,17 @@
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include <algorithm>
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <cstdint>
+#include <cstring>
 #include <dlfcn.h>
+#include <mach/mach.h>
 #include <memory>
 #include <string>
+#include <vector>
 
 using namespace llvm;
 using namespace llvm::orc;
@@ -93,20 +97,37 @@ static double msSince(std::chrono::steady_clock::time_point t0) {
         .count();
 }
 
+static double rssMB() {
+    mach_task_basic_info info;
+    mach_msg_type_number_t count = MACH_TASK_BASIC_INFO_COUNT;
+    if (task_info(mach_task_self(), MACH_TASK_BASIC_INFO,
+                  (task_info_t)&info, &count) != KERN_SUCCESS)
+        return -1.0;
+    return (double)info.resident_size / (1024.0 * 1024.0);
+}
+
+static double median(std::vector<double> v) {
+    if (v.empty())
+        return 0.0;
+    std::sort(v.begin(), v.end());
+    return v[v.size() / 2];
+}
+
 int main(int argc, char **argv) {
     InitLLVM X(argc, argv);
 
-    if (argc != 4 && argc != 5) {
+    if (argc != 4 && argc != 5 && argc != 6) {
         fprintf(stderr,
                 "usage: %s <orc_rt_osx.a> <libStable.dylib>"
-                " <split_preview_v1.o> [<split_preview_v2.o>]\n",
+                " <split_preview_v1.o> [<split_preview_v2.o> [soakN]]\n",
                 argv[0]);
         return 2;
     }
     const char *OrcRTPath = argv[1];
     const char *StablePath = argv[2];
     const char *V1Path = argv[3];
-    const char *V2Path = (argc == 5) ? argv[4] : nullptr;
+    const char *V2Path = (argc >= 5) ? argv[4] : nullptr;
+    int SoakN = (argc == 6) ? atoi(argv[5]) : 0;
 
     InitializeNativeTarget();
     InitializeNativeTargetAsmPrinter();
@@ -230,6 +251,75 @@ int main(int argc, char **argv) {
         fprintf(stdout,
                 "[host] VERDICT: PASS — pixels differ across the edit "
                 "(v1=0x%06X v2=0x%06X)\n", Px1, Px2);
+    }
+
+    // -------- generation soak (persistent-agent viability) ----------
+    //
+    // Persistent-agent risk: Swift has no deregistration for
+    // __swift5_proto/__swift5_types, so every generation's
+    // initialize(JD) permanently grows the runtime's registries, and
+    // conformance scans walk them. Soak N generations in THIS process
+    // (fresh JD each, alternating v1/v2) and watch per-generation
+    // link/render latency + RSS. Any mprotect/MAP_JIT denial surfaces
+    // as a loud must() failure.
+    if (SoakN > 0 && V2Path) {
+        fprintf(stdout, "\n[host] === soak: %d generations ===\n", SoakN);
+        fprintf(stdout,
+                "[soak] gen_window  link_med_ms  render_med_ms  rss_mb\n");
+        auto &ES = JIT->getExecutionSession();
+        auto MangledName = ES.intern(
+            JIT->getDataLayout().getGlobalPrefix() == '\0'
+                ? "preview_render_pixel"
+                : "_preview_render_pixel");
+        std::vector<double> linkW, renderW;
+        double rss0 = rssMB();
+        fprintf(stdout, "[soak] baseline rss %.1f MB\n", rss0);
+        for (int i = 0; i < SoakN; ++i) {
+            const char *Obj = (i & 1) ? V2Path : V1Path;
+            uint32_t Want = (i & 1) ? 0x0000FFu : 0xFF0000u;
+            char Name[32];
+            snprintf(Name, sizeof Name, "gen%d", i);
+            auto &JD = must("createJITDylib(gen)",
+                            JIT->createJITDylib(Name));
+            JD.setLinkOrder(
+                {{&JD, JITDylibLookupFlags::MatchAllSymbols},
+                 {&MainJD, JITDylibLookupFlags::MatchAllSymbols}},
+                /*LinkAgainstThisJITDylibFirst=*/false);
+            auto t0 = std::chrono::steady_clock::now();
+            must("addObjectFile(soak gen)",
+                 JIT->addObjectFile(JD, loadObject(Obj)));
+            auto Sym = must("ES.lookup(soak gen)",
+                            ES.lookup({{&JD,
+                                        JITDylibLookupFlags::MatchAllSymbols}},
+                                      MangledName));
+            must("initialize(soak gen)", JIT->initialize(JD));
+            double linkMs = msSince(t0);
+            auto FP = Sym.getAddress().toPtr<uint32_t (*)()>();
+            auto t1 = std::chrono::steady_clock::now();
+            uint32_t px = FP();
+            double renderMs = msSince(t1);
+            if (px != Want) {
+                fprintf(stdout,
+                        "[soak] gen %d WRONG PIXEL 0x%06X (want 0x%06X)\n",
+                        i, px, Want);
+                return 1;
+            }
+            linkW.push_back(linkMs);
+            renderW.push_back(renderMs);
+            if ((i + 1) % 50 == 0) {
+                fprintf(stdout, "[soak] %4d-%-4d  %8.2f  %10.2f  %7.1f\n",
+                        i - 48, i + 1, median(linkW), median(renderW),
+                        rssMB());
+                fflush(stdout);
+                linkW.clear();
+                renderW.clear();
+            }
+        }
+        double rss1 = rssMB();
+        fprintf(stdout,
+                "[soak] done: %d generations, rss %.1f -> %.1f MB "
+                "(%.2f MB per 100 generations)\n",
+                SoakN, rss0, rss1, (rss1 - rss0) * 100.0 / SoakN);
     }
 
     fprintf(stdout, "[host] done.\n");
