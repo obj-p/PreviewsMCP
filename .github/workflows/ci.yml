@@ -284,7 +284,9 @@ jobs:
         run: sudo xcode-select -s /Applications/Xcode_26.3.app
 
       - name: Disable Spotlight
-        run: sudo mdutil -a -i off
+        # Non-fatal: mdutil can exit 1 when a volume is mid-transition
+        # (kMDConfigSearchLevelTransitioning); it is only a build-speed hint.
+        run: sudo mdutil -a -i off || true
 
       - name: Install cmake and ninja
         run: brew install cmake ninja
