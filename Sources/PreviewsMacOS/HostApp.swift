@@ -16,6 +16,10 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
     private var windows: [String: NSWindow] = [:]
     private var loaders: [String: DylibLoader] = [:]
     private var sessions: [String: PreviewSession] = [:]
+    /// Latest agent-rendered PNG per session. Set once a session goes through the
+    /// JIT structural-reload path; `preview_snapshot` serves this instead of the
+    /// in-daemon window for those sessions.
+    private var agentImagePaths: [String: URL] = [:]
     // Keep old loaders and views alive so their dylib types remain valid.
     private var retainedLoaders: [DylibLoader] = []
     private var retainedViews: [NSView] = []
@@ -27,6 +31,11 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
 
     /// Callback invoked after NSApplication finishes launching.
     public var onLaunch: (@MainActor () -> Void)?
+
+    /// Structural-reload strategy for the JIT path. Injected at the composition
+    /// root, non-nil only in JIT builds. When set, structural edits render in the
+    /// agent instead of rebuilding an in-daemon dylib.
+    public var structuralReloader: (any StructuralReloader)?
 
     /// Async sink that publishes a snapshot of macOS sessions to the
     /// cross-process registry. Set once by the engine layer at host
@@ -206,6 +215,14 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
                         fputs("Session \(sessionID) no longer exists\n", stderr)
                         return
                     }
+
+                    if try await self.jitStructuralReload(
+                        sessionID: sessionID, session: existingSession
+                    ) != nil {
+                        fputs("Reloaded (JIT agent)!\n", stderr); fflush(stderr)
+                        return
+                    }
+
                     let compileResult = try await existingSession.compile()
                     fputs("Compiled: \(compileResult.dylibPath.lastPathComponent)\n", stderr)
 
@@ -282,6 +299,7 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
         fileWatchers[sessionID]?.stop()
         fileWatchers.removeValue(forKey: sessionID)
         sessions.removeValue(forKey: sessionID)
+        agentImagePaths.removeValue(forKey: sessionID)
         notifySessionsChanged()
         fputs("closePreview: watchers/sessions removed\n", stderr); fflush(stderr)
 
@@ -314,6 +332,23 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
     /// Get the window for a session (for snapshotting).
     public func window(for sessionID: String) -> NSWindow? {
         windows[sessionID]
+    }
+
+    /// Structural reload via the JIT path: compile the preview to a render-bridge
+    /// object, render it in the agent, and record the agent's PNG for snapshots.
+    /// Returns the image path, or nil if no reloader is injected (non-JIT build).
+    @discardableResult
+    public func jitStructuralReload(sessionID: String, session: PreviewSession) async throws -> URL? {
+        guard let reloader = structuralReloader else { return nil }
+        let build = try await session.compileObjectForJIT()
+        try await reloader.renderObject(at: build.objectPath, entrySymbol: build.entrySymbol)
+        agentImagePaths[sessionID] = build.imagePath
+        return build.imagePath
+    }
+
+    /// The agent-rendered PNG for a session, if it is on the JIT structural path.
+    public func agentSnapshotPath(for sessionID: String) -> URL? {
+        agentImagePaths[sessionID]
     }
 
     /// Snapshot the current sessions and chain a publish Task. Each new

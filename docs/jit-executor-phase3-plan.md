@@ -341,9 +341,22 @@ moves to the agent bitmap; interaction is untouched.
       `JITStructuralReloaderTests` drives a real `compileObjectForJIT` `.o` through
       the reloader and asserts the agent-written PNG is green. *Verify (met):*
       32/32 JIT green, 3/3 parallel, zero orphans, zero crash reports.
-    - **c-i-3 — host wiring**: inject at the composition root, branch
-      `watchFile`'s structural path, reroute `preview_snapshot` for agent-backed
-      sessions.
+    - **c-i-3 — host wiring — DONE (pending CI non-JIT check).** (a) `PreviewHost`
+      gained `structuralReloader: (any StructuralReloader)?` + an
+      `agentImagePaths` map; `jitStructuralReload(sessionID:session:)` compiles the
+      `.o`, calls `renderObject`, records the PNG; `watchFile`'s structural branch
+      prefers it when injected, else the existing dylib path. (b)
+      `MacOSPreviewHandle.snapshot` returns the agent PNG (via new
+      `Snapshot.encode(imageAt:format:)`, PNG passthrough / JPEG transcode) when
+      the session is agent-backed. (c) Composition root: one `#if PREVIEWSMCP_JIT`
+      in `PreviewsMCPApp` injects `JITStructuralReloader()`; `Package.swift` adds
+      `PreviewsJITLink` to `PreviewsCLI` and defines `PREVIEWSMCP_JIT` **only when
+      `jitEnabled`**. Daemon logic stays `#if`-free (Core protocol only); the one
+      conditional is at the app entry where composition belongs. *Verify (met):*
+      `PreviewHostJITReloadTests` (host records the agent image; nil reloader falls
+      through) + `MacOSPreviewHandleAgentSnapshotTests` (snapshot returns the agent
+      PNG); macOS 3 / engine 9 / JIT 32 green; full JIT `swift build` green. The
+      non-JIT build (`jitEnabled=false`) is verified by CI on push.
   - **P3.4c-ii — literal-after-structural.** Once a session is agent-rendered the
     view lives in the agent, so a later literal edit must re-seed the agent's
     `DesignTimeStore` and re-render, not use the in-daemon path. Falls back to a

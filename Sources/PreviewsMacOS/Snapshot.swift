@@ -59,6 +59,28 @@ public enum Snapshot {
         let data = try capture(window: window, format: format)
         try data.write(to: path)
     }
+
+    /// Re-encode an agent-rendered image file (PNG) to the requested output format.
+    /// PNG output returns the bytes unchanged; JPEG transcodes. Used by the JIT
+    /// structural path, where the snapshot is rendered in the agent, not the window.
+    public static func encode(imageAt path: URL, format: ImageFormat) throws -> Data {
+        let data = try Data(contentsOf: path)
+        switch format {
+        case .png:
+            return data
+        case .jpeg(let quality):
+            guard
+                let rep = NSBitmapImageRep(data: data),
+                let out = rep.representation(
+                    using: .jpeg,
+                    properties: [.compressionFactor: NSNumber(value: quality)]
+                )
+            else {
+                throw SnapshotError.encodingFailed
+            }
+            return out
+        }
+    }
 }
 
 public enum SnapshotError: Error, LocalizedError, CustomStringConvertible {
