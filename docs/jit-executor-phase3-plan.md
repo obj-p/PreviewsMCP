@@ -751,12 +751,16 @@ reuse across edits, flat 180ms vs 312ms whole at N=24). The editable unit reuses
     adds dylibs before archives/objects (`renderObject(...dylibPaths...)`). Verified by
     `ArchiveLoadingTests.resolvesSymbolFromDylibInAgent`; in the real E2E the Lottie
     symbols now resolve, leaving **only** `___isPlatformVersionAtLeast` (G3-c).
-  - **G3-c — compiler-rt builtin (TODO).** `___isPlatformVersionAtLeast` (emitted by
-    `#available`) is a clang/compiler-rt builtin unresolved in the agent; real SwiftUI
-    code hits it constantly. Provide it (add the compiler-rt builtins archive to the
-    session, or supply the symbol).
-  Verify (all three): enabling `ExamplesSplitE2ETests.splitRendersRealPreviewInAgent`
-  renders `Summary.swift` to a non-empty PNG.
+  - **G3-c — compiler-rt builtins — DONE (commit pending).** `___isPlatformVersionAtLeast`
+    (emitted by `#available`) is a defined symbol in the toolchain's `libclang_rt.osx.a`.
+    `Toolchain.compilerRuntimeArchivePath()` (`xcrun clang -print-runtime-dir` +
+    `libclang_rt.osx.a`) locates it; the split branch appends it to `archivePaths`, so it
+    loads via the G3-a archive mechanism (lazy, pulls only the referenced builtins).
+  **G3 COMPLETE — a real Tier-2 preview renders end to end.**
+  `ExamplesSplitE2ETests.splitRendersRealPreviewInAgent` is enabled and renders
+  `Summary.swift` (with `ToDoExtras` + `Lottie` deps) to a non-empty PNG. The earlier
+  `NSForwarding ... JSONObjectWithData` abort was teardown noise after the failing link;
+  it clears once the link succeeds.
 - **G2 (deferred, separable)** — `FileWatcher` delivers the **changed path**, not
   just "something changed". Feeds `hotFile` so the live daemon picks the hot file
   itself. Verify: editing file X delivers X's path; editing Y recompiles Y not X.

@@ -241,6 +241,9 @@ public actor PreviewSession {
             let stable = try await stableModule(for: bulk, context: ctx)
             supportObjectPaths = [stable.objectPath]
             archivePaths = Self.dependencyArchives(in: ctx.compilerFlags)
+            if let runtimeArchive = try await Toolchain.compilerRuntimeArchivePath() {
+                archivePaths.append(URL(fileURLWithPath: runtimeArchive))
+            }
             dylibPaths = Self.dependencyDylibs(in: ctx.compilerFlags)
             objectPath = try await compiler.compileObject(
                 source: generated.source,

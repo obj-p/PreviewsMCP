@@ -9,11 +9,10 @@ import Testing
 /// flags, real multi-file target, sibling + cross-package deps), driven through
 /// `PreviewSession.compileObjectForJIT()`.
 ///
-/// The split COMPILE is validated here. G3-a (static dependency archives) resolves archived
-/// sibling/cross-package symbols (ToDoExtras / LocalDep) and G3-b (dlopen binary frameworks
-/// in the agent) resolves Lottie. Rendering a real Tier-2 preview is now blocked only on G3-c
-/// (the compiler-rt builtin `___isPlatformVersionAtLeast` emitted by `#available`); the render
-/// test below stays disabled until G3-c lands. See `docs/jit-executor-phase3-plan.md`.
+/// A real Tier-2 preview renders end to end here. The dependency closure is loaded into the
+/// agent: G3-a (static archives, ToDoExtras / LocalDep), G3-b (dlopen binary frameworks,
+/// Lottie), and G3-c (the compiler-rt builtins archive `libclang_rt.osx.a`, which provides
+/// `__isPlatformVersionAtLeast` emitted by `#available`). See `docs/jit-executor-phase3-plan.md`.
 @Suite(.serialized)
 struct ExamplesSplitE2ETests {
     static let repoRoot: URL = URL(fileURLWithPath: #filePath)
@@ -66,11 +65,7 @@ struct ExamplesSplitE2ETests {
         #expect(build2.objectPath == build1.objectPath)
     }
 
-    @Test(
-        .disabled(
-            "G3-a (static archives, ToDoExtras/LocalDep) and G3-b (dlopen the Lottie framework in the agent) now resolve. The only remaining unresolved symbol is the compiler-rt builtin `___isPlatformVersionAtLeast` (emitted by #available). Enable once G3-c lands."
-        ))
-    func splitRendersRealPreviewInAgent() async throws {
+    @Test func splitRendersRealPreviewInAgent() async throws {
         let hot = Self.spmRoot.appendingPathComponent("Sources/ToDo/Summary.swift")
         let ctx = try await Self.context(for: hot)
         let compiler = try await Compiler()
