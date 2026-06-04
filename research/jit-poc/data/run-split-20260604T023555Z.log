@@ -1,0 +1,20 @@
+swift-driver version: 1.127.14.1 [split] swiftc: Apple Swift version 6.2.3 (swiftlang-6.2.3.3.21 clang-1700.6.3.2)
+[split] swiftc Stable.swift -> build/libStable.dylib + Stable.swiftmodule
+[split] swiftc split_preview_v1.swift -> build/split_preview_v1.o
+[split] swiftc split_preview_v2.swift -> build/split_preview_v2.o
+[split] clang++ src/ObjCSelrefPlugin.cpp + host_split.cpp -> build/host_split
+[split] ORC runtime: /opt/homebrew/opt/llvm/lib/clang/22/lib/darwin/liborc_rt_osx.a
+[split] running host_split (v1 + v2 pixel check)
+[host] LLJIT target triple: arm64-apple-darwin25.5.0
+[host] dlopened libswiftCore via /usr/lib/swift/libswiftCore.dylib
+[host] dlopened stable module /Users/jasonprasad/Projects/PreviewsMCP/.worktrees/previews-research/research/jit-poc/build/libStable.dylib (110.9 ms)
+[host] v1 preview_render_pixel resolved to 0x1027cc970 (link 5.4 ms); rendering...
+[host] v1 pixel(0,0) = 0xFF0000 (render 71.1 ms)
+[host] v2 preview_render_pixel resolved to 0x10c368970 (link 0.8 ms); rendering...
+[host] v2 pixel(0,0) = 0x0000FF (render 0.9 ms)
+[host] VERDICT: PASS — pixels differ across the edit (v1=0xFF0000 v2=0x0000FF)
+[host] done.
+[split] timing edit->pixels (compile v2 + spawn host + link + render)
+[split] rep 1: compile 167 ms + host(spawn+link+render) 69 ms = edit->pixels 236 ms
+[split] rep 2: compile 163 ms + host(spawn+link+render) 69 ms = edit->pixels 232 ms
+[split] rep 3: compile 163 ms + host(spawn+link+render) 69 ms = edit->pixels 232 ms

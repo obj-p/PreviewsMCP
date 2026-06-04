@@ -4,8 +4,10 @@
 `internal` SwiftUI view splits into a separate unit via `@testable import` against
 a stable module built `-enable-testing`, and edit→relink stays flat (~0.14 s) at
 stable N=200 and 1000. Breaks when the preview references `private`/`fileprivate`
-decls (invisible across the boundary). S2 symbol-override cited from the
-`research/jit-poc` witness POC. See
+decls (invisible across the boundary). UPDATE 2026-06-04: the **integrated POC**
+now proves S2 end-to-end — split → @testable compile → JIT-link → pixels PASS
+(`research/jit-poc/build-split.sh`); edit→pixels ~233 ms respawn / ~167 ms
+persistent-agent. See
 [`../../analysis/w7-autosplit.md`](../../analysis/w7-autosplit.md) and raw
 [`w7-autosplit.txt`](w7-autosplit.txt).
 

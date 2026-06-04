@@ -90,14 +90,63 @@ editable unit, `@testable import` the stable module, and JIT-link the recompiled
 preview object (S2). Bounded by the four break cases above — the dominant one
 being `private`/`fileprivate` references, which need promotion or co-location.
 
+## Integrated POC — split → @testable compile → JIT-link → pixels (DONE)
+
+The full chain now runs end-to-end on this branch
+(`research/jit-poc/build-split.sh`, host `src/host_split.cpp`, run log
+`research/jit-poc/data/run-split-20260604T023555Z.log`):
+
+1. Stable module `libStable.dylib` + `Stable.swiftmodule` built
+   `-enable-testing`, holding an **internal** `StableView`.
+2. Editable unit (`split_preview_v1/v2.swift`): `@testable import Stable`,
+   single-file compile against the prebuilt `.swiftmodule`; an
+   `@_cdecl` entry renders via `ImageRenderer` and returns pixel (0,0).
+3. Agent stand-in: LLJIT + ObjectLinkingLayer + `ObjCSelrefPlugin` +
+   `ExecutorNativePlatform` (the host_objc.cpp stack). dlopens libStable
+   (RTLD_GLOBAL), JIT-links each preview generation into a fresh JITDylib.
+4. **PASS:** v1 renders red `0xFF0000`, the edited v2 renders blue `0x0000FF` —
+   pixels differ across the edit, with the JIT'd code instantiating the stable
+   module's internal view. S2 is now proven end-to-end, not just cited.
+
+| stage | cold (first generation) | warm (next generation, same process) |
+|-------|-------------------------|---------------------------------------|
+| JIT-link (add+lookup+initialize) | 5.7 ms | **0.7 ms** |
+| render | 66.5 ms | **1.1 ms** |
+| dlopen stable | 110 ms (once) | — |
+
+Edit→pixels wall-clock (3 reps): **~233 ms with respawn semantics**
+(compile ~165 ms + spawn/dlopen/link/render ~69 ms). A **persistent agent**
+re-linking into a fresh JD pays ~2 ms after compile → **~167 ms edit→pixels,
+under the 200 ms budget**. Respawn-per-edit (Apple's model) costs the extra
+~70 ms of process+dlopen warmup.
+
+Implementation finding: the agent MUST call `LLJIT::initialize(JD)` per
+generation — it runs the platform's `jit_dlopen`, registering the object's
+`__swift5_*` metadata sections with the Swift runtime. Without it, SwiftUI's
+runtime conformance lookups segfault in the JIT'd code (first crash we hit).
+The `ObjCSelrefPlugin` + `ExecutorNativePlatform` stack from the jit-poc is
+also required (SwiftUI is selref-heavy).
+
+### private/fileprivate frequency — first read
+
+Two-part answer. By language rule, `private`/`fileprivate` cannot be referenced
+across files at all, so at **file granularity** (the split moves the whole
+edited file) break-case 1 is impossible *by construction* — a moved file's
+private decls move with it. Empirically: across every preview-bearing file in
+`examples/` (10+ files with `#Preview` across 4 build systems), there are
+**zero** private/fileprivate decls. Break-case 1 only applies to sub-file
+splits (e.g. extracting just the `#Preview` block), which the executor can
+avoid by always splitting at file granularity. Small sample; a wider OSS survey
+would firm this up.
+
 ## What this does NOT close
 
-- Real targets may reference `private`/`fileprivate` more than expected; the
-  *frequency* of break-case 1 in real code is unmeasured (a survey of real
-  SwiftUI previews would size it).
-- S2 was cited, not re-run end-to-end through the auto-split path; an integrated
-  POC (split → `@testable` compile → JIT-link → render) is the natural next step.
+- The `examples/` survey is a small sample; a wider OSS survey of real preview
+  files would firm up the (so far empty) break-case-1 frequency.
 - Macro-expanded code and resilience corner cases were only spot-probed.
+- The POC measures a 1-file stable module; combined with S3/W5-M3 flatness the
+  numbers hold as the stable module grows, but a scaled integrated run was not
+  repeated here.
 - Xcode 26.2 / swiftc only.
 
 ## Provenance
