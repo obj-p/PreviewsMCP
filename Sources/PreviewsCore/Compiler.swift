@@ -207,6 +207,33 @@ public actor Compiler {
             sourceFiles.append(file)
         }
 
+        return try await emitStableModule(
+            sourceFiles: sourceFiles, moduleName: moduleName, moduleDir: moduleDir,
+            extraFlags: extraFlags)
+    }
+
+    /// File-based variant: compile existing project sources in place (their real paths) into
+    /// the stable module, without copying. Used by the Tier-2 recompile-narrowing split.
+    public func emitStableModule(
+        sourceFiles: [URL],
+        moduleName: String,
+        extraFlags: [String] = []
+    ) async throws -> StableModule {
+        compilationCounter += 1
+        let moduleDir = workDir.appendingPathComponent(
+            "stable-\(moduleName)-\(compilationCounter)", isDirectory: true)
+        try FileManager.default.createDirectory(at: moduleDir, withIntermediateDirectories: true)
+        return try await emitStableModule(
+            sourceFiles: sourceFiles, moduleName: moduleName, moduleDir: moduleDir,
+            extraFlags: extraFlags)
+    }
+
+    private func emitStableModule(
+        sourceFiles: [URL],
+        moduleName: String,
+        moduleDir: URL,
+        extraFlags: [String]
+    ) async throws -> StableModule {
         let objectFile = moduleDir.appendingPathComponent("\(moduleName).o")
         let moduleFile = moduleDir.appendingPathComponent("\(moduleName).swiftmodule")
 

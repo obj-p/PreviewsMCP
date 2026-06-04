@@ -662,3 +662,61 @@ P3.3 (in-place `write_mem` + Begin/End/cancelUpdate handshake) stays conditional
   `swift-format format -i --recursive <file>` (plain `-i` uses tool defaults and
   leaves files CI rejects; a file list after `--recursive` only formats the first
   arg, so loop). build-and-test can pass while `lint` fails — check all four jobs.
+
+## P4.1 recompile-narrowing (#191 item 1) — IN PROGRESS
+
+**Decision: Fork B (project/Tier-2 split), file-granularity, hot-leaf heuristic.**
+The split puts the edited preview file (the "hot" file) in a single editable unit
+that `@testable import`s a stable module built from the rest of the project's
+sources. The W5/W7 lever: the per-edit compile recompiles only the hot file, so it
+stays flat (~158ms measured) while the whole-module baseline grows with module
+size. Sound only when the hot file is a **leaf** the bulk does not depend on
+(preview-layer edits fast; edits to the stable module's own interface fall back to
+the slow whole-module path — the rare hot-path case, accepted per W5/W7).
+
+**The hot-leaf heuristic.** The edited file cannot live in both the stable module
+and the editable unit (duplicate symbols at JIT-link). So per edit: pick the hot
+file, build `stable = projectSources − hotFile` once with `-enable-testing`,
+compile the hot file as the editable unit `@testable import`ing it, JIT-link
+stable.o + editable.o. Repeated edits to the **same** hot file reuse the cached
+stable module → flat fast path. An edit to a **different** file changes which file
+is hot → rebuild the stable module and reset. Fan-out (W5 M2): a body edit is 1
+editable object; an interface edit to a decl K files reference is 1+K objects.
+
+**Done (P4.1-a, commit 34613af):** `Compiler.emitStableModule` (whole-module `.o` +
+`-enable-testing .swiftmodule`) + `Tests/PreviewsJITLinkTests/SplitCompileTests.swift`
+proving the mechanism at the unit layer (cross-module `@testable` render, stable
+reuse across edits, flat 180ms vs 312ms whole at N=24). The editable unit reuses
+`Compiler.compileObject(..., extraFlags: ["-I", modulesDir])`.
+
+**Avenues / order (recommendation: B1→B2→B3, then G2):**
+- **B1 — DONE (commit pending).** `PreviewSession.compileObjectForJIT()` now splits
+  in Tier-2 mode: hot file = `self.sourceFile`, stable bulk = `ctx.sourceFiles`
+  (the build systems already exclude the preview file — SPM `getOtherSourceFiles`,
+  confirmed). The editable unit is a separate module `PreviewEdit_<moduleName>` that
+  `@testable import`s the stable module (`generateCombinedSource(stableModuleImport:)`),
+  compiled with `-I <stable.modulesDir>` + `ctx.compilerFlags`. `JITRenderBuild`
+  gained `supportObjectPaths` (the stable `.o`, linked before the editable object);
+  standalone leaves it empty so the daemon path is unchanged.
+  `Tests/PreviewsJITLinkTests/PreviewSessionSplitTests.swift` proves it: hot file
+  consumes a bulk `Palette` cross-module, renders red, structural edit re-renders
+  blue. Leaf assumption holds for the fixture (no bulk file references the hot view).
+- **B2** — cache the stable module across edits; rebuild only when `hotFile`
+  identity changes. Verify: same-file edit does NOT re-emit the stable module;
+  different-file edit does.
+- **B3** — carry both object paths through `JITRenderBuild` + `JITStructuralReloader`
+  so the daemon renders the split (reloader `addObject` stable then editable).
+  Verify: `PreviewHostJITReloadTests`-style structural reload renders via two objects.
+- **G2 (deferred, separable)** — `FileWatcher` delivers the **changed path**, not
+  just "something changed". Feeds `hotFile` so the live daemon picks the hot file
+  itself. Verify: editing file X delivers X's path; editing Y recompiles Y not X.
+- **Fork A (not chosen, fallback)** — standalone single-file split where the stable
+  module is only the `DesignTimeStore` + `PreviewBridge` boilerplate. Modest win
+  (boilerplate is tiny); kept as a note only.
+
+**Open questions for B1+:** (1) editable unit is a **separate** module name that
+`@testable import`s the stable module — confirm no bulk file references the hot
+view (leaf assumption) in the `examples/` projects; (2) where the daemon currently
+gets `buildContext.sourceFiles` and whether the edited file is reliably in that
+set; (3) the existing `compileObjectForJIT` standalone path stays as the no-build-
+context fallback (stable module = boilerplate or skip split).

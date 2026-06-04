@@ -17,6 +17,25 @@ public struct JITRenderBuild: Sendable {
     public let valuesPath: URL
     public let entrySymbol: String
     public let literals: [LiteralEntry]
+    /// Prebuilt stable-module objects to link before `objectPath` (recompile-narrowing
+    /// split). Empty for the standalone path, where `objectPath` is self-contained.
+    public let supportObjectPaths: [URL]
+
+    public init(
+        objectPath: URL,
+        imagePath: URL,
+        valuesPath: URL,
+        entrySymbol: String,
+        literals: [LiteralEntry],
+        supportObjectPaths: [URL] = []
+    ) {
+        self.objectPath = objectPath
+        self.imagePath = imagePath
+        self.valuesPath = valuesPath
+        self.entrySymbol = entrySymbol
+        self.literals = literals
+        self.supportObjectPaths = supportObjectPaths
+    }
 }
 
 /// Orchestrates the full preview pipeline: parse → generate bridge → compile → return dylib path.
@@ -163,7 +182,12 @@ public actor PreviewSession {
 
     /// Compile the preview for the JIT structural-reload path. Generates a render bridge
     /// with a baked PNG output path, compiles it to a `.o`, and returns the object plus the
-    /// image path the agent will write. Standalone (combined-source) mode only for now.
+    /// image path the agent will write.
+    ///
+    /// In Tier-2 project mode the compile is split (recompile-narrowing): the hot preview
+    /// file is the editable unit, `@testable import`ing a stable module prebuilt from the
+    /// target's other sources, so an edit recompiles only the hot file. Standalone mode
+    /// compiles the self-contained combined source as one object.
     public func compileObjectForJIT() async throws -> JITRenderBuild {
         let source = try String(contentsOf: sourceFile, encoding: .utf8)
         let previews = PreviewParser.parse(source: source)
@@ -182,6 +206,11 @@ public actor PreviewSession {
         let valuesPath = FileManager.default.temporaryDirectory
             .appendingPathComponent("\(stem).json")
 
+        let splitContext = buildContext.flatMap { ctx -> (BuildContext, [URL])? in
+            guard ctx.supportsTier2, let bulk = ctx.sourceFiles, !bulk.isEmpty else { return nil }
+            return (ctx, bulk)
+        }
+
         let generated = BridgeGenerator.generateCombinedSource(
             originalSource: source,
             closureBody: preview.closureBody,
@@ -189,13 +218,30 @@ public actor PreviewSession {
             platform: platform,
             traits: traits,
             renderOutputPath: imagePath.path,
-            designTimeValuesPath: valuesPath.path
+            designTimeValuesPath: valuesPath.path,
+            stableModuleImport: splitContext?.0.moduleName
         )
 
-        let objectPath = try await compiler.compileObject(
-            source: generated.source,
-            moduleName: Self.moduleName(for: sourceFile)
-        )
+        let objectPath: URL
+        var supportObjectPaths: [URL] = []
+        if let (ctx, bulk) = splitContext {
+            let stable = try await compiler.emitStableModule(
+                sourceFiles: bulk,
+                moduleName: ctx.moduleName,
+                extraFlags: ctx.compilerFlags
+            )
+            supportObjectPaths = [stable.objectPath]
+            objectPath = try await compiler.compileObject(
+                source: generated.source,
+                moduleName: "PreviewEdit_\(ctx.moduleName)",
+                extraFlags: ["-I", stable.modulesDir.path] + ctx.compilerFlags
+            )
+        } else {
+            objectPath = try await compiler.compileObject(
+                source: generated.source,
+                moduleName: Self.moduleName(for: sourceFile)
+            )
+        }
         try Self.writeDesignTimeValues(generated.literals, to: valuesPath)
 
         lastOriginalSource = source
@@ -206,7 +252,8 @@ public actor PreviewSession {
             imagePath: imagePath,
             valuesPath: valuesPath,
             entrySymbol: "renderPreviewToFile",
-            literals: generated.literals
+            literals: generated.literals,
+            supportObjectPaths: supportObjectPaths
         )
         lastJITBuild = build
         return build
