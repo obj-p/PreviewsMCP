@@ -358,7 +358,7 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
         let build = try await session.compileObjectForJIT()
         try await reloader.renderObject(
             at: build.objectPath, supportObjectPaths: build.supportObjectPaths,
-            entrySymbol: build.entrySymbol)
+            archivePaths: build.archivePaths, entrySymbol: build.entrySymbol)
         agentImagePaths[sessionID] = build.imagePath
         return build.imagePath
     }
@@ -383,7 +383,7 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
         else { return nil }
         try await reloader.renderObject(
             at: build.objectPath, supportObjectPaths: build.supportObjectPaths,
-            entrySymbol: build.entrySymbol)
+            archivePaths: build.archivePaths, entrySymbol: build.entrySymbol)
         agentImagePaths[sessionID] = build.imagePath
         return build.imagePath
     }

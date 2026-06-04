@@ -723,19 +723,34 @@ reuse across edits, flat 180ms vs 312ms whole at N=24). The editable unit reuses
   `-I`/`-package-name`/`@testable` flags flow correctly and both objects emit; the
   literal path classifies a real preview (`BadgePreview.swift`) and reuses the same
   object. BLOCKED on G3: the in-agent **render** is `.disabled` (see G3).
-- **G3 — JIT agent must load Tier-2 dependency archives (DISCOVERED by the E2E).**
-  The non-JIT Tier-2 path links a dylib with `-L <binPath> -l<Dep>` so dyld resolves
-  sibling/cross-package targets; the JIT path emits `.o`s and the agent JIT-links only
-  our stable.o + editable.o, so dependency symbols (`ToDoExtras.ProgressFormatter`,
-  `LocalDep.Badge`, …) are **unresolved at JIT-link time** (materialization fails;
-  the agent then `SIGABRT`s on a dangling `SymbolStringPool` — a secondary teardown
-  robustness bug). `SPMBuildSystem` archives those deps into `lib<Dep>.a` under
-  `binPath`. Fix: add the `-L`/`-l` archives to the JIT session as
-  `StaticLibraryDefinitionGenerator`s (lazy archive linking pulls in the needed dep
-  objects); a binary dylib/framework dep (e.g. Lottie) needs `dlopen` in the agent so
-  the process-symbol generator resolves it. This is a **prerequisite for JIT Tier-2
-  on any real multi-target project**, orthogonal to recompile-narrowing, and gates
-  the render half of item 3. Verify: enabling `splitRendersRealPreviewInAgent`
+- **G3 — JIT agent must load the target's full link-dependency closure (DISCOVERED by
+  the E2E).** The non-JIT Tier-2 path links a dylib with `-L/-l` (+ `-F/-framework`) so
+  dyld + autolink resolve sibling/cross-package/binary deps; the JIT path emits `.o`s and
+  the agent JIT-links only our stable.o + editable.o, so dep symbols are unresolved at
+  JIT-link time (materialization fails; the agent then `SIGABRT`s on a dangling
+  `SymbolStringPool` — a secondary teardown robustness bug). Note the split makes this
+  unavoidable: the **stable module bundles every other target file**, so even a
+  dep-free hot file pulls the whole target's deps (e.g. editing `Summary.swift` still
+  pulls `Lottie` via `ToDoView.swift`). Three layers, peeled by the E2E:
+  - **G3-a — static dependency archives — DONE (commit pending).** `SPMBuildSystem`
+    archives sibling/cross-package targets into `lib<Dep>.a`. Added
+    `previewsmcp_jit_session_add_archive` → `StaticLibraryDefinitionGenerator::Load`
+    on the session JD (lazy archive linking), Swift `JITSession.addArchive`,
+    `JITRenderBuild.archivePaths` (parsed from `ctx.compilerFlags` `-L`/`-l` by
+    `PreviewSession.dependencyArchives`), and the reloader adds archives before objects
+    (`renderObject(at:supportObjectPaths:archivePaths:entrySymbol:)`). Verified by
+    `ArchiveLoadingTests.resolvesSymbolFromStaticArchiveInAgent` (a JIT object resolves
+    a symbol from a `libtool` archive in the agent) — and the real E2E now resolves
+    `ToDoExtras`/`LocalDep`.
+  - **G3-b — binary frameworks (TODO).** `-F/-framework` deps (e.g. `Lottie.framework`)
+    are binary dylibs. The agent must `dlopen` them, via
+    `EPCDynamicLibrarySearchGenerator::Load` over EPC (resolve the framework binary at
+    `<F-dir>/<name>.framework/<name>`).
+  - **G3-c — compiler-rt builtin (TODO).** `___isPlatformVersionAtLeast` (emitted by
+    `#available`) is a clang/compiler-rt builtin unresolved in the agent; real SwiftUI
+    code hits it constantly. Provide it (add the compiler-rt builtins archive to the
+    session, or supply the symbol).
+  Verify (all three): enabling `ExamplesSplitE2ETests.splitRendersRealPreviewInAgent`
   renders `Summary.swift` to a non-empty PNG.
 - **G2 (deferred, separable)** — `FileWatcher` delivers the **changed path**, not
   just "something changed". Feeds `hotFile` so the live daemon picks the hot file

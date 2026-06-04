@@ -33,7 +33,7 @@ struct JITStructuralReloaderTests {
         let reloader = JITStructuralReloader()
         try await reloader.renderObject(
             at: build.objectPath, supportObjectPaths: build.supportObjectPaths,
-            entrySymbol: build.entrySymbol)
+            archivePaths: build.archivePaths, entrySymbol: build.entrySymbol)
 
         let data = try Data(contentsOf: build.imagePath)
         #expect(!data.isEmpty)
@@ -75,7 +75,7 @@ struct JITStructuralReloaderTests {
 
         try await reloader.renderObject(
             at: build.objectPath, supportObjectPaths: build.supportObjectPaths,
-            entrySymbol: build.entrySymbol)
+            archivePaths: build.archivePaths, entrySymbol: build.entrySymbol)
         let b1 = try Self.centerBrightness(build.imagePath)
         #expect(b1 < 0.4)
 
@@ -90,7 +90,7 @@ struct JITStructuralReloaderTests {
 
         try await reloader.renderObject(
             at: build.objectPath, supportObjectPaths: build.supportObjectPaths,
-            entrySymbol: build.entrySymbol)
+            archivePaths: build.archivePaths, entrySymbol: build.entrySymbol)
         let b2 = try Self.centerBrightness(build.imagePath)
         #expect(b2 > 0.7)
         #expect(b2 > b1)

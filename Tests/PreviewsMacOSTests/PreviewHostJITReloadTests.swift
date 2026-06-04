@@ -10,9 +10,9 @@ struct PreviewHostJITReloadTests {
 
     final class RecordingReloader: StructuralReloader, @unchecked Sendable {
         private(set) var calls: [(objectPath: URL, entrySymbol: String)] = []
-        func renderObject(at objectPath: URL, supportObjectPaths: [URL], entrySymbol: String)
-            async throws
-        {
+        func renderObject(
+            at objectPath: URL, supportObjectPaths: [URL], archivePaths: [URL], entrySymbol: String
+        ) async throws {
             calls.append((objectPath: objectPath, entrySymbol: entrySymbol))
         }
     }

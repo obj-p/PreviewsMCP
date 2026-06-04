@@ -77,6 +77,12 @@ public final class JITSession {
         }
     }
 
+    public func addArchive(path: String) throws {
+        if let error = previewsmcp_jit_session_add_archive(handle, path) {
+            throw JITLinkError.failed(error.string())
+        }
+    }
+
     public func address(of symbol: String) throws -> UInt64 {
         var address: UInt64 = 0
         if let error = previewsmcp_jit_session_lookup(handle, symbol, &address) {

@@ -20,6 +20,9 @@ public struct JITRenderBuild: Sendable {
     /// Prebuilt stable-module objects to link before `objectPath` (recompile-narrowing
     /// split). Empty for the standalone path, where `objectPath` is self-contained.
     public let supportObjectPaths: [URL]
+    /// Static-library archives (the target's `-L`/`-l` dependency archives) the agent must
+    /// link so the editable/stable objects' dependency symbols resolve. Empty for standalone.
+    public let archivePaths: [URL]
 
     public init(
         objectPath: URL,
@@ -27,7 +30,8 @@ public struct JITRenderBuild: Sendable {
         valuesPath: URL,
         entrySymbol: String,
         literals: [LiteralEntry],
-        supportObjectPaths: [URL] = []
+        supportObjectPaths: [URL] = [],
+        archivePaths: [URL] = []
     ) {
         self.objectPath = objectPath
         self.imagePath = imagePath
@@ -35,6 +39,7 @@ public struct JITRenderBuild: Sendable {
         self.entrySymbol = entrySymbol
         self.literals = literals
         self.supportObjectPaths = supportObjectPaths
+        self.archivePaths = archivePaths
     }
 }
 
@@ -225,9 +230,11 @@ public actor PreviewSession {
 
         let objectPath: URL
         var supportObjectPaths: [URL] = []
+        var archivePaths: [URL] = []
         if let (ctx, bulk) = splitContext {
             let stable = try await stableModule(for: bulk, context: ctx)
             supportObjectPaths = [stable.objectPath]
+            archivePaths = Self.dependencyArchives(in: ctx.compilerFlags)
             objectPath = try await compiler.compileObject(
                 source: generated.source,
                 moduleName: "PreviewEdit_\(ctx.moduleName)",
@@ -250,10 +257,43 @@ public actor PreviewSession {
             valuesPath: valuesPath,
             entrySymbol: "renderPreviewToFile",
             literals: generated.literals,
-            supportObjectPaths: supportObjectPaths
+            supportObjectPaths: supportObjectPaths,
+            archivePaths: archivePaths
         )
         lastJITBuild = build
         return build
+    }
+
+    /// Resolve the `-L <dir>` / `-l<name>` pairs in `flags` to `<dir>/lib<name>.a` archive
+    /// paths that exist on disk. These are the target's dependency archives the JIT agent
+    /// must link so the editable/stable objects' cross-target symbols resolve (G3).
+    static func dependencyArchives(in flags: [String]) -> [URL] {
+        var searchDirs: [URL] = []
+        var names: [String] = []
+        var index = 0
+        while index < flags.count {
+            let flag = flags[index]
+            if flag == "-L", index + 1 < flags.count {
+                searchDirs.append(URL(fileURLWithPath: flags[index + 1]))
+                index += 2
+            } else if flag.hasPrefix("-l") && flag.count > 2 {
+                names.append(String(flag.dropFirst(2)))
+                index += 1
+            } else {
+                index += 1
+            }
+        }
+        var archives: [URL] = []
+        for name in names {
+            for dir in searchDirs {
+                let candidate = dir.appendingPathComponent("lib\(name).a")
+                if FileManager.default.fileExists(atPath: candidate.path) {
+                    archives.append(candidate)
+                    break
+                }
+            }
+        }
+        return archives
     }
 
     /// Return the stable module for `bulk`, reusing the cached one when no bulk file has

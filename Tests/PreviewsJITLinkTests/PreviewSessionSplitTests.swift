@@ -138,6 +138,7 @@ struct PreviewSessionSplitTests {
         try await reloader.renderObject(
             at: build.objectPath,
             supportObjectPaths: build.supportObjectPaths,
+            archivePaths: build.archivePaths,
             entrySymbol: build.entrySymbol
         )
 

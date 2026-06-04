@@ -11,6 +11,7 @@
 #include <llvm-c/Core.h>
 #include <llvm-c/TargetMachine.h>
 #include <llvm/ExecutionEngine/Orc/EPCGenericMemoryAccess.h>
+#include <llvm/ExecutionEngine/Orc/ExecutionUtils.h>
 #include <llvm/ExecutionEngine/Orc/ExecutorProcessControl.h>
 #include <llvm/ExecutionEngine/Orc/LLJIT.h>
 #include <llvm/ExecutionEngine/Orc/MapperJITLinkMemoryManager.h>
@@ -497,6 +498,18 @@ const char *previewsmcp_jit_session_add_object(previewsmcp_jit_session *session,
     return toCStr(llvm::errorCodeToError(buf.getError()));
   }
   return toCStr(session->jit->addObjectFile(*session->jd, std::move(*buf)));
+}
+
+const char *
+previewsmcp_jit_session_add_archive(previewsmcp_jit_session *session,
+                                    const char *archive_path) {
+  auto generator = llvm::orc::StaticLibraryDefinitionGenerator::Load(
+      session->jit->getObjLinkingLayer(), archive_path);
+  if (!generator) {
+    return toCStr(generator.takeError());
+  }
+  session->jd->addGenerator(std::move(*generator));
+  return nullptr;
 }
 
 const char *previewsmcp_jit_session_lookup(previewsmcp_jit_session *session,

@@ -9,10 +9,12 @@ import Testing
 /// flags, real multi-file target, sibling + cross-package deps), driven through
 /// `PreviewSession.compileObjectForJIT()`.
 ///
-/// The split COMPILE is validated here. Rendering a real Tier-2 preview in the agent is
-/// blocked on G3 (the JIT agent does not yet load the target's dependency archives
-/// `libToDoExtras.a` / `libLocalDep.a` — their symbols are unresolved at JIT-link time);
-/// the render test below is disabled until G3 lands. See `docs/jit-executor-phase3-plan.md`.
+/// The split COMPILE is validated here, and G3-a (static dependency archives) now lets the
+/// agent resolve archived sibling/cross-package symbols (ToDoExtras / LocalDep). Rendering a
+/// real Tier-2 preview is still blocked on G3-b (dlopen the target's binary frameworks, e.g.
+/// Lottie, in the agent) and G3-c (the compiler-rt builtin `___isPlatformVersionAtLeast`
+/// emitted by `#available`); the render test below stays disabled until those land. See
+/// `docs/jit-executor-phase3-plan.md`.
 @Suite(.serialized)
 struct ExamplesSplitE2ETests {
     static let repoRoot: URL = URL(fileURLWithPath: #filePath)
@@ -67,7 +69,7 @@ struct ExamplesSplitE2ETests {
 
     @Test(
         .disabled(
-            "G3: JIT agent does not yet load the target's dependency archives (libToDoExtras.a / libLocalDep.a); their symbols are unresolved at JIT-link time. Enable once G3 lands."
+            "G3-a (static archives) lands here and resolves ToDoExtras/LocalDep. Still blocked: the stable module bundles ToDoView.swift, which uses the Lottie binary framework (needs G3-b: dlopen the framework in the agent) and emits `___isPlatformVersionAtLeast` from #available (needs G3-c: the compiler-rt builtin). Enable once G3-b/G3-c land."
         ))
     func splitRendersRealPreviewInAgent() async throws {
         let hot = Self.spmRoot.appendingPathComponent("Sources/ToDo/Summary.swift")
@@ -80,6 +82,7 @@ struct ExamplesSplitE2ETests {
         try await reloader.renderObject(
             at: build.objectPath,
             supportObjectPaths: build.supportObjectPaths,
+            archivePaths: build.archivePaths,
             entrySymbol: build.entrySymbol
         )
         let png = try Data(contentsOf: build.imagePath)

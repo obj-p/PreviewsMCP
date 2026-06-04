@@ -39,6 +39,9 @@ const char *_Nullable previewsmcp_jit_session_write_pointer(
 const char *_Nullable previewsmcp_jit_session_add_object(
     previewsmcp_jit_session *session, const char *object_path);
 
+const char *_Nullable previewsmcp_jit_session_add_archive(
+    previewsmcp_jit_session *session, const char *archive_path);
+
 const char *_Nullable previewsmcp_jit_session_lookup(
     previewsmcp_jit_session *session, const char *symbol_name,
     uint64_t *out_address);

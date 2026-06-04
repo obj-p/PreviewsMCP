@@ -10,9 +10,11 @@ import Foundation
 /// injects it only when the JIT build is present. The protocol is agnostic to whether
 /// the implementation respawns a process per edit or reuses a capped-persistent one.
 public protocol StructuralReloader: Sendable {
-    /// Render `objectPath`'s entry, first linking any `supportObjectPaths` (the prebuilt
-    /// stable-module objects from the recompile-narrowing split). `supportObjectPaths` is
-    /// empty for the standalone path, where `objectPath` is self-contained.
-    func renderObject(at objectPath: URL, supportObjectPaths: [URL], entrySymbol: String)
-        async throws
+    /// Render `objectPath`'s entry, first linking any `archivePaths` (the target's
+    /// dependency archives) and `supportObjectPaths` (the prebuilt stable-module objects
+    /// from the recompile-narrowing split). Both are empty for the standalone path, where
+    /// `objectPath` is self-contained.
+    func renderObject(
+        at objectPath: URL, supportObjectPaths: [URL], archivePaths: [URL], entrySymbol: String
+    ) async throws
 }
