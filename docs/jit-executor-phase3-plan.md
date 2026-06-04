@@ -479,7 +479,7 @@ assumption; our respawn-first decision is unaffected (only the rationale changes
 
 **Bonus (W4):** Apple's literal fast-path is **data injection**
 (`__designTimeString`/`Integer` + fallback), not recompilation — the same idea as
-this project's `DesignTimeStore`. Modeling it is W6 (queued). **W7 — CLOSED:**
+this project's `DesignTimeStore`. **W7 — CLOSED:**
 auto-split is feasible for the common case (matrix + break-cases in G1).
 **Integrated POC — PASSED** (`cfe9bda`): the full split → `@testable` →
 JIT-link → render chain is proven; numbers and findings in G1.
@@ -488,8 +488,33 @@ host, fresh JD each: latency FLAT (link ~0.37-0.47ms, render ~0.33-0.43ms
 medians across all windows; `swift_conformsToProtocol` does not slow), RSS
 linear ~87KB/generation (unreclaimable — `__swift5_*` cannot deregister), zero
 mprotect/MAP_JIT failures, zero wrong pixels. Verdict: **capped-persistent**
-(see "Key decision", amended to respawn-on-cap). W6 (design-time injection) is
-the last queued research item.
+(see "Key decision", amended to respawn-on-cap).
+
+**W6 — CLOSED** (`research/scripts/analysis/w6-designtime.md`). Two results.
+*Canvas-is-split (refines G1):* Apple's canvas thunk compile has **no**
+`-filelist`/`-incremental`/batch-mode — it is single `-primary-file` +
+`-vfsoverlay` + explicit module map, i.e. **already the W5/W7 split shape**, so
+the canvas latency number is the split number, not the same-module number.
+*Injection lifecycle:* `#salt_n` IDs generated at thunk compile → runtime value
+table keyed by ID, read via `__designTime{String,Integer,Float,Boolean}` → on a
+literal edit, re-inject by ID via the `PreviewsInjection` `EntryPoint`
+`UpdatePayload` stream — **no recompile, no respawn**. Structural edits take
+`PerformFirstJITLink`/`JITLinkEntrypoint` instead. Our `DesignTimeStore`
+(`@Observable` + `@_cdecl designTimeSet*`) is a faithful mirror. The boundary is
+`LiteralDiffer` skeleton-equality, including the UIKit-region downgrade (#160).
+Minor open: Apple's `UpdatePayload` wire format read from symbol names, not a
+decoded live XPC dump.
+
+**Executor edit-tier model (research arc complete — W3-W7 all CLOSED):**
+1. **Literal-only SwiftUI edit** → value push by ID into the running agent
+   (`DesignTimeStore` path) — no compile, no respawn. Cheapest.
+2. **Structural edit** → W7 split compile (one file vs prebuilt
+   `.swiftmodule`s) + JIT-link into a fresh `JITDylib` under capped-persistent
+   (respawn-on-cap). ~167ms.
+3. **UIKit-region literal edit** → tier 2 (UIKit captures the value once and
+   never observes, #160).
+Classify edits exactly as `LiteralDiffer` does (skeleton or literal-count change
+⇒ tier 2; literal value change in a SwiftUI region ⇒ tier 1).
 
 ## Phase 3 status: IN PROGRESS
 
