@@ -178,6 +178,60 @@ public actor Compiler {
         return objectFile
     }
 
+    /// A prebuilt stable module: a `.swiftmodule` (consumed at compile time via `-I modulesDir`)
+    /// plus its linkable `.o` (added to the JIT alongside the per-edit editable unit).
+    public struct StableModule: Sendable {
+        public let moduleName: String
+        public let modulesDir: URL
+        public let objectPath: URL
+    }
+
+    /// Build the stable half of the recompile-narrowing split: compile `sources` once into a
+    /// single whole-module `.o` plus a `-enable-testing` `.swiftmodule`. The editable unit then
+    /// compiles a single file against this prebuilt module (`-I modulesDir`, `@testable import`),
+    /// so an edit never re-parses the bulk.
+    public func emitStableModule(
+        sources: [String],
+        moduleName: String,
+        extraFlags: [String] = []
+    ) async throws -> StableModule {
+        compilationCounter += 1
+        let moduleDir = workDir.appendingPathComponent(
+            "stable-\(moduleName)-\(compilationCounter)", isDirectory: true)
+        try FileManager.default.createDirectory(at: moduleDir, withIntermediateDirectories: true)
+
+        var sourceFiles: [URL] = []
+        for (index, source) in sources.enumerated() {
+            let file = moduleDir.appendingPathComponent("bulk_\(index).swift")
+            try source.write(to: file, atomically: true, encoding: .utf8)
+            sourceFiles.append(file)
+        }
+
+        let objectFile = moduleDir.appendingPathComponent("\(moduleName).o")
+        let moduleFile = moduleDir.appendingPathComponent("\(moduleName).swiftmodule")
+
+        var args: [String] = [
+            swiftcPath,
+            "-wmo",
+            "-emit-object",
+            "-parse-as-library",
+            "-enable-testing",
+            "-target", targetTriple,
+            "-sdk", sdkPath,
+            "-module-name", moduleName,
+            "-Onone",
+            "-gnone",
+            "-module-cache-path", moduleCachePath.path,
+            "-emit-module-path", moduleFile.path,
+        ]
+        args += extraFlags
+        args += ["-o", objectFile.path]
+        args += sourceFiles.map(\.path)
+
+        try await run(args)
+        return StableModule(moduleName: moduleName, modulesDir: moduleDir, objectPath: objectFile)
+    }
+
     // MARK: - Private
 
     @discardableResult
