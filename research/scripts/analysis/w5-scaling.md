@@ -86,5 +86,6 @@ not paid per edit. This is the direct test of G1 path (b), and it passes.
 
 ## Provenance
 
-`/tmp/w5` harness (`m1.sh`, `m2.sh`, `m3.sh`), 2026-06-02, swiftc from Xcode
-26.2 (17C52). Full numbers in [`../data/w5/w5-scaling.txt`](../data/w5/w5-scaling.txt).
+Harness committed at [`../data/w5/`](../data/w5/) (`m1.sh`, `m2.sh`, `m3.sh`;
+each recreates its synthetic targets under `/tmp/w5`), 2026-06-02, swiftc from
+Xcode 26.2 (17C52). Full numbers in [`../data/w5/w5-scaling.txt`](../data/w5/w5-scaling.txt).
