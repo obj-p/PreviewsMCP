@@ -124,6 +124,33 @@ struct PreviewSessionSplitTests {
         #expect(build3.supportObjectPaths != build2.supportObjectPaths)
     }
 
+    @Test func reloaderRendersSplitBuildThroughBothObjects() async throws {
+        let project = try Self.makeProject(
+            previewBody: "Palette.square(red: 1, green: 0, blue: 0)")
+        defer { try? FileManager.default.removeItem(at: project.dir) }
+
+        let compiler = try await Compiler()
+        let session = PreviewSession(
+            sourceFile: project.hotFile, compiler: compiler, buildContext: project.context)
+        let build = try await session.compileObjectForJIT()
+
+        let reloader = JITStructuralReloader()
+        try await reloader.renderObject(
+            at: build.objectPath,
+            supportObjectPaths: build.supportObjectPaths,
+            entrySymbol: build.entrySymbol
+        )
+
+        let rep = try #require(NSBitmapImageRep(data: Data(contentsOf: build.imagePath)))
+        let color = try #require(
+            rep.colorAt(x: rep.pixelsWide / 2, y: rep.pixelsHigh / 2)?
+                .usingColorSpace(.deviceRGB)
+        )
+        #expect(color.redComponent > 0.8)
+        #expect(color.greenComponent < 0.2)
+        #expect(color.blueComponent < 0.2)
+    }
+
     @Test func structuralEditReRendersThroughSplit() async throws {
         let project = try Self.makeProject(
             previewBody: "Palette.square(red: 1, green: 0, blue: 0)")

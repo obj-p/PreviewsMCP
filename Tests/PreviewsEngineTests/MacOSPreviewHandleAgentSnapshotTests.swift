@@ -11,7 +11,9 @@ import Testing
 struct MacOSPreviewHandleAgentSnapshotTests {
 
     final class RecordingReloader: StructuralReloader, @unchecked Sendable {
-        func renderObject(at objectPath: URL, entrySymbol: String) async throws {}
+        func renderObject(at objectPath: URL, supportObjectPaths: [URL], entrySymbol: String)
+            async throws
+        {}
     }
 
     @Test func snapshotReturnsAgentImage() async throws {

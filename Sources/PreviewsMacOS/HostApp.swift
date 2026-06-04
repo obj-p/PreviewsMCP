@@ -356,7 +356,9 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
     public func jitStructuralReload(sessionID: String, session: PreviewSession) async throws -> URL? {
         guard let reloader = structuralReloader else { return nil }
         let build = try await session.compileObjectForJIT()
-        try await reloader.renderObject(at: build.objectPath, entrySymbol: build.entrySymbol)
+        try await reloader.renderObject(
+            at: build.objectPath, supportObjectPaths: build.supportObjectPaths,
+            entrySymbol: build.entrySymbol)
         agentImagePaths[sessionID] = build.imagePath
         return build.imagePath
     }
@@ -379,7 +381,9 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
             let reloader = structuralReloader,
             let build = try await session.applyLiteralValuesForJIT(changes)
         else { return nil }
-        try await reloader.renderObject(at: build.objectPath, entrySymbol: build.entrySymbol)
+        try await reloader.renderObject(
+            at: build.objectPath, supportObjectPaths: build.supportObjectPaths,
+            entrySymbol: build.entrySymbol)
         agentImagePaths[sessionID] = build.imagePath
         return build.imagePath
     }

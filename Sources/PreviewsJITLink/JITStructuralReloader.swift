@@ -9,8 +9,13 @@ import PreviewsCore
 public struct JITStructuralReloader: StructuralReloader {
     public init() {}
 
-    public func renderObject(at objectPath: URL, entrySymbol: String) async throws {
+    public func renderObject(at objectPath: URL, supportObjectPaths: [URL], entrySymbol: String)
+        async throws
+    {
         let session = try JITSession(remoteAgentPath: JITSession.bundledAgentPath())
+        for support in supportObjectPaths {
+            try session.addObject(path: support.path)
+        }
         try session.addObject(path: objectPath.path)
         let status = try session.runOnMain(symbol: entrySymbol)
         guard status == 0 else {

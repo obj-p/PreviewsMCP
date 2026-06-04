@@ -708,9 +708,13 @@ reuse across edits, flat 180ms vs 312ms whole at N=24). The editable unit reuses
   "different hot file" case is a different session, not handled here. Verified by
   `stableModuleCachedAcrossHotEditsAndInvalidatedByBulkChange` (same
   `supportObjectPaths` across two hot edits; different after touching a bulk file).
-- **B3** — carry both object paths through `JITRenderBuild` + `JITStructuralReloader`
-  so the daemon renders the split (reloader `addObject` stable then editable).
-  Verify: `PreviewHostJITReloadTests`-style structural reload renders via two objects.
+- **B3 — DONE (commit pending).** `StructuralReloader.renderObject` gained a
+  `supportObjectPaths: [URL]` parameter; `JITStructuralReloader` adds those objects
+  before the editable object, so the agent links stable.o then editable.o. The daemon
+  callers (`HostApp.jitStructuralReload`/`jitLiteralReload`) pass
+  `build.supportObjectPaths`. Standalone passes `[]` (unchanged). Verified by
+  `reloaderRendersSplitBuildThroughBothObjects` (a project-mode split build renders
+  red through the real reloader). Test mocks updated for the new signature.
 - **G2 (deferred, separable)** — `FileWatcher` delivers the **changed path**, not
   just "something changed". Feeds `hotFile` so the live daemon picks the hot file
   itself. Verify: editing file X delivers X's path; editing Y recompiles Y not X.
