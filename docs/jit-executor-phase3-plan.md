@@ -715,6 +715,28 @@ reuse across edits, flat 180ms vs 312ms whole at N=24). The editable unit reuses
   `build.supportObjectPaths`. Standalone passes `[]` (unchanged). Verified by
   `reloaderRendersSplitBuildThroughBothObjects` (a project-mode split build renders
   red through the real reloader). Test mocks updated for the new signature.
+- **examples E2E (#191 item 3) — PARTIAL (commit pending).**
+  `Tests/PreviewsJITLinkTests/ExamplesSplitE2ETests.swift` drives a real
+  `SPMBuildSystem` `BuildContext` for `examples/spm` (`ToDo` target). PASSING: the
+  split **compiles** a real cross-file preview (`Summary.swift`, references
+  same-module `Item` + sibling `ToDoExtras` package-scoped decls) — real
+  `-I`/`-package-name`/`@testable` flags flow correctly and both objects emit; the
+  literal path classifies a real preview (`BadgePreview.swift`) and reuses the same
+  object. BLOCKED on G3: the in-agent **render** is `.disabled` (see G3).
+- **G3 — JIT agent must load Tier-2 dependency archives (DISCOVERED by the E2E).**
+  The non-JIT Tier-2 path links a dylib with `-L <binPath> -l<Dep>` so dyld resolves
+  sibling/cross-package targets; the JIT path emits `.o`s and the agent JIT-links only
+  our stable.o + editable.o, so dependency symbols (`ToDoExtras.ProgressFormatter`,
+  `LocalDep.Badge`, …) are **unresolved at JIT-link time** (materialization fails;
+  the agent then `SIGABRT`s on a dangling `SymbolStringPool` — a secondary teardown
+  robustness bug). `SPMBuildSystem` archives those deps into `lib<Dep>.a` under
+  `binPath`. Fix: add the `-L`/`-l` archives to the JIT session as
+  `StaticLibraryDefinitionGenerator`s (lazy archive linking pulls in the needed dep
+  objects); a binary dylib/framework dep (e.g. Lottie) needs `dlopen` in the agent so
+  the process-symbol generator resolves it. This is a **prerequisite for JIT Tier-2
+  on any real multi-target project**, orthogonal to recompile-narrowing, and gates
+  the render half of item 3. Verify: enabling `splitRendersRealPreviewInAgent`
+  renders `Summary.swift` to a non-empty PNG.
 - **G2 (deferred, separable)** — `FileWatcher` delivers the **changed path**, not
   just "something changed". Feeds `hotFile` so the live daemon picks the hot file
   itself. Verify: editing file X delivers X's path; editing Y recompiles Y not X.
