@@ -56,6 +56,7 @@ public actor PreviewSession {
     private var lastOriginalSource: String?
     private var lastLiterals: [LiteralEntry]?
     private var lastJITBuild: JITRenderBuild?
+    private var cachedStableModule: (key: [String: Date], module: Compiler.StableModule)?
 
     public enum State: Sendable {
         case idle
@@ -225,11 +226,7 @@ public actor PreviewSession {
         let objectPath: URL
         var supportObjectPaths: [URL] = []
         if let (ctx, bulk) = splitContext {
-            let stable = try await compiler.emitStableModule(
-                sourceFiles: bulk,
-                moduleName: ctx.moduleName,
-                extraFlags: ctx.compilerFlags
-            )
+            let stable = try await stableModule(for: bulk, context: ctx)
             supportObjectPaths = [stable.objectPath]
             objectPath = try await compiler.compileObject(
                 source: generated.source,
@@ -257,6 +254,36 @@ public actor PreviewSession {
         )
         lastJITBuild = build
         return build
+    }
+
+    /// Return the stable module for `bulk`, reusing the cached one when no bulk file has
+    /// changed (the common case: repeated edits to the hot preview file). Rebuilds only when
+    /// a bulk file's modification date changes, so the per-edit compile stays narrow.
+    private func stableModule(
+        for bulk: [URL], context ctx: BuildContext
+    ) async throws -> Compiler.StableModule {
+        let key = Self.bulkKey(bulk)
+        if let cached = cachedStableModule, cached.key == key {
+            return cached.module
+        }
+        let module = try await compiler.emitStableModule(
+            sourceFiles: bulk,
+            moduleName: ctx.moduleName,
+            extraFlags: ctx.compilerFlags
+        )
+        cachedStableModule = (key, module)
+        return module
+    }
+
+    private static func bulkKey(_ bulk: [URL]) -> [String: Date] {
+        var key: [String: Date] = [:]
+        for file in bulk {
+            let date =
+                (try? FileManager.default.attributesOfItem(atPath: file.path)[.modificationDate]
+                    as? Date) ?? .distantPast
+            key[file.path] = date
+        }
+        return key
     }
 
     /// Apply a literal-only edit to the agent-backed render: rewrite the design-time

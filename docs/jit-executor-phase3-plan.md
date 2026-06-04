@@ -701,9 +701,13 @@ reuse across edits, flat 180ms vs 312ms whole at N=24). The editable unit reuses
   `Tests/PreviewsJITLinkTests/PreviewSessionSplitTests.swift` proves it: hot file
   consumes a bulk `Palette` cross-module, renders red, structural edit re-renders
   blue. Leaf assumption holds for the fixture (no bulk file references the hot view).
-- **B2** — cache the stable module across edits; rebuild only when `hotFile`
-  identity changes. Verify: same-file edit does NOT re-emit the stable module;
-  different-file edit does.
+- **B2 — DONE (commit pending).** `PreviewSession` caches the stable module
+  (`cachedStableModule`) keyed by the bulk files' modification dates. Repeated edits
+  to the hot file reuse it (flat fast path); a bulk-file change invalidates and
+  rebuilds. Within a session the hot file is fixed (`self.sourceFile`), so the
+  "different hot file" case is a different session, not handled here. Verified by
+  `stableModuleCachedAcrossHotEditsAndInvalidatedByBulkChange` (same
+  `supportObjectPaths` across two hot edits; different after touching a bulk file).
 - **B3** — carry both object paths through `JITRenderBuild` + `JITStructuralReloader`
   so the daemon renders the split (reloader `addObject` stable then editable).
   Verify: `PreviewHostJITReloadTests`-style structural reload renders via two objects.
