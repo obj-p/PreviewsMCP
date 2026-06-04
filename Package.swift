@@ -117,7 +117,7 @@ if jitEnabled {
     targets += [
         .target(
             name: "PreviewsJITLink",
-            dependencies: ["PreviewsJITLinkCxx"],
+            dependencies: ["PreviewsJITLinkCxx", "PreviewsCore"],
             plugins: [.plugin(name: "BundleOrcRuntime")]
         ),
         .target(

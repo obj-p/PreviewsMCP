@@ -332,9 +332,15 @@ moves to the agent bitmap; interaction is untouched.
       (met):* `StructuralReloaderTests` (mock reloader) — the `.o` exports
       `_renderPreviewToFile` and the plumbing routes; 305/305 `PreviewsCore` green;
       Core stays JIT-free so the non-JIT build compiles by construction.
-    - **c-i-2 — real `JITStructuralReloader` in `PreviewsJITLink`** over
-      `JITSession`; a JIT-level test drives a real `compileObjectForJIT` `.o`
-      through it to a green PNG.
+    - **c-i-2 — real `JITStructuralReloader` in `PreviewsJITLink` — DONE.**
+      Implements the protocol over a remote `JITSession` (spawn agent →
+      `addObject` → `runOnMain(entrySymbol)`, throws on non-zero status);
+      respawn-per-edit via `JITSession` `deinit`. Required adding `PreviewsCore`
+      as a `PreviewsJITLink` dependency (the JIT module now implements a Core
+      protocol; also fixed a transitive `_SwiftSyntaxCShims` module error). Test
+      `JITStructuralReloaderTests` drives a real `compileObjectForJIT` `.o` through
+      the reloader and asserts the agent-written PNG is green. *Verify (met):*
+      32/32 JIT green, 3/3 parallel, zero orphans, zero crash reports.
     - **c-i-3 — host wiring**: inject at the composition root, branch
       `watchFile`'s structural path, reroute `preview_snapshot` for agent-backed
       sessions.
