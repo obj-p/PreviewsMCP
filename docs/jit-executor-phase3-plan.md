@@ -543,6 +543,23 @@ One agent serves many edits, each in a fresh `JITDylib`, respawning at a cap.
     `g1` collision the per-session counter would have had). The underlying latent
     corruption is unfixed and uncharacterized — flagged for a future pass.
 
+### JIT-in-CI (#191 item 4) — IN PROGRESS (commit pending)
+CI skipped the JIT tests because the targets are gated on `third_party/llvm-build`
+(+ `llvm-build-rt` + the `llvm-project` source headers), which the runners lack.
+- **`cache-warm.yml` `warm-jit-cache` job** builds the pinned Swift-fork LLVM via
+  `scripts/build-jit-llvm.sh` and caches the three `third_party/` dirs, keyed on
+  `hashFiles('scripts/build-jit-llvm.sh')` (changes only when the recipe / pinned
+  SHA changes). Weekly cron + `workflow_dispatch` keep it warm; the build step
+  skips on a cache hit (guard on the orc archive).
+- **`ci.yml` `jit-tests` job** (gated on `changes.src`) restores that cache,
+  **builds from source on a miss** (90m job timeout absorbs it), `swift build`s
+  the package + the SPM example, then runs `swift test --filter PreviewsJITLinkTests`.
+- **First-run / rollout:** the very first PR run cache-misses and pays the full
+  libLLVM build (~tens of min). After merge, dispatch `warm-jit-cache` once so
+  `main`'s cache is warm; subsequent PRs just restore. Verify by watching the
+  `jit-tests` job on the PR. Risk: the JIT suite occasionally `SIGABRT`s under heavy
+  agent spawning (flaky); if it bites CI, add a retry or split the heavy E2E out.
+
 ### Model mismatch — RESOLVED (by W5+W7)
 The design's fast path assumes edits land in the **editable/preview layer** on
 top of a rarely-rebuilt **stable module**; an edit to an arbitrary stable-module

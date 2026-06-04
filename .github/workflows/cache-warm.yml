@@ -96,3 +96,32 @@ jobs:
         run: |
           swift build
           swift build --package-path examples/spm
+
+  warm-jit-cache:
+    name: Warm jit-llvm cache
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_26.3.app
+
+      - name: Install cmake and ninja
+        run: brew install cmake ninja
+
+      - name: Cache JIT LLVM build
+        uses: actions/cache@v4
+        with:
+          path: |
+            third_party/llvm-build
+            third_party/llvm-build-rt
+            third_party/llvm-project
+          key: jit-llvm-${{ runner.os }}-${{ hashFiles('scripts/build-jit-llvm.sh') }}
+
+      - name: Build JIT LLVM (skips on cache hit)
+        run: |
+          if [ -f third_party/llvm-build-rt/lib/darwin/liborc_rt_osx.a ]; then
+            echo "JIT LLVM already cached; nothing to build."
+          else
+            scripts/build-jit-llvm.sh
+          fi
