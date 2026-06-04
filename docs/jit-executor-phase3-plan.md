@@ -28,9 +28,19 @@ renders, so the agent needs a SwiftUI/render harness and a calling surface
 beyond `runAsMain`. The deferred SP5 (richer `SessionResolver`/JIT API) lands
 here.
 
-## Key decision (agreed): respawn-first
+## Key decision (amended 2026-06-04): respawn-on-cap (capped-persistent)
 
-Updates use the **agent-respawn** model, not in-place `write_mem` patching.
+Updates use **one persistent agent + a fresh `JITDylib` per edit**, with a
+**background respawn every ~100 generations** (the cap). Not in-place
+`write_mem` patching. This amends the original **respawn-first** decision
+(below) after the generation-soak (`research/jit-poc/data/
+run-soak-20260604T024308Z.log`, previews-research): across 500 generations
+latency stays flat (link/render medians ~0.4ms; conformance scans do not slow),
+while RSS leaks linearly ~87KB/generation because `__swift5_*` metadata cannot
+deregister. The cap bounds the leak at ~+9MB and amortizes the ~70ms respawn
+warmup to ~0.7ms/edit. Net per-edit: **~167ms capped-persistent vs ~233ms
+respawn-per-edit**. Respawn remains the cleanup mechanism — just on the cap,
+not on every edit. The original rationale and evidence:
 
 - **Why respawn.** The Swift runtime has no deregister for `__swift5_proto` /
   `__swift5_types` (Phase 1 SP0d-D). A long-lived agent that JIT-links a new
@@ -453,15 +463,13 @@ this project's `DesignTimeStore`. Modeling it is W6 (queued). **W7 — CLOSED:**
 auto-split is feasible for the common case (matrix + break-cases in G1).
 **Integrated POC — PASSED** (`cfe9bda`): the full split → `@testable` →
 JIT-link → render chain is proven; numbers and findings in G1.
-**Open:** the **generation-soak** (assigned) — decides persistent-agent +
-fresh-JD-per-edit (~167ms) vs respawn-per-edit (~233ms). The persistent shape
-conflicts with the respawn-first rationale: each generation's
-`LLJIT::initialize` permanently registers `__swift5_*` metadata (no deregister),
-so conformance scans and RSS may grow with generation count. **Respawn-first
-stays the standing decision** until the soak shows the leak is bounded (latency
-flat, RSS bounded over ~500 generations); if it is, adopt persistent-agent with
-a generation cap + periodic background respawn. W6 (design-time injection)
-queued after.
+**Generation-soak — DONE, decision ratified.** 500 generations, one persistent
+host, fresh JD each: latency FLAT (link ~0.37-0.47ms, render ~0.33-0.43ms
+medians across all windows; `swift_conformsToProtocol` does not slow), RSS
+linear ~87KB/generation (unreclaimable — `__swift5_*` cannot deregister), zero
+mprotect/MAP_JIT failures, zero wrong pixels. Verdict: **capped-persistent**
+(see "Key decision", amended to respawn-on-cap). W6 (design-time injection) is
+the last queued research item.
 
 ## Phase 3 status: IN PROGRESS
 
