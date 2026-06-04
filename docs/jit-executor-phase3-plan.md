@@ -394,10 +394,22 @@ justification.
   co-locate); (2) `@_spi` decls (need a generated matching `@_spi` import);
   (3) editing the stable module's **own interface** (re-emits the `.swiftmodule`
   ⇒ W5 same-module cost + 1+K relink — only preview-side edits stay flat);
-  (4) `package` decls (need a shared `-package-name`). Soft spots: S2 symbol
-  override cited from the jit-poc witness POC, not re-run end-to-end, and the
-  real-world frequency of break-case (1) is unmeasured — both covered by the
-  integrated POC (split → `@testable` compile → JIT-link → render), assigned.
+  (4) `package` decls (need a shared `-package-name`). Both soft spots are now
+  closed by the **integrated POC — PASSED** (`cfe9bda`,
+  `research/jit-poc/build-split.sh`): the full chain (split → `@testable`
+  single-file compile → JIT-link → render) proven end-to-end, v1 renders red and
+  edited v2 renders blue, so S2 symbol override is demonstrated, not cited.
+  Numbers: edit→pixels **~233ms** with respawn semantics (compile ~165ms +
+  spawn/dlopen/link/render ~69ms); a **persistent agent** re-linking each
+  generation into a fresh `JITDylib` pays ~2ms after compile ⇒ **~167ms**, under
+  the 200ms budget. Load-bearing implementation findings: the agent **must** call
+  `LLJIT::initialize(JD)` per generation (runs `jit_dlopen`, registers
+  `__swift5_*` metadata — SwiftUI conformance lookups segfault without it), and
+  the ObjCSelrefPlugin + `ExecutorNativePlatform` stack is required (SwiftUI is
+  selref-heavy). Break-case (1) is **impossible by construction at file
+  granularity** (a moved file's `private` decls move with it; zero
+  `private`/`fileprivate` decls in any preview-bearing `examples/` file) — rule:
+  the executor always splits at file granularity.
 
 ### G2 — A file-identifying FileWatcher
 **Missing.** `FileWatcher` signals only "something in the watched set changed",
@@ -439,9 +451,17 @@ assumption; our respawn-first decision is unaffected (only the rationale changes
 (`__designTimeString`/`Integer` + fallback), not recompilation — the same idea as
 this project's `DesignTimeStore`. Modeling it is W6 (queued). **W7 — CLOSED:**
 auto-split is feasible for the common case (matrix + break-cases in G1).
-**Open:** the integrated POC (split → `@testable` compile → JIT-link → render),
-assigned to research — it closes W7's two soft spots and is the bridge into
-P3.4.
+**Integrated POC — PASSED** (`cfe9bda`): the full split → `@testable` →
+JIT-link → render chain is proven; numbers and findings in G1.
+**Open:** the **generation-soak** (assigned) — decides persistent-agent +
+fresh-JD-per-edit (~167ms) vs respawn-per-edit (~233ms). The persistent shape
+conflicts with the respawn-first rationale: each generation's
+`LLJIT::initialize` permanently registers `__swift5_*` metadata (no deregister),
+so conformance scans and RSS may grow with generation count. **Respawn-first
+stays the standing decision** until the soak shows the leak is bounded (latency
+flat, RSS bounded over ~500 generations); if it is, adopt persistent-agent with
+a generation cap + periodic background respawn. W6 (design-time injection)
+queued after.
 
 ## Phase 3 status: IN PROGRESS
 
