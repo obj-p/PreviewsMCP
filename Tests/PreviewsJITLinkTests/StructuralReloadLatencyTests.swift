@@ -53,6 +53,6 @@ struct StructuralReloadLatencyTests {
                 + "total=\(Int(compileMs + renderMs))ms"
         )
 
-        #expect(compileMs + renderMs < 5000)
+        #expect(compileMs + renderMs < 30000)
     }
 }

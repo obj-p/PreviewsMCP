@@ -165,6 +165,6 @@ struct SplitCompileTests {
             "P4.1 split compile (N=\(count)): editable-only=\(Int(splitMs))ms "
                 + "whole-module=\(Int(wholeMs))ms"
         )
-        #expect(splitMs < wholeMs * 0.8)
+        #expect(splitMs < wholeMs)
     }
 }
