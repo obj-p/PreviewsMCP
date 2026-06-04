@@ -189,8 +189,15 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
                     return
                 }
 
-                // Fast path: try literal-only update
-                if let currentSession = await MainActor.run(body: { self.sessions[sessionID] }),
+                // Fast path: try literal-only update. Agent-backed sessions (already on
+                // the JIT path) skip it — their view lives in the agent, not an in-daemon
+                // dylib, so a literal edit re-renders through the structural JIT path
+                // below until the agent-side DesignTimeStore re-seed (P3.4c-ii) lands.
+                let agentBacked = await MainActor.run {
+                    self.agentSnapshotPath(for: sessionID) != nil
+                }
+                if !agentBacked,
+                    let currentSession = await MainActor.run(body: { self.sessions[sessionID] }),
                     let changes = await currentSession.tryLiteralUpdate(newSource: newSource),
                     !changes.isEmpty
                 {

@@ -357,10 +357,17 @@ moves to the agent bitmap; interaction is untouched.
       through) + `MacOSPreviewHandleAgentSnapshotTests` (snapshot returns the agent
       PNG); macOS 3 / engine 9 / JIT 32 green; full JIT `swift build` green. The
       non-JIT build (`jitEnabled=false`) is verified by CI on push.
-  - **P3.4c-ii — literal-after-structural.** Once a session is agent-rendered the
-    view lives in the agent, so a later literal edit must re-seed the agent's
-    `DesignTimeStore` and re-render, not use the in-daemon path. Falls back to a
-    structural-style respawn until built.
+  - **P3.4c-ii — literal-after-structural — DONE (fallback).** Once a session is
+    agent-rendered the view lives in the agent, so the in-daemon `DesignTimeStore`
+    literal path can no longer update it (`applyLiteralChanges` would no-op for
+    lack of a loader). `watchFile` now gates the literal fast path on
+    `agentSnapshotPath(for:) == nil`, so an agent-backed session routes **any**
+    edit through the structural JIT reload (re-renders in the agent). Correct but
+    not the ~10ms path. The **proper** cheap path — re-seed the agent's
+    `DesignTimeStore` over the wire and re-render without recompiling — is deferred
+    (needs an agent setter surface). The routing lives in the `FileWatcher`
+    closure (not unit-tested); covered by the deferred `examples/` E2E. *Verify
+    (met):* full `swift build` green, macOS/engine/JIT suites green.
 - **P3.4d — latency (U-C).** Measure structural respawn vs the <200ms target.
 
 **Deferred infra (separate from architecture): JIT-in-CI.** CI skips the JIT
