@@ -363,9 +363,20 @@ Fan-out (W5 M2): a body edit is **1 object** regardless of dependents; an
 interface edit to a decl referenced by K files is **1+K** objects — the JIT must
 budget relinking that set. The auto-split mechanism is W7; W5 is its
 justification.
-- **Verify (met by W5):** the same-module-vs-split curves above. Remaining build
-  question is W7 — can we auto-split an arbitrary target without the user
-  restructuring their package (access-level visibility, symbol override).
+- **Verify (met by W5; split feasibility met by W7):** the same-module-vs-split
+  curves above. W7 (`research/scripts/analysis/w7-autosplit.md`, CLOSED) proves
+  the split is **feasible for the common case**: an `internal` SwiftUI view
+  compiles in a separate editable unit via `@testable import` against a stable
+  module built `-enable-testing` (free — previews are Debug), edit→relink flat
+  ~0.14s at stable N=200 and 1000. Four break-cases: (1) preview touches
+  `private`/`fileprivate` bulk decls (invisible — promote to `internal` or
+  co-locate); (2) `@_spi` decls (need a generated matching `@_spi` import);
+  (3) editing the stable module's **own interface** (re-emits the `.swiftmodule`
+  ⇒ W5 same-module cost + 1+K relink — only preview-side edits stay flat);
+  (4) `package` decls (need a shared `-package-name`). Soft spots: S2 symbol
+  override cited from the jit-poc witness POC, not re-run end-to-end, and the
+  real-world frequency of break-case (1) is unmeasured — both covered by the
+  integrated POC (split → `@testable` compile → JIT-link → render), assigned.
 
 ### G2 — A file-identifying FileWatcher
 **Missing.** `FileWatcher` signals only "something in the watched set changed",
@@ -375,12 +386,15 @@ to recompile. The watch scope is already ~"project sources minus dependencies"
 - **Verify:** editing file X in a multi-file target delivers X's path to the
   recompile; an edit to unrelated file Y recompiles Y, not X.
 
-### Model mismatch to resolve
+### Model mismatch — RESOLVED (by W5+W7)
 The design's fast path assumes edits land in the **editable/preview layer** on
 top of a rarely-rebuilt **stable module**; an edit to an arbitrary stable-module
-file falls to the slow full-rebuild path. "Any edited file reloads sub-second" is
-a *stronger* guarantee than the design currently makes and needs G1+G2. Decide
-whether Phase 3/4 targets only preview-layer edits or true any-file incremental.
+file falls to the slower path. Evidence settled the choice: target
+**preview-layer edits** for the flat ~0.14s fast path (W7), and accept that
+edits to the stable module's own interface fall back to W5 same-module cost
+(+1+K relink) — the rare hot-path case. "Any edited file reloads sub-second" is
+not achievable at scale (W5: whole-module front-end breaks 200ms at ~25 files)
+and is no longer a goal.
 
 ### Apple-evidence status (W3/W4/W5 — CLOSED)
 W3 verified Apple's respawn-only *dispatch* (8 edit kinds, zero `write_mem`;
@@ -402,8 +416,11 @@ assumption; our respawn-first decision is unaffected (only the rationale changes
 
 **Bonus (W4):** Apple's literal fast-path is **data injection**
 (`__designTimeString`/`Integer` + fallback), not recompilation — the same idea as
-this project's `DesignTimeStore`. Modeling it is W6. **Open:** W7 (auto-split
-feasibility) is now the critical path.
+this project's `DesignTimeStore`. Modeling it is W6 (queued). **W7 — CLOSED:**
+auto-split is feasible for the common case (matrix + break-cases in G1).
+**Open:** the integrated POC (split → `@testable` compile → JIT-link → render),
+assigned to research — it closes W7's two soft spots and is the bridge into
+P3.4.
 
 ## Phase 3 status: IN PROGRESS
 
