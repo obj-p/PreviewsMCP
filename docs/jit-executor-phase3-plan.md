@@ -304,8 +304,29 @@ moves to the agent bitmap; interaction is untouched.
   orphan agents. Commit pending.
 - **P3.4c — daemon seam (U-D).** Route structural edits to
   recompile → respawn → agent-render → serve `preview_snapshot`; literal path
-  unchanged.
+  unchanged. Split:
+  - **P3.4c-i — protocol seam + structural→agent snapshot.** Define a
+    `StructuralReloader` protocol in `PreviewsCore` (JIT-free); `PreviewsJITLink`
+    implements it; the executable composes them, injecting the real reloader only
+    when `jitEnabled`. **Chosen on layering merit, not to appease CI** (base owns
+    the abstraction, JIT module owns the mechanism, app wires them) — the `#if`
+    alternative was rejected as the actual workaround. As a side effect the
+    non-JIT build still compiles. A session's first `compile()` keeps the existing
+    in-daemon dylib + `NSHostingView`; the first **structural** edit switches the
+    session to agent-rendered and `preview_snapshot` serves the agent's PNG.
+  - **P3.4c-ii — literal-after-structural.** Once a session is agent-rendered the
+    view lives in the agent, so a later literal edit must re-seed the agent's
+    `DesignTimeStore` and re-render, not use the in-daemon path. Falls back to a
+    structural-style respawn until built.
 - **P3.4d — latency (U-C).** Measure structural respawn vs the <200ms target.
+
+**Deferred infra (separate from architecture): JIT-in-CI.** CI skips the JIT
+path only because the targets need `third_party/llvm-build` (multi-GB prebuilt
+LLVM + orc-rt) that CI does not have; the `jitEnabled` gate makes the non-JIT
+build green. Making CI **run** the JIT tests means caching or building that
+artifact once and reusing it — a self-contained infra task that does **not**
+shape the daemon design. Deferred (Phase 3 infra / Phase 4); tracked here. Until
+then JIT tests stay local-only and the protocol seam keeps non-JIT CI green.
 
 - **Verify (planned):** an `examples/` project: a literal edit hot-reloads via
   `DesignTimeStore` (existing path, ~10ms); a structural edit reloads via the
