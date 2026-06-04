@@ -10,9 +10,13 @@ public struct JITStructuralReloader: StructuralReloader {
     public init() {}
 
     public func renderObject(
-        at objectPath: URL, supportObjectPaths: [URL], archivePaths: [URL], entrySymbol: String
+        at objectPath: URL, supportObjectPaths: [URL], archivePaths: [URL], dylibPaths: [URL],
+        entrySymbol: String
     ) async throws {
         let session = try JITSession(remoteAgentPath: JITSession.bundledAgentPath())
+        for dylib in dylibPaths {
+            try session.addDylib(path: dylib.path)
+        }
         for archive in archivePaths {
             try session.addArchive(path: archive.path)
         }

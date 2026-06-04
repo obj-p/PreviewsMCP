@@ -139,6 +139,7 @@ struct PreviewSessionSplitTests {
             at: build.objectPath,
             supportObjectPaths: build.supportObjectPaths,
             archivePaths: build.archivePaths,
+            dylibPaths: build.dylibPaths,
             entrySymbol: build.entrySymbol
         )
 

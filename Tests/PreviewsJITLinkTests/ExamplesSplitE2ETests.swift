@@ -9,12 +9,11 @@ import Testing
 /// flags, real multi-file target, sibling + cross-package deps), driven through
 /// `PreviewSession.compileObjectForJIT()`.
 ///
-/// The split COMPILE is validated here, and G3-a (static dependency archives) now lets the
-/// agent resolve archived sibling/cross-package symbols (ToDoExtras / LocalDep). Rendering a
-/// real Tier-2 preview is still blocked on G3-b (dlopen the target's binary frameworks, e.g.
-/// Lottie, in the agent) and G3-c (the compiler-rt builtin `___isPlatformVersionAtLeast`
-/// emitted by `#available`); the render test below stays disabled until those land. See
-/// `docs/jit-executor-phase3-plan.md`.
+/// The split COMPILE is validated here. G3-a (static dependency archives) resolves archived
+/// sibling/cross-package symbols (ToDoExtras / LocalDep) and G3-b (dlopen binary frameworks
+/// in the agent) resolves Lottie. Rendering a real Tier-2 preview is now blocked only on G3-c
+/// (the compiler-rt builtin `___isPlatformVersionAtLeast` emitted by `#available`); the render
+/// test below stays disabled until G3-c lands. See `docs/jit-executor-phase3-plan.md`.
 @Suite(.serialized)
 struct ExamplesSplitE2ETests {
     static let repoRoot: URL = URL(fileURLWithPath: #filePath)
@@ -69,7 +68,7 @@ struct ExamplesSplitE2ETests {
 
     @Test(
         .disabled(
-            "G3-a (static archives) lands here and resolves ToDoExtras/LocalDep. Still blocked: the stable module bundles ToDoView.swift, which uses the Lottie binary framework (needs G3-b: dlopen the framework in the agent) and emits `___isPlatformVersionAtLeast` from #available (needs G3-c: the compiler-rt builtin). Enable once G3-b/G3-c land."
+            "G3-a (static archives, ToDoExtras/LocalDep) and G3-b (dlopen the Lottie framework in the agent) now resolve. The only remaining unresolved symbol is the compiler-rt builtin `___isPlatformVersionAtLeast` (emitted by #available). Enable once G3-c lands."
         ))
     func splitRendersRealPreviewInAgent() async throws {
         let hot = Self.spmRoot.appendingPathComponent("Sources/ToDo/Summary.swift")
@@ -83,6 +82,7 @@ struct ExamplesSplitE2ETests {
             at: build.objectPath,
             supportObjectPaths: build.supportObjectPaths,
             archivePaths: build.archivePaths,
+            dylibPaths: build.dylibPaths,
             entrySymbol: build.entrySymbol
         )
         let png = try Data(contentsOf: build.imagePath)

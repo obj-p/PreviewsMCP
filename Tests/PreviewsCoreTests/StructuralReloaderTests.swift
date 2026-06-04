@@ -9,7 +9,8 @@ struct StructuralReloaderTests {
     private actor MockReloader: StructuralReloader {
         private(set) var calls: [(objectPath: URL, entrySymbol: String)] = []
         func renderObject(
-            at objectPath: URL, supportObjectPaths: [URL], archivePaths: [URL], entrySymbol: String
+            at objectPath: URL, supportObjectPaths: [URL], archivePaths: [URL], dylibPaths: [URL],
+            entrySymbol: String
         ) async throws {
             calls.append((objectPath: objectPath, entrySymbol: entrySymbol))
         }
@@ -51,7 +52,8 @@ struct StructuralReloaderTests {
         let reloader = MockReloader()
         try await reloader.renderObject(
             at: build.objectPath, supportObjectPaths: build.supportObjectPaths,
-            archivePaths: build.archivePaths, entrySymbol: build.entrySymbol)
+            archivePaths: build.archivePaths, dylibPaths: build.dylibPaths,
+            entrySymbol: build.entrySymbol)
         let calls = await reloader.recorded()
         #expect(calls.count == 1)
         #expect(calls.first?.objectPath == build.objectPath)

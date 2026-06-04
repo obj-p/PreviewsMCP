@@ -46,4 +46,32 @@ struct ArchiveLoadingTests {
         let result = try session.runOnMain(symbol: "g3_main")
         #expect(result == 42)
     }
+
+    @Test func resolvesSymbolFromDylibInAgent() async throws {
+        let compiler = try await Compiler()
+
+        let lib = try await compiler.compileCombined(
+            source: """
+                @_cdecl("g3b_lib_value")
+                public func g3bLibValue() -> Int32 { 9 }
+                """,
+            moduleName: "G3bLib"
+        )
+
+        let mainObject = try await compiler.compileObject(
+            source: """
+                @_silgen_name("g3b_lib_value") func g3bLibValue() -> Int32
+
+                @_cdecl("g3b_main")
+                public func g3bMain() -> Int32 { g3bLibValue() * 5 }
+                """,
+            moduleName: "G3bMain"
+        )
+
+        let session = try JITSession(remoteAgentPath: JITSession.bundledAgentPath())
+        try session.addDylib(path: lib.dylibPath.path)
+        try session.addObject(path: mainObject.path)
+        let result = try session.runOnMain(symbol: "g3b_main")
+        #expect(result == 45)
+    }
 }

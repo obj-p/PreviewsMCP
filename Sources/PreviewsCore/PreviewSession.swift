@@ -23,6 +23,9 @@ public struct JITRenderBuild: Sendable {
     /// Static-library archives (the target's `-L`/`-l` dependency archives) the agent must
     /// link so the editable/stable objects' dependency symbols resolve. Empty for standalone.
     public let archivePaths: [URL]
+    /// Binary dynamic libraries (the target's `-F`/`-framework` dependency frameworks) the
+    /// agent must `dlopen` so their symbols resolve. Empty for standalone.
+    public let dylibPaths: [URL]
 
     public init(
         objectPath: URL,
@@ -31,7 +34,8 @@ public struct JITRenderBuild: Sendable {
         entrySymbol: String,
         literals: [LiteralEntry],
         supportObjectPaths: [URL] = [],
-        archivePaths: [URL] = []
+        archivePaths: [URL] = [],
+        dylibPaths: [URL] = []
     ) {
         self.objectPath = objectPath
         self.imagePath = imagePath
@@ -40,6 +44,7 @@ public struct JITRenderBuild: Sendable {
         self.literals = literals
         self.supportObjectPaths = supportObjectPaths
         self.archivePaths = archivePaths
+        self.dylibPaths = dylibPaths
     }
 }
 
@@ -231,10 +236,12 @@ public actor PreviewSession {
         let objectPath: URL
         var supportObjectPaths: [URL] = []
         var archivePaths: [URL] = []
+        var dylibPaths: [URL] = []
         if let (ctx, bulk) = splitContext {
             let stable = try await stableModule(for: bulk, context: ctx)
             supportObjectPaths = [stable.objectPath]
             archivePaths = Self.dependencyArchives(in: ctx.compilerFlags)
+            dylibPaths = Self.dependencyDylibs(in: ctx.compilerFlags)
             objectPath = try await compiler.compileObject(
                 source: generated.source,
                 moduleName: "PreviewEdit_\(ctx.moduleName)",
@@ -258,7 +265,8 @@ public actor PreviewSession {
             entrySymbol: "renderPreviewToFile",
             literals: generated.literals,
             supportObjectPaths: supportObjectPaths,
-            archivePaths: archivePaths
+            archivePaths: archivePaths,
+            dylibPaths: dylibPaths
         )
         lastJITBuild = build
         return build
@@ -294,6 +302,38 @@ public actor PreviewSession {
             }
         }
         return archives
+    }
+
+    /// Resolve the `-F <dir>` / `-framework <name>` pairs in `flags` to the framework binary
+    /// at `<dir>/<name>.framework/<name>`. These are the target's binary-framework deps the
+    /// JIT agent must `dlopen` so their symbols resolve (G3-b).
+    static func dependencyDylibs(in flags: [String]) -> [URL] {
+        var searchDirs: [URL] = []
+        var names: [String] = []
+        var index = 0
+        while index < flags.count {
+            let flag = flags[index]
+            if flag == "-F", index + 1 < flags.count {
+                searchDirs.append(URL(fileURLWithPath: flags[index + 1]))
+                index += 2
+            } else if flag == "-framework", index + 1 < flags.count {
+                names.append(flags[index + 1])
+                index += 2
+            } else {
+                index += 1
+            }
+        }
+        var dylibs: [URL] = []
+        for name in names {
+            for dir in searchDirs {
+                let candidate = dir.appendingPathComponent("\(name).framework/\(name)")
+                if FileManager.default.fileExists(atPath: candidate.path) {
+                    dylibs.append(candidate)
+                    break
+                }
+            }
+        }
+        return dylibs
     }
 
     /// Return the stable module for `bulk`, reusing the cached one when no bulk file has

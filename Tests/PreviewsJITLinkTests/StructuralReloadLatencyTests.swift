@@ -38,7 +38,8 @@ struct StructuralReloadLatencyTests {
         let warm = try await session.compileObjectForJIT()
         try await reloader.renderObject(
             at: warm.objectPath, supportObjectPaths: warm.supportObjectPaths,
-            archivePaths: warm.archivePaths, entrySymbol: warm.entrySymbol)
+            archivePaths: warm.archivePaths, dylibPaths: warm.dylibPaths,
+            entrySymbol: warm.entrySymbol)
 
         let clock = ContinuousClock()
         let t0 = clock.now
@@ -46,7 +47,8 @@ struct StructuralReloadLatencyTests {
         let t1 = clock.now
         try await reloader.renderObject(
             at: build.objectPath, supportObjectPaths: build.supportObjectPaths,
-            archivePaths: build.archivePaths, entrySymbol: build.entrySymbol)
+            archivePaths: build.archivePaths, dylibPaths: build.dylibPaths,
+            entrySymbol: build.entrySymbol)
         let t2 = clock.now
 
         let compileMs = Self.ms(t0.duration(to: t1))

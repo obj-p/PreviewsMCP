@@ -742,10 +742,15 @@ reuse across edits, flat 180ms vs 312ms whole at N=24). The editable unit reuses
     `ArchiveLoadingTests.resolvesSymbolFromStaticArchiveInAgent` (a JIT object resolves
     a symbol from a `libtool` archive in the agent) — and the real E2E now resolves
     `ToDoExtras`/`LocalDep`.
-  - **G3-b — binary frameworks (TODO).** `-F/-framework` deps (e.g. `Lottie.framework`)
-    are binary dylibs. The agent must `dlopen` them, via
-    `EPCDynamicLibrarySearchGenerator::Load` over EPC (resolve the framework binary at
-    `<F-dir>/<name>.framework/<name>`).
+  - **G3-b — binary frameworks — DONE (commit pending).** `-F/-framework` deps (e.g.
+    `Lottie.framework`) are binary dylibs the agent `dlopen`s. Added
+    `previewsmcp_jit_session_add_dylib` → `EPCDynamicLibrarySearchGenerator::Load`
+    (loads the lib in the agent over EPC), Swift `JITSession.addDylib`,
+    `JITRenderBuild.dylibPaths` (parsed from `-F`/`-framework` to
+    `<F-dir>/<name>.framework/<name>` by `PreviewSession.dependencyDylibs`), reloader
+    adds dylibs before archives/objects (`renderObject(...dylibPaths...)`). Verified by
+    `ArchiveLoadingTests.resolvesSymbolFromDylibInAgent`; in the real E2E the Lottie
+    symbols now resolve, leaving **only** `___isPlatformVersionAtLeast` (G3-c).
   - **G3-c — compiler-rt builtin (TODO).** `___isPlatformVersionAtLeast` (emitted by
     `#available`) is a clang/compiler-rt builtin unresolved in the agent; real SwiftUI
     code hits it constantly. Provide it (add the compiler-rt builtins archive to the
