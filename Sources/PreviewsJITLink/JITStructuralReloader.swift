@@ -1,19 +1,25 @@
 import Foundation
 import PreviewsCore
 
-/// `StructuralReloader` backed by the remote JIT agent. Spawns a fresh agent, links the
-/// object, and runs its render entry on the agent's main thread; the entry writes the
-/// preview PNG to the path baked into the object at compile time. The session's `deinit`
-/// kills the agent, so this is respawn-per-edit; a capped-persistent variant can replace
-/// the body without changing the protocol.
-public struct JITStructuralReloader: StructuralReloader {
-    public init() {}
+/// `StructuralReloader` backed by the remote JIT agent, capped-persistent: one agent serves
+/// many edits, each linked into a fresh `JITDylib` (`newGeneration`), and the agent respawns
+/// every `generationCap` edits. Respawn bounds the unreclaimable `__swift5_*` metadata that
+/// each generation leaks (it cannot be deregistered). The render entry runs on the agent's
+/// main thread and writes the preview PNG to the path baked into the object at compile time.
+public actor JITStructuralReloader: StructuralReloader {
+    private let generationCap: Int
+    private var session: JITSession?
+    private var generation = 0
+
+    public init(generationCap: Int = 100) {
+        self.generationCap = generationCap
+    }
 
     public func renderObject(
         at objectPath: URL, supportObjectPaths: [URL], archivePaths: [URL], dylibPaths: [URL],
         entrySymbol: String
     ) async throws {
-        let session = try JITSession(remoteAgentPath: JITSession.bundledAgentPath())
+        let session = try nextSession()
         for dylib in dylibPaths {
             try session.addDylib(path: dylib.path)
         }
@@ -28,6 +34,21 @@ public struct JITStructuralReloader: StructuralReloader {
         guard status == 0 else {
             throw JITReloadError.renderFailed(status: status)
         }
+    }
+
+    /// The session to link this edit into: a fresh `JITDylib` on the live agent while under
+    /// the cap, otherwise a freshly respawned agent (replacing the old one, whose `deinit`
+    /// kills its process). The first edit and each post-cap edit start a new agent.
+    private func nextSession() throws -> JITSession {
+        if let session, generation < generationCap {
+            generation += 1
+            try session.newGeneration()
+            return session
+        }
+        let fresh = try JITSession(remoteAgentPath: JITSession.bundledAgentPath())
+        session = fresh
+        generation = 1
+        return fresh
     }
 }
 

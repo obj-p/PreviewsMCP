@@ -506,6 +506,32 @@ to recompile. The watch scope is already ~"project sources minus dependencies"
 - **Verify:** editing file X in a multi-file target delivers X's path to the
   recompile; an edit to unrelated file Y recompiles Y, not X.
 
+### Capped-persistent reloader (#191 item 2) — IN PROGRESS
+One agent serves many edits, each in a fresh `JITDylib`, respawning at a cap.
+- **Chunk 1 — DONE (`1392dd3`).** `previewsmcp_jit_session_new_generation`
+  (fresh JD on the same LLJIT + reset `initialized` so the next run re-runs
+  `LLJIT::initialize`), `JITSession.newGeneration`; `CappedPersistentTests` reuses
+  one agent across 5 generations rendering distinct colors.
+- **Chunk 2 — DONE (commit pending).** `JITStructuralReloader` is now an `actor`
+  holding a persistent `JITSession` + a generation counter; `nextSession()` calls
+  `newGeneration` under the cap and respawns (replacing the session, whose `deinit`
+  kills the old agent) at `generationCap` (default 100). All reloader/latency/E2E
+  tests pass unchanged; `reloaderRespawnsAtGenerationCap` (cap=2, 5 renders) and
+  `splitRendersRealPreviewAcrossGenerations` (the real Summary preview rendered
+  twice → gen2 re-links ToDoExtras/Lottie/builtins) are green, so U2 (duplicate dep
+  registration) does not crash at low generation counts.
+- **Chunk 2b — OPEN (duplicate-class risk).** Each generation re-links the editable
+  object, which defines `DesignTimeStore` under the **same module name**, so the ObjC
+  runtime warns `Class _TtC…DesignTimeStore is implemented in both …` (duplicate
+  registration across generations). Renders still succeed, but the warning says it
+  "may cause spurious casting failures and mysterious crashes," and it accumulates
+  toward the cap (the soak never hit this — minimal object, no such class). Fix:
+  give the editable unit a **unique `-module-name` per compile** (e.g.
+  `PreviewEdit_<moduleName>_<counter>`; the stable module name stays `ctx.moduleName`
+  for `@testable`), so each generation's classes mangle distinctly. Verify: render the
+  same preview many times through one reloader with no `objc[...] implemented in both`
+  warning.
+
 ### Model mismatch — RESOLVED (by W5+W7)
 The design's fast path assumes edits land in the **editable/preview layer** on
 top of a rarely-rebuilt **stable module**; an edit to an arbitrary stable-module

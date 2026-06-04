@@ -31,6 +31,39 @@ struct CappedPersistentTests {
         """
     }
 
+    @Test func reloaderRespawnsAtGenerationCap() async throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("capped-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let sourceFile = dir.appendingPathComponent("ColorView.swift")
+        try """
+        import SwiftUI
+
+        #Preview {
+            Color(red: 0, green: 1, blue: 0).frame(width: 8, height: 8)
+        }
+        """.write(to: sourceFile, atomically: true, encoding: .utf8)
+
+        let compiler = try await Compiler()
+        let session = PreviewSession(sourceFile: sourceFile, compiler: compiler)
+        let reloader = JITStructuralReloader(generationCap: 2)
+
+        for _ in 0..<5 {
+            let build = try await session.compileObjectForJIT()
+            try await reloader.renderObject(
+                at: build.objectPath,
+                supportObjectPaths: build.supportObjectPaths,
+                archivePaths: build.archivePaths,
+                dylibPaths: build.dylibPaths,
+                entrySymbol: build.entrySymbol
+            )
+            let data = try Data(contentsOf: build.imagePath)
+            #expect(!data.isEmpty)
+        }
+    }
+
     @Test func reusesOneSessionAcrossFreshGenerations() async throws {
         let compiler = try await Compiler()
         let colors = [(1, 0, 0), (0, 1, 0), (0, 0, 1), (1, 0, 0), (0, 1, 0)]

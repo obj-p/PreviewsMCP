@@ -84,4 +84,30 @@ struct ExamplesSplitE2ETests {
         #expect(!png.isEmpty)
         #expect(NSBitmapImageRep(data: png) != nil)
     }
+
+    /// Capped-persistent reuse with the FULL dependency closure: render the same real preview
+    /// twice through one reloader, so generation 2 re-links ToDoExtras / Lottie / the builtins
+    /// archive into a fresh JITDylib. Guards against duplicate Swift-metadata registration
+    /// across generations (item 2, U2).
+    @Test func splitRendersRealPreviewAcrossGenerations() async throws {
+        let hot = Self.spmRoot.appendingPathComponent("Sources/ToDo/Summary.swift")
+        let ctx = try await Self.context(for: hot)
+        let compiler = try await Compiler()
+        let session = PreviewSession(sourceFile: hot, compiler: compiler, buildContext: ctx)
+        let reloader = JITStructuralReloader()
+
+        for _ in 0..<2 {
+            let build = try await session.compileObjectForJIT()
+            try await reloader.renderObject(
+                at: build.objectPath,
+                supportObjectPaths: build.supportObjectPaths,
+                archivePaths: build.archivePaths,
+                dylibPaths: build.dylibPaths,
+                entrySymbol: build.entrySymbol
+            )
+            let png = try Data(contentsOf: build.imagePath)
+            #expect(!png.isEmpty)
+            #expect(NSBitmapImageRep(data: png) != nil)
+        }
+    }
 }
