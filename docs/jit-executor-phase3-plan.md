@@ -368,7 +368,20 @@ moves to the agent bitmap; interaction is untouched.
     (needs an agent setter surface). The routing lives in the `FileWatcher`
     closure (not unit-tested); covered by the deferred `examples/` E2E. *Verify
     (met):* full `swift build` green, macOS/engine/JIT suites green.
-- **P3.4d — latency (U-C).** Measure structural respawn vs the <200ms target.
+- **P3.4d — latency (U-C) — DONE (measured; compile-bound).** Integrated
+  `compileObjectForJIT()` + `JITStructuralReloader.renderObject()` on a small
+  module, steady-state (warm module cache), respawn-per-edit:
+  **compile ≈ 218ms, link+respawn+agent-render ≈ 62ms, total ≈ 281ms**
+  (`StructuralReloadLatencyTests`, machine-specific but indicative). The
+  render/respawn half is well within budget; the **whole-module compile dominates
+  and is the entire gap** to the <200ms target — exactly the "recompile-narrowing
+  gaps" finding: respawn + JIT-link removes the *relink*, not the *compile*.
+  Closing it needs the stable-module/editable-unit split (single-file `@testable`
+  compile against prebuilt `.swiftmodule`s; the manager's W4-W7 research measured
+  ~0.14s relink at 1000 files), which is the deferred compile-side lever, not a
+  JIT-executor change. Capped-persistent (the ratified executor shape) further
+  trims the respawn warmup from the 62ms (~70ms amortized to ~0.7ms/edit in the
+  soak), but compile still gates until narrowed.
 
 **Deferred infra (separate from architecture): JIT-in-CI.** CI skips the JIT
 path only because the targets need `third_party/llvm-build` (multi-GB prebuilt
