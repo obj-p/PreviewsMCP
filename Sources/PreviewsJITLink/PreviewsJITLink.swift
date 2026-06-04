@@ -89,6 +89,15 @@ public final class JITSession {
         }
     }
 
+    /// Start a fresh generation: subsequent `addObject`/`addArchive`/`addDylib`/`runOnMain`
+    /// target a new `JITDylib` on the same agent, and the next run re-runs `LLJIT::initialize`
+    /// on it (registers `__swift5_*`). Lets one agent serve many edits (capped-persistent).
+    public func newGeneration() throws {
+        if let error = previewsmcp_jit_session_new_generation(handle) {
+            throw JITLinkError.failed(error.string())
+        }
+    }
+
     public func address(of symbol: String) throws -> UInt64 {
         var address: UInt64 = 0
         if let error = previewsmcp_jit_session_lookup(handle, symbol, &address) {

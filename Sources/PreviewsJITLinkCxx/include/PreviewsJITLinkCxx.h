@@ -45,6 +45,9 @@ const char *_Nullable previewsmcp_jit_session_add_archive(
 const char *_Nullable previewsmcp_jit_session_add_dylib(
     previewsmcp_jit_session *session, const char *dylib_path);
 
+const char *_Nullable previewsmcp_jit_session_new_generation(
+    previewsmcp_jit_session *session);
+
 const char *_Nullable previewsmcp_jit_session_lookup(
     previewsmcp_jit_session *session, const char *symbol_name,
     uint64_t *out_address);

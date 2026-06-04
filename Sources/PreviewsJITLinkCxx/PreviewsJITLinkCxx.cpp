@@ -524,6 +524,19 @@ const char *previewsmcp_jit_session_add_dylib(previewsmcp_jit_session *session,
   return nullptr;
 }
 
+const char *
+previewsmcp_jit_session_new_generation(previewsmcp_jit_session *session) {
+  static std::atomic<uint64_t> counter{0};
+  auto jd = session->jit->createJITDylib("generation." +
+                                         std::to_string(counter.fetch_add(1)));
+  if (!jd) {
+    return toCStr(jd.takeError());
+  }
+  session->jd = &*jd;
+  session->initialized = false;
+  return nullptr;
+}
+
 const char *previewsmcp_jit_session_lookup(previewsmcp_jit_session *session,
                                            const char *symbol_name,
                                            uint64_t *out_address) {
