@@ -573,16 +573,32 @@ decoded live XPC dump.
 Classify edits exactly as `LiteralDiffer` does (skeleton or literal-count change
 ⇒ tier 2; literal value change in a SwiftUI region ⇒ tier 1).
 
-## Phase 3 status: IN PROGRESS
+## Phase 3 status: CORE COMPLETE (P3.1–P3.4 landed; P3.3 deferred, examples E2E pending)
 
-P3.1 + P3.2 done. The agent links a real SwiftUI preview, runs its body and
-renders it to a bitmap on the agent's main thread (P3.1a/b-i/b-ii), over a
-contiguous **anonymous** executor-memory slab (P3.1b-iii) that fixes U-A while
-staying within macOS's executable-memory rules (the shared-memory slab was
-reverted as macOS-incompatible). P3.2 proves recompile → respawn → re-render
-through the real `Compiler` (default target works, no `compileObject` change).
-Suite 29/29, 10/10 parallel runs green, zero crashes. Next: P3.4 (daemon
-session-lifecycle integration; P3.3 stays conditional).
+P3.1, P3.2, and **P3.4 (a/b/c-i/c-ii/d)** are done on branch
+`jit-phase3-session-integration` (PR #190), CI green (non-JIT build + lint +
+ios-tests). The agent links a real SwiftUI preview and renders it to a bitmap on
+its main thread over a contiguous **anonymous** executor-memory slab (P3.1).
+P3.2 proved recompile → respawn → re-render through the real `Compiler`. P3.4
+wired it into the daemon behind a `StructuralReloader` protocol (JIT-free Core,
+implemented in `PreviewsJITLink`, injected at the executable via one
+`#if PREVIEWSMCP_JIT`): structural edits render in the agent and `preview_snapshot`
+serves the agent PNG (file transport); literal edits on an agent-backed session
+rewrite a baked design-time-values JSON and re-render the **same `.o`** with no
+recompile (value file-transport). Measured structural latency **≈281ms**
+(compile ≈218ms + link/respawn/render ≈62ms) — the render half is within budget,
+the **whole-module compile is the whole gap**.
+
+**Remaining (next phase, see the new follow-up issue):** (1) **recompile-narrowing**
+— the stable-module/editable-unit split (single-file `@testable` compile against
+prebuilt `.swiftmodule`s) to get under the <200ms target; this is the dominant
+lever and is coupled to the compile-strategy research (W4–W7 on
+`previews-research`). (2) **capped-persistent reloader** — replace the
+respawn-per-edit `JITStructuralReloader` body with one persistent agent +
+fresh `JITDylib` per edit + respawn-on-cap (~100), to make the literal path truly
+in-place (~10ms) without touching the protocol. (3) the `examples/` E2E verify.
+(4) JIT-in-CI infra (cache the prebuilt LLVM so CI runs the JIT tests). P3.3
+(in-place `write_mem` + Begin/End/cancelUpdate) stays conditional.
 
 ## Scope boundaries
 
@@ -594,18 +610,41 @@ session-lifecycle integration; P3.3 stays conditional).
 
 ## Immediate next step (resume pointer for a fresh session)
 
-**State:** P3.1 + P3.2 are DONE on `main`-bound PR #190, CI green. Branch
-`jit-phase3-session-integration` (baseline `a8d5909` = anonymous contiguous
-mapper; P3.2 adds only a test). Working tree clean. Run JIT tests with
-`swift test --filter PreviewsJITLinkTests` (builds `PreviewAgent` too); expect
-29 tests green, zero orphan `PreviewAgent` processes. If `third_party/llvm-build`
-is missing, run the bootstrap skill with `--jit` (do NOT rebuild LLVM if it
-exists).
+**State:** P3.1, P3.2, P3.4 (a/b/c-i/c-ii/d) DONE on PR #190, CI green. Branch
+`jit-phase3-session-integration`, tip **`70e8f0d`**. Working tree clean. Run JIT
+tests with `swift test --filter PreviewsJITLinkTests` (builds `PreviewAgent`;
+expect 34 green, zero orphan `PreviewAgent`). The seam/host tests are non-JIT:
+`swift test --filter "StructuralReloaderTests|PreviewHostJITReloadTests|MacOSPreviewHandleAgentSnapshotTests"`.
+If `third_party/llvm-build` is missing, run the bootstrap skill with `--jit` (do
+NOT rebuild LLVM if it exists). **Before committing edited Swift, format with
+`swift-format format -i --recursive <file>`** — plain `-i` uses defaults and
+fails CI's `swift-format lint --strict --recursive` (see
+[[project_swiftformat_recursive]]).
 
-**Next:** P3.4 (daemon session-lifecycle integration, pulls in SP5) — route
-structural edits from `PreviewSession`/FileWatcher to the JIT respawn path while
-literal-only edits stay on `DesignTimeStore`. P3.3 (Begin/End/cancelUpdate
-handshake) stays conditional. The respawn mechanism itself is proven by P3.2.
+**Key files (P3.4 seam):** `Sources/PreviewsCore/StructuralReloader.swift`
+(protocol), `PreviewSession.compileObjectForJIT()` + `applyLiteralValuesForJIT()`
++ `JITRenderBuild`, `BridgeGenerator.renderToFileEntryPoint` (PNG + JSON seed),
+`Sources/PreviewsJITLink/JITStructuralReloader.swift` (impl, **respawn-per-edit**
+— this is the body to swap for capped-persistent), `PreviewHost.jitStructuralReload`/
+`jitLiteralReload`/`agentImagePaths` + `watchFile` routing,
+`MacOSPreviewHandle.snapshot` reroute, `PreviewsMCPApp.swift` `#if PREVIEWSMCP_JIT`
+injection + `Package.swift` `jitCLIDependencies`/`jitCLISwiftSettings`.
+
+**Next (next phase / follow-up issue), in priority order:**
+1. **Recompile-narrowing** (the <200ms lever; compile is 218ms of 281ms): wire
+   `compileObjectForJIT` to the stable-module/editable-unit split — single-file
+   `@testable` compile against prebuilt `.swiftmodule`s (manager's W4–W7 research
+   on `previews-research`, ~0.14s relink at 1000 files). This is the dominant work.
+2. **Capped-persistent reloader**: swap `JITStructuralReloader`'s respawn-per-edit
+   body for one persistent agent + fresh `JITDylib`/edit + respawn-on-cap (~100);
+   the protocol does not change. Makes the literal path truly in-place (~10ms).
+   Note: the agent must call `LLJIT::initialize` per generation (registers
+   `__swift5_*`; segfaults without) — satisfied under respawn, must be added for
+   persistent.
+3. `examples/` E2E verify (literal ~10ms via `DesignTimeStore`; structural via JIT
+   respawn; same daemon session, no restart).
+4. JIT-in-CI infra (cache prebuilt LLVM/orc-rt so CI runs the JIT tests).
+P3.3 (in-place `write_mem` + Begin/End/cancelUpdate handshake) stays conditional.
 
 **Pitfalls carried forward:**
 - macOS denies `mprotect`-to-exec on `MAP_SHARED` memory (no entitlement / reboot
@@ -619,3 +658,7 @@ handshake) stays conditional. The respawn mechanism itself is proven by P3.2.
 - macOS crash reports for the agent live in `~/Library/Logs/DiagnosticReports/
   PreviewAgent-*.ips` (parseable JSON after the first line); the faulting-thread
   backtrace is the fastest way to localize an agent crash.
+- CI `lint` is `swift-format lint --strict --recursive`. Format edited Swift with
+  `swift-format format -i --recursive <file>` (plain `-i` uses tool defaults and
+  leaves files CI rejects; a file list after `--recursive` only formats the first
+  arg, so loop). build-and-test can pass while `lint` fails — check all four jobs.
