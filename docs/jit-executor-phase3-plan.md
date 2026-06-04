@@ -324,6 +324,20 @@ moves to the agent bitmap; interaction is untouched.
     non-JIT build still compiles. A session's first `compile()` keeps the existing
     in-daemon dylib + `NSHostingView`; the first **structural** edit switches the
     session to agent-rendered and `preview_snapshot` serves the agent's PNG.
+    Three steps:
+    - **c-i-1 — protocol + `PreviewSession.compileObjectForJIT()` — DONE.** The
+      protocol is `renderObject(at:entrySymbol:)`, agnostic to
+      respawn-vs-capped-persistent (the impl picks). `compileObjectForJIT` emits a
+      render-bridge `.o` (baked PNG path) returning a `JITRenderBuild`. *Verify
+      (met):* `StructuralReloaderTests` (mock reloader) — the `.o` exports
+      `_renderPreviewToFile` and the plumbing routes; 305/305 `PreviewsCore` green;
+      Core stays JIT-free so the non-JIT build compiles by construction.
+    - **c-i-2 — real `JITStructuralReloader` in `PreviewsJITLink`** over
+      `JITSession`; a JIT-level test drives a real `compileObjectForJIT` `.o`
+      through it to a green PNG.
+    - **c-i-3 — host wiring**: inject at the composition root, branch
+      `watchFile`'s structural path, reroute `preview_snapshot` for agent-backed
+      sessions.
   - **P3.4c-ii — literal-after-structural.** Once a session is agent-rendered the
     view lives in the agent, so a later literal edit must re-seed the agent's
     `DesignTimeStore` and re-render, not use the in-daemon path. Falls back to a

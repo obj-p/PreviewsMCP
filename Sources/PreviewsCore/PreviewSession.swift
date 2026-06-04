@@ -6,6 +6,14 @@ public struct CompileResult: Sendable {
     public let literals: [LiteralEntry]
 }
 
+/// Result of compiling a preview for the JIT structural-reload path: a `.o` whose
+/// `entrySymbol` renders the preview to a PNG at `imagePath` when run in the agent.
+public struct JITRenderBuild: Sendable {
+    public let objectPath: URL
+    public let imagePath: URL
+    public let entrySymbol: String
+}
+
 /// Orchestrates the full preview pipeline: parse → generate bridge → compile → return dylib path.
 public actor PreviewSession {
     public nonisolated let id: String
@@ -145,6 +153,48 @@ public actor PreviewSession {
             state = .error(error.localizedDescription)
             throw error
         }
+    }
+
+    /// Compile the preview for the JIT structural-reload path. Generates a render bridge
+    /// with a baked PNG output path, compiles it to a `.o`, and returns the object plus the
+    /// image path the agent will write. Standalone (combined-source) mode only for now.
+    public func compileObjectForJIT() async throws -> JITRenderBuild {
+        let source = try String(contentsOf: sourceFile, encoding: .utf8)
+        let previews = PreviewParser.parse(source: source)
+
+        guard previewIndex >= 0, previewIndex < previews.count else {
+            throw PreviewSessionError.previewNotFound(
+                index: previewIndex,
+                available: previews.count
+            )
+        }
+        let preview = previews[previewIndex]
+
+        let imagePath = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-jit-\(id)-\(UUID().uuidString).png")
+
+        let generated = BridgeGenerator.generateCombinedSource(
+            originalSource: source,
+            closureBody: preview.closureBody,
+            previewIndex: previewIndex,
+            platform: platform,
+            traits: traits,
+            renderOutputPath: imagePath.path
+        )
+
+        let objectPath = try await compiler.compileObject(
+            source: generated.source,
+            moduleName: Self.moduleName(for: sourceFile)
+        )
+
+        lastOriginalSource = source
+        lastLiterals = generated.literals
+
+        return JITRenderBuild(
+            objectPath: objectPath,
+            imagePath: imagePath,
+            entrySymbol: "renderPreviewToFile"
+        )
     }
 
     /// Attempt a fast literal-only update. Returns changed literal IDs and new values,
