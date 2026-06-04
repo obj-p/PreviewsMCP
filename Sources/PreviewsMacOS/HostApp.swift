@@ -189,19 +189,27 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
                     return
                 }
 
-                // Fast path: try literal-only update. Agent-backed sessions (already on
-                // the JIT path) skip it — their view lives in the agent, not an in-daemon
-                // dylib, so a literal edit re-renders through the structural JIT path
-                // below until the agent-side DesignTimeStore re-seed (P3.4c-ii) lands.
+                // Fast path: try literal-only update. An agent-backed session re-renders
+                // in the agent (rewrite the design-time values JSON, re-run the same
+                // object — no recompile); otherwise the in-daemon DesignTimeStore path.
                 let agentBacked = await MainActor.run {
                     self.agentSnapshotPath(for: sessionID) != nil
                 }
-                if !agentBacked,
-                    let currentSession = await MainActor.run(body: { self.sessions[sessionID] }),
+                if let currentSession = await MainActor.run(body: { self.sessions[sessionID] }),
                     let changes = await currentSession.tryLiteralUpdate(newSource: newSource),
                     !changes.isEmpty
                 {
                     fputs("Literal-only change: \(changes.count) value(s)\n", stderr)
+                    if agentBacked {
+                        do {
+                            try await self.jitLiteralReload(
+                                sessionID: sessionID, session: currentSession, changes: changes)
+                            fputs("Literal re-rendered in agent (no recompile)\n", stderr)
+                        } catch {
+                            fputs("JIT literal reload failed: \(error)\n", stderr)
+                        }
+                        return
+                    }
                     await MainActor.run {
                         self.applyLiteralChanges(sessionID: sessionID, changes: changes)
                     }
@@ -356,6 +364,24 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
     /// The agent-rendered PNG for a session, if it is on the JIT structural path.
     public func agentSnapshotPath(for sessionID: String) -> URL? {
         agentImagePaths[sessionID]
+    }
+
+    /// Literal-only reload for an agent-backed session: rewrite the design-time values
+    /// JSON and re-render the same object in the agent — no recompile. Returns the new
+    /// image path, or nil if there is no reloader or no prior JIT build.
+    @discardableResult
+    public func jitLiteralReload(
+        sessionID: String,
+        session: PreviewSession,
+        changes: [(id: String, newValue: LiteralValue)]
+    ) async throws -> URL? {
+        guard
+            let reloader = structuralReloader,
+            let build = try await session.applyLiteralValuesForJIT(changes)
+        else { return nil }
+        try await reloader.renderObject(at: build.objectPath, entrySymbol: build.entrySymbol)
+        agentImagePaths[sessionID] = build.imagePath
+        return build.imagePath
     }
 
     /// Snapshot the current sessions and chain a publish Task. Each new

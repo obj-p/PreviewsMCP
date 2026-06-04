@@ -378,11 +378,20 @@ moves to the agent bitmap; interaction is untouched.
         the literals (`StructuralReloaderTests.writesDesignTimeValues`); the agent
         render still produces the correct color through the seeded path; JIT 33 /
         BridgeGenerator 69 / PreviewsCore 306 green.
-      - **c-ii-2 — TODO.** Rewrite the JSON to new values, `renderObject` the same
-        `.o`, assert the pixel changed with no recompile.
-      - **c-ii-3 — TODO.** `PreviewSession` caches the last `JITRenderBuild`;
-        agent-backed literal edits rewrite values + re-render instead of the
-        fallback full reload.
+      - **c-ii-2 — DONE.** Test `literalRewriteReRendersSameObjectNoRecompile`:
+        compile a `Color(white: 0.2)` preview once, render (dark), rewrite the
+        white literal in the values JSON to 0.9, re-run `renderObject` on the
+        **same `.o`** → brightness flips dark→light, no second compile.
+      - **c-ii-3 — DONE.** `PreviewSession` caches the last `JITRenderBuild`
+        (`lastJITBuild`) and adds `applyLiteralValuesForJIT(_:)` (merge the changed
+        literals into the values JSON, return the build to re-render). `PreviewHost`
+        gains `jitLiteralReload(sessionID:session:changes:)`; `watchFile`'s literal
+        branch routes agent-backed sessions there (rewrite values + re-render, no
+        recompile) instead of the fallback full reload, while non-agent sessions
+        keep the in-daemon `DesignTimeStore` path. *Verify (met):*
+        `PreviewHostJITReloadTests.literalReloadRewritesValuesAndRecordsImage`
+        (values JSON updated, image recorded) + the c-ii-2 pixel flip; PreviewsCore
+        306 / macOS 4 / engine 9 / JIT 34 green.
 - **P3.4d — latency (U-C) — DONE (measured; compile-bound).** Integrated
   `compileObjectForJIT()` + `JITStructuralReloader.renderObject()` on a small
   module, steady-state (warm module cache), respawn-per-edit:

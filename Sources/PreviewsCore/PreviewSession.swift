@@ -36,6 +36,7 @@ public actor PreviewSession {
     private var compilationResult: CompilationResult?
     private var lastOriginalSource: String?
     private var lastLiterals: [LiteralEntry]?
+    private var lastJITBuild: JITRenderBuild?
 
     public enum State: Sendable {
         case idle
@@ -200,28 +201,52 @@ public actor PreviewSession {
         lastOriginalSource = source
         lastLiterals = generated.literals
 
-        return JITRenderBuild(
+        let build = JITRenderBuild(
             objectPath: objectPath,
             imagePath: imagePath,
             valuesPath: valuesPath,
             entrySymbol: "renderPreviewToFile",
             literals: generated.literals
         )
+        lastJITBuild = build
+        return build
+    }
+
+    /// Apply a literal-only edit to the agent-backed render: rewrite the design-time
+    /// values JSON for the last JIT build so re-running its render entry reflects the
+    /// new values, without recompiling. Returns the build to re-render, or nil if the
+    /// session has no JIT build yet.
+    public func applyLiteralValuesForJIT(
+        _ changes: [(id: String, newValue: LiteralValue)]
+    ) throws -> JITRenderBuild? {
+        guard let build = lastJITBuild else { return nil }
+        var dict =
+            (try? JSONSerialization.jsonObject(with: Data(contentsOf: build.valuesPath))
+                as? [String: Any]) ?? [:]
+        for change in changes {
+            dict[change.id] = Self.anyValue(change.newValue)
+        }
+        try JSONSerialization.data(withJSONObject: dict).write(to: build.valuesPath)
+        return build
     }
 
     /// Serialize design-time literal values to the JSON the render bridge seeds from.
     static func writeDesignTimeValues(_ literals: [LiteralEntry], to path: URL) throws {
         var dict: [String: Any] = [:]
         for entry in literals {
-            switch entry.value {
-            case .string(let s): dict[entry.id] = s
-            case .integer(let n): dict[entry.id] = n
-            case .float(let d): dict[entry.id] = d
-            case .boolean(let b): dict[entry.id] = b
-            }
+            dict[entry.id] = anyValue(entry.value)
         }
         let data = try JSONSerialization.data(withJSONObject: dict)
         try data.write(to: path)
+    }
+
+    private static func anyValue(_ value: LiteralValue) -> Any {
+        switch value {
+        case .string(let s): return s
+        case .integer(let n): return n
+        case .float(let d): return d
+        case .boolean(let b): return b
+        }
     }
 
     /// Attempt a fast literal-only update. Returns changed literal IDs and new values,
