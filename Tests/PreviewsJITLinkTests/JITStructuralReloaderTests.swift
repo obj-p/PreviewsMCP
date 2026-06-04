@@ -13,18 +13,18 @@ struct JITStructuralReloaderTests {
 
         let sourceFile = dir.appendingPathComponent("ColorView.swift")
         try """
-            import SwiftUI
+        import SwiftUI
 
-            struct ColorView: View {
-                var body: some View {
-                    Color(red: 0, green: 1, blue: 0).frame(width: 8, height: 8)
-                }
+        struct ColorView: View {
+            var body: some View {
+                Color(red: 0, green: 1, blue: 0).frame(width: 8, height: 8)
             }
+        }
 
-            #Preview {
-                ColorView()
-            }
-            """.write(to: sourceFile, atomically: true, encoding: .utf8)
+        #Preview {
+            ColorView()
+        }
+        """.write(to: sourceFile, atomically: true, encoding: .utf8)
 
         let compiler = try await Compiler()
         let session = PreviewSession(sourceFile: sourceFile, compiler: compiler)
@@ -53,18 +53,18 @@ struct JITStructuralReloaderTests {
 
         let sourceFile = dir.appendingPathComponent("GrayView.swift")
         try """
-            import SwiftUI
+        import SwiftUI
 
-            struct GrayView: View {
-                var body: some View {
-                    Color(white: 0.2).frame(width: 8, height: 8)
-                }
+        struct GrayView: View {
+            var body: some View {
+                Color(white: 0.2).frame(width: 8, height: 8)
             }
+        }
 
-            #Preview {
-                GrayView()
-            }
-            """.write(to: sourceFile, atomically: true, encoding: .utf8)
+        #Preview {
+            GrayView()
+        }
+        """.write(to: sourceFile, atomically: true, encoding: .utf8)
 
         let compiler = try await Compiler()
         let session = PreviewSession(sourceFile: sourceFile, compiler: compiler)

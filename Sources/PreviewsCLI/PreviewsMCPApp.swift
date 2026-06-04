@@ -3,7 +3,7 @@ import ArgumentParser
 import PreviewsMacOS
 
 #if PREVIEWSMCP_JIT
-    import PreviewsJITLink
+import PreviewsJITLink
 #endif
 
 /// Target platform for CLI commands.
@@ -90,7 +90,7 @@ public struct PreviewsMCPApp {
         let app = NSApplication.shared
         let host = PreviewHost()
         #if PREVIEWSMCP_JIT
-            host.structuralReloader = JITStructuralReloader()
+        host.structuralReloader = JITStructuralReloader()
         #endif
         ServeCommand.sharedHost = host
         app.delegate = host
