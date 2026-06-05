@@ -225,7 +225,7 @@ struct IntegrationTests {
         try "initial content".write(to: file, atomically: true, encoding: .utf8)
 
         let changed = Mutex(false)
-        let watcher = try FileWatcher(path: file.path) {
+        let watcher = try FileWatcher(path: file.path) { _ in
             changed.withLock { $0 = true }
         }
         defer { watcher.stop() }
@@ -256,7 +256,7 @@ struct IntegrationTests {
         try "initial".write(to: file, atomically: false, encoding: .utf8)
 
         let changed = Mutex(false)
-        let watcher = try FileWatcher(path: file.path) {
+        let watcher = try FileWatcher(path: file.path) { _ in
             changed.withLock { $0 = true }
         }
         defer { watcher.stop() }
@@ -304,7 +304,7 @@ struct IntegrationTests {
         try "initial".write(to: file, atomically: false, encoding: .utf8)
 
         let callCount = Mutex(0)
-        let watcher = try FileWatcher(path: file.path) {
+        let watcher = try FileWatcher(path: file.path) { _ in
             callCount.withLock { $0 += 1 }
         }
         defer { watcher.stop() }
@@ -336,7 +336,7 @@ struct IntegrationTests {
         try "initial".write(to: file, atomically: false, encoding: .utf8)
 
         let callCount = Mutex(0)
-        let watcher = try FileWatcher(path: file.path) {
+        let watcher = try FileWatcher(path: file.path) { _ in
             callCount.withLock { $0 += 1 }
         }
         defer { watcher.stop() }

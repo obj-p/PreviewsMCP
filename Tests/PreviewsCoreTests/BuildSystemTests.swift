@@ -382,7 +382,7 @@ struct BuildSystemTests {
         try "initial 2".write(to: file2, atomically: true, encoding: .utf8)
 
         let changed = Mutex(false)
-        let watcher = try FileWatcher(paths: [file1.path, file2.path]) {
+        let watcher = try FileWatcher(paths: [file1.path, file2.path]) { _ in
             changed.withLock { $0 = true }
         }
         defer { watcher.stop() }
@@ -396,6 +396,32 @@ struct BuildSystemTests {
 
         let didChange = changed.withLock { $0 }
         #expect(didChange, "FileWatcher should detect modification of the second watched file")
+    }
+
+    @Test("FileWatcher delivers the changed file path to the callback")
+    func fileWatcherDeliversChangedPath() async throws {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("fw-id-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        let file1 = tmpDir.appendingPathComponent("first.swift")
+        let file2 = tmpDir.appendingPathComponent("second.swift")
+        try "initial 1".write(to: file1, atomically: true, encoding: .utf8)
+        try "initial 2".write(to: file2, atomically: true, encoding: .utf8)
+
+        let changedPath = Mutex<String?>(nil)
+        let watcher = try FileWatcher(paths: [file1.path, file2.path]) { path in
+            changedPath.withLock { $0 = path }
+        }
+        defer { watcher.stop() }
+
+        try await Task.sleep(for: .milliseconds(100))
+        try "modified 2".write(to: file2, atomically: true, encoding: .utf8)
+        try await Task.sleep(for: .milliseconds(200))
+
+        let captured = changedPath.withLock { $0 }
+        #expect(captured?.hasSuffix("second.swift") == true)
     }
 
     // MARK: - BuildContext

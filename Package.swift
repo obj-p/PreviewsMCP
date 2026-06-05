@@ -11,6 +11,12 @@ let jitEnabled =
     FileManager.default.fileExists(atPath: llvmBuild)
     && FileManager.default.fileExists(atPath: orcRuntimeArchive)
 
+// Composition-root wiring for the JIT structural-reload path. Only the executable
+// references the gated PreviewsJITLink, behind one `#if PREVIEWSMCP_JIT`; the daemon
+// logic depends solely on the JIT-free `StructuralReloader` protocol in PreviewsCore.
+let jitCLIDependencies: [Target.Dependency] = jitEnabled ? ["PreviewsJITLink"] : []
+let jitCLISwiftSettings: [SwiftSetting] = jitEnabled ? [.define("PREVIEWSMCP_JIT")] : []
+
 var targets: [Target] = [
     .target(
         name: "SimulatorBridge",
@@ -53,7 +59,8 @@ var targets: [Target] = [
             "PreviewsEngine",
             .product(name: "ArgumentParser", package: "swift-argument-parser"),
             .product(name: "MCP", package: "swift-sdk"),
-        ],
+        ] + jitCLIDependencies,
+        swiftSettings: jitCLISwiftSettings,
         plugins: [.plugin(name: "GenerateVersion")]
     ),
     .executableTarget(
@@ -117,7 +124,7 @@ if jitEnabled {
     targets += [
         .target(
             name: "PreviewsJITLink",
-            dependencies: ["PreviewsJITLinkCxx"],
+            dependencies: ["PreviewsJITLinkCxx", "PreviewsCore"],
             plugins: [.plugin(name: "BundleOrcRuntime")]
         ),
         .target(

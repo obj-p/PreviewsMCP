@@ -10,18 +10,23 @@
 #include <fcntl.h>
 #include <llvm-c/Core.h>
 #include <llvm-c/TargetMachine.h>
+#include <llvm/ExecutionEngine/Orc/EPCDynamicLibrarySearchGenerator.h>
 #include <llvm/ExecutionEngine/Orc/EPCGenericMemoryAccess.h>
+#include <llvm/ExecutionEngine/Orc/ExecutionUtils.h>
 #include <llvm/ExecutionEngine/Orc/ExecutorProcessControl.h>
 #include <llvm/ExecutionEngine/Orc/LLJIT.h>
 #include <llvm/ExecutionEngine/Orc/MapperJITLinkMemoryManager.h>
 #include <llvm/ExecutionEngine/Orc/MemoryMapper.h>
 #include <llvm/ExecutionEngine/Orc/ObjectLinkingLayer.h>
+#include <llvm/ExecutionEngine/Orc/Shared/ExecutorAddress.h>
 #include <llvm/ExecutionEngine/Orc/Shared/SimpleRemoteEPCUtils.h>
 #include <llvm/ExecutionEngine/Orc/Shared/TargetProcessControlTypes.h>
+#include <llvm/ExecutionEngine/Orc/Shared/WrapperFunctionUtils.h>
 #include <llvm/ExecutionEngine/Orc/SimpleRemoteEPC.h>
 #include <llvm/ExecutionEngine/Orc/TaskDispatch.h>
 #include <llvm/Support/Debug.h>
 #include <llvm/Support/MemoryBuffer.h>
+#include <map>
 #include <mutex>
 #include <optional>
 #include <spawn.h>
@@ -50,12 +55,157 @@ slabLinkingLayer(llvm::orc::ExecutionSession &es, const llvm::Triple &) {
   return layer;
 }
 
-llvm::Expected<std::unique_ptr<llvm::orc::LLJIT>>
-makeJIT(const char *orc_rt_path) {
+void initNativeTargetOnce() {
   static std::once_flag once;
   std::call_once(once, [] {
     LLVMInitializeNativeTarget();
     LLVMInitializeNativeAsmPrinter();
+  });
+}
+
+struct AnonMapperSymbols {
+  llvm::orc::ExecutorAddr Reserve;
+  llvm::orc::ExecutorAddr Initialize;
+  llvm::orc::ExecutorAddr Deinitialize;
+  llvm::orc::ExecutorAddr Release;
+};
+
+class PreviewsAnonymousMapper : public llvm::orc::MemoryMapper {
+public:
+  PreviewsAnonymousMapper(llvm::orc::SimpleRemoteEPC &epc,
+                          AnonMapperSymbols sas)
+      : epc(epc), sas(sas) {}
+
+  unsigned int getPageSize() override { return epc.getPageSize(); }
+
+  void reserve(size_t numBytes, OnReservedFunction onReserved) override {
+    epc.callSPSWrapperAsync<llvm::orc::shared::SPSExpected<
+        llvm::orc::shared::SPSExecutorAddr>(uint64_t)>(
+        sas.Reserve,
+        [this, numBytes, onReserved = std::move(onReserved)](
+            llvm::Error serErr,
+            llvm::Expected<llvm::orc::ExecutorAddr> result) mutable {
+          if (serErr) {
+            llvm::consumeError(result.takeError());
+            return onReserved(std::move(serErr));
+          }
+          if (!result) {
+            return onReserved(result.takeError());
+          }
+          auto base = *result;
+          auto *buf = static_cast<char *>(malloc(numBytes));
+          {
+            std::lock_guard<std::mutex> lock(mutex);
+            reservations[base] = {buf, numBytes};
+          }
+          onReserved(llvm::orc::ExecutorAddrRange(base, base + numBytes));
+        },
+        static_cast<uint64_t>(numBytes));
+  }
+
+  char *prepare(llvm::orc::ExecutorAddr addr, size_t contentSize) override {
+    std::lock_guard<std::mutex> lock(mutex);
+    auto r = reservations.upper_bound(addr);
+    --r;
+    return r->second.workingBuf + (addr - r->first);
+  }
+
+  void initialize(AllocInfo &ai, OnInitializedFunction onInitialized) override {
+    llvm::orc::tpctypes::FinalizeRequest fr;
+    fr.Actions = std::move(ai.Actions);
+    char *base;
+    {
+      std::lock_guard<std::mutex> lock(mutex);
+      auto r = reservations.upper_bound(ai.MappingBase);
+      --r;
+      base = r->second.workingBuf + (ai.MappingBase - r->first);
+    }
+    fr.Segments.reserve(ai.Segments.size());
+    for (auto &seg : ai.Segments) {
+      char *segBuf = base + seg.Offset;
+      memset(segBuf + seg.ContentSize, 0, seg.ZeroFillSize);
+      llvm::orc::tpctypes::SegFinalizeRequest sr;
+      sr.RAG = {seg.AG.getMemProt(),
+                seg.AG.getMemLifetime() == llvm::orc::MemLifetime::Finalize};
+      sr.Addr = ai.MappingBase + seg.Offset;
+      sr.Size = seg.ContentSize + seg.ZeroFillSize;
+      sr.Content = llvm::ArrayRef<char>(segBuf, seg.ContentSize);
+      fr.Segments.push_back(sr);
+    }
+    epc.callSPSWrapperAsync<
+        llvm::orc::shared::SPSExpected<llvm::orc::shared::SPSExecutorAddr>(
+            llvm::orc::shared::SPSFinalizeRequest)>(
+        sas.Initialize,
+        [onInitialized = std::move(onInitialized)](
+            llvm::Error serErr,
+            llvm::Expected<llvm::orc::ExecutorAddr> result) mutable {
+          if (serErr) {
+            llvm::consumeError(result.takeError());
+            return onInitialized(std::move(serErr));
+          }
+          onInitialized(std::move(result));
+        },
+        std::move(fr));
+  }
+
+  void deinitialize(llvm::ArrayRef<llvm::orc::ExecutorAddr> allocs,
+                    OnDeinitializedFunction onDeinit) override {
+    epc.callSPSWrapperAsync<llvm::orc::shared::SPSError(
+        llvm::orc::shared::SPSSequence<llvm::orc::shared::SPSExecutorAddr>)>(
+        sas.Deinitialize,
+        [onDeinit = std::move(onDeinit)](llvm::Error serErr,
+                                         llvm::Error result) mutable {
+          if (serErr) {
+            llvm::consumeError(std::move(result));
+            return onDeinit(std::move(serErr));
+          }
+          onDeinit(std::move(result));
+        },
+        allocs);
+  }
+
+  void release(llvm::ArrayRef<llvm::orc::ExecutorAddr> bases,
+               OnReleasedFunction onReleased) override {
+    {
+      std::lock_guard<std::mutex> lock(mutex);
+      for (auto b : bases) {
+        auto i = reservations.find(b);
+        if (i != reservations.end()) {
+          free(i->second.workingBuf);
+          reservations.erase(i);
+        }
+      }
+    }
+    epc.callSPSWrapperAsync<llvm::orc::shared::SPSError(
+        llvm::orc::shared::SPSSequence<llvm::orc::shared::SPSExecutorAddr>)>(
+        sas.Release,
+        [onReleased = std::move(onReleased)](llvm::Error serErr,
+                                             llvm::Error result) mutable {
+          if (serErr) {
+            llvm::consumeError(std::move(result));
+            return onReleased(std::move(serErr));
+          }
+          onReleased(std::move(result));
+        },
+        bases);
+  }
+
+private:
+  struct Reservation {
+    char *workingBuf;
+    size_t size;
+  };
+  llvm::orc::SimpleRemoteEPC &epc;
+  AnonMapperSymbols sas;
+  std::mutex mutex;
+  std::map<llvm::orc::ExecutorAddr, Reservation> reservations;
+};
+
+llvm::Expected<std::unique_ptr<llvm::orc::LLJIT>>
+makeJIT(const char *orc_rt_path) {
+  initNativeTargetOnce();
+  static std::once_flag debugOnce;
+  std::call_once(debugOnce, [] {
     if (getenv("PREVIEWSMCP_JIT_DEBUG")) {
       static const char *types[] = {"jitlink", "orc"};
       llvm::DebugFlag = true;
@@ -115,6 +265,7 @@ struct previewsmcp_jit_session {
   std::unique_ptr<llvm::orc::LLJIT> ownedJit;
   llvm::orc::LLJIT *jit = nullptr;
   llvm::orc::JITDylib *jd = nullptr;
+  llvm::orc::ExecutorAddr runOnMain;
   pid_t agentPid = 0;
   bool initialized = false;
 };
@@ -123,6 +274,8 @@ namespace {
 llvm::Expected<llvm::orc::ExecutorAddr>
 lookupInitialized(previewsmcp_jit_session *session, const char *symbol_name) {
   if (!session->initialized) {
+    static std::mutex initMutex;
+    std::lock_guard<std::mutex> lock(initMutex);
     if (auto err = session->jit->initialize(*session->jd)) {
       return std::move(err);
     }
@@ -170,11 +323,7 @@ const char *
 previewsmcp_jit_remote_session_create(previewsmcp_jit_session **out_session,
                                       const char *agent_path,
                                       const char *orc_rt_path) {
-  static std::once_flag targetOnce;
-  std::call_once(targetOnce, [] {
-    LLVMInitializeNativeTarget();
-    LLVMInitializeNativeAsmPrinter();
-  });
+  initNativeTargetOnce();
 
   int sv[2];
   if (socketpair(AF_UNIX, SOCK_STREAM, 0, sv) != 0) {
@@ -226,10 +375,22 @@ previewsmcp_jit_remote_session_create(previewsmcp_jit_session **out_session,
     return toCStr(epc.takeError());
   }
 
-  llvm::orc::ExecutorAddr registerConformances, registerTypes;
+  llvm::orc::ExecutorAddr registerConformances, registerTypes, runOnMain;
   if (auto err = (*epc)->getBootstrapSymbols(
           {{registerConformances, "__previewsmcp_register_conformances"},
-           {registerTypes, "__previewsmcp_register_types"}})) {
+           {registerTypes, "__previewsmcp_register_types"},
+           {runOnMain, "__previewsmcp_run_on_main"}})) {
+    llvm::consumeError((*epc)->disconnect());
+    killAgent(pid);
+    return toCStr(std::move(err));
+  }
+
+  AnonMapperSymbols anonSyms;
+  if (auto err = (*epc)->getBootstrapSymbols(
+          {{anonSyms.Reserve, "__previewsmcp_anon_reserve"},
+           {anonSyms.Initialize, "__previewsmcp_anon_initialize"},
+           {anonSyms.Deinitialize, "__previewsmcp_anon_deinitialize"},
+           {anonSyms.Release, "__previewsmcp_anon_release"}})) {
     llvm::consumeError((*epc)->disconnect());
     killAgent(pid);
     return toCStr(std::move(err));
@@ -240,11 +401,17 @@ previewsmcp_jit_remote_session_create(previewsmcp_jit_session **out_session,
           .setExecutorProcessControl(std::move(*epc))
           .setPlatformSetUp(llvm::orc::ExecutorNativePlatform(orc_rt_path))
           .setObjectLinkingLayerCreator(
-              [registerConformances, registerTypes](
-                  llvm::orc::ExecutionSession &es, const llvm::Triple &)
+              [registerConformances, registerTypes,
+               anonSyms](llvm::orc::ExecutionSession &es, const llvm::Triple &)
                   -> llvm::Expected<std::unique_ptr<llvm::orc::ObjectLayer>> {
-                auto layer =
-                    std::make_unique<llvm::orc::ObjectLinkingLayer>(es);
+                auto &srepc = static_cast<llvm::orc::SimpleRemoteEPC &>(
+                    es.getExecutorProcessControl());
+                auto memMgr =
+                    std::make_unique<llvm::orc::MapperJITLinkMemoryManager>(
+                        kSlabSize, std::make_unique<PreviewsAnonymousMapper>(
+                                       srepc, anonSyms));
+                auto layer = std::make_unique<llvm::orc::ObjectLinkingLayer>(
+                    es, std::move(memMgr));
                 layer->addPlugin(
                     std::make_shared<previewsmcp::SwiftEntrySectionPlugin>(
                         registerConformances, registerTypes));
@@ -259,6 +426,7 @@ previewsmcp_jit_remote_session_create(previewsmcp_jit_session **out_session,
   auto *session = new previewsmcp_jit_session{};
   session->ownedJit = std::move(*jit);
   session->jit = session->ownedJit.get();
+  session->runOnMain = runOnMain;
   session->agentPid = pid;
   static std::atomic<uint64_t> counter{0};
   auto jd = session->jit->createJITDylib("remote." +
@@ -291,6 +459,28 @@ const char *previewsmcp_jit_session_run_main(previewsmcp_jit_session *session,
 }
 
 const char *
+previewsmcp_jit_session_run_on_main(previewsmcp_jit_session *session,
+                                    const char *symbol_name,
+                                    int32_t *out_result) {
+  if (!session->runOnMain) {
+    return strdup("run_on_main requires a remote session");
+  }
+  auto sym = lookupInitialized(session, symbol_name);
+  if (!sym) {
+    return toCStr(sym.takeError());
+  }
+  auto &epc = session->jit->getExecutionSession().getExecutorProcessControl();
+  int32_t result = 0;
+  if (auto err =
+          epc.callSPSWrapper<int32_t(llvm::orc::shared::SPSExecutorAddr)>(
+              session->runOnMain, result, *sym)) {
+    return toCStr(std::move(err));
+  }
+  *out_result = result;
+  return nullptr;
+}
+
+const char *
 previewsmcp_jit_session_write_pointer(previewsmcp_jit_session *session,
                                       uint64_t address, uint64_t value) {
   llvm::orc::tpctypes::PointerWrite writes[] = {
@@ -309,6 +499,42 @@ const char *previewsmcp_jit_session_add_object(previewsmcp_jit_session *session,
     return toCStr(llvm::errorCodeToError(buf.getError()));
   }
   return toCStr(session->jit->addObjectFile(*session->jd, std::move(*buf)));
+}
+
+const char *
+previewsmcp_jit_session_add_archive(previewsmcp_jit_session *session,
+                                    const char *archive_path) {
+  auto generator = llvm::orc::StaticLibraryDefinitionGenerator::Load(
+      session->jit->getObjLinkingLayer(), archive_path);
+  if (!generator) {
+    return toCStr(generator.takeError());
+  }
+  session->jd->addGenerator(std::move(*generator));
+  return nullptr;
+}
+
+const char *previewsmcp_jit_session_add_dylib(previewsmcp_jit_session *session,
+                                              const char *dylib_path) {
+  auto generator = llvm::orc::EPCDynamicLibrarySearchGenerator::Load(
+      session->jit->getExecutionSession(), dylib_path);
+  if (!generator) {
+    return toCStr(generator.takeError());
+  }
+  session->jd->addGenerator(std::move(*generator));
+  return nullptr;
+}
+
+const char *
+previewsmcp_jit_session_new_generation(previewsmcp_jit_session *session) {
+  static std::atomic<uint64_t> counter{0};
+  auto jd = session->jit->createJITDylib("generation." +
+                                         std::to_string(counter.fetch_add(1)));
+  if (!jd) {
+    return toCStr(jd.takeError());
+  }
+  session->jd = &*jd;
+  session->initialized = false;
+  return nullptr;
 }
 
 const char *previewsmcp_jit_session_lookup(previewsmcp_jit_session *session,

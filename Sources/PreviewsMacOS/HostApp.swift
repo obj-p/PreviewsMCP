@@ -16,6 +16,10 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
     private var windows: [String: NSWindow] = [:]
     private var loaders: [String: DylibLoader] = [:]
     private var sessions: [String: PreviewSession] = [:]
+    /// Latest agent-rendered PNG per session. Set once a session goes through the
+    /// JIT structural-reload path; `preview_snapshot` serves this instead of the
+    /// in-daemon window for those sessions.
+    private var agentImagePaths: [String: URL] = [:]
     // Keep old loaders and views alive so their dylib types remain valid.
     private var retainedLoaders: [DylibLoader] = []
     private var retainedViews: [NSView] = []
@@ -27,6 +31,11 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
 
     /// Callback invoked after NSApplication finishes launching.
     public var onLaunch: (@MainActor () -> Void)?
+
+    /// Structural-reload strategy for the JIT path. Injected at the composition
+    /// root, non-nil only in JIT builds. When set, structural edits render in the
+    /// agent instead of rebuilding an in-daemon dylib.
+    public var structuralReloader: (any StructuralReloader)?
 
     /// Async sink that publishes a snapshot of macOS sessions to the
     /// cross-process registry. Set once by the engine layer at host
@@ -168,7 +177,7 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
         let fileURL = URL(fileURLWithPath: filePath)
         let allPaths = [filePath] + additionalPaths
         fileWatchers[sessionID]?.stop()
-        fileWatchers[sessionID] = try? FileWatcher(paths: allPaths) { [weak self] in
+        fileWatchers[sessionID] = try? FileWatcher(paths: allPaths) { [weak self] _ in
             Task {
                 guard let self else { return }
 
@@ -180,12 +189,27 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
                     return
                 }
 
-                // Fast path: try literal-only update
+                // Fast path: try literal-only update. An agent-backed session re-renders
+                // in the agent (rewrite the design-time values JSON, re-run the same
+                // object — no recompile); otherwise the in-daemon DesignTimeStore path.
+                let agentBacked = await MainActor.run {
+                    self.agentSnapshotPath(for: sessionID) != nil
+                }
                 if let currentSession = await MainActor.run(body: { self.sessions[sessionID] }),
                     let changes = await currentSession.tryLiteralUpdate(newSource: newSource),
                     !changes.isEmpty
                 {
                     fputs("Literal-only change: \(changes.count) value(s)\n", stderr)
+                    if agentBacked {
+                        do {
+                            try await self.jitLiteralReload(
+                                sessionID: sessionID, session: currentSession, changes: changes)
+                            fputs("Literal re-rendered in agent (no recompile)\n", stderr)
+                        } catch {
+                            fputs("JIT literal reload failed: \(error)\n", stderr)
+                        }
+                        return
+                    }
                     await MainActor.run {
                         self.applyLiteralChanges(sessionID: sessionID, changes: changes)
                     }
@@ -206,6 +230,14 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
                         fputs("Session \(sessionID) no longer exists\n", stderr)
                         return
                     }
+
+                    if try await self.jitStructuralReload(
+                        sessionID: sessionID, session: existingSession
+                    ) != nil {
+                        fputs("Reloaded (JIT agent)!\n", stderr); fflush(stderr)
+                        return
+                    }
+
                     let compileResult = try await existingSession.compile()
                     fputs("Compiled: \(compileResult.dylibPath.lastPathComponent)\n", stderr)
 
@@ -282,6 +314,7 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
         fileWatchers[sessionID]?.stop()
         fileWatchers.removeValue(forKey: sessionID)
         sessions.removeValue(forKey: sessionID)
+        agentImagePaths.removeValue(forKey: sessionID)
         notifySessionsChanged()
         fputs("closePreview: watchers/sessions removed\n", stderr); fflush(stderr)
 
@@ -314,6 +347,41 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
     /// Get the window for a session (for snapshotting).
     public func window(for sessionID: String) -> NSWindow? {
         windows[sessionID]
+    }
+
+    /// Structural reload via the JIT path: compile the preview to a render-bridge
+    /// object, render it in the agent, and record the agent's PNG for snapshots.
+    /// Returns the image path, or nil if no reloader is injected (non-JIT build).
+    @discardableResult
+    public func jitStructuralReload(sessionID: String, session: PreviewSession) async throws -> URL? {
+        guard let reloader = structuralReloader else { return nil }
+        let build = try await session.compileObjectForJIT()
+        try await reloader.render(build)
+        agentImagePaths[sessionID] = build.imagePath
+        return build.imagePath
+    }
+
+    /// The agent-rendered PNG for a session, if it is on the JIT structural path.
+    public func agentSnapshotPath(for sessionID: String) -> URL? {
+        agentImagePaths[sessionID]
+    }
+
+    /// Literal-only reload for an agent-backed session: rewrite the design-time values
+    /// JSON and re-render the same object in the agent — no recompile. Returns the new
+    /// image path, or nil if there is no reloader or no prior JIT build.
+    @discardableResult
+    public func jitLiteralReload(
+        sessionID: String,
+        session: PreviewSession,
+        changes: [(id: String, newValue: LiteralValue)]
+    ) async throws -> URL? {
+        guard
+            let reloader = structuralReloader,
+            let build = try await session.applyLiteralValuesForJIT(changes)
+        else { return nil }
+        try await reloader.render(build)
+        agentImagePaths[sessionID] = build.imagePath
+        return build.imagePath
     }
 
     /// Snapshot the current sessions and chain a publish Task. Each new

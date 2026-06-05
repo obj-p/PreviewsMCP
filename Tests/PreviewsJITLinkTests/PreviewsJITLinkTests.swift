@@ -91,6 +91,34 @@ struct PreviewsJITLinkTests {
         #expect(result == 11)
     }
 
+    @Test func runsSwiftUIViewBodyRemotely() throws {
+        let object = try FixtureSupport.compile("swiftui_probe.swift")
+        let session = try JITSession(remoteAgentPath: JITSession.bundledAgentPath())
+        try session.addObject(path: object.path)
+        let result = try session.runMain(symbol: "swiftui_probe_value")
+        #expect(result == 7)
+    }
+
+    @Test func buildsHostingViewOnMainThreadRemotely() throws {
+        let object = try FixtureSupport.compile("hosting_probe.swift")
+        let session = try JITSession(remoteAgentPath: JITSession.bundledAgentPath())
+        try session.addObject(path: object.path)
+        let result = try session.runOnMain(symbol: "hosting_probe_value")
+        #expect(result == 1)
+    }
+
+    @Test func rendersViewToBitmapOnMainThreadRemotely() throws {
+        let object = try FixtureSupport.compile("render_probe.swift")
+        let session = try JITSession(remoteAgentPath: JITSession.bundledAgentPath())
+        try session.addObject(path: object.path)
+        let packed = try session.runOnMain(symbol: "render_probe_value")
+        #expect(packed >= 0)
+        let r = (packed >> 16) & 0xFF
+        let g = (packed >> 8) & 0xFF
+        let b = packed & 0xFF
+        #expect(r > 200 && g < 60 && b < 60)
+    }
+
     @Test func publishesNewAddressIntoSlotRemotely() throws {
         let object = try FixtureSupport.compile("patch_slot.c")
         let session = try JITSession(remoteAgentPath: JITSession.bundledAgentPath())

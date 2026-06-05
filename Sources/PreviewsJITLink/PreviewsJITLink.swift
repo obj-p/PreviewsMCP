@@ -57,6 +57,14 @@ public final class JITSession {
         return result
     }
 
+    public func runOnMain(symbol: String) throws -> Int32 {
+        var result: Int32 = 0
+        if let error = previewsmcp_jit_session_run_on_main(handle, symbol, &result) {
+            throw JITLinkError.failed(error.string())
+        }
+        return result
+    }
+
     public func writePointer(at address: UInt64, value: UInt64) throws {
         if let error = previewsmcp_jit_session_write_pointer(handle, address, value) {
             throw JITLinkError.failed(error.string())
@@ -65,6 +73,27 @@ public final class JITSession {
 
     public func addObject(path: String) throws {
         if let error = previewsmcp_jit_session_add_object(handle, path) {
+            throw JITLinkError.failed(error.string())
+        }
+    }
+
+    public func addArchive(path: String) throws {
+        if let error = previewsmcp_jit_session_add_archive(handle, path) {
+            throw JITLinkError.failed(error.string())
+        }
+    }
+
+    public func addDylib(path: String) throws {
+        if let error = previewsmcp_jit_session_add_dylib(handle, path) {
+            throw JITLinkError.failed(error.string())
+        }
+    }
+
+    /// Start a fresh generation: subsequent `addObject`/`addArchive`/`addDylib`/`runOnMain`
+    /// target a new `JITDylib` on the same agent, and the next run re-runs `LLJIT::initialize`
+    /// on it (registers `__swift5_*`). Lets one agent serve many edits (capped-persistent).
+    public func newGeneration() throws {
+        if let error = previewsmcp_jit_session_new_generation(handle) {
             throw JITLinkError.failed(error.string())
         }
     }

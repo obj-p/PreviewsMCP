@@ -6,6 +6,48 @@ public struct CompileResult: Sendable {
     public let literals: [LiteralEntry]
 }
 
+/// Result of compiling a preview for the JIT structural-reload path: a `.o` whose
+/// `entrySymbol` renders the preview to a PNG at `imagePath` when run in the agent.
+/// The render entry seeds `DesignTimeStore` from `valuesPath` (JSON) first, so a
+/// literal-only edit can rewrite that file and re-render the same `.o` without
+/// recompiling. `literals` are the design-time values baked at compile time.
+public struct JITRenderBuild: Sendable {
+    public let objectPath: URL
+    public let imagePath: URL
+    public let valuesPath: URL
+    public let entrySymbol: String
+    public let literals: [LiteralEntry]
+    /// Prebuilt stable-module objects to link before `objectPath` (recompile-narrowing
+    /// split). Empty for the standalone path, where `objectPath` is self-contained.
+    public let supportObjectPaths: [URL]
+    /// Static-library archives (the target's `-L`/`-l` dependency archives) the agent must
+    /// link so the editable/stable objects' dependency symbols resolve. Empty for standalone.
+    public let archivePaths: [URL]
+    /// Binary dynamic libraries (the target's `-F`/`-framework` dependency frameworks) the
+    /// agent must `dlopen` so their symbols resolve. Empty for standalone.
+    public let dylibPaths: [URL]
+
+    public init(
+        objectPath: URL,
+        imagePath: URL,
+        valuesPath: URL,
+        entrySymbol: String,
+        literals: [LiteralEntry],
+        supportObjectPaths: [URL] = [],
+        archivePaths: [URL] = [],
+        dylibPaths: [URL] = []
+    ) {
+        self.objectPath = objectPath
+        self.imagePath = imagePath
+        self.valuesPath = valuesPath
+        self.entrySymbol = entrySymbol
+        self.literals = literals
+        self.supportObjectPaths = supportObjectPaths
+        self.archivePaths = archivePaths
+        self.dylibPaths = dylibPaths
+    }
+}
+
 /// Orchestrates the full preview pipeline: parse → generate bridge → compile → return dylib path.
 public actor PreviewSession {
     public nonisolated let id: String
@@ -23,6 +65,8 @@ public actor PreviewSession {
     private var compilationResult: CompilationResult?
     private var lastOriginalSource: String?
     private var lastLiterals: [LiteralEntry]?
+    private var lastJITBuild: JITRenderBuild?
+    private var cachedStableModule: (key: [String: Date], module: Compiler.StableModule)?
 
     public enum State: Sendable {
         case idle
@@ -147,6 +191,221 @@ public actor PreviewSession {
         }
     }
 
+    /// Compile the preview for the JIT structural-reload path. Generates a render bridge
+    /// with a baked PNG output path, compiles it to a `.o`, and returns the object plus the
+    /// image path the agent will write.
+    ///
+    /// In Tier-2 project mode the compile is split (recompile-narrowing): the hot preview
+    /// file is the editable unit, `@testable import`ing a stable module prebuilt from the
+    /// target's other sources, so an edit recompiles only the hot file. Standalone mode
+    /// compiles the self-contained combined source as one object.
+    public func compileObjectForJIT() async throws -> JITRenderBuild {
+        let source = try String(contentsOf: sourceFile, encoding: .utf8)
+        let previews = PreviewParser.parse(source: source)
+
+        guard previewIndex >= 0, previewIndex < previews.count else {
+            throw PreviewSessionError.previewNotFound(
+                index: previewIndex,
+                available: previews.count
+            )
+        }
+        let preview = previews[previewIndex]
+
+        let stem = "previewsmcp-jit-\(id)-\(UUID().uuidString)"
+        let imagePath = FileManager.default.temporaryDirectory
+            .appendingPathComponent("\(stem).png")
+        let valuesPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent("\(stem).json")
+
+        let splitContext = buildContext.flatMap { ctx -> (BuildContext, [URL])? in
+            guard ctx.supportsTier2, let bulk = ctx.sourceFiles, !bulk.isEmpty else { return nil }
+            return (ctx, bulk)
+        }
+
+        let generated = BridgeGenerator.generateCombinedSource(
+            originalSource: source,
+            closureBody: preview.closureBody,
+            previewIndex: previewIndex,
+            platform: platform,
+            traits: traits,
+            renderOutputPath: imagePath.path,
+            designTimeValuesPath: valuesPath.path,
+            stableModuleImport: splitContext?.0.moduleName
+        )
+
+        let objectPath: URL
+        var supportObjectPaths: [URL] = []
+        var archivePaths: [URL] = []
+        var dylibPaths: [URL] = []
+        if let (ctx, bulk) = splitContext {
+            let stable = try await stableModule(for: bulk, context: ctx)
+            supportObjectPaths = [stable.objectPath]
+            archivePaths = Self.dependencyArchives(in: ctx.compilerFlags)
+            if let runtimeArchive = try await Toolchain.compilerRuntimeArchivePath() {
+                archivePaths.append(URL(fileURLWithPath: runtimeArchive))
+            }
+            dylibPaths = Self.dependencyDylibs(in: ctx.compilerFlags)
+            objectPath = try await compiler.compileObject(
+                source: generated.source,
+                moduleName: "PreviewEdit_\(ctx.moduleName)_\(Self.uniqueModuleToken())",
+                extraFlags: ["-I", stable.modulesDir.path] + ctx.compilerFlags
+            )
+        } else {
+            objectPath = try await compiler.compileObject(
+                source: generated.source,
+                moduleName: "\(Self.moduleName(for: sourceFile))_\(Self.uniqueModuleToken())"
+            )
+        }
+        try Self.writeDesignTimeValues(generated.literals, to: valuesPath)
+
+        lastOriginalSource = source
+        lastLiterals = generated.literals
+
+        let build = JITRenderBuild(
+            objectPath: objectPath,
+            imagePath: imagePath,
+            valuesPath: valuesPath,
+            entrySymbol: "renderPreviewToFile",
+            literals: generated.literals,
+            supportObjectPaths: supportObjectPaths,
+            archivePaths: archivePaths,
+            dylibPaths: dylibPaths
+        )
+        lastJITBuild = build
+        return build
+    }
+
+    /// Resolve the `-L <dir>` / `-l<name>` pairs in `flags` to `<dir>/lib<name>.a` archive
+    /// paths that exist on disk. These are the target's dependency archives the JIT agent
+    /// must link so the editable/stable objects' cross-target symbols resolve (G3).
+    static func dependencyArchives(in flags: [String]) -> [URL] {
+        var searchDirs: [URL] = []
+        var names: [String] = []
+        var index = 0
+        while index < flags.count {
+            let flag = flags[index]
+            if flag == "-L", index + 1 < flags.count {
+                searchDirs.append(URL(fileURLWithPath: flags[index + 1]))
+                index += 2
+            } else if flag.hasPrefix("-l") && flag.count > 2 {
+                names.append(String(flag.dropFirst(2)))
+                index += 1
+            } else {
+                index += 1
+            }
+        }
+        var archives: [URL] = []
+        for name in names {
+            for dir in searchDirs {
+                let candidate = dir.appendingPathComponent("lib\(name).a")
+                if FileManager.default.fileExists(atPath: candidate.path) {
+                    archives.append(candidate)
+                    break
+                }
+            }
+        }
+        return archives
+    }
+
+    /// Resolve the `-F <dir>` / `-framework <name>` pairs in `flags` to the framework binary
+    /// at `<dir>/<name>.framework/<name>`. These are the target's binary-framework deps the
+    /// JIT agent must `dlopen` so their symbols resolve (G3-b).
+    static func dependencyDylibs(in flags: [String]) -> [URL] {
+        var searchDirs: [URL] = []
+        var names: [String] = []
+        var index = 0
+        while index < flags.count {
+            let flag = flags[index]
+            if flag == "-F", index + 1 < flags.count {
+                searchDirs.append(URL(fileURLWithPath: flags[index + 1]))
+                index += 2
+            } else if flag == "-framework", index + 1 < flags.count {
+                names.append(flags[index + 1])
+                index += 2
+            } else {
+                index += 1
+            }
+        }
+        var dylibs: [URL] = []
+        for name in names {
+            for dir in searchDirs {
+                let candidate = dir.appendingPathComponent("\(name).framework/\(name)")
+                if FileManager.default.fileExists(atPath: candidate.path) {
+                    dylibs.append(candidate)
+                    break
+                }
+            }
+        }
+        return dylibs
+    }
+
+    /// Return the stable module for `bulk`, reusing the cached one when no bulk file has
+    /// changed (the common case: repeated edits to the hot preview file). Rebuilds only when
+    /// a bulk file's modification date changes, so the per-edit compile stays narrow.
+    private func stableModule(
+        for bulk: [URL], context ctx: BuildContext
+    ) async throws -> Compiler.StableModule {
+        let key = Self.bulkKey(bulk)
+        if let cached = cachedStableModule, cached.key == key {
+            return cached.module
+        }
+        let module = try await compiler.emitStableModule(
+            sourceFiles: bulk,
+            moduleName: ctx.moduleName,
+            extraFlags: ctx.compilerFlags
+        )
+        cachedStableModule = (key, module)
+        return module
+    }
+
+    private static func bulkKey(_ bulk: [URL]) -> [String: Date] {
+        var key: [String: Date] = [:]
+        for file in bulk {
+            let date =
+                (try? FileManager.default.attributesOfItem(atPath: file.path)[.modificationDate]
+                    as? Date) ?? .distantPast
+            key[file.path] = date
+        }
+        return key
+    }
+
+    /// Apply a literal-only edit to the agent-backed render: rewrite the design-time
+    /// values JSON for the last JIT build so re-running its render entry reflects the
+    /// new values, without recompiling. Returns the build to re-render, or nil if the
+    /// session has no JIT build yet.
+    public func applyLiteralValuesForJIT(
+        _ changes: [(id: String, newValue: LiteralValue)]
+    ) throws -> JITRenderBuild? {
+        guard let build = lastJITBuild else { return nil }
+        var dict =
+            (try? JSONSerialization.jsonObject(with: Data(contentsOf: build.valuesPath))
+                as? [String: Any]) ?? [:]
+        for change in changes {
+            dict[change.id] = Self.anyValue(change.newValue)
+        }
+        try JSONSerialization.data(withJSONObject: dict).write(to: build.valuesPath)
+        return build
+    }
+
+    /// Serialize design-time literal values to the JSON the render bridge seeds from.
+    static func writeDesignTimeValues(_ literals: [LiteralEntry], to path: URL) throws {
+        var dict: [String: Any] = [:]
+        for entry in literals {
+            dict[entry.id] = anyValue(entry.value)
+        }
+        let data = try JSONSerialization.data(withJSONObject: dict)
+        try data.write(to: path)
+    }
+
+    private static func anyValue(_ value: LiteralValue) -> Any {
+        switch value {
+        case .string(let s): return s
+        case .integer(let n): return n
+        case .float(let d): return d
+        case .boolean(let b): return b
+        }
+    }
+
     /// Attempt a fast literal-only update. Returns changed literal IDs and new values,
     /// or nil if a structural recompile is needed.
     /// Returns nil for Tier 1 project mode (bridge-only, no thunks).
@@ -198,6 +457,13 @@ public actor PreviewSession {
     public func setTraits(_ newTraits: PreviewTraits) async throws -> CompileResult {
         self.traits = newTraits
         return try await compile()
+    }
+
+    /// A fresh, globally-unique module-name suffix (a valid Swift identifier) so the editable
+    /// unit's classes (e.g. `DesignTimeStore`) mangle distinctly on every compile. Without it,
+    /// the capped-persistent agent re-registers the same ObjC class across generations.
+    private static func uniqueModuleToken() -> String {
+        "g" + UUID().uuidString.replacingOccurrences(of: "-", with: "").prefix(12)
     }
 
     private static func moduleName(for file: URL) -> String {

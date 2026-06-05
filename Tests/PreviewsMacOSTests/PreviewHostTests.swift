@@ -35,7 +35,7 @@ struct PreviewHostTests {
         // before we touch the file. Without `retainFileWatcher` the watcher
         // would deinit here and the callback below would never fire.
         do {
-            let watcher = try FileWatcher(path: file.path) {
+            let watcher = try FileWatcher(path: file.path) { _ in
                 fired.withLock { $0 = true }
             }
             host.retainFileWatcher(watcher)

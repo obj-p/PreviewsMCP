@@ -268,3 +268,71 @@ jobs:
           xcrun simctl list devices booted 2>/dev/null || true
           echo "--- orphan simctl/previewsmcp procs ---"
           ps -o pid,command -ax | grep -E "(simctl|previewsmcp)" | grep -v grep || true
+
+  jit-tests:
+    needs: changes
+    if: needs.changes.outputs.src == 'true'
+    runs-on: macos-15
+    # 90m absorbs a cache-miss libLLVM build from source (only on a
+    # build-jit-llvm.sh change / first run); the cache-warm.yml warm-jit-cache
+    # job keeps the cache warm so the normal path just restores and tests.
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_26.3.app
+
+      - name: Disable Spotlight
+        # Non-fatal: mdutil can exit 1 when a volume is mid-transition
+        # (kMDConfigSearchLevelTransitioning); it is only a build-speed hint.
+        run: sudo mdutil -a -i off || true
+
+      - name: Install cmake and ninja
+        run: brew install cmake ninja
+
+      - name: Cache JIT LLVM build
+        uses: actions/cache@v4
+        with:
+          path: |
+            third_party/llvm-build
+            third_party/llvm-build-rt
+            third_party/llvm-project
+          key: jit-llvm-${{ runner.os }}-${{ hashFiles('scripts/build-jit-llvm.sh') }}
+
+      - name: Cache SPM build
+        uses: actions/cache@v4
+        with:
+          path: |
+            .build
+            examples/spm/.build
+          key: spm-${{ runner.os }}-jit-${{ hashFiles('Package.resolved') }}
+          restore-keys: |
+            spm-${{ runner.os }}-jit-
+            spm-${{ runner.os }}-
+
+      - name: Build JIT LLVM if cache missed
+        run: |
+          if [ -f third_party/llvm-build-rt/lib/darwin/liborc_rt_osx.a ]; then
+            echo "JIT LLVM restored from cache."
+          else
+            echo "JIT LLVM cache miss; building from source (slow)."
+            scripts/build-jit-llvm.sh
+          fi
+
+      - name: Build
+        run: |
+          swift build
+          swift build --package-path examples/spm
+
+      - name: JIT tests
+        # The suite builds PreviewAgent and renders real previews in spawned
+        # agents; 20m covers the cold test-target + agent compile plus runs.
+        # --no-parallel: the JIT layer (shared in-process LLJIT + LLVM ORC) is
+        # not safe under Swift Testing's default parallel execution; concurrent
+        # compile/link/teardown trips LLVM assertions (assertions are on in our
+        # build) and SIGABRTs intermittently. Serial is stable.
+        timeout-minutes: 20
+        env:
+          NSUnbufferedIO: "YES"
+        run: swift test --filter "PreviewsJITLinkTests" --no-parallel

@@ -63,6 +63,9 @@ public actor MacOSPreviewHandle: PreviewSessionHandle {
         let format: Snapshot.ImageFormat = quality >= 1.0 ? .png : .jpeg(quality: quality)
         let sessionID = id
         return try await MainActor.run {
+            if let imagePath = host.agentSnapshotPath(for: sessionID) {
+                return try Snapshot.encode(imageAt: imagePath, format: format)
+            }
             guard let window = host.window(for: sessionID) else {
                 throw SnapshotError.captureFailed
             }

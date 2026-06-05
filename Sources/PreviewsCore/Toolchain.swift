@@ -51,6 +51,17 @@ public enum Toolchain {
         }
     }
 
+    /// Absolute path to the compiler-rt builtins archive (`libclang_rt.osx.a`), or nil if not
+    /// found. The JIT agent links this so compiler builtins like `__isPlatformVersionAtLeast`
+    /// (emitted by `#available`) resolve at JIT-link time (#191 G3-c).
+    public static func compilerRuntimeArchivePath() async throws -> String? {
+        let dir = try await cached(key: "clang-runtime-dir") {
+            try await xcrun(["clang", "-print-runtime-dir"], discardStderr: true)
+        }
+        let archive = (dir as NSString).appendingPathComponent("libclang_rt.osx.a")
+        return FileManager.default.fileExists(atPath: archive) ? archive : nil
+    }
+
     /// Absolute path to the active xcodebuild binary, or nil if not installed.
     public static func xcodebuildPath() async throws -> String? {
         // Distinct cache key so failures stay observable; we cache success only.

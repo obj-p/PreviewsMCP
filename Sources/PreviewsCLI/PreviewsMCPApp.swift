@@ -2,6 +2,10 @@ import AppKit
 import ArgumentParser
 import PreviewsMacOS
 
+#if PREVIEWSMCP_JIT
+import PreviewsJITLink
+#endif
+
 /// Target platform for CLI commands.
 enum CLIPlatform: String, ExpressibleByArgument, CaseIterable {
     case macos
@@ -85,6 +89,9 @@ public struct PreviewsMCPApp {
         // other subcommand is now a daemon client.
         let app = NSApplication.shared
         let host = PreviewHost()
+        #if PREVIEWSMCP_JIT
+        host.structuralReloader = JITStructuralReloader()
+        #endif
         ServeCommand.sharedHost = host
         app.delegate = host
 

@@ -17,14 +17,14 @@ public final class FileWatcher: @unchecked Sendable {
 
     public convenience init(
         path: String,
-        callback: @escaping @Sendable () -> Void
+        callback: @escaping @Sendable (String) -> Void
     ) throws {
         try self.init(paths: [path], callback: callback)
     }
 
     public init(
         paths: [String],
-        callback: @escaping @Sendable () -> Void
+        callback: @escaping @Sendable (String) -> Void
     ) throws {
         guard !paths.isEmpty else {
             throw FileWatcherError.cannotOpen(path: "<empty>")
@@ -80,7 +80,7 @@ public final class FileWatcher: @unchecked Sendable {
             // callback regardless of how many watched paths it touched,
             // matching the "one reload per change burst" intent.
             for case let path as String in nsPaths where box.canonicalPaths.contains(path) {
-                box.callback()
+                box.callback(path)
                 return
             }
         }
@@ -142,9 +142,9 @@ public final class FileWatcher: @unchecked Sendable {
 /// deinit without racing in-flight callbacks against partial destruction.
 private final class CallbackBox: @unchecked Sendable {
     let canonicalPaths: Set<String>
-    let callback: @Sendable () -> Void
+    let callback: @Sendable (String) -> Void
 
-    init(canonicalPaths: Set<String>, callback: @escaping @Sendable () -> Void) {
+    init(canonicalPaths: Set<String>, callback: @escaping @Sendable (String) -> Void) {
         self.canonicalPaths = canonicalPaths
         self.callback = callback
     }
