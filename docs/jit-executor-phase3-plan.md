@@ -1000,6 +1000,21 @@ added: the stable-module bulk compile that start used to pay now lands on
 the first non-leaf edit (~20s on the SPM example), which sharpens the
 existing latency roadmap item.
 
+A 7-angle subagent review of PR #198 confirmed four findings, fixed
+on-branch before merge (`290782b`, red-green verified for the first):
+`reloader(for:)` creates only for registered sessions so a reload in
+flight when `closePreview` runs cannot resurrect an agent (`jitStart` now
+registers the session and tears down on a failed first render); a newly
+created visible agent window takes key status and activates the agent
+once, at creation, restoring the focus the dylib start gave (re-renders
+keep `orderFrontRegardless`); `jitStart` stores no spec when no screen
+exists instead of baking negative origins; and the daemon-window branch
+of `agentWindowSpec(for:)` was unreachable everywhere and is removed.
+Merged as `e14ef41` (PR #198).
+
 **Next:** retire the dylib machinery for JIT builds (loaders, dlsym
 literal setters, `agentImagePaths` dance, the `loadPreview` fallback in
-`watchFile`), then the broader roadmap above.
+`watchFile`), then the broader roadmap above — latency first, which now
+owns the first-non-leaf-edit ~20s (respawn + bulk compile + sticky
+`bulkIsNonLeaf` latch; candidate fix: warm the stable module in the
+background right after start).
