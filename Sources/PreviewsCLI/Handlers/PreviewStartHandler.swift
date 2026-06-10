@@ -402,26 +402,23 @@ private func startMacOSPreview(
 
     let sessionID = session.id
 
-    let agentBacked = await MainActor.run { host.makeStructuralReloader != nil }
-    if agentBacked {
-        try await host.jitStart(
-            sessionID: sessionID, session: session,
-            title: title, size: NSSize(width: width, height: height),
-            headless: headless
+    #if PREVIEWSMCP_JIT
+    try await host.jitStart(
+        sessionID: sessionID, session: session,
+        title: title, size: NSSize(width: width, height: height),
+        headless: headless
+    )
+    await MainActor.run {
+        host.watchFile(
+            sessionID: sessionID,
+            session: session,
+            filePath: fileURL.path,
+            compiler: compiler,
+            additionalPaths: buildContext?.sourceFiles?.map(\.path) ?? [],
+            buildContext: buildContext
         )
-        await MainActor.run {
-            host.watchFile(
-                sessionID: sessionID,
-                session: session,
-                filePath: fileURL.path,
-                compiler: compiler,
-                additionalPaths: buildContext?.sourceFiles?.map(\.path) ?? [],
-                buildContext: buildContext
-            )
-        }
-        return sessionID
     }
-
+    #else
     let compileResult = try await session.compile()
     let setupDylibPath = setupResult?.dylibPath
 
@@ -447,6 +444,7 @@ private func startMacOSPreview(
             Log.error("MCP: Failed to load preview: \(error)")
         }
     }
+    #endif
 
     return sessionID
 }
