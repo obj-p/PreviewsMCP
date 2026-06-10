@@ -68,7 +68,7 @@ public actor MacOSPreviewHandle: PreviewSessionHandle {
             case daemonWindow
         }
         let surface: Surface = await MainActor.run {
-            guard host.structuralReloader != nil, host.agentSnapshotPath(for: id) != nil else {
+            guard host.agentSnapshotPath(for: id) != nil else {
                 return .daemonWindow
             }
             return .agent(host.agentWindowSpec(for: id))

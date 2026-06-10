@@ -90,7 +90,7 @@ public struct PreviewsMCPApp {
         let app = NSApplication.shared
         let host = PreviewHost()
         #if PREVIEWSMCP_JIT
-        host.structuralReloader = JITStructuralReloader()
+        host.makeStructuralReloader = { JITStructuralReloader() }
         #endif
         ServeCommand.sharedHost = host
         app.delegate = host
