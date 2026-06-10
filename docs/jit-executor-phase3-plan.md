@@ -980,3 +980,26 @@ non-leaf respawn/double-compile/sticky-latch), agent render size from
 session size (400x600 is baked today), content-based test assertions, dylib
 fallback decision, iOS JIT design, local merge queue (no GH issue exists
 yet; user may want one).
+
+## Update 2026-06-10 (2): start through the agent, one agent per session
+
+Consolidation step (1) landed: `startMacOSPreview` no longer compiles a
+dylib for JIT builds. `PreviewHost.jitStart` stores the requested
+title/size as the session's `JITRenderWindow` spec (centered on the main
+screen, nil for headless) and the agent window is the session surface from
+the first render. The chosen multi-session topology is **one agent per
+session**: `makeStructuralReloader` replaces the host-level reloader, each
+session lazily gets its own `JITStructuralReloader` (own agent process,
+own window, own `didRunSetUp`/`lastObjectPath`), and `closePreview` drops
+the reloader, killing the agent and closing its window. That resolves all
+four #197 items; #195 (frame handover across respawns) remains.
+
+Verified live: two concurrent sessions render distinct content in two
+agent processes, stopping one closes only its window. Cost moved, not
+added: the stable-module bulk compile that start used to pay now lands on
+the first non-leaf edit (~20s on the SPM example), which sharpens the
+existing latency roadmap item.
+
+**Next:** retire the dylib machinery for JIT builds (loaders, dlsym
+literal setters, `agentImagePaths` dance, the `loadPreview` fallback in
+`watchFile`), then the broader roadmap above.

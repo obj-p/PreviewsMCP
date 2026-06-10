@@ -32,10 +32,17 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
     /// Callback invoked after NSApplication finishes launching.
     public var onLaunch: (@MainActor () -> Void)?
 
-    /// Structural-reload strategy for the JIT path. Injected at the composition
-    /// root, non-nil only in JIT builds. When set, structural edits render in the
-    /// agent instead of rebuilding an in-daemon dylib.
-    public var structuralReloader: (any StructuralReloader)?
+    /// Makes the structural-reload strategy for the JIT path. Injected at the
+    /// composition root, non-nil only in JIT builds. Each session gets its own
+    /// reloader — its own agent process and window — so respawns, crashes, setup
+    /// state, and window lifetime stay contained to one session.
+    public var makeStructuralReloader: (@MainActor () -> any StructuralReloader)?
+    /// Per-session reloaders. Removing a session's entry releases its agent
+    /// process, which closes the agent-hosted window.
+    private var reloaders: [String: any StructuralReloader] = [:]
+    /// Window placement for sessions started on the agent surface, where no
+    /// daemon window exists to derive it from. Baked into each JIT compile.
+    private var agentWindowSpecs: [String: JITRenderWindow] = [:]
 
     /// Async sink that publishes a snapshot of macOS sessions to the
     /// cross-process registry. Set once by the engine layer at host
@@ -127,8 +134,12 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
         loaders[sessionID] = loader
 
         // The window now reflects the current preview; a stale agent PNG must not
-        // shadow it in snapshot(). The next JIT reload repopulates the entry.
+        // shadow it in snapshot(), a live agent must not keep a second window, and
+        // a dylib-backed session has no agent placement. The next JIT reload
+        // repopulates what it needs.
         agentImagePaths.removeValue(forKey: sessionID)
+        reloaders.removeValue(forKey: sessionID)
+        agentWindowSpecs.removeValue(forKey: sessionID)
 
         // Create the view
         let rawPtr = createView()
@@ -312,30 +323,28 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
         fputs("Applied \(changes.count) literal change(s) — @State preserved\n", stderr)
     }
 
-    /// Close and clean up a preview window.
+    /// Close and clean up a preview window. Dropping the session's reloader kills
+    /// its agent process, closing the agent-hosted window with it.
     public func closePreview(sessionID: String) {
-        fputs("closePreview: enter sessionID=\(sessionID)\n", stderr); fflush(stderr)
         fileWatchers[sessionID]?.stop()
         fileWatchers.removeValue(forKey: sessionID)
         sessions.removeValue(forKey: sessionID)
         agentImagePaths.removeValue(forKey: sessionID)
+        reloaders.removeValue(forKey: sessionID)
+        agentWindowSpecs.removeValue(forKey: sessionID)
         notifySessionsChanged()
-        fputs("closePreview: watchers/sessions removed\n", stderr); fflush(stderr)
 
         if let window = windows.removeValue(forKey: sessionID) {
             if let oldView = window.contentView {
                 retainedViews.append(oldView)
             }
             window.contentView = nil
-            fputs("closePreview: about to orderOut window\n", stderr); fflush(stderr)
             window.orderOut(nil)
-            fputs("closePreview: orderOut returned\n", stderr); fflush(stderr)
         }
 
         if let loader = loaders.removeValue(forKey: sessionID) {
             retainedLoaders.append(loader)
         }
-        fputs("closePreview: exit sessionID=\(sessionID)\n", stderr); fflush(stderr)
     }
 
     /// Get the session for a session ID (for reconfiguration).
@@ -363,24 +372,51 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
     /// window is the interactive surface from then on.
     @discardableResult
     public func jitStructuralReload(sessionID: String, session: PreviewSession) async throws -> URL? {
-        guard structuralReloader != nil else { return nil }
+        guard makeStructuralReloader != nil else { return nil }
         let build = try await session.compileObjectForJIT(window: agentWindowSpec(for: sessionID))
         return try await jitRender(sessionID: sessionID, build: build)
     }
 
-    /// The window placement to bake into a JIT build for this session: the daemon
-    /// window's frame and title when the session is visible, nil when headless.
-    public func agentWindowSpec(for sessionID: String) -> JITRenderWindow? {
-        windows[sessionID].flatMap { window -> JITRenderWindow? in
-            guard window.styleMask.contains(.titled) else { return nil }
-            return JITRenderWindow(
-                x: window.frame.origin.x,
-                y: window.frame.origin.y,
-                width: window.contentLayoutRect.width,
-                height: window.contentLayoutRect.height,
-                title: window.title
-            )
+    /// Start a session with the agent as its surface from the first render: no
+    /// in-daemon dylib compile, no daemon window. The requested placement becomes
+    /// the session's window spec, centered on the main screen for visible sessions
+    /// (no spec when there is no screen to place it on). Registers the session up
+    /// front so the reloader can be created, and tears everything down if the
+    /// first render fails.
+    public func jitStart(
+        sessionID: String, session: PreviewSession,
+        title: String, size: NSSize, headless: Bool
+    ) async throws {
+        sessions[sessionID] = session
+        if !headless, let screen = NSScreen.main?.visibleFrame {
+            agentWindowSpecs[sessionID] = JITRenderWindow(
+                x: screen.midX - size.width / 2,
+                y: screen.midY - size.height / 2,
+                width: size.width, height: size.height,
+                title: title)
         }
+        do {
+            try await jitStructuralReload(sessionID: sessionID, session: session)
+        } catch {
+            closePreview(sessionID: sessionID)
+            throw error
+        }
+    }
+
+    /// The session's reloader, created on first use. One per session: each owns
+    /// its own agent process. Created only for registered sessions, so a reload
+    /// still in flight when its session closes cannot resurrect an agent.
+    private func reloader(for sessionID: String) -> (any StructuralReloader)? {
+        if let existing = reloaders[sessionID] { return existing }
+        guard sessions[sessionID] != nil, let made = makeStructuralReloader?() else { return nil }
+        reloaders[sessionID] = made
+        return made
+    }
+
+    /// The window placement to bake into a JIT build for this session: the spec
+    /// stored at agent start, nil when headless.
+    public func agentWindowSpec(for sessionID: String) -> JITRenderWindow? {
+        agentWindowSpecs[sessionID]
     }
 
     /// Render a JIT build in the agent and make its PNG the session's snapshot source.
@@ -388,7 +424,7 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
     /// agent's window is the interactive surface.
     @discardableResult
     public func jitRender(sessionID: String, build: JITRenderBuild) async throws -> URL {
-        guard let reloader = structuralReloader else {
+        guard let reloader = reloader(for: sessionID) else {
             throw SnapshotError.captureFailed
         }
         try await reloader.render(build)
@@ -412,7 +448,7 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
         changes: [(id: String, newValue: LiteralValue)]
     ) async throws -> URL? {
         guard
-            let reloader = structuralReloader,
+            let reloader = reloader(for: sessionID),
             let build = try await session.applyLiteralValuesForJIT(changes)
         else { return nil }
         try await reloader.render(build)
