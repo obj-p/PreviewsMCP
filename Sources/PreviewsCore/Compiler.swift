@@ -89,31 +89,7 @@ public actor Compiler {
         let uniqueName = "\(moduleName)_\(compilationCounter)"
         let sourceFile = workDir.appendingPathComponent("\(uniqueName).swift")
         let dylibFile = workDir.appendingPathComponent("\(uniqueName).dylib")
-        let effectiveSDK = overrideSDK ?? sdkPath
-
-        // Layer 3 guard for issue #170: if the caller passes an SDK that no
-        // longer exists (e.g. user upgraded Xcode after a SetupBuilder build
-        // landed in cache, or hand-supplied a bogus path), fail fast with an
-        // actionable error before swiftc surfaces a generic "cannot find SDK"
-        // diagnostic that doesn't hint at the cache-staleness root cause.
-        if let overrideSDK, !FileManager.default.fileExists(atPath: overrideSDK) {
-            throw CompilationError(
-                message:
-                    "Setup module was built against SDK at \(overrideSDK), which "
-                    + "no longer exists on disk. The active toolchain resolves to "
-                    + "\(sdkPath). Delete the setup cache (.build/previewsmcp-setup-cache) "
-                    + "or rebuild the setup package to capture the current SDK.",
-                stderr: "",
-                exitCode: 1
-            )
-        }
-
-        if let overrideSDK, overrideSDK != sdkPath {
-            Log.warn(
-                "compileCombined: setup SDK differs from active toolchain SDK "
-                    + "(setup=\(overrideSDK), default=\(sdkPath)). Inheriting setup "
-                    + "SDK to keep swiftmodule load consistent.")
-        }
+        let effectiveSDK = try resolveSDK(overrideSDK)
 
         Log.info(
             "compileCombined: module=\(moduleName) platform=\(platform) "
@@ -151,7 +127,8 @@ public actor Compiler {
     public func compileObject(
         source: String,
         moduleName: String,
-        extraFlags: [String] = []
+        extraFlags: [String] = [],
+        overrideSDK: String? = nil
     ) async throws -> URL {
         compilationCounter += 1
         let uniqueName = "\(moduleName)_\(compilationCounter)"
@@ -165,7 +142,7 @@ public actor Compiler {
             "-emit-object",
             "-parse-as-library",
             "-target", targetTriple,
-            "-sdk", sdkPath,
+            "-sdk", try resolveSDK(overrideSDK),
             "-module-name", moduleName,
             "-Onone",
             "-gnone",
@@ -193,7 +170,8 @@ public actor Compiler {
     public func emitStableModule(
         sources: [String],
         moduleName: String,
-        extraFlags: [String] = []
+        extraFlags: [String] = [],
+        overrideSDK: String? = nil
     ) async throws -> StableModule {
         compilationCounter += 1
         let moduleDir = workDir.appendingPathComponent(
@@ -209,7 +187,7 @@ public actor Compiler {
 
         return try await emitStableModule(
             sourceFiles: sourceFiles, moduleName: moduleName, moduleDir: moduleDir,
-            extraFlags: extraFlags)
+            extraFlags: extraFlags, overrideSDK: overrideSDK)
     }
 
     /// File-based variant: compile existing project sources in place (their real paths) into
@@ -217,7 +195,8 @@ public actor Compiler {
     public func emitStableModule(
         sourceFiles: [URL],
         moduleName: String,
-        extraFlags: [String] = []
+        extraFlags: [String] = [],
+        overrideSDK: String? = nil
     ) async throws -> StableModule {
         compilationCounter += 1
         let moduleDir = workDir.appendingPathComponent(
@@ -225,14 +204,15 @@ public actor Compiler {
         try FileManager.default.createDirectory(at: moduleDir, withIntermediateDirectories: true)
         return try await emitStableModule(
             sourceFiles: sourceFiles, moduleName: moduleName, moduleDir: moduleDir,
-            extraFlags: extraFlags)
+            extraFlags: extraFlags, overrideSDK: overrideSDK)
     }
 
     private func emitStableModule(
         sourceFiles: [URL],
         moduleName: String,
         moduleDir: URL,
-        extraFlags: [String]
+        extraFlags: [String],
+        overrideSDK: String?
     ) async throws -> StableModule {
         let objectFile = moduleDir.appendingPathComponent("\(moduleName).o")
         let moduleFile = moduleDir.appendingPathComponent("\(moduleName).swiftmodule")
@@ -244,7 +224,7 @@ public actor Compiler {
             "-parse-as-library",
             "-enable-testing",
             "-target", targetTriple,
-            "-sdk", sdkPath,
+            "-sdk", try resolveSDK(overrideSDK),
             "-module-name", moduleName,
             "-Onone",
             "-gnone",
@@ -274,7 +254,8 @@ public actor Compiler {
         overlaySource: String,
         bulkFiles: [URL],
         moduleName: String,
-        extraFlags: [String] = []
+        extraFlags: [String] = [],
+        overrideSDK: String? = nil
     ) async throws -> (overlayObject: URL, bulkObjects: [URL]) {
         let dir: URL
         if let existing = incrementalDirs[moduleName] {
@@ -317,7 +298,7 @@ public actor Compiler {
             "-emit-object",
             "-parse-as-library",
             "-target", targetTriple,
-            "-sdk", sdkPath,
+            "-sdk", try resolveSDK(overrideSDK),
             "-module-name", moduleName,
             "-Onone",
             "-gnone",
@@ -333,6 +314,32 @@ public actor Compiler {
     }
 
     // MARK: - Private
+
+    /// Resolve the SDK for a compile, honoring a setup-module override. Layer 3 guard for
+    /// issue #170: if the override SDK no longer exists (e.g. user upgraded Xcode after a
+    /// SetupBuilder build landed in cache), fail fast with an actionable error before swiftc
+    /// surfaces a generic "cannot find SDK" diagnostic that doesn't hint at cache staleness.
+    private func resolveSDK(_ overrideSDK: String?) throws -> String {
+        guard let overrideSDK else { return sdkPath }
+        guard FileManager.default.fileExists(atPath: overrideSDK) else {
+            throw CompilationError(
+                message:
+                    "Setup module was built against SDK at \(overrideSDK), which "
+                    + "no longer exists on disk. The active toolchain resolves to "
+                    + "\(sdkPath). Delete the setup cache (.build/previewsmcp-setup-cache) "
+                    + "or rebuild the setup package to capture the current SDK.",
+                stderr: "",
+                exitCode: 1
+            )
+        }
+        if overrideSDK != sdkPath {
+            Log.warn(
+                "compile: setup SDK differs from active toolchain SDK "
+                    + "(setup=\(overrideSDK), default=\(sdkPath)). Inheriting setup "
+                    + "SDK to keep swiftmodule load consistent.")
+        }
+        return overrideSDK
+    }
 
     @discardableResult
     private func run(_ args: [String]) async throws -> String {

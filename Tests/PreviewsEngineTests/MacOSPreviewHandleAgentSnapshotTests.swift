@@ -11,7 +11,10 @@ import Testing
 struct MacOSPreviewHandleAgentSnapshotTests {
 
     final class RecordingReloader: StructuralReloader, @unchecked Sendable {
-        func render(_ build: JITRenderBuild) async throws {}
+        private(set) var builds: [JITRenderBuild] = []
+        func render(_ build: JITRenderBuild) async throws {
+            builds.append(build)
+        }
     }
 
     @Test func snapshotReturnsAgentImage() async throws {
@@ -55,6 +58,52 @@ struct MacOSPreviewHandleAgentSnapshotTests {
         #expect(color.greenComponent > 0.8)
         #expect(color.redComponent < 0.2)
         #expect(color.blueComponent < 0.2)
+    }
+
+    @Test func agentBackedSwitchAndConfigureRouteThroughReloader() async throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("p34ci3c-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let sourceFile = dir.appendingPathComponent("ColorView.swift")
+        try """
+        import SwiftUI
+
+        #Preview {
+            Color.red.frame(width: 8, height: 8)
+        }
+
+        #Preview("Blue") {
+            Color.blue.frame(width: 8, height: 8)
+        }
+        """.write(to: sourceFile, atomically: true, encoding: .utf8)
+
+        let compiler = try await Compiler()
+        let session = PreviewSession(sourceFile: sourceFile, compiler: compiler)
+        let host = PreviewHost()
+        let reloader = RecordingReloader()
+        host.structuralReloader = reloader
+
+        _ = try await host.jitStructuralReload(sessionID: "s1", session: session)
+        #expect(reloader.builds.count == 1)
+        let handle = MacOSPreviewHandle(id: "s1", session: session, host: host)
+
+        try await handle.switchPreview(to: 1)
+        #expect(reloader.builds.count == 2)
+        #expect(host.agentSnapshotPath(for: "s1") == reloader.builds.last?.imagePath)
+
+        try await handle.reconfigure(traits: PreviewTraits(colorScheme: "dark"), clearing: [])
+        #expect(reloader.builds.count == 3)
+        #expect(host.agentSnapshotPath(for: "s1") == reloader.builds.last?.imagePath)
+
+        await #expect(throws: (any Error).self) {
+            try await handle.switchPreview(to: 99)
+        }
+        #expect(reloader.builds.count == 3)
+
+        try await handle.switchPreview(to: 0)
+        #expect(reloader.builds.count == 4)
     }
 
     private static func greenPNG() throws -> Data {

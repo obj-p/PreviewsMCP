@@ -1,5 +1,25 @@
 import Foundation
 
+/// On-screen placement for the agent's persistent preview window, baked into the render
+/// entry. Applied only when the agent creates the window, so a user's later drag or resize
+/// survives leaf edits. Nil means the window stays borderless and off-screen (tests,
+/// headless daemons).
+public struct JITRenderWindow: Sendable {
+    public let x: Double
+    public let y: Double
+    public let width: Double
+    public let height: Double
+    public let title: String
+
+    public init(x: Double, y: Double, width: Double, height: Double, title: String) {
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+        self.title = title
+    }
+}
+
 /// Generates Swift source code that combines the original source file with a `@_cdecl` bridge
 /// entry point, allowing the preview view to be loaded via `dlopen` + `dlsym`.
 public enum BridgeGenerator {
@@ -24,7 +44,8 @@ public enum BridgeGenerator {
         setupType: String? = nil,
         renderOutputPath: String? = nil,
         designTimeValuesPath: String? = nil,
-        stableModuleImport: String? = nil
+        stableModuleImport: String? = nil,
+        renderWindow: JITRenderWindow? = nil
     ) -> (source: String, literals: [LiteralEntry]) {
         // Transform source to replace literals with DesignTimeStore lookups
         let thunkResult = ThunkGenerator.transform(source: originalSource)
@@ -39,9 +60,7 @@ public enum BridgeGenerator {
         }
 
         let modifiers = traitModifiers(traits)
-        let hasSetup =
-            setupModule != nil && setupType != nil
-            && isValidSwiftIdentifier(setupModule!) && isValidSwiftIdentifier(setupType!)
+        let hasSetup = isUsableSetup(module: setupModule, type: setupType)
         let setupImport = hasSetup ? "import \(setupModule!)\n" : ""
         let setUpEntry = hasSetup ? setUpEntryPoint(setupType: setupType!) : ""
         let viewCode =
@@ -59,7 +78,8 @@ public enum BridgeGenerator {
         let renderEntry =
             renderOutputPath.map {
                 renderToFileEntryPoint(
-                    viewCode: viewCode, path: $0, valuesPath: designTimeValuesPath)
+                    viewCode: viewCode, path: $0, valuesPath: designTimeValuesPath,
+                    window: renderWindow)
             } ?? ""
         let bridgeCode: String
         switch platform {
@@ -147,9 +167,7 @@ public enum BridgeGenerator {
         }
 
         let modifiers = traitModifiers(traits)
-        let hasSetup =
-            setupModule != nil && setupType != nil
-            && isValidSwiftIdentifier(setupModule!) && isValidSwiftIdentifier(setupType!)
+        let hasSetup = isUsableSetup(module: setupModule, type: setupType)
         let setupImport = hasSetup ? "\nimport \(setupModule!)" : ""
         let setUpEntry = hasSetup ? "\n\n\(setUpEntryPoint(setupType: setupType!))\n" : ""
         let viewCode =
@@ -242,6 +260,32 @@ public enum BridgeGenerator {
         return s.range(of: pattern, options: .regularExpression) != nil
     }
 
+    /// Whether a setup module/type pair will actually produce setup code (the wrap and the
+    /// `previewSetUp` entry). Callers that advertise setup downstream (e.g. a build's
+    /// setupEntrySymbol) must use the same predicate, or they promise an entry the generated
+    /// source does not contain.
+    public static func isUsableSetup(module: String?, type: String?) -> Bool {
+        guard let module, let type else { return false }
+        return isValidSwiftIdentifier(module) && isValidSwiftIdentifier(type)
+    }
+
+    /// Escape a runtime string (path, window title) for interpolation into a generated Swift
+    /// string literal. Backslash and quote would change the literal's structure; control
+    /// characters (a newline in a file name is legal on macOS) would split it across lines.
+    static func escapedForSwiftStringLiteral(_ s: String) -> String {
+        var out = ""
+        for scalar in s.unicodeScalars {
+            switch scalar {
+            case "\\": out += "\\\\"
+            case "\"": out += "\\\""
+            case let c where c.properties.generalCategory == .control:
+                out += "\\u{\(String(c.value, radix: 16))}"
+            default: out.unicodeScalars.append(scalar)
+            }
+        }
+        return out
+    }
+
     /// Generate the `@_cdecl("previewBodyKind")` entry point. The compiler picks the same
     /// `__PreviewBodyKindProbe.detect` overload that `__PreviewBridge.wrap` does, so the
     /// returned value reflects the outermost body kind: 1 = SwiftUI, 2 = UIView,
@@ -265,13 +309,18 @@ public enum BridgeGenerator {
     /// blank raster for them), captures at a deterministic 1x like `Snapshot.capture`,
     /// and writes a PNG to `path`. Nullary so it runs over the agent's `runOnMain`
     /// surface; the path is baked in (the daemon recompiles per structural edit).
+    ///
+    /// The window is process-persistent: each generation's entry looks it up by
+    /// identifier in the agent's window list and swaps its content view, so the agent
+    /// keeps one live window across structural edits (single-renderer consolidation).
+    /// AppKit state is shared across JITDylib generations; the entry's own globals are not.
     private static func renderToFileEntryPoint(
-        viewCode: String, path: String, valuesPath: String?
+        viewCode: String, path: String, valuesPath: String?, window: JITRenderWindow?
     ) -> String {
         let seed =
             valuesPath.map {
                 """
-                if let __dtData = try? Data(contentsOf: URL(fileURLWithPath: "\($0)")),
+                if let __dtData = try? Data(contentsOf: URL(fileURLWithPath: "\(escapedForSwiftStringLiteral($0))")),
                     let __dtValues = try? JSONSerialization.jsonObject(with: __dtData)
                         as? [String: Any]
                 {
@@ -279,27 +328,53 @@ public enum BridgeGenerator {
                 }
                 """
             } ?? ""
+        let createWindow: String
+        if let window {
+            let title = escapedForSwiftStringLiteral(window.title)
+            createWindow = """
+                NSApplication.shared.setActivationPolicy(.accessory)
+                                let created = NSWindow(
+                                    contentRect: NSRect(
+                                        x: \(window.x), y: \(window.y),
+                                        width: \(window.width), height: \(window.height)),
+                                    styleMask: [.titled, .closable, .miniaturizable, .resizable],
+                                    backing: .buffered, defer: false)
+                                created.title = "\(title)"
+                """
+        } else {
+            createWindow = """
+                let created = NSWindow(
+                                    contentRect: NSRect(x: 0, y: 0, width: 400, height: 600),
+                                    styleMask: [.borderless], backing: .buffered, defer: false)
+                                created.setFrameOrigin(NSPoint(x: -10_000, y: -10_000))
+                """
+        }
         return """
             @_cdecl("renderPreviewToFile")
             public func renderPreviewToFile() -> Int32 {
                 MainActor.assumeIsolated {
                     \(seed)
                     let view = \(viewCode)
-                    let bounds = NSRect(x: 0, y: 0, width: 400, height: 600)
-                    let window = NSWindow(
-                        contentRect: bounds, styleMask: [.borderless], backing: .buffered,
-                        defer: false)
+                    let identifier = NSUserInterfaceItemIdentifier("previewsmcp-preview")
+                    let window =
+                        NSApplication.shared.windows.first { $0.identifier == identifier }
+                        ?? {
+                            \(createWindow)
+                            created.identifier = identifier
+                            created.isReleasedWhenClosed = false
+                            return created
+                        }()
                     let hosting = NSHostingView(rootView: view)
+                    hosting.sizingOptions = []
                     window.contentView = hosting
-                    window.setFrameOrigin(NSPoint(x: -10_000, y: -10_000))
                     window.orderFrontRegardless()
                     hosting.layoutSubtreeIfNeeded()
-                    defer { window.orderOut(nil) }
-                    guard
+                    let bounds = hosting.bounds
+                    guard bounds.width > 0, bounds.height > 0,
                         let rep = NSBitmapImageRep(
                             bitmapDataPlanes: nil,
-                            pixelsWide: Int(bounds.width),
-                            pixelsHigh: Int(bounds.height),
+                            pixelsWide: Int(bounds.width.rounded()),
+                            pixelsHigh: Int(bounds.height.rounded()),
                             bitsPerSample: 8,
                             samplesPerPixel: 4,
                             hasAlpha: true,
@@ -315,7 +390,7 @@ public enum BridgeGenerator {
                         return Int32(-2)
                     }
                     do {
-                        try data.write(to: URL(fileURLWithPath: "\(path)"))
+                        try data.write(to: URL(fileURLWithPath: "\(escapedForSwiftStringLiteral(path))"))
                     } catch {
                         return Int32(-3)
                     }

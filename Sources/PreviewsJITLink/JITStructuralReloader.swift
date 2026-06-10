@@ -11,6 +11,7 @@ public actor JITStructuralReloader: StructuralReloader {
     private var session: JITSession?
     private var generation = 0
     private var lastObjectPath: URL?
+    private var didRunSetUp = false
 
     public init(generationCap: Int = 100) {
         self.generationCap = generationCap
@@ -37,6 +38,13 @@ public actor JITStructuralReloader: StructuralReloader {
         }
         try session.addObject(path: build.objectPath.path)
         lastObjectPath = build.objectPath
+        // Setup runs once per agent process (its plugin state lives for the process's
+        // lifetime), so re-run after a respawn but not per generation. The entry is
+        // void; the wrapper's status word is meaningless for it.
+        if let setupEntry = build.setupEntrySymbol, !didRunSetUp {
+            _ = try session.runOnMain(symbol: setupEntry)
+            didRunSetUp = true
+        }
         try Self.run(session, build.entrySymbol)
     }
 
@@ -60,6 +68,7 @@ public actor JITStructuralReloader: StructuralReloader {
         let fresh = try JITSession(remoteAgentPath: JITSession.bundledAgentPath())
         session = fresh
         generation = 1
+        didRunSetUp = false
         return fresh
     }
 }

@@ -39,23 +39,49 @@ public actor MacOSPreviewHandle: PreviewSessionHandle {
     /// and is what tipped CI's `preview_variants` test over its 60s
     /// callTool budget.
     public func setTraits(_ traits: PreviewTraits) async throws {
-        let result = try await session.setTraits(traits)
-        try await MainActor.run {
-            try host.loadPreview(sessionID: id, dylibPath: result.dylibPath)
-        }
+        try await reload(
+            jit: { try await self.session.setTraitsForJIT(traits, window: $0) },
+            dylib: { try await self.session.setTraits(traits) })
     }
 
     public func reconfigure(traits: PreviewTraits, clearing: Set<PreviewTraits.Field>) async throws {
-        let result = try await session.reconfigure(traits: traits, clearing: clearing)
-        try await MainActor.run {
-            try host.loadPreview(sessionID: id, dylibPath: result.dylibPath)
-        }
+        try await reload(
+            jit: { try await self.session.reconfigureForJIT(traits: traits, clearing: clearing, window: $0) },
+            dylib: { try await self.session.reconfigure(traits: traits, clearing: clearing) })
     }
 
     public func switchPreview(to index: Int) async throws {
-        let result = try await session.switchPreview(to: index)
-        try await MainActor.run {
-            try host.loadPreview(sessionID: id, dylibPath: result.dylibPath)
+        try await reload(
+            jit: { try await self.session.switchPreviewForJIT(to: index, window: $0) },
+            dylib: { try await self.session.switchPreview(to: index) })
+    }
+
+    /// The single routing seam for every mutating reload. An agent-backed session (JIT
+    /// reloader present and an agent render recorded) re-renders in the agent; reloading a
+    /// dylib into the daemon window instead would resurrect it as a second, stale surface.
+    private func reload(
+        jit: (JITRenderWindow?) async throws -> JITRenderBuild,
+        dylib: () async throws -> CompileResult
+    ) async throws {
+        enum Surface {
+            case agent(JITRenderWindow?)
+            case daemonWindow
+        }
+        let surface: Surface = await MainActor.run {
+            guard host.structuralReloader != nil, host.agentSnapshotPath(for: id) != nil else {
+                return .daemonWindow
+            }
+            return .agent(host.agentWindowSpec(for: id))
+        }
+        switch surface {
+        case .agent(let window):
+            let build = try await jit(window)
+            try await host.jitRender(sessionID: id, build: build)
+        case .daemonWindow:
+            let result = try await dylib()
+            try await MainActor.run {
+                try host.loadPreview(sessionID: id, dylibPath: result.dylibPath)
+            }
         }
     }
 

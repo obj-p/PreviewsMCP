@@ -79,6 +79,44 @@ struct ExamplesSplitE2ETests {
         #expect(NSBitmapImageRep(data: png) != nil)
     }
 
+    @Test func splitRendersSetupWrappedPreviewInAgent() async throws {
+        let hot = Self.spmRoot.appendingPathComponent("Sources/ToDo/Summary.swift")
+        let ctx = try await Self.context(for: hot)
+        let configResult = try #require(
+            ProjectConfigLoader.find(from: hot.deletingLastPathComponent()))
+        let setupConfig = try #require(configResult.config.setup)
+        let setup = try await SetupBuilder.build(
+            config: setupConfig, configDirectory: configResult.directory, platform: .macOS)
+
+        let compiler = try await Compiler()
+        let session = PreviewSession(
+            sourceFile: hot, compiler: compiler, buildContext: ctx,
+            setupModule: setup.moduleName, setupType: setup.typeName,
+            setupCompilerFlags: setup.compilerFlags, setupSDKPath: setup.sdkPath,
+            setupDylibPath: setup.dylibPath)
+
+        let build = try await session.compileObjectForJIT()
+        #expect(build.setupEntrySymbol == "previewSetUp")
+        #expect(build.dylibPaths.contains(setup.dylibPath))
+
+        let reloader = JITStructuralReloader()
+        try await reloader.render(build)
+        let rep = try #require(NSBitmapImageRep(data: Data(contentsOf: build.imagePath)))
+
+        var sawBadge = false
+        for y in 0..<rep.pixelsHigh where !sawBadge {
+            for x in 0..<rep.pixelsWide where !sawBadge {
+                if let color = rep.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB),
+                    color.blueComponent > 0.6, color.greenComponent < 0.35,
+                    color.redComponent > 0.2, color.redComponent < 0.6
+                {
+                    sawBadge = true
+                }
+            }
+        }
+        #expect(sawBadge, "setup plugin banner not found in agent render")
+    }
+
     /// Capped-persistent reuse with the FULL dependency closure: render the same real preview
     /// twice through one reloader, so generation 2 re-links ToDoExtras / Lottie / the builtins
     /// archive into a fresh JITDylib. Guards against duplicate Swift-metadata registration
