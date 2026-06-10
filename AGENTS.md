@@ -225,6 +225,10 @@ All loaded via dlopen/dlsym inside the iOS host app. Does NOT use IndigoHID/Simu
 
 The `main` branch has branch protections — all changes must go through a pull request. Always create a feature branch before committing. Use worktrees when working in parallel with other agents to avoid conflicts.
 
+### Verifying a PR before merge
+
+CI is disabled — the GitHub Actions `CI` and `Cache warmer` workflows are turned off and the `required_status_checks` rule has been removed from the `main` ruleset, so nothing gates a merge automatically. Verification is local and mandatory: a PR does **not** merge until **all unit tests pass** and **the example integration tests pass via the `integration-test` skill**. Run the unit and JIT suites with `swift test` (use `--filter PreviewsJITLinkTests --no-parallel` for the JIT tests), then run the `integration-test` skill for the example end-to-end coverage. No CI is not a license to merge broken code.
+
 ## Test Notes
 
 ### Test architecture
