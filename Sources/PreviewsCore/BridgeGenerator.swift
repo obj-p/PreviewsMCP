@@ -259,9 +259,12 @@ public enum BridgeGenerator {
     }
 
     /// Generate the `@_cdecl("renderPreviewToFile")` entry point (macOS, model-A JIT path).
-    /// Builds the same preview view as `createPreviewView`, rasterizes it headless via
-    /// `ImageRenderer`, and writes a PNG to `path`. Nullary so it runs over the agent's
-    /// `runOnMain` surface; the path is baked in (the daemon recompiles per structural edit).
+    /// Builds the same preview view as `createPreviewView`, hosts it in a borderless
+    /// `NSWindow` positioned off-screen via `NSHostingView` (AppKit-backed views like
+    /// `List` need a real window's backing hierarchy — `ImageRenderer` returns nil or a
+    /// blank raster for them), captures at a deterministic 1x like `Snapshot.capture`,
+    /// and writes a PNG to `path`. Nullary so it runs over the agent's `runOnMain`
+    /// surface; the path is baked in (the daemon recompiles per structural edit).
     private static func renderToFileEntryPoint(
         viewCode: String, path: String, valuesPath: String?
     ) -> String {
@@ -282,10 +285,32 @@ public enum BridgeGenerator {
                 MainActor.assumeIsolated {
                     \(seed)
                     let view = \(viewCode)
-                    let renderer = ImageRenderer(content: view)
-                    renderer.scale = 1
-                    guard let cgImage = renderer.cgImage else { return Int32(-1) }
-                    let rep = NSBitmapImageRep(cgImage: cgImage)
+                    let bounds = NSRect(x: 0, y: 0, width: 400, height: 600)
+                    let window = NSWindow(
+                        contentRect: bounds, styleMask: [.borderless], backing: .buffered,
+                        defer: false)
+                    let hosting = NSHostingView(rootView: view)
+                    window.contentView = hosting
+                    window.setFrameOrigin(NSPoint(x: -10_000, y: -10_000))
+                    window.orderFrontRegardless()
+                    hosting.layoutSubtreeIfNeeded()
+                    defer { window.orderOut(nil) }
+                    guard
+                        let rep = NSBitmapImageRep(
+                            bitmapDataPlanes: nil,
+                            pixelsWide: Int(bounds.width),
+                            pixelsHigh: Int(bounds.height),
+                            bitsPerSample: 8,
+                            samplesPerPixel: 4,
+                            hasAlpha: true,
+                            isPlanar: false,
+                            colorSpaceName: .deviceRGB,
+                            bytesPerRow: 0,
+                            bitsPerPixel: 0
+                        )
+                    else { return Int32(-1) }
+                    rep.size = bounds.size
+                    hosting.cacheDisplay(in: bounds, to: rep)
                     guard let data = rep.representation(using: .png, properties: [:]) else {
                         return Int32(-2)
                     }

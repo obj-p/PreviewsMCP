@@ -106,6 +106,9 @@ public:
   char *prepare(llvm::orc::ExecutorAddr addr, size_t contentSize) override {
     std::lock_guard<std::mutex> lock(mutex);
     auto r = reservations.upper_bound(addr);
+    if (r == reservations.begin()) {
+      return nullptr;
+    }
     --r;
     return r->second.workingBuf + (addr - r->first);
   }
@@ -117,6 +120,11 @@ public:
     {
       std::lock_guard<std::mutex> lock(mutex);
       auto r = reservations.upper_bound(ai.MappingBase);
+      if (r == reservations.begin()) {
+        return onInitialized(llvm::createStringError(
+            llvm::inconvertibleErrorCode(),
+            "initialize: no reservation covers mapping base"));
+      }
       --r;
       base = r->second.workingBuf + (ai.MappingBase - r->first);
     }
@@ -273,13 +281,17 @@ struct previewsmcp_jit_session {
 namespace {
 llvm::Expected<llvm::orc::ExecutorAddr>
 lookupInitialized(previewsmcp_jit_session *session, const char *symbol_name) {
-  if (!session->initialized) {
+  {
     static std::mutex initMutex;
     std::lock_guard<std::mutex> lock(initMutex);
-    if (auto err = session->jit->initialize(*session->jd)) {
-      return std::move(err);
+    // Re-check under the lock: the flag is read and written only here, so two
+    // threads cannot both pass the check and double-initialize the JITDylib.
+    if (!session->initialized) {
+      if (auto err = session->jit->initialize(*session->jd)) {
+        return std::move(err);
+      }
+      session->initialized = true;
     }
-    session->initialized = true;
   }
   return session->jit->lookup(*session->jd, symbol_name);
 }

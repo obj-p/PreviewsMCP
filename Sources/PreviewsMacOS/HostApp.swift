@@ -126,6 +126,10 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
         }
         loaders[sessionID] = loader
 
+        // The window now reflects the current preview; a stale agent PNG must not
+        // shadow it in snapshot(). The next JIT reload repopulates the entry.
+        agentImagePaths.removeValue(forKey: sessionID)
+
         // Create the view
         let rawPtr = createView()
         let hostingView = Unmanaged<NSView>.fromOpaque(rawPtr).takeRetainedValue()

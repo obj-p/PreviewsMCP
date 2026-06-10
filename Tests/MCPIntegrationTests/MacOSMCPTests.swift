@@ -525,7 +525,9 @@ struct MacOSMCPTests {
             to: URL(fileURLWithPath: filePath), atomically: false, encoding: .utf8)
 
         // CI swiftc on cold caches is slow; AGENTS.md notes daemon startup alone is 5–10s.
-        try await server.awaitStderrContains("Compiled:", timeout: .seconds(90))
+        // "Reloaded" matches both daemon kinds: the JIT agent logs "Reloaded (JIT agent)!" and
+        // the non-JIT recompile logs "Reloaded!". Both fire only after a successful structural edit.
+        try await server.awaitStderrContains("Reloaded", timeout: .seconds(90))
         _ = try await server.awaitSnapshotChange(
             sessionID: sessionID, baseline: baseline, timeout: .seconds(15)
         )

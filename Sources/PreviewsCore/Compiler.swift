@@ -259,6 +259,79 @@ public actor Compiler {
         return StableModule(moduleName: moduleName, modulesDir: moduleDir, objectPath: objectFile)
     }
 
+    /// Per-module incremental build directory, reused across edits so the driver's
+    /// `.swiftdeps` records and the unchanged-file objects persist between compiles.
+    private var incrementalDirs: [String: URL] = [:]
+
+    /// Compile the whole target module incrementally: the editable `overlaySource` plus the
+    /// target's other `bulkFiles`, all under one `moduleName`. The Swift driver recompiles only
+    /// what changed — the overlay alone on a body edit, the overlay plus its dependents on an
+    /// interface edit — and reuses the rest from the persistent build dir. Returns the overlay's
+    /// object and the bulk objects (in `bulkFiles` order). This is the non-leaf structural split:
+    /// the bulk references the edited file, so a one-directional prebuilt stable module cannot be
+    /// used, but a single module resolves references in both directions.
+    public func compileModuleIncremental(
+        overlaySource: String,
+        bulkFiles: [URL],
+        moduleName: String,
+        extraFlags: [String] = []
+    ) async throws -> (overlayObject: URL, bulkObjects: [URL]) {
+        let dir: URL
+        if let existing = incrementalDirs[moduleName] {
+            dir = existing
+        } else {
+            dir = workDir.appendingPathComponent("incremental-\(moduleName)", isDirectory: true)
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            incrementalDirs[moduleName] = dir
+        }
+
+        let overlayFile = dir.appendingPathComponent("overlay.swift")
+        try overlaySource.write(to: overlayFile, atomically: true, encoding: .utf8)
+        let overlayObject = dir.appendingPathComponent("overlay.o")
+
+        // The output-file-map keys must match the command-line paths exactly, or the driver
+        // disables incremental ("no swiftDeps file") and recompiles everything every edit.
+        var fileMap: [String: [String: String]] = [
+            "": ["swift-dependencies": dir.appendingPathComponent("master.swiftdeps").path],
+            overlayFile.path: [
+                "object": overlayObject.path,
+                "swift-dependencies": dir.appendingPathComponent("overlay.swiftdeps").path,
+            ],
+        ]
+        var bulkObjects: [URL] = []
+        for (index, file) in bulkFiles.enumerated() {
+            let object = dir.appendingPathComponent("bulk_\(index).o")
+            bulkObjects.append(object)
+            fileMap[file.path] = [
+                "object": object.path,
+                "swift-dependencies": dir.appendingPathComponent("bulk_\(index).swiftdeps").path,
+            ]
+        }
+        let mapFile = dir.appendingPathComponent("output-file-map.json")
+        let mapData = try JSONSerialization.data(withJSONObject: fileMap, options: [.sortedKeys])
+        try mapData.write(to: mapFile)
+
+        var args: [String] = [
+            swiftcPath,
+            "-incremental",
+            "-emit-object",
+            "-parse-as-library",
+            "-target", targetTriple,
+            "-sdk", sdkPath,
+            "-module-name", moduleName,
+            "-Onone",
+            "-gnone",
+            "-module-cache-path", moduleCachePath.path,
+            "-output-file-map", mapFile.path,
+        ]
+        args += extraFlags
+        args += [overlayFile.path]
+        args += bulkFiles.map(\.path)
+
+        try await run(args)
+        return (overlayObject, bulkObjects)
+    }
+
     // MARK: - Private
 
     @discardableResult

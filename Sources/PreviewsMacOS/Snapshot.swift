@@ -26,13 +26,27 @@ public enum Snapshot {
         guard bounds.width > 0, bounds.height > 0 else {
             throw SnapshotError.captureFailed
         }
-        // Note: bitmapImageRepForCachingDisplay produces 1x images. Off-screen headless
-        // windows aren't associated with a display, so backingScaleFactor is 1.0 anyway.
-        // To capture at a specific scale, create an NSBitmapImageRep manually with scaled
-        // pixel dimensions. (pointfreeco/swift-snapshot-testing has the same limitation.)
-        guard let bitmapRep = contentView.bitmapImageRepForCachingDisplay(in: bounds) else {
+        // Pin the raster to a deterministic 1x (one pixel per point). bitmapImageRepForCachingDisplay
+        // inherits the host window's backingScaleFactor — 2x on a Retina display — which made the
+        // snapshot's pixel dimensions depend on which machine the daemon ran on. Building the rep
+        // manually with pixel dimensions equal to the point bounds keeps output reproducible.
+        guard
+            let bitmapRep = NSBitmapImageRep(
+                bitmapDataPlanes: nil,
+                pixelsWide: Int(bounds.width.rounded()),
+                pixelsHigh: Int(bounds.height.rounded()),
+                bitsPerSample: 8,
+                samplesPerPixel: 4,
+                hasAlpha: true,
+                isPlanar: false,
+                colorSpaceName: .deviceRGB,
+                bytesPerRow: 0,
+                bitsPerPixel: 0
+            )
+        else {
             throw SnapshotError.captureFailed
         }
+        bitmapRep.size = bounds.size
         contentView.cacheDisplay(in: bounds, to: bitmapRep)
 
         switch format {

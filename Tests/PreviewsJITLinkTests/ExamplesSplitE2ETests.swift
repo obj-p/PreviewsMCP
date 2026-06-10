@@ -83,6 +83,20 @@ struct ExamplesSplitE2ETests {
     /// twice through one reloader, so generation 2 re-links ToDoExtras / Lottie / the builtins
     /// archive into a fresh JITDylib. Guards against duplicate Swift-metadata registration
     /// across generations (item 2, U2).
+    @Test func nonLeafRendersUneditedPreviewInAgent() async throws {
+        let hot = Self.spmRoot.appendingPathComponent("Sources/ToDo/ToDoView.swift")
+        let ctx = try await Self.context(for: hot)
+        let compiler = try await Compiler()
+        let session = PreviewSession(sourceFile: hot, compiler: compiler, buildContext: ctx)
+        let build = try await session.compileObjectForJIT()
+
+        let reloader = JITStructuralReloader()
+        try await reloader.render(build)
+        let png = try Data(contentsOf: build.imagePath)
+        #expect(!png.isEmpty)
+        #expect(NSBitmapImageRep(data: png) != nil)
+    }
+
     @Test func splitRendersRealPreviewAcrossGenerations() async throws {
         let hot = Self.spmRoot.appendingPathComponent("Sources/ToDo/Summary.swift")
         let ctx = try await Self.context(for: hot)

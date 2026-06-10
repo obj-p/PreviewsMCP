@@ -25,7 +25,7 @@ public actor JITStructuralReloader: StructuralReloader {
             return
         }
 
-        let session = try nextSession()
+        let session = try nextSession(forceFresh: build.requiresFreshAgent)
         for dylib in build.dylibPaths {
             try session.addDylib(path: dylib.path)
         }
@@ -49,9 +49,10 @@ public actor JITStructuralReloader: StructuralReloader {
 
     /// The session to link this edit into: a fresh `JITDylib` on the live agent while under
     /// the cap, otherwise a freshly respawned agent (replacing the old one, whose `deinit`
-    /// kills its process). The first edit and each post-cap edit start a new agent.
-    private func nextSession() throws -> JITSession {
-        if let session, generation < generationCap {
+    /// kills its process). The first edit, each post-cap edit, and any `forceFresh` edit (the
+    /// non-leaf incremental split, which reuses the target's stable module name) start a new agent.
+    private func nextSession(forceFresh: Bool) throws -> JITSession {
+        if let session, !forceFresh, generation < generationCap {
             generation += 1
             try session.newGeneration()
             return session

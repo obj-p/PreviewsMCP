@@ -26,6 +26,11 @@ public struct JITRenderBuild: Sendable {
     /// Binary dynamic libraries (the target's `-F`/`-framework` dependency frameworks) the
     /// agent must `dlopen` so their symbols resolve. Empty for standalone.
     public let dylibPaths: [URL]
+    /// Require a freshly respawned agent for this render instead of a new generation on the
+    /// live one. The non-leaf incremental split compiles under the target's own (stable) module
+    /// name, so its `@Observable DesignTimeStore` would re-register across generations in one
+    /// process; a fresh process each structural edit sidesteps the duplicate registration.
+    public let requiresFreshAgent: Bool
 
     public init(
         objectPath: URL,
@@ -35,7 +40,8 @@ public struct JITRenderBuild: Sendable {
         literals: [LiteralEntry],
         supportObjectPaths: [URL] = [],
         archivePaths: [URL] = [],
-        dylibPaths: [URL] = []
+        dylibPaths: [URL] = [],
+        requiresFreshAgent: Bool = false
     ) {
         self.objectPath = objectPath
         self.imagePath = imagePath
@@ -45,6 +51,7 @@ public struct JITRenderBuild: Sendable {
         self.supportObjectPaths = supportObjectPaths
         self.archivePaths = archivePaths
         self.dylibPaths = dylibPaths
+        self.requiresFreshAgent = requiresFreshAgent
     }
 }
 
@@ -237,19 +244,45 @@ public actor PreviewSession {
         var supportObjectPaths: [URL] = []
         var archivePaths: [URL] = []
         var dylibPaths: [URL] = []
+        var requiresFreshAgent = false
         if let (ctx, bulk) = splitContext {
-            let stable = try await stableModule(for: bulk, context: ctx)
-            supportObjectPaths = [stable.objectPath]
             archivePaths = Self.dependencyArchives(in: ctx.compilerFlags)
             if let runtimeArchive = try await Toolchain.compilerRuntimeArchivePath() {
                 archivePaths.append(URL(fileURLWithPath: runtimeArchive))
             }
             dylibPaths = Self.dependencyDylibs(in: ctx.compilerFlags)
-            objectPath = try await compiler.compileObject(
-                source: generated.source,
-                moduleName: "PreviewEdit_\(ctx.moduleName)_\(Self.uniqueModuleToken())",
-                extraFlags: ["-I", stable.modulesDir.path] + ctx.compilerFlags
-            )
+
+            if let stable = try await stableModuleIfLeaf(for: bulk, context: ctx) {
+                supportObjectPaths = [stable.objectPath]
+                objectPath = try await compiler.compileObject(
+                    source: generated.source,
+                    moduleName: "PreviewEdit_\(ctx.moduleName)_\(Self.uniqueModuleToken())",
+                    extraFlags: ["-I", stable.modulesDir.path] + ctx.compilerFlags
+                )
+            } else {
+                // Non-leaf: the bulk references the edited file, so it cannot be prebuilt as a
+                // one-directional stable module. Compile the whole module incrementally with the
+                // overlay in-module (no `@testable import`); only the hot file recompiles per edit.
+                let overlay = BridgeGenerator.generateCombinedSource(
+                    originalSource: source,
+                    closureBody: preview.closureBody,
+                    previewIndex: previewIndex,
+                    platform: platform,
+                    traits: traits,
+                    renderOutputPath: imagePath.path,
+                    designTimeValuesPath: valuesPath.path,
+                    stableModuleImport: nil
+                )
+                let built = try await compiler.compileModuleIncremental(
+                    overlaySource: overlay.source,
+                    bulkFiles: bulk,
+                    moduleName: ctx.moduleName,
+                    extraFlags: ctx.compilerFlags
+                )
+                supportObjectPaths = built.bulkObjects
+                objectPath = try Self.uniqueObjectCopy(of: built.overlayObject)
+                requiresFreshAgent = true
+            }
         } else {
             objectPath = try await compiler.compileObject(
                 source: generated.source,
@@ -269,7 +302,8 @@ public actor PreviewSession {
             literals: generated.literals,
             supportObjectPaths: supportObjectPaths,
             archivePaths: archivePaths,
-            dylibPaths: dylibPaths
+            dylibPaths: dylibPaths,
+            requiresFreshAgent: requiresFreshAgent
         )
         lastJITBuild = build
         return build
@@ -342,6 +376,35 @@ public actor PreviewSession {
     /// Return the stable module for `bulk`, reusing the cached one when no bulk file has
     /// changed (the common case: repeated edits to the hot preview file). Rebuilds only when
     /// a bulk file's modification date changes, so the per-edit compile stays narrow.
+    private var bulkIsNonLeaf = false
+
+    /// The stable half of the leaf split, or nil when the bulk references the hot file (non-leaf)
+    /// and so cannot compile without it. Cached per session: once the bulk fails to compile on its
+    /// own, every later edit takes the incremental whole-module path. A genuine bulk error surfaces
+    /// again from that path, so the fallback never hides it.
+    private func stableModuleIfLeaf(
+        for bulk: [URL], context ctx: BuildContext
+    ) async throws -> Compiler.StableModule? {
+        if bulkIsNonLeaf { return nil }
+        do {
+            return try await stableModule(for: bulk, context: ctx)
+        } catch is CompilationError {
+            bulkIsNonLeaf = true
+            return nil
+        }
+    }
+
+    /// Copy the incremental build's reused `overlay.o` (a stable path) to a unique path, so each
+    /// structural edit presents a distinct `objectPath`. The reloader keys its literal fast path on
+    /// object-path identity, which a stable path would falsely trigger.
+    private static func uniqueObjectCopy(of object: URL) throws -> URL {
+        let dest = object.deletingLastPathComponent()
+            .appendingPathComponent("overlay-\(uniqueModuleToken()).o")
+        try? FileManager.default.removeItem(at: dest)
+        try FileManager.default.copyItem(at: object, to: dest)
+        return dest
+    }
+
     private func stableModule(
         for bulk: [URL], context ctx: BuildContext
     ) async throws -> Compiler.StableModule {

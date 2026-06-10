@@ -717,6 +717,87 @@ P3.3 (in-place `write_mem` + Begin/End/cancelUpdate handshake) stays conditional
   leaves files CI rejects; a file list after `--recursive` only formats the first
   arg, so loop). build-and-test can pass while `lint` fails — check all four jobs.
 
+## Update 2026-06-09: non-leaf hot-reload fix, CI removed, merge status
+
+This section SUPERSEDES the "Immediate next step" pointer above and every "CI
+green" claim in this doc. PR #190 merged to `main` (`a5b58cc`), GitHub Actions
+CI is disabled (the `CI` and `Cache warmer` workflows are off; the
+`required_status_checks` rule was removed), and the merge bar is now LOCAL:
+all unit tests plus the example integration tests via the `integration-test`
+skill (AGENTS.md). The CI-replacement design is `docs/local-merge-queue.md`.
+
+### The non-leaf duplicate/missing-symbol bug (the fix this branch lands)
+
+The recompile-narrowing split as merged on `main` handled only the LEAF case:
+it prebuilds a stable module from the target's other sources and the edited
+file `@testable import`s it. When the edited file is NON-LEAF — another file in
+the target references it (e.g. `examples/spm` `ToDoView.swift` is used by
+`ToDoProviderPreview.swift`) — the stable compile excludes the hot file but the
+bulk still references it, so it fails with `cannot find 'ToDoView' in scope` and
+the hot reload times out. (This is a missing symbol, not a duplicate; a true
+duplicate-in-both would require a build system whose `sourceFiles` does NOT
+exclude the hot file. SPM excludes it in `collectSourceFiles`.)
+
+**Fix (branch `jit-nonleaf-hotreload`, PR #194):** detect the non-leaf case
+(the stable compile throws → `bulkIsNonLeaf` latches for the session) and
+compile the whole target module INCREMENTALLY instead — the edited file as an
+overlay plus the other sources under the target's own module name, where the
+Swift driver recompiles only the hot file and reuses the bulk objects.
+References resolve both directions and the hot file lives in exactly one module.
+Because the overlay then uses the real module name, its `@Observable`
+`DesignTimeStore` would re-register across generations, so non-leaf builds
+respawn the agent each structural edit (`requiresFreshAgent`).
+
+Code: `Compiler.compileModuleIncremental`, `PreviewSession.compileObjectForJIT()`
+non-leaf branch + `stableModuleIfLeaf`/`bulkIsNonLeaf`,
+`JITStructuralReloader`/`render(_:)`, plus the C++ `lookupInitialized` lock and
+anon-mapper bounds fix in `PreviewsJITLinkCxx.cpp`.
+
+**Known tradeoffs (performance, not correctness; follow-up candidates):**
+- Non-leaf edits lose capped-persistent and respawn the agent each edit. Leaf
+  edits keep the persistent path via a unique module token.
+- Leaf vs non-leaf is detected by compile-and-catch and `bulkIsNonLeaf` latches
+  per session. A real error in another bulk file is misread as non-leaf and pins
+  the session to the slower whole-module path. Degrades speed, not correctness;
+  the error still surfaces. Static reference analysis would avoid this but is
+  itself a compile (Swift same-module refs carry no `import`), so compile-and-
+  catch was chosen.
+- The first non-leaf edit compiles the bulk twice (once to fail-detect).
+
+### Verification (local, this branch, worktree with `third_party` symlinked)
+
+| Check | Result |
+| --- | --- |
+| `hotReloadStructural` (edits `ToDoView.swift`, the non-leaf file), JIT daemon | green, ~24s (on `main` it times out at 90s) |
+| `PreviewsJITLinkTests` isolated, `--no-parallel` | 50/50 |
+| macOS CLI suites (Snapshot/Configure/Switch/Elements/Variants/Stop), serial | 46/46 |
+| Non-JIT unit suite, default PARALLEL | 6–30 nondeterministic issues — ALL parallel session contention ("multiple sessions are running" / "No session found") or missing iOS example artifacts |
+| iOS suites (`IOSMCPTests`, `IOSCLIWorkflowTests`) | FAIL — missing iOS-sim example build (`ToDo.swiftmodule`, `ToDoPreviewSetup`); environment, not code |
+| Whole suite in ONE `swift test --no-parallel` | crashes (`SmallVector set_size`) — known shared in-process LLJIT flakiness; why the doc runs JIT separately |
+
+Conclusion: nothing the three commits touch is failing. The CLI integration
+suites are not parallel-safe with each other (shared daemon); run them serial.
+
+### JIT is macOS-only — iOS is NOT covered
+
+The JIT executor renders on macOS only: `JITStructuralReloader` is wired solely
+onto the macOS `PreviewHost` (`PreviewsMCPApp.swift`), and `PreviewAgent`
+`dlopen`s AppKit/SwiftUI and renders with `ImageRenderer` on the Mac. The iOS
+path is separate (`IOSPreviewSession` + `IOSHostBuilder`): a structural edit
+does a FULL host-app recompile reloaded on the simulator
+(`IOSPreviewSession.swift`), not the JIT split/agent. An iOS device/simulator
+JIT agent is a DEFERRED line item in all three phase docs (Phase 1 §356, Phase 2
+§193/199, Phase 3 §662) with no design, subproblems, or verification criteria.
+Fixing iOS JIT is net-new planning work, not a bug in this fix.
+
+### Outstanding
+
+- Run the `integration-test` skill (the other half of the merge bar). Not yet run.
+- iOS unit suites need the iOS-sim example built first (`bootstrap --examples`).
+- PR #193 (`docs-no-ci-verification`) still carries these same three commits; once
+  #194 lands, rebase #193 down to just its docs commit.
+- Decide whether to merge #194 once the full local bar is met.
+
 ## P4.1 recompile-narrowing (#191 item 1) — IN PROGRESS
 
 **Decision: Fork B (project/Tier-2 split), file-granularity, hot-leaf heuristic.**
