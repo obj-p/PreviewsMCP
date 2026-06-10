@@ -151,7 +151,8 @@ public actor Compiler {
     public func compileObject(
         source: String,
         moduleName: String,
-        extraFlags: [String] = []
+        extraFlags: [String] = [],
+        overrideSDK: String? = nil
     ) async throws -> URL {
         compilationCounter += 1
         let uniqueName = "\(moduleName)_\(compilationCounter)"
@@ -165,7 +166,7 @@ public actor Compiler {
             "-emit-object",
             "-parse-as-library",
             "-target", targetTriple,
-            "-sdk", sdkPath,
+            "-sdk", overrideSDK ?? sdkPath,
             "-module-name", moduleName,
             "-Onone",
             "-gnone",
@@ -274,7 +275,8 @@ public actor Compiler {
         overlaySource: String,
         bulkFiles: [URL],
         moduleName: String,
-        extraFlags: [String] = []
+        extraFlags: [String] = [],
+        overrideSDK: String? = nil
     ) async throws -> (overlayObject: URL, bulkObjects: [URL]) {
         let dir: URL
         if let existing = incrementalDirs[moduleName] {
@@ -317,7 +319,7 @@ public actor Compiler {
             "-emit-object",
             "-parse-as-library",
             "-target", targetTriple,
-            "-sdk", sdkPath,
+            "-sdk", overrideSDK ?? sdkPath,
             "-module-name", moduleName,
             "-Onone",
             "-gnone",

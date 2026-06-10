@@ -31,6 +31,9 @@ public struct JITRenderBuild: Sendable {
     /// name, so its `@Observable DesignTimeStore` would re-register across generations in one
     /// process; a fresh process each structural edit sidesteps the duplicate registration.
     public let requiresFreshAgent: Bool
+    /// The generated `@_cdecl` setup entry (`previewSetUp`), present when the session has a
+    /// setup plugin. The reloader runs it once per agent process before the first render.
+    public let setupEntrySymbol: String?
 
     public init(
         objectPath: URL,
@@ -41,7 +44,8 @@ public struct JITRenderBuild: Sendable {
         supportObjectPaths: [URL] = [],
         archivePaths: [URL] = [],
         dylibPaths: [URL] = [],
-        requiresFreshAgent: Bool = false
+        requiresFreshAgent: Bool = false,
+        setupEntrySymbol: String? = nil
     ) {
         self.objectPath = objectPath
         self.imagePath = imagePath
@@ -52,6 +56,7 @@ public struct JITRenderBuild: Sendable {
         self.archivePaths = archivePaths
         self.dylibPaths = dylibPaths
         self.requiresFreshAgent = requiresFreshAgent
+        self.setupEntrySymbol = setupEntrySymbol
     }
 }
 
@@ -69,6 +74,7 @@ public actor PreviewSession {
     private let setupType: String?
     private let setupCompilerFlags: [String]
     private let setupSDKPath: String?
+    private let setupDylibPath: URL?
     private var compilationResult: CompilationResult?
     private var lastOriginalSource: String?
     private var lastLiterals: [LiteralEntry]?
@@ -96,7 +102,8 @@ public actor PreviewSession {
         setupModule: String? = nil,
         setupType: String? = nil,
         setupCompilerFlags: [String] = [],
-        setupSDKPath: String? = nil
+        setupSDKPath: String? = nil,
+        setupDylibPath: URL? = nil
     ) {
         self.id = UUID().uuidString
         self.sourceFile = sourceFile
@@ -109,6 +116,7 @@ public actor PreviewSession {
         self.setupType = setupType
         self.setupCompilerFlags = setupCompilerFlags
         self.setupSDKPath = setupSDKPath
+        self.setupDylibPath = setupDylibPath
     }
 
     /// Run the full pipeline and return the compiled dylib path + literal map.
@@ -229,12 +237,15 @@ public actor PreviewSession {
             return (ctx, bulk)
         }
 
+        let hasSetup = splitContext != nil && setupModule != nil && setupType != nil
         let generated = BridgeGenerator.generateCombinedSource(
             originalSource: source,
             closureBody: preview.closureBody,
             previewIndex: previewIndex,
             platform: platform,
             traits: traits,
+            setupModule: hasSetup ? setupModule : nil,
+            setupType: hasSetup ? setupType : nil,
             renderOutputPath: imagePath.path,
             designTimeValuesPath: valuesPath.path,
             stableModuleImport: splitContext?.0.moduleName,
@@ -253,12 +264,18 @@ public actor PreviewSession {
             }
             dylibPaths = Self.dependencyDylibs(in: ctx.compilerFlags)
 
+            if let path = setupDylibPath, hasSetup {
+                dylibPaths.insert(path, at: 0)
+            }
+
             if let stable = try await stableModuleIfLeaf(for: bulk, context: ctx) {
                 supportObjectPaths = [stable.objectPath]
                 objectPath = try await compiler.compileObject(
                     source: generated.source,
                     moduleName: "PreviewEdit_\(ctx.moduleName)_\(Self.uniqueModuleToken())",
                     extraFlags: ["-I", stable.modulesDir.path] + ctx.compilerFlags
+                        + setupCompilerFlags,
+                    overrideSDK: setupSDKPath
                 )
             } else {
                 // Non-leaf: the bulk references the edited file, so it cannot be prebuilt as a
@@ -270,6 +287,8 @@ public actor PreviewSession {
                     previewIndex: previewIndex,
                     platform: platform,
                     traits: traits,
+                    setupModule: hasSetup ? setupModule : nil,
+                    setupType: hasSetup ? setupType : nil,
                     renderOutputPath: imagePath.path,
                     designTimeValuesPath: valuesPath.path,
                     stableModuleImport: nil,
@@ -279,7 +298,8 @@ public actor PreviewSession {
                     overlaySource: overlay.source,
                     bulkFiles: bulk,
                     moduleName: ctx.moduleName,
-                    extraFlags: ctx.compilerFlags
+                    extraFlags: ctx.compilerFlags + setupCompilerFlags,
+                    overrideSDK: setupSDKPath
                 )
                 supportObjectPaths = built.bulkObjects
                 objectPath = try Self.uniqueObjectCopy(of: built.overlayObject)
@@ -305,7 +325,8 @@ public actor PreviewSession {
             supportObjectPaths: supportObjectPaths,
             archivePaths: archivePaths,
             dylibPaths: dylibPaths,
-            requiresFreshAgent: requiresFreshAgent
+            requiresFreshAgent: requiresFreshAgent,
+            setupEntrySymbol: hasSetup ? "previewSetUp" : nil
         )
         lastJITBuild = build
         return build
