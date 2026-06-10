@@ -99,6 +99,19 @@ struct PreviewsJITLinkTests {
         #expect(result == 7)
     }
 
+    @Test func agentDispatchesAppKitEvents() throws {
+        let object = try FixtureSupport.compile("event_loop_probe.swift")
+        let session = try JITSession(remoteAgentPath: JITSession.bundledAgentPath())
+        try session.addObject(path: object.path)
+        #expect(try session.runOnMain(symbol: "event_pump_install") == 1)
+        var observed: Int32 = 0
+        for _ in 0..<20 where observed != 1 {
+            Thread.sleep(forTimeInterval: 0.1)
+            observed = try session.runOnMain(symbol: "event_pump_check")
+        }
+        #expect(observed == 1)
+    }
+
     @Test func buildsHostingViewOnMainThreadRemotely() throws {
         let object = try FixtureSupport.compile("hosting_probe.swift")
         let session = try JITSession(remoteAgentPath: JITSession.bundledAgentPath())

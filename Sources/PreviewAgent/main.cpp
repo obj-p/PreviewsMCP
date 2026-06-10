@@ -267,6 +267,25 @@ int main(int argc, char *argv[]) {
           dlsym(RTLD_DEFAULT, "NSApplicationLoad")))
     Load();
 
+  // Run the full AppKit event loop, not a bare CFRunLoop spin: windows hosted
+  // in this process only receive window-server events (clicks, scrolls) when
+  // -[NSApplication run] dequeues and dispatches them. The main dispatch
+  // queue (run_on_main's dispatch_sync target) drains under it as well.
+  auto *GetClass = reinterpret_cast<void *(*)(const char *)>(
+      dlsym(RTLD_DEFAULT, "objc_getClass"));
+  auto *RegisterSel = reinterpret_cast<void *(*)(const char *)>(
+      dlsym(RTLD_DEFAULT, "sel_registerName"));
+  auto *MsgSend = reinterpret_cast<void *(*)(void *, void *)>(
+      dlsym(RTLD_DEFAULT, "objc_msgSend"));
+  if (GetClass && RegisterSel && MsgSend) {
+    if (void *AppClass = GetClass("NSApplication")) {
+      void *App = MsgSend(AppClass, RegisterSel("sharedApplication"));
+      if (App)
+        MsgSend(App, RegisterSel("run")); // never returns
+    }
+  }
+
+  // Fallback when AppKit is unavailable: keep servicing the main queue.
   auto *RunInMode =
       reinterpret_cast<int (*)(const void *, double, unsigned char)>(
           dlsym(RTLD_DEFAULT, "CFRunLoopRunInMode"));
