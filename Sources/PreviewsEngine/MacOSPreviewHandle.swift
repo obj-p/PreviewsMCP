@@ -56,9 +56,9 @@ public actor MacOSPreviewHandle: PreviewSessionHandle {
             dylib: { try await self.session.switchPreview(to: index) })
     }
 
-    /// The single routing seam for every mutating reload. An agent-backed session (JIT
-    /// reloader present and an agent render recorded) re-renders in the agent; reloading a
-    /// dylib into the daemon window instead would resurrect it as a second, stale surface.
+    /// The single routing seam for every mutating reload. In a JIT build every
+    /// session re-renders in its agent; in a non-JIT build every session reloads
+    /// a dylib into its daemon window. The split is per-build, never per-session.
     private func reload(
         jit: (JITRenderWindow?) async throws -> JITRenderBuild,
         dylib: () async throws -> CompileResult
@@ -68,7 +68,7 @@ public actor MacOSPreviewHandle: PreviewSessionHandle {
             case daemonWindow
         }
         let surface: Surface = await MainActor.run {
-            guard host.agentSnapshotPath(for: id) != nil else {
+            guard host.agentBacked else {
                 return .daemonWindow
             }
             return .agent(host.agentWindowSpec(for: id))
@@ -89,7 +89,10 @@ public actor MacOSPreviewHandle: PreviewSessionHandle {
         let format: Snapshot.ImageFormat = quality >= 1.0 ? .png : .jpeg(quality: quality)
         let sessionID = id
         return try await MainActor.run {
-            if let imagePath = host.agentSnapshotPath(for: sessionID) {
+            if host.agentBacked {
+                guard let imagePath = host.agentSnapshotPath(for: sessionID) else {
+                    throw SnapshotError.captureFailed
+                }
                 return try Snapshot.encode(imageAt: imagePath, format: format)
             }
             guard let window = host.window(for: sessionID) else {

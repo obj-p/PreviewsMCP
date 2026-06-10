@@ -1018,3 +1018,34 @@ literal setters, `agentImagePaths` dance, the `loadPreview` fallback in
 owns the first-non-leaf-edit ~20s (respawn + bulk compile + sticky
 `bulkIsNonLeaf` latch; candidate fix: warm the stable module in the
 background right after start).
+
+## Update 2026-06-10 (3): dylib machinery retired for JIT builds (routing)
+
+Consolidation step (2) landed as the routing retirement chosen with the
+user (over spreading `#if PREVIEWSMCP_JIT` beyond the composition root or
+an injection refactor): since #198 a session never switches surface
+mid-life, so "agent-backed" is a property of the build, not the session.
+`PreviewHost.agentBacked` (`makeStructuralReloader != nil`) now routes
+`watchFile`'s literal path, `MacOSPreviewHandle.reload`, and `snapshot`;
+the per-session `agentImagePaths` presence check is no longer a routing
+signal and the map is purely the snapshot source. `startMacOSPreview`'s
+dylib branch is compile-time gated behind the existing `#if` in
+PreviewsCLI. Cross-path hygiene that can no longer fire is gone: the
+agent-state clearing in `loadPreview` and the daemon-window `orderOut` in
+`jitRender`.
+
+The dylib machinery itself (`loadPreview`, `loaders`, dlsym literal
+setters, `DylibLoader`, `PreviewSession.compile/setTraits/reconfigure/
+switchPreview`) stays compiled: it is the live path for non-JIT builds
+(no `third_party`) until the dylib fallback decision later in the
+roadmap, at which point it deletes cleanly — no call site routes to it
+in a JIT build any more. Verified non-JIT still compiles by forcing
+`jitEnabled = false` in the manifest (note: removing the `third_party`
+symlink is NOT enough — the content-hash-cached manifest bakes in
+`#filePath` from the main checkout, where `third_party` exists).
+
+**Next:** latency (<200ms), which owns the first-non-leaf-edit ~20s
+(respawn + bulk compile + sticky `bulkIsNonLeaf` latch; candidate fix:
+warm the stable module in the background right after start). Then #195,
+session-sized agent renders, content-based assertions, dylib fallback
+decision, iOS JIT.

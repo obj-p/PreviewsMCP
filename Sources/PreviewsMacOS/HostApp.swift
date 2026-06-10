@@ -37,6 +37,10 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
     /// reloader — its own agent process and window — so respawns, crashes, setup
     /// state, and window lifetime stay contained to one session.
     public var makeStructuralReloader: (@MainActor () -> any StructuralReloader)?
+    /// Whether sessions render in agent processes. In a JIT build every macOS
+    /// session is agent-backed from its first render until close; in a non-JIT
+    /// build none ever is, so routing is per-build, not per-session.
+    public var agentBacked: Bool { makeStructuralReloader != nil }
     /// Per-session reloaders. Removing a session's entry releases its agent
     /// process, which closes the agent-hosted window.
     private var reloaders: [String: any StructuralReloader] = [:]
@@ -133,14 +137,6 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
         }
         loaders[sessionID] = loader
 
-        // The window now reflects the current preview; a stale agent PNG must not
-        // shadow it in snapshot(), a live agent must not keep a second window, and
-        // a dylib-backed session has no agent placement. The next JIT reload
-        // repopulates what it needs.
-        agentImagePaths.removeValue(forKey: sessionID)
-        reloaders.removeValue(forKey: sessionID)
-        agentWindowSpecs.removeValue(forKey: sessionID)
-
         // Create the view
         let rawPtr = createView()
         let hostingView = Unmanaged<NSView>.fromOpaque(rawPtr).takeRetainedValue()
@@ -207,9 +203,7 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
                 // Fast path: try literal-only update. An agent-backed session re-renders
                 // in the agent (rewrite the design-time values JSON, re-run the same
                 // object — no recompile); otherwise the in-daemon DesignTimeStore path.
-                let agentBacked = await MainActor.run {
-                    self.agentSnapshotPath(for: sessionID) != nil
-                }
+                let agentBacked = await MainActor.run { self.agentBacked }
                 if let currentSession = await MainActor.run(body: { self.sessions[sessionID] }),
                     let changes = await currentSession.tryLiteralUpdate(newSource: newSource),
                     !changes.isEmpty
@@ -366,13 +360,12 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
     /// object, render it in the agent, and record the agent's PNG for snapshots.
     /// Returns the image path, or nil if no reloader is injected (non-JIT build).
     ///
-    /// For a visible session the daemon's window frame and title are baked into the
-    /// bridge so the agent shows its own live window there, and the daemon's dylib
-    /// window is ordered out after the first successful agent render — the agent
-    /// window is the interactive surface from then on.
+    /// For a visible session the session's window spec is baked into the bridge
+    /// so the agent shows its own live window there — the agent window is the
+    /// session's interactive surface.
     @discardableResult
     public func jitStructuralReload(sessionID: String, session: PreviewSession) async throws -> URL? {
-        guard makeStructuralReloader != nil else { return nil }
+        guard agentBacked else { return nil }
         let build = try await session.compileObjectForJIT(window: agentWindowSpec(for: sessionID))
         return try await jitRender(sessionID: sessionID, build: build)
     }
@@ -420,8 +413,6 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
     }
 
     /// Render a JIT build in the agent and make its PNG the session's snapshot source.
-    /// The daemon's dylib window is ordered out — once a session is agent-backed, the
-    /// agent's window is the interactive surface.
     @discardableResult
     public func jitRender(sessionID: String, build: JITRenderBuild) async throws -> URL {
         guard let reloader = reloader(for: sessionID) else {
@@ -429,7 +420,6 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
         }
         try await reloader.render(build)
         agentImagePaths[sessionID] = build.imagePath
-        windows[sessionID]?.orderOut(nil)
         return build.imagePath
     }
 
