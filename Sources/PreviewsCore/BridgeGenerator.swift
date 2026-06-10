@@ -60,9 +60,7 @@ public enum BridgeGenerator {
         }
 
         let modifiers = traitModifiers(traits)
-        let hasSetup =
-            setupModule != nil && setupType != nil
-            && isValidSwiftIdentifier(setupModule!) && isValidSwiftIdentifier(setupType!)
+        let hasSetup = isUsableSetup(module: setupModule, type: setupType)
         let setupImport = hasSetup ? "import \(setupModule!)\n" : ""
         let setUpEntry = hasSetup ? setUpEntryPoint(setupType: setupType!) : ""
         let viewCode =
@@ -169,9 +167,7 @@ public enum BridgeGenerator {
         }
 
         let modifiers = traitModifiers(traits)
-        let hasSetup =
-            setupModule != nil && setupType != nil
-            && isValidSwiftIdentifier(setupModule!) && isValidSwiftIdentifier(setupType!)
+        let hasSetup = isUsableSetup(module: setupModule, type: setupType)
         let setupImport = hasSetup ? "\nimport \(setupModule!)" : ""
         let setUpEntry = hasSetup ? "\n\n\(setUpEntryPoint(setupType: setupType!))\n" : ""
         let viewCode =
@@ -264,6 +260,32 @@ public enum BridgeGenerator {
         return s.range(of: pattern, options: .regularExpression) != nil
     }
 
+    /// Whether a setup module/type pair will actually produce setup code (the wrap and the
+    /// `previewSetUp` entry). Callers that advertise setup downstream (e.g. a build's
+    /// setupEntrySymbol) must use the same predicate, or they promise an entry the generated
+    /// source does not contain.
+    public static func isUsableSetup(module: String?, type: String?) -> Bool {
+        guard let module, let type else { return false }
+        return isValidSwiftIdentifier(module) && isValidSwiftIdentifier(type)
+    }
+
+    /// Escape a runtime string (path, window title) for interpolation into a generated Swift
+    /// string literal. Backslash and quote would change the literal's structure; control
+    /// characters (a newline in a file name is legal on macOS) would split it across lines.
+    static func escapedForSwiftStringLiteral(_ s: String) -> String {
+        var out = ""
+        for scalar in s.unicodeScalars {
+            switch scalar {
+            case "\\": out += "\\\\"
+            case "\"": out += "\\\""
+            case let c where c.properties.generalCategory == .control:
+                out += "\\u{\(String(c.value, radix: 16))}"
+            default: out.unicodeScalars.append(scalar)
+            }
+        }
+        return out
+    }
+
     /// Generate the `@_cdecl("previewBodyKind")` entry point. The compiler picks the same
     /// `__PreviewBodyKindProbe.detect` overload that `__PreviewBridge.wrap` does, so the
     /// returned value reflects the outermost body kind: 1 = SwiftUI, 2 = UIView,
@@ -298,7 +320,7 @@ public enum BridgeGenerator {
         let seed =
             valuesPath.map {
                 """
-                if let __dtData = try? Data(contentsOf: URL(fileURLWithPath: "\($0)")),
+                if let __dtData = try? Data(contentsOf: URL(fileURLWithPath: "\(escapedForSwiftStringLiteral($0))")),
                     let __dtValues = try? JSONSerialization.jsonObject(with: __dtData)
                         as? [String: Any]
                 {
@@ -308,9 +330,7 @@ public enum BridgeGenerator {
             } ?? ""
         let createWindow: String
         if let window {
-            let title = window.title
-                .replacingOccurrences(of: "\\", with: "\\\\")
-                .replacingOccurrences(of: "\"", with: "\\\"")
+            let title = escapedForSwiftStringLiteral(window.title)
             createWindow = """
                 NSApplication.shared.setActivationPolicy(.accessory)
                                 let created = NSWindow(
@@ -370,7 +390,7 @@ public enum BridgeGenerator {
                         return Int32(-2)
                     }
                     do {
-                        try data.write(to: URL(fileURLWithPath: "\(path)"))
+                        try data.write(to: URL(fileURLWithPath: "\(escapedForSwiftStringLiteral(path))"))
                     } catch {
                         return Int32(-3)
                     }

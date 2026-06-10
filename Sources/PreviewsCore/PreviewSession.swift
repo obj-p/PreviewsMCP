@@ -237,7 +237,15 @@ public actor PreviewSession {
             return (ctx, bulk)
         }
 
-        let hasSetup = splitContext != nil && setupModule != nil && setupType != nil
+        let hasSetup =
+            splitContext != nil
+            && BridgeGenerator.isUsableSetup(module: setupModule, type: setupType)
+
+        var stable: Compiler.StableModule?
+        if let (ctx, bulk) = splitContext {
+            stable = try await stableModuleIfLeaf(for: bulk, context: ctx)
+        }
+
         let generated = BridgeGenerator.generateCombinedSource(
             originalSource: source,
             closureBody: preview.closureBody,
@@ -248,7 +256,7 @@ public actor PreviewSession {
             setupType: hasSetup ? setupType : nil,
             renderOutputPath: imagePath.path,
             designTimeValuesPath: valuesPath.path,
-            stableModuleImport: splitContext?.0.moduleName,
+            stableModuleImport: stable != nil ? splitContext?.0.moduleName : nil,
             renderWindow: window
         )
 
@@ -268,7 +276,7 @@ public actor PreviewSession {
                 dylibPaths.insert(path, at: 0)
             }
 
-            if let stable = try await stableModuleIfLeaf(for: bulk, context: ctx) {
+            if let stable {
                 supportObjectPaths = [stable.objectPath]
                 objectPath = try await compiler.compileObject(
                     source: generated.source,
@@ -281,21 +289,8 @@ public actor PreviewSession {
                 // Non-leaf: the bulk references the edited file, so it cannot be prebuilt as a
                 // one-directional stable module. Compile the whole module incrementally with the
                 // overlay in-module (no `@testable import`); only the hot file recompiles per edit.
-                let overlay = BridgeGenerator.generateCombinedSource(
-                    originalSource: source,
-                    closureBody: preview.closureBody,
-                    previewIndex: previewIndex,
-                    platform: platform,
-                    traits: traits,
-                    setupModule: hasSetup ? setupModule : nil,
-                    setupType: hasSetup ? setupType : nil,
-                    renderOutputPath: imagePath.path,
-                    designTimeValuesPath: valuesPath.path,
-                    stableModuleImport: nil,
-                    renderWindow: window
-                )
                 let built = try await compiler.compileModuleIncremental(
-                    overlaySource: overlay.source,
+                    overlaySource: generated.source,
                     bulkFiles: bulk,
                     moduleName: ctx.moduleName,
                     extraFlags: ctx.compilerFlags + setupCompilerFlags,
@@ -438,7 +433,8 @@ public actor PreviewSession {
         let module = try await compiler.emitStableModule(
             sourceFiles: bulk,
             moduleName: ctx.moduleName,
-            extraFlags: ctx.compilerFlags
+            extraFlags: ctx.compilerFlags,
+            overrideSDK: setupSDKPath
         )
         cachedStableModule = (key, module)
         return module
@@ -512,14 +508,27 @@ public actor PreviewSession {
     /// Switch to a different preview index and recompile. Traits are preserved. @State is lost.
     /// Rolls back the index if compilation fails.
     public func switchPreview(to newIndex: Int) async throws -> CompileResult {
-        let oldIndex = self.previewIndex
-        self.previewIndex = newIndex
+        try await withPreviewIndex(newIndex) { try await compile() }
+    }
+
+    /// Apply a preview-index switch around `compile`, rolling the index back if it throws.
+    /// Shared by the dylib and JIT switch paths so their rollback semantics cannot diverge.
+    private func withPreviewIndex<T>(
+        _ newIndex: Int, compile: () async throws -> T
+    ) async throws -> T {
+        let oldIndex = previewIndex
+        previewIndex = newIndex
         do {
             return try await compile()
         } catch {
-            self.previewIndex = oldIndex
+            previewIndex = oldIndex
             throw error
         }
+    }
+
+    /// The single definition of configure-merge semantics, shared by the dylib and JIT paths.
+    private func applyReconfigure(traits: PreviewTraits, clearing: Set<PreviewTraits.Field>) {
+        self.traits = self.traits.merged(with: traits).clearing(clearing)
     }
 
     /// Update traits and recompile. Returns the new dylib. @State is lost.
@@ -534,7 +543,7 @@ public actor PreviewSession {
         traits: PreviewTraits,
         clearing: Set<PreviewTraits.Field> = []
     ) async throws -> CompileResult {
-        self.traits = self.traits.merged(with: traits).clearing(clearing)
+        applyReconfigure(traits: traits, clearing: clearing)
         return try await compile()
     }
 
@@ -550,14 +559,7 @@ public actor PreviewSession {
     public func switchPreviewForJIT(
         to newIndex: Int, window: JITRenderWindow? = nil
     ) async throws -> JITRenderBuild {
-        let oldIndex = previewIndex
-        previewIndex = newIndex
-        do {
-            return try await compileObjectForJIT(window: window)
-        } catch {
-            previewIndex = oldIndex
-            throw error
-        }
+        try await withPreviewIndex(newIndex) { try await compileObjectForJIT(window: window) }
     }
 
     /// JIT counterpart of `reconfigure`: merge-and-clear traits, compile for the agent.
@@ -566,7 +568,7 @@ public actor PreviewSession {
         clearing: Set<PreviewTraits.Field> = [],
         window: JITRenderWindow? = nil
     ) async throws -> JITRenderBuild {
-        self.traits = self.traits.merged(with: traits).clearing(clearing)
+        applyReconfigure(traits: traits, clearing: clearing)
         return try await compileObjectForJIT(window: window)
     }
 

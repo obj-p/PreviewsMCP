@@ -39,55 +39,49 @@ public actor MacOSPreviewHandle: PreviewSessionHandle {
     /// and is what tipped CI's `preview_variants` test over its 60s
     /// callTool budget.
     public func setTraits(_ traits: PreviewTraits) async throws {
-        if let route = await agentRoute() {
-            let build = try await session.setTraitsForJIT(traits, window: route.window)
-            try await host.jitRender(sessionID: id, build: build)
-            return
-        }
-        let result = try await session.setTraits(traits)
-        try await MainActor.run {
-            try host.loadPreview(sessionID: id, dylibPath: result.dylibPath)
-        }
+        try await reload(
+            jit: { try await self.session.setTraitsForJIT(traits, window: $0) },
+            dylib: { try await self.session.setTraits(traits) })
     }
 
     public func reconfigure(traits: PreviewTraits, clearing: Set<PreviewTraits.Field>) async throws {
-        if let route = await agentRoute() {
-            let build = try await session.reconfigureForJIT(
-                traits: traits, clearing: clearing, window: route.window)
-            try await host.jitRender(sessionID: id, build: build)
-            return
-        }
-        let result = try await session.reconfigure(traits: traits, clearing: clearing)
-        try await MainActor.run {
-            try host.loadPreview(sessionID: id, dylibPath: result.dylibPath)
-        }
+        try await reload(
+            jit: { try await self.session.reconfigureForJIT(traits: traits, clearing: clearing, window: $0) },
+            dylib: { try await self.session.reconfigure(traits: traits, clearing: clearing) })
     }
 
     public func switchPreview(to index: Int) async throws {
-        if let route = await agentRoute() {
-            let build = try await session.switchPreviewForJIT(to: index, window: route.window)
-            try await host.jitRender(sessionID: id, build: build)
-            return
-        }
-        let result = try await session.switchPreview(to: index)
-        try await MainActor.run {
-            try host.loadPreview(sessionID: id, dylibPath: result.dylibPath)
-        }
+        try await reload(
+            jit: { try await self.session.switchPreviewForJIT(to: index, window: $0) },
+            dylib: { try await self.session.switchPreview(to: index) })
     }
 
-    /// Non-nil when the session is agent-backed and a JIT reloader is present, so
-    /// switch/configure must re-render in the agent instead of reloading a dylib
-    /// into the daemon window (which would resurrect it as a second, stale surface).
-    private struct AgentRoute {
-        let window: JITRenderWindow?
-    }
-
-    private func agentRoute() async -> AgentRoute? {
-        await MainActor.run {
+    /// The single routing seam for every mutating reload. An agent-backed session (JIT
+    /// reloader present and an agent render recorded) re-renders in the agent; reloading a
+    /// dylib into the daemon window instead would resurrect it as a second, stale surface.
+    private func reload(
+        jit: (JITRenderWindow?) async throws -> JITRenderBuild,
+        dylib: () async throws -> CompileResult
+    ) async throws {
+        enum Surface {
+            case agent(JITRenderWindow?)
+            case daemonWindow
+        }
+        let surface: Surface = await MainActor.run {
             guard host.structuralReloader != nil, host.agentSnapshotPath(for: id) != nil else {
-                return nil
+                return .daemonWindow
             }
-            return AgentRoute(window: host.agentWindowSpec(for: id))
+            return .agent(host.agentWindowSpec(for: id))
+        }
+        switch surface {
+        case .agent(let window):
+            let build = try await jit(window)
+            try await host.jitRender(sessionID: id, build: build)
+        case .daemonWindow:
+            let result = try await dylib()
+            try await MainActor.run {
+                try host.loadPreview(sessionID: id, dylibPath: result.dylibPath)
+            }
         }
     }
 
