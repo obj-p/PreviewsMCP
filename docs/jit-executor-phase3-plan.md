@@ -944,3 +944,39 @@ start, `preview_switch`, and `preview_configure` through the agent render
 path so the agent is the single source of truth, demoting the window to a
 viewer of agent output. Design and subproblems tracked on the
 `jit-single-renderer` branch.
+
+## Update 2026-06-10: single-renderer PR #196, review outcome, multi-session next
+
+Branch `jit-single-renderer` (PR #196) landed consolidation steps 1-3: the
+agent hosts one persistent window (found by identifier, content swapped per
+generation), the daemon bakes its window frame/title into the bridge and
+orders its dylib window out after the first agent render, the agent main
+thread runs the real AppKit event loop (window is interactive), switch /
+configure / variants route through the agent for agent-backed sessions via
+one `reload(jit:dylib:)` seam, and the setup plugin (wrap + `previewSetUp` +
+dylib + SDK override) carries through `compileObjectForJIT` — fixing a bug
+`main` had where structural reloads silently stripped the plugin.
+
+A subagent code review of the PR confirmed and we fixed on-branch: shared
+setup validation (`BridgeGenerator.isUsableSetup`), stable-module SDK
+consistency + the issue-#170 guard in all compile paths
+(`Compiler.resolveSDK`), control-character escaping for generated string
+literals, an Aqua-session guard before `[NSApp run]`, single bridge
+generation per edit, and shared mutation helpers so dylib/JIT semantics
+cannot diverge.
+
+Deferred with tracking issues:
+- **#195** — frame handover across agent respawns (observer-sidecar design).
+- **#197** — multi-session: shared agent window identity, zombie window on
+  stop, per-process `didRunSetUp`, shared `lastObjectPath`. Design into the
+  next phases, not piecemeal.
+
+**Remaining consolidation order:** (1) session start through the agent — no
+dylib compile at start, agent window is the session surface from the first
+render; this step must pick the multi-session topology (#197). (2) Retire
+the dylib machinery for JIT builds (loaders, dlsym literal setters,
+`agentImagePaths` dance). Then the broader roadmap: latency (<200ms,
+non-leaf respawn/double-compile/sticky-latch), agent render size from
+session size (400x600 is baked today), content-based test assertions, dylib
+fallback decision, iOS JIT design, local merge queue (no GH issue exists
+yet; user may want one).
