@@ -42,6 +42,7 @@ struct MacOSPreviewHandleAgentSnapshotTests {
         let session = PreviewSession(sourceFile: sourceFile, compiler: compiler)
         let host = PreviewHost()
         host.makeStructuralReloader = { RecordingReloader() }
+        host.watchFile(sessionID: "s1", session: session, filePath: sourceFile.path, compiler: compiler)
 
         let imagePath = try await host.jitStructuralReload(sessionID: "s1", session: session)
         let imageURL = try #require(imagePath)
@@ -84,6 +85,7 @@ struct MacOSPreviewHandleAgentSnapshotTests {
         let host = PreviewHost()
         let reloader = RecordingReloader()
         host.makeStructuralReloader = { reloader }
+        host.watchFile(sessionID: "s1", session: session, filePath: sourceFile.path, compiler: compiler)
 
         _ = try await host.jitStructuralReload(sessionID: "s1", session: session)
         #expect(reloader.builds.count == 1)

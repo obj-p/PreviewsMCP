@@ -329,6 +329,7 @@ public enum BridgeGenerator {
                 """
             } ?? ""
         let createWindow: String
+        let presentNewWindow: String
         if let window {
             let title = escapedForSwiftStringLiteral(window.title)
             createWindow = """
@@ -341,6 +342,13 @@ public enum BridgeGenerator {
                                     backing: .buffered, defer: false)
                                 created.title = "\(title)"
                 """
+            // A visible window takes key status and activates the agent once, at
+            // creation, matching what the daemon's dylib window start used to do.
+            // Re-renders use orderFrontRegardless so edits never steal focus.
+            presentNewWindow = """
+                window.makeKeyAndOrderFront(nil)
+                                NSApplication.shared.activate(ignoringOtherApps: true)
+                """
         } else {
             createWindow = """
                 let created = NSWindow(
@@ -348,6 +356,7 @@ public enum BridgeGenerator {
                                     styleMask: [.borderless], backing: .buffered, defer: false)
                                 created.setFrameOrigin(NSPoint(x: -10_000, y: -10_000))
                 """
+            presentNewWindow = "window.orderFrontRegardless()"
         }
         return """
             @_cdecl("renderPreviewToFile")
@@ -356,18 +365,24 @@ public enum BridgeGenerator {
                     \(seed)
                     let view = \(viewCode)
                     let identifier = NSUserInterfaceItemIdentifier("previewsmcp-preview")
+                    var isNewWindow = false
                     let window =
                         NSApplication.shared.windows.first { $0.identifier == identifier }
                         ?? {
                             \(createWindow)
                             created.identifier = identifier
                             created.isReleasedWhenClosed = false
+                            isNewWindow = true
                             return created
                         }()
                     let hosting = NSHostingView(rootView: view)
                     hosting.sizingOptions = []
                     window.contentView = hosting
-                    window.orderFrontRegardless()
+                    if isNewWindow {
+                        \(presentNewWindow)
+                    } else {
+                        window.orderFrontRegardless()
+                    }
                     hosting.layoutSubtreeIfNeeded()
                     let bounds = hosting.bounds
                     guard bounds.width > 0, bounds.height > 0,
