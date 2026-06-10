@@ -1,5 +1,25 @@
 import Foundation
 
+/// On-screen placement for the agent's persistent preview window, baked into the render
+/// entry. Applied only when the agent creates the window, so a user's later drag or resize
+/// survives leaf edits. Nil means the window stays borderless and off-screen (tests,
+/// headless daemons).
+public struct JITRenderWindow: Sendable {
+    public let x: Double
+    public let y: Double
+    public let width: Double
+    public let height: Double
+    public let title: String
+
+    public init(x: Double, y: Double, width: Double, height: Double, title: String) {
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+        self.title = title
+    }
+}
+
 /// Generates Swift source code that combines the original source file with a `@_cdecl` bridge
 /// entry point, allowing the preview view to be loaded via `dlopen` + `dlsym`.
 public enum BridgeGenerator {
@@ -24,7 +44,8 @@ public enum BridgeGenerator {
         setupType: String? = nil,
         renderOutputPath: String? = nil,
         designTimeValuesPath: String? = nil,
-        stableModuleImport: String? = nil
+        stableModuleImport: String? = nil,
+        renderWindow: JITRenderWindow? = nil
     ) -> (source: String, literals: [LiteralEntry]) {
         // Transform source to replace literals with DesignTimeStore lookups
         let thunkResult = ThunkGenerator.transform(source: originalSource)
@@ -59,7 +80,8 @@ public enum BridgeGenerator {
         let renderEntry =
             renderOutputPath.map {
                 renderToFileEntryPoint(
-                    viewCode: viewCode, path: $0, valuesPath: designTimeValuesPath)
+                    viewCode: viewCode, path: $0, valuesPath: designTimeValuesPath,
+                    window: renderWindow)
             } ?? ""
         let bridgeCode: String
         switch platform {
@@ -271,7 +293,7 @@ public enum BridgeGenerator {
     /// keeps one live window across structural edits (single-renderer consolidation).
     /// AppKit state is shared across JITDylib generations; the entry's own globals are not.
     private static func renderToFileEntryPoint(
-        viewCode: String, path: String, valuesPath: String?
+        viewCode: String, path: String, valuesPath: String?, window: JITRenderWindow?
     ) -> String {
         let seed =
             valuesPath.map {
@@ -284,35 +306,55 @@ public enum BridgeGenerator {
                 }
                 """
             } ?? ""
+        let createWindow: String
+        if let window {
+            let title = window.title
+                .replacingOccurrences(of: "\\", with: "\\\\")
+                .replacingOccurrences(of: "\"", with: "\\\"")
+            createWindow = """
+                NSApplication.shared.setActivationPolicy(.accessory)
+                                let created = NSWindow(
+                                    contentRect: NSRect(
+                                        x: \(window.x), y: \(window.y),
+                                        width: \(window.width), height: \(window.height)),
+                                    styleMask: [.titled, .closable, .miniaturizable, .resizable],
+                                    backing: .buffered, defer: false)
+                                created.title = "\(title)"
+                """
+        } else {
+            createWindow = """
+                let created = NSWindow(
+                                    contentRect: NSRect(x: 0, y: 0, width: 400, height: 600),
+                                    styleMask: [.borderless], backing: .buffered, defer: false)
+                                created.setFrameOrigin(NSPoint(x: -10_000, y: -10_000))
+                """
+        }
         return """
             @_cdecl("renderPreviewToFile")
             public func renderPreviewToFile() -> Int32 {
                 MainActor.assumeIsolated {
                     \(seed)
                     let view = \(viewCode)
-                    let bounds = NSRect(x: 0, y: 0, width: 400, height: 600)
                     let identifier = NSUserInterfaceItemIdentifier("previewsmcp-preview")
                     let window =
                         NSApplication.shared.windows.first { $0.identifier == identifier }
                         ?? {
-                            let created = NSWindow(
-                                contentRect: bounds, styleMask: [.borderless],
-                                backing: .buffered, defer: false)
+                            \(createWindow)
                             created.identifier = identifier
                             created.isReleasedWhenClosed = false
-                            created.setFrameOrigin(NSPoint(x: -10_000, y: -10_000))
                             return created
                         }()
-                    window.setContentSize(bounds.size)
                     let hosting = NSHostingView(rootView: view)
+                    hosting.sizingOptions = []
                     window.contentView = hosting
                     window.orderFrontRegardless()
                     hosting.layoutSubtreeIfNeeded()
-                    guard
+                    let bounds = hosting.bounds
+                    guard bounds.width > 0, bounds.height > 0,
                         let rep = NSBitmapImageRep(
                             bitmapDataPlanes: nil,
-                            pixelsWide: Int(bounds.width),
-                            pixelsHigh: Int(bounds.height),
+                            pixelsWide: Int(bounds.width.rounded()),
+                            pixelsHigh: Int(bounds.height.rounded()),
                             bitsPerSample: 8,
                             samplesPerPixel: 4,
                             hasAlpha: true,

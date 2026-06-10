@@ -206,7 +206,7 @@ public actor PreviewSession {
     /// file is the editable unit, `@testable import`ing a stable module prebuilt from the
     /// target's other sources, so an edit recompiles only the hot file. Standalone mode
     /// compiles the self-contained combined source as one object.
-    public func compileObjectForJIT() async throws -> JITRenderBuild {
+    public func compileObjectForJIT(window: JITRenderWindow? = nil) async throws -> JITRenderBuild {
         let source = try String(contentsOf: sourceFile, encoding: .utf8)
         let previews = PreviewParser.parse(source: source)
 
@@ -237,7 +237,8 @@ public actor PreviewSession {
             traits: traits,
             renderOutputPath: imagePath.path,
             designTimeValuesPath: valuesPath.path,
-            stableModuleImport: splitContext?.0.moduleName
+            stableModuleImport: splitContext?.0.moduleName,
+            renderWindow: window
         )
 
         let objectPath: URL
@@ -271,7 +272,8 @@ public actor PreviewSession {
                     traits: traits,
                     renderOutputPath: imagePath.path,
                     designTimeValuesPath: valuesPath.path,
-                    stableModuleImport: nil
+                    stableModuleImport: nil,
+                    renderWindow: window
                 )
                 let built = try await compiler.compileModuleIncremental(
                     overlaySource: overlay.source,

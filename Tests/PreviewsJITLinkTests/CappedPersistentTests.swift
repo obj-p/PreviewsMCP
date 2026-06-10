@@ -158,6 +158,65 @@ struct CappedPersistentTests {
         #expect(try agent.runOnMain(symbol: "preview_window_probe") == 1)
     }
 
+    @Test func bridgeAppliesWindowSpecOnCreation() async throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("window-spec-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let sourceFile = dir.appendingPathComponent("ColorView.swift")
+        try """
+        import SwiftUI
+
+        #Preview {
+            Color.green.frame(width: 8, height: 8)
+        }
+        """.write(to: sourceFile, atomically: true, encoding: .utf8)
+
+        let compiler = try await Compiler()
+        let session = PreviewSession(sourceFile: sourceFile, compiler: compiler)
+        let build = try await session.compileObjectForJIT(
+            window: JITRenderWindow(
+                x: -9000, y: -9000, width: 320, height: 240,
+                title: "Preview: ColorView.swift"))
+
+        let probe = try await compiler.compileObject(
+            source: """
+                import AppKit
+
+                @_cdecl("preview_window_spec_probe")
+                public func preview_window_spec_probe() -> Int32 {
+                    MainActor.assumeIsolated {
+                        guard
+                            let window = NSApplication.shared.windows.first(where: {
+                                $0.identifier?.rawValue == "previewsmcp-preview"
+                            })
+                        else { return -1 }
+                        var bits: Int32 = 0
+                        if window.title == "Preview: ColorView.swift" { bits |= 1 }
+                        if abs(window.frame.width - 320) < 1 { bits |= 2 }
+                        if let content = window.contentView,
+                            abs(content.bounds.height - 240) < 1
+                        {
+                            bits |= 4
+                        }
+                        if window.styleMask.contains(.titled) { bits |= 8 }
+                        return bits
+                    }
+                }
+                """,
+            moduleName: "WindowSpecProbeFixture"
+        )
+
+        let agent = try JITSession(remoteAgentPath: JITSession.bundledAgentPath())
+        try agent.addObject(path: build.objectPath.path)
+        #expect(try agent.runOnMain(symbol: build.entrySymbol) == 0)
+        try agent.newGeneration()
+        try agent.addObject(path: probe.path)
+        let bits = try agent.runOnMain(symbol: "preview_window_spec_probe")
+        #expect(bits == 15, "bits=\(bits)")
+    }
+
     @Test func reusesOneSessionAcrossFreshGenerations() async throws {
         let compiler = try await Compiler()
         let colors = [(1, 0, 0), (0, 1, 0), (0, 0, 1), (1, 0, 0), (0, 1, 0)]

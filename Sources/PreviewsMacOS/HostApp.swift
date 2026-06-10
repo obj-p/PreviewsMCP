@@ -356,12 +356,28 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
     /// Structural reload via the JIT path: compile the preview to a render-bridge
     /// object, render it in the agent, and record the agent's PNG for snapshots.
     /// Returns the image path, or nil if no reloader is injected (non-JIT build).
+    ///
+    /// For a visible session the daemon's window frame and title are baked into the
+    /// bridge so the agent shows its own live window there, and the daemon's dylib
+    /// window is ordered out after the first successful agent render — the agent
+    /// window is the interactive surface from then on.
     @discardableResult
     public func jitStructuralReload(sessionID: String, session: PreviewSession) async throws -> URL? {
         guard let reloader = structuralReloader else { return nil }
-        let build = try await session.compileObjectForJIT()
+        let spec = windows[sessionID].flatMap { window -> JITRenderWindow? in
+            guard window.styleMask.contains(.titled) else { return nil }
+            return JITRenderWindow(
+                x: window.frame.origin.x,
+                y: window.frame.origin.y,
+                width: window.contentLayoutRect.width,
+                height: window.contentLayoutRect.height,
+                title: window.title
+            )
+        }
+        let build = try await session.compileObjectForJIT(window: spec)
         try await reloader.render(build)
         agentImagePaths[sessionID] = build.imagePath
+        if spec != nil { windows[sessionID]?.orderOut(nil) }
         return build.imagePath
     }
 
