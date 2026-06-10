@@ -101,6 +101,63 @@ struct CappedPersistentTests {
         }
     }
 
+    @Test func bridgeReusesPreviewWindowAcrossGenerations() async throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("window-reuse-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let sourceFile = dir.appendingPathComponent("ColorView.swift")
+        let compiler = try await Compiler()
+        let session = PreviewSession(sourceFile: sourceFile, compiler: compiler)
+
+        var builds: [JITRenderBuild] = []
+        for body in ["Color.red", "Color.blue"] {
+            try """
+            import SwiftUI
+
+            #Preview {
+                \(body).frame(width: 8, height: 8)
+            }
+            """.write(to: sourceFile, atomically: true, encoding: .utf8)
+            builds.append(try await session.compileObjectForJIT())
+        }
+
+        let probe = try await compiler.compileObject(
+            source: """
+                import AppKit
+
+                @_cdecl("preview_window_probe")
+                public func preview_window_probe() -> Int32 {
+                    MainActor.assumeIsolated {
+                        Int32(
+                            NSApplication.shared.windows.filter {
+                                $0.identifier?.rawValue == "previewsmcp-preview"
+                            }.count)
+                    }
+                }
+                """,
+            moduleName: "WindowProbeFixture"
+        )
+
+        let agent = try JITSession(remoteAgentPath: JITSession.bundledAgentPath())
+        for (index, build) in builds.enumerated() {
+            if index > 0 { try agent.newGeneration() }
+            try agent.addObject(path: build.objectPath.path)
+            #expect(try agent.runOnMain(symbol: build.entrySymbol) == 0)
+            let rep = try #require(
+                NSBitmapImageRep(data: Data(contentsOf: build.imagePath)))
+            let color = try #require(
+                rep.colorAt(x: rep.pixelsWide / 2, y: rep.pixelsHigh / 2)?
+                    .usingColorSpace(.deviceRGB))
+            #expect((index == 0) == (color.redComponent > 0.5))
+            #expect((index == 1) == (color.blueComponent > 0.5))
+        }
+        try agent.newGeneration()
+        try agent.addObject(path: probe.path)
+        #expect(try agent.runOnMain(symbol: "preview_window_probe") == 1)
+    }
+
     @Test func reusesOneSessionAcrossFreshGenerations() async throws {
         let compiler = try await Compiler()
         let colors = [(1, 0, 0), (0, 1, 0), (0, 0, 1), (1, 0, 0), (0, 1, 0)]

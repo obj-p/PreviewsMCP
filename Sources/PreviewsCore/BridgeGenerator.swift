@@ -265,6 +265,11 @@ public enum BridgeGenerator {
     /// blank raster for them), captures at a deterministic 1x like `Snapshot.capture`,
     /// and writes a PNG to `path`. Nullary so it runs over the agent's `runOnMain`
     /// surface; the path is baked in (the daemon recompiles per structural edit).
+    ///
+    /// The window is process-persistent: each generation's entry looks it up by
+    /// identifier in the agent's window list and swaps its content view, so the agent
+    /// keeps one live window across structural edits (single-renderer consolidation).
+    /// AppKit state is shared across JITDylib generations; the entry's own globals are not.
     private static func renderToFileEntryPoint(
         viewCode: String, path: String, valuesPath: String?
     ) -> String {
@@ -286,15 +291,23 @@ public enum BridgeGenerator {
                     \(seed)
                     let view = \(viewCode)
                     let bounds = NSRect(x: 0, y: 0, width: 400, height: 600)
-                    let window = NSWindow(
-                        contentRect: bounds, styleMask: [.borderless], backing: .buffered,
-                        defer: false)
+                    let identifier = NSUserInterfaceItemIdentifier("previewsmcp-preview")
+                    let window =
+                        NSApplication.shared.windows.first { $0.identifier == identifier }
+                        ?? {
+                            let created = NSWindow(
+                                contentRect: bounds, styleMask: [.borderless],
+                                backing: .buffered, defer: false)
+                            created.identifier = identifier
+                            created.isReleasedWhenClosed = false
+                            created.setFrameOrigin(NSPoint(x: -10_000, y: -10_000))
+                            return created
+                        }()
+                    window.setContentSize(bounds.size)
                     let hosting = NSHostingView(rootView: view)
                     window.contentView = hosting
-                    window.setFrameOrigin(NSPoint(x: -10_000, y: -10_000))
                     window.orderFrontRegardless()
                     hosting.layoutSubtreeIfNeeded()
-                    defer { window.orderOut(nil) }
                     guard
                         let rep = NSBitmapImageRep(
                             bitmapDataPlanes: nil,
