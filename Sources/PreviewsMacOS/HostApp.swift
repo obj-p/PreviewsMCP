@@ -363,8 +363,15 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
     /// window is the interactive surface from then on.
     @discardableResult
     public func jitStructuralReload(sessionID: String, session: PreviewSession) async throws -> URL? {
-        guard let reloader = structuralReloader else { return nil }
-        let spec = windows[sessionID].flatMap { window -> JITRenderWindow? in
+        guard structuralReloader != nil else { return nil }
+        let build = try await session.compileObjectForJIT(window: agentWindowSpec(for: sessionID))
+        return try await jitRender(sessionID: sessionID, build: build)
+    }
+
+    /// The window placement to bake into a JIT build for this session: the daemon
+    /// window's frame and title when the session is visible, nil when headless.
+    public func agentWindowSpec(for sessionID: String) -> JITRenderWindow? {
+        windows[sessionID].flatMap { window -> JITRenderWindow? in
             guard window.styleMask.contains(.titled) else { return nil }
             return JITRenderWindow(
                 x: window.frame.origin.x,
@@ -374,10 +381,19 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
                 title: window.title
             )
         }
-        let build = try await session.compileObjectForJIT(window: spec)
+    }
+
+    /// Render a JIT build in the agent and make its PNG the session's snapshot source.
+    /// The daemon's dylib window is ordered out — once a session is agent-backed, the
+    /// agent's window is the interactive surface.
+    @discardableResult
+    public func jitRender(sessionID: String, build: JITRenderBuild) async throws -> URL {
+        guard let reloader = structuralReloader else {
+            throw SnapshotError.captureFailed
+        }
         try await reloader.render(build)
         agentImagePaths[sessionID] = build.imagePath
-        if spec != nil { windows[sessionID]?.orderOut(nil) }
+        windows[sessionID]?.orderOut(nil)
         return build.imagePath
     }
 

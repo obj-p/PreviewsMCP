@@ -524,6 +524,39 @@ public actor PreviewSession {
         return try await compile()
     }
 
+    /// JIT counterpart of `switchPreview`: same index mutation and rollback-on-failure,
+    /// compiled for the agent render path instead of a dylib.
+    public func switchPreviewForJIT(
+        to newIndex: Int, window: JITRenderWindow? = nil
+    ) async throws -> JITRenderBuild {
+        let oldIndex = previewIndex
+        previewIndex = newIndex
+        do {
+            return try await compileObjectForJIT(window: window)
+        } catch {
+            previewIndex = oldIndex
+            throw error
+        }
+    }
+
+    /// JIT counterpart of `reconfigure`: merge-and-clear traits, compile for the agent.
+    public func reconfigureForJIT(
+        traits: PreviewTraits,
+        clearing: Set<PreviewTraits.Field> = [],
+        window: JITRenderWindow? = nil
+    ) async throws -> JITRenderBuild {
+        self.traits = self.traits.merged(with: traits).clearing(clearing)
+        return try await compileObjectForJIT(window: window)
+    }
+
+    /// JIT counterpart of `setTraits`: replace traits entirely, compile for the agent.
+    public func setTraitsForJIT(
+        _ newTraits: PreviewTraits, window: JITRenderWindow? = nil
+    ) async throws -> JITRenderBuild {
+        self.traits = newTraits
+        return try await compileObjectForJIT(window: window)
+    }
+
     /// A fresh, globally-unique module-name suffix (a valid Swift identifier) so the editable
     /// unit's classes (e.g. `DesignTimeStore`) mangle distinctly on every compile. Without it,
     /// the capped-persistent agent re-registers the same ObjC class across generations.
