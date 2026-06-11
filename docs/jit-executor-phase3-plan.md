@@ -1049,3 +1049,68 @@ symlink is NOT enough — the content-hash-cached manifest bakes in
 warm the stable module in the background right after start). Then #195,
 session-sized agent renders, content-based assertions, dylib fallback
 decision, iOS JIT.
+
+## Update 2026-06-10 (4): latency profiled — the feared first-edit cost moved to start
+
+Instrumented the structural path with `jit_latency:` stage markers
+(`Log.info` in `compileObjectForJIT` and `JITStructuralReloader.render`,
+elapsed ms via `Log.millis`) and profiled the SPM example through the
+daemon. The premise of the previous update's candidate fix is gone:
+since #198 the session START runs `compileObjectForJIT`, so it absorbs
+the stable-module attempt, the `bulkIsNonLeaf` latch, and the first
+agent spawn. There is no ~20s edit any more.
+
+Measured (warm example `.build`):
+
+- Start ≈ 4s total: SPMBuildSystem 1.9s, failed stable-module attempt
+  200ms (the SPM example is non-leaf by design: `ToDoProviderPreview`
+  references `ToDoView`), whole-module incremental compile 480ms,
+  agent spawn 16ms, add-deps 215ms, render-entry 111ms. Cold `.build`
+  (fresh worktree) pushes start to ~21s, all SPMBuildSystem.
+- Steady-state structural edit ≈ 816ms save-to-pixels: watcher + glue
+  ~120ms, `swiftc -incremental` driver run 486ms (only the hot file
+  recompiles), agent respawn 19ms, add-objects ~0ms, render-entry
+  111ms. Respawn and linking are NOT the problem.
+- Background stable-module warm would buy nothing here: the latch means
+  the stable module is never used, and the failed attempt costs 200ms
+  once at start.
+
+**Investigation results (the markers land with this PR).** The per-edit
+compile cost is a FIXED `swift-frontend` invocation cost, nearly
+independent of file size: the 134-line non-leaf overlay costs 346ms and
+the 14-line leaf overlay costs 374ms. Captured the live invocation via
+`ps` polling and replayed it: no-op driver run 40ms, touched-overlay
+driver run 400ms, direct frontend run 360ms — so bypassing the driver
+saves only ~40-80ms. `-stats-output-dir` split of the frontend run:
+sema 166ms (typecheck-decl 68ms, typecheck-stmt 57ms), import
+resolution 57ms (SwiftUI + Lottie re-resolved every edit), IRGen +
+SILGen 55ms. The lever is amortizing the per-invocation fixed cost
+(persistent frontend process, module/CAS caching, or a smaller compile
+unit), not driver bypass and not shrinking the file.
+
+The other buckets:
+
+- Leaf path (session on `ToDoProviderPreview.swift`): stable-module
+  emit 463ms once at start, cached 0ms after; leaf structural edit
+  ~527ms save-to-pixels (overlay-compile 374ms, generation on the live
+  agent 0ms — no respawn, render-entry 64ms).
+- render-entry split: a literal re-run of the same generation is 43ms
+  (SwiftUI render + PNG write), so the 64-114ms structural render-entry
+  carries ~50-70ms of JIT materialization + generation setup.
+- Watcher + glue: FSEvents fires 9-58ms after save (50ms latency
+  window), then 6-44ms of read + literal-diff + parse. Not a target.
+- Literal edits are already under the design target: ~136ms
+  save-to-pixels, render-entry-literal 43ms.
+- Skipped: synthetic module-size scaling (fixed costs dominate, size
+  barely matters) and re-profiling xcodeproj/xcworkspace (their
+  ~25-30s cross-file reload is xcodebuild bulk-rebuild, start-latency
+  class, folded into the start goal).
+
+Per-edit budget today: leaf ~527ms, non-leaf ~800ms, vs <200ms target.
+Start latency (SPMBuildSystem 1.9s warm, ~20s cold) is a separate goal.
+
+**Next:** pick the compile lever — persistent frontend, module caching,
+or a smaller per-edit compile unit — informed by the parallel Xcode
+Previews (XOJIT) reverse-engineering session before prototyping. Then
+shave the ~50-70ms materialization if the chosen lever lands near the
+line.

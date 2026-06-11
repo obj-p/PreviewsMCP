@@ -45,6 +45,13 @@ public enum Log {
         write("ERROR: \(message)")
     }
 
+    public static func millis(
+        _ start: ContinuousClock.Instant, _ end: ContinuousClock.Instant
+    ) -> Int64 {
+        let d = start.duration(to: end)
+        return d.components.seconds * 1000 + d.components.attoseconds / 1_000_000_000_000_000
+    }
+
     private static let timestampFormatter: DateFormatter = {
         let f = DateFormatter()
         f.dateFormat = "HH:mm:ss.SSS"

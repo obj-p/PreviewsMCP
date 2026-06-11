@@ -191,6 +191,7 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
         fileWatchers[sessionID] = try? FileWatcher(paths: allPaths) { [weak self] _ in
             Task {
                 guard let self else { return }
+                Log.info("jit_latency: watch-fire")
 
                 let newSource: String
                 do {
