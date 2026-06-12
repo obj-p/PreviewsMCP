@@ -266,10 +266,14 @@ extension SetupAssistantSequence {
                 }
                 let url = screenshotDir.appending(
                     path: String(format: "%02d-%@.png", screenshotIndex, label))
-                try await MainActor.run {
-                    try Screenshot.captureWindow(host.window, to: url)
+                do {
+                    try await MainActor.run {
+                        try Screenshot.captureWindow(host.window, to: url)
+                    }
+                    Log.info("[SA/VNC step \(stepIndex)] screenshot → \(url.lastPathComponent)")
+                } catch {
+                    Log.info("[SA/VNC step \(stepIndex)] screenshot \(label) skipped (non-fatal): \(error)")
                 }
-                Log.info("[SA/VNC step \(stepIndex)] screenshot → \(url.lastPathComponent)")
 
             case .log(let message):
                 Log.info("[SA/VNC step \(stepIndex)] \(message)")

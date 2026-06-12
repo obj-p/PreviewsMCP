@@ -495,6 +495,35 @@ struct SetupCommand: AsyncParsableCommand {
             .map { String(format: "%02x", $0) }
             .joined()
 
+        // dtrace exec/exit tracer (Q1/Q3/Q4/Q5 timing). SIP is off in this
+        // VM, so the proc provider is available — the host-side W3 work
+        // could not use it. Traces every preview-pipeline process spawn +
+        // exit with a walltimestamp (ns since epoch, same clock as the
+        // W3MARKER `logger` execs), so per edit we get: marker (save) →
+        // swift-frontend exec/exit (compile, and whether it is one fresh
+        // process per edit) → XCPreviewAgent exec (respawn). pr_psargs is
+        // the (truncated) argv, enough to confirm the single -primary-file
+        // shape in-VM; the full argv is the host W4 capture.
+        let dtraceD = #"""
+            #pragma D option quiet
+            #pragma D option switchrate=10hz
+
+            proc:::exec-success
+            /execname == "swift-frontend" || execname == "swiftc" || execname == "swift-driver" || execname == "swift-plugin-server" || execname == "clang" || execname == "ld" || execname == "XCPreviewAgent" || execname == "previewsd" || execname == "logger"/
+            {
+                printf("%d EXEC %s pid=%d ppid=%d args=%s\n", walltimestamp, execname, pid, ppid, curpsinfo->pr_psargs);
+            }
+
+            proc:::exit
+            /execname == "swift-frontend" || execname == "swiftc" || execname == "swift-driver" || execname == "swift-plugin-server" || execname == "clang" || execname == "ld" || execname == "XCPreviewAgent" || execname == "previewsd"/
+            {
+                printf("%d EXIT %s pid=%d\n", walltimestamp, execname, pid);
+            }
+            """#
+        let dtraceHex = dtraceD.utf8
+            .map { String(format: "%02x", $0) }
+            .joined()
+
         // mach-o-add-dylib.c (LC_LOAD_DYLIB injector) and
         // mem-diff-helper.c (mach_vm_read snapshot/diff) are loaded
         // from the repo's `research/scripts/data/w3/` rather than
@@ -911,6 +940,23 @@ struct SetupCommand: AsyncParsableCommand {
                 expectContains: "AGENT_UP"),
             .screenshot(label: "04-agent-up"),
 
+            // Start the dtrace exec/exit tracer AFTER the agent is up.
+            // Started before canvas-open it added per-exec overhead during
+            // Xcode's heavy startup and the agent never spawned within
+            // previewsd's window (two attempts failed at AGENT_UP). We
+            // therefore forgo the cold first-compile/first-JIT-link and
+            // capture all 12 edits' compile + respawn timing, which is the
+            // core of Q1/Q5 (and per-edit Q3/Q4). Deploy via hex+xxd, then
+            // run under sudo detached (full fd redirection so SSH returns).
+            .hostShell(
+                command: remote("printf %s \(dtraceHex) | xxd -r -p > /tmp/q1-trace.d && wc -l /tmp/q1-trace.d && echo DTRACE_SRC_DEPLOYED"),
+                label: "deploy dtrace script",
+                expectContains: "DTRACE_SRC_DEPLOYED"),
+            .hostShell(
+                command: remote("echo previewsvm | sudo -S sh -c 'nohup dtrace -q -s /tmp/q1-trace.d -o /tmp/q1-dtrace.log > /tmp/q1-dtrace.out 2>/tmp/q1-dtrace.err < /dev/null & echo $! > /tmp/q1-dtrace.pid'; sleep 5; pgrep -x dtrace > /dev/null && echo DTRACE_OK || { echo DTRACE_FAILED; cat /tmp/q1-dtrace.err 2>/dev/null; }"),
+                label: "start dtrace exec/exit tracer",
+                expectContains: "DTRACE_OK"),
+
             // Diagnostic: did our interposer dylib actually load into
             // the agent? The constructor in interposer.c appends a
             // `loaded pid=… exe=…` line to /tmp/w3-interposer.log when
@@ -960,7 +1006,7 @@ struct SetupCommand: AsyncParsableCommand {
                 label: "mem-diff snapshot before edit 1",
                 expectContains: "SNAP_BEFORE_E1_OK"),
             .hostShell(
-                command: remote("sed -i.bak s/World/Earth/g /Users/admin/HelloPreview/Sources/HelloPreview/ContentView.swift && grep Earth /Users/admin/HelloPreview/Sources/HelloPreview/ContentView.swift > /dev/null && echo EDIT1_OK"),
+                command: remote("sed -i.bak s/World/Earth/g /Users/admin/HelloPreview/Sources/HelloPreview/ContentView.swift && grep Earth /Users/admin/HelloPreview/Sources/HelloPreview/ContentView.swift > /dev/null && logger \"W3MARKER e1 body-literal-same-file saved\" && echo EDIT1_OK"),
                 label: "edit 1: body-literal-same-file (World→Earth)",
                 expectContains: "EDIT1_OK"),
             .log("waiting 30s for edit-1 hot-reload"),
@@ -977,7 +1023,7 @@ struct SetupCommand: AsyncParsableCommand {
                 label: "mem-diff snapshot before edit 2",
                 expectContains: "SNAP_BEFORE_E2_OK"),
             .hostShell(
-                command: remote("sed -i.bak s/Hello/Howdy/g /Users/admin/HelloPreview/Sources/HelloPreview/Model.swift && grep Howdy /Users/admin/HelloPreview/Sources/HelloPreview/Model.swift > /dev/null && echo EDIT2_OK"),
+                command: remote("sed -i.bak s/Hello/Howdy/g /Users/admin/HelloPreview/Sources/HelloPreview/Model.swift && grep Howdy /Users/admin/HelloPreview/Sources/HelloPreview/Model.swift > /dev/null && logger \"W3MARKER e2 body-literal-cross-file saved\" && echo EDIT2_OK"),
                 label: "edit 2: body-literal-cross-file (Hello→Howdy in Model.swift)",
                 expectContains: "EDIT2_OK"),
             .log("waiting 30s for edit-2 hot-reload"),
@@ -997,7 +1043,7 @@ struct SetupCommand: AsyncParsableCommand {
                 label: "mem-diff snapshot before edit 3",
                 expectContains: "SNAP_BEFORE_E3_OK"),
             .hostShell(
-                command: remote("cat > /Users/admin/HelloPreview/Sources/HelloPreview/ContentView.swift << 'SWEOF'\nimport SwiftUI\n\npublic struct ContentView: View {\n    public init() {}\n    let greeter = Greeter()\n    func decorate(_ s: String) -> String { s.uppercased() }\n    public var body: some View {\n        VStack {\n            Text(greeter.prefix).font(.title)\n            Text(\"Earth\").foregroundColor(.blue)\n        }\n        .padding()\n        .frame(width: 200, height: 120)\n    }\n}\n\n#Preview {\n    ContentView()\n}\nSWEOF\ngrep decorate /Users/admin/HelloPreview/Sources/HelloPreview/ContentView.swift > /dev/null && echo EDIT3_OK"),
+                command: remote("cat > /Users/admin/HelloPreview/Sources/HelloPreview/ContentView.swift << 'SWEOF'\nimport SwiftUI\n\npublic struct ContentView: View {\n    public init() {}\n    let greeter = Greeter()\n    func decorate(_ s: String) -> String { s.uppercased() }\n    public var body: some View {\n        VStack {\n            Text(greeter.prefix).font(.title)\n            Text(\"Earth\").foregroundColor(.blue)\n        }\n        .padding()\n        .frame(width: 200, height: 120)\n    }\n}\n\n#Preview {\n    ContentView()\n}\nSWEOF\ngrep decorate /Users/admin/HelloPreview/Sources/HelloPreview/ContentView.swift > /dev/null && logger \"W3MARKER e3 add-method saved\" && echo EDIT3_OK"),
                 label: "edit 3: add-method (new func decorate)",
                 expectContains: "EDIT3_OK"),
             .log("waiting 30s for edit-3 hot-reload"),
@@ -1017,7 +1063,7 @@ struct SetupCommand: AsyncParsableCommand {
                 label: "mem-diff snapshot before edit 4",
                 expectContains: "SNAP_BEFORE_E4_OK"),
             .hostShell(
-                command: remote("cat > /Users/admin/HelloPreview/Sources/HelloPreview/ContentView.swift << 'SWEOF'\nimport SwiftUI\n\npublic struct ContentView: View {\n    public init() {}\n    let greeter = Greeter()\n    @State private var counter: Int = 0\n    func decorate(_ s: String) -> String { s.uppercased() }\n    public var body: some View {\n        VStack {\n            Text(greeter.prefix).font(.title)\n            Text(\"Earth\").foregroundColor(.blue)\n            Text(\"counter=\\(counter)\")\n        }\n        .padding()\n        .frame(width: 200, height: 160)\n    }\n}\n\n#Preview {\n    ContentView()\n}\nSWEOF\ngrep '@State' /Users/admin/HelloPreview/Sources/HelloPreview/ContentView.swift > /dev/null && echo EDIT4_OK"),
+                command: remote("cat > /Users/admin/HelloPreview/Sources/HelloPreview/ContentView.swift << 'SWEOF'\nimport SwiftUI\n\npublic struct ContentView: View {\n    public init() {}\n    let greeter = Greeter()\n    @State private var counter: Int = 0\n    func decorate(_ s: String) -> String { s.uppercased() }\n    public var body: some View {\n        VStack {\n            Text(greeter.prefix).font(.title)\n            Text(\"Earth\").foregroundColor(.blue)\n            Text(\"counter=\\(counter)\")\n        }\n        .padding()\n        .frame(width: 200, height: 160)\n    }\n}\n\n#Preview {\n    ContentView()\n}\nSWEOF\ngrep '@State' /Users/admin/HelloPreview/Sources/HelloPreview/ContentView.swift > /dev/null && logger \"W3MARKER e4 add-state saved\" && echo EDIT4_OK"),
                 label: "edit 4: add-state (@State property)",
                 expectContains: "EDIT4_OK"),
             .log("waiting 30s for edit-4 hot-reload"),
@@ -1038,7 +1084,7 @@ struct SetupCommand: AsyncParsableCommand {
                 label: "mem-diff snapshot before edit 5",
                 expectContains: "SNAP_BEFORE_E5_OK"),
             .hostShell(
-                command: remote("cat > /Users/admin/HelloPreview/Sources/HelloPreview/ContentView.swift << 'SWEOF'\nimport SwiftUI\n\npublic struct ContentView: View {\n    public init() {}\n    let greeter = Greeter()\n    func decorate(_ s: String) -> String { s.uppercased() }\n    public var body: some View {\n        VStack {\n            Text(greeter.prefix).font(.title)\n            Text(\"Earth\").foregroundColor(.blue)\n        }\n        .padding()\n        .frame(width: 200, height: 160)\n    }\n}\n\n#Preview {\n    ContentView()\n}\nSWEOF\n! grep '@State' /Users/admin/HelloPreview/Sources/HelloPreview/ContentView.swift > /dev/null && echo EDIT5_OK"),
+                command: remote("cat > /Users/admin/HelloPreview/Sources/HelloPreview/ContentView.swift << 'SWEOF'\nimport SwiftUI\n\npublic struct ContentView: View {\n    public init() {}\n    let greeter = Greeter()\n    func decorate(_ s: String) -> String { s.uppercased() }\n    public var body: some View {\n        VStack {\n            Text(greeter.prefix).font(.title)\n            Text(\"Earth\").foregroundColor(.blue)\n        }\n        .padding()\n        .frame(width: 200, height: 160)\n    }\n}\n\n#Preview {\n    ContentView()\n}\nSWEOF\n! grep '@State' /Users/admin/HelloPreview/Sources/HelloPreview/ContentView.swift > /dev/null && logger \"W3MARKER e5 remove-stored-property saved\" && echo EDIT5_OK"),
                 label: "edit 5: remove-stored-property (drop @State counter)",
                 expectContains: "EDIT5_OK"),
             .log("waiting 30s for edit-5 hot-reload"),
@@ -1058,7 +1104,7 @@ struct SetupCommand: AsyncParsableCommand {
                 label: "mem-diff snapshot before edit 6",
                 expectContains: "SNAP_BEFORE_E6_OK"),
             .hostShell(
-                command: remote("cat > /Users/admin/HelloPreview/Sources/HelloPreview/ContentView.swift << 'SWEOF'\nimport SwiftUI\n\npublic struct ContentView: View {\n    public init() {}\n    let greeter = Greeter()\n    func decorate(_ s: String, suffix: String = \"!\") -> String { s.uppercased() + suffix }\n    public var body: some View {\n        VStack {\n            Text(greeter.prefix).font(.title)\n            Text(\"Earth\").foregroundColor(.blue)\n        }\n        .padding()\n        .frame(width: 200, height: 160)\n    }\n}\n\n#Preview {\n    ContentView()\n}\nSWEOF\ngrep 'suffix: String' /Users/admin/HelloPreview/Sources/HelloPreview/ContentView.swift > /dev/null && echo EDIT6_OK"),
+                command: remote("cat > /Users/admin/HelloPreview/Sources/HelloPreview/ContentView.swift << 'SWEOF'\nimport SwiftUI\n\npublic struct ContentView: View {\n    public init() {}\n    let greeter = Greeter()\n    func decorate(_ s: String, suffix: String = \"!\") -> String { s.uppercased() + suffix }\n    public var body: some View {\n        VStack {\n            Text(greeter.prefix).font(.title)\n            Text(\"Earth\").foregroundColor(.blue)\n        }\n        .padding()\n        .frame(width: 200, height: 160)\n    }\n}\n\n#Preview {\n    ContentView()\n}\nSWEOF\ngrep 'suffix: String' /Users/admin/HelloPreview/Sources/HelloPreview/ContentView.swift > /dev/null && logger \"W3MARKER e6 function-sig-change saved\" && echo EDIT6_OK"),
                 label: "edit 6: function-sig change (decorate adds suffix param)",
                 expectContains: "EDIT6_OK"),
             .log("waiting 30s for edit-6 hot-reload"),
@@ -1077,7 +1123,7 @@ struct SetupCommand: AsyncParsableCommand {
                 label: "mem-diff snapshot before edit 7",
                 expectContains: "SNAP_BEFORE_E7_OK"),
             .hostShell(
-                command: remote("cat > /Users/admin/HelloPreview/Sources/HelloPreview/Extras.swift << 'EXEOF'\npublic struct Decoration {\n    public init() {}\n    public var symbol: String = \"*\"\n}\nEXEOF\ncat > /Users/admin/HelloPreview/Sources/HelloPreview/ContentView.swift << 'SWEOF'\nimport SwiftUI\n\npublic struct ContentView: View {\n    public init() {}\n    let greeter = Greeter()\n    let decoration = Decoration()\n    func decorate(_ s: String, suffix: String = \"!\") -> String { s.uppercased() + suffix }\n    public var body: some View {\n        VStack {\n            Text(greeter.prefix + decoration.symbol).font(.title)\n            Text(\"Earth\").foregroundColor(.blue)\n        }\n        .padding()\n        .frame(width: 200, height: 160)\n    }\n}\n\n#Preview {\n    ContentView()\n}\nSWEOF\ntest -f /Users/admin/HelloPreview/Sources/HelloPreview/Extras.swift && grep Decoration /Users/admin/HelloPreview/Sources/HelloPreview/ContentView.swift > /dev/null && echo EDIT7_OK"),
+                command: remote("cat > /Users/admin/HelloPreview/Sources/HelloPreview/Extras.swift << 'EXEOF'\npublic struct Decoration {\n    public init() {}\n    public var symbol: String = \"*\"\n}\nEXEOF\ncat > /Users/admin/HelloPreview/Sources/HelloPreview/ContentView.swift << 'SWEOF'\nimport SwiftUI\n\npublic struct ContentView: View {\n    public init() {}\n    let greeter = Greeter()\n    let decoration = Decoration()\n    func decorate(_ s: String, suffix: String = \"!\") -> String { s.uppercased() + suffix }\n    public var body: some View {\n        VStack {\n            Text(greeter.prefix + decoration.symbol).font(.title)\n            Text(\"Earth\").foregroundColor(.blue)\n        }\n        .padding()\n        .frame(width: 200, height: 160)\n    }\n}\n\n#Preview {\n    ContentView()\n}\nSWEOF\ntest -f /Users/admin/HelloPreview/Sources/HelloPreview/Extras.swift && grep Decoration /Users/admin/HelloPreview/Sources/HelloPreview/ContentView.swift > /dev/null && logger \"W3MARKER e7 new-file-new-type saved\" && echo EDIT7_OK"),
                 label: "edit 7: new file Extras.swift + use it in ContentView",
                 expectContains: "EDIT7_OK"),
             .log("waiting 30s for edit-7 hot-reload"),
@@ -1098,7 +1144,7 @@ struct SetupCommand: AsyncParsableCommand {
                 label: "mem-diff snapshot before edit 8",
                 expectContains: "SNAP_BEFORE_E8_OK"),
             .hostShell(
-                command: remote("cat > /Users/admin/HelloPreview/Sources/HelloPreview/Model.swift << 'MDEOF'\npublic struct Greeter {\n    public init() {}\n    public var prefix: String = \"Howdy\"\n}\n\nextension Greeter: CustomStringConvertible {\n    public var description: String { prefix }\n}\nMDEOF\ngrep CustomStringConvertible /Users/admin/HelloPreview/Sources/HelloPreview/Model.swift > /dev/null && echo EDIT8_OK"),
+                command: remote("cat > /Users/admin/HelloPreview/Sources/HelloPreview/Model.swift << 'MDEOF'\npublic struct Greeter {\n    public init() {}\n    public var prefix: String = \"Howdy\"\n}\n\nextension Greeter: CustomStringConvertible {\n    public var description: String { prefix }\n}\nMDEOF\ngrep CustomStringConvertible /Users/admin/HelloPreview/Sources/HelloPreview/Model.swift > /dev/null && logger \"W3MARKER e8 conformance-addition saved\" && echo EDIT8_OK"),
                 label: "edit 8: conformance addition (Greeter: CustomStringConvertible)",
                 expectContains: "EDIT8_OK"),
             .log("waiting 30s for edit-8 hot-reload"),
@@ -1118,7 +1164,7 @@ struct SetupCommand: AsyncParsableCommand {
                 label: "mem-diff snapshot before edit 9",
                 expectContains: "SNAP_BEFORE_E9_OK"),
             .hostShell(
-                command: remote("sed -i.bak '/^public struct ContentView/i\\\n// w3-whitespace-edit-marker\n' /Users/admin/HelloPreview/Sources/HelloPreview/ContentView.swift && grep w3-whitespace-edit-marker /Users/admin/HelloPreview/Sources/HelloPreview/ContentView.swift > /dev/null && echo EDIT9_OK"),
+                command: remote("sed -i.bak '/^public struct ContentView/i\\\n// w3-whitespace-edit-marker\n' /Users/admin/HelloPreview/Sources/HelloPreview/ContentView.swift && grep w3-whitespace-edit-marker /Users/admin/HelloPreview/Sources/HelloPreview/ContentView.swift > /dev/null && logger \"W3MARKER e9 whitespace-only saved\" && echo EDIT9_OK"),
                 label: "edit 9: whitespace-only (insert comment line)",
                 expectContains: "EDIT9_OK"),
             .log("waiting 30s for edit-9 hot-reload"),
@@ -1139,7 +1185,7 @@ struct SetupCommand: AsyncParsableCommand {
                 label: "mem-diff snapshot before edit 10",
                 expectContains: "SNAP_BEFORE_E10_OK"),
             .hostShell(
-                command: remote("cat > /Users/admin/HelloPreview/Sources/HelloPreview/ContentView.swift << 'SWEOF'\nimport SwiftUI\n\npublic struct ContentView: View {\n    public init() {}\n    let greeter = Greeter()\n    let decoration = Decoration()\n    func decorate<T: CustomStringConvertible>(_ s: T, suffix: String = \"!\") -> String { \"\\(s)\".uppercased() + suffix }\n    public var body: some View {\n        VStack {\n            Text(greeter.prefix + decoration.symbol).font(.title)\n            Text(\"Earth\").foregroundColor(.blue)\n        }\n        .padding()\n        .frame(width: 200, height: 160)\n    }\n}\n\n#Preview {\n    ContentView()\n}\nSWEOF\ngrep '<T: CustomStringConvertible>' /Users/admin/HelloPreview/Sources/HelloPreview/ContentView.swift > /dev/null && echo EDIT10_OK"),
+                command: remote("cat > /Users/admin/HelloPreview/Sources/HelloPreview/ContentView.swift << 'SWEOF'\nimport SwiftUI\n\npublic struct ContentView: View {\n    public init() {}\n    let greeter = Greeter()\n    let decoration = Decoration()\n    func decorate<T: CustomStringConvertible>(_ s: T, suffix: String = \"!\") -> String { \"\\(s)\".uppercased() + suffix }\n    public var body: some View {\n        VStack {\n            Text(greeter.prefix + decoration.symbol).font(.title)\n            Text(\"Earth\").foregroundColor(.blue)\n        }\n        .padding()\n        .frame(width: 200, height: 160)\n    }\n}\n\n#Preview {\n    ContentView()\n}\nSWEOF\ngrep '<T: CustomStringConvertible>' /Users/admin/HelloPreview/Sources/HelloPreview/ContentView.swift > /dev/null && logger \"W3MARKER e10 generic-parameter-add saved\" && echo EDIT10_OK"),
                 label: "edit 10: generic-parameter add (decorate becomes generic)",
                 expectContains: "EDIT10_OK"),
             .log("waiting 30s for edit-10 hot-reload"),
@@ -1159,7 +1205,7 @@ struct SetupCommand: AsyncParsableCommand {
                 label: "mem-diff snapshot before edit 11",
                 expectContains: "SNAP_BEFORE_E11_OK"),
             .hostShell(
-                command: remote("cat > /Users/admin/HelloPreview/Sources/HelloPreview/ContentView.swift << 'SWEOF'\nimport SwiftUI\n\npublic struct ContentView: View {\n    public init() {}\n    let greeter = Greeter()\n    let decoration = Decoration()\n    func decorate<T: CustomStringConvertible>(_ s: T, suffix: String = \"!\") -> String { \"\\(s)\".uppercased() + suffix }\n    public var body: some View {\n        VStack {\n            Text(greeter.prefix + decoration.symbol).font(.title)\n            Text(\"Mars\").foregroundColor(.purple)\n        }\n        .padding()\n        .frame(width: 200, height: 160)\n    }\n}\n\n#Preview {\n    ContentView()\n}\nSWEOF\ncat > /Users/admin/HelloPreview/Sources/HelloPreview/Model.swift << 'MDEOF'\npublic struct Greeter {\n    public init() {}\n    public var prefix: String = \"Aloha\"\n}\n\nextension Greeter: CustomStringConvertible {\n    public var description: String { prefix }\n}\nMDEOF\ngrep Mars /Users/admin/HelloPreview/Sources/HelloPreview/ContentView.swift > /dev/null && grep Aloha /Users/admin/HelloPreview/Sources/HelloPreview/Model.swift > /dev/null && echo EDIT11_OK"),
+                command: remote("cat > /Users/admin/HelloPreview/Sources/HelloPreview/ContentView.swift << 'SWEOF'\nimport SwiftUI\n\npublic struct ContentView: View {\n    public init() {}\n    let greeter = Greeter()\n    let decoration = Decoration()\n    func decorate<T: CustomStringConvertible>(_ s: T, suffix: String = \"!\") -> String { \"\\(s)\".uppercased() + suffix }\n    public var body: some View {\n        VStack {\n            Text(greeter.prefix + decoration.symbol).font(.title)\n            Text(\"Mars\").foregroundColor(.purple)\n        }\n        .padding()\n        .frame(width: 200, height: 160)\n    }\n}\n\n#Preview {\n    ContentView()\n}\nSWEOF\ncat > /Users/admin/HelloPreview/Sources/HelloPreview/Model.swift << 'MDEOF'\npublic struct Greeter {\n    public init() {}\n    public var prefix: String = \"Aloha\"\n}\n\nextension Greeter: CustomStringConvertible {\n    public var description: String { prefix }\n}\nMDEOF\ngrep Mars /Users/admin/HelloPreview/Sources/HelloPreview/ContentView.swift > /dev/null && grep Aloha /Users/admin/HelloPreview/Sources/HelloPreview/Model.swift > /dev/null && logger \"W3MARKER e11 simultaneous-two-file saved\" && echo EDIT11_OK"),
                 label: "edit 11: simultaneous two-file (ContentView + Model)",
                 expectContains: "EDIT11_OK"),
             .log("waiting 30s for edit-11 hot-reload"),
@@ -1179,7 +1225,7 @@ struct SetupCommand: AsyncParsableCommand {
                 label: "mem-diff snapshot before edit 12",
                 expectContains: "SNAP_BEFORE_E12_OK"),
             .hostShell(
-                command: remote("touch /Users/admin/HelloPreview/Sources/HelloPreview/ContentView.swift && stat -f '%m %N' /Users/admin/HelloPreview/Sources/HelloPreview/ContentView.swift && echo EDIT12_OK"),
+                command: remote("touch /Users/admin/HelloPreview/Sources/HelloPreview/ContentView.swift && stat -f '%m %N' /Users/admin/HelloPreview/Sources/HelloPreview/ContentView.swift && logger \"W3MARKER e12 touch-no-change saved\" && echo EDIT12_OK"),
                 label: "edit 12: touch-without-content-change",
                 expectContains: "EDIT12_OK"),
             .log("waiting 30s for edit-12 (maybe) hot-reload"),
@@ -1195,6 +1241,25 @@ struct SetupCommand: AsyncParsableCommand {
             .hostShell(
                 command: remote("echo '--- /tmp/w3-writes.log ---'; wc -l /tmp/w3-writes.log; echo '--- write_mem hits (if any) ---'; grep -c write_mem /tmp/w3-writes.log || echo 0; echo '--- pi_jit_link hits ---'; grep -c pi_jit_link /tmp/w3-writes.log || echo 0; echo '--- xpc_send count ---'; grep -c 'xpc_send\\b' /tmp/w3-writes.log || echo 0; echo '--- xpc_recv count ---'; grep -c xpc_recv /tmp/w3-writes.log || echo 0; echo '--- xpc_set_event_handler count ---'; grep -c xpc_set_event_handler /tmp/w3-writes.log || echo 0; echo '--- xpc_get_value count ---'; grep -c xpc_get_value /tmp/w3-writes.log || echo 0; echo '--- dyld_add_image count ---'; grep -c dyld_add_image /tmp/w3-writes.log || echo 0; echo '--- run_program count ---'; grep -c run_program /tmp/w3-writes.log || echo 0; echo '--- open_log markers (one per agent process) ---'; grep -c open_log /tmp/w3-writes.log || echo 0"),
                 label: "peek accumulated trace stats"),
+
+            // Stop the dtrace tracer and flush. Kill by saved PID, then a
+            // pkill fallback. Report line counts so a failed capture is
+            // obvious before retrieval: total lines, swift-frontend execs
+            // (per-edit compiler processes), XCPreviewAgent execs
+            // (respawns), and the logger markers (save anchors).
+            .hostShell(
+                command: remote("echo previewsvm | sudo -S kill \"$(cat /tmp/q1-dtrace.pid)\" 2>/dev/null; sleep 2; echo previewsvm | sudo -S pkill -x dtrace 2>/dev/null; sleep 1; echo previewsvm | sudo -S chmod 644 /tmp/q1-dtrace.log; echo '--- dtrace lines ---'; wc -l /tmp/q1-dtrace.log; echo '--- swift-frontend EXEC ---'; grep -c 'EXEC swift-frontend' /tmp/q1-dtrace.log || echo 0; echo '--- XCPreviewAgent EXEC ---'; grep -c 'EXEC XCPreviewAgent' /tmp/q1-dtrace.log || echo 0; echo '--- W3MARKER logger EXEC ---'; grep -c 'W3MARKER' /tmp/q1-dtrace.log || echo 0; echo DTRACE_STOPPED"),
+                label: "stop dtrace tracer",
+                expectContains: "DTRACE_STOPPED"),
+
+            // Retrieve the dtrace trace FIRST — before the mem-diff /
+            // interposer retrievals, which can fail (e.g. the new-file
+            // edit produces no mem-diff) and abort the attempt. This is
+            // the Q1/Q3/Q4/Q5 deliverable; it must reach the host even if
+            // a later W3-apparatus retrieval throws.
+            .hostShell(
+                command: remote("cat /tmp/q1-dtrace.log") + " > \"\(outputDir)/q1-dtrace.txt\" && wc -l \"\(outputDir)/q1-dtrace.txt\"",
+                label: "retrieve dtrace trace to host (priority)"),
 
             // Retrieve every captured artifact.
             .hostShell(

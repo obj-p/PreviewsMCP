@@ -1,4 +1,4 @@
-# JIT compile-strategy research arc — index (W4-W7, CLOSED)
+# JIT compile-strategy research arc — index (W4-W7 + Q1 latency, CLOSED)
 
 One research arc, June 2026: what compilation strategy must feed the JIT
 executor so hot-reload is fast at module scale? All items CLOSED. The consuming
@@ -6,6 +6,9 @@ document is `docs/jit-executor-phase3-plan.md` on branch
 `jit-phase3-session-integration` (issue #189, PR #190) — see its
 "Recompile-narrowing gaps" and "Key decision" sections for how these verdicts
 were folded into the plan.
+
+A follow-on **latency phase** (investigator brief, June 2026) added a live
+in-VM dtrace capture of Apple's per-edit process timing — see verdict 5 below.
 
 ## Verdicts (reading order)
 
@@ -32,10 +35,21 @@ were folded into the plan.
    split shape (no filelist/incremental). Literal edits re-inject by
    `#salt_n` ID via `PreviewsInjection` `UpdatePayload`, no recompile/respawn;
    structural edits JIT-link. Tier boundary = `LiteralDiffer` skeleton-equality.
+5. **Q1 — Apple EATS the per-edit compile; structural save→pixels is seconds,
+   not sub-200ms.** [`q1-xcode-compile-timing.md`](q1-xcode-compile-timing.md).
+   Live in-VM dtrace of real Xcode 26.2 Previews across the 12-edit matrix: a
+   FRESH `swift-frontend` every edit (no persistent compiler, no CAS), ~135-352ms
+   per frontend, driver bypassed for body/structural edits (driver only for
+   new-file/two-file/touch), `XCPreviewAgent` respawns every edit (12/12 PIDs).
+   save→agent-respawn ~1.5-2.5s structural / ~3.8s new-file — i.e. **slower than
+   our ~816ms agent-JIT path**. The sub-200ms class is the W6 literal-injection
+   path only. Net: the real win vs Apple is the literal fast-path + avoiding
+   respawn, not beating their compile.
 
 ## Raw data
 
 `../data/w4/` (thunk argv, compile traces), `../data/w5/` (scaling),
 `../data/w6/` (canvas argv), `../data/w7/` (autosplit, soak log under
-`../../jit-poc/data/`). Each `data/w*/handoff.md` is CLOSED-stamped with its
-verdict. Dispatch-side companion (W3, respawn-only): `w3-empirical-capture.md`.
+`../../jit-poc/data/`), `../data/q1-dtrace-capture/` (per-edit exec/exit
+trace). Each `data/w*/handoff.md` is CLOSED-stamped with its verdict.
+Dispatch-side companion (W3, respawn-only): `w3-empirical-capture.md`.

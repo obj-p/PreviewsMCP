@@ -121,6 +121,16 @@ design-time-literal path skips compilation entirely for literal edits, which is
 the sub-second case users feel. A true save→pixels number needs the live canvas
 and is W3's domain (respawn-dominated); W4's scope is the compile step.
 
+**Update (Q1 latency phase):** the live-canvas save→pixels number is now
+captured in-VM via dtrace — see
+[`q1-xcode-compile-timing.md`](q1-xcode-compile-timing.md). It is
+**~1.5-2.5 s save→agent-respawn for structural edits** (per-edit `swift-frontend`
+~135-352 ms, fresh every edit, then respawn), so the sub-200 ms class is Apple's
+**literal-injection** path only, not the structural recompile. This refines the
+note below: the JIT executor's <200 ms target is realistic on the **compile
+step** (one file, ~140-350 ms) but Apple itself does not hit <200 ms end-to-end
+for structural edits.
+
 ## What this means for the JIT executor plan
 
 - **G1 holds.** A single-file incremental compile against a prebuilt

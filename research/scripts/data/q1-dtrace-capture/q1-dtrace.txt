@@ -1,0 +1,267 @@
+1781282213615222867 EXEC logger pid=1623 ppid=1620 args=logger
+1781282214864237691 EXIT XCPreviewAgent pid=1374
+1781282215264104338 EXEC swift-frontend pid=1628 ppid=1015 args=swift-frontend
+1781282215264250922 EXEC swift-frontend pid=1629 ppid=1015 args=swift-frontend
+1781282215528558580 EXEC swift-plugin-server pid=1631 ppid=1628 args=swift-plugin-ser
+1781282215528571330 EXEC swift-plugin-server pid=1630 ppid=1629 args=swift-plugin-ser
+1781282215560352861 EXIT swift-plugin-server pid=1630
+1781282215564651335 EXIT swift-frontend pid=1629
+1781282215603252224 EXIT swift-plugin-server pid=1631
+1781282215616430146 EXIT swift-frontend pid=1628
+1781282215623392796 EXEC clang pid=1632 ppid=1015 args=clang
+1781282215632273162 EXEC ld pid=1633 ppid=1632 args=ld
+1781282215651199229 EXIT clang pid=1632
+1781282215761316084 EXEC clang pid=1635 ppid=966 args=clang
+1781282215767906982 EXIT clang pid=1635
+1781282215973179637 EXEC swift-frontend pid=1636 ppid=966 args=swift-frontend
+1781282216044250976 EXEC swift-plugin-server pid=1640 ppid=1636 args=swift-plugin-ser
+1781282216087602340 EXIT swift-plugin-server pid=1640
+1781282216098793297 EXIT swift-frontend pid=1636
+1781282216118904453 EXEC XCPreviewAgent pid=1641 ppid=1 args=XCPreviewAgent
+1781282247187874530 EXEC logger pid=1718 ppid=1715 args=logger
+1781282248061051045 EXIT XCPreviewAgent pid=1641
+1781282248396470960 EXEC swift-frontend pid=1722 ppid=1015 args=swift-frontend
+1781282248396625502 EXEC swift-frontend pid=1723 ppid=1015 args=swift-frontend
+1781282248626999872 EXIT swift-frontend pid=1723
+1781282248630121466 EXEC swift-frontend pid=1724 ppid=1015 args=swift-frontend
+1781282248653352967 EXEC swift-plugin-server pid=1725 ppid=1722 args=swift-plugin-ser
+1781282248682739656 EXIT swift-plugin-server pid=1725
+1781282248685426665 EXIT swift-frontend pid=1722
+1781282248692928859 EXEC swift-plugin-server pid=1726 ppid=1724 args=swift-plugin-ser
+1781282248755660251 EXIT swift-plugin-server pid=1726
+1781282248760275393 EXIT swift-frontend pid=1724
+1781282248766787041 EXEC clang pid=1728 ppid=1015 args=clang
+1781282248775174988 EXEC ld pid=1729 ppid=1728 args=ld
+1781282248793487429 EXIT clang pid=1728
+1781282248896291840 EXEC clang pid=1731 ppid=966 args=clang
+1781282248902738155 EXIT clang pid=1731
+1781282249102831250 EXEC swift-frontend pid=1732 ppid=966 args=swift-frontend
+1781282249174665341 EXEC swift-plugin-server pid=1737 ppid=1732 args=swift-plugin-ser
+1781282249220487589 EXIT swift-plugin-server pid=1737
+1781282249231598171 EXIT swift-frontend pid=1732
+1781282249247972521 EXEC XCPreviewAgent pid=1738 ppid=1 args=XCPreviewAgent
+1781282280615408421 EXEC logger pid=1801 ppid=1798 args=logger
+1781282281533578847 EXIT XCPreviewAgent pid=1738
+1781282281969779624 EXEC swift-frontend pid=1806 ppid=1015 args=swift-frontend
+1781282281969906082 EXEC swift-frontend pid=1807 ppid=1015 args=swift-frontend
+1781282282046382566 EXEC swift-plugin-server pid=1808 ppid=1807 args=swift-plugin-ser
+1781282282046414774 EXEC swift-plugin-server pid=1809 ppid=1806 args=swift-plugin-ser
+1781282282071087780 EXIT swift-plugin-server pid=1809
+1781282282074215708 EXIT swift-frontend pid=1806
+1781282282113147347 EXIT swift-plugin-server pid=1808
+1781282282124478597 EXIT swift-frontend pid=1807
+1781282282131355121 EXEC clang pid=1810 ppid=1015 args=clang
+1781282282139934235 EXEC ld pid=1811 ppid=1810 args=ld
+1781282282158754636 EXIT clang pid=1810
+1781282282256807531 EXEC clang pid=1813 ppid=966 args=clang
+1781282282264323849 EXIT clang pid=1813
+1781282282461571642 EXEC swift-frontend pid=1818 ppid=966 args=swift-frontend
+1781282282532837565 EXEC swift-plugin-server pid=1820 ppid=1818 args=swift-plugin-ser
+1781282282582544202 EXIT swift-plugin-server pid=1820
+1781282282594135869 EXIT swift-frontend pid=1818
+1781282282633736303 EXEC XCPreviewAgent pid=1821 ppid=1 args=XCPreviewAgent
+1781282313997498690 EXEC logger pid=1884 ppid=1881 args=logger
+1781282314852284388 EXIT XCPreviewAgent pid=1821
+1781282315248701522 EXEC swift-frontend pid=1891 ppid=1015 args=swift-frontend
+1781282315248850814 EXEC swift-frontend pid=1892 ppid=1015 args=swift-frontend
+1781282315321785785 EXEC swift-plugin-server pid=1894 ppid=1891 args=swift-plugin-ser
+1781282315322123369 EXEC swift-plugin-server pid=1893 ppid=1892 args=swift-plugin-ser
+1781282315346898250 EXIT swift-plugin-server pid=1893
+1781282315350420554 EXIT swift-frontend pid=1892
+1781282315377942403 EXIT swift-plugin-server pid=1894
+1781282315390699282 EXIT swift-frontend pid=1891
+1781282315397252139 EXEC clang pid=1895 ppid=1015 args=clang
+1781282315406000337 EXEC ld pid=1896 ppid=1895 args=ld
+1781282315424090361 EXIT clang pid=1895
+1781282315522922008 EXEC clang pid=1898 ppid=966 args=clang
+1781282315529714074 EXIT clang pid=1898
+1781282315725080776 EXEC swift-frontend pid=1903 ppid=966 args=swift-frontend
+1781282315788448629 EXEC swift-plugin-server pid=1904 ppid=1903 args=swift-plugin-ser
+1781282315838225725 EXIT swift-plugin-server pid=1904
+1781282315852373901 EXIT swift-frontend pid=1903
+1781282315868866460 EXEC XCPreviewAgent pid=1905 ppid=1 args=XCPreviewAgent
+1781282347223236645 EXEC logger pid=1962 ppid=1959 args=logger
+1781282348421816995 EXIT XCPreviewAgent pid=1905
+1781282348671807311 EXEC swift-frontend pid=1972 ppid=1015 args=swift-frontend
+1781282348671943686 EXEC swift-frontend pid=1973 ppid=1015 args=swift-frontend
+1781282348743778361 EXEC swift-plugin-server pid=1974 ppid=1972 args=swift-plugin-ser
+1781282348743782278 EXEC swift-plugin-server pid=1975 ppid=1973 args=swift-plugin-ser
+1781282348768763992 EXIT swift-plugin-server pid=1974
+1781282348771736503 EXIT swift-frontend pid=1972
+1781282348795825006 EXIT swift-plugin-server pid=1975
+1781282348807288006 EXIT swift-frontend pid=1973
+1781282348813548820 EXEC clang pid=1976 ppid=1015 args=clang
+1781282348822473477 EXEC ld pid=1977 ppid=1976 args=ld
+1781282348840390542 EXIT clang pid=1976
+1781282348942689701 EXEC clang pid=1979 ppid=966 args=clang
+1781282348949467142 EXIT clang pid=1979
+1781282349140722247 EXEC swift-frontend pid=1980 ppid=966 args=swift-frontend
+1781282349210165830 EXEC swift-plugin-server pid=1984 ppid=1980 args=swift-plugin-ser
+1781282349259985259 EXIT swift-plugin-server pid=1984
+1781282349273835100 EXIT swift-frontend pid=1980
+1781282349290472660 EXEC XCPreviewAgent pid=1986 ppid=1 args=XCPreviewAgent
+1781282380651332285 EXEC logger pid=2047 ppid=2044 args=logger
+1781282380901554352 EXIT XCPreviewAgent pid=1986
+1781282381134382772 EXEC swift-frontend pid=2050 ppid=1015 args=swift-frontend
+1781282381134549398 EXEC swift-frontend pid=2051 ppid=1015 args=swift-frontend
+1781282381206740491 EXEC swift-plugin-server pid=2053 ppid=2050 args=swift-plugin-ser
+1781282381206755241 EXEC swift-plugin-server pid=2052 ppid=2051 args=swift-plugin-ser
+1781282381232595500 EXIT swift-plugin-server pid=2053
+1781282381236880266 EXIT swift-frontend pid=2050
+1781282381270497803 EXIT swift-plugin-server pid=2052
+1781282381282143845 EXIT swift-frontend pid=2051
+1781282381288481743 EXEC clang pid=2055 ppid=1015 args=clang
+1781282381297238066 EXEC ld pid=2056 ppid=2055 args=ld
+1781282381315128089 EXIT clang pid=2055
+1781282381418069209 EXEC clang pid=2058 ppid=966 args=clang
+1781282381424555232 EXIT clang pid=2058
+1781282381616758965 EXEC swift-frontend pid=2059 ppid=966 args=swift-frontend
+1781282381685696546 EXEC swift-plugin-server pid=2064 ppid=2059 args=swift-plugin-ser
+1781282381741352163 EXIT swift-plugin-server pid=2064
+1781282381754962587 EXIT swift-frontend pid=2059
+1781282381770331892 EXEC XCPreviewAgent pid=2065 ppid=1 args=XCPreviewAgent
+1781282413984285794 EXEC logger pid=2128 ppid=2124 args=logger
+1781282414172806306 EXIT XCPreviewAgent pid=2065
+1781282414597351539 EXEC swift-frontend pid=2131 ppid=1015 args=swift-frontend
+1781282414597477623 EXEC swift-frontend pid=2132 ppid=1015 args=swift-frontend
+1781282414675296736 EXEC swift-plugin-server pid=2135 ppid=2132 args=swift-plugin-ser
+1781282414675305153 EXEC swift-plugin-server pid=2136 ppid=2131 args=swift-plugin-ser
+1781282414694624972 EXIT swift-plugin-server pid=2135
+1781282414698610362 EXIT swift-frontend pid=2132
+1781282414717571388 EXIT swift-plugin-server pid=2136
+1781282414720383899 EXIT swift-frontend pid=2131
+1781282416848885343 EXEC clang pid=2147 ppid=1015 args=clang
+1781282416849835805 EXEC swift-frontend pid=2148 ppid=1015 args=swift-frontend
+1781282416866366406 EXEC swift-driver pid=2148 ppid=1015 args=swift-driver
+1781282416868032995 EXEC clang pid=2149 ppid=2147 args=clang
+1781282416895673261 EXEC swift-frontend pid=2148 ppid=1015 args=swift-frontend
+1781282416915932584 EXIT swift-frontend pid=2148
+1781282416917156422 EXIT clang pid=2149
+1781282416917793132 EXIT clang pid=2147
+1781282416929111465 EXEC ld pid=2150 ppid=1015 args=ld
+1781282416961678582 EXIT ld pid=2150
+1781282417149368382 EXEC swift-frontend pid=2152 ppid=1015 args=swift-frontend
+1781282417149577382 EXEC swift-frontend pid=2153 ppid=1015 args=swift-frontend
+1781282417149804425 EXEC swift-frontend pid=2154 ppid=1015 args=swift-frontend
+1781282417220013719 EXEC swift-plugin-server pid=2156 ppid=2154 args=swift-plugin-ser
+1781282417220202636 EXEC swift-plugin-server pid=2155 ppid=2152 args=swift-plugin-ser
+1781282417221066681 EXIT swift-frontend pid=2153
+1781282417243505345 EXIT swift-plugin-server pid=2155
+1781282417246745190 EXIT swift-frontend pid=2152
+1781282417284243950 EXIT swift-plugin-server pid=2156
+1781282417296652536 EXIT swift-frontend pid=2154
+1781282417300586592 EXEC clang pid=2157 ppid=1015 args=clang
+1781282417304359647 EXEC ld pid=2158 ppid=2157 args=ld
+1781282417318305697 EXIT clang pid=2157
+1781282417445421821 EXEC clang pid=2160 ppid=966 args=clang
+1781282417452137470 EXIT clang pid=2160
+1781282417661381264 EXEC swift-frontend pid=2162 ppid=966 args=swift-frontend
+1781282417738252332 EXEC swift-plugin-server pid=2168 ppid=2162 args=swift-plugin-ser
+1781282417800994766 EXIT swift-plugin-server pid=2168
+1781282417815931653 EXIT swift-frontend pid=2162
+1781282417833341258 EXEC XCPreviewAgent pid=2169 ppid=1 args=XCPreviewAgent
+1781282418709763784 EXEC swift-frontend pid=2175 ppid=1015 args=swift-frontend
+1781282418710176619 EXEC swift-frontend pid=2176 ppid=1015 args=swift-frontend
+1781282418726478636 EXEC swift-driver pid=2175 ppid=1015 args=swift-driver
+1781282418726486428 EXEC swift-driver pid=2176 ppid=1015 args=swift-driver
+1781282418756192868 EXEC swift-frontend pid=2175 ppid=1015 args=swift-frontend
+1781282418756191451 EXEC swift-frontend pid=2176 ppid=1015 args=swift-frontend
+1781282418777994238 EXIT swift-frontend pid=2175
+1781282418778433531 EXIT swift-frontend pid=2176
+1781282447349818628 EXEC logger pid=2231 ppid=2228 args=logger
+1781282447884376425 EXIT XCPreviewAgent pid=2169
+1781282448340268147 EXEC swift-frontend pid=2236 ppid=1015 args=swift-frontend
+1781282448340402856 EXEC swift-frontend pid=2237 ppid=1015 args=swift-frontend
+1781282448413229326 EXIT swift-frontend pid=2236
+1781282448414485580 EXEC swift-plugin-server pid=2238 ppid=2237 args=swift-plugin-ser
+1781282448416362920 EXEC swift-frontend pid=2239 ppid=1015 args=swift-frontend
+1781282448437793664 EXIT swift-plugin-server pid=2238
+1781282448439942130 EXIT swift-frontend pid=2237
+1781282448479323063 EXEC swift-plugin-server pid=2240 ppid=2239 args=swift-plugin-ser
+1781282448538224317 EXIT swift-plugin-server pid=2240
+1781282448542418540 EXIT swift-frontend pid=2239
+1781282448548044936 EXEC clang pid=2241 ppid=1015 args=clang
+1781282448556496966 EXEC ld pid=2242 ppid=2241 args=ld
+1781282448575486492 EXIT clang pid=2241
+1781282448686583850 EXEC clang pid=2245 ppid=966 args=clang
+1781282448693129166 EXIT clang pid=2245
+1781282448883871226 EXEC swift-frontend pid=2246 ppid=966 args=swift-frontend
+1781282448956220403 EXEC swift-plugin-server pid=2251 ppid=2246 args=swift-plugin-ser
+1781282449016425161 EXIT swift-plugin-server pid=2251
+1781282449030379711 EXIT swift-frontend pid=2246
+1781282449046780187 EXEC XCPreviewAgent pid=2252 ppid=1 args=XCPreviewAgent
+1781282481061013615 EXEC logger pid=2315 ppid=2312 args=logger
+1781282481497591517 EXIT XCPreviewAgent pid=2252
+1781282481943372204 EXEC swift-frontend pid=2319 ppid=1015 args=swift-frontend
+1781282481943501079 EXEC swift-frontend pid=2320 ppid=1015 args=swift-frontend
+1781282482018100181 EXEC swift-plugin-server pid=2321 ppid=2319 args=swift-plugin-ser
+1781282482018750975 EXEC swift-plugin-server pid=2322 ppid=2320 args=swift-plugin-ser
+1781282482043846690 EXIT swift-plugin-server pid=2321
+1781282482047892329 EXIT swift-frontend pid=2319
+1781282482083295624 EXIT swift-plugin-server pid=2322
+1781282482095290750 EXIT swift-frontend pid=2320
+1781282482102342150 EXEC clang pid=2323 ppid=1015 args=clang
+1781282482110825389 EXEC ld pid=2324 ppid=2323 args=ld
+1781282482129661123 EXIT clang pid=2323
+1781282482231142697 EXEC clang pid=2326 ppid=966 args=clang
+1781282482237860345 EXIT clang pid=2326
+1781282482431481875 EXEC swift-frontend pid=2327 ppid=966 args=swift-frontend
+1781282482501581252 EXEC swift-plugin-server pid=2331 ppid=2327 args=swift-plugin-ser
+1781282482564162143 EXIT swift-plugin-server pid=2331
+1781282482579017988 EXIT swift-frontend pid=2327
+1781282482595126921 EXEC XCPreviewAgent pid=2333 ppid=1 args=XCPreviewAgent
+1781282514660488774 EXEC logger pid=2389 ppid=2386 args=logger
+1781282515062227635 EXIT XCPreviewAgent pid=2333
+1781282515502871052 EXEC swift-frontend pid=2392 ppid=1015 args=swift-frontend
+1781282515503013302 EXEC swift-frontend pid=2393 ppid=1015 args=swift-frontend
+1781282515575391313 EXEC swift-plugin-server pid=2396 ppid=2393 args=swift-plugin-ser
+1781282515575405646 EXEC swift-plugin-server pid=2395 ppid=2392 args=swift-plugin-ser
+1781282515600502945 EXIT swift-plugin-server pid=2396
+1781282515604037624 EXIT swift-frontend pid=2393
+1781282515637129618 EXIT swift-plugin-server pid=2395
+1781282515649864080 EXIT swift-frontend pid=2392
+1781282515657401649 EXEC clang pid=2397 ppid=1015 args=clang
+1781282515665709429 EXEC ld pid=2398 ppid=2397 args=ld
+1781282515683546951 EXIT clang pid=2397
+1781282515783940396 EXEC clang pid=2400 ppid=966 args=clang
+1781282515790665420 EXIT clang pid=2400
+1781282515985432287 EXEC swift-frontend pid=2401 ppid=966 args=swift-frontend
+1781282516055801331 EXEC swift-plugin-server pid=2405 ppid=2401 args=swift-plugin-ser
+1781282516121493818 EXIT swift-plugin-server pid=2405
+1781282516135992537 EXIT swift-frontend pid=2401
+1781282516174745759 EXEC XCPreviewAgent pid=2407 ppid=1 args=XCPreviewAgent
+1781282548201984975 EXEC logger pid=2468 ppid=2463 args=logger
+1781282548617895427 EXIT XCPreviewAgent pid=2407
+1781282548653393388 EXEC XCPreviewAgent pid=2471 ppid=1 args=XCPreviewAgent
+1781282548934100398 EXIT XCPreviewAgent pid=2471
+1781282549237732405 EXEC swift-frontend pid=2474 ppid=1015 args=swift-frontend
+1781282549237866864 EXEC swift-frontend pid=2475 ppid=1015 args=swift-frontend
+1781282549237971573 EXEC swift-frontend pid=2476 ppid=1015 args=swift-frontend
+1781282549315134767 EXEC swift-plugin-server pid=2479 ppid=2476 args=swift-plugin-ser
+1781282549315735436 EXEC swift-plugin-server pid=2480 ppid=2475 args=swift-plugin-ser
+1781282549318055653 EXIT swift-frontend pid=2474
+1781282549342011072 EXIT swift-plugin-server pid=2479
+1781282549344064121 EXIT swift-frontend pid=2476
+1781282549377266240 EXIT swift-plugin-server pid=2480
+1781282549389402576 EXIT swift-frontend pid=2475
+1781282549397251979 EXEC clang pid=2481 ppid=1015 args=clang
+1781282549405802968 EXEC ld pid=2482 ppid=2481 args=ld
+1781282549424095659 EXIT clang pid=2481
+1781282549526972695 EXEC clang pid=2484 ppid=966 args=clang
+1781282549528239367 EXEC clang pid=2485 ppid=966 args=clang
+1781282549536041144 EXIT clang pid=2484
+1781282549537117315 EXIT clang pid=2485
+1781282549741538634 EXEC swift-frontend pid=2490 ppid=966 args=swift-frontend
+1781282549804362234 EXEC swift-plugin-server pid=2492 ppid=2490 args=swift-plugin-ser
+1781282549859907434 EXIT swift-plugin-server pid=2492
+1781282549873377024 EXIT swift-frontend pid=2490
+1781282549893229637 EXEC XCPreviewAgent pid=2493 ppid=1 args=XCPreviewAgent
+1781282581901418992 EXEC logger pid=2548 ppid=2545 args=logger
+1781282589371837930 EXEC swift-frontend pid=2553 ppid=993 args=swift-frontend
+1781282589406539721 EXEC swift-driver pid=2553 ppid=993 args=swift-driver
+1781282589434703364 EXEC swift-frontend pid=2553 ppid=993 args=swift-frontend
+1781282589535492102 EXEC swift-plugin-server pid=2554 ppid=2553 args=swift-plugin-ser
+1781282589576182581 EXIT swift-plugin-server pid=2554
+1781282589580679806 EXIT swift-frontend pid=2553
+
+
