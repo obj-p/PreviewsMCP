@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import PreviewsCore
 import PreviewsMacOS
@@ -88,12 +89,21 @@ public actor MacOSPreviewHandle: PreviewSessionHandle {
     public func snapshot(quality: Double) async throws -> Data {
         let format: Snapshot.ImageFormat = quality >= 1.0 ? .png : .jpeg(quality: quality)
         let sessionID = id
+        let colorScheme = await session.currentTraits.colorScheme
         return try await MainActor.run {
             if host.agentBacked {
                 guard let imagePath = host.agentSnapshotPath(for: sessionID) else {
                     throw SnapshotError.captureFailed
                 }
-                return try Snapshot.encode(imageAt: imagePath, format: format)
+                let named: NSAppearance? =
+                    switch colorScheme {
+                    case "dark": NSAppearance(named: .darkAqua)
+                    case "light": NSAppearance(named: .aqua)
+                    default: nil
+                    }
+                let appearance = named ?? NSApplication.shared.effectiveAppearance
+                return try Snapshot.encode(
+                    imageAt: imagePath, format: format, flattenedWith: appearance)
             }
             guard let window = host.window(for: sessionID) else {
                 throw SnapshotError.captureFailed

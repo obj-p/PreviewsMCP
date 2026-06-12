@@ -22,21 +22,35 @@ public actor JITStructuralReloader: StructuralReloader {
         // re-run its entry. It re-seeds DesignTimeStore from the (rewritten) values JSON, with
         // no new JITDylib and no re-link (which would re-register the object's classes).
         if let session, build.objectPath == lastObjectPath {
+            let mark = ContinuousClock.now
             try Self.run(session, build.entrySymbol)
+            Log.info("jit_latency: render-entry-literal \(Log.millis(mark, ContinuousClock.now))ms")
             return
         }
 
+        var mark = ContinuousClock.now
         let session = try nextSession(forceFresh: build.requiresFreshAgent)
+        Log.info(
+            "jit_latency: agent-session force-fresh=\(build.requiresFreshAgent) "
+                + "\(Log.millis(mark, ContinuousClock.now))ms")
+        mark = ContinuousClock.now
         for dylib in build.dylibPaths {
             try session.addDylib(path: dylib.path)
         }
         for archive in build.archivePaths {
             try session.addArchive(path: archive.path)
         }
+        Log.info(
+            "jit_latency: add-deps dylibs=\(build.dylibPaths.count) "
+                + "archives=\(build.archivePaths.count) \(Log.millis(mark, ContinuousClock.now))ms")
+        mark = ContinuousClock.now
         for support in build.supportObjectPaths {
             try session.addObject(path: support.path)
         }
         try session.addObject(path: build.objectPath.path)
+        Log.info(
+            "jit_latency: add-objects \(build.supportObjectPaths.count + 1) "
+                + "\(Log.millis(mark, ContinuousClock.now))ms")
         lastObjectPath = build.objectPath
         // Setup runs once per agent process (its plugin state lives for the process's
         // lifetime), so re-run after a respawn but not per generation. The entry is
@@ -45,7 +59,9 @@ public actor JITStructuralReloader: StructuralReloader {
             _ = try session.runOnMain(symbol: setupEntry)
             didRunSetUp = true
         }
+        mark = ContinuousClock.now
         try Self.run(session, build.entrySymbol)
+        Log.info("jit_latency: render-entry \(Log.millis(mark, ContinuousClock.now))ms")
     }
 
     private static func run(_ session: JITSession, _ entrySymbol: String) throws {
@@ -73,7 +89,7 @@ public actor JITStructuralReloader: StructuralReloader {
     }
 }
 
-public enum JITReloadError: Error, CustomStringConvertible {
+public enum JITReloadError: Error, LocalizedError, CustomStringConvertible {
     case renderFailed(status: Int32)
 
     public var description: String {
@@ -82,4 +98,6 @@ public enum JITReloadError: Error, CustomStringConvertible {
             return "JIT render entry returned non-zero status \(status)"
         }
     }
+
+    public var errorDescription: String? { description }
 }

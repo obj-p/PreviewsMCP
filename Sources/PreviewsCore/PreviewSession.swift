@@ -243,7 +243,11 @@ public actor PreviewSession {
 
         var stable: Compiler.StableModule?
         if let (ctx, bulk) = splitContext {
+            let mark = ContinuousClock.now
             stable = try await stableModuleIfLeaf(for: bulk, context: ctx)
+            Log.info(
+                "jit_latency: stable-module \(stable == nil ? "non-leaf" : "leaf") "
+                    + "\(Log.millis(mark, ContinuousClock.now))ms")
         }
 
         let generated = BridgeGenerator.generateCombinedSource(
@@ -278,6 +282,7 @@ public actor PreviewSession {
 
             if let stable {
                 supportObjectPaths = [stable.objectPath]
+                let mark = ContinuousClock.now
                 objectPath = try await compiler.compileObject(
                     source: generated.source,
                     moduleName: "PreviewEdit_\(ctx.moduleName)_\(Self.uniqueModuleToken())",
@@ -285,10 +290,12 @@ public actor PreviewSession {
                         + setupCompilerFlags,
                     overrideSDK: setupSDKPath
                 )
+                Log.info("jit_latency: overlay-compile \(Log.millis(mark, ContinuousClock.now))ms")
             } else {
                 // Non-leaf: the bulk references the edited file, so it cannot be prebuilt as a
                 // one-directional stable module. Compile the whole module incrementally with the
                 // overlay in-module (no `@testable import`); only the hot file recompiles per edit.
+                let mark = ContinuousClock.now
                 let built = try await compiler.compileModuleIncremental(
                     overlaySource: generated.source,
                     bulkFiles: bulk,
@@ -296,6 +303,8 @@ public actor PreviewSession {
                     extraFlags: ctx.compilerFlags + setupCompilerFlags,
                     overrideSDK: setupSDKPath
                 )
+                Log.info(
+                    "jit_latency: incremental-compile \(Log.millis(mark, ContinuousClock.now))ms")
                 supportObjectPaths = built.bulkObjects
                 objectPath = try Self.uniqueObjectCopy(of: built.overlayObject)
                 requiresFreshAgent = true
