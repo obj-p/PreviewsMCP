@@ -75,17 +75,38 @@ public enum Snapshot {
     }
 
     /// Re-encode an agent-rendered image file (PNG) to the requested output format.
-    /// PNG output returns the bytes unchanged; JPEG transcodes. Used by the JIT
-    /// structural path, where the snapshot is rendered in the agent, not the window.
-    public static func encode(imageAt path: URL, format: ImageFormat) throws -> Data {
+    /// Used by the JIT structural path, where the snapshot is rendered in the agent,
+    /// not the window. When `appearance` is given, the image is first composited
+    /// over that appearance's `windowBackgroundColor`: the agent's capture only
+    /// contains the hosting view's own drawing, so regions whose backdrop comes
+    /// from window chrome (the navigation safe-area band) are transparent in the
+    /// PNG, and white-on-dark text vanishes when a viewer lays the image on white.
+    /// Without `appearance`, PNG output returns the bytes unchanged; JPEG transcodes.
+    public static func encode(
+        imageAt path: URL, format: ImageFormat, flattenedWith appearance: NSAppearance? = nil
+    ) throws -> Data {
         let data = try Data(contentsOf: path)
+        if appearance == nil, case .png = format {
+            return data
+        }
+        guard let rep = NSBitmapImageRep(data: data) else {
+            throw SnapshotError.encodingFailed
+        }
+        let output: NSBitmapImageRep
+        if let appearance {
+            output = try flatten(rep, with: appearance)
+        } else {
+            output = rep
+        }
         switch format {
         case .png:
-            return data
+            guard let out = output.representation(using: .png, properties: [:]) else {
+                throw SnapshotError.encodingFailed
+            }
+            return out
         case .jpeg(let quality):
             guard
-                let rep = NSBitmapImageRep(data: data),
-                let out = rep.representation(
+                let out = output.representation(
                     using: .jpeg,
                     properties: [.compressionFactor: NSNumber(value: quality)]
                 )
@@ -94,6 +115,41 @@ public enum Snapshot {
             }
             return out
         }
+    }
+
+    private static func flatten(
+        _ rep: NSBitmapImageRep, with appearance: NSAppearance
+    ) throws -> NSBitmapImageRep {
+        guard
+            let flat = NSBitmapImageRep(
+                bitmapDataPlanes: nil,
+                pixelsWide: rep.pixelsWide,
+                pixelsHigh: rep.pixelsHigh,
+                bitsPerSample: 8,
+                samplesPerPixel: 4,
+                hasAlpha: true,
+                isPlanar: false,
+                colorSpaceName: .deviceRGB,
+                bytesPerRow: 0,
+                bitsPerPixel: 0
+            ),
+            let ctx = NSGraphicsContext(bitmapImageRep: flat)
+        else {
+            throw SnapshotError.encodingFailed
+        }
+        flat.size = rep.size
+        let frame = NSRect(origin: .zero, size: rep.size)
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = ctx
+        appearance.performAsCurrentDrawingAppearance {
+            NSColor.windowBackgroundColor.setFill()
+            frame.fill()
+        }
+        rep.draw(
+            in: frame, from: .zero, operation: .sourceOver, fraction: 1.0,
+            respectFlipped: true, hints: nil)
+        NSGraphicsContext.restoreGraphicsState()
+        return flat
     }
 }
 

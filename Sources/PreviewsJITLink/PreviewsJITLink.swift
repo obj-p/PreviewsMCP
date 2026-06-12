@@ -119,8 +119,15 @@ public final class JITSession {
 @available(*, unavailable)
 extension JITSession: Sendable {}
 
-public enum JITLinkError: Error {
+public enum JITLinkError: Error, LocalizedError {
     case failed(String)
+
+    public var errorDescription: String? {
+        switch self {
+        case .failed(let message):
+            return "JIT link failed: \(message)"
+        }
+    }
 }
 
 private extension UnsafePointer where Pointee == CChar {
