@@ -1049,3 +1049,67 @@ symlink is NOT enough — the content-hash-cached manifest bakes in
 warm the stable module in the background right after start). Then #195,
 session-sized agent renders, content-based assertions, dylib fallback
 decision, iOS JIT.
+
+## Update 2026-06-12 (crash-fix branch): JITLink crash class root-caused and fixed
+
+The crash class that gated PR #201 (daemon SIGABRT "pointer being freed
+was not allocated" in `MachOPlatformPlugin::addSymbolTableRegistration`
+→ `SmallVectorBase::grow_pod` → realloc during linkPhase3; agent SIGSEGV
+`strlen(NULL)` in `runFinalizeActions` under `previewsmcp_anon_initialize`)
+is a data race in the vendored LLVM (swift-6.2.3-RELEASE), fixed upstream
+after our pin.
+
+Root cause: during `MachOPlatform` bootstrap, the orc_rt archive members
+link concurrently (DynamicThreadPoolTaskDispatcher). Two passes push into
+SHARED `BootstrapInfo` vectors with no lock held:
+`addSymbolTableRegistration` → `Bootstrap->SymTab`, and
+`registerObjectPlatformSections` → `Bootstrap->DeferredAAs`
+(`Bootstrap->Mutex` only guarded the `ActiveGraphs` counter). Racing
+`SmallVector` growth double-frees the old heap block — corrupting the
+daemon heap (realloc abort, sometimes later/elsewhere) — and can tear the
+symbol-table entries that the complete-bootstrap graph later ships to the
+agent as finalize actions, where the JIT'd orc_rt register function
+strlen()s a garbage name address: BOTH crash signatures, one race. All
+four daemon .ips show a second link thread plus a MachOPlatform
+constructor parked on the bootstrap CV; every session create runs one
+bootstrap, which is why only multi-session full-suite load fired it.
+Upstream fixed the same race in llvm.org main (locks around both pushes,
+later consolidated onto PlatformMutex: 30b73ed7, e8cc4d24, e2f86b55).
+
+Fix: backport in `scripts/patches/llvm-machoplatform-bootstrap-race.patch`
+(applied idempotently by `scripts/build-jit-llvm.sh`): take
+`Bootstrap->Mutex` around the bootstrap-phase `SymTab` push in
+`addSymbolTableRegistration` and the `DeferredAAs` push in
+`registerObjectPlatformSections` (the non-bootstrap paths are untouched;
+no lock nesting — `PlatformMutex` scopes close before `Bootstrap->Mutex`
+is taken). Rebuild: `ninja -C third_party/llvm-build LLVM` (incremental).
+
+Red-green: new `survivesRepeatedRemoteSessionBootstrap` stress (40 remote
+session creates = 40 bootstraps, no objects added) crashed on unfixed
+libLLVM in run 3 of 15 with the EXACT production signature (grow_pod
+realloc abort inside addSymbolTableRegistration, .ips
+swiftpm-testing-helper-2026-06-12-134114). After the rebuild: 15 of 15
+stress runs clean (600 bootstraps) and 5 of 5 full CLI suite runs clean
+with zero new DiagnosticReports, against the pre-fix 4-failures-in-~10
+full-suite rate (4 of 7 on 2026-06-11).
+
+Audit fallout (separate latent defects, NOT the firing class — queued as
+next work, not silently parked):
+- `MapperJITLinkMemoryManager::InFlightAlloc::abandon` passes a
+  SUBALLOCATION base to `MemoryMapper::release`, which expects
+  reservation bases (ours and LLVM's own mappers key reservations by
+  exact base). A failed link whose alloc was first-in-slab frees the
+  whole slab while `AvailableMemory` still hands out ranges in it →
+  daemon-side wild writes / agent-side unmapped writes on the NEXT link
+  in that session. Needs a red repro (failed link then successful link,
+  same session).
+- `PreviewsAnonymousMapper.prepare/initialize` do unchecked
+  `workingBuf + (addr - base)` arithmetic; out-of-reservation addresses
+  (as produced by the abandon bug) write wild into daemon heap. Cheap
+  bounds checks would turn silent corruption into a loud error.
+- Agent `previewsmcp_anon_initialize` DROPS the dealloc actions returned
+  by `runFinalizeActions`, and `previewsmcp_anon_deinitialize` is a no-op
+  (LLVM's mappers run dealloc actions and restore RW protections there).
+  Today nothing deallocates mid-session so it is latent; it bites the
+  moment generations are torn down for real (orc_rt deregistration never
+  runs, reused pages stay R-X).

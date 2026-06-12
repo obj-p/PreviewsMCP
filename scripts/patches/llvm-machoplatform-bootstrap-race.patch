@@ -1,0 +1,91 @@
+diff --git a/llvm/lib/ExecutionEngine/Orc/MachOPlatform.cpp b/llvm/lib/ExecutionEngine/Orc/MachOPlatform.cpp
+index 0d117f7cf..ef89f51ee 100644
+--- a/llvm/lib/ExecutionEngine/Orc/MachOPlatform.cpp
++++ b/llvm/lib/ExecutionEngine/Orc/MachOPlatform.cpp
+@@ -1399,10 +1399,6 @@ Error MachOPlatform::MachOPlatformPlugin::registerObjectPlatformSections(
+                              SPSExecutorAddrRange, SPSExecutorAddrRange>>,
+         SPSSequence<SPSTuple<SPSString, SPSExecutorAddrRange>>>;
+ 
+-    shared::AllocActions &allocActions = LLVM_LIKELY(!InBootstrapPhase)
+-                                             ? G.allocActions()
+-                                             : MP.Bootstrap.load()->DeferredAAs;
+-
+     ExecutorAddr HeaderAddr;
+     {
+       std::lock_guard<std::mutex> Lock(MP.PlatformMutex);
+@@ -1412,15 +1408,24 @@ Error MachOPlatform::MachOPlatformPlugin::registerObjectPlatformSections(
+       assert(I->second && "Null header registered for JD");
+       HeaderAddr = I->second;
+     }
+-    allocActions.push_back(
+-        {cantFail(
+-             WrapperFunctionCall::Create<SPSRegisterObjectPlatformSectionsArgs>(
+-                 MP.RegisterObjectPlatformSections.Addr, HeaderAddr, UnwindInfo,
+-                 MachOPlatformSecs)),
+-         cantFail(
+-             WrapperFunctionCall::Create<SPSRegisterObjectPlatformSectionsArgs>(
+-                 MP.DeregisterObjectPlatformSections.Addr, HeaderAddr,
+-                 UnwindInfo, MachOPlatformSecs))});
++    shared::AllocActionCallPair RegistrationActions = {
++        cantFail(
++            WrapperFunctionCall::Create<SPSRegisterObjectPlatformSectionsArgs>(
++                MP.RegisterObjectPlatformSections.Addr, HeaderAddr, UnwindInfo,
++                MachOPlatformSecs)),
++        cantFail(
++            WrapperFunctionCall::Create<SPSRegisterObjectPlatformSectionsArgs>(
++                MP.DeregisterObjectPlatformSections.Addr, HeaderAddr,
++                UnwindInfo, MachOPlatformSecs))};
++    if (LLVM_UNLIKELY(InBootstrapPhase)) {
++      // Multiple bootstrap graphs may link concurrently: guard the shared
++      // DeferredAAs vector. (Backport of llvm.org concurrency fixes, see
++      // e2f86b55 / 30b73ed7.)
++      std::lock_guard<std::mutex> Lock(MP.Bootstrap.load()->Mutex);
++      MP.Bootstrap.load()->DeferredAAs.push_back(std::move(RegistrationActions));
++    } else {
++      G.allocActions().push_back(std::move(RegistrationActions));
++    }
+   }
+ 
+   return Error::success();
+@@ -1698,25 +1703,30 @@ Error MachOPlatform::MachOPlatformPlugin::addSymbolTableRegistration(
+   }
+ 
+   SymbolTableVector LocalSymTab;
+-  auto &SymTab = LLVM_LIKELY(!InBootstrapPhase) ? LocalSymTab
+-                                                : MP.Bootstrap.load()->SymTab;
+-  for (auto &[OriginalSymbol, NameSym] : JITSymTabInfo)
+-    SymTab.push_back({NameSym->getAddress(), OriginalSymbol->getAddress(),
+-                      flagsForSymbol(*OriginalSymbol)});
++  {
++    // In the bootstrap phase SymTab points at the shared bootstrap symbol
++    // table, and multiple bootstrap graphs may link concurrently: guard it.
++    // (Backport of llvm.org concurrency fixes, see e2f86b55 / 30b73ed7.)
++    std::unique_lock<std::mutex> Lock;
++    if (LLVM_UNLIKELY(InBootstrapPhase))
++      Lock = std::unique_lock<std::mutex>(MP.Bootstrap.load()->Mutex);
++    auto &SymTab = LLVM_LIKELY(!InBootstrapPhase) ? LocalSymTab
++                                                  : MP.Bootstrap.load()->SymTab;
++    for (auto &[OriginalSymbol, NameSym] : JITSymTabInfo)
++      SymTab.push_back({NameSym->getAddress(), OriginalSymbol->getAddress(),
++                        flagsForSymbol(*OriginalSymbol)});
++  }
+ 
+   // Bail out if we're in the bootstrap phase -- registration of thees symbols
+   // will be attached to the bootstrap graph.
+   if (LLVM_UNLIKELY(InBootstrapPhase))
+     return Error::success();
+ 
+-  shared::AllocActions &allocActions = LLVM_LIKELY(!InBootstrapPhase)
+-                                           ? G.allocActions()
+-                                           : MP.Bootstrap.load()->DeferredAAs;
+-  allocActions.push_back(
++  G.allocActions().push_back(
+       {cantFail(WrapperFunctionCall::Create<SPSRegisterSymbolsArgs>(
+-           MP.RegisterObjectSymbolTable.Addr, HeaderAddr, SymTab)),
++           MP.RegisterObjectSymbolTable.Addr, HeaderAddr, LocalSymTab)),
+        cantFail(WrapperFunctionCall::Create<SPSRegisterSymbolsArgs>(
+-           MP.DeregisterObjectSymbolTable.Addr, HeaderAddr, SymTab))});
++           MP.DeregisterObjectSymbolTable.Addr, HeaderAddr, LocalSymTab))});
+ 
+   return Error::success();
+ }
