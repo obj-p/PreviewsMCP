@@ -313,9 +313,25 @@ Message<OneWayContent>(
 | Process | Location | Role |
 |---------|----------|------|
 | `previewsd` | Inside simulator runtime | Preview daemon, routes messages |
-| `PreviewShell.app` | Inside simulator runtime | Hosts rendered view in UIKit scene |
-| `XCPreviewAgent.app` | Installed in Previews simulator device set | Does JIT linking, scrapes PreviewRegistry |
+| `PreviewShell.app` | Inside simulator runtime | Standby shell scene (`com.apple.PreviewShell`, shown as "Xcode Previews"); hosts the rendered view when no app target exists; holds the foreground while the renderer respawns |
+| `XCPreviewAgent.app` | Installed in Previews simulator device set | Does JIT linking, scrapes PreviewRegistry — absent for app-target sessions (see below) |
 | `PreviewShellMac` | macOS host | macOS-side bridge |
+
+### App-Target Sessions (observed: Xcode 26.2, iOS 26.2 simulator)
+
+With an app target, the process census during a live preview session is only
+`previewsd`, `PreviewShell`, and the user's own app launched from the previews
+device set. No `XCPreviewAgent` process exists; the JIT linking and
+PreviewRegistry work happen inside the app process via `PreviewsInjection`.
+`PreviewShell` sits as a black scene behind the app.
+
+Edit behavior, verified by watching `launchctl list` PIDs across edits:
+
+- **Structural edit** (add/remove a view): the app process is killed and
+  relaunched (new PID within ~5s). `PreviewShell` takes the foreground during
+  the gap, which is the visible jump to "Xcode Previews" in the app switcher.
+- **Literal edit** (change a string/number): the same PID survives and the new
+  value renders in place, matching the `__designTime*` injection path.
 
 ### Transport
 **XPC services via `previewsd` daemon** — NOT a Unix socket pipe like macOS.
@@ -509,6 +525,10 @@ Build/Intermediates.noindex/.../Objects-normal/arm64/
 ### Previews Simulator Device Set
 ```bash
 # Previews uses a SEPARATE simulator device set
+# "previews" is a built-in simctl keyword for it
+xcrun simctl --set previews list
+
+# equivalent long form
 xcrun simctl --set ~/Library/Developer/Xcode/UserData/Previews/Simulator\ Devices list
 
 # ~1.6GB dedicated device at:
@@ -758,12 +778,16 @@ syscall::write:return /self->buf && self->len > 100/ {
 
 ### Previews Simulator Device Set
 ```bash
-# List preview simulator devices (separate from regular simulators)
-xcrun simctl --set ~/Library/Developer/Xcode/UserData/Previews/Simulator\ Devices list
+# List preview simulator devices ("previews" is a built-in simctl keyword
+# for the separate device set)
+xcrun simctl --set previews list
 
 # Take screenshot of preview simulator
-xcrun simctl --set ~/Library/Developer/Xcode/UserData/Previews/Simulator\ Devices \
-  io <device-uuid> screenshot preview.png
+xcrun simctl --set previews io <device-uuid> screenshot preview.png
+
+# Open Simulator.app against the previews device set
+open -a Simulator --args -DeviceSetPath \
+  "$HOME/Library/Developer/Xcode/UserData/Previews/Simulator Devices"
 ```
 
 ---
