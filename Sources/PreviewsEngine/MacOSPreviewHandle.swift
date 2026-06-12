@@ -95,12 +95,13 @@ public actor MacOSPreviewHandle: PreviewSessionHandle {
                 guard let imagePath = host.agentSnapshotPath(for: sessionID) else {
                     throw SnapshotError.captureFailed
                 }
-                let appearance: NSAppearance? =
+                let named: NSAppearance? =
                     switch colorScheme {
                     case "dark": NSAppearance(named: .darkAqua)
                     case "light": NSAppearance(named: .aqua)
-                    default: NSApplication.shared.effectiveAppearance
+                    default: nil
                     }
+                let appearance = named ?? NSApplication.shared.effectiveAppearance
                 return try Snapshot.encode(
                     imageAt: imagePath, format: format, flattenedWith: appearance)
             }
