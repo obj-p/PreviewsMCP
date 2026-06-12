@@ -42,6 +42,17 @@ if [ "$GOT" != "$LLVM_SHA" ]; then
 fi
 echo "==> source pinned at $LLVM_SHA"
 
+# 1b. Local patches on top of the pinned tag (idempotent).
+for PATCH in "$ROOT"/scripts/patches/llvm-*.patch; do
+  [ -e "$PATCH" ] || continue
+  if git -C "$SRC" apply --reverse --check "$PATCH" 2>/dev/null; then
+    echo "==> patch already applied: $(basename "$PATCH")"
+  else
+    echo "==> applying patch: $(basename "$PATCH")"
+    git -C "$SRC" apply "$PATCH"
+  fi
+done
+
 BUILD_RT="$ROOT/third_party/llvm-build-rt"
 CLANG="$(xcrun -f clang)"
 CLANGXX="$(xcrun -f clang++)"
