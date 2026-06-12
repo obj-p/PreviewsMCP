@@ -132,12 +132,14 @@ public enum Snapshot {
                 colorSpaceName: .deviceRGB,
                 bytesPerRow: 0,
                 bitsPerPixel: 0
-            ),
-            let ctx = NSGraphicsContext(bitmapImageRep: flat)
+            )
         else {
             throw SnapshotError.encodingFailed
         }
         flat.size = rep.size
+        guard let ctx = NSGraphicsContext(bitmapImageRep: flat) else {
+            throw SnapshotError.encodingFailed
+        }
         let frame = NSRect(origin: .zero, size: rep.size)
         NSGraphicsContext.saveGraphicsState()
         NSGraphicsContext.current = ctx
