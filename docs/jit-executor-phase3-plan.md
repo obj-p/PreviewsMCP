@@ -1114,3 +1114,41 @@ or a smaller per-edit compile unit — informed by the parallel Xcode
 Previews (XOJIT) reverse-engineering session before prototyping. Then
 shave the ~50-70ms materialization if the chosen lever lands near the
 line.
+
+## Update 2026-06-12: JITLink crash class promoted to priority fix
+
+While verifying the snapshot-flatten work, the latent JIT crash class
+fired repeatedly under full-suite load and is now the TOP priority,
+ahead of the latency compile lever. It is no longer acceptable as
+"known flake, rerun": it killed 4 of 7 full CLI-suite runs on
+2026-06-11 and a daemon + an agent during the 2026-06-12 bar.
+
+Evidence (crash reports in ~/Library/Logs/DiagnosticReports, six
+matching .ips across two days):
+
+- Daemon (`previewsmcp`): SIGABRT, malloc "pointer being freed was not
+  allocated", inside
+  `MachOPlatform::MachOPlatformPlugin::addSymbolTableRegistration` →
+  `SmallVectorBase::grow_pod` → realloc, during JITLink linkPhase3.
+  Heap corruption detected at realloc time, so the actual corruption
+  happens earlier.
+- Agent (`PreviewAgent`): SIGSEGV, `strlen(NULL)`, inside
+  `runFinalizeActions` → our `previewsmcp_anon_initialize` wrapper
+  handler (anonymous namespace, our C++ bridge in the agent), while
+  serializing an SPSError back to the controller.
+
+Both stacks bottom out in or next to OUR C++ bridge
+(`previewsmcp_jit` / the agent's EPC server glue), not pure libLLVM,
+so a fix on our side is plausible: prime suspects are string/buffer
+lifetime across the EPC boundary (a temporary `const char*` handed to
+LLVM that outlives its owner) and cross-thread mutation of LLVM
+containers (the EPC dispatcher runs handlers on its own threads while
+the daemon links concurrently). The "flaky ~1 in 10" JIT-suite note
+and the "never one giant --no-parallel" rule are the same class.
+
+Plan of attack: (1) reproduce under load with ASan/guard-malloc on the
+daemon and agent (`previewsmcp serve` + scripted session churn), (2)
+audit the bridge's wrapper-function handlers for string lifetime and
+SmallVector/DenseMap sharing across threads, (3) fix, then prove the
+fix by suite-loop rate before/after. The latency compile-lever work
+waits behind this.
