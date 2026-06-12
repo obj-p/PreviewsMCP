@@ -11,6 +11,13 @@ struct PreviewsJITLinkTests {
         #expect(result == 42)
     }
 
+    @Test(.timeLimit(.minutes(5))) func survivesRepeatedRemoteSessionBootstrap() throws {
+        let agentPath = try JITSession.bundledAgentPath()
+        for _ in 0..<40 {
+            _ = try JITSession(remoteAgentPath: agentPath)
+        }
+    }
+
     @Test func linksCObjectRemotely() throws {
         let object = try FixtureSupport.compile("answer.c")
         let session = try JITSession(remoteAgentPath: JITSession.bundledAgentPath())
