@@ -18,6 +18,23 @@ struct PreviewsJITLinkTests {
         }
     }
 
+    @Test(.timeLimit(.minutes(5))) func reusesMemoryAfterAbandonedLinksRemotely() throws {
+        let drain = try FixtureSupport.compile("abandon_drain.c")
+        let slab = try FixtureSupport.compile("abandon_slab.c")
+        let probe = try FixtureSupport.compile("abandon_probe.c")
+        let session = try JITSession(remoteAgentPath: JITSession.bundledAgentPath())
+        try session.addObject(path: drain.path)
+        #expect(throws: JITLinkError.self) {
+            try session.runMain(symbol: "abandon_drain_entry")
+        }
+        try session.addObject(path: slab.path)
+        #expect(throws: JITLinkError.self) {
+            try session.runMain(symbol: "abandon_slab_entry")
+        }
+        try session.addObject(path: probe.path)
+        #expect(try session.runMain(symbol: "abandon_probe_value") == 42)
+    }
+
     @Test func linksCObjectRemotely() throws {
         let object = try FixtureSupport.compile("answer.c")
         let session = try JITSession(remoteAgentPath: JITSession.bundledAgentPath())

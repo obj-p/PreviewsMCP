@@ -110,6 +110,9 @@ public:
       return nullptr;
     }
     --r;
+    if (addr + contentSize > r->first + r->second.size) {
+      return nullptr;
+    }
     return r->second.workingBuf + (addr - r->first);
   }
 
@@ -126,6 +129,15 @@ public:
             "initialize: no reservation covers mapping base"));
       }
       --r;
+      auto resEnd = r->first + r->second.size;
+      for (auto &seg : ai.Segments) {
+        if (ai.MappingBase + seg.Offset + seg.ContentSize + seg.ZeroFillSize >
+            resEnd) {
+          return onInitialized(llvm::createStringError(
+              llvm::inconvertibleErrorCode(),
+              "initialize: segment extends past reservation"));
+        }
+      }
       base = r->second.workingBuf + (ai.MappingBase - r->first);
     }
     fr.Segments.reserve(ai.Segments.size());

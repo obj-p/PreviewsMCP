@@ -1,0 +1,15 @@
+diff --git a/llvm/lib/ExecutionEngine/Orc/MapperJITLinkMemoryManager.cpp b/llvm/lib/ExecutionEngine/Orc/MapperJITLinkMemoryManager.cpp
+--- a/llvm/lib/ExecutionEngine/Orc/MapperJITLinkMemoryManager.cpp
++++ b/llvm/lib/ExecutionEngine/Orc/MapperJITLinkMemoryManager.cpp
+@@ -44,7 +44,10 @@
+   }
+
+   void abandon(OnAbandonedFunction OnFinalize) override {
+-    Parent.Mapper->release({AllocAddr}, std::move(OnFinalize));
++    // Backport of llvm.org dad86f5931453ff3d14ba5adb93855ee780298b2: release()
++    // keys reservations by slab base, so abandoning a first-in-slab alloc
++    // freed the whole shared slab. Deinitialize only this allocation.
++    Parent.Mapper->deinitialize({AllocAddr}, std::move(OnFinalize));
+   }
+
+ private:
