@@ -1278,3 +1278,56 @@ after build" (swift build exit 0, no arm64-apple-ios-simulator dir).
 Not reproducible afterwards, including from a fully wiped
 `examples/PreviewSetup/.build` and setup cache; passes on main. Filed
 mentally as first-run worktree state; unrelated to this change.
+
+## Update 2026-06-13 (LLVM pin bump to 6.3.2 — attempted, REVERTED)
+
+Goal was to retire the two backport patches by moving the pin from
+`swift-6.2.3-RELEASE` to `swift-6.3.2-RELEASE`, which contains both
+upstream fixes (the MachOPlatform bootstrap-race fix and the
+`abandon`-deinitializes-not-releases fix). Outcome: REVERTED. The bump
+does not reach a patch-free state and is not worth its cost right now.
+
+What the bump required and exposed:
+- Glue porting to the 6.3.x ORC API: `runFinalizeActions`/
+  `runDeallocActions` are now async-callback (use the
+  `std::promise<MSVCPExpected<...>>` + future pattern like
+  `InProcessMemoryMapper`); `MemoryAccess` moved out of
+  `ExecutorProcessControl` to `llvm/ExecutionEngine/Orc/MemoryAccess.h`;
+  `SelfExecutorProcessControl` moved to its own header;
+  `llvm_orc_*registerEHFrameSection*Wrapper` renamed to
+  `...AllocAction`; the object-linking-layer creator lambda now takes
+  only `ExecutionSession` (no `Triple`).
+- A NEW crash the bump introduced: agent SIGSEGV at JITDylib/generation
+  teardown in `__orc_rt_macho_deregister_object_platform_sections` →
+  `orc_rt::IntervalMapBase::erase`. Two cooperating LLVM defects, both
+  live in upstream `main`, neither filed: (1) libLLVM
+  `MachOPlatform::findUnwindSectionInfo` emits a duplicate code range
+  for a DWARF-mode function present in both `__unwind_info` and
+  `__eh_frame` (its range builder only coalesces adjacent ranges); (2)
+  orc_rt `UnwindSections` is an `IntervalMap<IntervalCoalescing::
+  Disabled>` whose insert dedups on the `(Start,End)` key but whose
+  `erase` runs once per range, so the duplicate is erased twice and the
+  second erase of the lowest range calls `std::prev(begin())` (UB). The
+  regression entered via the new `CompactUnwindManager` (upstream
+  `74d53f7`, `1bcbc68`); the old `CompactUnwindSplitter` never
+  synthesized `__unwind_info`, so the duplicate never arose. Root-caused
+  and consensus-confirmed by an independent review: it is an LLVM
+  defect, not our API misuse (LLVM's own `SimpleExecutorMemoryManager`
+  would hit the identical path; our agent mapper faithfully mirrors
+  `InProcessMemoryMapper`).
+- Fix options were either a defensive `interval_map::erase` guard
+  (validated: full JIT suite green, zero crashes, guard fired 34×) or
+  the deeper `findUnwindSectionInfo` dedup. Both are original patches
+  (nothing upstream to backport), so the bump would trade two
+  soon-retirable backports for one indefinite original patch, plus a
+  year of churn and the glue rewrite, for no feature we need now.
+
+Decision: stay on `swift-6.2.3-RELEASE` + the two existing patches.
+Revisit the bump when upstream fixes the unwind defects (so it can be
+patch-free) or a concrete need for newer LLVM forces it. Reproductions
+and a full write-up live in a standalone repo
+(github.com/obj-p/llvm-orc-macho-unwind-repro, private): a deterministic
+`interval_map` double-erase crash against the real orc_rt header, plus
+stock-`llvm-jitlink` evidence of the redundant-range emission. Upstream
+issue(s) NOT yet filed — the user will study the repo and file later
+(cross-reference llvm/llvm-project#162102 as possibly related).
