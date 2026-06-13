@@ -5,6 +5,7 @@
 #include <crt_externs.h>
 #include <csignal>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <fcntl.h>
@@ -106,11 +107,16 @@ public:
   char *prepare(llvm::orc::ExecutorAddr addr, size_t contentSize) override {
     std::lock_guard<std::mutex> lock(mutex);
     auto r = reservations.upper_bound(addr);
-    if (r == reservations.begin()) {
-      return nullptr;
+    bool covered = r != reservations.begin();
+    if (covered) {
+      --r;
+      covered = addr + contentSize <= r->first + r->second.size;
     }
-    --r;
-    if (addr + contentSize > r->first + r->second.size) {
+    if (!covered) {
+      fprintf(stderr,
+              "PreviewsAnonymousMapper::prepare: no reservation covers "
+              "[0x%llx, +%zu)\n",
+              addr.getValue(), contentSize);
       return nullptr;
     }
     return r->second.workingBuf + (addr - r->first);

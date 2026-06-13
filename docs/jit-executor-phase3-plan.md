@@ -1241,7 +1241,12 @@ leaving its 824MB remainder dangling in AvailableMemory), and a normal
 300MB link lands in the freed slab. On unfixed libLLVM the agent died
 in `__bzero` inside `previewsmcp_anon_initialize` at the munmapped
 slab-2 address (PreviewAgent-2026-06-12-175151.ips) and the daemon's
-working-buffer write went into freed heap pages. Fixed: passes in 60ms.
+working-buffer write went into freed heap pages. That signature is for
+the fully unfixed combination (red run predated the defect-2 glue
+checks); re-verifying red with the glue checks in place but libLLVM
+unfixed instead crashes the daemon at a near-null address after
+`prepare` logs "no reservation covers" and returns nullptr. Fixed:
+passes in 60ms.
 
 Defect 2: `PreviewsAnonymousMapper::prepare` now bounds-checks
 `addr + contentSize` against the covering reservation (nullptr on
@@ -1258,6 +1263,14 @@ abandoned allocs never initialize), mirroring
 this on every remote test (deinitialize runs over EPC before the agent
 is killed): 57 JIT + 18 MCP + 356 unit tests green with zero new
 DiagnosticReports.
+
+Roadmap addition (from the PR 203 review): `PreviewsAnonymousMapper`
+has no destructor, so the daemon's malloc'd slab working buffers (1GB
+virtual per remote session, touched pages committed) leak in the
+long-lived daemon at session destroy — `InProcessMemoryMapper` releases
+reservations in its destructor; ours relies on the agent's SIGKILL and
+frees nothing daemon-side. Pre-existing, queue with session-lifecycle
+work.
 
 Flake note: the first-ever `IOSMCPTests` run in the fresh mapper-glue
 worktree failed once with "Setup module 'ToDoPreviewSetup' not found
