@@ -1215,3 +1215,66 @@ next work, not silently parked):
   Today nothing deallocates mid-session so it is latent; it bites the
   moment generations are torn down for real (orc_rt deregistration never
   runs, reused pages stay R-X).
+
+## Update 2026-06-12 (mapper-glue)
+
+All three audit-fallout defects above are fixed.
+
+Defect 1 (abandon frees the slab) is upstream-confirmed: llvm.org
+dad86f5931453ff3d14ba5adb93855ee780298b2 ("MapperJITLinkMemoryManager
+should deinitialize on abandon, not deallocate", 2025-03-31, post-pin)
+fixes the exact bug with the exact symptom we predicted ("an entire
+underlying slab was deallocated, resulting in segfaults in other
+concurrent links"). Backported as
+`scripts/patches/llvm-mapperjitlink-abandon-slab.patch` (one line:
+`abandon` now calls `Mapper->deinitialize` instead of `release`),
+applied by the existing patch loop in `scripts/build-jit-llvm.sh`.
+
+Red repro: `reusesMemoryAfterAbandonedLinksRemotely`. orc_rt owns the
+slab base after bootstrap, so a failed first user link only leaks a
+suballocation — the crash needs a failed link that OPENS a slab. The
+test gets there with zerofill-heavy fixtures (failing links never reach
+initialize, so the BSS is never committed): a failing 900MB link drains
+slab 1's remainder via the abandon leak, a failing 200MB link then
+opens slab 2 (first-in-slab → unfixed abandon frees the whole slab,
+leaving its 824MB remainder dangling in AvailableMemory), and a normal
+300MB link lands in the freed slab. On unfixed libLLVM the agent died
+in `__bzero` inside `previewsmcp_anon_initialize` at the munmapped
+slab-2 address (PreviewAgent-2026-06-12-175151.ips) and the daemon's
+working-buffer write went into freed heap pages. That signature is for
+the fully unfixed combination (red run predated the defect-2 glue
+checks); re-verifying red with the glue checks in place but libLLVM
+unfixed instead crashes the daemon at a near-null address after
+`prepare` logs "no reservation covers" and returns nullptr. Fixed:
+passes in 60ms.
+
+Defect 2: `PreviewsAnonymousMapper::prepare` now bounds-checks
+`addr + contentSize` against the covering reservation (nullptr on
+miss — LLVM's prepare contract has no error path; upstream
+SharedMemoryMapper uses a bare assert), and `initialize` rejects
+segments extending past the reservation with a loud error.
+
+Defect 3: the agent now records `{size, dealloc actions}` per
+allocation base in `previewsmcp_anon_initialize` and
+`previewsmcp_anon_deinitialize` runs the actions in reverse base order,
+restores RW protections, and erases the entry (unknown bases skipped —
+abandoned allocs never initialize), mirroring
+`InProcessMemoryMapper::deinitialize`. Session destroy now exercises
+this on every remote test (deinitialize runs over EPC before the agent
+is killed): 57 JIT + 18 MCP + 356 unit tests green with zero new
+DiagnosticReports.
+
+Roadmap addition (from the PR 203 review): `PreviewsAnonymousMapper`
+has no destructor, so the daemon's malloc'd slab working buffers (1GB
+virtual per remote session, touched pages committed) leak in the
+long-lived daemon at session destroy — `InProcessMemoryMapper` releases
+reservations in its destructor; ours relies on the agent's SIGKILL and
+frees nothing daemon-side. Pre-existing, queue with session-lifecycle
+work.
+
+Flake note: the first-ever `IOSMCPTests` run in the fresh mapper-glue
+worktree failed once with "Setup module 'ToDoPreviewSetup' not found
+after build" (swift build exit 0, no arm64-apple-ios-simulator dir).
+Not reproducible afterwards, including from a fully wiped
+`examples/PreviewSetup/.build` and setup cache; passes on main. Filed
+mentally as first-run worktree state; unrelated to this change.
