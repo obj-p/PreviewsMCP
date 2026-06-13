@@ -2,6 +2,18 @@ import Foundation
 import PreviewsJITLink
 import Testing
 
+private func residentBytes() -> Int {
+    var info = mach_task_basic_info()
+    var count = mach_msg_type_number_t(
+        MemoryLayout<mach_task_basic_info>.size / MemoryLayout<natural_t>.size)
+    let kr = withUnsafeMutablePointer(to: &info) {
+        $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
+            task_info(mach_task_self_, task_flavor_t(MACH_TASK_BASIC_INFO), $0, &count)
+        }
+    }
+    return kr == KERN_SUCCESS ? Int(info.resident_size) : 0
+}
+
 struct PreviewsJITLinkTests {
     @Test func linksCObject() throws {
         let object = try FixtureSupport.compile("answer.c")
@@ -16,6 +28,19 @@ struct PreviewsJITLinkTests {
         for _ in 0..<40 {
             _ = try JITSession(remoteAgentPath: agentPath)
         }
+    }
+
+    @Test(.timeLimit(.minutes(5))) func freesHostSlabBuffersOnRemoteSessionDestroy() throws {
+        let object = try FixtureSupport.compile("leak_probe.c")
+        let agentPath = try JITSession.bundledAgentPath()
+        let before = residentBytes()
+        for _ in 0..<8 {
+            let session = try JITSession(remoteAgentPath: agentPath)
+            try session.addObject(path: object.path)
+            #expect(try session.runMain(symbol: "leak_probe_value") == 42)
+        }
+        let growth = residentBytes() - before
+        #expect(growth < 600 << 20)
     }
 
     @Test(.timeLimit(.minutes(5))) func reusesMemoryAfterAbandonedLinksRemotely() throws {

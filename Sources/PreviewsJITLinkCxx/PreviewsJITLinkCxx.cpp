@@ -77,6 +77,13 @@ public:
                           AnonMapperSymbols sas)
       : epc(epc), sas(sas) {}
 
+  ~PreviewsAnonymousMapper() override {
+    std::lock_guard<std::mutex> lock(mutex);
+    for (auto &entry : reservations) {
+      free(entry.second.workingBuf);
+    }
+  }
+
   unsigned int getPageSize() override { return epc.getPageSize(); }
 
   void reserve(size_t numBytes, OnReservedFunction onReserved) override {
