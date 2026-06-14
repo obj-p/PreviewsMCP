@@ -217,6 +217,67 @@ struct CappedPersistentTests {
         #expect(bits == 15, "bits=\(bits)")
     }
 
+    @Test func bridgeRecordsWindowFrameOnMoveAndResize() async throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("frame-record-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let sourceFile = dir.appendingPathComponent("ColorView.swift")
+        try """
+        import SwiftUI
+
+        #Preview {
+            Color.green.frame(width: 8, height: 8)
+        }
+        """.write(to: sourceFile, atomically: true, encoding: .utf8)
+
+        let compiler = try await Compiler()
+        let session = PreviewSession(sourceFile: sourceFile, compiler: compiler)
+        let build = try await session.compileObjectForJIT(
+            window: JITRenderWindow(
+                x: -9000, y: -9000, width: 320, height: 240,
+                title: "Preview: ColorView.swift"))
+
+        let sidecar = PreviewSession.frameSidecarPath(for: session.id)
+        try? FileManager.default.removeItem(at: sidecar)
+        defer { try? FileManager.default.removeItem(at: sidecar) }
+
+        let probe = try await compiler.compileObject(
+            source: """
+                import AppKit
+
+                @_cdecl("preview_move_probe")
+                public func preview_move_probe() -> Int32 {
+                    MainActor.assumeIsolated {
+                        guard
+                            let window = NSApplication.shared.windows.first(where: {
+                                $0.identifier?.rawValue == "previewsmcp-preview"
+                            })
+                        else { return -1 }
+                        window.setFrame(
+                            NSRect(x: -8000, y: -7000, width: 321, height: 654), display: false)
+                        return 0
+                    }
+                }
+                """,
+            moduleName: "FrameMoveProbeFixture"
+        )
+
+        let agent = try JITSession(remoteAgentPath: JITSession.bundledAgentPath())
+        try agent.addObject(path: build.objectPath.path)
+        #expect(try agent.runOnMain(symbol: build.entrySymbol) == 0)
+        try agent.newGeneration()
+        try agent.addObject(path: probe.path)
+        #expect(try agent.runOnMain(symbol: "preview_move_probe") == 0)
+
+        let frame = try #require(PreviewSession.storedWindowFrame(for: session.id))
+        #expect(frame.width == 321)
+        #expect(frame.height == 654)
+        #expect(frame.x != -9000)
+        #expect(frame.y != -9000)
+    }
+
     @Test func reusesOneSessionAcrossFreshGenerations() async throws {
         let compiler = try await Compiler()
         let colors = [(1, 0, 0), (0, 1, 0), (0, 0, 1), (1, 0, 0), (0, 1, 0)]

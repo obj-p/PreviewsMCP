@@ -367,8 +367,21 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
     @discardableResult
     public func jitStructuralReload(sessionID: String, session: PreviewSession) async throws -> URL? {
         guard agentBacked else { return nil }
+        restoreAgentWindowFrame(sessionID: sessionID, session: session)
         let build = try await session.compileObjectForJIT(window: agentWindowSpec(for: sessionID))
         return try await jitRender(sessionID: sessionID, build: build)
+    }
+
+    /// Before a structural reload, bake the agent's last recorded window frame into the session's
+    /// spec so a respawned agent restores the user's dragged/resized window instead of recentering
+    /// (#195). Only for visible sessions; absent sidecar keeps the stored spec unchanged.
+    private func restoreAgentWindowFrame(sessionID: String, session: PreviewSession) {
+        guard let spec = agentWindowSpecs[sessionID], !spec.headless,
+            let frame = PreviewSession.storedWindowFrame(for: session.id)
+        else { return }
+        agentWindowSpecs[sessionID] = JITRenderWindow(
+            x: frame.x, y: frame.y, width: frame.width, height: frame.height,
+            title: spec.title, headless: false)
     }
 
     /// Start a session with the agent as its surface from the first render: no

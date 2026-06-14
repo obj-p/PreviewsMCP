@@ -50,7 +50,8 @@ public enum BridgeGenerator {
         renderOutputPath: String? = nil,
         designTimeValuesPath: String? = nil,
         stableModuleImport: String? = nil,
-        renderWindow: JITRenderWindow? = nil
+        renderWindow: JITRenderWindow? = nil,
+        frameSidecarPath: String? = nil
     ) -> (source: String, literals: [LiteralEntry]) {
         // Transform source to replace literals with DesignTimeStore lookups
         let thunkResult = ThunkGenerator.transform(source: originalSource)
@@ -84,7 +85,7 @@ public enum BridgeGenerator {
             renderOutputPath.map {
                 renderToFileEntryPoint(
                     viewCode: viewCode, path: $0, valuesPath: designTimeValuesPath,
-                    window: renderWindow)
+                    window: renderWindow, frameSidecarPath: frameSidecarPath)
             } ?? ""
         let bridgeCode: String
         switch platform {
@@ -320,7 +321,8 @@ public enum BridgeGenerator {
     /// keeps one live window across structural edits (single-renderer consolidation).
     /// AppKit state is shared across JITDylib generations; the entry's own globals are not.
     private static func renderToFileEntryPoint(
-        viewCode: String, path: String, valuesPath: String?, window: JITRenderWindow?
+        viewCode: String, path: String, valuesPath: String?, window: JITRenderWindow?,
+        frameSidecarPath: String?
     ) -> String {
         let seed =
             valuesPath.map {
@@ -335,6 +337,7 @@ public enum BridgeGenerator {
             } ?? ""
         let createWindow: String
         let presentNewWindow: String
+        let frameObservers: String
         if let window, !window.headless {
             let title = escapedForSwiftStringLiteral(window.title)
             createWindow = """
@@ -354,6 +357,7 @@ public enum BridgeGenerator {
                 window.makeKeyAndOrderFront(nil)
                                 NSApplication.shared.activate(ignoringOtherApps: true)
                 """
+            frameObservers = frameSidecarPath.map(frameObserverCode) ?? ""
         } else {
             // Headless spec or no spec: a borderless off-screen window used only to render at
             // the requested size, never shown or activated. Falls back to 400x600 with no spec.
@@ -366,6 +370,7 @@ public enum BridgeGenerator {
                                 created.setFrameOrigin(NSPoint(x: -10_000, y: -10_000))
                 """
             presentNewWindow = "window.orderFrontRegardless()"
+            frameObservers = ""
         }
         return """
             @_cdecl("renderPreviewToFile")
@@ -389,6 +394,7 @@ public enum BridgeGenerator {
                     window.contentView = hosting
                     if isNewWindow {
                         \(presentNewWindow)
+                        \(frameObservers)
                     } else {
                         window.orderFrontRegardless()
                     }
@@ -422,6 +428,35 @@ public enum BridgeGenerator {
                 }
             }
             """
+    }
+
+    /// Code (run once when the agent creates its visible window) that records the window's frame
+    /// to `sidecarPath` on every move/resize. A respawned agent reads it back so the user's
+    /// dragged/resized window is restored across non-leaf structural edits (#195). Reads the frame
+    /// off the notification's window so the `@Sendable` observer closure captures only the path.
+    private static func frameObserverCode(sidecarPath: String) -> String {
+        """
+        let __frameURL = URL(fileURLWithPath: "\(escapedForSwiftStringLiteral(sidecarPath))")
+                        let __recordFrame: @Sendable (Notification) -> Void = { __note in
+                            MainActor.assumeIsolated {
+                                guard let __win = __note.object as? NSWindow else { return }
+                                let __f = __win.frame
+                                let __dict: [String: Double] = [
+                                    "x": __f.origin.x, "y": __f.origin.y,
+                                    "width": __f.size.width, "height": __f.size.height,
+                                ]
+                                if let __data = try? JSONSerialization.data(withJSONObject: __dict) {
+                                    try? __data.write(to: __frameURL, options: .atomic)
+                                }
+                            }
+                        }
+                        NotificationCenter.default.addObserver(
+                            forName: NSWindow.didMoveNotification, object: window, queue: nil,
+                            using: __recordFrame)
+                        NotificationCenter.default.addObserver(
+                            forName: NSWindow.didResizeNotification, object: window, queue: nil,
+                            using: __recordFrame)
+        """
     }
 
     /// Generate the `@_cdecl("previewSetUp")` entry point that bridges async setUp.
