@@ -638,4 +638,38 @@ struct MacOSMCPTests {
             "subprocess should be terminated by the pthread on timeout"
         )
     }
+
+    @Test("headless snapshot renders at the requested size", .timeLimit(.minutes(20)))
+    func headlessSnapshotUsesRequestedSize() async throws {
+        let server = try await MCPTestServer.start()
+        defer { server.stop() }
+
+        let (startContent, startError) = try await server.callTool(
+            name: "preview_start",
+            arguments: [
+                "filePath": .string(MCPTestServer.toDoViewPath),
+                "projectPath": .string(MCPTestServer.spmExampleRoot.path),
+                "width": .int(800),
+                "height": .int(1000),
+            ]
+        )
+        #expect(startError != true, "preview_start should succeed")
+        let sessionID = try MCPTestServer.extractSessionID(from: startContent)
+        try await Task.sleep(for: .milliseconds(500))
+
+        let (pngContent, pngError) = try await server.callTool(
+            name: "preview_snapshot",
+            arguments: [
+                "sessionID": .string(sessionID),
+                "quality": .double(1.0),
+            ]
+        )
+        #expect(pngError != true, "Snapshot should succeed")
+        try MCPTestServer.assertValidImage(
+            pngContent, expectedMimeType: "image/png",
+            minSize: 10_000, expectedWidth: 800, expectedHeight: 1000)
+
+        _ = try await server.callTool(
+            name: "preview_stop", arguments: ["sessionID": .string(sessionID)])
+    }
 }

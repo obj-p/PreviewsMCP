@@ -388,6 +388,11 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
                 y: screen.midY - size.height / 2,
                 width: size.width, height: size.height,
                 title: title)
+        } else {
+            // Headless, or no screen to place a visible window on: still bake the requested size
+            // so the render matches it; the bridge keeps this window off-screen and unshown.
+            agentWindowSpecs[sessionID] = JITRenderWindow(
+                x: 0, y: 0, width: size.width, height: size.height, title: title, headless: true)
         }
         do {
             try await jitStructuralReload(sessionID: sessionID, session: session)
@@ -407,8 +412,8 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
         return made
     }
 
-    /// The window placement to bake into a JIT build for this session: the spec
-    /// stored at agent start, nil when headless.
+    /// The window spec (size + placement + headless flag) to bake into a JIT build for this
+    /// session, stored at agent start. Nil only when the session never went through `jitStart`.
     public func agentWindowSpec(for sessionID: String) -> JITRenderWindow? {
         agentWindowSpecs[sessionID]
     }
