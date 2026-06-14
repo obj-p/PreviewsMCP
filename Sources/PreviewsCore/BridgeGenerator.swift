@@ -1,22 +1,27 @@
 import Foundation
 
-/// On-screen placement for the agent's persistent preview window, baked into the render
-/// entry. Applied only when the agent creates the window, so a user's later drag or resize
-/// survives leaf edits. Nil means the window stays borderless and off-screen (tests,
-/// headless daemons).
+/// Placement and size for the agent's preview window, baked into the render entry. The size is
+/// always honored; `headless` selects presentation: a visible titled window placed at `x`/`y`,
+/// or a borderless off-screen window used only to render at the requested size (snapshots,
+/// headless daemons). Applied only when the agent creates the window, so a user's later drag or
+/// resize survives leaf edits. Nil means no spec at all — a borderless off-screen default size.
 public struct JITRenderWindow: Sendable {
     public let x: Double
     public let y: Double
     public let width: Double
     public let height: Double
     public let title: String
+    public let headless: Bool
 
-    public init(x: Double, y: Double, width: Double, height: Double, title: String) {
+    public init(
+        x: Double, y: Double, width: Double, height: Double, title: String, headless: Bool = false
+    ) {
         self.x = x
         self.y = y
         self.width = width
         self.height = height
         self.title = title
+        self.headless = headless
     }
 }
 
@@ -330,7 +335,7 @@ public enum BridgeGenerator {
             } ?? ""
         let createWindow: String
         let presentNewWindow: String
-        if let window {
+        if let window, !window.headless {
             let title = escapedForSwiftStringLiteral(window.title)
             createWindow = """
                 NSApplication.shared.setActivationPolicy(.accessory)
@@ -350,9 +355,13 @@ public enum BridgeGenerator {
                                 NSApplication.shared.activate(ignoringOtherApps: true)
                 """
         } else {
+            // Headless spec or no spec: a borderless off-screen window used only to render at
+            // the requested size, never shown or activated. Falls back to 400x600 with no spec.
+            let offscreenWidth = window?.width.description ?? "400"
+            let offscreenHeight = window?.height.description ?? "600"
             createWindow = """
                 let created = NSWindow(
-                                    contentRect: NSRect(x: 0, y: 0, width: 400, height: 600),
+                                    contentRect: NSRect(x: 0, y: 0, width: \(offscreenWidth), height: \(offscreenHeight)),
                                     styleMask: [.borderless], backing: .buffered, defer: false)
                                 created.setFrameOrigin(NSPoint(x: -10_000, y: -10_000))
                 """

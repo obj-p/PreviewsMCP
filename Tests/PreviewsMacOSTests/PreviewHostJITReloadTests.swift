@@ -180,7 +180,10 @@ struct PreviewHostJITReloadTests {
         try await host.jitStart(
             sessionID: "hidden", session: session,
             title: "ignored", size: NSSize(width: 320, height: 240), headless: true)
-        #expect(host.agentWindowSpec(for: "hidden") == nil)
+        let hiddenSpec = try #require(host.agentWindowSpec(for: "hidden"))
+        #expect(hiddenSpec.headless)
+        #expect(hiddenSpec.width == 320)
+        #expect(hiddenSpec.height == 240)
         #expect(host.agentSnapshotPath(for: "hidden") != nil)
 
         host.closePreview(sessionID: "visible")
