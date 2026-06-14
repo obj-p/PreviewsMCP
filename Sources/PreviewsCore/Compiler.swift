@@ -243,6 +243,16 @@ public actor Compiler {
     /// `.swiftdeps` records and the unchanged-file objects persist between compiles.
     private var incrementalDirs: [String: URL] = [:]
 
+    /// The overlay's `swift-frontend` argv, captured once from the driver's own compile plan and
+    /// replayed verbatim on later edits. The driver only spawns the frontend after a round of job
+    /// planning and `.swiftdeps` bookkeeping; replaying the frontend job directly skips that.
+    /// Reusable verbatim because the overlay path and output stay constant per module — only the
+    /// overlay file's contents change. The fingerprint regenerates the template (and rebuilds the
+    /// bulk objects via the driver) if the build context (target, sdk, flags) or any bulk file
+    /// changes — the bypass only recompiles the overlay, so a stale bulk object would otherwise
+    /// be reused.
+    private var frontendTemplates: [String: (fingerprint: String, argv: [String])] = [:]
+
     /// Compile the whole target module incrementally: the editable `overlaySource` plus the
     /// target's other `bulkFiles`, all under one `moduleName`. The Swift driver recompiles only
     /// what changed — the overlay alone on a body edit, the overlay plus its dependents on an
@@ -256,6 +266,21 @@ public actor Compiler {
         moduleName: String,
         extraFlags: [String] = [],
         overrideSDK: String? = nil
+    ) async throws -> (overlayObject: URL, bulkObjects: [URL]) {
+        try await compileModuleIncremental(
+            overlaySource: overlaySource, bulkFiles: bulkFiles, moduleName: moduleName,
+            extraFlags: extraFlags, overrideSDK: overrideSDK, bypassDriver: true)
+    }
+
+    /// `bypassDriver` is an internal seam: production always bypasses; tests pass `false` to
+    /// measure the driver baseline against the bypass.
+    func compileModuleIncremental(
+        overlaySource: String,
+        bulkFiles: [URL],
+        moduleName: String,
+        extraFlags: [String] = [],
+        overrideSDK: String? = nil,
+        bypassDriver: Bool
     ) async throws -> (overlayObject: URL, bulkObjects: [URL]) {
         let dir: URL
         if let existing = incrementalDirs[moduleName] {
@@ -309,8 +334,130 @@ public actor Compiler {
         args += [overlayFile.path]
         args += bulkFiles.map(\.path)
 
+        let bulkStamps = bulkFiles.map { url -> String in
+            let attrs = try? FileManager.default.attributesOfItem(atPath: url.path)
+            let mtime = (attrs?[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0
+            let size = (attrs?[.size] as? Int) ?? 0
+            return "\(url.path)@\(mtime):\(size)"
+        }
+        let fingerprint = (args.dropFirst() + bulkStamps).joined(separator: "\u{1f}")
+
+        if bypassDriver, let cached = frontendTemplates[moduleName], cached.fingerprint == fingerprint {
+            do {
+                try await run(cached.argv)
+                return (overlayObject, bulkObjects)
+            } catch {
+                Log.warn("jit_latency: frontend bypass failed, falling back to driver (\(error))")
+                frontendTemplates[moduleName] = nil
+            }
+        }
+
         try await run(args)
+
+        if bypassDriver {
+            if let argv = try? await captureOverlayFrontendJob(
+                moduleName: moduleName, overlayFile: overlayFile, overlayObject: overlayObject,
+                bulkFiles: bulkFiles, extraFlags: extraFlags, overrideSDK: overrideSDK)
+            {
+                frontendTemplates[moduleName] = (fingerprint, argv)
+            }
+        }
         return (overlayObject, bulkObjects)
+    }
+
+    /// Ask the driver (`-###`) for the `swift-frontend` job it would run to compile the overlay as
+    /// the single primary file, then rewrite that job's `-o` to the overlay object. Captured
+    /// without `-incremental`/`-output-file-map` so the plan never depends on stale `.swiftdeps`
+    /// state and always prints one `-primary-file` job per source. The bulk files stay as secondary
+    /// inputs (parsed, not emitted), which preserves the two-way reference resolution the single
+    /// module relies on. Returns nil if the overlay job can't be found, so the caller keeps using
+    /// the driver.
+    private func captureOverlayFrontendJob(
+        moduleName: String,
+        overlayFile: URL,
+        overlayObject: URL,
+        bulkFiles: [URL],
+        extraFlags: [String],
+        overrideSDK: String?
+    ) async throws -> [String]? {
+        var capture: [String] = [
+            swiftcPath,
+            "-###",
+            "-emit-object",
+            "-parse-as-library",
+            "-target", targetTriple,
+            "-sdk", try resolveSDK(overrideSDK),
+            "-module-name", moduleName,
+            "-Onone",
+            "-gnone",
+            "-module-cache-path", moduleCachePath.path,
+        ]
+        capture += extraFlags
+        capture += [overlayFile.path]
+        capture += bulkFiles.map(\.path)
+
+        let plan = try await run(capture)
+        for line in plan.split(whereSeparator: \.isNewline) {
+            let toks = Self.shellSplit(String(line))
+            guard let pf = toks.firstIndex(of: "-primary-file"), pf + 1 < toks.count,
+                toks[pf + 1] == overlayFile.path,
+                let o = toks.firstIndex(of: "-o"), o + 1 < toks.count
+            else { continue }
+            var argv = toks
+            argv[o + 1] = overlayObject.path
+            return argv
+        }
+        return nil
+    }
+
+    /// Split a `-###` plan line into argv. The driver shell-quotes only tokens with special
+    /// characters (e.g. `-external-plugin-path` values containing `#`), so this honors single
+    /// quotes, double quotes, and backslash escapes.
+    private static func shellSplit(_ line: String) -> [String] {
+        let chars = Array(line)
+        var tokens: [String] = []
+        var cur = ""
+        var hasToken = false
+        var inSingle = false
+        var inDouble = false
+        var i = 0
+        while i < chars.count {
+            let c = chars[i]
+            if inSingle {
+                if c == "'" { inSingle = false } else { cur.append(c) }
+            } else if inDouble {
+                if c == "\"" {
+                    inDouble = false
+                } else if c == "\\", i + 1 < chars.count {
+                    i += 1
+                    cur.append(chars[i])
+                } else {
+                    cur.append(c)
+                }
+            } else if c == "'" {
+                inSingle = true
+                hasToken = true
+            } else if c == "\"" {
+                inDouble = true
+                hasToken = true
+            } else if c == "\\", i + 1 < chars.count {
+                i += 1
+                cur.append(chars[i])
+                hasToken = true
+            } else if c == " " || c == "\t" {
+                if hasToken {
+                    tokens.append(cur)
+                    cur = ""
+                    hasToken = false
+                }
+            } else {
+                cur.append(c)
+                hasToken = true
+            }
+            i += 1
+        }
+        if hasToken { tokens.append(cur) }
+        return tokens
     }
 
     // MARK: - Private
