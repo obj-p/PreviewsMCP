@@ -58,7 +58,7 @@ enum PreviewElementsHandler: ToolHandler {
 
         let elementsJSON = try await iosSession.fetchElements(filter: filter)
 
-        // Parse WDA's JSON into a `Value` so the structured payload carries
+        // Parse the host's accessibility-tree JSON into a `Value` so the structured payload carries
         // the tree natively rather than as an opaque string. The text block
         // keeps the raw JSON for agents that don't consume
         // `structuredContent`.

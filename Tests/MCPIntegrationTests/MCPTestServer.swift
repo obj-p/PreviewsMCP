@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import MCP
 import System
@@ -363,6 +364,30 @@ final class MCPTestServer: @unchecked Sendable {
         } else if mimeType == "image/jpeg" {
             #expect(data[0] == 0xFF && data[1] == 0xD8, "Expected JPEG header")
         }
+    }
+
+    static func assertNotBlank(_ content: [Tool.Content]) throws {
+        let (data, _) = try extractImageData(from: content)
+        guard let rep = NSBitmapImageRep(data: data) else {
+            Issue.record("Snapshot did not decode as an image")
+            return
+        }
+        let stepX = max(1, rep.pixelsWide / 20)
+        let stepY = max(1, rep.pixelsHigh / 20)
+        var reference: NSColor?
+        for y in stride(from: 0, to: rep.pixelsHigh, by: stepY) {
+            for x in stride(from: 0, to: rep.pixelsWide, by: stepX) {
+                guard let c = rep.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB) else { continue }
+                guard let ref = reference else { reference = c; continue }
+                if abs(c.redComponent - ref.redComponent) > 0.05
+                    || abs(c.greenComponent - ref.greenComponent) > 0.05
+                    || abs(c.blueComponent - ref.blueComponent) > 0.05
+                {
+                    return
+                }
+            }
+        }
+        Issue.record("Snapshot appears blank (uniform color) — nothing rendered")
     }
 
     /// Extract all image content items from a tool result.
