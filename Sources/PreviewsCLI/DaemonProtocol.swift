@@ -144,7 +144,7 @@ enum DaemonProtocol {
     }
 
     // Elements doesn't get a Codable DTO — the accessibility tree is
-    // arbitrary nested JSON from WDA. The daemon encodes it directly
+    // arbitrary nested JSON built in-app by the simulator host. The daemon encodes it directly
     // into a `Value.object(["sessionID": ..., "elements": <tree>])`
     // and the CLI's `--json` passthrough serializes it back verbatim.
 }

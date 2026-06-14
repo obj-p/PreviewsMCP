@@ -100,6 +100,11 @@ struct IOSPreviewSessionTests {
             let screenshotPath = tempDir.appendingPathComponent("ios_preview.png")
             try pngData.write(to: screenshotPath)
             print("Saved to: \(screenshotPath.path)")
+
+            let elements = try await session.fetchElements()
+            #expect(
+                elements.contains("Hello from iOS Simulator!"),
+                "Element tree should contain the rendered text; got: \(elements)")
         } catch {
             testError = error
         }

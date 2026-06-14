@@ -57,6 +57,7 @@ struct MacOSMCPTests {
         try MCPTestServer.assertValidImage(
             pngContent, expectedMimeType: "image/png",
             minSize: 10_000, expectedWidth: 400, expectedHeight: 600)
+        try MCPTestServer.assertNotBlank(pngContent)
         let (data0, _) = try MCPTestServer.extractImageData(from: jpegContent)
 
         // --- preview_switch to valid index ---
