@@ -206,6 +206,25 @@ public actor PreviewSession {
         }
     }
 
+    /// Session-stable path the agent's bridge writes the live window frame to, so a respawned
+    /// agent can restore the user's dragged/resized window. Derived from the session id (not the
+    /// per-compile stem) so it survives across respawns within one session.
+    public nonisolated static func frameSidecarPath(for id: String) -> URL {
+        FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-jit-frame-\(id).json")
+    }
+
+    /// The last window frame the agent recorded for this session, or nil when none was written.
+    public nonisolated static func storedWindowFrame(
+        for id: String
+    ) -> (x: Double, y: Double, width: Double, height: Double)? {
+        guard let data = try? Data(contentsOf: frameSidecarPath(for: id)),
+            let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Double],
+            let x = obj["x"], let y = obj["y"], let width = obj["width"], let height = obj["height"]
+        else { return nil }
+        return (x, y, width, height)
+    }
+
     /// Compile the preview for the JIT structural-reload path. Generates a render bridge
     /// with a baked PNG output path, compiles it to a `.o`, and returns the object plus the
     /// image path the agent will write.
@@ -261,7 +280,8 @@ public actor PreviewSession {
             renderOutputPath: imagePath.path,
             designTimeValuesPath: valuesPath.path,
             stableModuleImport: stable != nil ? splitContext?.0.moduleName : nil,
-            renderWindow: window
+            renderWindow: window,
+            frameSidecarPath: Self.frameSidecarPath(for: id).path
         )
 
         let objectPath: URL
