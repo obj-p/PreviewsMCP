@@ -82,10 +82,15 @@ public enum BridgeGenerator {
 
         let bodyKindEntry = bodyKindEntryPoint(closureBody: transformedClosureBody)
         let renderEntry =
-            renderOutputPath.map {
-                renderToFileEntryPoint(
-                    viewCode: viewCode, path: $0, valuesPath: designTimeValuesPath,
-                    window: renderWindow, frameSidecarPath: frameSidecarPath)
+            renderOutputPath.map { path -> String in
+                switch platform {
+                case .macOS:
+                    return renderToFileEntryPoint(
+                        viewCode: viewCode, path: path, valuesPath: designTimeValuesPath,
+                        window: renderWindow, frameSidecarPath: frameSidecarPath)
+                case .iOS:
+                    return iosRenderEntryPoint(viewCode: viewCode, valuesPath: designTimeValuesPath)
+                }
             } ?? ""
         let bridgeCode: String
         switch platform {
@@ -118,6 +123,8 @@ public enum BridgeGenerator {
                 }
 
                 \(bodyKindEntry)
+
+                \(renderEntry)
                 """
         }
 
@@ -308,6 +315,21 @@ public enum BridgeGenerator {
         """
     }
 
+    /// Generated code (run at the top of a render entry) that re-seeds `DesignTimeStore`
+    /// from the values JSON the daemon rewrites per literal edit. Empty when no path.
+    private static func designTimeSeed(_ valuesPath: String?) -> String {
+        valuesPath.map {
+            """
+            if let __dtData = try? Data(contentsOf: URL(fileURLWithPath: "\(escapedForSwiftStringLiteral($0))")),
+                let __dtValues = try? JSONSerialization.jsonObject(with: __dtData)
+                    as? [String: Any]
+            {
+                DesignTimeStore.shared.values = __dtValues
+            }
+            """
+        } ?? ""
+    }
+
     /// Generate the `@_cdecl("renderPreviewToFile")` entry point (macOS, model-A JIT path).
     /// Builds the same preview view as `createPreviewView`, hosts it in a borderless
     /// `NSWindow` positioned off-screen via `NSHostingView` (AppKit-backed views like
@@ -324,17 +346,7 @@ public enum BridgeGenerator {
         viewCode: String, path: String, valuesPath: String?, window: JITRenderWindow?,
         frameSidecarPath: String?
     ) -> String {
-        let seed =
-            valuesPath.map {
-                """
-                if let __dtData = try? Data(contentsOf: URL(fileURLWithPath: "\(escapedForSwiftStringLiteral($0))")),
-                    let __dtValues = try? JSONSerialization.jsonObject(with: __dtData)
-                        as? [String: Any]
-                {
-                    DesignTimeStore.shared.values = __dtValues
-                }
-                """
-            } ?? ""
+        let seed = designTimeSeed(valuesPath)
         let createWindow: String
         let presentNewWindow: String
         let frameObservers: String
@@ -424,6 +436,33 @@ public enum BridgeGenerator {
                     } catch {
                         return Int32(-3)
                     }
+                    return 0
+                }
+            }
+            """
+    }
+
+    /// Generate the `@_cdecl("renderPreviewToFile")` entry point (iOS JIT path). Builds the
+    /// same preview view as `createPreviewView`, hosts it in a `UIHostingController`, and sets
+    /// it as the live host app's key-window `rootViewController` on the main actor. Unlike the
+    /// macOS entry it does not raster a PNG: the daemon captures the simulator screen via
+    /// `simctl`, so the baked render path is unused here. Nullary and run over the agent's
+    /// `runOnMain` surface; re-running it after a literal edit re-seeds DesignTimeStore.
+    private static func iosRenderEntryPoint(viewCode: String, valuesPath: String?) -> String {
+        let seed = designTimeSeed(valuesPath)
+        return """
+            @_cdecl("renderPreviewToFile")
+            public func renderPreviewToFile() -> Int32 {
+                MainActor.assumeIsolated {
+                    \(seed)
+                    let view = \(viewCode)
+                    let hosting = UIHostingController(rootView: view)
+                    let windows = UIApplication.shared.connectedScenes
+                        .compactMap { $0 as? UIWindowScene }
+                        .flatMap { $0.windows }
+                    guard let window = windows.first(where: { $0.isKeyWindow }) ?? windows.first
+                    else { return Int32(-1) }
+                    window.rootViewController = hosting
                     return 0
                 }
             }

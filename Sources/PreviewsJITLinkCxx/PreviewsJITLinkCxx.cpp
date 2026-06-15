@@ -356,38 +356,9 @@ previewsmcp_jit_session_create(previewsmcp_jit_session **out_session,
   return nullptr;
 }
 
-const char *
-previewsmcp_jit_remote_session_create(previewsmcp_jit_session **out_session,
-                                      const char *agent_path,
-                                      const char *orc_rt_path) {
-  initNativeTargetOnce();
-
-  int sv[2];
-  if (socketpair(AF_UNIX, SOCK_STREAM, 0, sv) != 0) {
-    return strdup(
-        ("socketpair failed: " + std::string(strerror(errno))).c_str());
-  }
-  fcntl(sv[0], F_SETFD, FD_CLOEXEC);
-  fcntl(sv[1], F_SETFD, FD_CLOEXEC);
-
-  int childFd = (sv[0] > sv[1] ? sv[0] : sv[1]) + 1;
-  posix_spawn_file_actions_t actions;
-  posix_spawn_file_actions_init(&actions);
-  posix_spawn_file_actions_adddup2(&actions, sv[1], childFd);
-  std::string fdArg =
-      "filedescs=" + std::to_string(childFd) + "," + std::to_string(childFd);
-  char *const argv[] = {const_cast<char *>(agent_path),
-                        const_cast<char *>(fdArg.c_str()), nullptr};
-  pid_t pid = 0;
-  int rc =
-      posix_spawn(&pid, agent_path, &actions, nullptr, argv, *_NSGetEnviron());
-  posix_spawn_file_actions_destroy(&actions);
-  close(sv[1]);
-  if (rc != 0) {
-    close(sv[0]);
-    return strdup(("posix_spawn failed: " + std::string(strerror(rc))).c_str());
-  }
-
+static const char *
+createRemoteSessionFromFDs(previewsmcp_jit_session **out_session, int inFd,
+                           int outFd, const char *orc_rt_path, pid_t pid) {
   llvm::orc::SimpleRemoteEPC::Setup setup;
   setup.CreateMemoryAccess = [](llvm::orc::SimpleRemoteEPC &epc)
       -> llvm::Expected<
@@ -406,7 +377,7 @@ previewsmcp_jit_remote_session_create(previewsmcp_jit_session **out_session,
       llvm::orc::SimpleRemoteEPC::Create<llvm::orc::FDSimpleRemoteEPCTransport>(
           std::make_unique<llvm::orc::DynamicThreadPoolTaskDispatcher>(
               std::nullopt),
-          std::move(setup), sv[0], sv[0]);
+          std::move(setup), inFd, outFd);
   if (!epc) {
     killAgent(pid);
     return toCStr(epc.takeError());
@@ -476,6 +447,47 @@ previewsmcp_jit_remote_session_create(previewsmcp_jit_session **out_session,
   session->jd = &*jd;
   *out_session = session;
   return nullptr;
+}
+
+const char *
+previewsmcp_jit_remote_session_create(previewsmcp_jit_session **out_session,
+                                      const char *agent_path,
+                                      const char *orc_rt_path) {
+  initNativeTargetOnce();
+
+  int sv[2];
+  if (socketpair(AF_UNIX, SOCK_STREAM, 0, sv) != 0) {
+    return strdup(
+        ("socketpair failed: " + std::string(strerror(errno))).c_str());
+  }
+  fcntl(sv[0], F_SETFD, FD_CLOEXEC);
+  fcntl(sv[1], F_SETFD, FD_CLOEXEC);
+
+  int childFd = (sv[0] > sv[1] ? sv[0] : sv[1]) + 1;
+  posix_spawn_file_actions_t actions;
+  posix_spawn_file_actions_init(&actions);
+  posix_spawn_file_actions_adddup2(&actions, sv[1], childFd);
+  std::string fdArg =
+      "filedescs=" + std::to_string(childFd) + "," + std::to_string(childFd);
+  char *const argv[] = {const_cast<char *>(agent_path),
+                        const_cast<char *>(fdArg.c_str()), nullptr};
+  pid_t pid = 0;
+  int rc =
+      posix_spawn(&pid, agent_path, &actions, nullptr, argv, *_NSGetEnviron());
+  posix_spawn_file_actions_destroy(&actions);
+  close(sv[1]);
+  if (rc != 0) {
+    close(sv[0]);
+    return strdup(("posix_spawn failed: " + std::string(strerror(rc))).c_str());
+  }
+
+  return createRemoteSessionFromFDs(out_session, sv[0], sv[0], orc_rt_path, pid);
+}
+
+const char *previewsmcp_jit_remote_session_create_from_fd(
+    previewsmcp_jit_session **out_session, int fd, const char *orc_rt_path) {
+  initNativeTargetOnce();
+  return createRemoteSessionFromFDs(out_session, fd, fd, orc_rt_path, 0);
 }
 
 const char *previewsmcp_jit_session_run_main(previewsmcp_jit_session *session,

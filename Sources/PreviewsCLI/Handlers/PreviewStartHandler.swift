@@ -6,6 +6,22 @@ import PreviewsEngine
 import PreviewsIOS
 import PreviewsMacOS
 
+#if PREVIEWSMCP_JIT
+import PreviewsJITLink
+#endif
+
+/// Builds the iOS JIT reloader from the accepted EPC fd, or nil when the JIT build is
+/// absent so iOS stays on the dylib path. Mirrors the macOS `host.makeStructuralReloader`
+/// injection in `PreviewsMCPApp`. Active only when both the JIT link library
+/// (`PREVIEWSMCP_JIT`) and the bundled iossim runtime (`PREVIEWSMCP_IOS_JIT`) are present.
+private let iosJITReloaderFactory: IOSPreviewSession.MakeJITReloader? = {
+    #if PREVIEWSMCP_JIT && PREVIEWSMCP_IOS_JIT
+    return { fd, orcPath in try IOSJITStructuralReloader(remoteFD: fd, orcRuntimePath: orcPath) }
+    #else
+    return nil
+    #endif
+}()
+
 enum PreviewStartHandler: ToolHandler {
     static let name: ToolName = .previewStart
 
@@ -287,7 +303,8 @@ private func handleIOSPreviewStart(
         setupCompilerFlags: setupResult?.compilerFlags ?? [],
         setupSDKPath: setupResult?.sdkPath,
         setupDylibPath: setupResult?.dylibPath,
-        progress: progress
+        progress: progress,
+        makeJITReloader: iosJITReloaderFactory
     )
 
     stage("session.start begin")

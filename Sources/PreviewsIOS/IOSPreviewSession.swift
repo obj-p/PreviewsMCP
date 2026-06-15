@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 import PreviewsCore
 
@@ -33,6 +34,15 @@ public actor IOSPreviewSession {
     /// per-session and torn down by `stop()`.
     private let channel = IOSHostChannel()
 
+    /// Builds the JIT reloader from the accepted EPC socket and the bundled
+    /// iossim orc runtime path. Injected by the composition root behind the JIT
+    /// flag; `nil` keeps the session on the dylib path.
+    public typealias MakeJITReloader =
+        @Sendable (_ epcFD: Int32, _ orcRuntimePath: String) throws -> any IOSStructuralReloader
+    private let makeJITReloader: MakeJITReloader?
+    private var jitReloader: (any IOSStructuralReloader)?
+    private var jitListenFD: Int32 = -1
+
     /// Outermost body kind of the currently-loaded preview. Reported by the host
     /// after each dylib load (initial `init` handshake + every `reloadAck`).
     /// Defaults to `.uiView` so a stale or legacy host that never reports a kind
@@ -62,7 +72,8 @@ public actor IOSPreviewSession {
         setupCompilerFlags: [String] = [],
         setupSDKPath: String? = nil,
         setupDylibPath: URL? = nil,
-        progress: (any ProgressReporter)? = nil
+        progress: (any ProgressReporter)? = nil,
+        makeJITReloader: MakeJITReloader? = nil
     ) {
         self.id = UUID().uuidString
         self.sourceFile = sourceFile
@@ -80,6 +91,7 @@ public actor IOSPreviewSession {
         self.setupSDKPath = setupSDKPath
         self.setupDylibPath = setupDylibPath
         self.progress = progress
+        self.makeJITReloader = makeJITReloader
     }
 
     // MARK: - Lifecycle
@@ -96,8 +108,15 @@ public actor IOSPreviewSession {
             Log.info("iOS preview: \(s) [\(deviceUDID.prefix(8))]")
         }
 
-        // 1. Compile preview dylib for iOS simulator
-        stage("compiling dylib")
+        var jitMode = false
+        #if PREVIEWSMCP_IOS_JIT
+        jitMode = makeJITReloader != nil
+        #endif
+
+        // 1. Compile the preview. The dylib path links a dylib now and loads it via
+        // the host's `--dylib` argv; the JIT path skips the dylib and renders over the
+        // EPC connection once the in-app executor is up (step 8).
+        stage(jitMode ? "compiling (JIT)" : "compiling dylib")
         await progress?.report(.compilingBridge, message: "Compiling \(sourceFile.lastPathComponent)...")
         let previewSession = PreviewSession(
             sourceFile: sourceFile,
@@ -112,7 +131,7 @@ public actor IOSPreviewSession {
             setupSDKPath: setupSDKPath
         )
         self.session = previewSession
-        let compileResult = try await previewSession.compile()
+        let dylibPath = jitMode ? nil : try await previewSession.compile().dylibPath
 
         // 2. Build host app.
         stage("building host app")
@@ -122,6 +141,16 @@ public actor IOSPreviewSession {
 
         // 4. Create TCP server on loopback, bind to ephemeral port
         let port = try await channel.bindAndListen()
+
+        // 4b. JIT mode: bind a second loopback listener for the EPC channel the
+        // in-app ORC executor connects back on. The JSON channel above still
+        // serves elements / touch / screenshot.
+        var jitPort: Int?
+        #if PREVIEWSMCP_IOS_JIT
+        if makeJITReloader != nil {
+            jitPort = try bindJITListener()
+        }
+        #endif
 
         // 5. Boot + install + launch with retry. The whole sequence is
         // retried because PR #141 CI has shown the iOS simulator
@@ -135,12 +164,15 @@ public actor IOSPreviewSession {
         await progress?.report(.installingApp, message: "Installing host app...")
         await progress?.report(.launchingApp, message: "Launching host app...")
 
-        var launchArgs = [
-            "--dylib", compileResult.dylibPath.path,
-            "--port", String(port),
-        ]
+        var launchArgs = ["--port", String(port)]
+        if let dylibPath {
+            launchArgs += ["--dylib", dylibPath.path]
+        }
         if let setupPath = setupDylibPath {
             launchArgs += ["--setup-dylib", setupPath.path]
+        }
+        if let jitPort {
+            launchArgs += ["--jit-port", String(jitPort)]
         }
 
         var launchedPid: Int?
@@ -236,6 +268,26 @@ public actor IOSPreviewSession {
             )
         }
 
+        #if PREVIEWSMCP_IOS_JIT
+        // 8. JIT mode: accept the executor's EPC connection and stand up the
+        // remote session over it. The host connects --port and --jit-port
+        // independently, so this accept is ordered after the JSON connect but
+        // either may arrive first (the listen backlog holds the other).
+        if let make = makeJITReloader {
+            guard let orcPath = IOSHostBuilder.jitOrcRuntimePath else {
+                throw IOSPreviewSessionError.jitRuntimeMissing
+            }
+            stage("awaiting JIT executor connection")
+            let epcFD = try acceptJIT(timeoutSeconds: 10)
+            let reloader = try make(epcFD, orcPath)
+            jitReloader = reloader
+            stage("JIT executor connected; rendering initial preview")
+            let build = try await previewSession.compileObjectForJIT()
+            try await reloader.render(build)
+            stage("initial JIT render complete")
+        }
+        #endif
+
         stage("connected; start complete (bodyKind=\(lastBodyKind))")
 
         return pid
@@ -245,6 +297,70 @@ public actor IOSPreviewSession {
     /// `IOSHostChannel.close()` is safe to call when nothing was opened.
     public func stop() async {
         await channel.close()
+        jitReloader = nil
+        if jitListenFD >= 0 {
+            Darwin.close(jitListenFD)
+            jitListenFD = -1
+        }
+    }
+
+    // MARK: - JIT EPC socket
+
+    /// Bind a second loopback listener for the in-app ORC executor's EPC
+    /// connection and return the assigned port. The accepted fd is owned by the
+    /// JIT session built from it; `stop()` closes the listen fd.
+    private func bindJITListener() throws -> Int {
+        let fd = Darwin.socket(AF_INET, SOCK_STREAM, 0)
+        guard fd >= 0 else { throw IOSPreviewSessionError.socketCreateFailed }
+        var reuse: Int32 = 1
+        setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &reuse, socklen_t(MemoryLayout<Int32>.size))
+
+        var addr = sockaddr_in()
+        addr.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
+        addr.sin_family = sa_family_t(AF_INET)
+        addr.sin_port = 0
+        addr.sin_addr.s_addr = inet_addr("127.0.0.1")
+
+        let bound = withUnsafePointer(to: &addr) { ptr in
+            ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockPtr in
+                Darwin.bind(fd, sockPtr, socklen_t(MemoryLayout<sockaddr_in>.size))
+            }
+        }
+        guard bound == 0, Darwin.listen(fd, 1) == 0 else {
+            Darwin.close(fd)
+            throw IOSPreviewSessionError.socketCreateFailed
+        }
+
+        var name = sockaddr_in()
+        var len = socklen_t(MemoryLayout<sockaddr_in>.size)
+        let named = withUnsafeMutablePointer(to: &name) { ptr in
+            ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockPtr in
+                getsockname(fd, sockPtr, &len)
+            }
+        }
+        guard named == 0 else {
+            Darwin.close(fd)
+            throw IOSPreviewSessionError.socketCreateFailed
+        }
+        jitListenFD = fd
+        return Int(UInt16(bigEndian: name.sin_port))
+    }
+
+    /// Accept the executor's EPC connection (up to `timeoutSeconds`) and close
+    /// the listen fd. Returns the connected fd, which the JIT session owns.
+    private func acceptJIT(timeoutSeconds: Int32) throws -> Int32 {
+        var pfd = pollfd(fd: jitListenFD, events: Int16(POLLIN), revents: 0)
+        let ready = poll(&pfd, 1, timeoutSeconds * 1000)
+        guard ready > 0 else {
+            throw IOSPreviewSessionError.socketAcceptTimeout
+        }
+        let conn = Darwin.accept(jitListenFD, nil, nil)
+        Darwin.close(jitListenFD)
+        jitListenFD = -1
+        guard conn >= 0 else {
+            throw IOSPreviewSessionError.socketAcceptFailed
+        }
+        return conn
     }
 
     // MARK: - Communication
@@ -269,6 +385,17 @@ public actor IOSPreviewSession {
             setupSDKPath: setupSDKPath
         )
         self.session = previewSession
+
+        #if PREVIEWSMCP_IOS_JIT
+        // JIT path: link the freshly compiled object into the live host over EPC and
+        // re-run its render entry. No dylib, no `reload` round-trip over the JSON channel.
+        if let jitReloader {
+            let build = try await previewSession.compileObjectForJIT()
+            try await jitReloader.render(build)
+            return
+        }
+        #endif
+
         let compileResult = try await previewSession.compile()
 
         let requestID = UUID().uuidString
@@ -474,6 +601,7 @@ public enum IOSPreviewSessionError: Error, LocalizedError, CustomStringConvertib
     case socketCreateFailed
     case socketAcceptFailed
     case socketAcceptTimeout
+    case jitRuntimeMissing
     case socketResponseTimeout(String)
     case connectionLost
     /// JSON parse or shape mismatch on a host-app response. Distinct
@@ -487,6 +615,7 @@ public enum IOSPreviewSessionError: Error, LocalizedError, CustomStringConvertib
         case .socketCreateFailed: return "Failed to create TCP server socket"
         case .socketAcceptFailed: return "Failed to accept connection from host app"
         case .socketAcceptTimeout: return "Timed out waiting for host app to connect"
+        case .jitRuntimeMissing: return "Bundled iossim orc runtime archive not found"
         case .socketResponseTimeout(let id): return "Timed out waiting for response (id: \(id))"
         case .connectionLost: return "Connection to host app lost"
         case .responseDecodeFailed(let operation):

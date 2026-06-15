@@ -32,7 +32,13 @@ struct IOSHostBuilderHashTests {
         // (and the change should land in the same PR as the edit).
         // Updated 2026-05-06 for #160: HostApp.swift gained body-kind probe
         // dlsym + reloadAck/init handshake reporting.
-        let expected = "3230e348b2f22a14bcf3ec18e7a7675e2ed51f850bef33c75d81d2c60f98090e"
+        // Updated 2026-06-15 for iOS JIT: HostApp.swift gained the
+        // PREVIEWSMCP_IOS_JIT --jit-port branch that starts the in-app ORC
+        // executor, and the dylib-arg guard no longer fails in JIT mode.
+        // Updated 2026-06-15 for iOS JIT render: JIT mode installs a placeholder
+        // root view controller at launch so UIKit's end-of-launch assertion
+        // doesn't abort before the first render over EPC.
+        let expected = "532971b3df24de106c6f761c2b27fbe6efa3f7af37a7a6b19ad0a182b6f2e115"
         #expect(hash == expected, "host-app artifact hash drifted (was \(expected), now \(hash))")
     }
 }

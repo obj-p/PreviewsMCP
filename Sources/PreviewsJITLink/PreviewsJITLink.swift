@@ -49,6 +49,17 @@ public final class JITSession {
         handle = session
     }
 
+    public init(remoteFD fd: Int32, orcRuntimePath: String) throws {
+        var session: OpaquePointer?
+        if let error = previewsmcp_jit_remote_session_create_from_fd(&session, fd, orcRuntimePath) {
+            throw JITLinkError.failed(error.string())
+        }
+        guard let session else {
+            throw JITLinkError.failed("no session returned")
+        }
+        handle = session
+    }
+
     public func runMain(symbol: String) throws -> Int32 {
         var result: Int32 = 0
         if let error = previewsmcp_jit_session_run_main(handle, symbol, &result) {
