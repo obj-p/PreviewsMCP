@@ -76,7 +76,7 @@ public actor IOSHostBuilder {
         try IOSHostAppSource.code.write(to: sourceFile, atomically: true, encoding: .utf8)
 
         // Compile
-        try await run(
+        var compileArgs = [
             swiftcPath,
             "-emit-executable",
             "-parse-as-library",
@@ -87,8 +87,36 @@ public actor IOSHostBuilder {
             "-gnone",
             "-module-cache-path", moduleCachePath.path,
             "-o", binaryPath.path,
-            sourceFile.path
-        )
+        ]
+
+        #if PREVIEWSMCP_IOS_JIT
+        // Link the in-app ORC executor so the host can JIT-link objects pushed
+        // by the daemon over the second (EPC) socket. server.o references the
+        // LLVM symbols, so it must precede the archives; the orc runtime is NOT
+        // linked here — the daemon injects it remotely.
+        let jit = try Self.jitArtifacts()
+        let bridgingHeader = workDir.appendingPathComponent("previewsmcp_ios_executor.h")
+        try Self.bridgingHeaderSource.write(to: bridgingHeader, atomically: true, encoding: .utf8)
+        compileArgs += [
+            "-D", "PREVIEWSMCP_IOS_JIT",
+            "-import-objc-header", bridgingHeader.path,
+        ]
+        compileArgs.append(sourceFile.path)
+        compileArgs.append(jit.serverObject.path)
+        compileArgs += [
+            "-L", jit.libDir.path,
+            "-lLLVMOrcTargetProcess",
+            "-lLLVMOrcShared",
+            "-lLLVMSupport",
+            "-lLLVMTargetParser",
+            "-lLLVMDemangle",
+            "-lc++",
+        ]
+        #else
+        compileArgs.append(sourceFile.path)
+        #endif
+
+        try await run(compileArgs)
 
         // Create .app bundle
         try FileManager.default.createDirectory(at: appDir, withIntermediateDirectories: true)
@@ -120,6 +148,11 @@ public actor IOSHostBuilder {
 
     @discardableResult
     private func run(_ args: String...) async throws -> String {
+        try await run(args)
+    }
+
+    @discardableResult
+    private func run(_ args: [String]) async throws -> String {
         let output = try await runAsync(args[0], arguments: Array(args.dropFirst()))
         guard output.exitCode == 0 else {
             throw IOSHostBuildError.compilationFailed(
@@ -130,6 +163,38 @@ public actor IOSHostBuilder {
     }
 
 }
+
+#if PREVIEWSMCP_IOS_JIT
+extension IOSHostBuilder {
+    struct JITArtifacts {
+        let serverObject: URL
+        let libDir: URL
+    }
+
+    /// Locate the iossim JIT executor artifacts staged into PreviewsIOS
+    /// resources by the BundleIOSSimJIT plugin. `server.o` and the LLVM
+    /// archives share the bundle's resource directory.
+    static func jitArtifacts() throws -> JITArtifacts {
+        guard let serverObject = Bundle.module.url(forResource: "server", withExtension: "o") else {
+            throw IOSHostBuildError.compilationFailed(
+                "iOS JIT build requested but server.o is missing from the PreviewsIOS resource bundle"
+            )
+        }
+        return JITArtifacts(
+            serverObject: serverObject,
+            libDir: serverObject.deletingLastPathComponent()
+        )
+    }
+
+    static let bridgingHeaderSource = "int previewsmcp_ios_executor_start(int in_fd, int out_fd);\n"
+
+    /// Path to the iossim orc runtime archive the daemon injects remotely via
+    /// `JITSession(remoteFD:orcRuntimePath:)`. Not linked into the host app.
+    public static var jitOrcRuntimePath: String? {
+        Bundle.module.url(forResource: "liborc_rt_iossim", withExtension: "a")?.path
+    }
+}
+#endif
 
 public enum IOSHostBuildError: Error, LocalizedError, CustomStringConvertible {
     case compilationFailed(String)

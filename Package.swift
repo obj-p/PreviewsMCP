@@ -17,6 +17,21 @@ let jitEnabled =
 let jitCLIDependencies: [Target.Dependency] = jitEnabled ? ["PreviewsJITLink"] : []
 let jitCLISwiftSettings: [SwiftSetting] = jitEnabled ? [.define("PREVIEWSMCP_JIT")] : []
 
+// iOS-simulator JIT: the in-app ORC executor needs the cross-built iossim
+// TargetProcess libs and the iossim orc runtime. Gated separately from macOS
+// JIT because those artifacts come from `scripts/build-jit-llvm-iossim.sh` and
+// may be absent on a macOS-only checkout. When present, the BundleIOSSimJIT
+// plugin stages them into PreviewsIOS resources for IOSHostBuilder.
+let llvmBuildIOSSim = "\(packageDir)/third_party/llvm-build-iossim/lib/libLLVMOrcTargetProcess.a"
+let orcRuntimeIOSSim = "\(packageDir)/third_party/llvm-build-rt/lib/darwin/liborc_rt_iossim.a"
+
+let iosJitEnabled =
+    FileManager.default.fileExists(atPath: llvmBuildIOSSim)
+    && FileManager.default.fileExists(atPath: orcRuntimeIOSSim)
+
+let iosJitSwiftSettings: [SwiftSetting] = iosJitEnabled ? [.define("PREVIEWSMCP_IOS_JIT")] : []
+let iosJitPlugins: [Target.PluginUsage] = iosJitEnabled ? [.plugin(name: "BundleIOSSimJIT")] : []
+
 var targets: [Target] = [
     .target(
         name: "SimulatorBridge",
@@ -44,7 +59,8 @@ var targets: [Target] = [
     .target(
         name: "PreviewsIOS",
         dependencies: ["PreviewsCore", "SimulatorBridge"],
-        plugins: [.plugin(name: "EmbedHostAppSource")]
+        swiftSettings: iosJitSwiftSettings,
+        plugins: [.plugin(name: "EmbedHostAppSource")] + iosJitPlugins
     ),
     .target(
         name: "PreviewsEngine",
@@ -60,7 +76,7 @@ var targets: [Target] = [
             .product(name: "ArgumentParser", package: "swift-argument-parser"),
             .product(name: "MCP", package: "swift-sdk"),
         ] + jitCLIDependencies,
-        swiftSettings: jitCLISwiftSettings,
+        swiftSettings: jitCLISwiftSettings + iosJitSwiftSettings,
         plugins: [.plugin(name: "GenerateVersion")]
     ),
     .executableTarget(
@@ -120,6 +136,15 @@ var targets: [Target] = [
     ),
 ]
 
+if iosJitEnabled {
+    targets += [
+        .plugin(
+            name: "BundleIOSSimJIT",
+            capability: .buildTool()
+        )
+    ]
+}
+
 if jitEnabled {
     targets += [
         .target(
@@ -170,8 +195,9 @@ if jitEnabled {
         ),
         .testTarget(
             name: "PreviewsJITLinkTests",
-            dependencies: ["PreviewsJITLink", "PreviewsCore", "PreviewAgent"],
-            exclude: ["Fixtures"]
+            dependencies: ["PreviewsJITLink", "PreviewsCore", "PreviewAgent", "PreviewsIOS"],
+            exclude: ["Fixtures"],
+            swiftSettings: iosJitSwiftSettings
         ),
     ]
 }

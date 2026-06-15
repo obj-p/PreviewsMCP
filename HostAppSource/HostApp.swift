@@ -29,27 +29,47 @@ class PreviewHostAppDelegate: UIResponder, UIApplicationDelegate {
 
         let args = ProcessInfo.processInfo.arguments
 
-        guard let dylibIndex = args.firstIndex(of: "--dylib"),
-              dylibIndex + 1 < args.count else {
-            showError("Missing --dylib argument")
-            window.makeKeyAndVisible()
-            return true
+        // JIT mode runs the in-process ORC executor and links objects pushed by
+        // the daemon over the EPC socket — there is no preview dylib to load.
+        #if PREVIEWSMCP_IOS_JIT
+        var jitMode = false
+        if let jitPortIndex = args.firstIndex(of: "--jit-port"),
+           jitPortIndex + 1 < args.count,
+           let jitPort = UInt16(args[jitPortIndex + 1]) {
+            startJITExecutor(port: jitPort)
+            jitMode = true
         }
+        #else
+        let jitMode = false
+        #endif
 
-        let dylibPath = args[dylibIndex + 1]
+        if let dylibIndex = args.firstIndex(of: "--dylib"),
+           dylibIndex + 1 < args.count {
+            let dylibPath = args[dylibIndex + 1]
 
-        // Load setup dylib with RTLD_GLOBAL before any preview dylib so all
-        // preview dylibs share the same statics (issue #86).
-        if let setupIndex = args.firstIndex(of: "--setup-dylib"),
-           setupIndex + 1 < args.count {
-            let setupPath = args[setupIndex + 1]
-            if dlopen(setupPath, RTLD_NOW | RTLD_GLOBAL) == nil {
-                let err = String(cString: dlerror())
-                NSLog("PreviewHost: Failed to load setup dylib: \(err)")
+            // Load setup dylib with RTLD_GLOBAL before any preview dylib so all
+            // preview dylibs share the same statics (issue #86).
+            if let setupIndex = args.firstIndex(of: "--setup-dylib"),
+               setupIndex + 1 < args.count {
+                let setupPath = args[setupIndex + 1]
+                if dlopen(setupPath, RTLD_NOW | RTLD_GLOBAL) == nil {
+                    let err = String(cString: dlerror())
+                    NSLog("PreviewHost: Failed to load setup dylib: \(err)")
+                }
             }
+
+            loadPreview(dylibPath: dylibPath)
+        } else if !jitMode {
+            showError("Missing --dylib argument")
         }
 
-        loadPreview(dylibPath: dylibPath)
+        // JIT mode loads no dylib at launch, so the daemon's first render over EPC
+        // installs the real hosting controller. Until then, give the window a
+        // placeholder root view controller so UIKit's end-of-launch assertion
+        // ("windows are expected to have a root view controller") doesn't abort.
+        if jitMode, window.rootViewController == nil {
+            window.rootViewController = UIViewController()
+        }
 
         initTouchInjection()
         activateAccessibility()
@@ -63,6 +83,45 @@ class PreviewHostAppDelegate: UIResponder, UIApplicationDelegate {
         window.makeKeyAndVisible()
         return true
     }
+
+    #if PREVIEWSMCP_IOS_JIT
+    // Connect back to the daemon's EPC listener and run the in-process ORC
+    // executor. Runs on a detached thread so the SimpleRemoteEPCServer can
+    // block on the socket while the UIApplication run loop stays live on main
+    // (run_on_main dispatches to it).
+    private func startJITExecutor(port: UInt16) {
+        Thread.detachNewThread {
+            let fd = Self.connectLoopback(port: port)
+            guard fd >= 0 else {
+                NSLog("PreviewHost: JIT executor failed to connect on port \(port)")
+                return
+            }
+            _ = previewsmcp_ios_executor_start(fd, fd)
+        }
+    }
+
+    private static func connectLoopback(port: UInt16) -> Int32 {
+        let fd = Darwin.socket(AF_INET, SOCK_STREAM, 0)
+        guard fd >= 0 else { return -1 }
+
+        var addr = sockaddr_in()
+        addr.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
+        addr.sin_family = sa_family_t(AF_INET)
+        addr.sin_port = port.bigEndian
+        addr.sin_addr.s_addr = inet_addr("127.0.0.1")
+
+        let result = withUnsafePointer(to: &addr) { ptr in
+            ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockPtr in
+                Darwin.connect(fd, sockPtr, socklen_t(MemoryLayout<sockaddr_in>.size))
+            }
+        }
+        guard result == 0 else {
+            Darwin.close(fd)
+            return -1
+        }
+        return fd
+    }
+    #endif
 
     private func loadPreview(dylibPath: String) {
         guard let handle = dlopen(dylibPath, RTLD_NOW | RTLD_GLOBAL) else {

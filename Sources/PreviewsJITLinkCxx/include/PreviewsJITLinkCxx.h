@@ -25,6 +25,10 @@ const char *_Nullable previewsmcp_jit_remote_session_create(
     previewsmcp_jit_session *_Nullable *_Nonnull out_session,
     const char *agent_path, const char *orc_rt_path);
 
+const char *_Nullable previewsmcp_jit_remote_session_create_from_fd(
+    previewsmcp_jit_session *_Nullable *_Nonnull out_session, int fd,
+    const char *orc_rt_path);
+
 const char *_Nullable previewsmcp_jit_session_run_main(
     previewsmcp_jit_session *session, const char *symbol_name,
     int32_t *out_result);
