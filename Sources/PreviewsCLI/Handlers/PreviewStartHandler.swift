@@ -11,9 +11,10 @@ import PreviewsJITLink
 #endif
 
 /// Builds the iOS JIT reloader from the accepted EPC fd, or nil when the JIT build is
-/// absent so iOS stays on the dylib path. Mirrors the macOS `host.makeStructuralReloader`
-/// injection in `PreviewsMCPApp`. Active only when both the JIT link library
-/// (`PREVIEWSMCP_JIT`) and the bundled iossim runtime (`PREVIEWSMCP_IOS_JIT`) are present.
+/// absent — in which case iOS previews are unavailable and `start()` throws `jitRequired`.
+/// Mirrors the macOS `host.makeStructuralReloader` injection in `PreviewsMCPApp`. Active
+/// only when both the JIT link library (`PREVIEWSMCP_JIT`) and the bundled iossim runtime
+/// (`PREVIEWSMCP_IOS_JIT`) are present.
 private let iosJITReloaderFactory: IOSPreviewSession.MakeJITReloader? = {
     #if PREVIEWSMCP_JIT && PREVIEWSMCP_IOS_JIT
     return { fd, orcPath in try IOSJITStructuralReloader(remoteFD: fd, orcRuntimePath: orcPath) }
@@ -302,7 +303,6 @@ private func handleIOSPreviewStart(
         setupType: setupResult?.typeName,
         setupCompilerFlags: setupResult?.compilerFlags ?? [],
         setupSDKPath: setupResult?.sdkPath,
-        setupDylibPath: setupResult?.dylibPath,
         progress: progress,
         makeJITReloader: iosJITReloaderFactory
     )
@@ -320,12 +320,8 @@ private func handleIOSPreviewStart(
         Task {
             Log.info("MCP: iOS file change detected, reloading session \(sessionID)...")
             do {
-                let wasLiteralOnly = try await session.handleSourceChange()
-                if wasLiteralOnly {
-                    Log.info("MCP: iOS literal-only change applied (state preserved)")
-                } else {
-                    Log.info("MCP: iOS structural change — recompiled and signalled reload")
-                }
+                try await session.handleSourceChange()
+                Log.info("MCP: iOS source change — recompiled and re-linked over JIT")
             } catch {
                 Log.error("MCP: iOS reload failed for session \(sessionID): \(error)")
             }

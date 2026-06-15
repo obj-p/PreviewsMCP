@@ -194,6 +194,12 @@ struct IOSSimSpikeTests {
         let pid = try await session.start()
         #expect(pid > 0)
 
+        // Default quality → JPEG (0xFF 0xD8 SOI marker); quality 1.0 → PNG (0x89 'P').
+        let jpeg = try await session.screenshot()
+        #expect(jpeg.count > 1 && jpeg[0] == 0xFF && jpeg[1] == 0xD8)
+        let png = try await session.screenshot(jpegQuality: 1.0)
+        #expect(png.count > 1 && png[0] == 0x89 && png[1] == 0x50)
+
         let elements = try await session.fetchElements()
         #expect(elements.contains("Hello from iOS JIT!"))
         await session.stop()
