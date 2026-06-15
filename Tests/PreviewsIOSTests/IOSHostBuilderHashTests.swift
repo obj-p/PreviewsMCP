@@ -38,7 +38,10 @@ struct IOSHostBuilderHashTests {
         // Updated 2026-06-15 for iOS JIT render: JIT mode installs a placeholder
         // root view controller at launch so UIKit's end-of-launch assertion
         // doesn't abort before the first render over EPC.
-        let expected = "532971b3df24de106c6f761c2b27fbe6efa3f7af37a7a6b19ad0a182b6f2e115"
+        // Updated 2026-06-15 for dylib Phase B: iOS is JIT-only now, so HostApp.swift
+        // dropped all dylib loading (loadPreview/showError/applyLiterals, the
+        // --dylib/--setup-dylib args, and the reload/init/literals handlers).
+        let expected = "ad5032b60eb337cf2a0920272262688ea3da36fd4cae9ecd0c3976fe1d3c8133"
         #expect(hash == expected, "host-app artifact hash drifted (was \(expected), now \(hash))")
     }
 }

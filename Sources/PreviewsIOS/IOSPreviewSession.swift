@@ -3,10 +3,11 @@ import Foundation
 import PreviewsCore
 
 /// Orchestrates the full iOS preview pipeline:
-/// boot simulator → install host app → compile dylib → launch → screenshot.
+/// boot simulator → install host app → compile object → launch → JIT-link + render.
 ///
-/// Communicates with the iOS host app over a TCP loopback socket (127.0.0.1).
-/// See docs/communication-protocol.md for protocol details.
+/// Drives the host app over two TCP loopback sockets (127.0.0.1): a JSON channel
+/// for touch / elements, and the JIT EPC channel that links each compiled preview
+/// object into the in-app ORC executor. See docs/communication-protocol.md.
 public actor IOSPreviewSession {
     public nonisolated let id: String
     public nonisolated let sourceFile: URL
@@ -26,7 +27,6 @@ public actor IOSPreviewSession {
     private let setupType: String?
     private let setupCompilerFlags: [String]
     private let setupSDKPath: String?
-    private let setupDylibPath: URL?
     public var currentTraits: PreviewTraits { traits }
 
     /// Transport to the iOS host app. Owns all socket state — bind,
@@ -36,24 +36,12 @@ public actor IOSPreviewSession {
 
     /// Builds the JIT reloader from the accepted EPC socket and the bundled
     /// iossim orc runtime path. Injected by the composition root behind the JIT
-    /// flag; `nil` keeps the session on the dylib path.
+    /// flag. iOS previews require JIT; `nil` makes `start()` throw `jitRequired`.
     public typealias MakeJITReloader =
         @Sendable (_ epcFD: Int32, _ orcRuntimePath: String) throws -> any IOSStructuralReloader
     private let makeJITReloader: MakeJITReloader?
     private var jitReloader: (any IOSStructuralReloader)?
     private var jitListenFD: Int32 = -1
-
-    /// Outermost body kind of the currently-loaded preview. Reported by the host
-    /// after each dylib load (initial `init` handshake + every `reloadAck`).
-    /// Defaults to `.uiView` so a stale or legacy host that never reports a kind
-    /// keeps the daemon on the safe full-reload path — never silently no-ops the
-    /// way the literal-only fast path did before #160.
-    private var lastBodyKind: BodyKind = .uiView
-
-    /// Test-only window into the body-kind state set by the `init` handshake
-    /// and each `reloadAck`. Production callers gate via `handleSourceChange`
-    /// — they don't need direct access.
-    public var currentBodyKind: BodyKind { lastBodyKind }
 
     public static let hostBundleID = "com.previewsmcp.host"
 
@@ -71,7 +59,6 @@ public actor IOSPreviewSession {
         setupType: String? = nil,
         setupCompilerFlags: [String] = [],
         setupSDKPath: String? = nil,
-        setupDylibPath: URL? = nil,
         progress: (any ProgressReporter)? = nil,
         makeJITReloader: MakeJITReloader? = nil
     ) {
@@ -89,7 +76,6 @@ public actor IOSPreviewSession {
         self.setupType = setupType
         self.setupCompilerFlags = setupCompilerFlags
         self.setupSDKPath = setupSDKPath
-        self.setupDylibPath = setupDylibPath
         self.progress = progress
         self.makeJITReloader = makeJITReloader
     }
@@ -99,6 +85,14 @@ public actor IOSPreviewSession {
     /// Start the iOS preview: compile, boot sim, install host, launch, connect socket.
     /// Returns the PID of the launched host app.
     public func start() async throws -> Int {
+        #if PREVIEWSMCP_IOS_JIT
+        guard let makeJITReloader else {
+            throw IOSPreviewSessionError.jitRequired
+        }
+        guard let orcPath = IOSHostBuilder.jitOrcRuntimePath else {
+            throw IOSPreviewSessionError.jitRuntimeMissing
+        }
+
         // Mirror stage transitions to the diagnostic log so operators
         // running `previewsmcp logs` (or scraping CI capture files) can
         // see where a stall occurred. MCP LogMessageNotifications go
@@ -108,30 +102,13 @@ public actor IOSPreviewSession {
             Log.info("iOS preview: \(s) [\(deviceUDID.prefix(8))]")
         }
 
-        var jitMode = false
-        #if PREVIEWSMCP_IOS_JIT
-        jitMode = makeJITReloader != nil
-        #endif
-
-        // 1. Compile the preview. The dylib path links a dylib now and loads it via
-        // the host's `--dylib` argv; the JIT path skips the dylib and renders over the
-        // EPC connection once the in-app executor is up (step 8).
-        stage(jitMode ? "compiling (JIT)" : "compiling dylib")
+        // 1. Compile the preview to an object. JIT links it into the in-app
+        // executor over the EPC connection once the executor is up (step 8);
+        // there is no preview dylib.
+        stage("compiling (JIT)")
         await progress?.report(.compilingBridge, message: "Compiling \(sourceFile.lastPathComponent)...")
-        let previewSession = PreviewSession(
-            sourceFile: sourceFile,
-            previewIndex: previewIndex,
-            compiler: compiler,
-            platform: .iOS,
-            buildContext: buildContext,
-            traits: traits,
-            setupModule: setupModule,
-            setupType: setupType,
-            setupCompilerFlags: setupCompilerFlags,
-            setupSDKPath: setupSDKPath
-        )
+        let previewSession = makePreviewSession()
         self.session = previewSession
-        let dylibPath = jitMode ? nil : try await previewSession.compile().dylibPath
 
         // 2. Build host app.
         stage("building host app")
@@ -142,15 +119,10 @@ public actor IOSPreviewSession {
         // 4. Create TCP server on loopback, bind to ephemeral port
         let port = try await channel.bindAndListen()
 
-        // 4b. JIT mode: bind a second loopback listener for the EPC channel the
-        // in-app ORC executor connects back on. The JSON channel above still
-        // serves elements / touch / screenshot.
-        var jitPort: Int?
-        #if PREVIEWSMCP_IOS_JIT
-        if makeJITReloader != nil {
-            jitPort = try bindJITListener()
-        }
-        #endif
+        // 4b. Bind a second loopback listener for the EPC channel the in-app ORC
+        // executor connects back on. The JSON channel above still serves
+        // elements / touch / screenshot.
+        let jitPort = try bindJITListener()
 
         // 5. Boot + install + launch with retry. The whole sequence is
         // retried because PR #141 CI has shown the iOS simulator
@@ -164,16 +136,7 @@ public actor IOSPreviewSession {
         await progress?.report(.installingApp, message: "Installing host app...")
         await progress?.report(.launchingApp, message: "Launching host app...")
 
-        var launchArgs = ["--port", String(port)]
-        if let dylibPath {
-            launchArgs += ["--dylib", dylibPath.path]
-        }
-        if let setupPath = setupDylibPath {
-            launchArgs += ["--setup-dylib", setupPath.path]
-        }
-        if let jitPort {
-            launchArgs += ["--jit-port", String(jitPort)]
-        }
+        let launchArgs = ["--port", String(port), "--jit-port", String(jitPort)]
 
         var launchedPid: Int?
         var lastError: Error?
@@ -238,59 +201,25 @@ public actor IOSPreviewSession {
         await progress?.report(.connectingToApp, message: "Waiting for host app connection...")
         try await channel.awaitConnect(timeout: .seconds(10))
 
-        // 7. Body-kind handshake (#160). The first dylib is loaded via the host's
-        // `--dylib` argv (no `reload` round-trip), so the daemon would otherwise
-        // not learn the body kind until the first edit forces a reload — meaning
-        // a SwiftUI session would pay one extra full recompile on its very first
-        // literal edit. Asking the host upfront eliminates that cost. A 2s
-        // timeout is generous: the host has nothing to do but call dlsym and
-        // reply. If the request times out (legacy host, missing symbol),
-        // `lastBodyKind` stays at its safe default of `.uiView`.
-        do {
-            let initID = "init-\(UUID().uuidString)"
-            let responseData = try await channel.sendAndAwait(
-                ["type": "init", "id": initID],
-                id: initID,
-                timeout: .seconds(2)
-            )
-            if let dict = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
-                let kind = dict["kind"] as? String,
-                let parsed = BodyKind(wireValue: kind)
-            {
-                lastBodyKind = parsed
-            }
-        } catch {
-            // Legacy host or transient hiccup — keep the safe default.
-            // Log at info so users debugging an unexpected full-reload-on-every-edit
-            // can spot the missed handshake without grepping for "stage" details.
-            Log.info(
-                "iOS preview: body-kind handshake skipped (\(error)); assuming legacy host, defaulting lastBodyKind=.uiView"
-            )
-        }
+        // 8. Accept the executor's EPC connection and stand up the remote session
+        // over it. The host connects --port and --jit-port independently, so this
+        // accept is ordered after the JSON connect but either may arrive first
+        // (the listen backlog holds the other).
+        stage("awaiting JIT executor connection")
+        let epcFD = try acceptJIT(timeoutSeconds: 10)
+        let reloader = try makeJITReloader(epcFD, orcPath)
+        jitReloader = reloader
+        stage("JIT executor connected; rendering initial preview")
+        let build = try await previewSession.compileObjectForJIT()
+        try await reloader.render(build)
+        stage("initial JIT render complete")
 
-        #if PREVIEWSMCP_IOS_JIT
-        // 8. JIT mode: accept the executor's EPC connection and stand up the
-        // remote session over it. The host connects --port and --jit-port
-        // independently, so this accept is ordered after the JSON connect but
-        // either may arrive first (the listen backlog holds the other).
-        if let make = makeJITReloader {
-            guard let orcPath = IOSHostBuilder.jitOrcRuntimePath else {
-                throw IOSPreviewSessionError.jitRuntimeMissing
-            }
-            stage("awaiting JIT executor connection")
-            let epcFD = try acceptJIT(timeoutSeconds: 10)
-            let reloader = try make(epcFD, orcPath)
-            jitReloader = reloader
-            stage("JIT executor connected; rendering initial preview")
-            let build = try await previewSession.compileObjectForJIT()
-            try await reloader.render(build)
-            stage("initial JIT render complete")
-        }
-        #endif
-
-        stage("connected; start complete (bodyKind=\(lastBodyKind))")
+        stage("connected; start complete")
 
         return pid
+        #else
+        throw IOSPreviewSessionError.jitRequired
+        #endif
     }
 
     /// Close the socket connection and clean up resources. Idempotent —
@@ -363,16 +292,10 @@ public actor IOSPreviewSession {
         return conn
     }
 
-    // MARK: - Communication
-
-    /// Recompile the preview and signal the host app to reload via socket.
-    /// Waits for reloadAck to ensure SwiftUI environment has propagated.
-    public func reload() async throws {
-        guard await channel.isConnected else {
-            throw IOSPreviewSessionError.notStarted
-        }
-
-        let previewSession = PreviewSession(
+    /// Build a fresh `PreviewSession` for the current source, index, and traits.
+    /// `start()` and `reload()` both recompile from a new session.
+    private func makePreviewSession() -> PreviewSession {
+        PreviewSession(
             sourceFile: sourceFile,
             previewIndex: previewIndex,
             compiler: compiler,
@@ -384,85 +307,37 @@ public actor IOSPreviewSession {
             setupCompilerFlags: setupCompilerFlags,
             setupSDKPath: setupSDKPath
         )
-        self.session = previewSession
-
-        #if PREVIEWSMCP_IOS_JIT
-        // JIT path: link the freshly compiled object into the live host over EPC and
-        // re-run its render entry. No dylib, no `reload` round-trip over the JSON channel.
-        if let jitReloader {
-            let build = try await previewSession.compileObjectForJIT()
-            try await jitReloader.render(build)
-            return
-        }
-        #endif
-
-        let compileResult = try await previewSession.compile()
-
-        let requestID = UUID().uuidString
-        let responseData = try await channel.sendAndAwait(
-            ["type": "reload", "id": requestID, "dylibPath": compileResult.dylibPath.path],
-            id: requestID,
-            timeout: .seconds(5)
-        )
-        // Re-read the body kind from the just-loaded dylib. Reloads can change
-        // the kind (e.g., after `preview_switch` to a different `#Preview` block,
-        // or after a structural edit that changes the body's outermost type).
-        // A missing `kind` field falls back to the previous value rather than
-        // the default, so a one-off ack-shape regression doesn't suddenly start
-        // forcing reloads on a SwiftUI session.
-        if let dict = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
-            let kind = dict["kind"] as? String,
-            let parsed = BodyKind(wireValue: kind)
-        {
-            lastBodyKind = parsed
-        }
     }
 
-    /// Handle a source file change. Tries the literal fast path first;
-    /// falls back to full recompile if structural changes are detected.
+    // MARK: - Communication
+
+    /// Recompile the preview to an object and re-link it into the live host over
+    /// the EPC connection, re-running its render entry.
+    public func reload() async throws {
+        guard await channel.isConnected else {
+            throw IOSPreviewSessionError.notStarted
+        }
+        guard let jitReloader else {
+            throw IOSPreviewSessionError.notStarted
+        }
+
+        let previewSession = makePreviewSession()
+        self.session = previewSession
+
+        // Link the freshly compiled object into the live host over EPC and re-run
+        // its render entry. No dylib, no `reload` round-trip over the JSON channel.
+        let build = try await previewSession.compileObjectForJIT()
+        try await jitReloader.render(build)
+    }
+
+    /// Handle a source file change by recompiling and re-linking over JIT.
+    /// Returns `false`: iOS JIT has no literal fast path yet, so every edit
+    /// is a full structural reload.
     @discardableResult
     public func handleSourceChange() async throws -> Bool {
         guard await channel.isConnected else {
             throw IOSPreviewSessionError.notStarted
         }
-
-        let newSource = try String(contentsOf: sourceFile, encoding: .utf8)
-
-        // Fast path: literal-only change. Only safe for SwiftUI bodies — the
-        // path mutates `DesignTimeStore.shared.values` and relies on
-        // `@Observable` to drive a re-render, which UIKit doesn't do (#160).
-        // Mixed bodies (SwiftUI outermost, UIKit `UIViewRepresentable` deeper
-        // in the file) are handled separately by `LiteralDiffer`'s region
-        // taint check — it returns `.structural` if any edited literal lives
-        // in a UIKit-evaluated scope, so `tryLiteralUpdate` returns nil here.
-        if lastBodyKind == .swiftUI,
-            let currentSession = session,
-            let changes = await currentSession.tryLiteralUpdate(newSource: newSource),
-            !changes.isEmpty
-        {
-            let json = changes.map { change -> [String: Any] in
-                var entry: [String: Any] = ["id": change.id]
-                switch change.newValue {
-                case .string(let s):
-                    entry["type"] = "string"
-                    entry["value"] = s
-                case .integer(let n):
-                    entry["type"] = "integer"
-                    entry["value"] = n
-                case .float(let d):
-                    entry["type"] = "float"
-                    entry["value"] = d
-                case .boolean(let b):
-                    entry["type"] = "boolean"
-                    entry["value"] = b
-                }
-                return entry
-            }
-            await channel.send(["type": "literals", "changes": json])
-            return true
-        }
-
-        // Slow path: structural change, full recompile
         try await reload()
         return false
     }
@@ -602,6 +477,7 @@ public enum IOSPreviewSessionError: Error, LocalizedError, CustomStringConvertib
     case socketAcceptFailed
     case socketAcceptTimeout
     case jitRuntimeMissing
+    case jitRequired
     case socketResponseTimeout(String)
     case connectionLost
     /// JSON parse or shape mismatch on a host-app response. Distinct
@@ -616,6 +492,8 @@ public enum IOSPreviewSessionError: Error, LocalizedError, CustomStringConvertib
         case .socketAcceptFailed: return "Failed to accept connection from host app"
         case .socketAcceptTimeout: return "Timed out waiting for host app to connect"
         case .jitRuntimeMissing: return "Bundled iossim orc runtime archive not found"
+        case .jitRequired:
+            return "iOS previews require the JIT build (PREVIEWSMCP_IOS_JIT with the iossim runtime)"
         case .socketResponseTimeout(let id): return "Timed out waiting for response (id: \(id))"
         case .connectionLost: return "Connection to host app lost"
         case .responseDecodeFailed(let operation):

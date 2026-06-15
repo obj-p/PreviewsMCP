@@ -4,15 +4,6 @@ import SwiftUI
 @main
 class PreviewHostAppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
-    private var retainedControllers: [UIViewController] = []
-    private var currentDylibHandle: UnsafeMutableRawPointer?
-    private var hasCalledSetUp = false
-    // Kind of the currently-loaded preview's outermost body, as returned by
-    // the dylib's `previewBodyKind` symbol. Reported back to the daemon so
-    // it can skip the literal-only fast path for UIKit bodies (#160).
-    // Defaults to the safe value: if the symbol is missing, the daemon
-    // forces a full reload on every literal edit rather than no-op'ing.
-    private var currentBodyKind: String = "uiView"
 
     // TCP socket state
     private var socketFD: Int32 = -1
@@ -29,47 +20,21 @@ class PreviewHostAppDelegate: UIResponder, UIApplicationDelegate {
 
         let args = ProcessInfo.processInfo.arguments
 
-        // JIT mode runs the in-process ORC executor and links objects pushed by
-        // the daemon over the EPC socket — there is no preview dylib to load.
+        // The in-process ORC executor links objects pushed by the daemon over the
+        // EPC socket — there is no preview dylib to load.
         #if PREVIEWSMCP_IOS_JIT
-        var jitMode = false
         if let jitPortIndex = args.firstIndex(of: "--jit-port"),
            jitPortIndex + 1 < args.count,
            let jitPort = UInt16(args[jitPortIndex + 1]) {
             startJITExecutor(port: jitPort)
-            jitMode = true
         }
-        #else
-        let jitMode = false
         #endif
 
-        if let dylibIndex = args.firstIndex(of: "--dylib"),
-           dylibIndex + 1 < args.count {
-            let dylibPath = args[dylibIndex + 1]
-
-            // Load setup dylib with RTLD_GLOBAL before any preview dylib so all
-            // preview dylibs share the same statics (issue #86).
-            if let setupIndex = args.firstIndex(of: "--setup-dylib"),
-               setupIndex + 1 < args.count {
-                let setupPath = args[setupIndex + 1]
-                if dlopen(setupPath, RTLD_NOW | RTLD_GLOBAL) == nil {
-                    let err = String(cString: dlerror())
-                    NSLog("PreviewHost: Failed to load setup dylib: \(err)")
-                }
-            }
-
-            loadPreview(dylibPath: dylibPath)
-        } else if !jitMode {
-            showError("Missing --dylib argument")
-        }
-
-        // JIT mode loads no dylib at launch, so the daemon's first render over EPC
+        // No preview is loaded at launch; the daemon's first render over EPC
         // installs the real hosting controller. Until then, give the window a
         // placeholder root view controller so UIKit's end-of-launch assertion
         // ("windows are expected to have a root view controller") doesn't abort.
-        if jitMode, window.rootViewController == nil {
-            window.rootViewController = UIViewController()
-        }
+        window.rootViewController = UIViewController()
 
         initTouchInjection()
         activateAccessibility()
@@ -122,125 +87,6 @@ class PreviewHostAppDelegate: UIResponder, UIApplicationDelegate {
         return fd
     }
     #endif
-
-    private func loadPreview(dylibPath: String) {
-        guard let handle = dlopen(dylibPath, RTLD_NOW | RTLD_GLOBAL) else {
-            let error = String(cString: dlerror())
-            showError("dlopen failed: \(error)")
-            return
-        }
-
-        // Call setUp exactly once on first dylib load
-        if !hasCalledSetUp {
-            hasCalledSetUp = true
-            if let setUpSym = dlsym(handle, "previewSetUp") {
-                typealias SetUpFunc = @convention(c) () -> Void
-                let setUpFn = unsafeBitCast(setUpSym, to: SetUpFunc.self)
-                setUpFn()
-            }
-        }
-
-        guard let sym = dlsym(handle, "createPreviewView") else {
-            let error = String(cString: dlerror())
-            showError("dlsym failed: \(error)")
-            return
-        }
-        currentDylibHandle = handle
-
-        // Read the body kind from the new dylib's `previewBodyKind` symbol.
-        // Missing symbol → safe default (`uiView`) keeps the daemon on the
-        // full-reload path, avoiding the silent no-op described in #160.
-        //
-        // Numeric→string mapping is duplicated from `PreviewsCore.BodyKind`:
-        // this source is compiled as a standalone host module that doesn't
-        // link `PreviewsCore`. `BodyKindCodeContractTests` pins the codes
-        // so any divergence breaks at test time.
-        if let kindSym = dlsym(handle, "previewBodyKind") {
-            typealias BodyKindFunc = @convention(c) () -> Int32
-            let bodyKindFn = unsafeBitCast(kindSym, to: BodyKindFunc.self)
-            switch bodyKindFn() {
-            case 1: currentBodyKind = "swiftUI"
-            case 2: currentBodyKind = "uiView"
-            case 3: currentBodyKind = "uiViewController"
-            default: currentBodyKind = "uiView"
-            }
-        } else {
-            currentBodyKind = "uiView"
-        }
-
-        typealias CreateFunc = @convention(c) () -> UnsafeMutableRawPointer
-        let createView = unsafeBitCast(sym, to: CreateFunc.self)
-        let rawPtr = createView()
-        let viewController = Unmanaged<UIViewController>.fromOpaque(rawPtr).takeRetainedValue()
-
-        if let oldVC = window?.rootViewController {
-            retainedControllers.append(oldVC)
-        }
-        window?.rootViewController = viewController
-    }
-
-    private func showError(_ message: String) {
-        let vc = UIViewController()
-        vc.view.backgroundColor = .systemRed
-
-        let title = UILabel()
-        title.translatesAutoresizingMaskIntoConstraints = false
-        title.text = "Preview host error"
-        title.font = UIFont.preferredFont(forTextStyle: .headline)
-        title.adjustsFontForContentSizeCategory = true
-        title.textColor = .white
-        title.numberOfLines = 0
-
-        let scrollView = UIScrollView()
-        scrollView.translatesAutoresizingMaskIntoConstraints = false
-        scrollView.alwaysBounceVertical = true
-        scrollView.indicatorStyle = .white
-        scrollView.showsVerticalScrollIndicator = true
-
-        let body = UILabel()
-        body.translatesAutoresizingMaskIntoConstraints = false
-        body.text = message
-        body.font = UIFont.monospacedSystemFont(ofSize: 15, weight: .regular)
-        body.textColor = .white
-        body.numberOfLines = 0
-        body.lineBreakMode = .byWordWrapping
-
-        scrollView.addSubview(body)
-        vc.view.addSubview(title)
-        vc.view.addSubview(scrollView)
-
-        let guide = vc.view.safeAreaLayoutGuide
-        let content = scrollView.contentLayoutGuide
-        let frame = scrollView.frameLayoutGuide
-
-        NSLayoutConstraint.activate([
-            title.topAnchor.constraint(equalTo: guide.topAnchor, constant: 20),
-            title.leadingAnchor.constraint(equalTo: guide.leadingAnchor, constant: 20),
-            title.trailingAnchor.constraint(equalTo: guide.trailingAnchor, constant: -20),
-
-            scrollView.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 12),
-            scrollView.leadingAnchor.constraint(equalTo: guide.leadingAnchor, constant: 20),
-            scrollView.trailingAnchor.constraint(equalTo: guide.trailingAnchor, constant: -20),
-            scrollView.bottomAnchor.constraint(equalTo: guide.bottomAnchor, constant: -20),
-
-            // Pin label to the scroll view's content layout guide so its
-            // intrinsic height drives contentSize. The widthAnchor tie
-            // to the frame guide is what forces wrapping at the visible
-            // width instead of letting the label grow horizontally —
-            // without it, long error lines extend off-screen and the
-            // scroll view never gets a vertical scrollable region.
-            body.topAnchor.constraint(equalTo: content.topAnchor),
-            body.bottomAnchor.constraint(equalTo: content.bottomAnchor),
-            body.leadingAnchor.constraint(equalTo: content.leadingAnchor),
-            body.trailingAnchor.constraint(equalTo: content.trailingAnchor),
-            body.widthAnchor.constraint(equalTo: frame.widthAnchor),
-        ])
-
-        if let oldVC = window?.rootViewController {
-            retainedControllers.append(oldVC)
-        }
-        window?.rootViewController = vc
-    }
 
     // MARK: - TCP Socket Client
 
@@ -311,39 +157,6 @@ class PreviewHostAppDelegate: UIResponder, UIApplicationDelegate {
 
     private func handleMessage(_ msg: [String: Any], type: String) {
         switch type {
-        case "reload":
-            guard let dylibPath = msg["dylibPath"] as? String else { return }
-            loadPreview(dylibPath: dylibPath)
-            // Send ack after one RunLoop turn to ensure SwiftUI environment propagation.
-            // Includes the new dylib's body kind so the daemon can re-gate the literal
-            // fast path for the just-loaded preview (e.g., across `preview_switch`).
-            DispatchQueue.main.async { [weak self] in
-                guard let self else { return }
-                var response: [String: Any] = [
-                    "type": "reloadAck",
-                    "kind": self.currentBodyKind,
-                ]
-                if let id = msg["id"] { response["id"] = id }
-                self.sendResponse(response)
-            }
-
-        case "init":
-            // Daemon's startup handshake: report the body kind of the dylib
-            // that was loaded via the `--dylib` argv at app launch. Without
-            // this the daemon wouldn't learn the kind until the first reload
-            // and would force-reload the first literal edit unnecessarily.
-            var response: [String: Any] = [
-                "type": "initAck",
-                "kind": currentBodyKind,
-            ]
-            if let id = msg["id"] { response["id"] = id }
-            sendResponse(response)
-
-        case "literals":
-            guard let changes = msg["changes"],
-                  let data = try? JSONSerialization.data(withJSONObject: changes) else { return }
-            applyLiterals(data)
-
         case "touch":
             handleTouchCommand(msg)
 
@@ -691,50 +504,5 @@ class PreviewHostAppDelegate: UIResponder, UIApplicationDelegate {
         }
 
         return node
-    }
-
-    // MARK: - Literals
-
-    private func applyLiterals(_ data: Data) {
-        guard let handle = currentDylibHandle else { return }
-        guard let entries = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return }
-
-        for entry in entries {
-            guard let id = entry["id"] as? String,
-                  let type = entry["type"] as? String else { continue }
-
-            switch type {
-            case "string":
-                guard let value = entry["value"] as? String else { continue }
-                guard let sym = dlsym(handle, "designTimeSetString") else { continue }
-                typealias Setter = @convention(c) (UnsafePointer<CChar>, UnsafePointer<CChar>) -> Void
-                let fn = unsafeBitCast(sym, to: Setter.self)
-                id.withCString { idPtr in value.withCString { valPtr in fn(idPtr, valPtr) } }
-
-            case "integer":
-                guard let value = entry["value"] as? Int else { continue }
-                guard let sym = dlsym(handle, "designTimeSetInteger") else { continue }
-                typealias Setter = @convention(c) (UnsafePointer<CChar>, Int) -> Void
-                let fn = unsafeBitCast(sym, to: Setter.self)
-                id.withCString { idPtr in fn(idPtr, value) }
-
-            case "float":
-                guard let value = entry["value"] as? Double else { continue }
-                guard let sym = dlsym(handle, "designTimeSetFloat") else { continue }
-                typealias Setter = @convention(c) (UnsafePointer<CChar>, Double) -> Void
-                let fn = unsafeBitCast(sym, to: Setter.self)
-                id.withCString { idPtr in fn(idPtr, value) }
-
-            case "boolean":
-                guard let value = entry["value"] as? Bool else { continue }
-                guard let sym = dlsym(handle, "designTimeSetBoolean") else { continue }
-                typealias Setter = @convention(c) (UnsafePointer<CChar>, Bool) -> Void
-                let fn = unsafeBitCast(sym, to: Setter.self)
-                id.withCString { idPtr in fn(idPtr, value) }
-
-            default:
-                break
-            }
-        }
     }
 }
