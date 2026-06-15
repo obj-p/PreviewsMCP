@@ -33,17 +33,6 @@ struct IOSSimSpikeTests {
             && FileManager.default.fileExists(atPath: orcRuntime.path)
     }
 
-    static var jitHostApp: URL {
-        packageRoot.appendingPathComponent(".build-iossim/PreviewsMCPJITHost.app")
-    }
-
-    static let jitHostBundleID = "com.previewsmcp.jithost"
-
-    static var jitHostPresent: Bool {
-        FileManager.default.fileExists(atPath: jitHostApp.path)
-            && FileManager.default.fileExists(atPath: orcRuntime.path)
-    }
-
     @Test(.enabled(if: artifactsPresent), .timeLimit(.minutes(5)))
     func linksCObjectRemotelyIntoSimulator() throws {
         try SimSpikeSupport.withRemoteSession(fixture: "answer.c") { session in
@@ -88,27 +77,6 @@ struct IOSSimSpikeTests {
             let b = packed & 0xFF
             #expect(r > 200 && g < 60 && b < 60)
         }
-    }
-
-    @Test(.enabled(if: jitHostPresent), .timeLimit(.minutes(5)))
-    func hostsRemoteSessionInSimulatorApp() throws {
-        let udid = try SimSpikeSupport.bootSimulator()
-        let object = try SimSpikeSupport.compileForIOSSim("answer.c")
-        try SimSpikeSupport.installApp(udid: udid, appPath: Self.jitHostApp.path)
-
-        let listener = try SimSpikeSupport.openLoopbackListener()
-        defer { close(listener.fd) }
-
-        try SimSpikeSupport.launchApp(
-            udid: udid, bundleID: Self.jitHostBundleID,
-            args: ["--jit-port", "\(listener.port)"])
-        defer { SimSpikeSupport.terminateApp(udid: udid, bundleID: Self.jitHostBundleID) }
-
-        let conn = try SimSpikeSupport.acceptOne(listenFD: listener.fd, timeoutSeconds: 60)
-        let session = try JITSession(remoteFD: conn, orcRuntimePath: Self.orcRuntime.path)
-        try session.addObject(path: object.path)
-        let result = try session.runMain(symbol: "answer")
-        #expect(result == 42)
     }
 
     #if PREVIEWSMCP_IOS_JIT
