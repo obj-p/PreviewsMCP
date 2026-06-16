@@ -89,7 +89,6 @@ public actor IOSHostBuilder {
             "-o", binaryPath.path,
         ]
 
-        #if PREVIEWSMCP_IOS_JIT
         // Link the in-app ORC executor so the host can JIT-link objects pushed
         // by the daemon over the second (EPC) socket. server.o references the
         // LLVM symbols, so it must precede the archives; the orc runtime is NOT
@@ -98,7 +97,6 @@ public actor IOSHostBuilder {
         let bridgingHeader = workDir.appendingPathComponent("previewsmcp_ios_executor.h")
         try Self.bridgingHeaderSource.write(to: bridgingHeader, atomically: true, encoding: .utf8)
         compileArgs += [
-            "-D", "PREVIEWSMCP_IOS_JIT",
             "-import-objc-header", bridgingHeader.path,
         ]
         compileArgs.append(sourceFile.path)
@@ -112,9 +110,6 @@ public actor IOSHostBuilder {
             "-lLLVMDemangle",
             "-lc++",
         ]
-        #else
-        compileArgs.append(sourceFile.path)
-        #endif
 
         try await run(compileArgs)
 
@@ -164,7 +159,6 @@ public actor IOSHostBuilder {
 
 }
 
-#if PREVIEWSMCP_IOS_JIT
 extension IOSHostBuilder {
     struct JITArtifacts {
         let serverObject: URL
@@ -194,7 +188,6 @@ extension IOSHostBuilder {
         Bundle.module.url(forResource: "liborc_rt_iossim", withExtension: "a")?.path
     }
 }
-#endif
 
 public enum IOSHostBuildError: Error, LocalizedError, CustomStringConvertible {
     case compilationFailed(String)

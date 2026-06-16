@@ -7,17 +7,11 @@ import PreviewsIOS
 import PreviewsJITLink
 import PreviewsMacOS
 
-/// Builds the iOS JIT reloader from the accepted EPC fd, or nil when the bundled iossim
-/// runtime is absent — in which case iOS previews are unavailable and `start()` throws
-/// `jitRequired`. Mirrors the macOS `host.makeStructuralReloader` injection in
-/// `PreviewsMCPApp`. Active only when the iossim runtime (`PREVIEWSMCP_IOS_JIT`) is present.
-private let iosJITReloaderFactory: IOSPreviewSession.MakeJITReloader? = {
-    #if PREVIEWSMCP_IOS_JIT
-    return { fd, orcPath in try IOSJITStructuralReloader(remoteFD: fd, orcRuntimePath: orcPath) }
-    #else
-    return nil
-    #endif
-}()
+/// Builds the iOS JIT reloader from the accepted EPC fd. Mirrors the macOS
+/// `host.makeStructuralReloader` injection in `PreviewsMCPApp`.
+private let iosJITReloaderFactory: IOSPreviewSession.MakeJITReloader = { fd, orcPath in
+    try IOSJITStructuralReloader(remoteFD: fd, orcRuntimePath: orcPath)
+}
 
 enum PreviewStartHandler: ToolHandler {
     static let name: ToolName = .previewStart

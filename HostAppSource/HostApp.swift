@@ -1,5 +1,5 @@
-import UIKit
 import SwiftUI
+import UIKit
 
 @main
 class PreviewHostAppDelegate: UIResponder, UIApplicationDelegate {
@@ -22,13 +22,12 @@ class PreviewHostAppDelegate: UIResponder, UIApplicationDelegate {
 
         // The in-process ORC executor links objects pushed by the daemon over the
         // EPC socket — there is no preview dylib to load.
-        #if PREVIEWSMCP_IOS_JIT
         if let jitPortIndex = args.firstIndex(of: "--jit-port"),
-           jitPortIndex + 1 < args.count,
-           let jitPort = UInt16(args[jitPortIndex + 1]) {
+            jitPortIndex + 1 < args.count,
+            let jitPort = UInt16(args[jitPortIndex + 1])
+        {
             startJITExecutor(port: jitPort)
         }
-        #endif
 
         // No preview is loaded at launch; the daemon's first render over EPC
         // installs the real hosting controller. Until then, give the window a
@@ -40,8 +39,9 @@ class PreviewHostAppDelegate: UIResponder, UIApplicationDelegate {
         activateAccessibility()
 
         if let portIndex = args.firstIndex(of: "--port"),
-           portIndex + 1 < args.count,
-           let port = UInt16(args[portIndex + 1]) {
+            portIndex + 1 < args.count,
+            let port = UInt16(args[portIndex + 1])
+        {
             connectToServer(port: port)
         }
 
@@ -49,7 +49,6 @@ class PreviewHostAppDelegate: UIResponder, UIApplicationDelegate {
         return true
     }
 
-    #if PREVIEWSMCP_IOS_JIT
     // Connect back to the daemon's EPC listener and run the in-process ORC
     // executor. Runs on a detached thread so the SimpleRemoteEPCServer can
     // block on the socket while the UIApplication run loop stays live on main
@@ -86,7 +85,6 @@ class PreviewHostAppDelegate: UIResponder, UIApplicationDelegate {
         }
         return fd
     }
-    #endif
 
     // MARK: - TCP Socket Client
 
@@ -149,7 +147,8 @@ class PreviewHostAppDelegate: UIResponder, UIApplicationDelegate {
             socketReadBuffer = Data(socketReadBuffer[(newlineIndex + 1)...])
 
             guard let message = try? JSONSerialization.jsonObject(with: lineData) as? [String: Any],
-                  let type = message["type"] as? String else { continue }
+                let type = message["type"] as? String
+            else { continue }
 
             handleMessage(message, type: type)
         }
@@ -174,8 +173,9 @@ class PreviewHostAppDelegate: UIResponder, UIApplicationDelegate {
 
     private func sendResponse(_ dict: [String: Any]) {
         guard socketFD >= 0,
-              var data = try? JSONSerialization.data(withJSONObject: dict) else { return }
-        data.append(0x0A) // newline
+            var data = try? JSONSerialization.data(withJSONObject: dict)
+        else { return }
+        data.append(0x0A)  // newline
         let fd = socketFD
         data.withUnsafeBytes { buf in
             guard let base = buf.baseAddress else { return }
@@ -198,35 +198,42 @@ class PreviewHostAppDelegate: UIResponder, UIApplicationDelegate {
     // Based on Lyft's Hammer (github.com/lyft/Hammer).
 
     // Function pointer types
-    private typealias CreateDigitizerEventFn = @convention(c) (
-        CFAllocator?, UInt64, UInt32, UInt32, UInt32, UInt32, UInt32,
-        Double, Double, Double, Double, Double, Bool, Bool, UInt32
-    ) -> UnsafeMutableRawPointer?
+    private typealias CreateDigitizerEventFn =
+        @convention(c) (
+            CFAllocator?, UInt64, UInt32, UInt32, UInt32, UInt32, UInt32,
+            Double, Double, Double, Double, Double, Bool, Bool, UInt32
+        ) -> UnsafeMutableRawPointer?
 
-    private typealias CreateDigitizerFingerEventFn = @convention(c) (
-        CFAllocator?, UInt64, UInt32, UInt32, UInt32,
-        Double, Double, Double, Double, Double, Bool, Bool, UInt32
-    ) -> UnsafeMutableRawPointer?
+    private typealias CreateDigitizerFingerEventFn =
+        @convention(c) (
+            CFAllocator?, UInt64, UInt32, UInt32, UInt32,
+            Double, Double, Double, Double, Double, Bool, Bool, UInt32
+        ) -> UnsafeMutableRawPointer?
 
-    private typealias AppendEventFn = @convention(c) (
-        UnsafeMutableRawPointer, UnsafeMutableRawPointer, UInt32
-    ) -> Void
+    private typealias AppendEventFn =
+        @convention(c) (
+            UnsafeMutableRawPointer, UnsafeMutableRawPointer, UInt32
+        ) -> Void
 
-    private typealias SetIntegerValueFn = @convention(c) (
-        UnsafeMutableRawPointer, UInt32, Int32
-    ) -> Void
+    private typealias SetIntegerValueFn =
+        @convention(c) (
+            UnsafeMutableRawPointer, UInt32, Int32
+        ) -> Void
 
-    private typealias SetFloatValueFn = @convention(c) (
-        UnsafeMutableRawPointer, UInt32, Double
-    ) -> Void
+    private typealias SetFloatValueFn =
+        @convention(c) (
+            UnsafeMutableRawPointer, UInt32, Double
+        ) -> Void
 
-    private typealias SetSenderIDFn = @convention(c) (
-        UnsafeMutableRawPointer, UInt64
-    ) -> Void
+    private typealias SetSenderIDFn =
+        @convention(c) (
+            UnsafeMutableRawPointer, UInt64
+        ) -> Void
 
-    private typealias BKSSetDigitizerInfoFn = @convention(c) (
-        UnsafeMutableRawPointer, UInt32, Bool, Bool, CFString?, Double, Float
-    ) -> Void
+    private typealias BKSSetDigitizerInfoFn =
+        @convention(c) (
+            UnsafeMutableRawPointer, UInt32, Bool, Bool, CFString?, Double, Float
+        ) -> Void
 
     private var createDigitizerEvent: CreateDigitizerEventFn?
     private var createDigitizerFingerEvent: CreateDigitizerFingerEventFn?
@@ -241,20 +248,26 @@ class PreviewHostAppDelegate: UIResponder, UIApplicationDelegate {
         guard let iokit = dlopen("/System/Library/Frameworks/IOKit.framework/IOKit", RTLD_NOW) else {
             NSLog("PreviewHost: Failed to load IOKit"); return
         }
-        guard let bbs = dlopen("/System/Library/PrivateFrameworks/BackBoardServices.framework/BackBoardServices", RTLD_NOW) else {
+        guard
+            let bbs = dlopen(
+                "/System/Library/PrivateFrameworks/BackBoardServices.framework/BackBoardServices", RTLD_NOW)
+        else {
             NSLog("PreviewHost: Failed to load BackBoardServices"); return
         }
 
-        createDigitizerEvent = unsafeBitCast(dlsym(iokit, "IOHIDEventCreateDigitizerEvent"), to: CreateDigitizerEventFn?.self)
-        createDigitizerFingerEvent = unsafeBitCast(dlsym(iokit, "IOHIDEventCreateDigitizerFingerEvent"), to: CreateDigitizerFingerEventFn?.self)
+        createDigitizerEvent = unsafeBitCast(
+            dlsym(iokit, "IOHIDEventCreateDigitizerEvent"), to: CreateDigitizerEventFn?.self)
+        createDigitizerFingerEvent = unsafeBitCast(
+            dlsym(iokit, "IOHIDEventCreateDigitizerFingerEvent"), to: CreateDigitizerFingerEventFn?.self)
         appendEvent = unsafeBitCast(dlsym(iokit, "IOHIDEventAppendEvent"), to: AppendEventFn?.self)
         setIntegerValue = unsafeBitCast(dlsym(iokit, "IOHIDEventSetIntegerValue"), to: SetIntegerValueFn?.self)
         setFloatValue = unsafeBitCast(dlsym(iokit, "IOHIDEventSetFloatValue"), to: SetFloatValueFn?.self)
         setSenderID = unsafeBitCast(dlsym(iokit, "IOHIDEventSetSenderID"), to: SetSenderIDFn?.self)
         bksSetDigitizerInfo = unsafeBitCast(dlsym(bbs, "BKSHIDEventSetDigitizerInfo"), to: BKSSetDigitizerInfoFn?.self)
 
-        touchReady = (createDigitizerEvent != nil && createDigitizerFingerEvent != nil &&
-                      appendEvent != nil && setIntegerValue != nil && bksSetDigitizerInfo != nil)
+        touchReady =
+            (createDigitizerEvent != nil && createDigitizerFingerEvent != nil && appendEvent != nil
+                && setIntegerValue != nil && bksSetDigitizerInfo != nil)
 
         NSLog("PreviewHost: Touch injection \(touchReady ? "ready" : "FAILED")")
     }
@@ -265,17 +278,20 @@ class PreviewHostAppDelegate: UIResponder, UIApplicationDelegate {
         switch action {
         case "tap":
             guard let x = command["x"] as? Double,
-                  let y = command["y"] as? Double else { return }
+                let y = command["y"] as? Double
+            else { return }
             sendTap(x: x, y: y)
         case "swipe":
             guard let fromX = command["fromX"] as? Double,
-                  let fromY = command["fromY"] as? Double,
-                  let toX = command["toX"] as? Double,
-                  let toY = command["toY"] as? Double else { return }
+                let fromY = command["fromY"] as? Double,
+                let toX = command["toX"] as? Double,
+                let toY = command["toY"] as? Double
+            else { return }
             let duration = command["duration"] as? Double ?? 0.3
             let steps = command["steps"] as? Int ?? 10
-            sendSwipe(fromX: fromX, fromY: fromY, toX: toX, toY: toY,
-                      duration: duration, steps: steps)
+            sendSwipe(
+                fromX: fromX, fromY: fromY, toX: toX, toY: toY,
+                duration: duration, steps: steps)
         default:
             break
         }
@@ -288,9 +304,11 @@ class PreviewHostAppDelegate: UIResponder, UIApplicationDelegate {
         }
     }
 
-    private func sendSwipe(fromX: Double, fromY: Double,
-                            toX: Double, toY: Double,
-                            duration: Double, steps: Int) {
+    private func sendSwipe(
+        fromX: Double, fromY: Double,
+        toX: Double, toY: Double,
+        duration: Double, steps: Int
+    ) {
         let stepCount = max(steps, 2)
         let interval = duration / Double(stepCount)
 
@@ -317,11 +335,12 @@ class PreviewHostAppDelegate: UIResponder, UIApplicationDelegate {
 
     private func sendTouchEvent(x: Double, y: Double, phase: TouchPhase) {
         guard touchReady,
-              let createParent = createDigitizerEvent,
-              let createFinger = createDigitizerFingerEvent,
-              let append = appendEvent,
-              let setInt = setIntegerValue,
-              let setBKS = bksSetDigitizerInfo else { return }
+            let createParent = createDigitizerEvent,
+            let createFinger = createDigitizerFingerEvent,
+            let append = appendEvent,
+            let setInt = setIntegerValue,
+            let setBKS = bksSetDigitizerInfo
+        else { return }
 
         let timestamp = mach_absolute_time()
         let isTouching = (phase != .ended)
@@ -331,13 +350,15 @@ class PreviewHostAppDelegate: UIResponder, UIApplicationDelegate {
         // began/ended: .touch | .range (0x03)
         // moved: .position (0x04)
         let fingerMask: UInt32 = (phase == .moved) ? 0x04 : 0x03
-        let parentMask: UInt32 = 0x02 // .touch
+        let parentMask: UInt32 = 0x02  // .touch
 
         // Parent event (hand, transducerType=3)
-        guard let parent = createParent(
-            nil, timestamp, 3, 0, 0, parentMask, 0,
-            0, 0, 0, 0, 0, false, isTouching, 0
-        ) else { return }
+        guard
+            let parent = createParent(
+                nil, timestamp, 3, 0, 0, parentMask, 0,
+                0, 0, 0, 0, 0, false, isTouching, 0
+            )
+        else { return }
 
         // Set isDisplayIntegrated
         setInt(parent, 0xB0019, 1)
@@ -346,11 +367,13 @@ class PreviewHostAppDelegate: UIResponder, UIApplicationDelegate {
         setSenderID?(parent, 0x0000000123456789)
 
         // Child finger event
-        guard let finger = createFinger(
-            nil, timestamp, 1, 1, fingerMask,
-            x, y, 0, pressure, 0,
-            isTouching, isTouching, 0
-        ) else { return }
+        guard
+            let finger = createFinger(
+                nil, timestamp, 1, 1, fingerMask,
+                x, y, 0, pressure, 0,
+                isTouching, isTouching, 0
+            )
+        else { return }
 
         // Set radius on finger
         setFloatValue?(finger, 0xB0014, 5.0)  // majorRadius
@@ -363,8 +386,9 @@ class PreviewHostAppDelegate: UIResponder, UIApplicationDelegate {
         if let w = self.window {
             let sel = NSSelectorFromString("_contextId")
             if w.responds(to: sel) {
-                contextId = UInt32(truncatingIfNeeded:
-                    Int(bitPattern: w.perform(sel)?.toOpaque()))
+                contextId = UInt32(
+                    truncatingIfNeeded:
+                        Int(bitPattern: w.perform(sel)?.toOpaque()))
             }
         }
 
@@ -437,7 +461,7 @@ class PreviewHostAppDelegate: UIResponder, UIApplicationDelegate {
                 "x": Int(frame.origin.x),
                 "y": Int(frame.origin.y),
                 "width": Int(frame.size.width),
-                "height": Int(frame.size.height)
+                "height": Int(frame.size.height),
             ]
         }
         node["children"] = children
@@ -454,7 +478,7 @@ class PreviewHostAppDelegate: UIResponder, UIApplicationDelegate {
                 "x": Int(frame.origin.x),
                 "y": Int(frame.origin.y),
                 "width": Int(frame.size.width),
-                "height": Int(frame.size.height)
+                "height": Int(frame.size.height),
             ]
         } else if let accElement = element as? NSObject {
             // accessibilityFrame is in screen coordinates — convert to window
@@ -464,7 +488,7 @@ class PreviewHostAppDelegate: UIResponder, UIApplicationDelegate {
                 "x": Int(windowFrame.origin.x),
                 "y": Int(windowFrame.origin.y),
                 "width": Int(windowFrame.size.width),
-                "height": Int(windowFrame.size.height)
+                "height": Int(windowFrame.size.height),
             ]
         }
 
@@ -480,7 +504,8 @@ class PreviewHostAppDelegate: UIResponder, UIApplicationDelegate {
             }
         }
         if let identifiable = element as? UIView,
-           let identifier = identifiable.accessibilityIdentifier, !identifier.isEmpty {
+            let identifier = identifiable.accessibilityIdentifier, !identifier.isEmpty
+        {
             node["identifier"] = identifier
         }
 
