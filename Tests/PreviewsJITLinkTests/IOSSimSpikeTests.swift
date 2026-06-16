@@ -1,11 +1,8 @@
 import Foundation
-import PreviewsJITLink
-import Testing
-
-#if PREVIEWSMCP_IOS_JIT
 import PreviewsCore
 import PreviewsIOS
-#endif
+import PreviewsJITLink
+import Testing
 
 /// Phase 0 spike: prove the macOS daemon can drive an ORC executor running
 /// inside an iOS simulator process and link + run an object there. The executor
@@ -79,7 +76,6 @@ struct IOSSimSpikeTests {
         }
     }
 
-    #if PREVIEWSMCP_IOS_JIT
     /// Phase 2 fold: the REAL production host app (built by IOSHostBuilder with
     /// the executor linked from PreviewsIOS resources) hosts the ORC executor
     /// and the daemon links + runs an object inside it over the EPC socket. JIT
@@ -224,10 +220,8 @@ struct IOSSimSpikeTests {
             HelloView()
         }
         """
-    #endif
 }
 
-#if PREVIEWSMCP_IOS_JIT
 /// Holds the remote JIT session for the lifetime of the preview session, mirroring
 /// how the real reloader will retain it to drive renders.
 private final class CapturingReloader: IOSStructuralReloader, @unchecked Sendable {
@@ -243,7 +237,6 @@ private final class ResultBox: @unchecked Sendable {
     func set(_ v: Int32) { lock.lock(); value = v; lock.unlock() }
     func get() -> Int32? { lock.lock(); defer { lock.unlock() }; return value }
 }
-#endif
 
 enum SimSpikeSupport {
     enum SpikeError: Error, CustomStringConvertible {
@@ -309,13 +302,20 @@ enum SimSpikeSupport {
     }
 
     static func bootSimulator() throws -> String {
-        if let udid = firstUDID(in: try run(
-            "/usr/bin/xcrun", ["simctl", "list", "devices", "booted"]).output) {
+        if let udid = firstUDID(
+            in: try run(
+                "/usr/bin/xcrun", ["simctl", "list", "devices", "booted"]
+            ).output)
+        {
             return udid
         }
-        guard let udid = firstUDID(in: try run(
-            "/usr/bin/xcrun", ["simctl", "list", "devices", "available"]).output,
-            onLinesMatching: "iPhone") else {
+        guard
+            let udid = firstUDID(
+                in: try run(
+                    "/usr/bin/xcrun", ["simctl", "list", "devices", "available"]
+                ).output,
+                onLinesMatching: "iPhone")
+        else {
             throw SpikeError.message("no available iPhone simulator to boot")
         }
         _ = try run("/usr/bin/xcrun", ["simctl", "boot", udid])

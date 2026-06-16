@@ -35,8 +35,9 @@ public actor IOSPreviewSession {
     private let channel = IOSHostChannel()
 
     /// Builds the JIT reloader from the accepted EPC socket and the bundled
-    /// iossim orc runtime path. Injected by the composition root behind the JIT
-    /// flag. iOS previews require JIT; `nil` makes `start()` throw `jitRequired`.
+    /// iossim orc runtime path. Injected by the composition root; left optional
+    /// only so tests can supply their own factory. `nil` makes `start()` throw
+    /// `jitRequired`.
     public typealias MakeJITReloader =
         @Sendable (_ epcFD: Int32, _ orcRuntimePath: String) throws -> any IOSStructuralReloader
     private let makeJITReloader: MakeJITReloader?
@@ -85,7 +86,6 @@ public actor IOSPreviewSession {
     /// Start the iOS preview: compile, boot sim, install host, launch, connect socket.
     /// Returns the PID of the launched host app.
     public func start() async throws -> Int {
-        #if PREVIEWSMCP_IOS_JIT
         guard let makeJITReloader else {
             throw IOSPreviewSessionError.jitRequired
         }
@@ -217,9 +217,6 @@ public actor IOSPreviewSession {
         stage("connected; start complete")
 
         return pid
-        #else
-        throw IOSPreviewSessionError.jitRequired
-        #endif
     }
 
     /// Close the socket connection and clean up resources. Idempotent —
@@ -493,7 +490,7 @@ public enum IOSPreviewSessionError: Error, LocalizedError, CustomStringConvertib
         case .socketAcceptTimeout: return "Timed out waiting for host app to connect"
         case .jitRuntimeMissing: return "Bundled iossim orc runtime archive not found"
         case .jitRequired:
-            return "iOS previews require the JIT build (PREVIEWSMCP_IOS_JIT with the iossim runtime)"
+            return "iOS previews require a JIT reloader, but none was injected"
         case .socketResponseTimeout(let id): return "Timed out waiting for response (id: \(id))"
         case .connectionLost: return "Connection to host app lost"
         case .responseDecodeFailed(let operation):

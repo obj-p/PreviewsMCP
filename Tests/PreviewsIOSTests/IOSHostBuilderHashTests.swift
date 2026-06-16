@@ -41,7 +41,9 @@ struct IOSHostBuilderHashTests {
         // Updated 2026-06-15 for dylib Phase B: iOS is JIT-only now, so HostApp.swift
         // dropped all dylib loading (loadPreview/showError/applyLiterals, the
         // --dylib/--setup-dylib args, and the reload/init/literals handlers).
-        let expected = "ad5032b60eb337cf2a0920272262688ea3da36fd4cae9ecd0c3976fe1d3c8133"
+        // Updated 2026-06-16 for iOS JIT mandatory: the --jit-port branch and the
+        // startJITExecutor/connectLoopback helpers are no longer behind #if.
+        let expected = "5b900b18a768b57caf614f60ef988436716efa2ecaa12043d5485c8c08b6d03d"
         #expect(hash == expected, "host-app artifact hash drifted (was \(expected), now \(hash))")
     }
 }

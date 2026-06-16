@@ -22,20 +22,24 @@ else {
 let jitCLIDependencies: [Target.Dependency] = ["PreviewsJITLink"]
 let jitCLISwiftSettings: [SwiftSetting] = [.define("PREVIEWSMCP_JIT")]
 
-// iOS-simulator JIT: the in-app ORC executor needs the cross-built iossim
-// TargetProcess libs and the iossim orc runtime. Gated separately from macOS
-// JIT because those artifacts come from `scripts/build-jit-llvm-iossim.sh` and
-// may be absent on a macOS-only checkout. When present, the BundleIOSSimJIT
-// plugin stages them into PreviewsIOS resources for IOSHostBuilder.
+// iOS-simulator JIT is mandatory like macOS: the in-app ORC executor needs the
+// cross-built iossim TargetProcess libs and the iossim orc runtime, staged into
+// PreviewsIOS resources by the BundleIOSSimJIT plugin. The artifacts come from
+// `scripts/build-jit-llvm-iossim.sh`; fail fast with a build-script hint if they
+// are missing rather than later in the plugin's copy step.
 let llvmBuildIOSSim = "\(packageDir)/third_party/llvm-build-iossim/lib/libLLVMOrcTargetProcess.a"
 let orcRuntimeIOSSim = "\(packageDir)/third_party/llvm-build-rt/lib/darwin/liborc_rt_iossim.a"
 
-let iosJitEnabled =
+guard
     FileManager.default.fileExists(atPath: llvmBuildIOSSim)
-    && FileManager.default.fileExists(atPath: orcRuntimeIOSSim)
+        && FileManager.default.fileExists(atPath: orcRuntimeIOSSim)
+else {
+    fatalError(
+        "PreviewsMCP requires the prebuilt iossim JIT artifacts. Run scripts/build-jit-llvm-iossim.sh first."
+    )
+}
 
-let iosJitSwiftSettings: [SwiftSetting] = iosJitEnabled ? [.define("PREVIEWSMCP_IOS_JIT")] : []
-let iosJitPlugins: [Target.PluginUsage] = iosJitEnabled ? [.plugin(name: "BundleIOSSimJIT")] : []
+let iosJitPlugins: [Target.PluginUsage] = [.plugin(name: "BundleIOSSimJIT")]
 
 var targets: [Target] = [
     .target(
@@ -64,7 +68,6 @@ var targets: [Target] = [
     .target(
         name: "PreviewsIOS",
         dependencies: ["PreviewsCore", "SimulatorBridge"],
-        swiftSettings: iosJitSwiftSettings,
         plugins: [.plugin(name: "EmbedHostAppSource")] + iosJitPlugins
     ),
     .target(
@@ -81,7 +84,7 @@ var targets: [Target] = [
             .product(name: "ArgumentParser", package: "swift-argument-parser"),
             .product(name: "MCP", package: "swift-sdk"),
         ] + jitCLIDependencies,
-        swiftSettings: jitCLISwiftSettings + iosJitSwiftSettings,
+        swiftSettings: jitCLISwiftSettings,
         plugins: [.plugin(name: "GenerateVersion")]
     ),
     .executableTarget(
@@ -141,16 +144,11 @@ var targets: [Target] = [
     ),
 ]
 
-if iosJitEnabled {
-    targets += [
-        .plugin(
-            name: "BundleIOSSimJIT",
-            capability: .buildTool()
-        )
-    ]
-}
-
 targets += [
+    .plugin(
+        name: "BundleIOSSimJIT",
+        capability: .buildTool()
+    ),
     .target(
         name: "PreviewsJITLink",
         dependencies: ["PreviewsJITLinkCxx", "PreviewsCore"],
@@ -200,8 +198,7 @@ targets += [
     .testTarget(
         name: "PreviewsJITLinkTests",
         dependencies: ["PreviewsJITLink", "PreviewsCore", "PreviewAgent", "PreviewsIOS"],
-        exclude: ["Fixtures"],
-        swiftSettings: iosJitSwiftSettings
+        exclude: ["Fixtures"]
     ),
 ]
 
