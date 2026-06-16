@@ -85,8 +85,7 @@ public struct PreviewsMCPApp {
         // `serve` is the only command that runs AppKit in-process — every
         // other subcommand is now a daemon client.
         let app = NSApplication.shared
-        let host = PreviewHost()
-        host.makeStructuralReloader = { JITStructuralReloader() }
+        let host = PreviewHost(makeStructuralReloader: { JITStructuralReloader() })
         ServeCommand.sharedHost = host
         app.delegate = host
 

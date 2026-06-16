@@ -39,13 +39,11 @@ struct PreviewHostJITReloadTests {
         let compiler = try await Compiler()
         let session = PreviewSession(sourceFile: sourceFile, compiler: compiler)
 
-        let host = PreviewHost()
         let reloader = RecordingReloader()
-        host.makeStructuralReloader = { reloader }
+        let host = PreviewHost(makeStructuralReloader: { reloader })
         host.watchFile(sessionID: "s1", session: session, filePath: sourceFile.path, compiler: compiler)
 
         let imagePath = try await host.jitStructuralReload(sessionID: "s1", session: session)
-        #expect(imagePath != nil)
         #expect(host.agentSnapshotPath(for: "s1") == imagePath)
         #expect(reloader.calls.count == 1)
         #expect(reloader.calls.first?.entrySymbol == "renderPreviewToFile")
@@ -69,13 +67,12 @@ struct PreviewHostJITReloadTests {
         let compiler = try await Compiler()
         let session = PreviewSession(sourceFile: sourceFile, compiler: compiler)
 
-        let host = PreviewHost()
         var made: [RecordingReloader] = []
-        host.makeStructuralReloader = {
+        let host = PreviewHost(makeStructuralReloader: {
             let reloader = RecordingReloader()
             made.append(reloader)
             return reloader
-        }
+        })
         host.watchFile(sessionID: "a", session: session, filePath: sourceFile.path, compiler: compiler)
         host.watchFile(sessionID: "b", session: session, filePath: sourceFile.path, compiler: compiler)
 
@@ -123,8 +120,7 @@ struct PreviewHostJITReloadTests {
         let session = PreviewSession(sourceFile: sourceFile, compiler: compiler)
         let build = try await session.compileObjectForJIT()
 
-        let host = PreviewHost()
-        host.makeStructuralReloader = { RecordingReloader() }
+        let host = PreviewHost(makeStructuralReloader: { RecordingReloader() })
         host.watchFile(sessionID: "s1", session: session, filePath: sourceFile.path, compiler: compiler)
 
         let stringLiteral = try #require(
@@ -163,8 +159,7 @@ struct PreviewHostJITReloadTests {
         let compiler = try await Compiler()
         let session = PreviewSession(sourceFile: sourceFile, compiler: compiler)
 
-        let host = PreviewHost()
-        host.makeStructuralReloader = { RecordingReloader() }
+        let host = PreviewHost(makeStructuralReloader: { RecordingReloader() })
 
         try await host.jitStart(
             sessionID: "visible", session: session,
@@ -207,12 +202,11 @@ struct PreviewHostJITReloadTests {
         let compiler = try await Compiler()
         let session = PreviewSession(sourceFile: sourceFile, compiler: compiler)
 
-        let host = PreviewHost()
         var madeCount = 0
-        host.makeStructuralReloader = {
+        let host = PreviewHost(makeStructuralReloader: {
             madeCount += 1
             return RecordingReloader()
-        }
+        })
 
         try await host.jitStart(
             sessionID: "s", session: session,

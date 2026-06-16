@@ -8,6 +8,12 @@ import Testing
 @Suite("PreviewHost")
 struct PreviewHostTests {
 
+    /// This suite never triggers a reload, so the injected factory just needs to
+    /// satisfy the now-required constructor parameter.
+    final class StubReloader: StructuralReloader, @unchecked Sendable {
+        func render(_ build: JITRenderBuild) async throws {}
+    }
+
     /// Regression guard for the iOS `run` hot-reload bug.
     ///
     /// `FileWatcher` callbacks dereference `self` via an unretained pointer,
@@ -19,7 +25,7 @@ struct PreviewHostTests {
     /// alive — if that mechanism breaks, this test should go red.
     @Test("retainFileWatcher keeps a watcher alive past the creating scope")
     func retainFileWatcherKeepsWatcherAlive() async throws {
-        let host = PreviewHost()
+        let host = PreviewHost(makeStructuralReloader: { StubReloader() })
 
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("preview-host-test-\(UUID().uuidString)")

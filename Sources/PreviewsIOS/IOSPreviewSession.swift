@@ -36,12 +36,11 @@ public actor IOSPreviewSession {
     private let channel = IOSHostChannel()
 
     /// Builds the JIT reloader from the accepted EPC socket and the bundled
-    /// iossim orc runtime path. Injected by the composition root; left optional
-    /// only so tests can supply their own factory. `nil` makes `start()` throw
-    /// `jitRequired`.
+    /// iossim orc runtime path. Injected by the composition root so every
+    /// session has a reloader; tests supply their own factory.
     public typealias MakeJITReloader =
         @Sendable (_ epcFD: Int32, _ orcRuntimePath: String) throws -> any IOSStructuralReloader
-    private let makeJITReloader: MakeJITReloader?
+    private let makeJITReloader: MakeJITReloader
     private var jitReloader: (any IOSStructuralReloader)?
     private var jitListenFD: Int32 = -1
 
@@ -63,7 +62,7 @@ public actor IOSPreviewSession {
         setupSDKPath: String? = nil,
         setupDylibPath: URL? = nil,
         progress: (any ProgressReporter)? = nil,
-        makeJITReloader: MakeJITReloader? = nil
+        makeJITReloader: @escaping MakeJITReloader
     ) {
         self.id = UUID().uuidString
         self.sourceFile = sourceFile
@@ -89,9 +88,6 @@ public actor IOSPreviewSession {
     /// Start the iOS preview: compile, boot sim, install host, launch, connect socket.
     /// Returns the PID of the launched host app.
     public func start() async throws -> Int {
-        guard let makeJITReloader else {
-            throw IOSPreviewSessionError.jitRequired
-        }
         guard let orcPath = IOSHostBuilder.jitOrcRuntimePath else {
             throw IOSPreviewSessionError.jitRuntimeMissing
         }
@@ -332,15 +328,9 @@ public actor IOSPreviewSession {
     }
 
     /// Handle a source file change by recompiling and re-linking over JIT.
-    /// Returns `false`: iOS JIT has no literal fast path yet, so every edit
-    /// is a full structural reload.
-    @discardableResult
-    public func handleSourceChange() async throws -> Bool {
-        guard await channel.isConnected else {
-            throw IOSPreviewSessionError.notStarted
-        }
+    /// iOS JIT has no literal fast path yet, so every edit is a full structural reload.
+    public func handleSourceChange() async throws {
         try await reload()
-        return false
     }
 
     /// Switch to a different preview index and recompile. Traits are preserved. @State is lost.
@@ -478,7 +468,6 @@ public enum IOSPreviewSessionError: Error, LocalizedError, CustomStringConvertib
     case socketAcceptFailed
     case socketAcceptTimeout
     case jitRuntimeMissing
-    case jitRequired
     case socketResponseTimeout(String)
     case connectionLost
     /// JSON parse or shape mismatch on a host-app response. Distinct
@@ -493,8 +482,6 @@ public enum IOSPreviewSessionError: Error, LocalizedError, CustomStringConvertib
         case .socketAcceptFailed: return "Failed to accept connection from host app"
         case .socketAcceptTimeout: return "Timed out waiting for host app to connect"
         case .jitRuntimeMissing: return "Bundled iossim orc runtime archive not found"
-        case .jitRequired:
-            return "iOS previews require a JIT reloader, but none was injected"
         case .socketResponseTimeout(let id): return "Timed out waiting for response (id: \(id))"
         case .connectionLost: return "Connection to host app lost"
         case .responseDecodeFailed(let operation):
