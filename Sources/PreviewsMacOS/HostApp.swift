@@ -25,7 +25,7 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
     /// composition root. Each session gets its own reloader — its own agent
     /// process and window — so respawns, crashes, setup state, and window
     /// lifetime stay contained to one session.
-    public var makeStructuralReloader: (@MainActor () -> any StructuralReloader)?
+    private let makeStructuralReloader: @MainActor () -> any StructuralReloader
     /// Per-session reloaders. Removing a session's entry releases its agent
     /// process, which closes the agent-hosted window.
     private var reloaders: [String: any StructuralReloader] = [:]
@@ -47,7 +47,8 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
     /// queue and persist the older snapshot last.
     private var lastPublishTask: Task<Void, Never>?
 
-    public override init() {
+    public init(makeStructuralReloader: @escaping @MainActor () -> any StructuralReloader) {
+        self.makeStructuralReloader = makeStructuralReloader
         super.init()
     }
 
@@ -179,7 +180,7 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
     /// so the agent shows its own live window there — the agent window is the
     /// session's interactive surface.
     @discardableResult
-    public func jitStructuralReload(sessionID: String, session: PreviewSession) async throws -> URL? {
+    public func jitStructuralReload(sessionID: String, session: PreviewSession) async throws -> URL {
         restoreAgentWindowFrame(sessionID: sessionID, session: session)
         let build = try await session.compileObjectForJIT(window: agentWindowSpec(for: sessionID))
         return try await jitRender(sessionID: sessionID, build: build)
@@ -233,7 +234,8 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
     /// still in flight when its session closes cannot resurrect an agent.
     private func reloader(for sessionID: String) -> (any StructuralReloader)? {
         if let existing = reloaders[sessionID] { return existing }
-        guard sessions[sessionID] != nil, let made = makeStructuralReloader?() else { return nil }
+        guard sessions[sessionID] != nil else { return nil }
+        let made = makeStructuralReloader()
         reloaders[sessionID] = made
         return made
     }
