@@ -4,9 +4,8 @@ import Foundation
 /// tool handlers that need to operate on a session without branching on
 /// iOS vs macOS. Backends (`MacOSPreviewHandle`, `IOSPreviewHandle`) live
 /// in `PreviewsEngine` and encapsulate platform-specific work — the
-/// 300ms layout-settle and `host.loadPreview` after `setTraits` on macOS,
-/// the iOS host-app socket protocol on iOS — so the call site sees one
-/// shape.
+/// 300ms layout-settle after `setTraits` on macOS, the iOS host-app
+/// socket protocol on iOS — so the call site sees one shape.
 public protocol PreviewSessionHandle: Sendable {
     nonisolated var id: String { get }
     nonisolated var sourceFile: URL { get }
@@ -21,20 +20,20 @@ public protocol PreviewSessionHandle: Sendable {
     var isRegistered: Bool { get async }
 
     /// Replace traits absolutely (no merge) and recompile. Used by
-    /// `preview_variants`. macOS implementations also reload the dylib
-    /// into the host window. Callers planning an immediate snapshot
-    /// should call `awaitLayoutSettle()` afterward — the 300ms macOS
-    /// settle is not folded into `setTraits` because the variants
-    /// restore step does not snapshot and pays no settle cost.
+    /// `preview_variants`. macOS implementations re-render in the session's
+    /// agent. Callers planning an immediate snapshot should call
+    /// `awaitLayoutSettle()` afterward — the 300ms macOS settle is not folded
+    /// into `setTraits` because the variants restore step does not snapshot
+    /// and pays no settle cost.
     func setTraits(_ traits: PreviewTraits) async throws
 
     /// Merge traits into the current set and clear the named fields, then
-    /// recompile. Used by `preview_configure`. macOS implementations also
-    /// reload the dylib into the host window.
+    /// recompile. Used by `preview_configure`. macOS implementations re-render
+    /// in the session's agent.
     func reconfigure(traits: PreviewTraits, clearing: Set<PreviewTraits.Field>) async throws
 
     /// Switch to a different `#Preview` index and recompile. Traits are
-    /// preserved. macOS implementations also reload the dylib.
+    /// preserved. macOS implementations re-render in the session's agent.
     func switchPreview(to index: Int) async throws
 
     /// Capture a screenshot. `quality >= 1.0` requests PNG output where
@@ -42,12 +41,11 @@ public protocol PreviewSessionHandle: Sendable {
     ///
     /// If a preceding `setTraits` / `switchPreview` / `reconfigure` call
     /// changed the rendered view, call `awaitLayoutSettle()` first. On
-    /// macOS the snapshot will otherwise capture a pre-layout frame —
-    /// `cacheDisplay` forces layout synchronously but does not recover
-    /// from a fresh `loadPreview` swap on its own.
+    /// macOS the snapshot will otherwise capture a pre-layout frame from
+    /// the agent before its new view tree has settled.
     func snapshot(quality: Double) async throws -> Data
 
-    /// Wait for SwiftUI layout to settle after a fresh dylib load. macOS
+    /// Wait for SwiftUI layout to settle after a structural reload. macOS
     /// pauses 300ms; iOS no-ops (the host-app reload-ack already implies
     /// the new view tree is mounted). Called between `setTraits` /
     /// `switchPreview` / `reconfigure` and a subsequent `snapshot` to

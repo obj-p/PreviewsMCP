@@ -4,19 +4,15 @@ import MCP
 import PreviewsCore
 import PreviewsEngine
 import PreviewsIOS
+import PreviewsJITLink
 import PreviewsMacOS
 
-#if PREVIEWSMCP_JIT
-import PreviewsJITLink
-#endif
-
-/// Builds the iOS JIT reloader from the accepted EPC fd, or nil when the JIT build is
-/// absent — in which case iOS previews are unavailable and `start()` throws `jitRequired`.
-/// Mirrors the macOS `host.makeStructuralReloader` injection in `PreviewsMCPApp`. Active
-/// only when both the JIT link library (`PREVIEWSMCP_JIT`) and the bundled iossim runtime
-/// (`PREVIEWSMCP_IOS_JIT`) are present.
+/// Builds the iOS JIT reloader from the accepted EPC fd, or nil when the bundled iossim
+/// runtime is absent — in which case iOS previews are unavailable and `start()` throws
+/// `jitRequired`. Mirrors the macOS `host.makeStructuralReloader` injection in
+/// `PreviewsMCPApp`. Active only when the iossim runtime (`PREVIEWSMCP_IOS_JIT`) is present.
 private let iosJITReloaderFactory: IOSPreviewSession.MakeJITReloader? = {
-    #if PREVIEWSMCP_JIT && PREVIEWSMCP_IOS_JIT
+    #if PREVIEWSMCP_IOS_JIT
     return { fd, orcPath in try IOSJITStructuralReloader(remoteFD: fd, orcRuntimePath: orcPath) }
     #else
     return nil
@@ -415,7 +411,6 @@ private func startMacOSPreview(
 
     let sessionID = session.id
 
-    #if PREVIEWSMCP_JIT
     try await host.jitStart(
         sessionID: sessionID, session: session,
         title: title, size: NSSize(width: width, height: height),
@@ -431,33 +426,6 @@ private func startMacOSPreview(
             buildContext: buildContext
         )
     }
-    #else
-    let compileResult = try await session.compile()
-    let setupDylibPath = setupResult?.dylibPath
-
-    await MainActor.run {
-        do {
-            try host.loadPreview(
-                sessionID: sessionID,
-                dylibPath: compileResult.dylibPath,
-                title: title,
-                size: NSSize(width: width, height: height),
-                headless: headless,
-                setupDylibPath: setupDylibPath
-            )
-            host.watchFile(
-                sessionID: sessionID,
-                session: session,
-                filePath: fileURL.path,
-                compiler: compiler,
-                additionalPaths: buildContext?.sourceFiles?.map(\.path) ?? [],
-                buildContext: buildContext
-            )
-        } catch {
-            Log.error("MCP: Failed to load preview: \(error)")
-        }
-    }
-    #endif
 
     return sessionID
 }

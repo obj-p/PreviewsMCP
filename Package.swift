@@ -7,15 +7,20 @@ let llvmBuild = "\(packageDir)/third_party/llvm-build"
 let llvmSrcInclude = "\(packageDir)/third_party/llvm-project/llvm/include"
 let orcRuntimeArchive = "\(packageDir)/third_party/llvm-build-rt/lib/darwin/liborc_rt_osx.a"
 
-let jitEnabled =
+// JIT is mandatory on macOS: the dylib preview path has been retired, so the
+// prebuilt LLVM artifacts must be present. Fail fast with a build-script hint
+// rather than later at link time with an opaque missing-symbol error.
+guard
     FileManager.default.fileExists(atPath: llvmBuild)
-    && FileManager.default.fileExists(atPath: orcRuntimeArchive)
+        && FileManager.default.fileExists(atPath: orcRuntimeArchive)
+else {
+    fatalError(
+        "PreviewsMCP requires the prebuilt LLVM JIT artifacts. Run scripts/build-jit-llvm.sh first.")
+}
 
-// Composition-root wiring for the JIT structural-reload path. Only the executable
-// references the gated PreviewsJITLink, behind one `#if PREVIEWSMCP_JIT`; the daemon
-// logic depends solely on the JIT-free `StructuralReloader` protocol in PreviewsCore.
-let jitCLIDependencies: [Target.Dependency] = jitEnabled ? ["PreviewsJITLink"] : []
-let jitCLISwiftSettings: [SwiftSetting] = jitEnabled ? [.define("PREVIEWSMCP_JIT")] : []
+// Composition-root wiring for the JIT structural-reload path.
+let jitCLIDependencies: [Target.Dependency] = ["PreviewsJITLink"]
+let jitCLISwiftSettings: [SwiftSetting] = [.define("PREVIEWSMCP_JIT")]
 
 // iOS-simulator JIT: the in-app ORC executor needs the cross-built iossim
 // TargetProcess libs and the iossim orc runtime. Gated separately from macOS
@@ -145,62 +150,60 @@ if iosJitEnabled {
     ]
 }
 
-if jitEnabled {
-    targets += [
-        .target(
-            name: "PreviewsJITLink",
-            dependencies: ["PreviewsJITLinkCxx", "PreviewsCore"],
-            plugins: [.plugin(name: "BundleOrcRuntime")]
-        ),
-        .target(
-            // TODO: bundle libLLVM (U3); links the third_party build for now.
-            name: "PreviewsJITLinkCxx",
-            cxxSettings: [
-                .unsafeFlags([
-                    "-I\(llvmSrcInclude)",
-                    "-I\(llvmBuild)/include",
-                    "-fno-rtti",
-                ])
-            ],
-            linkerSettings: [
-                .unsafeFlags([
-                    "-L\(llvmBuild)/lib",
-                    "-lLLVM",
-                    "-Xlinker", "-rpath",
-                    "-Xlinker", "\(llvmBuild)/lib",
-                ])
-            ]
-        ),
-        .plugin(
-            name: "BundleOrcRuntime",
-            capability: .buildTool()
-        ),
-        .executableTarget(
-            name: "PreviewAgent",
-            cxxSettings: [
-                .unsafeFlags([
-                    "-I\(llvmSrcInclude)",
-                    "-I\(llvmBuild)/include",
-                    "-fno-rtti",
-                ])
-            ],
-            linkerSettings: [
-                .unsafeFlags([
-                    "-L\(llvmBuild)/lib",
-                    "-lLLVM",
-                    "-Xlinker", "-rpath",
-                    "-Xlinker", "\(llvmBuild)/lib",
-                ])
-            ]
-        ),
-        .testTarget(
-            name: "PreviewsJITLinkTests",
-            dependencies: ["PreviewsJITLink", "PreviewsCore", "PreviewAgent", "PreviewsIOS"],
-            exclude: ["Fixtures"],
-            swiftSettings: iosJitSwiftSettings
-        ),
-    ]
-}
+targets += [
+    .target(
+        name: "PreviewsJITLink",
+        dependencies: ["PreviewsJITLinkCxx", "PreviewsCore"],
+        plugins: [.plugin(name: "BundleOrcRuntime")]
+    ),
+    .target(
+        // TODO: bundle libLLVM (U3); links the third_party build for now.
+        name: "PreviewsJITLinkCxx",
+        cxxSettings: [
+            .unsafeFlags([
+                "-I\(llvmSrcInclude)",
+                "-I\(llvmBuild)/include",
+                "-fno-rtti",
+            ])
+        ],
+        linkerSettings: [
+            .unsafeFlags([
+                "-L\(llvmBuild)/lib",
+                "-lLLVM",
+                "-Xlinker", "-rpath",
+                "-Xlinker", "\(llvmBuild)/lib",
+            ])
+        ]
+    ),
+    .plugin(
+        name: "BundleOrcRuntime",
+        capability: .buildTool()
+    ),
+    .executableTarget(
+        name: "PreviewAgent",
+        cxxSettings: [
+            .unsafeFlags([
+                "-I\(llvmSrcInclude)",
+                "-I\(llvmBuild)/include",
+                "-fno-rtti",
+            ])
+        ],
+        linkerSettings: [
+            .unsafeFlags([
+                "-L\(llvmBuild)/lib",
+                "-lLLVM",
+                "-Xlinker", "-rpath",
+                "-Xlinker", "\(llvmBuild)/lib",
+            ])
+        ]
+    ),
+    .testTarget(
+        name: "PreviewsJITLinkTests",
+        dependencies: ["PreviewsJITLink", "PreviewsCore", "PreviewAgent", "PreviewsIOS"],
+        exclude: ["Fixtures"],
+        swiftSettings: iosJitSwiftSettings
+    ),
+]
 
 let package = Package(
     name: "PreviewsMCP",

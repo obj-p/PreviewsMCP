@@ -170,7 +170,6 @@ struct PreviewHostJITReloadTests {
             sessionID: "visible", session: session,
             title: "Preview: ColorView.swift",
             size: NSSize(width: 320, height: 240), headless: false)
-        #expect(host.window(for: "visible") == nil)
         #expect(host.agentSnapshotPath(for: "visible") != nil)
         let spec = try #require(host.agentWindowSpec(for: "visible"))
         #expect(spec.title == "Preview: ColorView.swift")
@@ -230,22 +229,5 @@ struct PreviewHostJITReloadTests {
         let literal = try await host.jitLiteralReload(sessionID: "s", session: session, changes: [])
         #expect(literal == nil)
         #expect(madeCount == 1)
-    }
-
-    @Test func noReloaderFallsThrough() async throws {
-        let host = PreviewHost()
-        let dir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("p34ci3a-nil-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: dir) }
-        let sourceFile = dir.appendingPathComponent("Empty.swift")
-        try "import SwiftUI\n".write(to: sourceFile, atomically: true, encoding: .utf8)
-
-        let compiler = try await Compiler()
-        let session = PreviewSession(sourceFile: sourceFile, compiler: compiler)
-
-        let imagePath = try await host.jitStructuralReload(sessionID: "s2", session: session)
-        #expect(imagePath == nil)
-        #expect(host.agentSnapshotPath(for: "s2") == nil)
     }
 }
