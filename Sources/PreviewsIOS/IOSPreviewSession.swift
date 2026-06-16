@@ -27,6 +27,7 @@ public actor IOSPreviewSession {
     private let setupType: String?
     private let setupCompilerFlags: [String]
     private let setupSDKPath: String?
+    private let setupDylibPath: URL?
     public var currentTraits: PreviewTraits { traits }
 
     /// Transport to the iOS host app. Owns all socket state — bind,
@@ -60,6 +61,7 @@ public actor IOSPreviewSession {
         setupType: String? = nil,
         setupCompilerFlags: [String] = [],
         setupSDKPath: String? = nil,
+        setupDylibPath: URL? = nil,
         progress: (any ProgressReporter)? = nil,
         makeJITReloader: MakeJITReloader? = nil
     ) {
@@ -77,6 +79,7 @@ public actor IOSPreviewSession {
         self.setupType = setupType
         self.setupCompilerFlags = setupCompilerFlags
         self.setupSDKPath = setupSDKPath
+        self.setupDylibPath = setupDylibPath
         self.progress = progress
         self.makeJITReloader = makeJITReloader
     }
@@ -302,7 +305,8 @@ public actor IOSPreviewSession {
             setupModule: setupModule,
             setupType: setupType,
             setupCompilerFlags: setupCompilerFlags,
-            setupSDKPath: setupSDKPath
+            setupSDKPath: setupSDKPath,
+            setupDylibPath: setupDylibPath
         )
     }
 

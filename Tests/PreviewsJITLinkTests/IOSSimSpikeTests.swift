@@ -201,6 +201,62 @@ struct IOSSimSpikeTests {
         await session.stop()
     }
 
+    /// End-to-end iOS JIT render WITH a setup plugin, over a real project build context
+    /// (setup only applies when `splitContext` is non-nil, which needs a `buildContext`).
+    /// The setup dylib (`ToDoPreviewSetup` built for the iOS sim) must be threaded into the
+    /// JIT link so `previewSetUp` resolves and `wrap()` overlays its banner. Red before #215:
+    /// `IOSPreviewSession` dropped `setupDylibPath`, so the setup symbols never linked.
+    /// After the fix the banner's `dev@example.com` appears in the a11y tree.
+    @Test(.enabled(if: jitOrcRuntimePresent), .timeLimit(.minutes(10)))
+    func endToEndRendersSetupWrappedOverJIT() async throws {
+        let udid = try SimSpikeSupport.bootSimulator()
+
+        let hot = Self.packageRoot
+            .appendingPathComponent("examples/spm/Sources/ToDo/Summary.swift")
+        guard let spm = try await SPMBuildSystem.detect(for: hot) else {
+            Issue.record("no SPM build system detected for \(hot.path)")
+            return
+        }
+        let buildContext = try await spm.build(platform: .iOS)
+
+        let configResult = try #require(
+            ProjectConfigLoader.find(from: hot.deletingLastPathComponent()))
+        let setupConfig = try #require(configResult.config.setup)
+        let setup = try await SetupBuilder.build(
+            config: setupConfig, configDirectory: configResult.directory, platform: .iOS)
+
+        let compiler = try await Compiler(platform: .iOS)
+        let hostBuilder = try await IOSHostBuilder()
+        let simulatorManager = SimulatorManager()
+
+        let session = IOSPreviewSession(
+            sourceFile: hot,
+            deviceUDID: udid,
+            compiler: compiler,
+            hostBuilder: hostBuilder,
+            simulatorManager: simulatorManager,
+            buildContext: buildContext,
+            setupModule: setup.moduleName,
+            setupType: setup.typeName,
+            setupCompilerFlags: setup.compilerFlags,
+            setupSDKPath: setup.sdkPath,
+            setupDylibPath: setup.dylibPath,
+            makeJITReloader: { fd, orcPath in
+                try IOSJITStructuralReloader(remoteFD: fd, orcRuntimePath: orcPath)
+            }
+        )
+        defer {
+            SimSpikeSupport.terminateApp(udid: udid, bundleID: IOSPreviewSession.hostBundleID)
+        }
+
+        let pid = try await session.start()
+        #expect(pid > 0)
+
+        let elements = try await session.fetchElements()
+        #expect(elements.contains("dev@example.com"))
+        await session.stop()
+    }
+
     static var jitOrcRuntimePresent: Bool {
         IOSHostBuilder.jitOrcRuntimePath != nil
     }
