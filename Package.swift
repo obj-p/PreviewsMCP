@@ -20,7 +20,6 @@ else {
 
 // Composition-root wiring for the JIT structural-reload path.
 let jitCLIDependencies: [Target.Dependency] = ["PreviewsJITLink"]
-let jitCLISwiftSettings: [SwiftSetting] = [.define("PREVIEWSMCP_JIT")]
 
 // iOS-simulator JIT is mandatory like macOS: the in-app ORC executor needs the
 // cross-built iossim TargetProcess libs and the iossim orc runtime, staged into
@@ -84,7 +83,6 @@ var targets: [Target] = [
             .product(name: "ArgumentParser", package: "swift-argument-parser"),
             .product(name: "MCP", package: "swift-sdk"),
         ] + jitCLIDependencies,
-        swiftSettings: jitCLISwiftSettings,
         plugins: [.plugin(name: "GenerateVersion")]
     ),
     .executableTarget(
