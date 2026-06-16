@@ -4,7 +4,7 @@ import PreviewsCore
 import PreviewsMacOS
 
 /// macOS adapter for `PreviewSessionHandle`. Bundles the
-/// `PreviewSession + PreviewHost.window/loadPreview/closePreview` plus
+/// `PreviewSession + PreviewHost.jitRender/closePreview` plus
 /// the 300ms post-`setTraits` layout-settle pause that the SwiftUI
 /// hosting view needs before a snapshot. Encapsulating the pause here
 /// keeps it out of MCP tool handlers.
@@ -40,50 +40,27 @@ public actor MacOSPreviewHandle: PreviewSessionHandle {
     /// and is what tipped CI's `preview_variants` test over its 60s
     /// callTool budget.
     public func setTraits(_ traits: PreviewTraits) async throws {
-        try await reload(
-            jit: { try await self.session.setTraitsForJIT(traits, window: $0) },
-            dylib: { try await self.session.setTraits(traits) })
+        try await reload { try await self.session.setTraitsForJIT(traits, window: $0) }
     }
 
     public func reconfigure(traits: PreviewTraits, clearing: Set<PreviewTraits.Field>) async throws {
-        try await reload(
-            jit: { try await self.session.reconfigureForJIT(traits: traits, clearing: clearing, window: $0) },
-            dylib: { try await self.session.reconfigure(traits: traits, clearing: clearing) })
+        try await reload {
+            try await self.session.reconfigureForJIT(traits: traits, clearing: clearing, window: $0)
+        }
     }
 
     public func switchPreview(to index: Int) async throws {
-        try await reload(
-            jit: { try await self.session.switchPreviewForJIT(to: index, window: $0) },
-            dylib: { try await self.session.switchPreview(to: index) })
+        try await reload { try await self.session.switchPreviewForJIT(to: index, window: $0) }
     }
 
-    /// The single routing seam for every mutating reload. In a JIT build every
-    /// session re-renders in its agent; in a non-JIT build every session reloads
-    /// a dylib into its daemon window. The split is per-build, never per-session.
+    /// Shared window-spec + render plumbing for every mutating reload. Every
+    /// session re-renders in its agent over JIT.
     private func reload(
-        jit: (JITRenderWindow?) async throws -> JITRenderBuild,
-        dylib: () async throws -> CompileResult
+        _ jit: (JITRenderWindow?) async throws -> JITRenderBuild
     ) async throws {
-        enum Surface {
-            case agent(JITRenderWindow?)
-            case daemonWindow
-        }
-        let surface: Surface = await MainActor.run {
-            guard host.agentBacked else {
-                return .daemonWindow
-            }
-            return .agent(host.agentWindowSpec(for: id))
-        }
-        switch surface {
-        case .agent(let window):
-            let build = try await jit(window)
-            try await host.jitRender(sessionID: id, build: build)
-        case .daemonWindow:
-            let result = try await dylib()
-            try await MainActor.run {
-                try host.loadPreview(sessionID: id, dylibPath: result.dylibPath)
-            }
-        }
+        let window = await MainActor.run { host.agentWindowSpec(for: id) }
+        let build = try await jit(window)
+        try await host.jitRender(sessionID: id, build: build)
     }
 
     public func snapshot(quality: Double) async throws -> Data {
@@ -91,24 +68,18 @@ public actor MacOSPreviewHandle: PreviewSessionHandle {
         let sessionID = id
         let colorScheme = await session.currentTraits.colorScheme
         return try await MainActor.run {
-            if host.agentBacked {
-                guard let imagePath = host.agentSnapshotPath(for: sessionID) else {
-                    throw SnapshotError.captureFailed
-                }
-                let named: NSAppearance? =
-                    switch colorScheme {
-                    case "dark": NSAppearance(named: .darkAqua)
-                    case "light": NSAppearance(named: .aqua)
-                    default: nil
-                    }
-                let appearance = named ?? NSApplication.shared.effectiveAppearance
-                return try Snapshot.encode(
-                    imageAt: imagePath, format: format, flattenedWith: appearance)
-            }
-            guard let window = host.window(for: sessionID) else {
+            guard let imagePath = host.agentSnapshotPath(for: sessionID) else {
                 throw SnapshotError.captureFailed
             }
-            return try Snapshot.capture(window: window, format: format)
+            let named: NSAppearance? =
+                switch colorScheme {
+                case "dark": NSAppearance(named: .darkAqua)
+                case "light": NSAppearance(named: .aqua)
+                default: nil
+                }
+            let appearance = named ?? NSApplication.shared.effectiveAppearance
+            return try Snapshot.encode(
+                imageAt: imagePath, format: format, flattenedWith: appearance)
         }
     }
 

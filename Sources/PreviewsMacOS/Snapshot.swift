@@ -1,7 +1,7 @@
 import AppKit
 import Foundation
 
-/// Captures the contents of an NSWindow as image data.
+/// Encodes agent-rendered preview images as output image data.
 @MainActor
 public enum Snapshot {
 
@@ -9,40 +9,6 @@ public enum Snapshot {
     public enum ImageFormat: Sendable {
         case jpeg(quality: Double)
         case png
-    }
-
-    /// Capture the current contents of a window's content view.
-    /// Uses `cacheDisplay` to render directly from the view hierarchy, which works
-    /// regardless of window position (including off-screen/headless) and captures
-    /// only the SwiftUI content without the title bar.
-    /// - Parameters:
-    ///   - window: The window to capture.
-    ///   - format: Output format (default: JPEG at 0.85 quality).
-    public static func capture(window: NSWindow, format: ImageFormat = .jpeg(quality: 0.85)) throws -> Data {
-        guard let contentView = window.contentView else {
-            throw SnapshotError.captureFailed
-        }
-        let bounds = contentView.bounds
-        guard bounds.width > 0, bounds.height > 0 else {
-            throw SnapshotError.captureFailed
-        }
-        // Pin the raster to a deterministic 1x (one pixel per point). bitmapImageRepForCachingDisplay
-        // inherits the host window's backingScaleFactor — 2x on a Retina display — which made the
-        // snapshot's pixel dimensions depend on which machine the daemon ran on. Building the rep
-        // manually with pixel dimensions equal to the point bounds keeps output reproducible.
-        guard let bitmapRep = makeRep(pixelsWide: Int(bounds.width.rounded()), pixelsHigh: Int(bounds.height.rounded()))
-        else {
-            throw SnapshotError.captureFailed
-        }
-        bitmapRep.size = bounds.size
-        contentView.cacheDisplay(in: bounds, to: bitmapRep)
-        return try data(from: bitmapRep, format: format)
-    }
-
-    /// Capture and write to a file.
-    public static func capture(window: NSWindow, format: ImageFormat = .jpeg(quality: 0.85), to path: URL) throws {
-        let data = try capture(window: window, format: format)
-        try data.write(to: path)
     }
 
     /// Re-encode an agent-rendered image file (PNG) to the requested output format,

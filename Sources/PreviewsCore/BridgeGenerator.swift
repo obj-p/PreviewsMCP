@@ -334,7 +334,7 @@ public enum BridgeGenerator {
     /// Builds the same preview view as `createPreviewView`, hosts it in a borderless
     /// `NSWindow` positioned off-screen via `NSHostingView` (AppKit-backed views like
     /// `List` need a real window's backing hierarchy — `ImageRenderer` returns nil or a
-    /// blank raster for them), captures at a deterministic 1x like `Snapshot.capture`,
+    /// blank raster for them), captures at a deterministic 1x,
     /// and writes a PNG to `path`. Nullary so it runs over the agent's `runOnMain`
     /// surface; the path is baked in (the daemon recompiles per structural edit).
     ///
