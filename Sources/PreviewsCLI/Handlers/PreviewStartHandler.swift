@@ -293,6 +293,7 @@ private func handleIOSPreviewStart(
         setupType: setupResult?.typeName,
         setupCompilerFlags: setupResult?.compilerFlags ?? [],
         setupSDKPath: setupResult?.sdkPath,
+        setupDylibPath: setupResult?.dylibPath,
         progress: progress,
         makeJITReloader: iosJITReloaderFactory
     )
