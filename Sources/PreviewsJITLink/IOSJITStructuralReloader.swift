@@ -12,6 +12,7 @@ import PreviewsCore
 public actor IOSJITStructuralReloader: IOSStructuralReloader {
     private let session: JITSession
     private var generation = 0
+    private var lastObjectPath: URL?
     private var didRunSetUp = false
 
     public init(remoteFD fd: Int32, orcRuntimePath: String) throws {
@@ -19,9 +20,16 @@ public actor IOSJITStructuralReloader: IOSStructuralReloader {
     }
 
     public func render(_ build: JITRenderBuild) async throws {
-        // Each call links a freshly compiled object (compileObjectForJIT mints a new
-        // objectPath every time) into a fresh generation. iOS has no literal-only re-seed
-        // path yet, so there is no same-object fast path to short-circuit here.
+        // Literal re-render: the same object is already linked in the live generation, so just
+        // re-run its entry. It re-seeds DesignTimeStore from the (rewritten) values JSON, with
+        // no new JITDylib and no re-link (which would re-register the object's classes).
+        if let lastObjectPath, build.objectPath == lastObjectPath {
+            try await runEntry(build.entrySymbol)
+            return
+        }
+
+        // Structural edit: compileObjectForJIT minted a new objectPath, so link it into a
+        // fresh generation.
         if generation > 0 {
             try session.newGeneration()
         }
@@ -37,6 +45,7 @@ public actor IOSJITStructuralReloader: IOSStructuralReloader {
             try session.addObject(path: support.path)
         }
         try session.addObject(path: build.objectPath.path)
+        lastObjectPath = build.objectPath
 
         if let setupEntry = build.setupEntrySymbol, !didRunSetUp {
             _ = try session.runOnMain(symbol: setupEntry)
