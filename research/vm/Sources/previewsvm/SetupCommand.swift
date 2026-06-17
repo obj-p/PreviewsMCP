@@ -131,6 +131,17 @@ struct SetupCommand: AsyncParsableCommand {
         /// initiates the hot-reload). Output files retrieved over SSH
         /// to `--output-dir`.
         case driveXcodePreview = "drive-xcode-preview"
+
+        /// Drive the rules_xcodeproj treatment project's preview canvas
+        /// in the VM and capture the `com.apple.dt.Previews` debug log
+        /// (hopefully unredacted via the installed per-subsystem
+        /// logging plist) while the pipeline drops the
+        /// `ThunkProductNode` that surfaces as `noPreviewInfos`. Lean
+        /// sibling of `driveXcodePreview`: no HelloPreview fixture, no
+        /// W3 interposer, no agent patching, no edits — it opens OUR
+        /// `study/treatment/Mixed.xcodeproj`, fires the canvas, and
+        /// retrieves `/tmp/prev.log`. Restore from `post-build-green`.
+        case driveOurCanvas = "drive-our-canvas"
     }
 
     enum Transport: String, ExpressibleByArgument, CaseIterable {
@@ -194,6 +205,13 @@ struct SetupCommand: AsyncParsableCommand {
                 throw VMError("--preset drive-xcode-preview requires --transport vnc (needs dual modifier keys for Cmd+Option+Return)")
             }
             steps = Self.driveXcodePreviewSteps(
+                bundlePath: bundle.url.path,
+                outputDir: outDir.path)
+        case .driveOurCanvas:
+            if transport != .vnc {
+                throw VMError("--preset drive-our-canvas requires --transport vnc (needs dual modifier keys for the Help-menu Canvas open)")
+            }
+            steps = Self.driveOurCanvasSteps(
                 bundlePath: bundle.url.path,
                 outputDir: outDir.path)
         }
@@ -1305,6 +1323,425 @@ struct SetupCommand: AsyncParsableCommand {
                 command: remote("cat /tmp/w3-mem-diff-e12.txt") + " > \"\(outputDir)/w3-mem-diff-e12.txt\" && wc -l \"\(outputDir)/w3-mem-diff-e12.txt\"",
                 label: "retrieve mem-diff edit-12"),
             .screenshot(label: "07-complete"),
+            .log("artifacts retrieved to \(outputDir)/"),
+        ]
+    }
+
+    /// Drive the rules_xcodeproj treatment project's preview canvas and
+    /// capture the preview-pipeline debug log. The deliverable is the
+    /// literal `reason:` the pipeline records when it removes the
+    /// `ThunkProductNode` (root cause of `noPreviewInfos`), which the
+    /// host can only see redacted — this VM has the
+    /// `com.apple.dt.Previews` per-subsystem logging plist installed, so
+    /// the private field SHOULD render in cleartext here.
+    ///
+    /// Preconditions (the `post-build-green` snapshot has these): admin
+    /// auto-login, `study/treatment` rsynced under
+    /// `/Users/admin/rules_xcodeproj-previews/`, the project
+    /// regenerated + built green by `xcodebuild ENABLE_PREVIEWS=YES`,
+    /// and the logging plist installed.
+    ///
+    /// Flow: boot → unlock → start `log stream` over the preview
+    /// subsystems → open `Mixed.xcodeproj` + `ContentView.swift` →
+    /// fire the canvas (Help-menu "Canvas" is the load-bearing path in
+    /// Xcode 26) → wait → stop the stream → retrieve `/tmp/prev.log`.
+    static func driveOurCanvasSteps(
+        bundlePath: String,
+        outputDir: String
+    ) -> [SetupAssistantSequence.Step] {
+        let previewsvmBin = Bundle.main.executableURL?.path
+            ?? CommandLine.arguments.first
+            ?? "previewsvm"
+        let ssh = "\"\(previewsvmBin)\" ssh \"\(bundlePath)\""
+
+        // The whole remote command is passed as ONE single-quoted argv
+        // element (no-`--` form); single quotes inside are escaped to
+        // `'\''`. The VM shell then evaluates `$!`/`$()`/`&` verbatim.
+        func remote(_ shellCommand: String) -> String {
+            let escaped = shellCommand.replacingOccurrences(of: "'", with: "'\\''")
+            return "\(ssh) '\(escaped)'"
+        }
+
+        let projectDir = "/Users/admin/rules_xcodeproj-previews/study/treatment"
+        let project = "\(projectDir)/Mixed.xcodeproj"
+        let sourceRel = ProcessInfo.processInfo.environment["CANVAS_SOURCE_FILE"]
+            ?? "mixed/App/ContentView.swift"
+        let contentView = "\(projectDir)/\(sourceRel)"
+
+        // Mirrors study/treatment/capture-preview-log.sh: every
+        // preview / build / Xcode-IDE subsystem plus the preview
+        // processes. com.apple.dt covers com.apple.dt.Previews — the
+        // one whose private `reason:` we are after. Double quotes only,
+        // so the host-side single-quote wrapping in remote() stays flat.
+        let predicate = "(subsystem CONTAINS[c] \"preview\") OR (subsystem CONTAINS[c] \"build\") OR (subsystem BEGINSWITH \"com.apple.dt\") OR (subsystem BEGINSWITH \"com.apple.IDE\") OR (subsystem BEGINSWITH \"com.apple.SwiftBuild\") OR (process == \"Xcode\") OR (process CONTAINS[c] \"Preview\") OR (process CONTAINS[c] \"BuildService\") OR (process == \"previewsd\")"
+        // The predicate's own double quotes collide with any inline
+        // shell quoting, so deploy it to a file via hex and expand it
+        // with `"$(cat …)"` — command substitution keeps the inner
+        // quotes literal (the same trick capture-preview-log.sh uses
+        // with a shell variable).
+        let predicateHex = predicate.utf8
+            .map { String(format: "%02x", $0) }
+            .joined()
+
+        // lldb python probe: break on the BuiltTargetDescription
+        // buildableName getter (an instance method, so `self` is a typed
+        // BuiltTargetDescription SBValue) and walk `objectFiles` /
+        // `staticArchives` via reflection. Confirms whether the framework's
+        // `static-PreviewKit` description has empty objectFiles + populated
+        // staticArchives. Reflection metadata (not stripped) lets lldb type
+        // the value even in the release binary; `po` is a fallback only.
+        let btdProbe = #"""
+            import lldb
+            import struct
+
+            LOG = "/tmp/btd-probe.log"
+            _hits = [0]
+            _done = [False]
+            _bps = []
+            # containsDescriptionForModule(named:) is the out-of-line method that
+            # actually fires during the failing TU lookup, so `self` (the
+            # description) is live. The struct type is internal/un-nameable and
+            # the binary is stripped, so read `self` by RAW MEMORY: dump each
+            # candidate self-pointer register and flag array-like slots (a heap
+            # pointer whose +16 word is a small count) and string-like slots.
+            SYMS = [
+                "$s21PreviewsMessagingHost22BuiltTargetDescriptionV08containsF9ForModule5namedSbSS_tF",
+            ]
+            REGS = ["x20", "x0", "x2", "x19", "x8", "x21", "x22", "x23", "x24", "x25", "x26", "x1"]
+
+            def _w(s):
+                try:
+                    with open(LOG, "a") as f:
+                        f.write(s + "\n")
+                except Exception:
+                    pass
+
+            def _rd(proc, addr, n):
+                err = lldb.SBError()
+                b = proc.ReadMemory(addr, n, err)
+                if err.Fail() or b is None:
+                    return None
+                return b
+
+            def _word(proc, addr):
+                b = _rd(proc, addr, 8)
+                if b is None:
+                    return None
+                return struct.unpack("<Q", b)[0]
+
+            def _looks_ptr(p):
+                return p is not None and 0x100000000 <= p < 0x0001000000000000 and (p & 0x7) == 0
+
+            def _readstr(proc, addr, n=96):
+                b = _rd(proc, addr, n)
+                if not b:
+                    return None
+                out = ""
+                for c in bytearray(b):
+                    if c == 0: break
+                    out += chr(c) if 32 <= c < 127 else "."
+                return out
+
+            # Decode a 64-bit Swift String at `addr`. Native/large strings hold
+            # the UTF-8 after a 32-byte __StringStorage header; small strings
+            # store bytes inline. Try native first, fall back to inline.
+            def _swift_str(proc, addr):
+                b = _rd(proc, addr, 16)
+                if not b:
+                    return None
+                w0, w1 = struct.unpack("<QQ", b)
+                ptr = w1 & 0x00FFFFFFFFFFFFFF
+                if _looks_ptr(ptr):
+                    for hoff in (32, 16, 24):
+                        s = _readstr(proc, ptr + hoff, 120)
+                        if s and len(s) >= 2 and all(31 < ord(c) < 127 for c in s[:4]):
+                            return s
+                raw = struct.pack("<QQ", w0, w1)
+                txt = "".join(chr(c) for c in bytearray(raw[:15]) if 32 <= c < 127)
+                return txt or None
+
+            # Field offsets from the BuiltTargetDescription metadata field-offset
+            # vector observed in the dump (0,16,24,40,56,64,112,120,...).
+            OFF_INSTALL, OFF_BUILDABLE, OFF_OBJ, OFF_ARC = 0, 24, 112, 120
+
+            def _arr_count(proc, buf):
+                if buf is None:
+                    return None
+                ap = buf & 0x00FFFFFFFFFFFFFF
+                if not _looks_ptr(ap):
+                    return None
+                return _word(proc, ap + 16)
+
+            def _elem_path(proc, buf, n):
+                buf = (buf or 0) & 0x00FFFFFFFFFFFFFF
+                out = []
+                for i in range(min(n, 8)):
+                    # element struct begins at buffer + 32 + i*stride; the first
+                    # field of each is a String. Stride unknown, so probe a few.
+                    out.append(_swift_str(proc, buf + 32 + i * 8))
+                return out
+
+            def on_entry(frame, bp_loc, internal_dict):
+                if _done[0]:
+                    return False
+                _hits[0] += 1
+                if _hits[0] > 4:
+                    _w("=== hit cap; disabling ===")
+                    for b in _bps: b.SetEnabled(False)
+                    _done[0] = True
+                    return False
+                proc = frame.GetThread().GetProcess()
+                _w("entry #%d %s" % (_hits[0], (frame.GetFunctionName() or "?")[:50]))
+                seen = set()
+                for reg in REGS:
+                    rv = frame.FindRegister(reg)
+                    if not rv or not rv.IsValid():
+                        continue
+                    p = rv.GetValueAsUnsigned()
+                    if not _looks_ptr(p) or p in seen or _rd(proc, p, 8) is None:
+                        continue
+                    seen.add(p)
+                    inst = _swift_str(proc, p + OFF_INSTALL)
+                    bn = _swift_str(proc, p + OFF_BUILDABLE)
+                    objc = _arr_count(proc, _word(proc, p + OFF_OBJ))
+                    arcc = _arr_count(proc, _word(proc, p + OFF_ARC))
+                    blob = "%r %r" % (inst, bn)
+                    is_self = ("PreviewKit" in blob) or ("Preview" in blob and "-" in blob)
+                    tag = "SELF" if is_self else "cand"
+                    _w("%s reg=%s base=0x%x installName=%r buildableName=%r objectFiles.count=%s staticArchives.count=%s" % (
+                        tag, reg, p, inst, bn, objc, arcc))
+                    if is_self:
+                        if objc and objc > 0:
+                            _w("   objectFiles[0..]: %s" % _elem_path(proc, _word(proc, p + OFF_OBJ), objc))
+                        if arcc and arcc > 0:
+                            _w("   staticArchives[0..]: %s" % _elem_path(proc, _word(proc, p + OFF_ARC), arcc))
+                        _w("=== captured static-PreviewKit; disabling ===")
+                        for b in _bps: b.SetEnabled(False)
+                        _done[0] = True
+                        return False
+                return False
+
+            def __lldb_init_module(debugger, internal_dict):
+                _w("=== probe loaded (mem-dump) ===")
+                t = debugger.GetSelectedTarget()
+                if not t or not t.IsValid():
+                    _w("no target at import")
+                    return
+                for sym in SYMS:
+                    bp = t.BreakpointCreateByName(sym)
+                    if bp.GetNumLocations() == 0:
+                        bp = t.BreakpointCreateByName("_" + sym)
+                    bp.SetScriptCallbackFunction("btd_probe.on_entry")
+                    _bps.append(bp)
+                    _w("bp %s -> %d locations" % (sym[:55], bp.GetNumLocations()))
+            """#
+        let btdProbeHex = btdProbe.utf8
+            .map { String(format: "%02x", $0) }
+            .joined()
+
+        // Optionally switch the active scheme before opening the source
+        // file, so a target the default app scheme doesn't build (e.g. a
+        // framework) can be previewed. Empty unless CANVAS_SCHEME is set,
+        // so the default ContentView flow is unchanged.
+        let schemeSteps: [SetupAssistantSequence.Step] =
+            ProcessInfo.processInfo.environment["CANVAS_SCHEME"].map { name in
+                [
+                    .log("selecting scheme \(name) via the toolbar scheme popup"),
+                    .clickWord("Mixed"),
+                    .wait(seconds: 2),
+                    .screenshot(label: "01f-scheme-popup"),
+                    .clickWord(name),
+                    .wait(seconds: 3),
+                    .screenshot(label: "01g-scheme-selected"),
+                ]
+            } ?? []
+
+        return [
+            .log("waiting 35s for boot + (maybe) lock-screen to render"),
+            .wait(seconds: 35),
+            .screenshot(label: "01a-pre-unlock"),
+
+            // Auto-login may still leave a re-locked Aqua session; type
+            // the password + Return. Harmless on an unlocked desktop.
+            .log("typing password + Return (unlocks lock screen if up)"),
+            .type("previewsvm"),
+            .key(.returnKey),
+            .wait(seconds: 8),
+            .screenshot(label: "01b-post-unlock"),
+
+            // Keep the display awake so long waits don't power it off
+            // and break later keystrokes.
+            .hostShell(
+                command: remote("(nohup caffeinate -dis > /dev/null 2>&1 &); sleep 1; pgrep caffeinate > /dev/null && echo CAFFEINATE_OK || echo CAFFEINATE_FAILED"),
+                label: "start caffeinate",
+                expectContains: "CAFFEINATE_OK"),
+            .hostShell(
+                command: remote("stat -f %Su /dev/console"),
+                label: "verify admin console",
+                expectContains: "admin"),
+            .screenshot(label: "01c-desktop"),
+
+            // Fail loudly if the treatment project isn't where we hardcoded.
+            .hostShell(
+                command: remote("test -d \(project) && test -f \(contentView) && echo PROJECT_PRESENT || echo PROJECT_MISSING"),
+                label: "verify treatment project present",
+                expectContains: "PROJECT_PRESENT"),
+
+            // Cold-start the preview pipeline from a clean Xcode.
+            .hostShell(
+                command: remote("pkill -9 -f XCPreviewAgent 2>/dev/null; pkill -9 -f Xcode 2>/dev/null; sleep 2; pgrep -f Xcode || echo XCODE_CLEAN"),
+                label: "kill stale Xcode/agent",
+                expectContains: "XCODE_CLEAN"),
+
+
+            // Start the debug log stream BEFORE opening Xcode so we
+            // capture target-description discovery and the
+            // ThunkProductNode removal. Detached (nohup, fds closed) so
+            // SSH returns; PID saved for a clean stop. The process is
+            // named `log`.
+            .hostShell(
+                command: remote("printf %s \(predicateHex) | xxd -r -p > /tmp/prev-predicate.txt && wc -c /tmp/prev-predicate.txt && echo PREDICATE_DEPLOYED"),
+                label: "deploy log predicate",
+                expectContains: "PREDICATE_DEPLOYED"),
+            .hostShell(
+                command: remote("rm -f /tmp/prev.log; nohup log stream --level debug --style compact --predicate \"$(cat /tmp/prev-predicate.txt)\" > /tmp/prev.log 2>&1 < /dev/null & echo $! > /tmp/prev-stream.pid; sleep 3; pgrep -x log > /dev/null && echo STREAM_OK || { echo STREAM_FAILED; tail -5 /tmp/prev.log; }"),
+                label: "start preview log stream",
+                expectContains: "STREAM_OK"),
+
+            // Suppress Xcode's first-run Coding-Intelligence modal that
+            // otherwise eats keystrokes to the editor.
+            .hostShell(
+                command: remote("for k in IDECodingIntelligenceWelcomeShown IDEIntelligenceWelcomeShown DVTIntelligenceWelcomeShown IDECodingIntelligenceFTUXShown; do defaults write com.apple.dt.Xcode \"$k\" -bool YES; done; defaults write com.apple.dt.Xcode UVLinkerArgumentParserDataSourceLogCacheHits -bool YES; defaults write com.apple.dt.Xcode UVLinkerArgumentParserDataSourceLogCacheMisses -bool YES; echo DEFAULTS_SET"),
+                label: "suppress welcome + enable linker-arg-parser logging",
+                expectContains: "DEFAULTS_SET"),
+
+            // Launch Xcode bare first so its first-launch "install
+            // additional components" sheet comes up with Xcode
+            // frontmost. The sheet's default button is "Continue"
+            // (installs the already-present checked components from
+            // Xcode's bundled packages — no large download); Return
+            // activates it. This must clear before the project opens,
+            // else the project never loads and every later keystroke
+            // leaks to the system Help Viewer.
+            .hostShell(
+                command: remote("open -a /Applications/Xcode.app && echo XCODE_LAUNCHED"),
+                label: "launch Xcode (bare)",
+                expectContains: "XCODE_LAUNCHED"),
+            .log("waiting 25s for first-launch component sheet"),
+            .wait(seconds: 25),
+            .screenshot(label: "01d-component-sheet"),
+            .log("press Return to Continue past the component sheet"),
+            .key(.returnKey),
+            .wait(seconds: 60),
+            .screenshot(label: "01e-after-continue"),
+
+            // Open the project, then the source file in the same Xcode.
+            .hostShell(
+                command: remote("open -a /Applications/Xcode.app \(project) && echo OPENED_PROJECT"),
+                label: "open Mixed.xcodeproj in Xcode",
+                expectContains: "OPENED_PROJECT"),
+            .log("waiting 30s for project to load"),
+            .wait(seconds: 30),
+        ] + schemeSteps + [
+            .hostShell(
+                command: remote("open -a /Applications/Xcode.app \(contentView) && echo OPENED_CONTENTVIEW"),
+                label: "open ContentView.swift in same Xcode",
+                expectContains: "OPENED_CONTENTVIEW"),
+            .log("waiting 60s for SourceKit indexing"),
+            .wait(seconds: 60),
+            .screenshot(label: "02-xcode-open"),
+
+            // Dismiss any first-run modal sheet.
+            .log("dismiss any first-run modal sheets"),
+            .key(.escape),
+            .wait(seconds: 2),
+            .key(.escape),
+            .wait(seconds: 2),
+            .screenshot(label: "02a-after-escape-modal"),
+
+            // Focus the source editor before canvas keystrokes.
+            .click(x: 600, y: 350),
+            .wait(seconds: 2),
+            .screenshot(label: "02b-clicked-editor"),
+
+            // Attach the lldb BuiltTargetDescription probe to Xcode NOW,
+            // after the project/file are open but before the canvas fires,
+            // so the getter breakpoint is only live during the preview
+            // attempt. Detached under sudo (SIP/AMFI-off VM allows the
+            // attach); `continue` resumes Xcode so the canvas can run.
+            .hostShell(
+                command: remote("printf %s \(btdProbeHex) | xxd -r -p > /tmp/btd_probe.py && wc -l /tmp/btd_probe.py && echo BTD_PROBE_DEPLOYED"),
+                label: "deploy lldb btd probe",
+                expectContains: "BTD_PROBE_DEPLOYED"),
+            .hostShell(
+                command: remote("PID=$(pgrep -x Xcode | head -1); echo XCODE_PID=$PID; rm -f /tmp/btd-probe.log /tmp/btd-lldb.out; echo previewsvm | sudo -S sh -c \"nohup xcrun lldb -b -o 'process attach -p $PID' -o 'command script import /tmp/btd_probe.py' -o 'continue' > /tmp/btd-lldb.out 2>&1 < /dev/null & echo \\$! > /tmp/btd-lldb.pid\"; sleep 12; echo '--- btd-lldb.out head ---'; head -30 /tmp/btd-lldb.out; echo '--- probe log so far ---'; cat /tmp/btd-probe.log 2>/dev/null; echo BTD_ATTACH_DONE"),
+                label: "attach lldb btd probe to Xcode",
+                expectContains: "BTD_ATTACH_DONE"),
+
+            // Cmd+Option+Return is the historical canvas toggle; try it
+            // first, then fall back to the universal Help-menu path.
+            .log("attempt 1: Cmd+Option+Return"),
+            .dualModifiedKey(mod1: .command, mod2: .option, key: .returnKey),
+            .wait(seconds: 8),
+            .screenshot(label: "03a-after-cmdoptreturn"),
+
+            // Help menu search (Cmd+Shift+/) activates the Editor →
+            // Canvas item by name regardless of its (repurposed in
+            // Xcode 26) shortcut. Slash mac keycode = 44, unicode 0x2F.
+            .log("attempt 2: Help → search 'Canvas' → Return"),
+            .dualModifiedKey(
+                mod1: .command, mod2: .shift,
+                key: .character(unicodeScalar: 0x2F, code: 44)),
+            .wait(seconds: 2),
+            .screenshot(label: "03b-help-menu-open"),
+            .type("Canvas"),
+            .wait(seconds: 3),
+            .screenshot(label: "03c-help-typed-canvas"),
+            .key(.downArrow),
+            .wait(seconds: 1),
+            .screenshot(label: "03d-after-down-arrow"),
+            .key(.returnKey),
+            .wait(seconds: 8),
+            .screenshot(label: "03e-after-help-canvas-enter"),
+
+            // Cmd+Option+P resumes a paused preview if the canvas was
+            // already open.
+            .log("attempt 3: Cmd+Option+P (resume preview)"),
+            .dualModifiedKey(
+                mod1: .command, mod2: .option,
+                key: .character(unicodeScalar: 0x70, code: 35)),
+            .wait(seconds: 8),
+            .screenshot(label: "03f-after-cmdoptp"),
+
+            .log("waiting 90s for canvas + preview pipeline to run/fail"),
+            .wait(seconds: 90),
+            .screenshot(label: "04-canvas-settled"),
+
+            // Stop the stream cleanly, then flush + summarize on the VM.
+            .hostShell(
+                command: remote("kill \"$(cat /tmp/prev-stream.pid 2>/dev/null)\" 2>/dev/null; sleep 2; pkill -x log 2>/dev/null; sleep 1; echo '--- /tmp/prev.log lines ---'; wc -l /tmp/prev.log; echo '--- ThunkProductNode hits ---'; grep -c -i ThunkProductNode /tmp/prev.log || echo 0; echo '--- noPreviewInfos hits ---'; grep -c -i noPreviewInfos /tmp/prev.log || echo 0; echo '--- removal reason lines ---'; grep -i -E 'node removal|reason:' /tmp/prev.log | head -40; echo STREAM_STOPPED"),
+                label: "stop stream + summarize ThunkProductNode/reason",
+                expectContains: "STREAM_STOPPED"),
+            .screenshot(label: "05-stream-stopped"),
+
+            // Capture the XOJIT preview build arena (every XCBuildData
+            // manifest.json) before teardown, so the static-<target>
+            // built target description can be inspected off-VM.
+            .hostShell(
+                command: remote("rm -rf /tmp/fwa; mkdir -p /tmp/fwa; find $HOME/Library/Developer/Xcode/DerivedData /tmp /private/var/folders -name manifest.json 2>/dev/null | grep -v /tmp/fwa/ > /tmp/fwa/list.txt; echo CANDIDATES; cat /tmp/fwa/list.txt; n=0; for m in $(cat /tmp/fwa/list.txt); do cp $m /tmp/fwa/m$n.json 2>/dev/null; echo $m > /tmp/fwa/m$n.path; n=$((n+1)); done; echo MANIFESTS_WITH_STATIC; grep -l static-PreviewKit /tmp/fwa/m*.json 2>/dev/null; echo RESOLVED_DESC_FILES; find $HOME/Library/Developer/Xcode /tmp /private/var/folders -iname '*ResolvedBuiltTargetDescriptions*' 2>/dev/null | tee /tmp/fwa/resolved-list.txt; r=0; for d in $(cat /tmp/fwa/resolved-list.txt); do cp $d /tmp/fwa/resolved$r 2>/dev/null; echo $d > /tmp/fwa/resolved$r.path; r=$((r+1)); done; echo FILES_WITH_DESC_TYPES; grep -rlI 'BuiltObjectFileDescription\\|BuiltStaticArchiveDescription\\|static-PreviewKit' $HOME/Library/Developer/Xcode/DerivedData /tmp 2>/dev/null | grep -v /tmp/fwa/ | tee /tmp/fwa/desctype-list.txt; t=0; for d in $(cat /tmp/fwa/desctype-list.txt); do cp $d /tmp/fwa/desctype$t 2>/dev/null; echo $d > /tmp/fwa/desctype$t.path; t=$((t+1)); done; tar czf /tmp/fwa.tgz -C /tmp fwa 2>/dev/null; wc -c /tmp/fwa.tgz; echo ARENA_CAPTURED"),
+                label: "capture preview build arena + resolved descriptions",
+                expectContains: "ARENA_CAPTURED"),
+            .hostShell(
+                command: remote("base64 < /tmp/fwa.tgz") + " > \"\(outputDir)/fw-preview-arena.tgz.b64\" && wc -c \"\(outputDir)/fw-preview-arena.tgz.b64\"",
+                label: "retrieve preview build arena to host"),
+            .hostShell(
+                command: remote("echo '=== btd-probe.log ==='; cat /tmp/btd-probe.log 2>/dev/null; echo '=== btd-lldb.out (tail) ==='; tail -40 /tmp/btd-lldb.out 2>/dev/null") + " > \"\(outputDir)/btd-probe.log\" && wc -l \"\(outputDir)/btd-probe.log\"",
+                label: "retrieve lldb btd probe log to host"),
+
+            // Retrieve the full log to the host output dir.
+            .hostShell(
+                command: remote("cat /tmp/prev.log") + " > \"\(outputDir)/prev.log\" && wc -l \"\(outputDir)/prev.log\"",
+                label: "retrieve prev.log to host"),
             .log("artifacts retrieved to \(outputDir)/"),
         ]
     }
