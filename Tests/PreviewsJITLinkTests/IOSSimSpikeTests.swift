@@ -201,6 +201,66 @@ struct IOSSimSpikeTests {
         await session.stop()
     }
 
+    /// Literal-only edit over iOS JIT (#216): after the initial render, a change that
+    /// touches only a `Text` string must re-seed the DesignTimeStore and re-run the SAME
+    /// linked object — no recompile, no new generation — mirroring the macOS literal path.
+    /// A `RecordingReloader` wraps the real reloader and captures each rendered object path.
+    /// Red before the fix: `handleSourceChange` rebuilt the session and recompiled, so the
+    /// second render carried a fresh object path.
+    @Test(.enabled(if: jitOrcRuntimePresent), .timeLimit(.minutes(10)))
+    func literalEditReSeedsSameObjectWithoutRecompile() async throws {
+        let udid = try SimSpikeSupport.bootSimulator()
+
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-ios-jit-literal-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+        let sourceFile = tempDir.appendingPathComponent("HelloView.swift")
+        try Self.helloViewSource.write(to: sourceFile, atomically: true, encoding: .utf8)
+
+        let compiler = try await Compiler(platform: .iOS)
+        let hostBuilder = try await IOSHostBuilder()
+        let simulatorManager = SimulatorManager()
+
+        let recorderBox = RecorderBox()
+        let session = IOSPreviewSession(
+            sourceFile: sourceFile,
+            deviceUDID: udid,
+            compiler: compiler,
+            hostBuilder: hostBuilder,
+            simulatorManager: simulatorManager,
+            makeJITReloader: { fd, orcPath in
+                let recorder = RecordingReloader(
+                    inner: try IOSJITStructuralReloader(remoteFD: fd, orcRuntimePath: orcPath))
+                recorderBox.set(recorder)
+                return recorder
+            }
+        )
+        defer {
+            SimSpikeSupport.terminateApp(udid: udid, bundleID: IOSPreviewSession.hostBundleID)
+        }
+
+        let pid = try await session.start()
+        #expect(pid > 0)
+        let before = try await session.fetchElements()
+        #expect(before.contains("Hello from iOS JIT!"))
+
+        let edited = Self.helloViewSource.replacingOccurrences(
+            of: "Hello from iOS JIT!", with: "Hello from literal edit!")
+        try edited.write(to: sourceFile, atomically: true, encoding: .utf8)
+        try await session.handleSourceChange()
+
+        let after = try await session.fetchElements()
+        #expect(after.contains("Hello from literal edit!"))
+
+        let paths = recorderBox.get()?.objectPaths ?? []
+        #expect(paths.count == 2)
+        #expect(
+            paths.first == paths.last,
+            "literal edit must re-render the same object (no recompile)")
+        await session.stop()
+    }
+
     /// End-to-end iOS JIT render WITH a setup plugin, over a real project build context
     /// (setup only applies when `splitContext` is non-nil, which needs a `buildContext`).
     /// The setup dylib (`ToDoPreviewSetup` built for the iOS sim) must be threaded into the
@@ -284,6 +344,31 @@ private final class CapturingReloader: IOSStructuralReloader, @unchecked Sendabl
     let session: JITSession
     init(session: JITSession) { self.session = session }
     func render(_ build: JITRenderBuild) async throws {}
+}
+
+/// Wraps a real reloader and records the object path of every rendered build, so a test
+/// can assert a literal re-render reused the same object (no recompile) while the inner
+/// reloader still drives the real EPC render.
+private final class RecordingReloader: IOSStructuralReloader, @unchecked Sendable {
+    let inner: any IOSStructuralReloader
+    private let lock = NSLock()
+    private var paths: [String] = []
+    init(inner: any IOSStructuralReloader) { self.inner = inner }
+    func render(_ build: JITRenderBuild) async throws {
+        lock.withLock { paths.append(build.objectPath.path) }
+        try await inner.render(build)
+    }
+    var objectPaths: [String] {
+        lock.withLock { paths }
+    }
+}
+
+/// Thread-safe box so the @Sendable factory closure can hand the recorder back to the test.
+private final class RecorderBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value: RecordingReloader?
+    func set(_ v: RecordingReloader) { lock.withLock { value = v } }
+    func get() -> RecordingReloader? { lock.withLock { value } }
 }
 
 /// Thread-safe box so the @Sendable factory closure can report the linked result.

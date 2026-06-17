@@ -327,10 +327,25 @@ public actor IOSPreviewSession {
         try await jitReloader.render(build)
     }
 
-    /// Handle a source file change by recompiling and re-linking over JIT.
-    /// iOS JIT has no literal fast path yet, so every edit is a full structural reload.
+    /// Handle a source file change. Fast path: a literal-only edit rewrites the design-time
+    /// values JSON and re-runs the same linked object over EPC (no recompile, no relink),
+    /// mirroring the macOS path. Otherwise fall back to a structural reload that reuses the
+    /// persistent session so its stable-module cache and literal baseline carry forward.
     public func handleSourceChange() async throws {
-        try await reload()
+        guard await channel.isConnected, let jitReloader, let session else {
+            throw IOSPreviewSessionError.notStarted
+        }
+
+        let newSource = try String(contentsOf: sourceFile, encoding: .utf8)
+        if let changes = await session.tryLiteralUpdate(newSource: newSource), !changes.isEmpty,
+            let build = try await session.applyLiteralValuesForJIT(changes)
+        {
+            try await jitReloader.render(build)
+            return
+        }
+
+        let build = try await session.compileObjectForJIT()
+        try await jitReloader.render(build)
     }
 
     /// Switch to a different preview index and recompile. Traits are preserved. @State is lost.
