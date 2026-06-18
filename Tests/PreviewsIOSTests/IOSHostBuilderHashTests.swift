@@ -43,7 +43,9 @@ struct IOSHostBuilderHashTests {
         // --dylib/--setup-dylib args, and the reload/init/literals handlers).
         // Updated 2026-06-16 for iOS JIT mandatory: the --jit-port branch and the
         // startJITExecutor/connectLoopback helpers are no longer behind #if.
-        let expected = "5b900b18a768b57caf614f60ef988436716efa2ecaa12043d5485c8c08b6d03d"
+        // Updated 2026-06-17 for #221 reclaim: HostApp.swift reports resident memory
+        // to the daemon once a second over the JSON channel (startMemoryReporting).
+        let expected = "5f3fbe7f95701c93b4e8c4cc626bf89ef0ca5c0ddea7673f678253fba51735ad"
         #expect(hash == expected, "host-app artifact hash drifted (was \(expected), now \(hash))")
     }
 }
