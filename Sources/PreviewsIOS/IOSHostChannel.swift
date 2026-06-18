@@ -35,6 +35,11 @@ public actor IOSHostChannel {
     /// Data-typed continuations for Sendable compliance across task boundaries.
     private var pendingDataResponses: [String: CheckedContinuation<Data, Error>] = [:]
 
+    /// Latest resident-memory reading (bytes) pushed by the host app's `memory`
+    /// message. Zero until the first report arrives or after a disconnect.
+    private var latestRSSBytes: UInt64 = 0
+    public var latestRSS: UInt64 { latestRSSBytes }
+
     public init() {}
 
     /// Whether the channel has an established connection to the host
@@ -310,10 +315,19 @@ public actor IOSHostChannel {
             let lineData = Data(readBuffer[readBuffer.startIndex..<newlineIndex])
             readBuffer = Data(readBuffer[(newlineIndex + 1)...])
 
-            // Parse just enough to extract the id for routing
-            guard let message = try? JSONSerialization.jsonObject(with: lineData) as? [String: Any],
-                let id = message["id"] as? String
+            guard let message = try? JSONSerialization.jsonObject(with: lineData) as? [String: Any]
             else {
+                continue
+            }
+
+            // Unsolicited memory report (no id) — record and move on.
+            if message["type"] as? String == "memory", let rss = message["rss"] as? Int {
+                latestRSSBytes = UInt64(max(0, rss))
+                continue
+            }
+
+            // Everything else is a response routed by id.
+            guard let id = message["id"] as? String else {
                 continue
             }
 
@@ -327,6 +341,7 @@ public actor IOSHostChannel {
     /// Handle host app disconnect.
     private func handleDisconnect() {
         connectedFD = -1
+        latestRSSBytes = 0
         for (_, continuation) in pendingDataResponses {
             continuation.resume(throwing: IOSPreviewSessionError.connectionLost)
         }

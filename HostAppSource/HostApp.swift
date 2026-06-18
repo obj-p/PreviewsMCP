@@ -116,6 +116,36 @@ class PreviewHostAppDelegate: UIResponder, UIApplicationDelegate {
         socketFD = fd
         NSLog("PreviewHost: Connected to server on port \(port)")
         startReadLoop()
+        startMemoryReporting()
+    }
+
+    // Report resident memory to the daemon once a second over the JSON channel.
+    // The daemon gates host relaunch (to reclaim leaked JIT'd `__swift5_*`/ObjC
+    // metadata it cannot free in-process) on this value. Sends run on the main
+    // queue so they never interleave with response writes on the same socket.
+    private var memoryTimer: DispatchSourceTimer?
+
+    private func startMemoryReporting() {
+        let timer = DispatchSource.makeTimerSource(queue: .main)
+        timer.schedule(deadline: .now() + 1, repeating: 1)
+        timer.setEventHandler { [weak self] in
+            guard let self else { return }
+            self.sendResponse(["type": "memory", "rss": Int(self.currentRSSBytes())])
+        }
+        timer.resume()
+        memoryTimer = timer
+    }
+
+    private func currentRSSBytes() -> UInt64 {
+        var info = mach_task_basic_info()
+        var count = mach_msg_type_number_t(
+            MemoryLayout<mach_task_basic_info>.size / MemoryLayout<natural_t>.size)
+        let result = withUnsafeMutablePointer(to: &info) {
+            $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
+                task_info(mach_task_self_, task_flavor_t(MACH_TASK_BASIC_INFO), $0, &count)
+            }
+        }
+        return result == KERN_SUCCESS ? info.resident_size : 0
     }
 
     private func startReadLoop() {

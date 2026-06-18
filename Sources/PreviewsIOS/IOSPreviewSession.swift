@@ -62,6 +62,7 @@ public actor IOSPreviewSession {
         setupSDKPath: String? = nil,
         setupDylibPath: URL? = nil,
         progress: (any ProgressReporter)? = nil,
+        memoryRelaunchThresholdBytes: UInt64 = 150 * 1024 * 1024,
         makeJITReloader: @escaping MakeJITReloader
     ) {
         self.id = UUID().uuidString
@@ -80,7 +81,40 @@ public actor IOSPreviewSession {
         self.setupSDKPath = setupSDKPath
         self.setupDylibPath = setupDylibPath
         self.progress = progress
+        self.memoryRelaunchThresholdBytes = memoryRelaunchThresholdBytes
         self.makeJITReloader = makeJITReloader
+    }
+
+    /// Relaunch the host once its reported RSS grows this many bytes past the
+    /// post-start baseline, reclaiming leaked JIT'd metadata. Checked before every
+    /// render that mints a new generation (structural edit or reload), so memory
+    /// stays bounded by baseline + threshold + one generation.
+    private let memoryRelaunchThresholdBytes: UInt64
+    private var baselineRSS: UInt64?
+
+    /// Number of memory-triggered host relaunches this session has performed.
+    public private(set) var relaunchCount = 0
+
+    /// Serializes the mutating render entry points (`reload`, `handleSourceChange`). The file
+    /// watcher fires a Task per change, so without this two edits could interleave at an
+    /// `await` and one could render or relaunch while the other has the channel torn down.
+    private var renderBusy = false
+    private var renderWaiters: [CheckedContinuation<Void, Never>] = []
+
+    private func acquireRenderLock() async {
+        if !renderBusy {
+            renderBusy = true
+            return
+        }
+        await withCheckedContinuation { renderWaiters.append($0) }
+    }
+
+    private func releaseRenderLock() {
+        if renderWaiters.isEmpty {
+            renderBusy = false
+        } else {
+            renderWaiters.removeFirst().resume()
+        }
     }
 
     // MARK: - Lifecycle
@@ -306,17 +340,30 @@ public actor IOSPreviewSession {
         )
     }
 
+    /// Latest resident memory (bytes) the host app reported over the JSON channel.
+    /// Zero before the first report or after a disconnect.
+    public var hostRSS: UInt64 {
+        get async { await channel.latestRSS }
+    }
+
     // MARK: - Communication
 
     /// Recompile the preview to an object and re-link it into the live host over
     /// the EPC connection, re-running its render entry.
     public func reload() async throws {
+        await acquireRenderLock()
+        defer { releaseRenderLock() }
+
         guard await channel.isConnected else {
             throw IOSPreviewSessionError.notStarted
         }
         guard let jitReloader else {
             throw IOSPreviewSessionError.notStarted
         }
+
+        // A reload mints a fresh object, so it links a new generation and grows the
+        // leak just like a structural edit. Reclaim first if over threshold.
+        if try await relaunchIfMemoryPressure() { return }
 
         let previewSession = makePreviewSession()
         self.session = previewSession
@@ -332,6 +379,9 @@ public actor IOSPreviewSession {
     /// mirroring the macOS path. Otherwise fall back to a structural reload that reuses the
     /// persistent session so its stable-module cache and literal baseline carry forward.
     public func handleSourceChange() async throws {
+        await acquireRenderLock()
+        defer { releaseRenderLock() }
+
         guard await channel.isConnected, let jitReloader, let session else {
             throw IOSPreviewSessionError.notStarted
         }
@@ -344,8 +394,88 @@ public actor IOSPreviewSession {
             return
         }
 
+        // Structural edit grows leaked metadata. Reclaim by relaunching if over
+        // threshold, instead of relinking a new generation.
+        if try await relaunchIfMemoryPressure() { return }
+
         let build = try await session.compileObjectForJIT()
         try await jitReloader.render(build)
+    }
+
+    /// Relaunch the whole host app to reclaim leaked `__swift5_*`/ObjC metadata that the
+    /// Swift runtime cannot unregister in-process. Tears down both sockets, terminates and
+    /// relaunches the host, re-accepts the JSON and EPC channels, rebuilds the reloader, and
+    /// re-renders the current source. Costs a full-screen flash and `@State` loss, so callers
+    /// gate this on memory pressure and prefer a structural-edit boundary.
+    @discardableResult
+    public func relaunch() async throws -> Int {
+        await acquireRenderLock()
+        defer { releaseRenderLock() }
+        return try await _relaunch()
+    }
+
+    /// Lock-free relaunch body. The internal memory-pressure path calls this directly,
+    /// since it already holds the render lock; the public `relaunch()` wraps it in the lock.
+    @discardableResult
+    private func _relaunch() async throws -> Int {
+        guard await channel.isConnected else {
+            throw IOSPreviewSessionError.notStarted
+        }
+        guard let orcPath = IOSHostBuilder.jitOrcRuntimePath else {
+            throw IOSPreviewSessionError.jitRuntimeMissing
+        }
+
+        await channel.close()
+        self.jitReloader = nil
+        if jitListenFD >= 0 {
+            Darwin.close(jitListenFD)
+            jitListenFD = -1
+        }
+
+        let port = try await channel.bindAndListen()
+        let jitPort = try bindJITListener()
+
+        await simulatorManager.terminateAppIfRunning(udid: deviceUDID, bundleID: Self.hostBundleID)
+        let pid = try await simulatorManager.launchApp(
+            udid: deviceUDID,
+            bundleID: Self.hostBundleID,
+            arguments: ["--port", String(port), "--jit-port", String(jitPort)]
+        )
+
+        try await channel.awaitConnect(timeout: .seconds(10))
+        let epcFD = try acceptJIT(timeoutSeconds: 10)
+        let reloader = try makeJITReloader(epcFD, orcPath)
+        self.jitReloader = reloader
+
+        let previewSession = makePreviewSession()
+        self.session = previewSession
+        let build = try await previewSession.compileObjectForJIT()
+        try await reloader.render(build)
+        baselineRSS = nil
+        relaunchCount += 1
+        return pid
+    }
+
+    /// Whether the host's reported RSS has grown past the relaunch threshold.
+    /// The first non-zero reading seeds the baseline (and never triggers).
+    private func shouldRelaunchForMemory() async -> Bool {
+        let rss = await channel.latestRSS
+        guard rss > 0 else { return false }
+        guard let baseline = baselineRSS else {
+            baselineRSS = rss
+            return false
+        }
+        return rss >= baseline + memoryRelaunchThresholdBytes
+    }
+
+    /// If the host has crossed the memory threshold, relaunch (which recompiles and
+    /// renders the current source in a fresh process) and return true. Callers that
+    /// mint a new generation route through this first and return when it relaunches,
+    /// since the relaunch has already rendered.
+    private func relaunchIfMemoryPressure() async throws -> Bool {
+        guard await shouldRelaunchForMemory() else { return false }
+        try await _relaunch()
+        return true
     }
 
     /// Switch to a different preview index and recompile. Traits are preserved. @State is lost.

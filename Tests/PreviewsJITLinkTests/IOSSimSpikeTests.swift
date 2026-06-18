@@ -201,6 +201,235 @@ struct IOSSimSpikeTests {
         await session.stop()
     }
 
+    /// Keystone for #221 reclaim: `relaunch()` must terminate and relaunch the host, re-accept
+    /// both the JSON and EPC channels, rebuild the reloader, and re-render the current source.
+    /// After the relaunch the accessibility tree fetched over the (re-established) JSON channel
+    /// must still contain the rendered text — proving the whole round-trip survives a host
+    /// restart, which is how leaked `__swift5_*`/ObjC metadata is reclaimed.
+    @Test(.enabled(if: jitOrcRuntimePresent), .timeLimit(.minutes(10)))
+    func relaunchReRendersCurrentPreview() async throws {
+        let udid = try SimSpikeSupport.bootSimulator()
+
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-ios-jit-relaunch-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+        let sourceFile = tempDir.appendingPathComponent("HelloView.swift")
+        try Self.helloViewSource.write(to: sourceFile, atomically: true, encoding: .utf8)
+
+        let compiler = try await Compiler(platform: .iOS)
+        let hostBuilder = try await IOSHostBuilder()
+        let simulatorManager = SimulatorManager()
+
+        let session = IOSPreviewSession(
+            sourceFile: sourceFile,
+            deviceUDID: udid,
+            compiler: compiler,
+            hostBuilder: hostBuilder,
+            simulatorManager: simulatorManager,
+            makeJITReloader: { fd, orcPath in
+                try IOSJITStructuralReloader(remoteFD: fd, orcRuntimePath: orcPath)
+            }
+        )
+        defer {
+            SimSpikeSupport.terminateApp(udid: udid, bundleID: IOSPreviewSession.hostBundleID)
+        }
+
+        let pid = try await session.start()
+        #expect(pid > 0)
+        let before = try await session.fetchElements()
+        #expect(before.contains("Hello from iOS JIT!"))
+
+        // The host reports RSS once a second over the JSON channel; allow one tick.
+        try await Task.sleep(for: .seconds(2))
+        let reportedRSS = await session.hostRSS
+        #expect(reportedRSS > 0)
+
+        let newPid = try await session.relaunch()
+        #expect(newPid > 0)
+        #expect(newPid != pid)
+
+        let after = try await session.fetchElements()
+        #expect(after.contains("Hello from iOS JIT!"))
+        await session.stop()
+    }
+
+    /// Chunk 3 gating: a structural edit past the memory threshold relaunches the host
+    /// instead of relinking in place. With the threshold forced to 0, the first structural
+    /// edit seeds the RSS baseline (no relaunch) and the second crosses it, so `relaunchCount`
+    /// becomes 1 and the latest edit must still render — proving the gate fires at the edit
+    /// boundary and the fresh process shows the current source.
+    @Test(.enabled(if: jitOrcRuntimePresent), .timeLimit(.minutes(10)))
+    func structuralEditPastThresholdRelaunches() async throws {
+        func structuralSource(rows: Int) -> String {
+            let extra = (0..<rows).map { "                    Text(\"row \($0)\")" }.joined(separator: "\n")
+            return """
+                import SwiftUI
+
+                struct HelloView: View {
+                    var body: some View {
+                        VStack {
+                            Text("Hello from iOS JIT!")
+                \(extra)
+                        }
+                    }
+                }
+
+                #Preview {
+                    HelloView()
+                }
+                """
+        }
+
+        let udid = try SimSpikeSupport.bootSimulator()
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-ios-jit-gate-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+        let sourceFile = tempDir.appendingPathComponent("HelloView.swift")
+        try structuralSource(rows: 0).write(to: sourceFile, atomically: true, encoding: .utf8)
+
+        let compiler = try await Compiler(platform: .iOS)
+        let hostBuilder = try await IOSHostBuilder()
+        let simulatorManager = SimulatorManager()
+
+        let session = IOSPreviewSession(
+            sourceFile: sourceFile,
+            deviceUDID: udid,
+            compiler: compiler,
+            hostBuilder: hostBuilder,
+            simulatorManager: simulatorManager,
+            memoryRelaunchThresholdBytes: 0,
+            makeJITReloader: { fd, orcPath in
+                try IOSJITStructuralReloader(remoteFD: fd, orcRuntimePath: orcPath)
+            }
+        )
+        defer {
+            SimSpikeSupport.terminateApp(udid: udid, bundleID: IOSPreviewSession.hostBundleID)
+        }
+
+        _ = try await session.start()
+        try await Task.sleep(for: .seconds(2))  // let the first RSS report arrive
+
+        // First structural edit seeds the baseline — no relaunch yet.
+        try structuralSource(rows: 1).write(to: sourceFile, atomically: true, encoding: .utf8)
+        try await session.handleSourceChange()
+        let countAfterFirst = await session.relaunchCount
+        #expect(countAfterFirst == 0)
+
+        // Second structural edit crosses baseline + 0 — relaunch fires here.
+        try structuralSource(rows: 2).write(to: sourceFile, atomically: true, encoding: .utf8)
+        try await session.handleSourceChange()
+        let countAfterSecond = await session.relaunchCount
+        #expect(countAfterSecond == 1)
+
+        let elements = try await session.fetchElements()
+        #expect(elements.contains("row 1"))
+        await session.stop()
+    }
+
+    /// Gate covers the reload path too: `reload()` (used by switchPreview/reconfigure/
+    /// setTraits) mints a fresh object, so it links a new generation and grows the leak
+    /// like a structural edit. With the threshold forced to 0, the first reload seeds the
+    /// baseline and the second crosses it, so a relaunch must fire (relaunchCount == 1).
+    @Test(.enabled(if: jitOrcRuntimePresent), .timeLimit(.minutes(10)))
+    func reloadPastThresholdRelaunches() async throws {
+        let udid = try SimSpikeSupport.bootSimulator()
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-ios-jit-reloadgate-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+        let sourceFile = tempDir.appendingPathComponent("HelloView.swift")
+        try Self.helloViewSource.write(to: sourceFile, atomically: true, encoding: .utf8)
+
+        let compiler = try await Compiler(platform: .iOS)
+        let hostBuilder = try await IOSHostBuilder()
+        let simulatorManager = SimulatorManager()
+
+        let session = IOSPreviewSession(
+            sourceFile: sourceFile,
+            deviceUDID: udid,
+            compiler: compiler,
+            hostBuilder: hostBuilder,
+            simulatorManager: simulatorManager,
+            memoryRelaunchThresholdBytes: 0,
+            makeJITReloader: { fd, orcPath in
+                try IOSJITStructuralReloader(remoteFD: fd, orcRuntimePath: orcPath)
+            }
+        )
+        defer {
+            SimSpikeSupport.terminateApp(udid: udid, bundleID: IOSPreviewSession.hostBundleID)
+        }
+
+        _ = try await session.start()
+        try await Task.sleep(for: .seconds(2))  // let the first RSS report arrive
+
+        try await session.reload()
+        let countAfterFirst = await session.relaunchCount
+        #expect(countAfterFirst == 0)
+
+        try await session.reload()
+        let countAfterSecond = await session.relaunchCount
+        #expect(countAfterSecond == 1)
+
+        let elements = try await session.fetchElements()
+        #expect(elements.contains("Hello from iOS JIT!"))
+        await session.stop()
+    }
+
+    /// Concurrency: the file watcher fires a Task per change, so several reloads can race on
+    /// the actor. handleSourceChange/reload must serialize so a second edit never interleaves
+    /// with another's render or relaunch (which tears down and rebinds both sockets). A
+    /// tracking reloader asserts no two renders overlap when many edits fire at once.
+    @Test(.enabled(if: jitOrcRuntimePresent), .timeLimit(.minutes(10)))
+    func concurrentEditsSerialize() async throws {
+        let udid = try SimSpikeSupport.bootSimulator()
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-ios-jit-serialize-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+        let sourceFile = tempDir.appendingPathComponent("HelloView.swift")
+        try Self.helloViewSource.write(to: sourceFile, atomically: true, encoding: .utf8)
+
+        let compiler = try await Compiler(platform: .iOS)
+        let hostBuilder = try await IOSHostBuilder()
+        let simulatorManager = SimulatorManager()
+
+        let trackerBox = TrackerBox()
+        let session = IOSPreviewSession(
+            sourceFile: sourceFile,
+            deviceUDID: udid,
+            compiler: compiler,
+            hostBuilder: hostBuilder,
+            simulatorManager: simulatorManager,
+            makeJITReloader: { fd, orcPath in
+                let tracker = ConcurrencyTrackingReloader(
+                    inner: try IOSJITStructuralReloader(remoteFD: fd, orcRuntimePath: orcPath))
+                trackerBox.set(tracker)
+                return tracker
+            }
+        )
+        defer {
+            SimSpikeSupport.terminateApp(udid: udid, bundleID: IOSPreviewSession.hostBundleID)
+        }
+
+        _ = try await session.start()
+
+        // Fire several reloads at once; serialized renders must never overlap.
+        await withThrowingTaskGroup(of: Void.self) { group in
+            for _ in 0..<5 {
+                group.addTask { try await session.reload() }
+            }
+            try? await group.waitForAll()
+        }
+
+        let maxActive = trackerBox.get()?.maxActive ?? 0
+        #expect(maxActive == 1)
+        let elements = try await session.fetchElements()
+        #expect(elements.contains("Hello from iOS JIT!"))
+        await session.stop()
+    }
+
     /// Literal-only edit over iOS JIT (#216): after the initial render, a change that
     /// touches only a `Text` string must re-seed the DesignTimeStore and re-run the SAME
     /// linked object — no recompile, no new generation — mirroring the macOS literal path.
@@ -361,6 +590,32 @@ private final class RecordingReloader: IOSStructuralReloader, @unchecked Sendabl
     var objectPaths: [String] {
         lock.withLock { paths }
     }
+}
+
+/// Wraps a real reloader and tracks how many `render` calls are in flight at once, so a test
+/// can assert the session serializes its render entry points (max concurrency 1).
+private final class ConcurrencyTrackingReloader: IOSStructuralReloader, @unchecked Sendable {
+    let inner: any IOSStructuralReloader
+    private let lock = NSLock()
+    private var active = 0
+    private(set) var maxActive = 0
+    init(inner: any IOSStructuralReloader) { self.inner = inner }
+    func render(_ build: JITRenderBuild) async throws {
+        lock.withLock {
+            active += 1
+            maxActive = max(maxActive, active)
+        }
+        defer { lock.withLock { active -= 1 } }
+        try await inner.render(build)
+    }
+}
+
+/// Thread-safe box handing a `ConcurrencyTrackingReloader` back from the @Sendable factory.
+private final class TrackerBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value: ConcurrencyTrackingReloader?
+    func set(_ v: ConcurrencyTrackingReloader) { lock.withLock { value = v } }
+    func get() -> ConcurrencyTrackingReloader? { lock.withLock { value } }
 }
 
 /// Thread-safe box so the @Sendable factory closure can hand the recorder back to the test.
