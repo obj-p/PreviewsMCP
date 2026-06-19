@@ -1,0 +1,19 @@
+load("@rules_apple//apple:ios.bzl", "ios_framework")
+load("@rules_swift//swift:swift.bzl", "swift_library")
+
+ios_framework(
+    name = "PreviewKit",
+    bundle_id = "io.previewsmcp.PreviewKit",
+    families = ["iphone"],
+    infoplists = [":Info.plist"],
+    minimum_os_version = "17.0",
+    visibility = ["//visibility:public"],
+    deps = [":PreviewKit.library"],
+)
+
+swift_library(
+    name = "PreviewKit.library",
+    srcs = ["PreviewView.swift"],
+    module_name = "PreviewKit",
+    visibility = ["//visibility:public"],
+)

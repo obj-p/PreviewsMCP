@@ -1,0 +1,9 @@
+load("@rules_cc//cc:objc_library.bzl", "objc_library")
+
+objc_library(
+    name = "ObjCLib",
+    srcs = ["ObjCLib.m"],
+    hdrs = ["ObjCLib.h"],
+    module_name = "ObjCLib",
+    visibility = ["//visibility:public"],
+)
