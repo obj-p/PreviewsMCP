@@ -286,39 +286,37 @@ struct BuildSystemTests {
 
     // MARK: - BridgeGenerator
 
-    @Test("BridgeGenerator.generateBridgeOnlySource produces correct output")
-    func bridgeOnlySource() {
-        let source = BridgeGenerator.generateBridgeOnlySource(
-            moduleName: "MyTarget",
+    @Test("BridgeGenerator.generateCombinedSource produces macOS bridge output")
+    func combinedSourceMacOS() {
+        let originalSource = "import SwiftUI\n#Preview {\nContentView()\n}\n"
+        let (source, _) = BridgeGenerator.generateCombinedSource(
+            originalSource: originalSource,
             closureBody: "ContentView()",
-            platform: .macOS
+            platform: .macOS,
+            renderOutputPath: "/tmp/out.png"
         )
 
-        #expect(source.contains("import MyTarget"))
         #expect(source.contains("import SwiftUI"))
         #expect(source.contains("import AppKit"))
-        #expect(source.contains("@_cdecl(\"createPreviewView\")"))
+        #expect(source.contains("__PreviewBridge.wrap"))
         #expect(source.contains("ContentView()"))
-        #expect(source.contains("NSHostingView"))
-        // Should NOT contain DesignTimeStore
-        #expect(!source.contains("DesignTimeStore"))
     }
 
-    @Test("BridgeGenerator.generateBridgeOnlySource produces UIKit for iOS")
-    func bridgeOnlySourceIOS() {
-        let source = BridgeGenerator.generateBridgeOnlySource(
-            moduleName: "MyTarget",
+    @Test("BridgeGenerator.generateCombinedSource produces UIKit for iOS")
+    func combinedSourceIOS() {
+        let originalSource = "import SwiftUI\n#Preview {\nContentView()\n}\n"
+        let (source, _) = BridgeGenerator.generateCombinedSource(
+            originalSource: originalSource,
             closureBody: "ContentView()",
             platform: .iOS
         )
 
         #expect(source.contains("import UIKit"))
-        #expect(source.contains("UIHostingController"))
         #expect(!source.contains("import AppKit"))
     }
 
-    @Test("BridgeGenerator.generateOverlaySource includes DesignTimeStore")
-    func overlaySourceIncludesDesignTimeStore() {
+    @Test("BridgeGenerator.generateCombinedSource includes DesignTimeStore")
+    func combinedSourceIncludesDesignTimeStore() {
         let originalSource = """
             import SwiftUI
             struct MyView: View {
@@ -329,28 +327,27 @@ struct BuildSystemTests {
             #Preview { MyView() }
             """
 
-        let (source, literals) = BridgeGenerator.generateOverlaySource(
+        let (source, _) = BridgeGenerator.generateCombinedSource(
             originalSource: originalSource,
             closureBody: "MyView()",
-            platform: .macOS
+            platform: .macOS,
+            renderOutputPath: "/tmp/out.png"
         )
 
         #expect(source.contains("DesignTimeStore"))
-        #expect(source.contains("@_cdecl(\"createPreviewView\")"))
-        #expect(!literals.isEmpty)
+        #expect(source.contains("__PreviewBridge.wrap"))
     }
 
     // MARK: - Compiler extraFlags
 
-    @Test("Compiler.compileCombined accepts extra flags")
+    @Test("Compiler.compileObject accepts extra flags")
     func compilerExtraFlags() async throws {
         let compiler = try await Compiler()
         let source = """
             import SwiftUI
             import AppKit
 
-            @_cdecl("createPreviewView")
-            public func createPreviewView() -> UnsafeMutableRawPointer {
+            public func renderHelper() -> UnsafeMutableRawPointer {
                 let view = SwiftUI.AnyView(Text("Hello"))
                 let hostingView = NSHostingView(rootView: view)
                 return Unmanaged.passRetained(hostingView).toOpaque()
@@ -358,13 +355,14 @@ struct BuildSystemTests {
             """
 
         // -DPREVIEW_MODE is a harmless extra flag
-        let result = try await compiler.compileCombined(
+        let objectURL = try await compiler.compileObject(
             source: source,
             moduleName: "ExtraFlagsTest",
             extraFlags: ["-DPREVIEW_MODE"]
         )
 
-        #expect(FileManager.default.fileExists(atPath: result.dylibPath.path))
+        #expect(objectURL.pathExtension == "o")
+        #expect(FileManager.default.fileExists(atPath: objectURL.path))
     }
 
     // MARK: - FileWatcher multi-path

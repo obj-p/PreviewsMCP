@@ -54,7 +54,7 @@ public struct JITRenderBuild: Sendable {
     }
 }
 
-/// Orchestrates the full preview pipeline: parse → generate bridge → compile → return dylib path.
+/// Orchestrates the full preview pipeline: parse → generate bridge → compile → return a JIT build.
 public actor PreviewSession {
     public nonisolated let id: String
     public nonisolated let sourceFile: URL
@@ -102,7 +102,6 @@ public actor PreviewSession {
         self.setupSDKPath = setupSDKPath
         self.setupDylibPath = setupDylibPath
     }
-
 
     /// Session-stable path the agent's bridge writes the live window frame to, so a respawned
     /// agent can restore the user's dragged/resized window. Derived from the session id (not the

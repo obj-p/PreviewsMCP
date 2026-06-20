@@ -59,7 +59,7 @@ struct ToolchainTests {
     /// We prove the override is honored by feeding a bogus SDK path and
     /// asserting that swiftc fails referencing that path — if the override
     /// were ignored, swiftc would succeed against the real SDK.
-    @Test("compileCombined(overrideSDK:) routes the override to swiftc")
+    @Test("compileObject(overrideSDK:) routes the override to swiftc")
     func overrideSDKReachesSwiftc() async throws {
         Toolchain.resetCacheForTesting()
         let compiler = try await Compiler(platform: .macOS)
@@ -67,7 +67,7 @@ struct ToolchainTests {
         let trivialSource = "public func _previewsmcpProbe() {}"
 
         do {
-            _ = try await compiler.compileCombined(
+            _ = try await compiler.compileObject(
                 source: trivialSource,
                 moduleName: "ProbeModule_\(Int.random(in: 0...999_999))",
                 overrideSDK: bogus

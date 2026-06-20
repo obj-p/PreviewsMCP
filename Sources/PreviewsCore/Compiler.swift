@@ -1,6 +1,5 @@
 import Foundation
 
-
 /// Error from a failed compilation.
 public struct CompilationError: Error, LocalizedError, CustomStringConvertible {
     public let message: String
@@ -18,12 +17,11 @@ public struct CompilationError: Error, LocalizedError, CustomStringConvertible {
     public var errorDescription: String? { description }
 }
 
-/// Compiles Swift source code into signed dynamic libraries.
+/// Compiles Swift source code into object files for the JIT render path.
 public actor Compiler {
     private let workDir: URL
     nonisolated let sdkPath: String
     private let swiftcPath: String
-    private let codesignPath: String
     public nonisolated let platform: PreviewPlatform
     private let targetTriple: String
     private let moduleCachePath: URL
@@ -45,7 +43,6 @@ public actor Compiler {
         self.sdkPath = try await Toolchain.sdkPath(for: platform)
         self.targetTriple = platform.targetTriple
         self.swiftcPath = try await Toolchain.swiftcPath()
-        self.codesignPath = try await Toolchain.codesignPath()
 
         // Shared module cache at parent of workDir, keyed by platform to avoid SDK conflicts.
         let cacheDir =

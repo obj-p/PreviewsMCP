@@ -26,85 +26,42 @@ struct IntegrationTests {
 
     // MARK: - Parse → Generate → Compile
 
-    @Test("Full pipeline: parse, generate bridge, compile to dylib")
-    func fullPipeline() async throws {
-        // 1. Parse
-        let previews = PreviewParser.parse(source: Self.testViewSource)
-        #expect(previews.count == 1)
-        #expect(previews[0].closureBody.contains("TestView()"))
-
-        // 2. Generate bridge (now returns tuple with literals)
-        let (combined, literals) = BridgeGenerator.generateCombinedSource(
-            originalSource: Self.testViewSource,
-            closureBody: previews[0].closureBody
-        )
-        #expect(combined.contains("@_cdecl"))
-        #expect(combined.contains("createPreviewView"))
-        #expect(combined.contains("DesignTimeStore"))
-        #expect(!literals.isEmpty, "Should have replaced some literals")
-
-        // 3. Compile
-        let compiler = try await Compiler()
-        let result = try await compiler.compileCombined(
-            source: combined,
-            moduleName: "IntegrationTest_\(Int.random(in: 0...999999))"
-        )
-
-        // Verify dylib exists and is non-empty
-        let attrs = try FileManager.default.attributesOfItem(atPath: result.dylibPath.path)
-        let size = attrs[.size] as? Int ?? 0
-        #expect(size > 0, "Dylib should be non-empty")
-
-        // 4. Load the dylib
-        let loader = try DylibLoader(path: result.dylibPath.path)
-
-        // 5. Verify the entry point symbol exists
-        typealias CreateFunc = @convention(c) () -> UnsafeMutableRawPointer
-        let _: CreateFunc = try loader.symbol(name: "createPreviewView")
-
-        // 6. Verify DesignTimeStore setter symbols exist
-        typealias SetString = @convention(c) (UnsafePointer<CChar>, UnsafePointer<CChar>) -> Void
-        let _: SetString = try loader.symbol(name: "designTimeSetString")
-        typealias SetInt = @convention(c) (UnsafePointer<CChar>, Int) -> Void
-        let _: SetInt = try loader.symbol(name: "designTimeSetInteger")
-    }
-
     @Test("BridgeGenerator produces UIKit code for iOS simulator")
     func bridgeGeneratorIOS() {
         let (combined, _) = BridgeGenerator.generateCombinedSource(
             originalSource: Self.testViewSource,
             closureBody: "TestView()",
-            platform: .iOS
+            platform: .iOS,
+            renderOutputPath: "/tmp/out.png"
         )
         #expect(combined.contains("import UIKit"))
         #expect(combined.contains("UIHostingController"))
         #expect(!combined.contains("NSHostingView"))
         #expect(!combined.contains("import AppKit"))
-        #expect(combined.contains("@_cdecl"))
+        #expect(combined.contains("__PreviewBridge.wrap"))
     }
 
-    @Test("Compile preview dylib for iOS simulator")
+    @Test("Compile preview object for iOS simulator")
     func compileForIOSSimulator() async throws {
         let (combined, _) = BridgeGenerator.generateCombinedSource(
             originalSource: Self.testViewSource,
             closureBody: "TestView()",
-            platform: .iOS
+            platform: .iOS,
+            renderOutputPath: "/tmp/out.png"
         )
         let compiler = try await Compiler(platform: .iOS)
-        let result = try await compiler.compileCombined(
+        let objectURL = try await compiler.compileObject(
             source: combined,
             moduleName: "IOSTest_\(Int.random(in: 0...999999))"
         )
 
-        // Can't dlopen an iOS simulator dylib on macOS, but verify it exists and is non-empty
-        let attrs = try FileManager.default.attributesOfItem(atPath: result.dylibPath.path)
-        let size = attrs[.size] as? Int ?? 0
-        #expect(size > 0)
+        #expect(objectURL.pathExtension == "o")
+        #expect(FileManager.default.fileExists(atPath: objectURL.path))
     }
 
     // MARK: - PreviewSession
 
-    @Test("PreviewSession compiles a source file end-to-end")
+    @Test("PreviewSession compiles a source file end-to-end for JIT")
     func previewSession() async throws {
         // Write test source to a temp file
         let tempDir = FileManager.default.temporaryDirectory
@@ -122,57 +79,8 @@ struct IntegrationTests {
             compiler: compiler
         )
 
-        let compileResult = try await session.compile()
-        #expect(FileManager.default.fileExists(atPath: compileResult.dylibPath.path))
-
-        // Load and verify entry point
-        let loader = try DylibLoader(path: compileResult.dylibPath.path)
-        typealias CreateFunc = @convention(c) () -> UnsafeMutableRawPointer
-        let _: CreateFunc = try loader.symbol(name: "createPreviewView")
-    }
-
-    // MARK: - Recompilation produces fresh dylib
-
-    @Test("Multiple compilations produce distinct dylibs that dlopen loads separately")
-    func recompilationProducesFreshDylib() async throws {
-        let compiler = try await Compiler()
-
-        let (source1, _) = BridgeGenerator.generateCombinedSource(
-            originalSource: """
-                import SwiftUI
-                struct V1: View {
-                    var body: some View { Text("Version 1") }
-                }
-                #Preview { V1() }
-                """,
-            closureBody: "V1()"
-        )
-
-        let (source2, _) = BridgeGenerator.generateCombinedSource(
-            originalSource: """
-                import SwiftUI
-                struct V2: View {
-                    var body: some View { Text("Version 2") }
-                }
-                #Preview { V2() }
-                """,
-            closureBody: "V2()"
-        )
-
-        let moduleName = "RecompileTest_\(Int.random(in: 0...999999))"
-
-        let result1 = try await compiler.compileCombined(source: source1, moduleName: moduleName)
-        let result2 = try await compiler.compileCombined(source: source2, moduleName: moduleName)
-
-        // Paths should be different (unique counter suffix)
-        #expect(result1.dylibPath != result2.dylibPath, "Each compilation should produce a unique dylib path")
-
-        // Both should be loadable
-        let loader1 = try DylibLoader(path: result1.dylibPath.path)
-        let loader2 = try DylibLoader(path: result2.dylibPath.path)
-        typealias CreateFunc = @convention(c) () -> UnsafeMutableRawPointer
-        let _: CreateFunc = try loader1.symbol(name: "createPreviewView")
-        let _: CreateFunc = try loader2.symbol(name: "createPreviewView")
+        let build = try await session.compileObjectForJIT()
+        #expect(FileManager.default.fileExists(atPath: build.objectPath.path))
     }
 
     // MARK: - Error cases
@@ -195,7 +103,7 @@ struct IntegrationTests {
         )
 
         await #expect(throws: PreviewSessionError.self) {
-            _ = try await session.compile()
+            _ = try await session.compileObjectForJIT()
         }
     }
 
@@ -205,7 +113,7 @@ struct IntegrationTests {
         let badSource = "this is not valid swift {"
 
         await #expect(throws: CompilationError.self) {
-            _ = try await compiler.compileCombined(
+            _ = try await compiler.compileObject(
                 source: badSource,
                 moduleName: "BadSource_\(Int.random(in: 0...999999))"
             )
