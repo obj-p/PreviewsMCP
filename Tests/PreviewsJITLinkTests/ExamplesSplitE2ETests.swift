@@ -12,7 +12,7 @@ import Testing
 /// A real Tier-2 preview renders end to end here. The dependency closure is loaded into the
 /// agent: G3-a (static archives, ToDoExtras / LocalDep), G3-b (dlopen binary frameworks,
 /// Lottie), and G3-c (the compiler-rt builtins archive `libclang_rt.osx.a`, which provides
-/// `__isPlatformVersionAtLeast` emitted by `#available`). See `docs/jit-executor-phase3-plan.md`.
+/// `__isPlatformVersionAtLeast` emitted by `#available`).
 @Suite(.serialized)
 struct ExamplesSplitE2ETests {
     static let repoRoot: URL = URL(fileURLWithPath: #filePath)
