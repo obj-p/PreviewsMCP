@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 #
-# Builds the minimal iOS-simulator ORC executor (iossim-executor/main.cpp),
+# Builds the minimal iOS-simulator ORC executor (ios-host/executor/main.cpp),
 # linking the iossim LLVM TargetProcess static libs + the iossim orc runtime.
 # Requires scripts/build-jit-llvm-iossim.sh to have run first.
 #
-# Usage: scripts/build-iossim-executor.sh
+# Usage: ios-host/executor/build.sh
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SRC_INC="$ROOT/third_party/llvm-project/llvm/include"
 GEN_INC="$ROOT/third_party/llvm-build-iossim/include"
 LIBDIR="$ROOT/third_party/llvm-build-iossim/lib"
@@ -25,8 +25,8 @@ echo "==> compiling + linking iossim-executor"
   -isysroot "$SDK" \
   -std=c++17 -fno-rtti -O2 \
   -I"$SRC_INC" -I"$GEN_INC" \
-  "$ROOT/iossim-executor/server.cpp" \
-  "$ROOT/iossim-executor/main.cpp" \
+  "$ROOT/ios-host/executor/server.cpp" \
+  "$ROOT/ios-host/executor/main.cpp" \
   -L"$LIBDIR" \
   -lLLVMOrcTargetProcess -lLLVMOrcShared -lLLVMSupport -lLLVMTargetParser \
   -lLLVMDemangle \

@@ -8,7 +8,7 @@ struct BundleIOSSimJIT: BuildToolPlugin {
         target: Target
     ) throws -> [Command] {
         let script = context.package.directoryURL
-            .appending(path: "scripts/bundle-iossim-jit.sh")
+            .appending(path: "ios-host/executor/bundle.sh")
         let outputDir = context.pluginWorkDirectoryURL
 
         return [
