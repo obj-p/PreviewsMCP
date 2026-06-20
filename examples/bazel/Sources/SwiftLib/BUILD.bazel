@@ -1,0 +1,9 @@
+load("@rules_swift//swift:swift.bzl", "swift_library")
+
+swift_library(
+    name = "SwiftLib",
+    srcs = ["GreetingBadge.swift"],
+    module_name = "SwiftLib",
+    visibility = ["//visibility:public"],
+    deps = ["//Sources/ObjCLib"],
+)

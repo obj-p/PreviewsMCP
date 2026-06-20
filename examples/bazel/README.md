@@ -1,20 +1,42 @@
 # Bazel Example Project
 
-A minimal SwiftUI library built with Bazel, with a cross-file type dependency, used to integration test PreviewsMCP's Bazel build system support.
+SwiftUI targets built with Bazel, used to integration test PreviewsMCP's Bazel build system support. It covers a plain `swift_library` (ToDo) plus the Apple bundle target types — an `ios_application` and an `ios_framework` — each with cross-module dependencies.
 
 ## Structure
 
 ```
-Sources/ToDo/
-├── BUILD.bazel                — swift_library target
-├── Item.swift                 — defines Item model (used by views)
-├── ToDoView.swift             — view + #Preview that references Item
-└── ToDoProviderPreview.swift  — PreviewProvider-based preview for integration testing
+Sources/
+├── ToDo/                       — swift_library
+│   ├── BUILD.bazel
+│   ├── Item.swift              — defines Item model (used by views)
+│   ├── ToDoView.swift          — view + #Preview that references Item
+│   └── ToDoProviderPreview.swift — PreviewProvider-based preview
+├── ObjCLib/                    — objc_library (PSGreeting.message())
+├── SwiftLib/                   — swift_library, depends on ObjCLib (GreetingBadge)
+├── App/                        — ios_application + its swift_library
+│   ├── BUILD.bazel             — MixedApp (ios_application) → MixedApp.library
+│   ├── MixedApp.swift          — @main App entry point
+│   └── ContentView.swift       — #Preview, imports ObjCLib + SwiftLib
+└── PreviewKit/                 — ios_framework + its swift_library
+    ├── BUILD.bazel             — PreviewKit (ios_framework) → PreviewKit.library
+    └── PreviewView.swift       — #Preview
 ```
+
+### ToDo (swift_library)
 
 The `#Preview` blocks in `ToDoView.swift` use `Item.samples` which is defined in `Item.swift`. This requires PreviewsMCP to detect the Bazel project, build it, and compile the preview against the target's build artifacts. The file has two previews: the default (with sample data) and "Empty State" (no items).
 
 The UI includes tappable item rows (toggle completion), a toggle switch, and a horizontally paged summary card section — suitable for testing tap, toggle, and swipe interactions.
+
+### Apple bundle targets and multiple targets
+
+`ContentView.swift` (the app) and `PreviewView.swift` (the framework) each render through the bundle's underlying `swift_library`, not the `ios_application` / `ios_framework` rule itself. PreviewsMCP resolves a preview by source **file**: it finds the nearest `BUILD`, then queries `kind("swift_library", rdeps(//<pkg>:all, //<pkg>:<File>.swift))` to find the `swift_library` in that package that owns the file. So multiple targets in different packages each route to their own library.
+
+These two files exercise the parts of the Bazel support that a plain `swift_library` does not:
+
+- **Cross-module dependencies.** `ContentView` imports the `objc_library` `ObjCLib` and the `swift_library` `SwiftLib`. PreviewsMCP pulls the dependency module search paths from the target's compile action and builds + links the dependency archives into the preview.
+- **`@main` app target.** `MixedApp.swift` carries the `@main` entry point. It is excluded from the preview compile (its app-lifecycle entry symbol would break the preview JIT link); the preview renders `ContentView()` on its own.
+- **iOS SDK transition.** On `--platform ios` the targets and their dependencies build through the real iOS-simulator platform transition.
 
 ## Prerequisites
 

@@ -83,6 +83,9 @@ struct VariantsCommand: AsyncParsableCommand {
     )
     var scheme: String?
 
+    @Option(name: .long, help: "Force the build system, overriding auto-detection")
+    var buildSystem: BuildSystemKind?
+
     @Option(name: .long, help: "Simulator device UDID (for ios; auto-selects if omitted)")
     var device: String?
 
@@ -219,6 +222,7 @@ struct VariantsCommand: AsyncParsableCommand {
         ]
         if let project { startArgs["projectPath"] = .string(Path.normalize(project)) }
         if let scheme { startArgs["scheme"] = .string(scheme) }
+        if let buildSystem { startArgs["buildSystem"] = .string(buildSystem.rawValue) }
         if let device { startArgs["deviceUDID"] = .string(device) }
         if let config { startArgs["config"] = .string(Path.normalize(config)) }
 
