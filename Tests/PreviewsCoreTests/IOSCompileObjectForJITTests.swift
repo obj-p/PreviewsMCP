@@ -14,16 +14,16 @@ struct IOSCompileObjectForJITTests {
 
         let sourceFile = dir.appendingPathComponent("Preview.swift")
         try """
-            import SwiftUI
+        import SwiftUI
 
-            struct TestView: View {
-                var body: some View {
-                    Text("Hello")
-                }
+        struct TestView: View {
+            var body: some View {
+                Text("Hello")
             }
+        }
 
-            #Preview { TestView() }
-            """.write(to: sourceFile, atomically: true, encoding: .utf8)
+        #Preview { TestView() }
+        """.write(to: sourceFile, atomically: true, encoding: .utf8)
 
         let compiler = try await Compiler(platform: .iOS)
         let session = PreviewSession(sourceFile: sourceFile, compiler: compiler, platform: .iOS)
