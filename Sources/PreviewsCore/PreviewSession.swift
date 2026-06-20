@@ -70,7 +70,6 @@ public actor PreviewSession {
     private let setupSDKPath: String?
     private let setupDylibPath: URL?
     private var lastOriginalSource: String?
-    private var lastLiterals: [LiteralEntry]?
     private var lastJITBuild: JITRenderBuild?
     private var cachedStableModule: (key: [String: Date], module: Compiler.StableModule)?
 
@@ -241,7 +240,6 @@ public actor PreviewSession {
         try Self.writeDesignTimeValues(generated.literals, to: valuesPath)
 
         lastOriginalSource = source
-        lastLiterals = generated.literals
 
         let build = JITRenderBuild(
             objectPath: objectPath,
