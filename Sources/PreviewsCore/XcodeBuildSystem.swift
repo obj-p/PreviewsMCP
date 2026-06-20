@@ -424,10 +424,14 @@ public actor XcodeBuildSystem: BuildSystem {
     }
 
     /// Collect dependency static-archive paths referenced by `OTHER_LDFLAGS`,
-    /// following an `@<file>` linker response file when present.
+    /// following an `@<file>` linker response file when present. Archives may
+    /// appear bare or behind a linker directive (`-force_load <path>`,
+    /// `-Wl,-force_load,<path>`), so each token is split on whitespace and any
+    /// `-Wl,`-style comma prefix is stripped before the `.a` check.
     static func collectDependencyArchives(fromOtherLDFlags value: String) -> [String] {
         var archives: [String] = []
-        func appendArchive(_ path: String) {
+        func appendArchive(_ token: String) {
+            let path = token.contains(",") ? String(token.split(separator: ",").last ?? "") : token
             if path.hasSuffix(".a"), FileManager.default.fileExists(atPath: path) {
                 archives.append(path)
             }
@@ -438,9 +442,7 @@ public actor XcodeBuildSystem: BuildSystem {
                 guard let content = try? String(contentsOfFile: file, encoding: .utf8) else {
                     continue
                 }
-                for line in content.split(separator: "\n").map(String.init) {
-                    appendArchive(line.trimmingCharacters(in: .whitespaces))
-                }
+                Self.tokenizeFlags(content).forEach(appendArchive)
             } else {
                 appendArchive(token)
             }
@@ -496,6 +498,14 @@ public actor XcodeBuildSystem: BuildSystem {
                     add(["-Xcc", arg, "-Xcc", value], key: "xcc:\(arg):\(value)")
                     i += 4
                     continue
+                }
+                // Most dropped -Xcc args are compile-only flags (-O0, -DDEBUG)
+                // and are expected. Warn only when an import-related flag arrives
+                // in an unhandled shape, so format drift is observable.
+                if clangValueFlags.contains(arg)
+                    || ["-iquote", "-isystem", "-working-directory"].contains(where: arg.hasPrefix)
+                {
+                    Log.warn("extractDependencyImportFlags: dropped import flag -Xcc \(arg)")
                 }
                 i += 2
                 continue

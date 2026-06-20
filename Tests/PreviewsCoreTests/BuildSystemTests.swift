@@ -839,6 +839,33 @@ struct BuildSystemTests {
         #expect(!flags.contains("-lMixedApp"))
     }
 
+    @Test("XcodeBuildSystem collects archives from an @link.params response file, including -force_load")
+    func collectDependencyArchivesFromResponseFile() throws {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        let bare = tmpDir.appendingPathComponent("libSwiftLib.a")
+        let forced = tmpDir.appendingPathComponent("libObjCLib.a")
+        try "".write(to: bare, atomically: true, encoding: .utf8)
+        try "".write(to: forced, atomically: true, encoding: .utf8)
+
+        // A bare archive line, a `-force_load <path>` directive, and a
+        // `-Wl,-force_load,<path>` comma-joined directive, plus a non-archive line.
+        let params = tmpDir.appendingPathComponent("link.params")
+        try """
+            \(bare.path)
+            -force_load \(forced.path)
+            -Wl,-add_ast_path,\(tmpDir.path)/SwiftLib.swiftmodule
+            """.write(to: params, atomically: true, encoding: .utf8)
+
+        let archives = XcodeBuildSystem.collectDependencyArchives(fromOtherLDFlags: "@\(params.path)")
+        #expect(archives.contains(bare.path))
+        #expect(archives.contains(forced.path))
+        #expect(archives.count == 2)
+    }
+
     // MARK: - XcodeBuildSystem source file collection
 
     @Test("XcodeBuildSystem collects source files from OutputFileMap")
