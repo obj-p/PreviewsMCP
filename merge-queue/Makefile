@@ -4,10 +4,13 @@ STATE      := .state
 BUNDLE     ?= $(CURDIR)/vm/merge-queue.bundle
 IPSW       ?=
 ADMIN_USER ?= admin
+ADMIN_PASS ?= vz
 CPUS       ?= 4
 MEM_MIB    ?= 8192
-DISK_GIB   ?= 64
+DISK_GIB   ?= 120
 XCODE_VER  ?= 26.3
+XCODE_XIP  ?=
+XIP_CACHE  ?= $(HOME)/.cache/merge-queue/xcode
 SA_RETRIES ?= 3
 SSH_RETRIES ?= 2
 
@@ -37,7 +40,7 @@ $(STATE)/ssh: $(STATE)/setup | $(STATE)
 	touch $@
 
 $(STATE)/toolchain: $(STATE)/ssh | $(STATE)
-	@echo "TODO toolchain -> ssh-install Xcode $(XCODE_VER) + Homebrew + Bazel, runFirstLaunch, autologin"
+	VZ_BIN="$(VZ_BIN)" BUNDLE="$(BUNDLE)" XCODE_VER="$(XCODE_VER)" XCODE_XIP="$(XCODE_XIP)" XIP_CACHE="$(XIP_CACHE)" ADMIN_USER="$(ADMIN_USER)" ADMIN_PASS="$(ADMIN_PASS)" STATE="$(CURDIR)/$(STATE)" ./provision-toolchain.sh
 	touch $@
 
 $(STATE)/post-toolchain: $(STATE)/toolchain | $(STATE)
