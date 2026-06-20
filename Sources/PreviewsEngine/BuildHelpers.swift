@@ -55,12 +55,14 @@ public func detectAndBuild(
     projectRoot projectRootURL: URL?,
     platform: PreviewPlatform,
     scheme: String? = nil,
+    buildSystem buildSystemOverride: BuildSystemKind? = nil,
     progress: (any ProgressReporter)? = nil
 ) async throws -> BuildContext? {
     await progress?.report(.detectingProject, message: "Detecting project...")
     guard
         let buildSystem = try await BuildSystemDetector.detect(
-            for: fileURL, projectRoot: projectRootURL, scheme: scheme
+            for: fileURL, projectRoot: projectRootURL, scheme: scheme,
+            buildSystem: buildSystemOverride
         )
     else {
         return nil

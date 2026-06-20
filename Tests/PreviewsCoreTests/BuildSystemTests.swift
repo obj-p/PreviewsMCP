@@ -284,6 +284,76 @@ struct BuildSystemTests {
         #expect(buildSystem is BazelBuildSystem)
     }
 
+    // MARK: - BuildSystemDetector override
+
+    @Test("BuildSystemDetector override forces Xcode when Bazel markers would win")
+    func detectorOverrideForcesXcode() async throws {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+
+        // rules_xcodeproj shape: both a Bazel module and a generated .xcodeproj.
+        try "module(name = \"test\")".write(
+            to: tmpDir.appendingPathComponent("MODULE.bazel"), atomically: true, encoding: .utf8)
+        let xcodeproj = tmpDir.appendingPathComponent("MyApp.xcodeproj")
+        try FileManager.default.createDirectory(at: xcodeproj, withIntermediateDirectories: true)
+
+        let sourceFile = tmpDir.appendingPathComponent("main.swift")
+        try "import SwiftUI".write(to: sourceFile, atomically: true, encoding: .utf8)
+
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        // Auto-detection picks Bazel (markers checked first).
+        let auto = try await BuildSystemDetector.detect(for: sourceFile, projectRoot: tmpDir)
+        #expect(auto is BazelBuildSystem)
+
+        // The override forces Xcode against the generated project.
+        let forced = try await BuildSystemDetector.detect(
+            for: sourceFile, projectRoot: tmpDir, buildSystem: .xcode)
+        #expect(forced is XcodeBuildSystem)
+    }
+
+    @Test("BuildSystemDetector override forces Bazel when SPM would win")
+    func detectorOverrideForcesBazel() async throws {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+
+        try "// swift-tools-version: 6.0".write(
+            to: tmpDir.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        try "module(name = \"test\")".write(
+            to: tmpDir.appendingPathComponent("MODULE.bazel"), atomically: true, encoding: .utf8)
+
+        let sourceFile = tmpDir.appendingPathComponent("main.swift")
+        try "import SwiftUI".write(to: sourceFile, atomically: true, encoding: .utf8)
+
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        let auto = try await BuildSystemDetector.detect(for: sourceFile, projectRoot: tmpDir)
+        #expect(auto is SPMBuildSystem)
+
+        let forced = try await BuildSystemDetector.detect(
+            for: sourceFile, projectRoot: tmpDir, buildSystem: .bazel)
+        #expect(forced is BazelBuildSystem)
+    }
+
+    @Test("BuildSystemDetector override throws when forced Xcode has no project")
+    func detectorOverrideXcodeWithoutProjectThrows() async throws {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+
+        let sourceFile = tmpDir.appendingPathComponent("main.swift")
+        try "import SwiftUI".write(to: sourceFile, atomically: true, encoding: .utf8)
+
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        await #expect(throws: BuildSystemError.self) {
+            try await BuildSystemDetector.detect(
+                for: sourceFile, projectRoot: tmpDir, buildSystem: .xcode)
+        }
+    }
+
     // MARK: - BridgeGenerator
 
     @Test("BridgeGenerator.generateBridgeOnlySource produces correct output")

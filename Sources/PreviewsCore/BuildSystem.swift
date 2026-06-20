@@ -14,6 +14,13 @@ public protocol BuildSystem: Sendable {
     var projectRoot: URL { get }
 }
 
+/// Explicitly selects a build system, bypassing marker-order auto-detection.
+public enum BuildSystemKind: String, Sendable, CaseIterable {
+    case spm
+    case bazel
+    case xcode
+}
+
 /// Tries registered build systems in order and returns the first match.
 public enum BuildSystemDetector {
     /// Detect the build system for a source file.
@@ -22,13 +29,21 @@ public enum BuildSystemDetector {
     ///   - projectRoot: If provided, use this as the project root instead of auto-detecting.
     ///   - scheme: Optional Xcode scheme name. Only used when the detected build
     ///     system is `XcodeBuildSystem`; ignored for SPM and Bazel.
+    ///   - buildSystem: Optional explicit override. When set, the marker order is
+    ///     skipped and the requested system is constructed directly. An override
+    ///     always wins over auto-detection.
     public static func detect(
         for sourceFile: URL,
         projectRoot: URL? = nil,
-        scheme: String? = nil
+        scheme: String? = nil,
+        buildSystem: BuildSystemKind? = nil
     ) async throws -> (any BuildSystem)? {
         // If an explicit project root is provided, detect which build system applies there
         if let projectRoot = projectRoot {
+            if let buildSystem = buildSystem {
+                return try forced(
+                    buildSystem, for: sourceFile, projectRoot: projectRoot, scheme: scheme)
+            }
             let fm = FileManager.default
             var isDir: ObjCBool = false
             if fm.fileExists(
@@ -56,6 +71,18 @@ public enum BuildSystemDetector {
             }
             return nil
         }
+        // Without an explicit root, an override honors the requested system only:
+        // it never falls through to the others.
+        if let buildSystem = buildSystem {
+            switch buildSystem {
+            case .spm:
+                return try await SPMBuildSystem.detect(for: sourceFile)
+            case .bazel:
+                return try await BazelBuildSystem.detect(for: sourceFile)
+            case .xcode:
+                return try await XcodeBuildSystem.detect(for: sourceFile, scheme: scheme)
+            }
+        }
         // SPM first (most common for Swift-only projects)
         if let spm = try await SPMBuildSystem.detect(for: sourceFile) {
             return spm
@@ -70,6 +97,32 @@ public enum BuildSystemDetector {
         }
         return nil
     }
+
+    /// Construct the requested build system directly against an explicit project root.
+    private static func forced(
+        _ kind: BuildSystemKind,
+        for sourceFile: URL,
+        projectRoot: URL,
+        scheme: String?
+    ) throws -> any BuildSystem {
+        switch kind {
+        case .spm:
+            return SPMBuildSystem(projectRoot: projectRoot, sourceFile: sourceFile)
+        case .bazel:
+            return BazelBuildSystem(projectRoot: projectRoot, sourceFile: sourceFile)
+        case .xcode:
+            guard let projectFile = XcodeBuildSystem.findXcodeProject(in: projectRoot) else {
+                throw BuildSystemError.buildSystemUnavailable(
+                    kind: kind.rawValue,
+                    reason: "no .xcodeproj or .xcworkspace found in \(projectRoot.path)")
+            }
+            return XcodeBuildSystem(
+                projectRoot: projectRoot,
+                sourceFile: sourceFile,
+                projectFile: projectFile,
+                requestedScheme: scheme)
+        }
+    }
 }
 
 /// Errors from build system operations.
@@ -79,6 +132,7 @@ public enum BuildSystemError: Error, LocalizedError {
     case missingArtifacts(String)
     case ambiguousTarget(sourceFile: String, candidates: [String])
     case unknownScheme(requested: String, candidates: [String])
+    case buildSystemUnavailable(kind: String, reason: String)
 
     public var errorDescription: String? {
         switch self {
@@ -94,6 +148,8 @@ public enum BuildSystemError: Error, LocalizedError {
         case .unknownScheme(let requested, let candidates):
             return
                 "Scheme '\(requested)' not found in project. Available schemes: \(candidates.joined(separator: ", "))"
+        case .buildSystemUnavailable(let kind, let reason):
+            return "Requested build system '\(kind)' is unavailable: \(reason)"
         }
     }
 }
