@@ -6,7 +6,7 @@ import Testing
 
 /// Phase 0 spike: prove the macOS daemon can drive an ORC executor running
 /// inside an iOS simulator process and link + run an object there. The executor
-/// (`.build-iossim/iossim-executor`, built by scripts/build-iossim-executor.sh)
+/// (`.build-iossim/iossim-executor`, built by ios-host/executor/build.sh)
 /// connects back over TCP loopback, which the simulator shares with the host,
 /// and the daemon builds the remote session over that fd. Gated on the iossim
 /// artifacts so the macOS bar is unaffected when they are absent.
