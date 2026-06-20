@@ -1,71 +1,52 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="PreviewsMCP">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#FF8A3D"/>
-      <stop offset="1" stop-color="#FF2D55"/>
+      <stop offset="0" stop-color="#2D2E35"/>
+      <stop offset="1" stop-color="#1A1B1F"/>
+    </linearGradient>
+    <linearGradient id="arrows" gradientUnits="userSpaceOnUse" x1="118" y1="146" x2="139" y2="146">
+      <stop offset="0" stop-color="#5DD8FF"/>
+      <stop offset="1" stop-color="#FF7AB2"/>
     </linearGradient>
   </defs>
 
   <rect width="256" height="256" rx="56" fill="url(#bg)"/>
 
-  <!-- Code editor window -->
-  <rect x="16" y="52" width="156" height="152" rx="14" fill="#FFFFFF"/>
-  <!-- Title bar: macOS traffic-light buttons -->
-  <circle cx="32" cy="70" r="4" fill="#FF5F57"/>
-  <circle cx="46" cy="70" r="4" fill="#FEBC2E"/>
-  <circle cx="60" cy="70" r="4" fill="#28C840"/>
-  <line x1="16" y1="88" x2="172" y2="88" stroke="#F2F2F7" stroke-width="1.5"/>
-  <!-- Code lines -->
-  <rect x="26" y="100" width="46" height="6" rx="3" fill="#FF8A3D"/>
-  <rect x="26" y="114" width="78" height="6" rx="3" fill="#FFB199"/>
-  <rect x="40" y="128" width="58" height="6" rx="3" fill="#FF2D55"/>
-  <rect x="40" y="142" width="70" height="6" rx="3" fill="#FFB199"/>
-  <rect x="26" y="156" width="40" height="6" rx="3" fill="#FF8A3D"/>
-  <rect x="40" y="170" width="62" height="6" rx="3" fill="#FFB199"/>
-  <rect x="26" y="184" width="54" height="6" rx="3" fill="#FF2D55"/>
+  <!-- IDE window -->
+  <rect x="34" y="46" width="188" height="164" rx="18" fill="#26272D" stroke="#55585F" stroke-width="1.5"/>
 
-  <!-- iPhone (simulator) overlapping the right side of the code window -->
-  <rect x="150" y="38" width="90" height="180" rx="18" fill="#FFFFFF"
-        stroke="#FF2D55" stroke-width="2.5"/>
-  <!-- Notch -->
-  <rect x="180" y="46" width="30" height="6" rx="3" fill="#1C1C1E"/>
-  <!-- Header card with avatar -->
-  <rect x="158" y="62" width="74" height="42" rx="6" fill="#FFF1ED"/>
-  <circle cx="173" cy="83" r="8" fill="#FF8A3D"/>
-  <rect x="188" y="76" width="36" height="4" rx="2" fill="#FF2D55"/>
-  <rect x="188" y="84" width="28" height="3" rx="1.5" fill="#FFB199"/>
-  <rect x="188" y="92" width="32" height="3" rx="1.5" fill="#FFB199"/>
-  <!-- Content lines -->
-  <rect x="158" y="116" width="74" height="4" rx="2" fill="#FFB199"/>
-  <rect x="158" y="126" width="60" height="4" rx="2" fill="#FFB199"/>
-  <rect x="158" y="136" width="68" height="4" rx="2" fill="#FFB199"/>
-  <rect x="158" y="146" width="52" height="4" rx="2" fill="#FFB199"/>
-  <rect x="158" y="156" width="64" height="4" rx="2" fill="#FFB199"/>
-  <rect x="158" y="166" width="46" height="4" rx="2" fill="#FFB199"/>
-  <rect x="158" y="176" width="58" height="4" rx="2" fill="#FFB199"/>
-  <rect x="158" y="186" width="40" height="4" rx="2" fill="#FFB199"/>
-  <rect x="158" y="196" width="52" height="4" rx="2" fill="#FFB199"/>
+  <!-- Title bar -->
+  <circle cx="52" cy="60" r="3.5" fill="#FF5F57"/>
+  <circle cx="65" cy="60" r="3.5" fill="#FEBC2E"/>
+  <circle cx="78" cy="60" r="3.5" fill="#28C840"/>
+  <line x1="34" y1="72" x2="222" y2="72" stroke="#55585F" stroke-width="1.5"/>
 
-  <!-- Circular sync arrows between code editor and phone -->
-  <g transform="translate(146 128)">
-    <circle r="16" fill="#FFFFFF" stroke="#FF2D55" stroke-width="2.5"/>
-    <!-- Top arc (clockwise from lower-left to upper-right of the inner circle) -->
-    <path d="M -9 -2 A 9 9 0 0 1 7 -6"
-          fill="none" stroke="#FF2D55" stroke-width="2.6"
-          stroke-linecap="round"/>
-    <!-- Top chevron: tip anchored at arc end (7,-6), rotated to the CW tangent -->
-    <path d="M -5 -4 L 0 0 L -5 4"
-          fill="none" stroke="#FF2D55" stroke-width="2.6"
-          stroke-linecap="round" stroke-linejoin="round"
-          transform="translate(7 -6) rotate(30)"/>
-    <!-- Bottom arc -->
-    <path d="M 9 2 A 9 9 0 0 1 -7 6"
-          fill="none" stroke="#FF2D55" stroke-width="2.6"
-          stroke-linecap="round"/>
-    <!-- Bottom chevron: tip anchored at arc end (-7,6), rotated by 180° from the top -->
-    <path d="M -5 -4 L 0 0 L -5 4"
-          fill="none" stroke="#FF2D55" stroke-width="2.6"
-          stroke-linecap="round" stroke-linejoin="round"
-          transform="translate(-7 6) rotate(-150)"/>
+  <!-- Seam -->
+  <line x1="128" y1="72" x2="128" y2="210" stroke="#55585F" stroke-width="1.5"/>
+
+  <!-- Left: code -->
+  <rect x="50" y="100" width="46" height="7" rx="3.5" fill="#FF7AB2"/>
+  <rect x="50" y="116" width="64" height="7" rx="3.5" fill="#D0A8FF"/>
+  <rect x="62" y="132" width="40" height="7" rx="3.5" fill="#FC6A5D"/>
+  <rect x="62" y="148" width="52" height="7" rx="3.5" fill="#5DD8FF"/>
+  <rect x="50" y="164" width="34" height="7" rx="3.5" fill="#D9C97C"/>
+  <rect x="50" y="180" width="48" height="7" rx="3.5" fill="#67B7A4"/>
+
+  <!-- Right: rendered preview card -->
+  <rect x="146" y="96" width="62" height="98" rx="9" fill="#32333A"/>
+  <circle cx="162" cy="114" r="9" fill="#FF7AB2"/>
+  <rect x="176" y="108" width="26" height="5" rx="2.5" fill="#DFDFE0"/>
+  <rect x="176" y="118" width="18" height="4" rx="2" fill="#7F8C98"/>
+  <rect x="154" y="136" width="48" height="5" rx="2.5" fill="#5DD8FF"/>
+  <rect x="154" y="148" width="40" height="5" rx="2.5" fill="#3F4048"/>
+  <rect x="154" y="160" width="44" height="5" rx="2.5" fill="#3F4048"/>
+  <rect x="162" y="176" width="34" height="10" rx="5" fill="#67B7A4"/>
+
+  <!-- Refresh arrows (no disc, gradient bleed) on the seam -->
+  <g>
+    <path d="M 119 144 A 9 9 0 0 1 135 140" fill="none" stroke="url(#arrows)" stroke-width="3" stroke-linecap="round"/>
+    <path d="M -5 -4 L 0 0 L -5 4" fill="none" stroke="#FF7AB2" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" transform="translate(135 140) rotate(30)"/>
+    <path d="M 137 148 A 9 9 0 0 1 121 152" fill="none" stroke="url(#arrows)" stroke-width="3" stroke-linecap="round"/>
+    <path d="M -5 -4 L 0 0 L -5 4" fill="none" stroke="#5DD8FF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" transform="translate(121 152) rotate(-150)"/>
   </g>
 </svg>

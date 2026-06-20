@@ -45,7 +45,9 @@ struct IOSHostBuilderHashTests {
         // startJITExecutor/connectLoopback helpers are no longer behind #if.
         // Updated 2026-06-17 for #221 reclaim: HostApp.swift reports resident memory
         // to the daemon once a second over the JSON channel (startMemoryReporting).
-        let expected = "5f3fbe7f95701c93b4e8c4cc626bf89ef0ca5c0ddea7673f678253fba51735ad"
+        // Updated 2026-06-20 for icon rebrand: AppIcon.png redrawn in the dark
+        // Xcode color scheme (assets/icon.svg).
+        let expected = "ccd7d1483a11ad7e6b7ad78df9c796e276dc8450b00526fcae7001c542c47656"
         #expect(hash == expected, "host-app artifact hash drifted (was \(expected), now \(hash))")
     }
 }
