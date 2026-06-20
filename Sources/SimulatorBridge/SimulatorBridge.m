@@ -7,10 +7,6 @@
 
 #pragma mark - Private API Protocols
 
-// These protocols declare the CoreSimulator methods we call at runtime.
-// No headers or build-time linking needed — classes are resolved via
-// objc_lookUpClass.
-
 @protocol _SimServiceContext
 + (instancetype)sharedServiceContextForDeveloperDir:(NSString *)dir
                                               error:(NSError **)error;
@@ -67,6 +63,12 @@ static NSString *_developerDir(void) {
   static NSString *cached = nil;
   static dispatch_once_t onceToken;
   dispatch_once(&onceToken, ^{
+    NSString *envDir = NSProcessInfo.processInfo.environment[@"DEVELOPER_DIR"];
+    if (envDir.length > 0) {
+      cached = envDir;
+      return;
+    }
+
     NSPipe *pipe = [NSPipe pipe];
     NSTask *task = [[NSTask alloc] init];
     task.launchPath = @"/usr/bin/xcode-select";
@@ -88,8 +90,13 @@ static NSString *_developerDir(void) {
       NSLog(@"SimulatorBridge: xcode-select failed: %@", e.reason);
     }
 
-    if (!cached) {
-      cached = @"/Applications/Xcode.app/Contents/Developer";
+    if (cached.length == 0) {
+      NSString *fallback = @"/Applications/Xcode.app/Contents/Developer";
+      if ([[NSFileManager defaultManager] fileExistsAtPath:fallback]) {
+        cached = fallback;
+      } else {
+        cached = nil;
+      }
     }
   });
   return cached;
@@ -103,6 +110,12 @@ static NSError *_makeError(NSInteger code, NSString *message) {
 
 static id _sharedContext(NSError **error) {
   NSString *devDir = _developerDir();
+  if (!devDir) {
+    if (error)
+      *error = _makeError(6, @"Could not locate Xcode developer directory. Set "
+                             @"DEVELOPER_DIR or run xcode-select -s.");
+    return nil;
+  }
   return [(id<_SimServiceContext>)_SimServiceContextClass
       sharedServiceContextForDeveloperDir:devDir
                                     error:error];
@@ -170,15 +183,12 @@ static id _defaultDeviceSet(NSError **error) {
 }
 
 - (BOOL)isAvailable {
-  // isAvailable may not exist on all CoreSimulator versions / may be in a
-  // category. Try isAvailable, then available, then default to YES.
   if ([_simDevice respondsToSelector:@selector(isAvailable)]) {
     return [(id<_SimDevice>)_simDevice isAvailable];
   }
   if ([_simDevice respondsToSelector:NSSelectorFromString(@"available")]) {
     return [[_simDevice valueForKey:@"available"] boolValue];
   }
-  // If neither exists, check if the device has a valid runtime as a proxy.
   return self.runtimeName != nil;
 }
 
@@ -332,11 +342,9 @@ static id _defaultDeviceSet(NSError **error) {
 #pragma mark - Public Functions
 
 BOOL SBLoadFramework(NSError **error) {
-  // Fast path: already loaded.
   if (_frameworkLoaded)
     return YES;
 
-  // Thread-safe one-time initialization.
   __block NSError *loadError = nil;
   dispatch_once(&_loadOnce, ^{
     NSBundle *bundle = [NSBundle
@@ -458,7 +466,6 @@ SBDevice *SBFindBootedDevice(NSError **error) {
 
 #pragma mark - Framebuffer Capture
 
-// Protocols for SimDevice IO port access (CoreSimDeviceIO / SimulatorKit)
 @protocol _SimDeviceIOPort
 - (id)ioPortDescriptor;
 @end
@@ -504,7 +511,6 @@ NSData *SBCaptureFramebuffer(SBDevice *device, double jpegQuality,
 
   id simDevice = device.simDevice;
 
-  // Access SimDevice.io — returns a SimDeviceIOClient
   if (![simDevice respondsToSelector:@selector(io)]) {
     if (error)
       *error = _makeError(20, @"SimDevice does not respond to -io (Xcode "
@@ -530,7 +536,6 @@ NSData *SBCaptureFramebuffer(SBDevice *device, double jpegQuality,
     return nil;
   }
 
-  // Find the display port with an IOSurface
   NSArray *ports = [(id<_SimDeviceIOClient>)ioClient ioPorts];
   IOSurfaceRef surface = NULL;
 
@@ -547,7 +552,6 @@ NSData *SBCaptureFramebuffer(SBDevice *device, double jpegQuality,
     if (!descriptor)
       continue;
 
-    // Check if this descriptor provides an IOSurface (display port)
     if ([descriptor respondsToSelector:@selector(ioSurface)]) {
       @try {
         surface = [(id<_SimDisplayIOSurfaceRenderable>)descriptor ioSurface];
@@ -566,7 +570,6 @@ NSData *SBCaptureFramebuffer(SBDevice *device, double jpegQuality,
     return nil;
   }
 
-  // Lock surface for CPU read access
   IOSurfaceLock(surface, kIOSurfaceLockReadOnly, NULL);
 
   CIImage *ciImage = [CIImage imageWithIOSurface:surface];
