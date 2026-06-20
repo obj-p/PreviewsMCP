@@ -1,11 +1,5 @@
 import Foundation
 
-/// Result of a successful preview compilation.
-public struct CompileResult: Sendable {
-    public let dylibPath: URL
-    public let literals: [LiteralEntry]
-}
-
 /// Result of compiling a preview for the JIT structural-reload path: a `.o` whose
 /// `entrySymbol` renders the preview to a PNG at `imagePath` when run in the agent.
 /// The render entry seeds `DesignTimeStore` from `valuesPath` (JSON) first, so a
@@ -75,20 +69,10 @@ public actor PreviewSession {
     private let setupCompilerFlags: [String]
     private let setupSDKPath: String?
     private let setupDylibPath: URL?
-    private var compilationResult: CompilationResult?
     private var lastOriginalSource: String?
     private var lastLiterals: [LiteralEntry]?
     private var lastJITBuild: JITRenderBuild?
     private var cachedStableModule: (key: [String: Date], module: Compiler.StableModule)?
-
-    public enum State: Sendable {
-        case idle
-        case compiling
-        case compiled(URL)
-        case error(String)
-    }
-
-    public private(set) var state: State = .idle
 
     public var currentTraits: PreviewTraits { traits }
 
@@ -119,92 +103,6 @@ public actor PreviewSession {
         self.setupDylibPath = setupDylibPath
     }
 
-    /// Run the full pipeline and return the compiled dylib path + literal map.
-    public func compile() async throws -> CompileResult {
-        state = .compiling
-
-        do {
-            let source = try String(contentsOf: sourceFile, encoding: .utf8)
-            let previews = PreviewParser.parse(source: source)
-
-            guard previewIndex >= 0, previewIndex < previews.count else {
-                throw PreviewSessionError.previewNotFound(
-                    index: previewIndex,
-                    available: previews.count
-                )
-            }
-            let preview = previews[previewIndex]
-
-            let compiledSource: String
-            let literals: [LiteralEntry]
-            let moduleName: String
-            let extraFlags: [String]
-            let additionalSourceFiles: [URL]
-
-            if let ctx = buildContext {
-                if ctx.supportsTier2, let srcFiles = ctx.sourceFiles {
-                    let result = BridgeGenerator.generateOverlaySource(
-                        originalSource: source,
-                        closureBody: preview.closureBody,
-                        previewIndex: previewIndex,
-                        platform: platform,
-                        traits: traits,
-                        setupModule: setupModule,
-                        setupType: setupType
-                    )
-                    compiledSource = result.source
-                    literals = result.literals
-                    additionalSourceFiles = srcFiles
-                    moduleName = ctx.moduleName
-                } else {
-                    compiledSource = BridgeGenerator.generateBridgeOnlySource(
-                        moduleName: ctx.moduleName,
-                        closureBody: preview.closureBody,
-                        platform: platform,
-                        traits: traits,
-                        setupModule: setupModule,
-                        setupType: setupType
-                    )
-                    literals = []
-                    additionalSourceFiles = []
-                    moduleName = "PreviewBridge_\(ctx.moduleName)"
-                }
-                extraFlags = ctx.compilerFlags + setupCompilerFlags
-            } else {
-                // Standalone mode: setup not supported (no module system)
-                let result = BridgeGenerator.generateCombinedSource(
-                    originalSource: source,
-                    closureBody: preview.closureBody,
-                    previewIndex: previewIndex,
-                    platform: platform,
-                    traits: traits
-                )
-                compiledSource = result.source
-                literals = result.literals
-                moduleName = Self.moduleName(for: sourceFile)
-                extraFlags = []
-                additionalSourceFiles = []
-            }
-
-            let compileResult = try await compiler.compileCombined(
-                source: compiledSource,
-                moduleName: moduleName,
-                extraFlags: extraFlags,
-                additionalSourceFiles: additionalSourceFiles,
-                overrideSDK: setupSDKPath
-            )
-
-            compilationResult = compileResult
-            lastOriginalSource = source
-            lastLiterals = literals
-            state = .compiled(compileResult.dylibPath)
-
-            return CompileResult(dylibPath: compileResult.dylibPath, literals: literals)
-        } catch {
-            state = .error(error.localizedDescription)
-            throw error
-        }
-    }
 
     /// Session-stable path the agent's bridge writes the live window frame to, so a respawned
     /// agent can restore the user's dragged/resized window. Derived from the session id (not the
@@ -534,14 +432,8 @@ public actor PreviewSession {
         }
     }
 
-    /// Switch to a different preview index and recompile. Traits are preserved. @State is lost.
-    /// Rolls back the index if compilation fails.
-    public func switchPreview(to newIndex: Int) async throws -> CompileResult {
-        try await withPreviewIndex(newIndex) { try await compile() }
-    }
-
     /// Apply a preview-index switch around `compile`, rolling the index back if it throws.
-    /// Shared by the dylib and JIT switch paths so their rollback semantics cannot diverge.
+    /// Used by the JIT switch path to keep index mutation and rollback in one place.
     private func withPreviewIndex<T>(
         _ newIndex: Int, compile: () async throws -> T
     ) async throws -> T {
@@ -555,36 +447,13 @@ public actor PreviewSession {
         }
     }
 
-    /// The single definition of configure-merge semantics, shared by the dylib and JIT paths.
+    /// The single definition of configure-merge semantics for the JIT path.
     private func applyReconfigure(traits: PreviewTraits, clearing: Set<PreviewTraits.Field>) {
         self.traits = self.traits.merged(with: traits).clearing(clearing)
     }
 
-    /// Update traits and recompile. Returns the new dylib. @State is lost.
-    ///
-    /// - Parameters:
-    ///   - traits: values to set on the session's current traits (merged —
-    ///     non-nil values override, nil leaves the current value alone).
-    ///   - clearing: fields to explicitly null out after the merge. This is
-    ///     the only way to revert a previously-set trait; merging a nil
-    ///     value preserves the old one.
-    public func reconfigure(
-        traits: PreviewTraits,
-        clearing: Set<PreviewTraits.Field> = []
-    ) async throws -> CompileResult {
-        applyReconfigure(traits: traits, clearing: clearing)
-        return try await compile()
-    }
-
-    /// Replace traits entirely (no merge) and recompile. Used by preview_variants
-    /// where each variant must be absolute, not accumulated.
-    public func setTraits(_ newTraits: PreviewTraits) async throws -> CompileResult {
-        self.traits = newTraits
-        return try await compile()
-    }
-
-    /// JIT counterpart of `switchPreview`: same index mutation and rollback-on-failure,
-    /// compiled for the agent render path instead of a dylib.
+    /// Switch to a different preview index and recompile. Traits are preserved. @State is lost.
+    /// Rolls back the index if compilation fails.
     public func switchPreviewForJIT(
         to newIndex: Int, window: JITRenderWindow? = nil
     ) async throws -> JITRenderBuild {
