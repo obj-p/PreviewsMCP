@@ -778,6 +778,67 @@ struct BuildSystemTests {
         #expect(paths == ["/path/to/libs", "/normal/path"])
     }
 
+    // MARK: - XcodeBuildSystem dependency import flags (rules_xcodeproj)
+
+    @Test("XcodeBuildSystem extracts dependency import flags from OTHER_SWIFT_FLAGS")
+    func extractDependencyImportFlags() {
+        // Representative of a rules_xcodeproj Build-with-Bazel OTHER_SWIFT_FLAGS:
+        // dep swiftmodule (-I), objc module map (-Xcc -fmodule-map-file=), and
+        // the clang -iquote / -working-directory pairs, mixed with compile-only
+        // flags that must be dropped.
+        let other = """
+            -Xcc -working-directory -Xcc /exec/_main -working-directory /exec/_main \
+            -enforce-exclusivity=checked \
+            -emit-const-values-path bazel-out/bin/App/Main.swiftconstvalues -DDEBUG -Onone \
+            -I/exec/_main/bazel-out/bin/mixed/SwiftLib \
+            -Xcc -iquote -Xcc /exec/_main \
+            -Xcc -iquote -Xcc /exec/_main/bazel-out/bin \
+            -Xcc -fmodule-map-file=/exec/_main/bazel-out/bin/mixed/ObjCLib/ObjCLib_modulemap/_/module.modulemap \
+            -enable-testing -static
+            """
+
+        let flags = XcodeBuildSystem.extractDependencyImportFlags(fromOtherSwiftFlags: other)
+
+        // Keeps the dep swiftmodule import path.
+        #expect(flags.contains("-I"))
+        #expect(flags.contains("/exec/_main/bazel-out/bin/mixed/SwiftLib"))
+        // Keeps the objc module map.
+        #expect(
+            flags.contains(
+                "-Xcc -fmodule-map-file=/exec/_main/bazel-out/bin/mixed/ObjCLib/ObjCLib_modulemap/_/module.modulemap"
+                    .replacingOccurrences(of: "-Xcc ", with: ""))
+        )
+        let joined = flags.joined(separator: " ")
+        #expect(joined.contains("-fmodule-map-file=/exec/_main/bazel-out/bin/mixed/ObjCLib"))
+        // Keeps the clang -iquote and -working-directory pairs.
+        #expect(joined.contains("-Xcc -iquote -Xcc /exec/_main/bazel-out/bin"))
+        #expect(joined.contains("-Xcc -working-directory -Xcc /exec/_main"))
+        // Drops compile-action flags.
+        #expect(!joined.contains("-emit-const-values-path"))
+        #expect(!joined.contains("-enable-testing"))
+        #expect(!joined.contains("-enforce-exclusivity"))
+        #expect(!flags.contains("-static"))
+    }
+
+    @Test("XcodeBuildSystem archiveLinkFlags emits -L/-l and excludes the own archive")
+    func archiveLinkFlags() {
+        let paths = [
+            "/exec/_main/bazel-out/bin/mixed/ObjCLib/libObjCLib.a",
+            "/exec/_main/bazel-out/bin/mixed/SwiftLib/libSwiftLib.a",
+            // The target's own archive must be excluded.
+            "/exec/_main/bazel-out/bin/mixed/App/libMixedApp.a",
+        ]
+        let flags = XcodeBuildSystem.archiveLinkFlags(archivePaths: paths, targetName: "MixedApp")
+
+        // -L/-l pairs are what PreviewSession.dependencyArchives resolves to
+        // lib<name>.a for the JIT link.
+        let joined = flags.joined(separator: " ")
+        #expect(joined.contains("-L /exec/_main/bazel-out/bin/mixed/ObjCLib -lObjCLib"))
+        #expect(joined.contains("-L /exec/_main/bazel-out/bin/mixed/SwiftLib -lSwiftLib"))
+        #expect(!joined.contains("MixedApp"))
+        #expect(!flags.contains("-lMixedApp"))
+    }
+
     // MARK: - XcodeBuildSystem source file collection
 
     @Test("XcodeBuildSystem collects source files from OutputFileMap")
