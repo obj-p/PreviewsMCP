@@ -1017,10 +1017,6 @@ struct BridgeGeneratorTraitsTests {
         #expect(FileManager.default.fileExists(atPath: objectURL.path))
     }
 
-    // Body-kind probe emission tests live in `BodyKindProbeEmissionTests.swift`
-    // — split out so this struct stays under SwiftLint's `type_body_length`
-    // ceiling.
-
     // MARK: - Equatable
 
     @Test("PreviewTraits Equatable works correctly")

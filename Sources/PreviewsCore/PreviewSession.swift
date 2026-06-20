@@ -431,32 +431,19 @@ public actor PreviewSession {
         }
     }
 
-    /// Apply a preview-index switch around `compile`, rolling the index back if it throws.
-    /// Used by the JIT switch path to keep index mutation and rollback in one place.
-    private func withPreviewIndex<T>(
-        _ newIndex: Int, compile: () async throws -> T
-    ) async throws -> T {
-        let oldIndex = previewIndex
-        previewIndex = newIndex
-        do {
-            return try await compile()
-        } catch {
-            previewIndex = oldIndex
-            throw error
-        }
-    }
-
-    /// The single definition of configure-merge semantics for the JIT path.
-    private func applyReconfigure(traits: PreviewTraits, clearing: Set<PreviewTraits.Field>) {
-        self.traits = self.traits.merged(with: traits).clearing(clearing)
-    }
-
     /// Switch to a different preview index and recompile. Traits are preserved. @State is lost.
     /// Rolls back the index if compilation fails.
     public func switchPreviewForJIT(
         to newIndex: Int, window: JITRenderWindow? = nil
     ) async throws -> JITRenderBuild {
-        try await withPreviewIndex(newIndex) { try await compileObjectForJIT(window: window) }
+        let oldIndex = previewIndex
+        previewIndex = newIndex
+        do {
+            return try await compileObjectForJIT(window: window)
+        } catch {
+            previewIndex = oldIndex
+            throw error
+        }
     }
 
     /// JIT counterpart of `reconfigure`: merge-and-clear traits, compile for the agent.
@@ -465,7 +452,7 @@ public actor PreviewSession {
         clearing: Set<PreviewTraits.Field> = [],
         window: JITRenderWindow? = nil
     ) async throws -> JITRenderBuild {
-        applyReconfigure(traits: traits, clearing: clearing)
+        self.traits = self.traits.merged(with: traits).clearing(clearing)
         return try await compileObjectForJIT(window: window)
     }
 
