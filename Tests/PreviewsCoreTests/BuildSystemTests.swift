@@ -853,10 +853,10 @@ struct BuildSystemTests {
         // `-Wl,-force_load,<path>` comma-joined directive, plus a non-archive line.
         let params = tmpDir.appendingPathComponent("link.params")
         try """
-            \(bare.path)
-            -force_load \(forced.path)
-            -Wl,-add_ast_path,\(tmpDir.path)/SwiftLib.swiftmodule
-            """.write(to: params, atomically: true, encoding: .utf8)
+        \(bare.path)
+        -force_load \(forced.path)
+        -Wl,-add_ast_path,\(tmpDir.path)/SwiftLib.swiftmodule
+        """.write(to: params, atomically: true, encoding: .utf8)
 
         let archives = XcodeBuildSystem.collectDependencyArchives(fromOtherLDFlags: "@\(params.path)")
         #expect(archives.contains(bare.path))
