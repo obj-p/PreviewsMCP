@@ -42,6 +42,9 @@ struct RunCommand: AsyncParsableCommand {
     )
     var scheme: String?
 
+    @Option(name: .long, help: "Force the build system, overriding auto-detection")
+    var buildSystem: BuildSystemKind?
+
     @Option(name: .long, help: "Simulator device UDID (for ios; auto-selects if omitted)")
     var device: String?
 
@@ -185,6 +188,7 @@ struct RunCommand: AsyncParsableCommand {
         if let platform { args["platform"] = .string(platform.rawValue) }
         if let project { args["projectPath"] = .string(Path.normalize(project)) }
         if let scheme { args["scheme"] = .string(scheme) }
+        if let buildSystem { args["buildSystem"] = .string(buildSystem.rawValue) }
         if let device { args["deviceUDID"] = .string(device) }
         if let colorScheme { args["colorScheme"] = .string(colorScheme) }
         if let dynamicTypeSize { args["dynamicTypeSize"] = .string(dynamicTypeSize) }

@@ -393,7 +393,131 @@ public actor XcodeBuildSystem: BuildSystem {
             }
         }
 
+        // Dependency module search paths from OTHER_SWIFT_FLAGS. rules_xcodeproj
+        // (Build-with-Bazel) puts dependency swiftmodules and objc module maps
+        // under bazel-out and exposes them here, not via the standard search
+        // path settings. Reuse those flags so the overlay recompile resolves
+        // `import SwiftLib` / `import ObjCLib`.
+        if let otherSwiftFlags = settings["OTHER_SWIFT_FLAGS"] {
+            flags += Self.extractDependencyImportFlags(fromOtherSwiftFlags: otherSwiftFlags)
+        }
+
+        // Dependency static archives from OTHER_LDFLAGS. The JIT resolves the
+        // overlay's cross-module symbols (e.g. SwiftLib/ObjCLib functions used
+        // by the preview) by linking these. Under rules_xcodeproj the linker
+        // inputs come via an `@<link.params>` response file; the target's own
+        // object is a `.lto.o`, so collecting the `.a` entries yields only deps.
+        if let ldFlags = settings["OTHER_LDFLAGS"] {
+            let archives = Self.collectDependencyArchives(fromOtherLDFlags: ldFlags)
+            flags += Self.archiveLinkFlags(archivePaths: archives, targetName: settings["TARGET_NAME"])
+        }
+
         return flags
+    }
+
+    /// Split a build-setting flag string into non-empty whitespace-separated tokens.
+    static func tokenizeFlags(_ value: String) -> [String] {
+        value
+            .split(whereSeparator: { $0 == " " || $0 == "\t" || $0 == "\n" })
+            .map(String.init)
+            .filter { !$0.isEmpty }
+    }
+
+    /// Collect dependency static-archive paths referenced by `OTHER_LDFLAGS`,
+    /// following an `@<file>` linker response file when present. Archives may
+    /// appear bare or behind a linker directive (`-force_load <path>`,
+    /// `-Wl,-force_load,<path>`), so each token is split on whitespace and any
+    /// `-Wl,`-style comma prefix is stripped before the `.a` check.
+    static func collectDependencyArchives(fromOtherLDFlags value: String) -> [String] {
+        var archives: [String] = []
+        func appendArchive(_ token: String) {
+            let path = token.contains(",") ? String(token.split(separator: ",").last ?? "") : token
+            if path.hasSuffix(".a"), FileManager.default.fileExists(atPath: path) {
+                archives.append(path)
+            }
+        }
+        for token in Self.tokenizeFlags(value) {
+            if token.hasPrefix("@") {
+                let file = String(token.dropFirst())
+                guard let content = try? String(contentsOfFile: file, encoding: .utf8) else {
+                    continue
+                }
+                Self.tokenizeFlags(content).forEach(appendArchive)
+            } else {
+                appendArchive(token)
+            }
+        }
+        return archives
+    }
+
+    /// Turn dependency archive paths into deduped `-L <dir>` / `-l<name>` pairs
+    /// (which `PreviewSession.dependencyArchives` resolves back to `lib<name>.a`),
+    /// excluding the target's own `lib<TargetName>.a` archive.
+    static func archiveLinkFlags(archivePaths: [String], targetName: String?) -> [String] {
+        let ownArchive = targetName.map { "lib\($0).a" }
+        var flags: [String] = []
+        var seen = Set<String>()
+        for path in archivePaths {
+            let name = (path as NSString).lastPathComponent
+            guard name.hasPrefix("lib"), name.hasSuffix(".a") else { continue }
+            if let ownArchive, name == ownArchive { continue }
+            let dir = (path as NSString).deletingLastPathComponent
+            let lib = String(name.dropFirst(3).dropLast(2))
+            if seen.insert("L:" + dir).inserted { flags += ["-L", dir] }
+            if seen.insert("l:" + lib).inserted { flags += ["-l" + lib] }
+        }
+        return flags
+    }
+
+    /// Extract dependency import flags from `OTHER_SWIFT_FLAGS`, keeping only the
+    /// search-path flags an overlay recompile needs (`-I`, `-F`, and the clang
+    /// `-Xcc` module-map / include / working-directory pairs). Compile-action
+    /// flags like `-emit-const-values-path`, `-static`, and `-enable-testing`
+    /// are dropped.
+    static func extractDependencyImportFlags(fromOtherSwiftFlags flags: String) -> [String] {
+        let tokens = tokenizeFlags(flags)
+        let clangValueFlags: Set<String> = ["-iquote", "-isystem", "-working-directory", "-I"]
+        var result: [String] = []
+        var seen = Set<String>()
+        func add(_ items: [String], key: String) {
+            if seen.insert(key).inserted { result += items }
+        }
+
+        var i = 0
+        while i < tokens.count {
+            let t = tokens[i]
+            if t == "-Xcc", i + 1 < tokens.count {
+                let arg = tokens[i + 1]
+                if arg.hasPrefix("-fmodule-map-file=") || (arg.hasPrefix("-I") && arg.count > 2) {
+                    add(["-Xcc", arg], key: "xcc:" + arg)
+                    i += 2
+                    continue
+                }
+                if clangValueFlags.contains(arg), i + 3 < tokens.count, tokens[i + 2] == "-Xcc" {
+                    let value = tokens[i + 3]
+                    add(["-Xcc", arg, "-Xcc", value], key: "xcc:\(arg):\(value)")
+                    i += 4
+                    continue
+                }
+                // Most dropped -Xcc args are compile-only flags (-O0, -DDEBUG)
+                // and are expected. Warn only when an import-related flag arrives
+                // in an unhandled shape, so format drift is observable.
+                if clangValueFlags.contains(arg)
+                    || ["-iquote", "-isystem", "-working-directory"].contains(where: arg.hasPrefix)
+                {
+                    Log.warn("extractDependencyImportFlags: dropped import flag -Xcc \(arg)")
+                }
+                i += 2
+                continue
+            }
+            if t.hasPrefix("-I"), t.count > 2 {
+                add(["-I", String(t.dropFirst(2))], key: "I:" + t)
+            } else if t.hasPrefix("-F"), t.count > 2 {
+                add(["-F", String(t.dropFirst(2))], key: "F:" + t)
+            }
+            i += 1
+        }
+        return result
     }
 
     /// Parse space-separated paths from xcodebuild, filtering out $(inherited) and quotes.

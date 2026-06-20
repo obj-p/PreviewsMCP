@@ -286,20 +286,22 @@ public actor PreviewSession {
 
         let objectPath: URL
         var supportObjectPaths: [URL] = []
-        var archivePaths: [URL] = []
-        var dylibPaths: [URL] = []
         var requiresFreshAgent = false
+
+        // The JIT links the target's dependency archives/dylibs regardless of
+        // which compile path runs (`splitContext.0` is `buildContext`, so the
+        // flags are the same in both branches).
+        let linkFlags = buildContext?.compilerFlags ?? []
+        var archivePaths = Self.dependencyArchives(in: linkFlags)
+        if let runtimeArchive = try await Toolchain.compilerRuntimeArchivePath() {
+            archivePaths.append(URL(fileURLWithPath: runtimeArchive))
+        }
+        var dylibPaths = Self.dependencyDylibs(in: linkFlags)
+        if let path = setupDylibPath, hasSetup {
+            dylibPaths.insert(path, at: 0)
+        }
+
         if let (ctx, bulk) = splitContext {
-            archivePaths = Self.dependencyArchives(in: ctx.compilerFlags)
-            if let runtimeArchive = try await Toolchain.compilerRuntimeArchivePath() {
-                archivePaths.append(URL(fileURLWithPath: runtimeArchive))
-            }
-            dylibPaths = Self.dependencyDylibs(in: ctx.compilerFlags)
-
-            if let path = setupDylibPath, hasSetup {
-                dylibPaths.insert(path, at: 0)
-            }
-
             if let stable {
                 supportObjectPaths = [stable.objectPath]
                 let mark = ContinuousClock.now
@@ -330,9 +332,13 @@ public actor PreviewSession {
                 requiresFreshAgent = true
             }
         } else {
+            // No Tier 2 bulk (e.g. an `@main` target whose only other source is
+            // the excluded entry-point file). Carry the build context's compiler
+            // flags so the lone preview compile still finds its dependency modules.
             objectPath = try await compiler.compileObject(
                 source: generated.source,
-                moduleName: "\(Self.moduleName(for: sourceFile))_\(Self.uniqueModuleToken())"
+                moduleName: "\(Self.moduleName(for: sourceFile))_\(Self.uniqueModuleToken())",
+                extraFlags: linkFlags
             )
         }
         try Self.writeDesignTimeValues(generated.literals, to: valuesPath)

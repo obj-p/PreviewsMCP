@@ -69,6 +69,13 @@ enum PreviewStartHandler: ToolHandler {
                         "Xcode scheme name (only used for .xcodeproj / .xcworkspace projects). Required when the project contains more than one scheme and none of them match the source file's directory."
                     ),
                 ]),
+                "buildSystem": .object([
+                    "type": .string("string"),
+                    "enum": .array(BuildSystemKind.allCases.map { .string($0.rawValue) }),
+                    "description": .string(
+                        "Force the build system instead of auto-detecting by project markers (spm, bazel, xcode). Useful when a project matches more than one, e.g. a rules_xcodeproj workspace that has both MODULE.bazel and a generated .xcodeproj."
+                    ),
+                ]),
                 "colorScheme": traitProperty(
                     enumValues: PreviewTraits.validColorSchemes,
                     description: "Color scheme override: 'light' or 'dark'"
@@ -373,13 +380,29 @@ private func detectBuildContext(
     let projectRootURL = extractOptionalString("projectPath", from: params)
         .map { Path.normalizeURL($0) }
     let scheme = extractOptionalString("scheme", from: params)
+    let buildSystem = try parseBuildSystemOverride(from: params)
     return try await detectAndBuild(
         for: fileURL,
         projectRoot: projectRootURL,
         platform: platform,
         scheme: scheme,
+        buildSystem: buildSystem,
         progress: progress
     )
+}
+
+private func parseBuildSystemOverride(
+    from params: CallTool.Parameters
+) throws -> BuildSystemKind? {
+    guard let raw = extractOptionalString("buildSystem", from: params) else { return nil }
+    guard let kind = BuildSystemKind(rawValue: raw) else {
+        throw BuildSystemError.buildSystemUnavailable(
+            kind: raw,
+            reason:
+                "unknown build system; valid values: \(BuildSystemKind.allCases.map(\.rawValue).joined(separator: ", "))"
+        )
+    }
+    return kind
 }
 
 private func startMacOSPreview(

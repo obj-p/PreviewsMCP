@@ -67,8 +67,21 @@ public actor BazelBuildSystem: BuildSystem {
         try await runBazelBuild(target: target, platform: platform)
 
         // 4. Locate the .swiftmodule
-        let compilerFlags = try await findCompilerFlags(
+        var compilerFlags = try await findCompilerFlags(
             target: target, moduleName: moduleName, platform: platform)
+
+        // 4b. Add dependency module search paths (swift_library deps and
+        //     objc_library module maps) from the target's SwiftCompile action,
+        //     so the bridge's `import <Dep>` resolves.
+        compilerFlags += try await findDependencyModuleFlags(
+            target: target, platform: platform)
+
+        // 4c. Add dependency archive link flags (`-L`/`-l`) for the target's
+        //     static-library deps, so the preview JIT link resolves their
+        //     cross-target symbols (`findDependencyModuleFlags` only covers the
+        //     compile-time module search).
+        compilerFlags += try await findDependencyArchiveFlags(
+            target: target, platform: platform)
 
         // 5. Collect source files for Tier 2
         let sourceFiles = try await collectSourceFiles(target: target)
@@ -220,6 +233,133 @@ public actor BazelBuildSystem: BuildSystem {
         return ["-I", moduleDir.path]
     }
 
+    /// Resolve a Bazel `cquery`/`aquery` output path (relative to the execroot,
+    /// or already absolute) to an absolute URL.
+    private func resolveExecrootPath(_ path: String) -> URL {
+        path.hasPrefix("/")
+            ? URL(fileURLWithPath: path)
+            : projectRoot.appendingPathComponent(path).standardizedFileURL
+    }
+
+    /// Extract dependency module-search flags from the target's `SwiftCompile`
+    /// action, so the bridge compile can import the target's dependency modules
+    /// (`swift_library` deps via `-I`, `objc_library` modules via
+    /// `-Xcc -fmodule-map-file=`). The target's own `-I` is added by
+    /// `findCompilerFlags`; this fills in everything its `import`s need.
+    ///
+    /// Reuses Bazel's own flags rather than reconstructing them per dependency,
+    /// because objc module maps live at non-obvious paths
+    /// (`<pkg>/<name>_modulemap/_/module.modulemap`) that are not in
+    /// `cquery --output=files`.
+    private func findDependencyModuleFlags(
+        target: String, platform: PreviewPlatform
+    ) async throws -> [String] {
+        var args = ["bazel", "aquery", "mnemonic(\"SwiftCompile\", \(target))"]
+        args += platformFlags(for: platform)
+        let output = (try? await runBazel(args, discardStderr: true)) ?? ""
+
+        func resolve(_ path: String) -> String { resolveExecrootPath(path).path }
+
+        let tokens =
+            output
+            .split(whereSeparator: { $0 == "\n" || $0 == " " || $0 == "\t" })
+            .map { $0.trimmingCharacters(in: CharacterSet(charactersIn: " \t\\'\"")) }
+            .filter { !$0.isEmpty }
+
+        var flags: [String] = []
+        var seen = Set<String>()
+        func add(_ items: [String], key: String) {
+            if seen.insert(key).inserted { flags += items }
+        }
+
+        var i = 0
+        while i < tokens.count {
+            let t = tokens[i]
+            if t.hasPrefix("-I"), t.count > 2 {
+                let p = resolve(String(t.dropFirst(2)))
+                add(["-I", p], key: "I:" + p)
+            } else if t.hasPrefix("-F"), t.count > 2 {
+                let p = resolve(String(t.dropFirst(2)))
+                add(["-F", p], key: "F:" + p)
+            } else if t == "-Xcc", i + 1 < tokens.count {
+                let next = tokens[i + 1]
+                if next.hasPrefix("-fmodule-map-file=") {
+                    let p = resolve(String(next.dropFirst("-fmodule-map-file=".count)))
+                    add(["-Xcc", "-fmodule-map-file=\(p)"], key: "mmap:" + p)
+                    i += 1
+                } else if next.hasPrefix("-I"), next.count > 2 {
+                    let p = resolve(String(next.dropFirst(2)))
+                    add(["-Xcc", "-I\(p)"], key: "XccI:" + p)
+                    i += 1
+                }
+            }
+            i += 1
+        }
+        return flags
+    }
+
+    /// Extract `-L <dir>` / `-l<name>` link flags for the target's dependency
+    /// static archives (`libSwiftLib.a`, `libObjCLib.a`), so the preview JIT
+    /// link resolves their cross-target symbols.
+    ///
+    /// Building `target` alone materializes its dependency swiftmodules but not
+    /// their static archives (a `swift_library` build has no link step), so this
+    /// first builds the dependency library targets to put their `.a` on disk.
+    ///
+    /// `deps(<target>)` also returns two kinds of archives that must NOT be
+    /// linked, filtered here:
+    ///   * Build tooling in the exec configuration (see `isExecConfigPath`,
+    ///     e.g. the rules_swift worker).
+    ///   * The target's own archive (`lib<target>.a`): it carries the preview
+    ///     file plus any `@main` object, both of which the JIT compiles fresh /
+    ///     must not link.
+    private func findDependencyArchiveFlags(
+        target: String, platform: PreviewPlatform
+    ) async throws -> [String] {
+        let platformArgs = platformFlags(for: platform)
+
+        let depLibs =
+            (try? await runBazelQuery(
+                "kind(\"(swift|objc)_library\", deps(\(target)))")) ?? ""
+        let labels = depLibs.split(separator: "\n").map(String.init)
+            .filter { $0.hasPrefix("//") }
+        if !labels.isEmpty {
+            try await runBazel(["bazel", "build"] + labels + platformArgs)
+        }
+
+        let output =
+            (try? await runBazel(
+                ["bazel", "cquery", "deps(\(target))", "--output=files"]
+                    + platformArgs, discardStderr: true)) ?? ""
+
+        let ownArchive = "lib\(target.split(separator: ":").last.map(String.init) ?? target).a"
+
+        var flags: [String] = []
+        var seenDir = Set<String>()
+        for line in output.split(separator: "\n").map(String.init) {
+            let path = line.trimmingCharacters(in: .whitespaces)
+            guard path.hasSuffix(".a") else { continue }
+            let base = URL(fileURLWithPath: path).lastPathComponent
+            guard base.hasPrefix("lib"), base != ownArchive else { continue }
+            if Self.isExecConfigPath(path) { continue }
+            let dir = resolveExecrootPath(path).deletingLastPathComponent().path
+            if seenDir.insert(dir).inserted { flags += ["-L", dir] }
+            flags += ["-l\(base.dropFirst(3).dropLast(2))"]
+        }
+        return flags
+    }
+
+    /// True if `path` is a Bazel output in an exec configuration (its
+    /// `bazel-out/<config>/...` config segment contains an `exec` mnemonic, e.g.
+    /// `darwin_arm64-opt-exec` or `darwin_arm64-opt-exec-ST-<hash>`). Such
+    /// outputs are build tooling, not runtime dependencies.
+    private static func isExecConfigPath(_ path: String) -> Bool {
+        let parts = path.split(separator: "/").map(String.init)
+        guard let i = parts.firstIndex(of: "bazel-out"), i + 1 < parts.count
+        else { return false }
+        return parts[i + 1].split(separator: "-").contains("exec")
+    }
+
     // MARK: - Private: Source Files (Tier 2)
 
     /// Collect all source files for the target, excluding the preview file.
@@ -251,12 +391,24 @@ public actor BazelBuildSystem: BuildSystem {
             guard let path = labelToPath(label) else { continue }
             let url = projectRoot.appendingPathComponent(path).standardizedFileURL
             // Exclude the preview file
-            if url.path != sourceFile.path {
-                sourceFiles.append(url)
-            }
+            if url.path == sourceFile.path { continue }
+            // Exclude `@main` entry-point files: their app-lifecycle entry
+            // symbol poisons the preview JIT link, and the preview never needs
+            // the app entry point.
+            if Self.declaresMainEntry(url) { continue }
+            sourceFiles.append(url)
         }
 
         return sourceFiles.isEmpty ? nil : sourceFiles
+    }
+
+    /// True if `file` declares an `@main` entry point at the start of a line.
+    private static func declaresMainEntry(_ file: URL) -> Bool {
+        guard let text = try? String(contentsOf: file, encoding: .utf8) else {
+            return false
+        }
+        return text.range(of: #"(?m)^[ \t]*@main\b"#, options: .regularExpression)
+            != nil
     }
 
     /// Convert a Bazel label like "//Sources/ToDo:Item.swift" to a relative path "Sources/ToDo/Item.swift".
@@ -288,10 +440,62 @@ public actor BazelBuildSystem: BuildSystem {
     private func platformFlags(for platform: PreviewPlatform) -> [String] {
         switch platform {
         case .macOS:
-            return []
+            // Pin the deployment target to match the bridge compile triple
+            // (`Platform.macOS` -> macosx14.0), so dependency modules built by
+            // Bazel do not come out at the SDK-default min (e.g. 26.2) and fail
+            // to load against the 14.0 bridge.
+            return ["--macos_minimum_os=14.0"]
         case .iOS:
-            return ["--platforms=@apple_support//platforms:ios_sim_arm64"]
+            // The real iOS-simulator transition needs `--platforms` (the legacy
+            // `--cpu`/`--apple_platform_type` flags name the output dir but do
+            // NOT apply the Apple SDK transition to a bare `swift_library`,
+            // leaving deps built against the macOS SDK). The platform lives in
+            // the apple_support repo, whose name varies per project (default
+            // `apple_support`, but e.g. the study uses `repo_name =
+            // "build_bazel_apple_support"`), so resolve it from MODULE.bazel.
+            // Pin the deployment target to match the bridge compile triple
+            // (`Platform.iOS` -> ios17.0): a bare swift_library otherwise gets
+            // the SDK-default min (e.g. 26.2), which fails to load against the
+            // 17.0 bridge ("module has a minimum deployment target of iOS 26.2").
+            return [
+                "--platforms=@\(appleSupportRepoName())//platforms:ios_sim_arm64",
+                "--ios_minimum_os=17.0",
+            ]
         }
+    }
+
+    /// Resolve the repo name the project exposes for the `apple_support` module,
+    /// so `--platforms=@<repo>//platforms:ios_sim_arm64` resolves. Reads the
+    /// `bazel_dep(name = "apple_support", ... repo_name = "...")` from
+    /// MODULE.bazel; defaults to `apple_support` (the module's own name).
+    private func appleSupportRepoName() -> String {
+        let moduleFile = projectRoot.appendingPathComponent("MODULE.bazel")
+        guard let text = try? String(contentsOf: moduleFile, encoding: .utf8) else {
+            return "apple_support"
+        }
+        // Match the `bazel_dep(...)` call that names apple_support, then its
+        // optional `repo_name`. The call may span multiple lines.
+        guard
+            let depRange = text.range(
+                of: #"bazel_dep\([^)]*name\s*=\s*"apple_support"[^)]*\)"#,
+                options: .regularExpression)
+        else {
+            return "apple_support"
+        }
+        let depCall = text[depRange]
+        if let rnRange = depCall.range(
+            of: #"repo_name\s*=\s*"([^"]+)""#, options: .regularExpression)
+        {
+            let match = depCall[rnRange]
+            if let q1 = match.range(of: "\""),
+                let q2 = match.range(
+                    of: "\"", options: .backwards,
+                    range: q1.upperBound..<match.endIndex)
+            {
+                return String(match[q1.upperBound..<q2.lowerBound])
+            }
+        }
+        return "apple_support"
     }
 
     // MARK: - Private: Process Execution

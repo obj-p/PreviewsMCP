@@ -14,6 +14,13 @@ public protocol BuildSystem: Sendable {
     var projectRoot: URL { get }
 }
 
+/// Explicitly selects a build system, bypassing marker-order auto-detection.
+public enum BuildSystemKind: String, Sendable, CaseIterable {
+    case spm
+    case bazel
+    case xcode
+}
+
 /// Tries registered build systems in order and returns the first match.
 public enum BuildSystemDetector {
     /// Detect the build system for a source file.
@@ -22,11 +29,21 @@ public enum BuildSystemDetector {
     ///   - projectRoot: If provided, use this as the project root instead of auto-detecting.
     ///   - scheme: Optional Xcode scheme name. Only used when the detected build
     ///     system is `XcodeBuildSystem`; ignored for SPM and Bazel.
+    ///   - buildSystem: Optional explicit override. When set, the marker order is
+    ///     skipped and the requested system is constructed directly. An override
+    ///     always wins over auto-detection.
     public static func detect(
         for sourceFile: URL,
         projectRoot: URL? = nil,
-        scheme: String? = nil
+        scheme: String? = nil,
+        buildSystem: BuildSystemKind? = nil
     ) async throws -> (any BuildSystem)? {
+        // An explicit override wins over auto-detection and never falls through
+        // to the other systems.
+        if let buildSystem = buildSystem {
+            return try await forced(
+                buildSystem, for: sourceFile, projectRoot: projectRoot, scheme: scheme)
+        }
         // If an explicit project root is provided, detect which build system applies there
         if let projectRoot = projectRoot {
             let fm = FileManager.default
@@ -70,6 +87,44 @@ public enum BuildSystemDetector {
         }
         return nil
     }
+
+    /// Build the requested system for an explicit override. With a `projectRoot`
+    /// it constructs the system directly; without one it walks up from the source
+    /// file via that system's own `detect`. Either way it never falls through to
+    /// another build system.
+    private static func forced(
+        _ kind: BuildSystemKind,
+        for sourceFile: URL,
+        projectRoot: URL?,
+        scheme: String?
+    ) async throws -> (any BuildSystem)? {
+        switch kind {
+        case .spm:
+            guard let projectRoot = projectRoot else {
+                return try await SPMBuildSystem.detect(for: sourceFile)
+            }
+            return SPMBuildSystem(projectRoot: projectRoot, sourceFile: sourceFile)
+        case .bazel:
+            guard let projectRoot = projectRoot else {
+                return try await BazelBuildSystem.detect(for: sourceFile)
+            }
+            return BazelBuildSystem(projectRoot: projectRoot, sourceFile: sourceFile)
+        case .xcode:
+            guard let projectRoot = projectRoot else {
+                return try await XcodeBuildSystem.detect(for: sourceFile, scheme: scheme)
+            }
+            guard let projectFile = XcodeBuildSystem.findXcodeProject(in: projectRoot) else {
+                throw BuildSystemError.buildSystemUnavailable(
+                    kind: kind.rawValue,
+                    reason: "no .xcodeproj or .xcworkspace found in \(projectRoot.path)")
+            }
+            return XcodeBuildSystem(
+                projectRoot: projectRoot,
+                sourceFile: sourceFile,
+                projectFile: projectFile,
+                requestedScheme: scheme)
+        }
+    }
 }
 
 /// Errors from build system operations.
@@ -79,6 +134,7 @@ public enum BuildSystemError: Error, LocalizedError {
     case missingArtifacts(String)
     case ambiguousTarget(sourceFile: String, candidates: [String])
     case unknownScheme(requested: String, candidates: [String])
+    case buildSystemUnavailable(kind: String, reason: String)
 
     public var errorDescription: String? {
         switch self {
@@ -94,6 +150,8 @@ public enum BuildSystemError: Error, LocalizedError {
         case .unknownScheme(let requested, let candidates):
             return
                 "Scheme '\(requested)' not found in project. Available schemes: \(candidates.joined(separator: ", "))"
+        case .buildSystemUnavailable(let kind, let reason):
+            return "Requested build system '\(kind)' is unavailable: \(reason)"
         }
     }
 }

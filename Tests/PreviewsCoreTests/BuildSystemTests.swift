@@ -284,6 +284,76 @@ struct BuildSystemTests {
         #expect(buildSystem is BazelBuildSystem)
     }
 
+    // MARK: - BuildSystemDetector override
+
+    @Test("BuildSystemDetector override forces Xcode when Bazel markers would win")
+    func detectorOverrideForcesXcode() async throws {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+
+        // rules_xcodeproj shape: both a Bazel module and a generated .xcodeproj.
+        try "module(name = \"test\")".write(
+            to: tmpDir.appendingPathComponent("MODULE.bazel"), atomically: true, encoding: .utf8)
+        let xcodeproj = tmpDir.appendingPathComponent("MyApp.xcodeproj")
+        try FileManager.default.createDirectory(at: xcodeproj, withIntermediateDirectories: true)
+
+        let sourceFile = tmpDir.appendingPathComponent("main.swift")
+        try "import SwiftUI".write(to: sourceFile, atomically: true, encoding: .utf8)
+
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        // Auto-detection picks Bazel (markers checked first).
+        let auto = try await BuildSystemDetector.detect(for: sourceFile, projectRoot: tmpDir)
+        #expect(auto is BazelBuildSystem)
+
+        // The override forces Xcode against the generated project.
+        let forced = try await BuildSystemDetector.detect(
+            for: sourceFile, projectRoot: tmpDir, buildSystem: .xcode)
+        #expect(forced is XcodeBuildSystem)
+    }
+
+    @Test("BuildSystemDetector override forces Bazel when SPM would win")
+    func detectorOverrideForcesBazel() async throws {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+
+        try "// swift-tools-version: 6.0".write(
+            to: tmpDir.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        try "module(name = \"test\")".write(
+            to: tmpDir.appendingPathComponent("MODULE.bazel"), atomically: true, encoding: .utf8)
+
+        let sourceFile = tmpDir.appendingPathComponent("main.swift")
+        try "import SwiftUI".write(to: sourceFile, atomically: true, encoding: .utf8)
+
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        let auto = try await BuildSystemDetector.detect(for: sourceFile, projectRoot: tmpDir)
+        #expect(auto is SPMBuildSystem)
+
+        let forced = try await BuildSystemDetector.detect(
+            for: sourceFile, projectRoot: tmpDir, buildSystem: .bazel)
+        #expect(forced is BazelBuildSystem)
+    }
+
+    @Test("BuildSystemDetector override throws when forced Xcode has no project")
+    func detectorOverrideXcodeWithoutProjectThrows() async throws {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+
+        let sourceFile = tmpDir.appendingPathComponent("main.swift")
+        try "import SwiftUI".write(to: sourceFile, atomically: true, encoding: .utf8)
+
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        await #expect(throws: BuildSystemError.self) {
+            try await BuildSystemDetector.detect(
+                for: sourceFile, projectRoot: tmpDir, buildSystem: .xcode)
+        }
+    }
+
     // MARK: - BridgeGenerator
 
     @Test("BridgeGenerator.generateBridgeOnlySource produces correct output")
@@ -706,6 +776,94 @@ struct BuildSystemTests {
         let paths = XcodeBuildSystem.parseSearchPaths(
             "\"/path/to/libs\" /normal/path")
         #expect(paths == ["/path/to/libs", "/normal/path"])
+    }
+
+    // MARK: - XcodeBuildSystem dependency import flags (rules_xcodeproj)
+
+    @Test("XcodeBuildSystem extracts dependency import flags from OTHER_SWIFT_FLAGS")
+    func extractDependencyImportFlags() {
+        // Representative of a rules_xcodeproj Build-with-Bazel OTHER_SWIFT_FLAGS:
+        // dep swiftmodule (-I), objc module map (-Xcc -fmodule-map-file=), and
+        // the clang -iquote / -working-directory pairs, mixed with compile-only
+        // flags that must be dropped.
+        let other = """
+            -Xcc -working-directory -Xcc /exec/_main -working-directory /exec/_main \
+            -enforce-exclusivity=checked \
+            -emit-const-values-path bazel-out/bin/App/Main.swiftconstvalues -DDEBUG -Onone \
+            -I/exec/_main/bazel-out/bin/mixed/SwiftLib \
+            -Xcc -iquote -Xcc /exec/_main \
+            -Xcc -iquote -Xcc /exec/_main/bazel-out/bin \
+            -Xcc -fmodule-map-file=/exec/_main/bazel-out/bin/mixed/ObjCLib/ObjCLib_modulemap/_/module.modulemap \
+            -enable-testing -static
+            """
+
+        let flags = XcodeBuildSystem.extractDependencyImportFlags(fromOtherSwiftFlags: other)
+
+        // Keeps the dep swiftmodule import path.
+        #expect(flags.contains("-I"))
+        #expect(flags.contains("/exec/_main/bazel-out/bin/mixed/SwiftLib"))
+        // Keeps the objc module map.
+        #expect(
+            flags.contains(
+                "-Xcc -fmodule-map-file=/exec/_main/bazel-out/bin/mixed/ObjCLib/ObjCLib_modulemap/_/module.modulemap"
+                    .replacingOccurrences(of: "-Xcc ", with: ""))
+        )
+        let joined = flags.joined(separator: " ")
+        #expect(joined.contains("-fmodule-map-file=/exec/_main/bazel-out/bin/mixed/ObjCLib"))
+        // Keeps the clang -iquote and -working-directory pairs.
+        #expect(joined.contains("-Xcc -iquote -Xcc /exec/_main/bazel-out/bin"))
+        #expect(joined.contains("-Xcc -working-directory -Xcc /exec/_main"))
+        // Drops compile-action flags.
+        #expect(!joined.contains("-emit-const-values-path"))
+        #expect(!joined.contains("-enable-testing"))
+        #expect(!joined.contains("-enforce-exclusivity"))
+        #expect(!flags.contains("-static"))
+    }
+
+    @Test("XcodeBuildSystem archiveLinkFlags emits -L/-l and excludes the own archive")
+    func archiveLinkFlags() {
+        let paths = [
+            "/exec/_main/bazel-out/bin/mixed/ObjCLib/libObjCLib.a",
+            "/exec/_main/bazel-out/bin/mixed/SwiftLib/libSwiftLib.a",
+            // The target's own archive must be excluded.
+            "/exec/_main/bazel-out/bin/mixed/App/libMixedApp.a",
+        ]
+        let flags = XcodeBuildSystem.archiveLinkFlags(archivePaths: paths, targetName: "MixedApp")
+
+        // -L/-l pairs are what PreviewSession.dependencyArchives resolves to
+        // lib<name>.a for the JIT link.
+        let joined = flags.joined(separator: " ")
+        #expect(joined.contains("-L /exec/_main/bazel-out/bin/mixed/ObjCLib -lObjCLib"))
+        #expect(joined.contains("-L /exec/_main/bazel-out/bin/mixed/SwiftLib -lSwiftLib"))
+        #expect(!joined.contains("MixedApp"))
+        #expect(!flags.contains("-lMixedApp"))
+    }
+
+    @Test("XcodeBuildSystem collects archives from an @link.params response file, including -force_load")
+    func collectDependencyArchivesFromResponseFile() throws {
+        let tmpDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+
+        let bare = tmpDir.appendingPathComponent("libSwiftLib.a")
+        let forced = tmpDir.appendingPathComponent("libObjCLib.a")
+        try "".write(to: bare, atomically: true, encoding: .utf8)
+        try "".write(to: forced, atomically: true, encoding: .utf8)
+
+        // A bare archive line, a `-force_load <path>` directive, and a
+        // `-Wl,-force_load,<path>` comma-joined directive, plus a non-archive line.
+        let params = tmpDir.appendingPathComponent("link.params")
+        try """
+            \(bare.path)
+            -force_load \(forced.path)
+            -Wl,-add_ast_path,\(tmpDir.path)/SwiftLib.swiftmodule
+            """.write(to: params, atomically: true, encoding: .utf8)
+
+        let archives = XcodeBuildSystem.collectDependencyArchives(fromOtherLDFlags: "@\(params.path)")
+        #expect(archives.contains(bare.path))
+        #expect(archives.contains(forced.path))
+        #expect(archives.count == 2)
     }
 
     // MARK: - XcodeBuildSystem source file collection
