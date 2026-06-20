@@ -1,13 +1,5 @@
 import Foundation
 
-/// Result of a successful compilation.
-public struct CompilationResult: Sendable {
-    /// Path to the compiled and signed dylib.
-    public let dylibPath: URL
-    /// Any compiler warnings (stderr output that didn't cause failure).
-    public let diagnostics: String
-}
-
 /// Error from a failed compilation.
 public struct CompilationError: Error, LocalizedError, CustomStringConvertible {
     public let message: String
@@ -25,12 +17,11 @@ public struct CompilationError: Error, LocalizedError, CustomStringConvertible {
     public var errorDescription: String? { description }
 }
 
-/// Compiles Swift source code into signed dynamic libraries.
+/// Compiles Swift source code into object files for the JIT render path.
 public actor Compiler {
     private let workDir: URL
     nonisolated let sdkPath: String
     private let swiftcPath: String
-    private let codesignPath: String
     public nonisolated let platform: PreviewPlatform
     private let targetTriple: String
     private let moduleCachePath: URL
@@ -52,7 +43,6 @@ public actor Compiler {
         self.sdkPath = try await Toolchain.sdkPath(for: platform)
         self.targetTriple = platform.targetTriple
         self.swiftcPath = try await Toolchain.swiftcPath()
-        self.codesignPath = try await Toolchain.codesignPath()
 
         // Shared module cache at parent of workDir, keyed by platform to avoid SDK conflicts.
         let cacheDir =
@@ -63,66 +53,6 @@ public actor Compiler {
     }
 
     private var compilationCounter = 0
-
-    /// Compile combined source (original + bridge) into a signed dylib.
-    /// Each compilation produces a uniquely-named dylib so dlopen loads fresh code.
-    ///
-    /// - Parameters:
-    ///   - source: The Swift source code to compile.
-    ///   - moduleName: The module name for the compilation unit.
-    ///   - extraFlags: Additional swiftc flags (e.g., -I, -L from build system).
-    ///   - additionalSourceFiles: Extra .swift files to compile alongside (Tier 2 project mode).
-    ///   - overrideSDK: Optional SDK path to use instead of the Compiler's default.
-    ///     When the bridge imports a swiftmodule built externally (the user's
-    ///     setup package, compiled by SetupBuilder), the import will fail with
-    ///     "cannot load module ... built with SDK 'X' when using SDK 'Y'" if
-    ///     the two compilations disagreed on the SDK. Inheriting the setup's
-    ///     SDK here makes the import succeed by construction (issue #170).
-    public func compileCombined(
-        source: String,
-        moduleName: String,
-        extraFlags: [String] = [],
-        additionalSourceFiles: [URL] = [],
-        overrideSDK: String? = nil
-    ) async throws -> CompilationResult {
-        compilationCounter += 1
-        let uniqueName = "\(moduleName)_\(compilationCounter)"
-        let sourceFile = workDir.appendingPathComponent("\(uniqueName).swift")
-        let dylibFile = workDir.appendingPathComponent("\(uniqueName).dylib")
-        let effectiveSDK = try resolveSDK(overrideSDK)
-
-        Log.info(
-            "compileCombined: module=\(moduleName) platform=\(platform) "
-                + "sdk=\(effectiveSDK) "
-                + "extraFlags=\(extraFlags.joined(separator: " ")) "
-                + "additionalSources=\(additionalSourceFiles.count) "
-                + "dylib=\(dylibFile.path)")
-
-        try source.write(to: sourceFile, atomically: true, encoding: .utf8)
-
-        // Build argument list
-        var args: [String] = [
-            swiftcPath,
-            "-emit-library",
-            "-parse-as-library",
-            "-target", targetTriple,
-            "-sdk", effectiveSDK,
-            "-module-name", moduleName,
-            "-Onone",
-            "-gnone",
-            "-module-cache-path", moduleCachePath.path,
-        ]
-        args += extraFlags
-        args += ["-o", dylibFile.path, sourceFile.path]
-        args += additionalSourceFiles.map(\.path)
-
-        try await run(args)
-
-        // Ad-hoc codesign (required on Apple Silicon)
-        try await run([codesignPath, "-s", "-", dylibFile.path])
-
-        return CompilationResult(dylibPath: dylibFile, diagnostics: "")
-    }
 
     public func compileObject(
         source: String,

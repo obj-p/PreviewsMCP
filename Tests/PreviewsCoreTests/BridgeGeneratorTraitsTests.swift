@@ -186,7 +186,8 @@ struct BridgeGeneratorTraitsTests {
     func combinedSourceNoTraits() {
         let (source, _) = BridgeGenerator.generateCombinedSource(
             originalSource: Self.testSource,
-            closureBody: "TestView()"
+            closureBody: "TestView()",
+            renderOutputPath: "/tmp/out.png"
         )
         #expect(!source.contains(".preferredColorScheme"))
         #expect(!source.contains(".dynamicTypeSize"))
@@ -198,7 +199,8 @@ struct BridgeGeneratorTraitsTests {
         let (source, _) = BridgeGenerator.generateCombinedSource(
             originalSource: Self.testSource,
             closureBody: "TestView()",
-            traits: traits
+            traits: traits,
+            renderOutputPath: "/tmp/out.png"
         )
         #expect(source.contains(".preferredColorScheme(.dark)"))
         #expect(!source.contains(".dynamicTypeSize"))
@@ -210,7 +212,8 @@ struct BridgeGeneratorTraitsTests {
         let (source, _) = BridgeGenerator.generateCombinedSource(
             originalSource: Self.testSource,
             closureBody: "TestView()",
-            traits: traits
+            traits: traits,
+            renderOutputPath: "/tmp/out.png"
         )
         #expect(source.contains(".dynamicTypeSize(.accessibility3)"))
         #expect(!source.contains(".preferredColorScheme"))
@@ -222,7 +225,8 @@ struct BridgeGeneratorTraitsTests {
         let (source, _) = BridgeGenerator.generateCombinedSource(
             originalSource: Self.testSource,
             closureBody: "TestView()",
-            traits: traits
+            traits: traits,
+            renderOutputPath: "/tmp/out.png"
         )
         #expect(source.contains(".preferredColorScheme(.light)"))
         #expect(source.contains(".dynamicTypeSize(.xxLarge)"))
@@ -234,7 +238,8 @@ struct BridgeGeneratorTraitsTests {
         let (source, _) = BridgeGenerator.generateCombinedSource(
             originalSource: Self.testSource,
             closureBody: "TestView()",
-            traits: traits
+            traits: traits,
+            renderOutputPath: "/tmp/out.png"
         )
         #expect(source.contains(".environment(\\.locale, Locale(identifier: \"ar\"))"))
     }
@@ -245,7 +250,8 @@ struct BridgeGeneratorTraitsTests {
         let (source, _) = BridgeGenerator.generateCombinedSource(
             originalSource: Self.testSource,
             closureBody: "TestView()",
-            traits: traits
+            traits: traits,
+            renderOutputPath: "/tmp/out.png"
         )
         #expect(source.contains(".environment(\\.layoutDirection, .rightToLeft)"))
     }
@@ -256,7 +262,8 @@ struct BridgeGeneratorTraitsTests {
         let (source, _) = BridgeGenerator.generateCombinedSource(
             originalSource: Self.testSource,
             closureBody: "TestView()",
-            traits: traits
+            traits: traits,
+            renderOutputPath: "/tmp/out.png"
         )
         #expect(source.contains(".environment(\\.legibilityWeight, .bold)"))
     }
@@ -270,38 +277,14 @@ struct BridgeGeneratorTraitsTests {
         let (source, _) = BridgeGenerator.generateCombinedSource(
             originalSource: Self.testSource,
             closureBody: "TestView()",
-            traits: traits
+            traits: traits,
+            renderOutputPath: "/tmp/out.png"
         )
         #expect(source.contains(".preferredColorScheme(.dark)"))
         #expect(source.contains(".dynamicTypeSize(.large)"))
         #expect(source.contains(".environment(\\.locale, Locale(identifier: \"ja-JP\"))"))
         #expect(source.contains(".environment(\\.layoutDirection, .rightToLeft)"))
         #expect(source.contains(".environment(\\.legibilityWeight, .bold)"))
-    }
-
-    // MARK: - generateBridgeOnlySource
-
-    @Test("generateBridgeOnlySource with traits injects modifiers")
-    func bridgeOnlySourceWithTraits() {
-        let traits = PreviewTraits(colorScheme: "dark", dynamicTypeSize: "accessibility1")
-        let source = BridgeGenerator.generateBridgeOnlySource(
-            moduleName: "MyTarget",
-            closureBody: "ContentView()",
-            traits: traits
-        )
-        #expect(source.contains(".preferredColorScheme(.dark)"))
-        #expect(source.contains(".dynamicTypeSize(.accessibility1)"))
-        #expect(source.contains("@_cdecl(\"createPreviewView\")"))
-    }
-
-    @Test("generateBridgeOnlySource with no traits produces no modifiers")
-    func bridgeOnlySourceNoTraits() {
-        let source = BridgeGenerator.generateBridgeOnlySource(
-            moduleName: "MyTarget",
-            closureBody: "ContentView()"
-        )
-        #expect(!source.contains(".preferredColorScheme"))
-        #expect(!source.contains(".dynamicTypeSize"))
     }
 
     // MARK: - iOS platform
@@ -313,75 +296,17 @@ struct BridgeGeneratorTraitsTests {
             originalSource: Self.testSource,
             closureBody: "TestView()",
             platform: .iOS,
-            traits: traits
+            traits: traits,
+            renderOutputPath: "/tmp/out.png"
         )
         #expect(source.contains(".preferredColorScheme(.dark)"))
         #expect(source.contains("UIHostingController"))
         #expect(!source.contains("NSHostingView"))
     }
 
-    // MARK: - Full compile pipeline with traits
+    // MARK: - Reconfigure trait merge semantics
 
-    @Test("Full pipeline with traits compiles successfully")
-    func fullPipelineWithTraits() async throws {
-        let traits = PreviewTraits(colorScheme: "dark", dynamicTypeSize: "large")
-        let previews = PreviewParser.parse(source: Self.testSource)
-        #expect(previews.count == 1)
-
-        let (combined, _) = BridgeGenerator.generateCombinedSource(
-            originalSource: Self.testSource,
-            closureBody: previews[0].closureBody,
-            traits: traits
-        )
-
-        #expect(combined.contains(".preferredColorScheme(.dark)"))
-        #expect(combined.contains(".dynamicTypeSize(.large)"))
-
-        let compiler = try await Compiler()
-        let result = try await compiler.compileCombined(
-            source: combined,
-            moduleName: "TraitsTest_\(Int.random(in: 0...999999))"
-        )
-
-        // Verify dylib exists and is non-empty
-        let attrs = try FileManager.default.attributesOfItem(atPath: result.dylibPath.path)
-        let size = attrs[.size] as? Int ?? 0
-        #expect(size > 0, "Dylib should be non-empty")
-
-        // Verify entry point symbol
-        let loader = try DylibLoader(path: result.dylibPath.path)
-        typealias CreateFunc = @convention(c) () -> UnsafeMutableRawPointer
-        let _: CreateFunc = try loader.symbol(name: "createPreviewView")
-    }
-
-    @Test("PreviewSession.compile with traits produces correct bridge code")
-    func previewSessionWithTraits() async throws {
-        let tempDir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("previews-mcp-test-\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: tempDir) }
-
-        let sourceFile = tempDir.appendingPathComponent("TestView.swift")
-        try Self.testSource.write(to: sourceFile, atomically: true, encoding: .utf8)
-
-        let compiler = try await Compiler()
-        let traits = PreviewTraits(colorScheme: "dark")
-        let session = PreviewSession(
-            sourceFile: sourceFile,
-            previewIndex: 0,
-            compiler: compiler,
-            traits: traits
-        )
-
-        let compileResult = try await session.compile()
-        #expect(FileManager.default.fileExists(atPath: compileResult.dylibPath.path))
-
-        let loader = try DylibLoader(path: compileResult.dylibPath.path)
-        typealias CreateFunc = @convention(c) () -> UnsafeMutableRawPointer
-        let _: CreateFunc = try loader.symbol(name: "createPreviewView")
-    }
-
-    @Test("PreviewSession.reconfigure updates traits and recompiles")
+    @Test("PreviewSession.reconfigureForJIT updates traits and recompiles")
     func previewSessionReconfigure() async throws {
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("previews-mcp-test-\(UUID().uuidString)")
@@ -399,23 +324,24 @@ struct BridgeGeneratorTraitsTests {
         )
 
         // Initial compile with no traits
-        let result1 = try await session.compile()
+        let result1 = try await session.compileObjectForJIT()
         let initialTraits = await session.currentTraits
         #expect(initialTraits.isEmpty)
 
         // Reconfigure with dark mode
-        let result2 = try await session.reconfigure(traits: PreviewTraits(colorScheme: "dark"))
+        let result2 = try await session.reconfigureForJIT(traits: PreviewTraits(colorScheme: "dark"))
         let darkTraits = await session.currentTraits
         #expect(darkTraits.colorScheme == "dark")
-        #expect(result2.dylibPath != result1.dylibPath, "Reconfigure should produce a new dylib")
+        #expect(
+            result2.objectPath != result1.objectPath, "Reconfigure should produce a new object")
 
         // Reconfigure with dynamic type (merge: colorScheme should persist)
-        let result3 = try await session.reconfigure(
+        let result3 = try await session.reconfigureForJIT(
             traits: PreviewTraits(dynamicTypeSize: "accessibility3"))
         let mergedTraits = await session.currentTraits
         #expect(mergedTraits.colorScheme == "dark")
         #expect(mergedTraits.dynamicTypeSize == "accessibility3")
-        #expect(result3.dylibPath != result2.dylibPath)
+        #expect(result3.objectPath != result2.objectPath)
     }
 
     // MARK: - Multi-preview index selection
@@ -449,12 +375,13 @@ struct BridgeGeneratorTraitsTests {
         let (source, _) = BridgeGenerator.generateCombinedSource(
             originalSource: Self.multiPreviewSource,
             closureBody: previews[1].closureBody,
-            previewIndex: 1
+            previewIndex: 1,
+            renderOutputPath: "/tmp/out.png"
         )
 
         // The bridge entry point should render SecondView, not FirstView
-        // Extract just the @_cdecl function to avoid matching the full source that contains both
-        let bridgeRange = source.range(of: "@_cdecl(\"createPreviewView\")")!
+        // Extract just the bridge region to avoid matching the full source that contains both
+        let bridgeRange = source.range(of: "__PreviewBridge.wrap")!
         let bridgeCode = String(source[bridgeRange.lowerBound...])
 
         #expect(bridgeCode.contains("SecondView()"), "Bridge should render SecondView for previewIndex 1")
@@ -468,10 +395,11 @@ struct BridgeGeneratorTraitsTests {
 
         let (source, _) = BridgeGenerator.generateCombinedSource(
             originalSource: Self.multiPreviewSource,
-            closureBody: previews[0].closureBody
+            closureBody: previews[0].closureBody,
+            renderOutputPath: "/tmp/out.png"
         )
 
-        let bridgeRange = source.range(of: "@_cdecl(\"createPreviewView\")")!
+        let bridgeRange = source.range(of: "__PreviewBridge.wrap")!
         let bridgeCode = String(source[bridgeRange.lowerBound...])
 
         #expect(bridgeCode.contains("FirstView()"), "Bridge should render FirstView for default previewIndex")
@@ -483,61 +411,19 @@ struct BridgeGeneratorTraitsTests {
         let (source, _) = BridgeGenerator.generateCombinedSource(
             originalSource: Self.multiPreviewSource,
             closureBody: "FallbackView()",
-            previewIndex: 99
+            previewIndex: 99,
+            renderOutputPath: "/tmp/out.png"
         )
 
-        let bridgeRange = source.range(of: "@_cdecl(\"createPreviewView\")")!
+        let bridgeRange = source.range(of: "__PreviewBridge.wrap")!
         let bridgeCode = String(source[bridgeRange.lowerBound...])
 
         #expect(bridgeCode.contains("FallbackView()"), "Bridge should fall back to closureBody for out-of-bounds index")
     }
 
-    @Test("generateOverlaySource with previewIndex selects correct preview")
-    func overlaySourceRespectsPreviewIndex() {
-        let previews = PreviewParser.parse(source: Self.multiPreviewSource)
-        #expect(previews.count == 2)
+    // MARK: - switchPreviewForJIT
 
-        let (source, _) = BridgeGenerator.generateOverlaySource(
-            originalSource: Self.multiPreviewSource,
-            closureBody: previews[1].closureBody,
-            previewIndex: 1
-        )
-
-        let bridgeRange = source.range(of: "@_cdecl(\"createPreviewView\")")!
-        let bridgeCode = String(source[bridgeRange.lowerBound...])
-
-        #expect(bridgeCode.contains("SecondView()"), "Overlay bridge should render SecondView for previewIndex 1")
-        #expect(!bridgeCode.contains("FirstView()"), "Overlay bridge should NOT render FirstView for previewIndex 1")
-    }
-
-    @Test("PreviewSession.compile with previewIndex 1 renders second preview")
-    func previewSessionCompilesSecondPreview() async throws {
-        let tempDir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("previews-mcp-test-\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: tempDir) }
-
-        let sourceFile = tempDir.appendingPathComponent("MultiPreview.swift")
-        try Self.multiPreviewSource.write(to: sourceFile, atomically: true, encoding: .utf8)
-
-        let compiler = try await Compiler()
-        let session = PreviewSession(
-            sourceFile: sourceFile,
-            previewIndex: 1,
-            compiler: compiler
-        )
-
-        let compileResult = try await session.compile()
-        #expect(FileManager.default.fileExists(atPath: compileResult.dylibPath.path))
-
-        let loader = try DylibLoader(path: compileResult.dylibPath.path)
-        typealias CreateFunc = @convention(c) () -> UnsafeMutableRawPointer
-        let _: CreateFunc = try loader.symbol(name: "createPreviewView")
-    }
-
-    // MARK: - switchPreview
-
-    @Test("switchPreview compiles different preview and preserves traits")
+    @Test("switchPreviewForJIT compiles different preview and preserves traits")
     func switchPreviewPreservesTraits() async throws {
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("previews-mcp-test-\(UUID().uuidString)")
@@ -555,11 +441,11 @@ struct BridgeGeneratorTraitsTests {
             traits: PreviewTraits(colorScheme: "dark")
         )
 
-        let result0 = try await session.compile()
-        #expect(FileManager.default.fileExists(atPath: result0.dylibPath.path))
+        let result0 = try await session.compileObjectForJIT()
+        #expect(FileManager.default.fileExists(atPath: result0.objectPath.path))
 
-        let result1 = try await session.switchPreview(to: 1)
-        #expect(result1.dylibPath != result0.dylibPath)
+        let result1 = try await session.switchPreviewForJIT(to: 1)
+        #expect(result1.objectPath != result0.objectPath)
 
         let currentIndex = await session.previewIndex
         #expect(currentIndex == 1)
@@ -568,7 +454,7 @@ struct BridgeGeneratorTraitsTests {
         #expect(traits.colorScheme == "dark")
     }
 
-    @Test("switchPreview rolls back previewIndex on invalid index")
+    @Test("switchPreviewForJIT rolls back previewIndex on invalid index")
     func switchPreviewRollsBack() async throws {
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("previews-mcp-test-\(UUID().uuidString)")
@@ -584,10 +470,10 @@ struct BridgeGeneratorTraitsTests {
             previewIndex: 0,
             compiler: compiler
         )
-        _ = try await session.compile()
+        _ = try await session.compileObjectForJIT()
 
         await #expect(throws: PreviewSessionError.self) {
-            _ = try await session.switchPreview(to: 99)
+            _ = try await session.switchPreviewForJIT(to: 99)
         }
 
         let currentIndex = await session.previewIndex
@@ -595,26 +481,10 @@ struct BridgeGeneratorTraitsTests {
 
         // Negative index should also fail gracefully
         await #expect(throws: PreviewSessionError.self) {
-            _ = try await session.switchPreview(to: -1)
+            _ = try await session.switchPreviewForJIT(to: -1)
         }
         let afterNegative = await session.previewIndex
         #expect(afterNegative == 0, "previewIndex should roll back after negative index")
-    }
-
-    // MARK: - generateOverlaySource
-
-    @Test("generateOverlaySource with traits injects modifiers")
-    func overlaySourceWithTraits() {
-        let traits = PreviewTraits(colorScheme: "dark", dynamicTypeSize: "xxxLarge")
-        let (source, literals) = BridgeGenerator.generateOverlaySource(
-            originalSource: Self.testSource,
-            closureBody: "TestView()",
-            traits: traits
-        )
-        #expect(source.contains(".preferredColorScheme(.dark)"))
-        #expect(source.contains(".dynamicTypeSize(.xxxLarge)"))
-        #expect(source.contains("DesignTimeStore"))
-        #expect(!literals.isEmpty)
     }
 
     // MARK: - Setup plugin code generation
@@ -625,7 +495,8 @@ struct BridgeGeneratorTraitsTests {
             originalSource: Self.testSource,
             closureBody: "TestView()",
             setupModule: "MySetup",
-            setupType: "AppSetup"
+            setupType: "AppSetup",
+            renderOutputPath: "/tmp/out.png"
         )
         #expect(source.contains("import MySetup"))
         #expect(source.contains("@_cdecl(\"previewSetUp\")"))
@@ -641,7 +512,8 @@ struct BridgeGeneratorTraitsTests {
             closureBody: "TestView()",
             traits: traits,
             setupModule: "MySetup",
-            setupType: "AppSetup"
+            setupType: "AppSetup",
+            renderOutputPath: "/tmp/out.png"
         )
         #expect(source.contains("AppSetup.wrap(innerView)"))
         #expect(source.contains("wrappedView"))
@@ -658,7 +530,8 @@ struct BridgeGeneratorTraitsTests {
             originalSource: Self.testSource,
             closureBody: "TestView()",
             setupModule: "Foo\n}; /* exploit */",
-            setupType: "Bar"
+            setupType: "Bar",
+            renderOutputPath: "/tmp/out.png"
         )
         #expect(!source.contains("previewSetUp"), "Should not generate setup for invalid identifier")
         #expect(!source.contains("exploit"))
@@ -668,38 +541,12 @@ struct BridgeGeneratorTraitsTests {
     func combinedSourceNoSetup() {
         let (source, _) = BridgeGenerator.generateCombinedSource(
             originalSource: Self.testSource,
-            closureBody: "TestView()"
+            closureBody: "TestView()",
+            renderOutputPath: "/tmp/out.png"
         )
         #expect(!source.contains("previewSetUp"))
         #expect(!source.contains(".wrap("))
         #expect(!source.contains("DispatchSemaphore"))
-    }
-
-    @Test("generateBridgeOnlySource with setup generates import and entry points")
-    func bridgeOnlySourceWithSetup() {
-        let source = BridgeGenerator.generateBridgeOnlySource(
-            moduleName: "MyTarget",
-            closureBody: "ContentView()",
-            setupModule: "MySetup",
-            setupType: "AppSetup"
-        )
-        #expect(source.contains("import MySetup"))
-        #expect(source.contains("@_cdecl(\"previewSetUp\")"))
-        #expect(source.contains("AppSetup.setUp()"))
-        #expect(source.contains("AppSetup.wrap(innerView)"))
-    }
-
-    @Test("generateOverlaySource with setup passes through to combined")
-    func overlaySourceWithSetup() {
-        let (source, _) = BridgeGenerator.generateOverlaySource(
-            originalSource: Self.testSource,
-            closureBody: "TestView()",
-            setupModule: "MySetup",
-            setupType: "AppSetup"
-        )
-        #expect(source.contains("import MySetup"))
-        #expect(source.contains("@_cdecl(\"previewSetUp\")"))
-        #expect(source.contains("AppSetup.wrap(innerView)"))
     }
 
     // MARK: - Validation
@@ -765,10 +612,10 @@ struct BridgeGeneratorTraitsTests {
 
     // MARK: - @ViewBuilder nested function
 
-    /// Isolate the bridge `@_cdecl` function from the rest of the combined source
+    /// Isolate the generated bridge region from the rest of the combined source
     /// so substring assertions don't accidentally match the original user source.
     private func bridgeSlice(_ source: String) -> String {
-        let range = source.range(of: "@_cdecl(\"createPreviewView\")")!
+        let range = source.range(of: "SwiftUI.AnyView(__PreviewBridge.wrap")!
         return String(source[range.lowerBound...])
     }
 
@@ -802,7 +649,8 @@ struct BridgeGeneratorTraitsTests {
                 } else {
                     FallbackView()
                 }
-                """
+                """,
+            renderOutputPath: "/tmp/out.png"
         )
         let bridge = bridgeSlice(source)
         let wrapRange = bridge.range(of: "__PreviewBridge.wrap")
@@ -827,44 +675,49 @@ struct BridgeGeneratorTraitsTests {
         )
     }
 
-    @Test("generateBridgeOnlySource routes if #available body through __PreviewBridge.wrap")
-    func bridgeOnlySourceWrapsAvailable() {
-        let source = BridgeGenerator.generateBridgeOnlySource(
-            moduleName: "MyTarget",
-            closureBody: """
-                if #available(iOS 16.0, *) {
-                    NewView()
-                } else {
-                    FallbackView()
-                }
-                """
-        )
-        #expect(source.contains("__PreviewBridge.wrap"))
-        #expect(source.contains("if #available"))
-        #expect(source.contains("SwiftUI.AnyView(__PreviewBridge.wrap"))
-    }
+    @Test("generateCombinedSource routes if #unavailable body through __PreviewBridge.wrap")
+    func combinedSourceWrapsUnavailable() {
+        let unavailableSource = """
+            import SwiftUI
 
-    @Test("generateBridgeOnlySource routes if #unavailable body through __PreviewBridge.wrap")
-    func bridgeOnlySourceWrapsUnavailable() {
-        let source = BridgeGenerator.generateBridgeOnlySource(
-            moduleName: "MyTarget",
+            struct NewView: View {
+                var body: some View { Text("new") }
+            }
+
+            struct FallbackView: View {
+                var body: some View { Text("fallback") }
+            }
+
+            #Preview {
+                if #unavailable(iOS 26.0) {
+                    FallbackView()
+                } else {
+                    NewView()
+                }
+            }
+            """
+        let (source, _) = BridgeGenerator.generateCombinedSource(
+            originalSource: unavailableSource,
             closureBody: """
                 if #unavailable(iOS 26.0) {
                     FallbackView()
                 } else {
                     NewView()
                 }
-                """
+                """,
+            renderOutputPath: "/tmp/out.png"
         )
-        #expect(source.contains("__PreviewBridge.wrap"))
-        #expect(source.contains("if #unavailable"))
+        let bridge = bridgeSlice(source)
+        #expect(bridge.contains("__PreviewBridge.wrap"))
+        #expect(bridge.contains("if #unavailable"))
     }
 
     @Test("generateCombinedSource routes simple bodies through __PreviewBridge.wrap too")
     func combinedSourceWrapsSimpleBody() {
         let (source, _) = BridgeGenerator.generateCombinedSource(
             originalSource: Self.testSource,
-            closureBody: "TestView()"
+            closureBody: "TestView()",
+            renderOutputPath: "/tmp/out.png"
         )
         let bridge = bridgeSlice(source)
         // Simple bodies go through __PreviewBridge.wrap too — dispatch is unconditional
@@ -894,7 +747,8 @@ struct BridgeGeneratorTraitsTests {
 
         let (source, _) = BridgeGenerator.generateCombinedSource(
             originalSource: multiStmtSource,
-            closureBody: previews[0].closureBody
+            closureBody: previews[0].closureBody,
+            renderOutputPath: "/tmp/out.png"
         )
         let bridge = bridgeSlice(source)
         let wrapRange = bridge.range(of: "__PreviewBridge.wrap")
@@ -909,8 +763,8 @@ struct BridgeGeneratorTraitsTests {
     @Test("if #available body with traits applies modifiers on the __PreviewBridge.wrap call")
     func availableBodyWithTraits() {
         let traits = PreviewTraits(colorScheme: "dark")
-        let source = BridgeGenerator.generateBridgeOnlySource(
-            moduleName: "MyTarget",
+        let (source, _) = BridgeGenerator.generateCombinedSource(
+            originalSource: Self.availablePreviewSource,
             closureBody: """
                 if #available(iOS 16.0, *) {
                     NewView()
@@ -918,20 +772,23 @@ struct BridgeGeneratorTraitsTests {
                     FallbackView()
                 }
                 """,
-            traits: traits
+            traits: traits,
+            renderOutputPath: "/tmp/out.png"
         )
-        #expect(source.contains("__PreviewBridge.wrap"))
-        #expect(source.contains(".preferredColorScheme(.dark)"))
+        let bridge = bridgeSlice(source)
+        #expect(bridge.contains("__PreviewBridge.wrap"))
+        #expect(bridge.contains(".preferredColorScheme(.dark)"))
         // The modifier must be chained onto the wrap() result, inside SwiftUI.AnyView(...).
         #expect(
-            source.contains("SwiftUI.AnyView(__PreviewBridge.wrap"),
+            bridge.contains("SwiftUI.AnyView(__PreviewBridge.wrap"),
             "Bridge must wrap __PreviewBridge.wrap result in SwiftUI.AnyView(...)"
         )
-        // The closure body's closing `}` must come before the modifier — i.e. the modifier
+        // The wrap closure's body must come before the modifier — i.e. the modifier
         // chains on the wrap() call's result, not on something inside the body.
-        let closingBraceRange = source.range(of: "}\n            .preferredColorScheme(.dark)")
+        let fallbackRange = bridge.range(of: "FallbackView()")!
+        let modifierRange = bridge.range(of: ".preferredColorScheme(.dark)")!
         #expect(
-            closingBraceRange != nil,
+            fallbackRange.upperBound < modifierRange.lowerBound,
             "Modifier must be applied to the __PreviewBridge.wrap { ... } result, not inside its body"
         )
     }
@@ -963,22 +820,17 @@ struct BridgeGeneratorTraitsTests {
 
         let (combined, _) = BridgeGenerator.generateCombinedSource(
             originalSource: availableSource,
-            closureBody: previews[0].closureBody
+            closureBody: previews[0].closureBody,
+            renderOutputPath: "/tmp/out.png"
         )
 
         let compiler = try await Compiler()
-        let result = try await compiler.compileCombined(
+        let objectURL = try await compiler.compileObject(
             source: combined,
             moduleName: "AvailTest_\(Int.random(in: 0...999999))"
         )
 
-        let attrs = try FileManager.default.attributesOfItem(atPath: result.dylibPath.path)
-        let size = attrs[.size] as? Int ?? 0
-        #expect(size > 0, "Dylib should be non-empty")
-
-        let loader = try DylibLoader(path: result.dylibPath.path)
-        typealias CreateFunc = @convention(c) () -> UnsafeMutableRawPointer
-        let _: CreateFunc = try loader.symbol(name: "createPreviewView")
+        #expect(FileManager.default.fileExists(atPath: objectURL.path))
     }
 
     @Test("Full pipeline with multi-statement body compiles successfully")
@@ -1002,18 +854,17 @@ struct BridgeGeneratorTraitsTests {
 
         let (combined, _) = BridgeGenerator.generateCombinedSource(
             originalSource: multiSource,
-            closureBody: previews[0].closureBody
+            closureBody: previews[0].closureBody,
+            renderOutputPath: "/tmp/out.png"
         )
 
         let compiler = try await Compiler()
-        let result = try await compiler.compileCombined(
+        let objectURL = try await compiler.compileObject(
             source: combined,
             moduleName: "MultiStmtTest_\(Int.random(in: 0...999999))"
         )
 
-        let attrs = try FileManager.default.attributesOfItem(atPath: result.dylibPath.path)
-        let size = attrs[.size] as? Int ?? 0
-        #expect(size > 0, "Dylib should be non-empty")
+        #expect(FileManager.default.fileExists(atPath: objectURL.path))
     }
 
     // MARK: - UIKit body compile pipeline (iOS)
@@ -1041,20 +892,19 @@ struct BridgeGeneratorTraitsTests {
         let (combined, _) = BridgeGenerator.generateCombinedSource(
             originalSource: uiViewSource,
             closureBody: previews[0].closureBody,
-            platform: .iOS
+            platform: .iOS,
+            renderOutputPath: "/tmp/out.png"
         )
         #expect(combined.contains("__PreviewBridge.wrap"))
         #expect(combined.contains("UIViewRepresentable"))
 
         let compiler = try await Compiler(platform: .iOS)
-        let result = try await compiler.compileCombined(
+        let objectURL = try await compiler.compileObject(
             source: combined,
             moduleName: "UIViewTest_\(Int.random(in: 0...999999))"
         )
 
-        let attrs = try FileManager.default.attributesOfItem(atPath: result.dylibPath.path)
-        let size = attrs[.size] as? Int ?? 0
-        #expect(size > 0, "iOS dylib with UIView body should be non-empty")
+        #expect(FileManager.default.fileExists(atPath: objectURL.path))
     }
 
     @Test("Full pipeline with parameterized UIView init compiles for iOS")
@@ -1086,18 +936,17 @@ struct BridgeGeneratorTraitsTests {
         let (combined, _) = BridgeGenerator.generateCombinedSource(
             originalSource: uiViewSource,
             closureBody: previews[0].closureBody,
-            platform: .iOS
+            platform: .iOS,
+            renderOutputPath: "/tmp/out.png"
         )
 
         let compiler = try await Compiler(platform: .iOS)
-        let result = try await compiler.compileCombined(
+        let objectURL = try await compiler.compileObject(
             source: combined,
             moduleName: "UIViewInitArgsTest_\(Int.random(in: 0...999999))"
         )
 
-        let attrs = try FileManager.default.attributesOfItem(atPath: result.dylibPath.path)
-        let size = attrs[.size] as? Int ?? 0
-        #expect(size > 0, "iOS dylib with parameterized UIView init should be non-empty")
+        #expect(FileManager.default.fileExists(atPath: objectURL.path))
     }
 
     @Test("Full pipeline with UIViewController body compiles for iOS")
@@ -1122,20 +971,19 @@ struct BridgeGeneratorTraitsTests {
         let (combined, _) = BridgeGenerator.generateCombinedSource(
             originalSource: vcSource,
             closureBody: previews[0].closureBody,
-            platform: .iOS
+            platform: .iOS,
+            renderOutputPath: "/tmp/out.png"
         )
         #expect(combined.contains("__PreviewBridge.wrap"))
         #expect(combined.contains("UIViewControllerRepresentable"))
 
         let compiler = try await Compiler(platform: .iOS)
-        let result = try await compiler.compileCombined(
+        let objectURL = try await compiler.compileObject(
             source: combined,
             moduleName: "UIVCTest_\(Int.random(in: 0...999999))"
         )
 
-        let attrs = try FileManager.default.attributesOfItem(atPath: result.dylibPath.path)
-        let size = attrs[.size] as? Int ?? 0
-        #expect(size > 0, "iOS dylib with UIViewController body should be non-empty")
+        #expect(FileManager.default.fileExists(atPath: objectURL.path))
     }
 
     @Test("Full pipeline with SwiftUI body on iOS still compiles (regression guard)")
@@ -1156,23 +1004,18 @@ struct BridgeGeneratorTraitsTests {
         let (combined, _) = BridgeGenerator.generateCombinedSource(
             originalSource: swiftUISource,
             closureBody: previews[0].closureBody,
-            platform: .iOS
+            platform: .iOS,
+            renderOutputPath: "/tmp/out.png"
         )
 
         let compiler = try await Compiler(platform: .iOS)
-        let result = try await compiler.compileCombined(
+        let objectURL = try await compiler.compileObject(
             source: combined,
             moduleName: "SwiftUIiOSTest_\(Int.random(in: 0...999999))"
         )
 
-        let attrs = try FileManager.default.attributesOfItem(atPath: result.dylibPath.path)
-        let size = attrs[.size] as? Int ?? 0
-        #expect(size > 0, "iOS dylib with SwiftUI body should still be non-empty")
+        #expect(FileManager.default.fileExists(atPath: objectURL.path))
     }
-
-    // Body-kind probe emission tests live in `BodyKindProbeEmissionTests.swift`
-    // — split out so this struct stays under SwiftLint's `type_body_length`
-    // ceiling.
 
     // MARK: - Equatable
 

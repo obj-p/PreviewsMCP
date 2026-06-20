@@ -111,7 +111,7 @@ struct PreviewSessionBuildContextTests {
         }
     }
 
-    @Test("Tier 2 compile: dylib + populated literals + DesignTimeStore symbols")
+    @Test("Tier 2 compile: object + populated literals")
     func tier2Compile() async throws {
         let ctx = try await Self.buildSPMExample()
         #expect(ctx.supportsTier2)
@@ -126,17 +126,9 @@ struct PreviewSessionBuildContextTests {
             buildContext: ctx
         )
 
-        let result = try await session.compile()
-        #expect(FileManager.default.fileExists(atPath: result.dylibPath.path))
-        #expect(!result.literals.isEmpty, "Tier 2 should produce literal mappings")
-
-        let loader = try DylibLoader(path: result.dylibPath.path)
-        typealias CreateFunc = @convention(c) () -> UnsafeMutableRawPointer
-        let _: CreateFunc = try loader.symbol(name: "createPreviewView")
-        typealias SetString = @convention(c) (UnsafePointer<CChar>, UnsafePointer<CChar>) -> Void
-        let _: SetString = try loader.symbol(name: "designTimeSetString")
-        typealias SetInt = @convention(c) (UnsafePointer<CChar>, Int) -> Void
-        let _: SetInt = try loader.symbol(name: "designTimeSetInteger")
+        let build = try await session.compileObjectForJIT()
+        #expect(FileManager.default.fileExists(atPath: build.objectPath.path))
+        #expect(!build.literals.isEmpty, "Tier 2 should produce literal mappings")
     }
 
     @Test("Tier 1 context has supportsTier2 == false")
@@ -187,7 +179,7 @@ struct PreviewSessionBuildContextTests {
             buildContext: ctx
         )
 
-        _ = try await session.compile()
+        _ = try await session.compileObjectForJIT()
 
         let original = try String(contentsOf: Self.toDoViewFile, encoding: .utf8)
         #expect(original.contains("\"My Items\""), "ToDoView.swift should contain \"My Items\"")
