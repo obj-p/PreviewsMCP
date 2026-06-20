@@ -238,13 +238,14 @@ BuildSystemDetector.detect(for: sourceFile)
 buildSystem.build(platform:)
     → BuildContext { moduleName, compilerFlags, sourceFiles? }
 
-PreviewSession.compile():
+PreviewSession.compileObjectForJIT():
     if buildContext == nil:
-        → standalone mode (existing single-file behavior)
+        → standalone mode (single self-contained object)
     if buildContext.supportsTier2:
-        → Tier 2: generateOverlaySource() + compile all target sources
+        → Tier 2: generateCombinedSource() + recompile-narrowing split
+                  (editable preview file links a prebuilt stable module)
     else:
-        → Tier 1: generateBridgeOnlySource() with @testable import
+        → Tier 1: generateCombinedSource() compiled with the target's flags
 ```
 
 ### Adding a New Build System

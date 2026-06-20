@@ -35,7 +35,7 @@ Beyond the setup plugin, two other gaps exist:
 - `preview_variants` accepts new trait presets (e.g., `"rtl"` for right-to-left)
 - A `.previewsmcp.json` in the project root supplies default values for platform, device, traits, and quality — enabling AI agents to discover project intent and reducing per-call boilerplate to zero
 - A user-provided setup module conforming to `PreviewSetup` protocol can run app-level initialization once per session and wrap preview content in custom environment/theme views — replacing micro app mock setups
-- `setUp()` runs once when the host app launches — completely outside the hot-reload path. SDK initialization, auth, and font registration survive dylib reloads.
+- `setUp()` runs once when the agent process launches — completely outside the hot-reload path. SDK initialization, auth, and font registration survive structural reloads.
 - All three features compose: config file declares default traits + setup module, MCP/CLI params override config, setup module wraps content with trait overrides applied outermost
 
 ## 2. Background
@@ -202,7 +202,7 @@ A protocol-based system for user-provided app-level setup and view wrapping. The
 | Method | When it runs | Survives hot-reload? | Use case |
 |--------|-------------|---------------------|----------|
 | `setUp()` | Once per session, before the first preview renders | Yes — side effects persist in the host process | Firebase init, auth tokens, font registration, DI container setup, mock service registration |
-| `wrap(_:)` | Every dylib load (every structural recompile) | N/A — runs fresh each time | Theme providers, custom environment values, navigation containers |
+| `wrap(_:)` | Every render (every structural recompile) | N/A — runs fresh each time | Theme providers, custom environment values, navigation containers |
 
 **What we ship:** A new SPM library product `PreviewsSetupKit` containing the `PreviewSetup` protocol.
 
@@ -217,8 +217,8 @@ import SwiftUI
 /// mock dependency setup and theme wrapping, but PreviewsMCP provides the
 /// app shell, hot-reload, and rendering infrastructure.
 ///
-/// `setUp()` runs once when the host app launches — before any preview
-/// dylib is loaded. It runs in a real UIApplication process (iOS) or
+/// `setUp()` runs once when the agent process launches — before any preview
+/// renders. It runs in a real UIApplication process (iOS) or
 /// NSApplication process (macOS) with full app lifecycle. Use it for SDK
 /// initialization, authentication, font registration, DI container setup,
 /// and mock service registration. It is completely outside the hot-reload
@@ -229,7 +229,7 @@ import SwiftUI
 /// setup that must surround every preview.
 ///
 /// AnyView is required because the view type must be erased across the
-/// dynamic library boundary.
+/// `@_cdecl` C bridge boundary.
 public protocol PreviewSetup {
     /// Called once per session before the first preview renders.
     /// Async to support real auth flows and network calls.
@@ -237,7 +237,7 @@ public protocol PreviewSetup {
     /// error is reported as a warning to the MCP client.
     static func setUp() async throws
 
-    /// Wraps every preview view. Called on each dylib load.
+    /// Wraps every preview view. Called on each render.
     /// Trait modifiers from preview_configure are applied OUTSIDE
     /// this wrapper, so explicit overrides always take precedence.
     static func wrap(_ content: AnyView) -> AnyView
@@ -321,26 +321,22 @@ struct AppPreviewSetup: PreviewSetup {
 
 **How it works at runtime:**
 
-The setup plugin uses two separate `@_cdecl` entry points in the generated dylib, called at different points in the host app lifecycle:
+The generated source carries two `@_cdecl` entries: `previewSetUp` (calls `SetupType.setUp()`) and the render entry (wraps the preview body with `SetupType.wrap()`). The JIT reloader runs `previewSetUp` once per agent process, then renders via the render entry on each structural edit:
 
 ```
-Host app launches
-  → dlopen(first dylib)
-  → dlsym("previewSetUp")      → call once, await completion
-  → dlsym("createPreviewView") → call → render first preview
-  
+First render:
+  → run previewSetUp once, await completion
+  → render entry → wrap(body) → render
+
 Hot-reload (literal-only change):
-  → DesignTimeStore update      → SwiftUI re-renders (no dylib load, no setUp, no wrap)
+  → DesignTimeStore re-seed → re-render (no recompile, no setUp, no wrap)
 
 Hot-reload (structural change):
-  → dlopen(new dylib)
-  → dlsym("createPreviewView") → call → re-render (setUp is NOT called again)
+  → recompile + render entry → re-render (setUp is NOT called again)
 ```
 
 - The build system (SPM/Xcode/Bazel) builds the setup target alongside the main target. PreviewsMCP tells the build system to include it — the setup target's `.swiftmodule` becomes available on the import search path.
-- `BridgeGenerator` generates two entry points: `previewSetUp` (calls `SetupType.setUp()`) and `createPreviewView` (calls `SetupType.wrap()`).
-- The host app (both macOS and iOS) tracks a `hasCalledSetUp` flag. On first dylib load, it checks for the `previewSetUp` symbol and calls it. On subsequent dylib loads, it skips directly to `createPreviewView`.
-- Old dylibs are retained (never `dlclose`'d) — this is existing behavior. The side effects of `setUp()` (registered fonts, auth tokens, initialized SDKs, mock service registrations) persist in the host process across all subsequent dylib loads.
+- `setUp()` side effects (registered fonts, auth tokens, initialized SDKs, mock service registrations) persist in the agent process across all subsequent renders.
 - The user's main app target does NOT depend on `PreviewsSetupKit` — only the setup target does. No dev-tool leakage into production.
 
 **Generated bridge code (example):**
@@ -350,7 +346,7 @@ import SwiftUI
 import UIKit
 import MyAppPreviewSetup
 
-// Called once by host app on first dylib load
+// Run once per agent process before the first render.
 @_cdecl("previewSetUp")
 public func previewSetUp() {
     let semaphore = DispatchSemaphore(value: 0)
@@ -361,21 +357,16 @@ public func previewSetUp() {
     semaphore.wait()
 }
 
-// Called on every dylib load (initial + each structural reload)
-@_cdecl("createPreviewView")
-public func createPreviewView() -> UnsafeMutableRawPointer {
-    let innerView = SwiftUI.AnyView(
-        MyPreviewContent()
-    )
-    let wrappedView = AppPreviewSetup.wrap(innerView)
-    let view = SwiftUI.AnyView(
-        wrappedView
-            .preferredColorScheme(.dark)
-            .environment(\.locale, Locale(identifier: "ar"))
-    )
-    let hostingController = UIHostingController(rootView: view)
-    return Unmanaged.passRetained(hostingController).toOpaque()
-}
+// The render entry wraps the preview body and renders it on each structural edit.
+// `wrap()` runs every render; `setUp()` does not.
+let wrappedView = AppPreviewSetup.wrap(
+    SwiftUI.AnyView(MyPreviewContent())
+)
+let view = SwiftUI.AnyView(
+    wrappedView
+        .preferredColorScheme(.dark)
+        .environment(\.locale, Locale(identifier: "ar"))
+)
 ```
 
 **Trait modifiers are applied OUTSIDE the wrap** so explicit `preview_configure` overrides always take precedence over whatever the wrapper sets.
@@ -488,7 +479,6 @@ public static func generateCombinedSource(
     originalSource: String,
     closureBody: String,
     previewIndex: Int = 0,
-    entryPoint: String = "createPreviewView",
     platform: PreviewPlatform = .macOS,
     traits: PreviewTraits = PreviewTraits(),
     setupModule: String? = nil,     // NEW — module to import
@@ -499,42 +489,15 @@ public static func generateCombinedSource(
 When `setupModule` and `setupType` are both non-nil, the generated bridge code:
 1. Adds `import <setupModule>` to imports
 2. Generates a `@_cdecl("previewSetUp")` entry point that calls `<SetupType>.setUp()` via semaphore bridge
-3. In `createPreviewView`: wraps the view with `<SetupType>.wrap()`, then applies trait modifiers outermost
+3. In the render entry: wraps the view with `<SetupType>.wrap()`, then applies trait modifiers outermost
 
 When either is nil, bridge generation is unchanged — no `previewSetUp` entry point, no wrapping.
 
-Same parameters added to `generateBridgeOnlySource()` and `generateOverlaySource()`.
+### 4.4 setUp lifecycle
 
-### 4.4 Host app changes for setUp lifecycle
+The JIT reloader runs the generated `previewSetUp` entry once per agent process, before the first render. Its side effects (registered fonts, auth tokens, initialized SDKs, mock registrations) persist across every subsequent render in that process, so `setUp()` is never re-invoked on a structural reload or a variant capture.
 
-Both host apps (macOS `HostApp.swift` and iOS `IOSHostAppSource.swift`) gain a `hasCalledSetUp: Bool` flag:
-
-**iOS host app (IOSHostAppSource.swift):**
-```swift
-private var hasCalledSetUp = false
-
-private func loadPreview(dylibPath: String) {
-    guard let handle = dlopen(dylibPath, RTLD_NOW | RTLD_GLOBAL) else { ... }
-
-    // Call setUp exactly once on first dylib load
-    if !hasCalledSetUp {
-        if let setUpSym = dlsym(handle, "previewSetUp") {
-            typealias SetUpFunc = @convention(c) () -> Void
-            let setUpFn = unsafeBitCast(setUpSym, to: SetUpFunc.self)
-            setUpFn()
-        }
-        hasCalledSetUp = true
-    }
-
-    // Create preview view (every load)
-    guard let sym = dlsym(handle, "createPreviewView") else { ... }
-    // ... existing view creation code ...
-}
-```
-
-**setUp error reporting:** If `previewSetUp` fails, the error is sent back through the TCP protocol as `{"type":"setupError","message":"..."}`. The MCP `preview_start` response includes a warning: "Setup failed: <error>. Preview rendered without setup." This ensures errors are visible to AI agents and MCP clients, not buried in stderr.
-
-**macOS host app (`HostApp.swift`):** Same pattern — check `hasCalledSetUp` flag on first dylib load, call `previewSetUp` if the symbol exists.
+**setUp error reporting:** If `previewSetUp` fails, the preview still renders and the error surfaces in the MCP `preview_start` response as a warning ("Setup failed: <error>. Preview rendered without setup."), so it is visible to AI agents and MCP clients rather than buried in stderr.
 
 ### 4.5 Build system integration for setup target
 
@@ -611,8 +574,8 @@ In standalone mode (no build system), setup plugin is not supported — there's 
 | `Sources/PreviewsCLI/SnapshotCommand.swift` | Add new CLI flags, load config, apply defaults |
 | `Sources/PreviewsCLI/VariantsCommand.swift` | Load config, apply defaults |
 | `Sources/PreviewsIOS/IOSPreviewSession.swift` | Thread setup params through to PreviewSession |
-| `Sources/PreviewsIOS/IOSHostAppSource.swift` | Add `hasCalledSetUp` flag, call `previewSetUp` on first dylib load only, send setUp errors via TCP |
-| `Sources/PreviewsMacOS/HostApp.swift` | Add `hasCalledSetUp` flag, call `previewSetUp` on first dylib load only |
+| `Sources/PreviewsIOS/IOSHostAppSource.swift` | Run `previewSetUp` once per agent process, surface setUp errors in the `preview_start` response |
+| `Sources/PreviewsMacOS/HostApp.swift` | Run `previewSetUp` once per agent process |
 
 ## 6. Code Style
 
@@ -661,7 +624,7 @@ if let locale = traits.locale {
 - `traitModifiers()` outputs correct `.environment()` calls for new traits
 - Generated source includes `import SetupModule` when setup is configured
 - Generated source has separate `@_cdecl("previewSetUp")` calling `SetupType.setUp()`
-- Generated `createPreviewView` calls `SetupType.wrap()` but NOT `SetupType.setUp()`
+- The render entry calls `SetupType.wrap()` but NOT `SetupType.setUp()`
 - Trait modifiers are applied outside wrap in generated code
 - Generated source is unchanged when setup is nil (no `previewSetUp` entry point, no wrapping)
 
@@ -702,9 +665,9 @@ if let locale = traits.locale {
 - **Config validation:** Deferred — validate when traits are applied, not when config is parsed. `Codable` decoding catches structural issues; trait values are validated at use site for consistent behavior with and without config.
 - **setUp() error handling:** Proceed with warning — if `setUp()` throws, the host app logs the error and renders the preview without setup. Error is reported via TCP and included in MCP `preview_start` response.
 - **macOS setUp():** Document it — `setUp()` runs in an `NSApplication` on macOS and a `UIApplication` on iOS. Users can check `#if os(iOS)` in their setUp for platform-specific SDK init. macOS setUp is still useful for fonts, environment values, and design system setup.
-- **`setUp()` lifecycle:** Runs once per session via separate `@_cdecl("previewSetUp")` entry point. Host app calls it on first dylib load only. Completely outside the hot-reload path.
-- **Setup + hot-reload:** Literal-only changes don't reload dylibs, so neither `setUp()` nor `wrap()` re-runs. Structural changes reload the dylib but only call `createPreviewView` (which calls `wrap()`). `setUp()` side effects persist in the host process.
-- **Setup + variants:** Each variant recompiles and calls `createPreviewView` (triggering `wrap()`), but `setUp()` is NOT re-invoked. SDK init, auth, and fonts persist across all variant captures.
+- **`setUp()` lifecycle:** Runs once per agent process via a separate `@_cdecl("previewSetUp")` entry point, before the first render. Completely outside the hot-reload path.
+- **Setup + hot-reload:** Literal-only changes re-seed `DesignTimeStore` without recompiling, so neither `setUp()` nor `wrap()` re-runs. Structural changes recompile and re-render via the render entry (which calls `wrap()`). `setUp()` side effects persist in the agent process.
+- **Setup + variants:** Each variant recompiles and re-renders (triggering `wrap()`), but `setUp()` is NOT re-invoked. SDK init, auth, and fonts persist across all variant captures.
 - **Async setUp():** `setUp()` is `async throws`. The `@_cdecl` entry point bridges via `Task` (NOT `@MainActor`) + `DispatchSemaphore` to avoid deadlocking the main thread.
 - **Trait modifier ordering:** Traits applied outside wrap so explicit `preview_configure` overrides always win over wrapper defaults.
 - **Config key naming:** `quality` (not `snapshotQuality`) to match MCP/CLI naming. `setup.moduleName`/`setup.typeName` (not `target`/`type`) for clarity.
