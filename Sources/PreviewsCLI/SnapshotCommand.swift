@@ -70,11 +70,8 @@ struct SnapshotCommand: AsyncParsableCommand {
     )
     var scheme: String?
 
-    @Option(
-        name: .long,
-        help: "Force build system: 'spm', 'bazel', or 'xcode' (overrides auto-detection)"
-    )
-    var buildSystem: String?
+    @Option(name: .long, help: "Force the build system, overriding auto-detection")
+    var buildSystem: BuildSystemKind?
 
     @Option(name: .long, help: "Simulator device UDID (for ios; auto-selects if omitted)")
     var device: String?
@@ -222,7 +219,7 @@ struct SnapshotCommand: AsyncParsableCommand {
         ]
         if let project { startArgs["projectPath"] = .string(Path.normalize(project)) }
         if let scheme { startArgs["scheme"] = .string(scheme) }
-        if let buildSystem { startArgs["buildSystem"] = .string(buildSystem) }
+        if let buildSystem { startArgs["buildSystem"] = .string(buildSystem.rawValue) }
         if let device { startArgs["deviceUDID"] = .string(device) }
         if let colorScheme { startArgs["colorScheme"] = .string(colorScheme) }
         if let dynamicTypeSize { startArgs["dynamicTypeSize"] = .string(dynamicTypeSize) }

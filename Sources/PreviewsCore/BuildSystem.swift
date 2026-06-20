@@ -38,12 +38,14 @@ public enum BuildSystemDetector {
         scheme: String? = nil,
         buildSystem: BuildSystemKind? = nil
     ) async throws -> (any BuildSystem)? {
+        // An explicit override wins over auto-detection and never falls through
+        // to the other systems.
+        if let buildSystem = buildSystem {
+            return try await forced(
+                buildSystem, for: sourceFile, projectRoot: projectRoot, scheme: scheme)
+        }
         // If an explicit project root is provided, detect which build system applies there
         if let projectRoot = projectRoot {
-            if let buildSystem = buildSystem {
-                return try forced(
-                    buildSystem, for: sourceFile, projectRoot: projectRoot, scheme: scheme)
-            }
             let fm = FileManager.default
             var isDir: ObjCBool = false
             if fm.fileExists(
@@ -71,18 +73,6 @@ public enum BuildSystemDetector {
             }
             return nil
         }
-        // Without an explicit root, an override honors the requested system only:
-        // it never falls through to the others.
-        if let buildSystem = buildSystem {
-            switch buildSystem {
-            case .spm:
-                return try await SPMBuildSystem.detect(for: sourceFile)
-            case .bazel:
-                return try await BazelBuildSystem.detect(for: sourceFile)
-            case .xcode:
-                return try await XcodeBuildSystem.detect(for: sourceFile, scheme: scheme)
-            }
-        }
         // SPM first (most common for Swift-only projects)
         if let spm = try await SPMBuildSystem.detect(for: sourceFile) {
             return spm
@@ -98,19 +88,31 @@ public enum BuildSystemDetector {
         return nil
     }
 
-    /// Construct the requested build system directly against an explicit project root.
+    /// Build the requested system for an explicit override. With a `projectRoot`
+    /// it constructs the system directly; without one it walks up from the source
+    /// file via that system's own `detect`. Either way it never falls through to
+    /// another build system.
     private static func forced(
         _ kind: BuildSystemKind,
         for sourceFile: URL,
-        projectRoot: URL,
+        projectRoot: URL?,
         scheme: String?
-    ) throws -> any BuildSystem {
+    ) async throws -> (any BuildSystem)? {
         switch kind {
         case .spm:
+            guard let projectRoot = projectRoot else {
+                return try await SPMBuildSystem.detect(for: sourceFile)
+            }
             return SPMBuildSystem(projectRoot: projectRoot, sourceFile: sourceFile)
         case .bazel:
+            guard let projectRoot = projectRoot else {
+                return try await BazelBuildSystem.detect(for: sourceFile)
+            }
             return BazelBuildSystem(projectRoot: projectRoot, sourceFile: sourceFile)
         case .xcode:
+            guard let projectRoot = projectRoot else {
+                return try await XcodeBuildSystem.detect(for: sourceFile, scheme: scheme)
+            }
             guard let projectFile = XcodeBuildSystem.findXcodeProject(in: projectRoot) else {
                 throw BuildSystemError.buildSystemUnavailable(
                     kind: kind.rawValue,

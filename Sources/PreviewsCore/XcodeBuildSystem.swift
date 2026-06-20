@@ -415,21 +415,24 @@ public actor XcodeBuildSystem: BuildSystem {
         return flags
     }
 
+    /// Split a build-setting flag string into non-empty whitespace-separated tokens.
+    static func tokenizeFlags(_ value: String) -> [String] {
+        value
+            .split(whereSeparator: { $0 == " " || $0 == "\t" || $0 == "\n" })
+            .map(String.init)
+            .filter { !$0.isEmpty }
+    }
+
     /// Collect dependency static-archive paths referenced by `OTHER_LDFLAGS`,
     /// following an `@<file>` linker response file when present.
     static func collectDependencyArchives(fromOtherLDFlags value: String) -> [String] {
         var archives: [String] = []
-        let tokens =
-            value
-            .split(whereSeparator: { $0 == " " || $0 == "\t" || $0 == "\n" })
-            .map(String.init)
-            .filter { !$0.isEmpty }
         func appendArchive(_ path: String) {
             if path.hasSuffix(".a"), FileManager.default.fileExists(atPath: path) {
                 archives.append(path)
             }
         }
-        for token in tokens {
+        for token in Self.tokenizeFlags(value) {
             if token.hasPrefix("@") {
                 let file = String(token.dropFirst())
                 guard let content = try? String(contentsOfFile: file, encoding: .utf8) else {
@@ -470,12 +473,7 @@ public actor XcodeBuildSystem: BuildSystem {
     /// flags like `-emit-const-values-path`, `-static`, and `-enable-testing`
     /// are dropped.
     static func extractDependencyImportFlags(fromOtherSwiftFlags flags: String) -> [String] {
-        let tokens =
-            flags
-            .split(whereSeparator: { $0 == " " || $0 == "\t" || $0 == "\n" })
-            .map(String.init)
-            .filter { !$0.isEmpty }
-
+        let tokens = tokenizeFlags(flags)
         let clangValueFlags: Set<String> = ["-iquote", "-isystem", "-working-directory", "-I"]
         var result: [String] = []
         var seen = Set<String>()
