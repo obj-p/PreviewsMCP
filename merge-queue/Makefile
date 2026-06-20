@@ -8,6 +8,8 @@ CPUS       ?= 4
 MEM_MIB    ?= 8192
 DISK_GIB   ?= 64
 XCODE_VER  ?= 26.3
+SA_RETRIES ?= 3
+SSH_RETRIES ?= 2
 
 .PHONY: bundle snapshots clean
 bundle: $(STATE)/post-toolchain
@@ -21,14 +23,16 @@ $(STATE)/vz: | $(STATE)
 
 $(STATE)/install: $(STATE)/vz | $(STATE)
 	$(VZ_BIN) install $(BUNDLE) $(if $(IPSW),--ipsw $(IPSW) ,)--cpu-count $(CPUS) --memory-mib $(MEM_MIB) --disk-gib $(DISK_GIB) --ssh-username $(ADMIN_USER)
+	$(VZ_BIN) snapshot take $(BUNDLE) base
 	touch $@
 
 $(STATE)/setup: $(STATE)/install | $(STATE)
-	@echo "TODO setup -> drive Setup Assistant to login, snapshot post-sa (UNSOLVED: no turnkey vz preset)"
+	$(VZ_BIN) setup $(BUNDLE) --transport vnc --preset explore-click-vnc --retry $(SA_RETRIES) --restore-from base --output-dir $(CURDIR)/$(STATE)/sa-logs
+	$(VZ_BIN) snapshot take $(BUNDLE) post-sa
 	touch $@
 
 $(STATE)/ssh: $(STATE)/setup | $(STATE)
-	$(VZ_BIN) setup $(BUNDLE) --transport vnc --preset provision-ssh --output-dir $(CURDIR)/$(STATE)/setup-logs
+	$(VZ_BIN) setup $(BUNDLE) --transport vnc --preset provision-ssh --retry $(SSH_RETRIES) --restore-from post-sa --output-dir $(CURDIR)/$(STATE)/ssh-logs
 	$(VZ_BIN) snapshot take $(BUNDLE) post-ssh
 	touch $@
 
