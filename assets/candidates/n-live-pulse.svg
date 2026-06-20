@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="PreviewsMCP">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2D2E35"/>
+      <stop offset="1" stop-color="#1A1B1F"/>
+    </linearGradient>
+  </defs>
+  <rect width="256" height="256" rx="56" fill="url(#bg)"/>
+  <g fill="none" stroke-linecap="round">
+    <path d="M 168 80 A 64 64 0 0 1 168 176" stroke="#5DD8FF" stroke-width="7" opacity="0.9"/>
+    <path d="M 186 64 A 88 88 0 0 1 186 192" stroke="#D0A8FF" stroke-width="7" opacity="0.55"/>
+    <path d="M 88 80 A 64 64 0 0 0 88 176" stroke="#FF7AB2" stroke-width="7" opacity="0.9"/>
+    <path d="M 70 64 A 88 88 0 0 0 70 192" stroke="#FF7AB2" stroke-width="7" opacity="0.55"/>
+  </g>
+  <rect x="104" y="80" width="48" height="96" rx="12" fill="#32333A" stroke="#3F4048" stroke-width="1.5"/>
+  <rect x="120" y="86" width="16" height="4" rx="2" fill="#0D0D0F"/>
+  <circle cx="118" cy="106" r="6" fill="#FF7AB2"/>
+  <rect x="129" y="102" width="18" height="3.5" rx="1.75" fill="#DFDFE0"/>
+  <rect x="112" y="124" width="32" height="3.5" rx="1.75" fill="#5DD8FF"/>
+  <rect x="112" y="134" width="26" height="3.5" rx="1.75" fill="#3F4048"/>
+  <rect x="112" y="144" width="30" height="3.5" rx="1.75" fill="#3F4048"/>
+  <rect x="114" y="158" width="28" height="8" rx="4" fill="#67B7A4"/>
+</svg>

@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="PreviewsMCP">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2D2E35"/>
+      <stop offset="1" stop-color="#1A1B1F"/>
+    </linearGradient>
+    <clipPath id="tri"><path d="M 86 64 L 86 192 L 190 128 Z"/></clipPath>
+  </defs>
+  <rect width="256" height="256" rx="56" fill="url(#bg)"/>
+  <g clip-path="url(#tri)">
+    <rect x="86" y="64" width="120" height="128" fill="#26272D"/>
+    <rect x="96" y="82" width="80" height="9" rx="4.5" fill="#FF7AB2"/>
+    <rect x="96" y="100" width="80" height="9" rx="4.5" fill="#D0A8FF"/>
+    <rect x="96" y="118" width="80" height="9" rx="4.5" fill="#5DD8FF"/>
+    <rect x="96" y="136" width="80" height="9" rx="4.5" fill="#D9C97C"/>
+    <rect x="96" y="154" width="80" height="9" rx="4.5" fill="#67B7A4"/>
+    <rect x="96" y="172" width="80" height="9" rx="4.5" fill="#FC6A5D"/>
+  </g>
+  <path d="M 86 64 L 86 192 L 190 128 Z" fill="none" stroke="#DFDFE0" stroke-width="4" stroke-linejoin="round"/>
+</svg>

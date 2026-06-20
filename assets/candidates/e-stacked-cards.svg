@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="PreviewsMCP">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2D2E35"/>
+      <stop offset="1" stop-color="#1A1B1F"/>
+    </linearGradient>
+  </defs>
+  <rect width="256" height="256" rx="56" fill="url(#bg)"/>
+  <rect x="74" y="62" width="108" height="132" rx="14" fill="#26272D" stroke="#3F4048" stroke-width="1.5" transform="rotate(-9 128 128)"/>
+  <rect x="74" y="62" width="108" height="132" rx="14" fill="#2B2C33" stroke="#3F4048" stroke-width="1.5" transform="rotate(-3 128 128)"/>
+  <g>
+    <rect x="74" y="62" width="108" height="132" rx="14" fill="#32333A" stroke="#5DD8FF" stroke-width="2"/>
+    <rect x="86" y="74" width="84" height="34" rx="8" fill="#26272D"/>
+    <circle cx="103" cy="91" r="9" fill="#FF7AB2"/>
+    <rect x="118" y="84" width="40" height="5" rx="2.5" fill="#DFDFE0"/>
+    <rect x="118" y="94" width="30" height="4" rx="2" fill="#7F8C98"/>
+    <rect x="86" y="120" width="84" height="5" rx="2.5" fill="#5DD8FF"/>
+    <rect x="86" y="132" width="64" height="5" rx="2.5" fill="#3F4048"/>
+    <rect x="86" y="144" width="72" height="5" rx="2.5" fill="#3F4048"/>
+    <rect x="86" y="156" width="52" height="5" rx="2.5" fill="#3F4048"/>
+    <rect x="96" y="172" width="64" height="11" rx="5.5" fill="#67B7A4"/>
+  </g>
+  <g transform="translate(176 178)">
+    <circle r="17" fill="#1A1B1F" stroke="#5DD8FF" stroke-width="2.5"/>
+    <path d="M -9 -2 A 9 9 0 0 1 7 -6" fill="none" stroke="#5DD8FF" stroke-width="2.6" stroke-linecap="round"/>
+    <path d="M -5 -4 L 0 0 L -5 4" fill="none" stroke="#5DD8FF" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" transform="translate(7 -6) rotate(30)"/>
+    <path d="M 9 2 A 9 9 0 0 1 -7 6" fill="none" stroke="#5DD8FF" stroke-width="2.6" stroke-linecap="round"/>
+    <path d="M -5 -4 L 0 0 L -5 4" fill="none" stroke="#5DD8FF" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" transform="translate(-7 6) rotate(-150)"/>
+  </g>
+</svg>
