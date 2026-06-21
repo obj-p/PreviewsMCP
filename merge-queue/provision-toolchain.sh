@@ -54,18 +54,25 @@ log "booting guest"
 BOOT_PID=$!
 wait_ssh || { echo "guest did not become SSH-reachable" >&2; exit 1; }
 
-log "streaming xip into guest"
-"$VZ_BIN" ssh "$BUNDLE" -- "cat > /tmp/Xcode.xip" < "$XIP"
+if remote "test -d /Applications/Xcode.app"; then
+    log "Xcode already present, skipping install"
+else
+    log "streaming xip into guest"
+    "$VZ_BIN" ssh "$BUNDLE" -- "cat > /tmp/Xcode.xip" < "$XIP"
 
-log "expanding Xcode in guest"
-remote "cd /tmp && rm -rf Xcode.app && xip -x Xcode.xip"
-rsudo "rm -rf /Applications/Xcode.app && mv /tmp/Xcode.app /Applications/Xcode.app"
-remote "rm -f /tmp/Xcode.xip"
+    log "expanding Xcode in guest"
+    remote "cd /tmp && rm -rf Xcode.app && xip -x Xcode.xip"
+    rsudo "rm -rf /Applications/Xcode.app && mv /tmp/Xcode.app /Applications/Xcode.app"
+    remote "rm -f /tmp/Xcode.xip"
 
-log "selecting toolchain and accepting license"
-rsudo "xcode-select -s /Applications/Xcode.app"
-rsudo "xcodebuild -license accept"
-rsudo "xcodebuild -runFirstLaunch"
+    log "selecting toolchain and accepting license"
+    rsudo "xcode-select -s /Applications/Xcode.app"
+    rsudo "xcodebuild -license accept"
+    rsudo "xcodebuild -runFirstLaunch"
+fi
+
+log "enabling passwordless sudo for $ADMIN_USER"
+rsudo "bash -c 'echo \"$ADMIN_USER ALL=(ALL) NOPASSWD: ALL\" > /etc/sudoers.d/$ADMIN_USER && chmod 440 /etc/sudoers.d/$ADMIN_USER'"
 
 log "installing Homebrew, bazelisk, mise"
 remote 'NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
