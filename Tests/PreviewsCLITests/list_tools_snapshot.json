@@ -19,6 +19,15 @@
     "description" : "Compile and launch a live SwiftUI preview. Returns a session ID. Supports macOS (default) and iOS simulator.",
     "inputSchema" : {
       "properties" : {
+        "buildSystem" : {
+          "description" : "Force the build system instead of auto-detecting by project markers (spm, bazel, xcode). Useful when a project matches more than one, e.g. a rules_xcodeproj workspace that has both MODULE.bazel and a generated .xcodeproj.",
+          "enum" : [
+            "spm",
+            "bazel",
+            "xcode"
+          ],
+          "type" : "string"
+        },
         "colorScheme" : {
           "description" : "Color scheme override: 'light' or 'dark'",
           "enum" : [
