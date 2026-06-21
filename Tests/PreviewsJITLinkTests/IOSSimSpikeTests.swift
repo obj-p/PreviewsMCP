@@ -76,6 +76,85 @@ struct IOSSimSpikeTests {
         }
     }
 
+    /// Stage 0 (shell-owns-agent): the xcrun-free in-session spawn primitive.
+    /// `SimulatorManager.spawnInSession` drives the default `SimDevice
+    /// spawnWithPath:` (via SimulatorBridge) to run a program inside the device's
+    /// boot session — the way `simctl spawn` does, but with no subprocess. A
+    /// trivial executable that returns immediately must yield a real PID and fire
+    /// the termination handler, proving in-session spawn works without xcrun.
+    @Test(.enabled(if: jitOrcRuntimePresent), .timeLimit(.minutes(5)))
+    func spawnInSessionRunsProgramAndReportsExit() async throws {
+        let udid = try SimSpikeSupport.bootSimulator()
+        let exe = try SimSpikeSupport.compileExecutableForIOSSim(
+            source: "int main(void) { return 0; }", name: "trivial_exit")
+
+        let manager = SimulatorManager()
+        let exitStatus = ResultBox()
+        let pid = try await manager.spawnInSession(
+            udid: udid,
+            program: exe.path,
+            onExit: { status in exitStatus.set(status) })
+        #expect(pid > 0)
+
+        // The termination handler fires once the trivial program returns.
+        let deadline = Date().addingTimeInterval(30)
+        while exitStatus.get() == nil && Date() < deadline {
+            try await Task.sleep(for: .milliseconds(100))
+        }
+        #expect(exitStatus.get() != nil)
+    }
+
+    /// Stage 1 keystone (R1, networking half): an in-session-spawned process gets
+    /// host-loopback networking. The spawned program connects to a 127.0.0.1
+    /// listener on the host and writes a byte; receiving it proves `spawnInSession`
+    /// (default `spawnWithPath:`) shares the boot session's network — refuting the
+    /// prior claim that bare `spawnWithPath` is not in-session. This is what makes
+    /// the daemon-side spawn a viable launch primitive (the plan's fallback).
+    @Test(.enabled(if: jitOrcRuntimePresent), .timeLimit(.minutes(5)))
+    func inSessionSpawnGetsHostLoopbackNetworking() async throws {
+        let udid = try SimSpikeSupport.bootSimulator()
+        let exe = try SimSpikeSupport.compileExecutableForIOSSim(
+            source: """
+                #include <sys/socket.h>
+                #include <netinet/in.h>
+                #include <arpa/inet.h>
+                #include <unistd.h>
+                #include <stdlib.h>
+                int main(int argc, char **argv) {
+                    if (argc < 2) return 1;
+                    int fd = socket(AF_INET, SOCK_STREAM, 0);
+                    if (fd < 0) return 2;
+                    struct sockaddr_in addr;
+                    addr.sin_family = AF_INET;
+                    addr.sin_port = htons((unsigned short)atoi(argv[1]));
+                    addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+                    if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) != 0) return 3;
+                    char b = 42;
+                    write(fd, &b, 1);
+                    close(fd);
+                    return 0;
+                }
+                """,
+            name: "loopback_connect")
+
+        let listener = try SimSpikeSupport.openLoopbackListener()
+        defer { close(listener.fd) }
+
+        let manager = SimulatorManager()
+        let pid = try await manager.spawnInSession(
+            udid: udid,
+            program: exe.path,
+            arguments: [exe.path, String(listener.port)])
+        #expect(pid > 0)
+
+        let conn = try SimSpikeSupport.acceptOne(listenFD: listener.fd, timeoutSeconds: 30)
+        defer { close(conn) }
+        var byte: UInt8 = 0
+        let n = read(conn, &byte, 1)
+        #expect(n == 1)
+        #expect(byte == 42)
+    }
+
     /// Phase 2 fold: the REAL production host app (built by IOSHostBuilder with
     /// the executor linked from PreviewsIOS resources) hosts the ORC executor
     /// and the daemon links + runs an object inside it over the EPC socket. JIT
@@ -201,6 +280,56 @@ struct IOSSimSpikeTests {
         await session.stop()
     }
 
+    /// Stage 0 (shell-owns-agent): the agent lifecycle breadcrumb. The host app
+    /// reports its `applicationState` over the JSON channel; `IOSPreviewSession`
+    /// exposes the latest as `agentApplicationState`. After `start()` the daemon
+    /// must observe a valid breadcrumb, proving the flash detector is wired end
+    /// to end. The exact state is environment-dependent (a headless simctl launch
+    /// reports `background`, not `active`); later shell-hosted stages assert the
+    /// agent stays non-`active` across respawn, where the value is meaningful.
+    @Test(.enabled(if: jitOrcRuntimePresent), .timeLimit(.minutes(10)))
+    func agentReportsForegroundLifecycleState() async throws {
+        let udid = try SimSpikeSupport.bootSimulator()
+
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-ios-jit-lifecycle-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+        let sourceFile = tempDir.appendingPathComponent("HelloView.swift")
+        try Self.helloViewSource.write(to: sourceFile, atomically: true, encoding: .utf8)
+
+        let compiler = try await Compiler(platform: .iOS)
+        let hostBuilder = try await IOSHostBuilder()
+        let simulatorManager = SimulatorManager()
+
+        let session = IOSPreviewSession(
+            sourceFile: sourceFile,
+            deviceUDID: udid,
+            compiler: compiler,
+            hostBuilder: hostBuilder,
+            simulatorManager: simulatorManager,
+            makeJITReloader: { fd, orcPath in
+                try IOSJITStructuralReloader(remoteFD: fd, orcRuntimePath: orcPath)
+            }
+        )
+        defer {
+            SimSpikeSupport.terminateApp(udid: udid, bundleID: IOSPreviewSession.hostBundleID)
+        }
+
+        let pid = try await session.start()
+        #expect(pid > 0)
+
+        var state: String?
+        let deadline = Date().addingTimeInterval(10)
+        while Date() < deadline {
+            state = await session.agentApplicationState
+            if state != nil { break }
+            try await Task.sleep(for: .milliseconds(200))
+        }
+        #expect(["active", "inactive", "background"].contains(state))
+        await session.stop()
+    }
+
     /// Keystone for #221 reclaim: `relaunch()` must terminate and relaunch the host, re-accept
     /// both the JSON and EPC channels, rebuild the reloader, and re-render the current source.
     /// After the relaunch the accessibility tree fetched over the (re-established) JSON channel
@@ -251,7 +380,78 @@ struct IOSSimSpikeTests {
 
         let after = try await session.fetchElements()
         #expect(after.contains("Hello from iOS JIT!"))
+
+        // Stage 2 re-host evidence: save the post-relaunch DEVICE-DISPLAY frame
+        // (the shell composite) for visual inspection. A JPEG-size assertion
+        // cannot tell a re-hosted frame from a dead-black one (both ~70KB), so
+        // the re-host check is the saved image, not an automated threshold.
+        let afterShot = try await simulatorManager.screenshotData(udid: udid)
+        let shotPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent("stage2-rehost.jpg")
+        try afterShot.write(to: shotPath)
+        print("[stage2] post-relaunch device display → \(shotPath.path) (\(afterShot.count) bytes)")
         await session.stop()
+    }
+
+    /// Flash-free gap verification: capture the device display rapidly WHILE a
+    /// respawn happens. During the gap the shell should hold its cached frame +
+    /// spinner (never black / springboard), then show the re-hosted content. No
+    /// assertion (the signal is visual); saves frames to /tmp/flashfree-gap.
+    @Test(.enabled(if: jitOrcRuntimePresent), .timeLimit(.minutes(10)))
+    func flashFreeRespawnGap() async throws {
+        let udid = try SimSpikeSupport.bootSimulator()
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-gap-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+        let sourceFile = tempDir.appendingPathComponent("HelloView.swift")
+        try Self.helloViewSource.write(to: sourceFile, atomically: true, encoding: .utf8)
+
+        let compiler = try await Compiler(platform: .iOS)
+        let hostBuilder = try await IOSHostBuilder()
+        let simulatorManager = SimulatorManager()
+        let session = IOSPreviewSession(
+            sourceFile: sourceFile,
+            deviceUDID: udid,
+            compiler: compiler,
+            hostBuilder: hostBuilder,
+            simulatorManager: simulatorManager,
+            makeJITReloader: { fd, orcPath in
+                try IOSJITStructuralReloader(remoteFD: fd, orcRuntimePath: orcPath)
+            }
+        )
+        defer {
+            SimSpikeSupport.terminateApp(udid: udid, bundleID: IOSPreviewSession.shellBundleID)
+            SimSpikeSupport.terminateApp(udid: udid, bundleID: IOSPreviewSession.hostBundleID)
+        }
+
+        _ = try await session.start()
+        let before = try await session.fetchElements()
+        #expect(before.contains("Hello from iOS JIT!"))
+
+        let outDir = URL(fileURLWithPath: "/tmp/flashfree-gap")
+        try? FileManager.default.removeItem(at: outDir)
+        try? FileManager.default.createDirectory(at: outDir, withIntermediateDirectories: true)
+        let baseline = try await simulatorManager.screenshotData(udid: udid)
+        try baseline.write(to: outDir.appendingPathComponent("00-baseline.jpg"))
+
+        // Kill ONLY the agent and do NOT relaunch it, so the shell sits in the
+        // gap (retrying reconnect) — that is exactly when the cached-frame +
+        // spinner overlay should be on screen. Capture it serially. With the fix
+        // these frames show the held "Hello" + spinner; pre-fix they were black.
+        await simulatorManager.terminateAppIfRunning(
+            udid: udid, bundleID: IOSPreviewSession.hostBundleID)
+        for i in 1...8 {
+            try await Task.sleep(for: .milliseconds(700))
+            let shot = try await simulatorManager.screenshotData(udid: udid)
+            try shot.write(to: outDir.appendingPathComponent(String(format: "%02d-gap.jpg", i)))
+            print("[flashfree] gap frame \(i) (\(shot.count) bytes)")
+            // Measured bands for this fixed preview: a black/dead-scene frame is
+            // ~61KB, the held cached frame + dim + spinner is ~86KB, and the
+            // springboard (shell crashed/backgrounded) is ~364KB. Require the
+            // held band: not black (too small) and not springboard (too big).
+            #expect(shot.count > 70_000 && shot.count < 200_000)
+        }
     }
 
     /// Chunk 3 gating: a structural edit past the memory threshold relaunches the host
@@ -695,6 +895,28 @@ enum SimSpikeSupport {
             throw SpikeError.message("compiling \(source) for iossim failed:\n\(result.output)")
         }
         return output
+    }
+
+    /// Compile + link a trivial executable for the iphonesimulator so a test can
+    /// spawn it inside a booted device. Returns the host path to the binary.
+    static func compileExecutableForIOSSim(source: String, name: String) throws -> URL {
+        let outDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("PreviewsJITLinkIOSSimExe", isDirectory: true)
+        try FileManager.default.createDirectory(at: outDir, withIntermediateDirectories: true)
+        let src = outDir.appendingPathComponent("\(name).c")
+        try source.write(to: src, atomically: true, encoding: .utf8)
+        let exe = outDir.appendingPathComponent(name)
+
+        let sdk = try run("/usr/bin/xcrun", ["--sdk", "iphonesimulator", "--show-sdk-path"])
+            .output.trimmingCharacters(in: .whitespacesAndNewlines)
+        let target = "arm64-apple-ios16.0-simulator"
+        let result = try run(
+            "/usr/bin/xcrun",
+            ["clang", "-target", target, "-isysroot", sdk, src.path, "-o", exe.path])
+        guard result.status == 0 else {
+            throw SpikeError.message("compiling executable \(name) for iossim failed:\n\(result.output)")
+        }
+        return exe
     }
 
     static func bootSimulator() throws -> String {

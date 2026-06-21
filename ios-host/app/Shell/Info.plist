@@ -3,13 +3,15 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleIdentifier</key>
-    <string>com.previewsmcp.host</string>
+    <string>com.previewsmcp.shell</string>
     <key>CFBundleExecutable</key>
-    <string>PreviewsMCPHost</string>
+    <string>PreviewsMCPShell</string>
     <key>CFBundleName</key>
-    <string>Agent</string>
+    <string>Shell</string>
     <key>CFBundleDisplayName</key>
-    <string>Agent</string>
+    <string>Shell</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
     <key>CFBundleVersion</key>
     <string>1</string>
     <key>CFBundleShortVersionString</key>
@@ -26,16 +28,24 @@
             </array>
         </dict>
     </dict>
-    <key>UILaunchStoryboardName</key>
-    <string></string>
     <key>LSRequiresIPhoneOS</key>
     <true/>
+    <key>UILaunchScreen</key>
+    <dict/>
     <key>UIApplicationSceneManifest</key>
     <dict>
         <key>UIApplicationSupportsMultipleScenes</key>
         <true/>
         <key>UISceneConfigurations</key>
-        <dict/>
+        <dict>
+            <key>UIWindowSceneSessionRoleApplication</key>
+            <array>
+                <dict>
+                    <key>UISceneConfigurationName</key>
+                    <string>Default</string>
+                </dict>
+            </array>
+        </dict>
     </dict>
 </dict>
 </plist>

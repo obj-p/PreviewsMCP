@@ -47,7 +47,19 @@ struct IOSHostBuilderHashTests {
         // to the daemon once a second over the JSON channel (startMemoryReporting).
         // Updated 2026-06-20 for icon rebrand: AppIcon.png redrawn in the dark
         // Xcode color scheme (assets/icon.svg).
-        let expected = "ccd7d1483a11ad7e6b7ad78df9c796e276dc8450b00526fcae7001c542c47656"
+        // Updated 2026-06-20 for Option 2: HostApp.swift is now a SwiftUI App
+        // (WindowGroup + PreviewStore) hosted cross-process by the shell, the
+        // Info.plist scene manifest uses empty UISceneConfigurations, and the
+        // render installs via previewsmcp_set_preview_vc.
+        // Updated 2026-06-20 for shell-owns-agent Stage 0: HostApp.swift gained the
+        // lifecycle breadcrumb (sendLifecycle + applicationDidBecomeActive/
+        // applicationDidEnterBackground reporting applicationState over the channel).
+        // Updated 2026-06-21 for Agent rebrand: Info.plist display name is now
+        // "Agent" and AppIcon.png is the cyan-to-pink sync glyph (assets/agent-icon.svg).
+        // Updated 2026-06-21 for agent->shell redirect: HostApp.swift bounces a
+        // direct foreground to the shell via the private LSApplicationWorkspace
+        // (silent), gated so the hosted-launch transient .active does not bounce.
+        let expected = "89bc57661ae627bacf9c1b94247cd53999efc53adc8f3318be25045372d42ef8"
         #expect(hash == expected, "host-app artifact hash drifted (was \(expected), now \(hash))")
     }
 }

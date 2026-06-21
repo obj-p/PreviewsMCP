@@ -319,18 +319,16 @@ public enum BridgeGenerator {
     private static func iosRenderEntryPoint(viewCode: String, valuesPath: String?) -> String {
         let seed = designTimeSeed(valuesPath)
         return """
+            @_silgen_name("previewsmcp_set_preview_vc")
+            func _previewsmcp_set_preview_vc(_ pointer: UnsafeRawPointer)
+
             @_cdecl("renderPreviewToFile")
             public func renderPreviewToFile() -> Int32 {
                 MainActor.assumeIsolated {
                     \(seed)
                     let view = \(viewCode)
                     let hosting = UIHostingController(rootView: view)
-                    let windows = UIApplication.shared.connectedScenes
-                        .compactMap { $0 as? UIWindowScene }
-                        .flatMap { $0.windows }
-                    guard let window = windows.first(where: { $0.isKeyWindow }) ?? windows.first
-                    else { return Int32(-1) }
-                    window.rootViewController = hosting
+                    _previewsmcp_set_preview_vc(Unmanaged.passRetained(hosting).toOpaque())
                     return 0
                 }
             }

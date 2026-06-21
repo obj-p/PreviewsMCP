@@ -36,12 +36,20 @@ typedef NS_ENUM(NSInteger, SBDeviceState) {
                            (nullable NSDictionary<NSString *, NSString *> *)env
                              error:(NSError *_Nullable *_Nullable)error;
 
-/// Spawn a process inside the simulator. Returns the PID on success, or -1 on
-/// failure.
-- (NSInteger)spawnProcess:(NSString *)path
-                arguments:(nullable NSArray<NSString *> *)args
-              environment:(nullable NSDictionary<NSString *, NSString *> *)env
-                    error:(NSError *_Nullable *_Nullable)error;
+/// Spawn a process inside the device's boot session ("in-session"), the way
+/// `simctl spawn` does (without `--standalone`). On a booted device this is the
+/// default `SimDevice spawnWithPath:` behavior: the child shares the boot
+/// session, including the host loopback network, so it can reach a TCP listener
+/// on the host. (Setting the standalone option, by contrast, gives an isolated
+/// process with no in-session networking.) Returns the PID on success, or -1 on
+/// failure. `terminationHandler`, if given, is called with the child's exit
+/// status when it exits.
+- (NSInteger)spawnInSessionWithPath:(NSString *)path
+                          arguments:(nullable NSArray<NSString *> *)args
+                        environment:
+                            (nullable NSDictionary<NSString *, NSString *> *)env
+                 terminationHandler:(nullable void (^)(int status))handler
+                              error:(NSError *_Nullable *_Nullable)error;
 
 @end
 

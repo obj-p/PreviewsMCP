@@ -255,6 +255,36 @@ public actor SimulatorManager {
         return pid
     }
 
+    /// Spawn a program inside the device's boot session, the way `simctl spawn`
+    /// does, with no `xcrun` subprocess. An in-session spawn shares the host
+    /// loopback network, so the child can connect back to a TCP listener on the
+    /// host — a bare `SimDevice spawnWithPath:` does not. Returns the PID.
+    ///
+    /// `onExit`, if given, is invoked on a background queue with the child's
+    /// exit status when it terminates.
+    public func spawnInSession(
+        udid: String,
+        program: String,
+        arguments: [String] = [],
+        environment: [String: String] = [:],
+        onExit: (@Sendable (Int32) -> Void)? = nil
+    ) throws -> Int {
+        try ensureLoaded()
+        let sbDevice = try findSBDevice(udid: udid)
+        var error: NSError?
+        let pid = sbDevice.spawnInSession(
+            withPath: program,
+            arguments: arguments,
+            environment: environment,
+            terminationHandler: onExit.map { cb in { status in cb(status) } },
+            error: &error)
+        guard pid >= 0 else {
+            throw SimulatorError.launchFailed(
+                error?.localizedDescription ?? "spawnInSession failed for \(program)")
+        }
+        return pid
+    }
+
     // MARK: - Screenshots
 
     /// Capture a screenshot using direct IOSurface access.

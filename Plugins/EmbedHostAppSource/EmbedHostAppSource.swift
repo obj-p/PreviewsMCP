@@ -29,6 +29,11 @@ struct EmbedHostAppSource: BuildToolPlugin {
         let hostAppSwift = hostAppDir.appending(path: "HostApp.swift")
         let infoPlist = hostAppDir.appending(path: "Info.plist")
         let appIconPng = hostAppDir.appending(path: "AppIcon.png")
+        let shellDir = hostAppDir.appending(path: "Shell")
+        let shellSource = shellDir.appending(path: "ShellMain.m")
+        let shellInfoPlist = shellDir.appending(path: "Info.plist")
+        let shellEntitlements = shellDir.appending(path: "Shell.entitlements")
+        let shellIconPng = shellDir.appending(path: "AppIcon.png")
         let output = context.pluginWorkDirectoryURL.appending(path: "IOSHostAppSource.generated.swift")
 
         return [
@@ -39,9 +44,16 @@ struct EmbedHostAppSource: BuildToolPlugin {
                     hostAppSwift.path(),
                     infoPlist.path(),
                     appIconPng.path(),
+                    shellSource.path(),
+                    shellInfoPlist.path(),
+                    shellEntitlements.path(),
+                    shellIconPng.path(),
                     output.path(),
                 ],
-                inputFiles: [hostAppSwift, infoPlist, appIconPng],
+                inputFiles: [
+                    hostAppSwift, infoPlist, appIconPng,
+                    shellSource, shellInfoPlist, shellEntitlements, shellIconPng,
+                ],
                 outputFiles: [output]
             )
         ]

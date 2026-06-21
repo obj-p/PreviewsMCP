@@ -7,10 +7,12 @@ import PreviewsCore
 public actor IOSHostBuilder {
     private let workDir: URL
     private let swiftcPath: String
+    private let clangPath: String
     private let sdkPath: String
     private let codesignPath: String
     private let moduleCachePath: URL
     private var cachedAppPath: URL?
+    private var cachedShellAppPath: URL?
 
     public init(workDir: URL? = nil) async throws {
         let dir =
@@ -23,6 +25,7 @@ public actor IOSHostBuilder {
 
         self.sdkPath = try await Toolchain.sdkPath(for: .iOS)
         self.swiftcPath = try await Toolchain.swiftcPath()
+        self.clangPath = try await Toolchain.clangPath()
         self.codesignPath = try await Toolchain.codesignPath()
 
         let cacheDir = dir.appendingPathComponent("ModuleCache", isDirectory: true)
@@ -34,35 +37,60 @@ public actor IOSHostBuilder {
     /// Caches the result — subsequent calls return the cached path.
     /// Rebuilds if the host app source has changed (detected via hash marker).
     public func ensureHostApp() async throws -> URL {
-        if let cached = cachedAppPath {
-            // Check if source hash still matches
-            let hashFile = cached.appendingPathComponent(".source-hash")
-            let currentHash = Self.sourceHash
-            if let savedHash = try? String(contentsOf: hashFile, encoding: .utf8),
-                savedHash == currentHash
-            {
-                return cached
-            }
-            // Source changed — invalidate cache and rebuild
-            cachedAppPath = nil
+        if let fresh = Self.cachedAppIfFresh(cachedAppPath, hash: Self.sourceHash) {
+            return fresh
         }
         let path = try await buildHostApp()
         cachedAppPath = path
         return path
     }
 
+    /// Build the foreground shell app that hosts the agent's cross-process
+    /// scene, returning the path to the .app bundle. Caches like `ensureHostApp`.
+    public func ensureShellApp() async throws -> URL {
+        if let fresh = Self.cachedAppIfFresh(cachedShellAppPath, hash: Self.shellSourceHash) {
+            return fresh
+        }
+        let path = try await buildShellApp()
+        cachedShellAppPath = path
+        return path
+    }
+
+    /// Returns the cached .app only if its on-disk `.source-hash` still matches
+    /// `hash`; otherwise nil so the caller rebuilds.
+    private static func cachedAppIfFresh(_ cached: URL?, hash: String) -> URL? {
+        guard let cached else { return nil }
+        let hashFile = cached.appendingPathComponent(".source-hash")
+        if let savedHash = try? String(contentsOf: hashFile, encoding: .utf8), savedHash == hash {
+            return cached
+        }
+        return nil
+    }
+
+    private static func hashHex(_ chunks: [Data]) -> String {
+        var hasher = SHA256()
+        for chunk in chunks { hasher.update(data: chunk) }
+        return hasher.finalize().map { String(format: "%02x", $0) }.joined()
+    }
+
+    /// SHA-256 of the shell app source, plist, entitlements, and icon, for
+    /// cache invalidation (mirrors `sourceHash` for the host app).
+    private static let shellSourceHash: String = hashHex([
+        Data(IOSShellAppSource.code.utf8),
+        Data(IOSShellAppSource.infoPlist.utf8),
+        Data(IOSShellAppSource.entitlements.utf8),
+        IOSShellAppSource.iconBytes,
+    ])
+
     /// SHA-256 hash of the host app source, info plist, and embedded
     /// AppIcon.png, used for cache invalidation. Hashing only the Swift
     /// source would miss icon changes — replacing the PNG with a new
     /// design wouldn't rebuild the cached .app.
-    private static let sourceHash: String = {
-        var hasher = SHA256()
-        hasher.update(data: Data(IOSHostAppSource.code.utf8))
-        hasher.update(data: Data(IOSHostAppSource.infoPlist.utf8))
-        hasher.update(data: IOSAppIconData.bytes)
-        let digest = hasher.finalize()
-        return digest.map { String(format: "%02x", $0) }.joined()
-    }()
+    private static let sourceHash: String = hashHex([
+        Data(IOSHostAppSource.code.utf8),
+        Data(IOSHostAppSource.infoPlist.utf8),
+        IOSAppIconData.bytes,
+    ])
 
     /// Compile and package the iOS host app.
     private func buildHostApp() async throws -> URL {
@@ -109,6 +137,9 @@ public actor IOSHostBuilder {
             "-lLLVMTargetParser",
             "-lLLVMDemangle",
             "-lc++",
+            // Export the agent's symbols dynamically so the in-app JIT can
+            // resolve previewsmcp_set_preview_vc (called by the render entry).
+            "-Xlinker", "-export_dynamic",
         ]
 
         try await run(compileArgs)
@@ -135,6 +166,59 @@ public actor IOSHostBuilder {
         // Write source hash for cache invalidation
         let hashFile = appDir.appendingPathComponent(".source-hash")
         try Self.sourceHash.write(to: hashFile, atomically: true, encoding: .utf8)
+
+        return appDir
+    }
+
+    /// Compile and package the ObjC shell app.
+    private func buildShellApp() async throws -> URL {
+        let sourceFile = workDir.appendingPathComponent("PreviewsMCPShell.m")
+        let entitlementsFile = workDir.appendingPathComponent("PreviewsMCPShell.entitlements")
+        let binaryPath = workDir.appendingPathComponent("PreviewsMCPShell")
+        let appDir = workDir.appendingPathComponent("PreviewsMCPShell.app")
+        let appBinary = appDir.appendingPathComponent("PreviewsMCPShell")
+        let plistPath = appDir.appendingPathComponent("Info.plist")
+
+        try IOSShellAppSource.code.write(to: sourceFile, atomically: true, encoding: .utf8)
+        try IOSShellAppSource.entitlements.write(
+            to: entitlementsFile, atomically: true, encoding: .utf8)
+
+        // The shell carries restricted RunningBoard entitlements. The simulator
+        // honors them only when embedded in the Mach-O (__TEXT,__entitlements)
+        // section at link time — a `codesign --entitlements` blob on an ad-hoc
+        // signature is rejected with errno 163 for any key.
+        let compileArgs = [
+            clangPath,
+            "-arch", "arm64",
+            "-mios-simulator-version-min=17.0",
+            "-isysroot", sdkPath,
+            "-framework", "UIKit",
+            "-framework", "Foundation",
+            "-fobjc-arc",
+            "-Xlinker", "-sectcreate",
+            "-Xlinker", "__TEXT",
+            "-Xlinker", "__entitlements",
+            "-Xlinker", entitlementsFile.path,
+            "-o", binaryPath.path,
+            sourceFile.path,
+        ]
+        try await run(compileArgs)
+
+        try FileManager.default.createDirectory(at: appDir, withIntermediateDirectories: true)
+        if FileManager.default.fileExists(atPath: appBinary.path) {
+            try FileManager.default.removeItem(at: appBinary)
+        }
+        try FileManager.default.copyItem(at: binaryPath, to: appBinary)
+        try IOSShellAppSource.infoPlist.write(to: plistPath, atomically: true, encoding: .utf8)
+
+        let iconDest = appDir.appendingPathComponent("AppIcon.png")
+        try IOSShellAppSource.iconBytes.write(to: iconDest)
+
+        // Ad-hoc sign WITHOUT --entitlements (they are section-embedded above).
+        try await run(codesignPath, "-s", "-", "--force", appDir.path)
+
+        let hashFile = appDir.appendingPathComponent(".source-hash")
+        try Self.shellSourceHash.write(to: hashFile, atomically: true, encoding: .utf8)
 
         return appDir
     }

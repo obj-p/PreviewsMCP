@@ -17,7 +17,7 @@ struct BridgeGeneratorIOSRenderTests {
         #Preview { TestView() }
         """
 
-    @Test("iOS JIT source emits a renderPreviewToFile entry that hosts the view on the key window")
+    @Test("iOS JIT source emits a renderPreviewToFile entry that installs the view via previewsmcp_set_preview_vc")
     func iosEmitsRenderEntry() {
         let generated = BridgeGenerator.generateCombinedSource(
             originalSource: Self.source,
@@ -27,9 +27,8 @@ struct BridgeGeneratorIOSRenderTests {
             designTimeValuesPath: "/tmp/out.json")
         #expect(generated.source.contains("@_cdecl(\"renderPreviewToFile\")"))
         #expect(generated.source.contains("UIHostingController(rootView: view)"))
-        #expect(generated.source.contains("rootViewController"))
+        #expect(generated.source.contains("previewsmcp_set_preview_vc"))
         #expect(generated.source.contains("MainActor.assumeIsolated"))
-        #expect(generated.source.contains("isKeyWindow"))
         #expect(!generated.source.contains("NSHostingView"))
         #expect(!generated.source.contains("NSWindow"))
     }
