@@ -50,7 +50,7 @@ struct ListCommandTests {
         #expect(result.exitCode != 0)
     }
 
-    @Test("--json emits a JSON document with file and previews array")
+    @Test("--json emits one self-contained JSON object per preview (NDJSON)")
     func listJSON() async throws {
         let file = CLIRunner.spmExampleRoot
             .appendingPathComponent("Sources/ToDo/ToDoView.swift").path
@@ -58,20 +58,66 @@ struct ListCommandTests {
         let result = try await CLIRunner.run("list", arguments: [file, "--json"])
 
         #expect(result.exitCode == 0, "stderr: \(result.stderr)")
-        let stdout = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let data = stdout.data(using: .utf8) else {
-            Issue.record("stdout was not UTF-8")
-            return
+        let lines = ndjsonLines(result.stdout)
+        #expect(lines.count == 2, "ToDoView has 2 previews, one NDJSON line each")
+
+        var indices: [Int] = []
+        for line in lines {
+            let obj = try #require(
+                try JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any],
+                "each line must be a standalone JSON object: \(line)"
+            )
+            #expect((obj["file"] as? String)?.hasSuffix("ToDoView.swift") == true)
+            indices.append(try #require(obj["index"] as? Int))
+            #expect(obj["line"] is Int)
         }
-        let parsed = try JSONSerialization.jsonObject(with: data) as? [String: Any]
-        #expect(parsed != nil, "stdout should be a JSON object")
-        #expect(
-            (parsed?["file"] as? String)?.hasSuffix("ToDoView.swift") == true,
-            "should contain 'file' field"
-        )
-        let previews = parsed?["previews"] as? [[String: Any]]
-        #expect(previews != nil, "should contain 'previews' array")
-        #expect(previews?.count == 2, "ToDoView has 2 previews")
-        #expect(previews?.first?["index"] as? Int == 0, "first preview index should be 0")
+        #expect(indices.sorted() == [0, 1], "per-file indices start at 0")
     }
+
+    @Test("Scans a directory recursively for previews")
+    func listDirectory() async throws {
+        let dir = CLIRunner.spmExampleRoot.appendingPathComponent("Sources/ToDo").path
+
+        let result = try await CLIRunner.run("list", arguments: [dir])
+
+        #expect(result.exitCode == 0, "stderr: \(result.stderr)")
+        #expect(result.stdout.contains("ToDoView.swift"))
+        #expect(result.stdout.contains("UIKitPreview.swift"))
+        #expect(result.stdout.contains("Empty State"))
+        #expect(result.stderr.contains("previews"), "summary goes to stderr")
+    }
+
+    @Test("--json over a directory streams NDJSON aggregated across files")
+    func listDirectoryJSON() async throws {
+        let dir = CLIRunner.spmExampleRoot.appendingPathComponent("Sources/ToDo").path
+
+        let result = try await CLIRunner.run("list", arguments: [dir, "--json"])
+
+        #expect(result.exitCode == 0, "stderr: \(result.stderr)")
+        let lines = ndjsonLines(result.stdout)
+        #expect(lines.count >= 5, "the ToDo dir aggregates previews from several files")
+
+        var files: Set<String> = []
+        for line in lines {
+            let obj = try #require(
+                try JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any],
+                "each line must be a standalone JSON object: \(line)"
+            )
+            let file = try #require(obj["file"] as? String)
+            #expect(file.hasSuffix(".swift"))
+            files.insert(file)
+        }
+        #expect(files.count >= 2, "should aggregate across multiple files")
+        #expect(
+            !files.contains { $0.hasSuffix("Item.swift") },
+            "files with no previews emit no NDJSON lines"
+        )
+    }
+}
+
+private func ndjsonLines(_ stdout: String) -> [String] {
+    stdout
+        .split(separator: "\n")
+        .map { $0.trimmingCharacters(in: .whitespaces) }
+        .filter { !$0.isEmpty }
 }
