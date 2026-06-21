@@ -54,6 +54,12 @@ struct SetupCommand: AsyncParsableCommand {
     )
     var restoreFrom: String?
 
+    @Option(
+        name: .customLong("plan"),
+        help: "Path to a JSON screen-dispatch plan. When set, drives Setup Assistant via the plan's screen rules instead of a built-in preset. Requires --transport vnc."
+    )
+    var plan: String?
+
     @Flag(
         name: .customLong("recovery"),
         help: "Boot into macOS recoveryOS via VZMacOSVirtualMachineStartOptions.startUpFromMacOSRecovery=true. Required by the recoveryOS-bound presets (explore-recovery, disable-sip)."
@@ -202,6 +208,21 @@ struct SetupCommand: AsyncParsableCommand {
             throw VMError("--retry > 0 requires --restore-from <snapshot-name>")
         }
 
+        let dispatchRules: [ScreenRule]?
+        let dispatchMaxIterations: Int
+        if let planPath = plan {
+            if transport != .vnc {
+                throw VMError("--plan requires --transport vnc")
+            }
+            let loaded = try SetupPlan.load(
+                from: URL(fileURLWithPath: (planPath as NSString).expandingTildeInPath))
+            dispatchRules = try loaded.screenRules()
+            dispatchMaxIterations = loaded.maxIterations ?? 60
+        } else {
+            dispatchRules = nil
+            dispatchMaxIterations = 60
+        }
+
         let maxAttempts = retry + 1
         var lastError: Error?
         for attempt in 1...maxAttempts {
@@ -221,7 +242,8 @@ struct SetupCommand: AsyncParsableCommand {
 
             do {
                 try await runOneAttempt(
-                    bundle: bundle, steps: steps, screenshotDir: attemptDir)
+                    bundle: bundle, steps: steps, dispatchRules: dispatchRules,
+                    dispatchMaxIterations: dispatchMaxIterations, screenshotDir: attemptDir)
                 Log.info("sequence succeeded on attempt \(attempt)")
                 print(attemptDir.path)
                 return
@@ -239,6 +261,8 @@ struct SetupCommand: AsyncParsableCommand {
     private func runOneAttempt(
         bundle: VMBundle,
         steps: [SetupAssistantSequence.Step],
+        dispatchRules: [ScreenRule]?,
+        dispatchMaxIterations: Int,
         screenshotDir: URL
     ) async throws {
         let host = try await MainActor.run {
@@ -262,8 +286,15 @@ struct SetupCommand: AsyncParsableCommand {
                 try client.handshake()
                 Log.info("RFB client ready; running sequence via VNC transport")
 
-                try await SetupAssistantSequence.runVNC(
-                    steps, host: host, client: client, screenshotDir: screenshotDir)
+                if let dispatchRules {
+                    try await SetupAssistantSequence.runDispatchVNC(
+                        rules: dispatchRules, host: host, client: client,
+                        screenshotDir: screenshotDir,
+                        maxIterations: dispatchMaxIterations)
+                } else {
+                    try await SetupAssistantSequence.runVNC(
+                        steps, host: host, client: client, screenshotDir: screenshotDir)
+                }
             }
         } catch {
             Log.info("sequence threw: \(error.localizedDescription); force-stopping VM")
@@ -1372,7 +1403,7 @@ struct SetupCommand: AsyncParsableCommand {
 
             // Lock screen: password field is focused by default. Type
             // the password and submit.
-            .type("vz"),
+            .type("vzvz"),
             .key(.returnKey),
             .wait(seconds: 25),
             .screenshot(label: "02-desktop"),
@@ -1398,7 +1429,7 @@ struct SetupCommand: AsyncParsableCommand {
                 + "sudo chown root:wheel /Library/LaunchDaemons/com.vz.bootstrap-ssh.plist"),
             .key(.returnKey),
             .wait(seconds: 2),
-            .type("vz"),  // sudo password (first sudo of the session)
+            .type("vzvz"),  // sudo password (first sudo of the session)
             .key(.returnKey),
             .wait(seconds: 4),
 
@@ -1827,11 +1858,11 @@ struct SetupCommand: AsyncParsableCommand {
             .wait(seconds: 0.5),
             .key(.tab),  // skip Account Name (auto-fills from Full Name)
             .wait(seconds: 0.5),
-            .type("vz"),  // Password
+            .type("vzvz"),  // Password
             .wait(seconds: 0.5),
-            .key(.tab),
+            .clickByText("Verify Password"),
             .wait(seconds: 0.5),
-            .type("vz"),  // Verify Password
+            .type("vzvz"),  // Verify Password
             .wait(seconds: 1),
             .screenshot(label: "12-account-filled"),
 
@@ -1843,12 +1874,9 @@ struct SetupCommand: AsyncParsableCommand {
             .wait(seconds: 60),
             .screenshot(label: "13-after-account-continue"),
 
-            // === Sign In to Your Apple Account ===
-            // Skip — "Set Up Later" is bottom-left. macOS pops a
-            // confirmation dialog with "Don't Skip" / "Skip" buttons.
-            // Exact-match-preferred OCR find picks "Skip" reliably
-            // (not "Don't Skip" by substring).
             .verifyText("Sign In to Your Apple Account"),
+            .clickByText("Other Sign-In Options"),
+            .wait(seconds: 2),
             .clickByText("Set Up Later"),
             .wait(seconds: 3),
             .clickByText("Skip"),

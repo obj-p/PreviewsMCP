@@ -3,7 +3,7 @@ VZ_BIN     := $(VZ_DIR)/.build/release/vz
 STATE      := .state
 BUNDLE     ?= $(CURDIR)/vm/merge-queue.bundle
 ADMIN_USER ?= admin
-ADMIN_PASS ?= vz
+ADMIN_PASS ?= vzvz
 CPUS       ?= 4
 MEM_MIB    ?= 8192
 DISK_GIB   ?= 120
@@ -13,6 +13,7 @@ XCODE_XIP  ?=
 XIP_CACHE  ?= $(HOME)/.cache/merge-queue/xcode
 SA_RETRIES ?= 3
 SSH_RETRIES ?= 2
+SA_PLAN    ?= $(CURDIR)/sa-plan.json
 
 .PHONY: bundle snapshots clean
 bundle: $(STATE)/post-toolchain
@@ -30,7 +31,7 @@ $(STATE)/install: $(STATE)/vz | $(STATE)
 	touch $@
 
 $(STATE)/setup: $(STATE)/install | $(STATE)
-	$(VZ_BIN) setup $(BUNDLE) --transport vnc --preset explore-click-vnc --retry $(SA_RETRIES) --restore-from base --output-dir $(CURDIR)/$(STATE)/sa-logs
+	$(VZ_BIN) setup $(BUNDLE) --transport vnc --plan $(SA_PLAN) --retry $(SA_RETRIES) --restore-from base --output-dir $(CURDIR)/$(STATE)/sa-logs
 	$(VZ_BIN) snapshot take $(BUNDLE) post-sa
 	touch $@
 
