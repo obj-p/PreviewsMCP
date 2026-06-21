@@ -1,3 +1,4 @@
+import ObjectiveC
 import SwiftUI
 import UIKit
 
@@ -45,8 +46,48 @@ private struct PreviewRootView: View {
 @main
 struct PreviewAgentApp: App {
     @UIApplicationDelegateAdaptor(PreviewHostAppDelegate.self) var appDelegate
+    @Environment(\.scenePhase) private var scenePhase
     var body: some Scene {
         WindowGroup { PreviewRootView() }
+            .onChange(of: scenePhase) { _, phase in
+                AgentForegroundRedirect.shared.handle(phase)
+            }
+    }
+}
+
+/// Sends a human who opens the agent directly back to the shell, which owns the
+/// visible preview. The agent is meant to be hosted by the shell and kept in
+/// the background, so a foreground means a direct open.
+///
+/// A hosted launch briefly flips the agent's scene to `.active` before the
+/// shell hosts it (the relaunch flash), so we must not treat that transient as
+/// a direct open. When the daemon launches us for hosting (it passes
+/// `--agent-sock`), we arm only after the scene has settled to `.background`;
+/// a later `.active` is then a real user foreground. A launch with no daemon
+/// args is a springboard tap, so we redirect immediately.
+private final class AgentForegroundRedirect {
+    static let shared = AgentForegroundRedirect()
+    private let launchedForHosting = ProcessInfo.processInfo.arguments.contains("--agent-sock")
+    private var hostedSettled = false
+
+    func handle(_ phase: ScenePhase) {
+        if phase == .background { hostedSettled = true }
+        guard phase == .active, !launchedForHosting || hostedSettled else { return }
+        foregroundShell()
+    }
+
+    /// Foreground the shell without the cross-app consent alert `openURL` would
+    /// show. Uses the same private SPI family the shell already relies on;
+    /// simulator-only.
+    private func foregroundShell() {
+        let selector = Selector(("openApplicationWithBundleID:"))
+        guard let workspaceClass = NSClassFromString("LSApplicationWorkspace") as? NSObject.Type,
+            let workspace = workspaceClass.perform(Selector(("defaultWorkspace")))?.takeUnretainedValue(),
+            let method = class_getInstanceMethod(type(of: workspace), selector)
+        else { return }
+        typealias OpenByID = @convention(c) (AnyObject, Selector, NSString) -> Bool
+        let open = unsafeBitCast(method_getImplementation(method), to: OpenByID.self)
+        _ = open(workspace, selector, "com.previewsmcp.shell" as NSString)
     }
 }
 

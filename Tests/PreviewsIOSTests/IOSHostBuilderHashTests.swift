@@ -56,7 +56,10 @@ struct IOSHostBuilderHashTests {
         // applicationDidEnterBackground reporting applicationState over the channel).
         // Updated 2026-06-21 for Agent rebrand: Info.plist display name is now
         // "Agent" and AppIcon.png is the cyan-to-pink sync glyph (assets/agent-icon.svg).
-        let expected = "56f6d48382bb8401dfe0a4fb5ef2cdf033ea448c7fe8cfb70f8af2801be2717c"
+        // Updated 2026-06-21 for agent->shell redirect: HostApp.swift bounces a
+        // direct foreground to the shell via the private LSApplicationWorkspace
+        // (silent), gated so the hosted-launch transient .active does not bounce.
+        let expected = "89bc57661ae627bacf9c1b94247cd53999efc53adc8f3318be25045372d42ef8"
         #expect(hash == expected, "host-app artifact hash drifted (was \(expected), now \(hash))")
     }
 }
