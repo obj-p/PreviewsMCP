@@ -18,7 +18,7 @@ struct RunCommand: AsyncParsableCommand {
             """
     )
 
-    @Argument(help: "Path to Swift source file containing #Preview")
+    @Argument(help: "Path to Swift source file containing #Preview", transform: Path.normalize)
     var file: String
 
     @Option(name: .long, help: "Which preview to show (0-based index)")
@@ -33,7 +33,11 @@ struct RunCommand: AsyncParsableCommand {
     @Option(name: .long, help: "Target platform: 'macos' or 'ios' (auto-detected if omitted)")
     var platform: CLIPlatform?
 
-    @Option(name: .long, help: "Project root path (auto-detected if omitted)")
+    @Option(
+        name: .long,
+        help: "Project root path (auto-detected if omitted)",
+        transform: Path.normalize
+    )
     var project: String?
 
     @Option(
@@ -66,7 +70,11 @@ struct RunCommand: AsyncParsableCommand {
     @Flag(name: .long, help: "Hide Simulator.app GUI (iOS only)")
     var headless: Bool = false
 
-    @Option(name: .long, help: "Path to .previewsmcp.json config file (auto-discovered if omitted)")
+    @Option(
+        name: .long,
+        help: "Path to .previewsmcp.json config file (auto-discovered if omitted)",
+        transform: Path.normalize
+    )
     var config: String?
 
     @Flag(
@@ -81,11 +89,13 @@ struct RunCommand: AsyncParsableCommand {
     )
     var json: Bool = false
 
-    mutating func run() async throws {
-        guard FileManager.default.fileExists(atPath: Path.normalize(file)) else {
+    func validate() throws {
+        guard FileManager.default.fileExists(atPath: file) else {
             throw ValidationError("File not found: \(file)")
         }
+    }
 
+    mutating func run() async throws {
         // Local trait validation — fail fast before reaching the daemon.
         do {
             _ = try PreviewTraits.validated(
@@ -180,13 +190,13 @@ struct RunCommand: AsyncParsableCommand {
         // re-normalizes on receipt (idempotent for already-canonical
         // paths) to also cover non-CLI MCP clients.
         var args: [String: Value] = [
-            "filePath": .string(Path.normalize(file)),
+            "filePath": .string(file),
             "previewIndex": .int(preview),
             "width": .int(width),
             "height": .int(height),
         ]
         if let platform { args["platform"] = .string(platform.rawValue) }
-        if let project { args["projectPath"] = .string(Path.normalize(project)) }
+        if let project { args["projectPath"] = .string(project) }
         if let scheme { args["scheme"] = .string(scheme) }
         if let buildSystem { args["buildSystem"] = .string(buildSystem.rawValue) }
         if let device { args["deviceUDID"] = .string(device) }
@@ -195,7 +205,7 @@ struct RunCommand: AsyncParsableCommand {
         if let locale { args["locale"] = .string(locale) }
         if let layoutDirection { args["layoutDirection"] = .string(layoutDirection) }
         if let legibilityWeight { args["legibilityWeight"] = .string(legibilityWeight) }
-        if let config { args["config"] = .string(Path.normalize(config)) }
+        if let config { args["config"] = .string(config) }
         // Always send headless — both the macOS and iOS daemon paths default
         // `extractOptionalBool("headless") ?? true` when the key is absent, so
         // dropping the key on `--headless=false` would silently force a headless
