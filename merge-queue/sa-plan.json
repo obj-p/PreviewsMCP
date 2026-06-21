@@ -54,6 +54,11 @@
       { "op": "wait", "seconds": 2 },
       { "op": "clickByText", "text": "Agree" }
     ]},
+    { "match": "Age Range", "actions": [
+      { "op": "clickByText", "text": "Adult" },
+      { "op": "wait", "seconds": 1 },
+      { "op": "clickByText", "text": "Continue" }
+    ]},
     { "match": "Location Services", "actions": [
       { "op": "clickByText", "text": "Continue" },
       { "op": "wait", "seconds": 2 },
@@ -82,8 +87,12 @@
     { "match": "Language", "actions": [
       { "op": "key", "key": "return" }
     ]},
-    { "match": "Get Started", "terminal": true, "actions": [
+    { "match": "Finder", "terminal": true, "actions": [] },
+    { "match": "Get Started", "actions": [
       { "op": "clickByText", "text": "Get Started" }
+    ]},
+    { "match": "Continue", "actions": [
+      { "op": "key", "key": "return" }
     ]}
   ]
 }
