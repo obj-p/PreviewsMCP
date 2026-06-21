@@ -4,13 +4,17 @@ import PreviewsIOS
 import PreviewsJITLink
 import Testing
 
-/// Phase 0 spike: prove the macOS daemon can drive an ORC executor running
-/// inside an iOS simulator process and link + run an object there. The executor
-/// (`.build-iossim/iossim-executor`, built by ios-host/executor/build.sh)
-/// connects back over TCP loopback, which the simulator shares with the host,
-/// and the daemon builds the remote session over that fd. Gated on the iossim
-/// artifacts so the macOS bar is unaffected when they are absent.
-struct IOSSimSpikeTests {
+/// End-to-end iOS preview tests: the daemon builds the real host app, boots the
+/// simulator, and drives the production `IOSPreviewSession` over EPC (flash-free
+/// respawn, relaunch, JIT render, agent->shell redirect). A few early tests use
+/// the standalone `iossim-executor` (built by `ios-host/executor/build.sh`) and
+/// self-skip when that artifact is absent.
+///
+/// `.serialized` because every test shares one simulator, one host-app bundle
+/// ID, and one IOSHostBuilder workDir, so they cannot run concurrently (parallel
+/// runs clobber the host-app source mid-build). See #244.
+@Suite(.serialized)
+struct IOSPreviewE2ETests {
     static let packageRoot = URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent()
         .deletingLastPathComponent()
@@ -32,7 +36,7 @@ struct IOSSimSpikeTests {
 
     @Test(.enabled(if: artifactsPresent), .timeLimit(.minutes(5)))
     func linksCObjectRemotelyIntoSimulator() throws {
-        try SimSpikeSupport.withRemoteSession(fixture: "answer.c") { session in
+        try IOSPreviewE2ESupport.withRemoteSession(fixture: "answer.c") { session in
             let result = try session.runMain(symbol: "answer")
             #expect(result == 42)
         }
@@ -40,7 +44,7 @@ struct IOSSimSpikeTests {
 
     @Test(.enabled(if: artifactsPresent), .timeLimit(.minutes(5)))
     func linksSwiftObjectRemotelyIntoSimulator() throws {
-        try SimSpikeSupport.withRemoteSession(fixture: "swift_answer.swift") { session in
+        try IOSPreviewE2ESupport.withRemoteSession(fixture: "swift_answer.swift") { session in
             let result = try session.runMain(symbol: "swift_answer")
             #expect(result == 42)
         }
@@ -48,7 +52,7 @@ struct IOSSimSpikeTests {
 
     @Test(.enabled(if: artifactsPresent), .timeLimit(.minutes(5)))
     func runsOnMainThreadInSimulator() throws {
-        try SimSpikeSupport.withRemoteSession(fixture: "main_thread_probe.swift") { session in
+        try IOSPreviewE2ESupport.withRemoteSession(fixture: "main_thread_probe.swift") { session in
             let offMain = try session.runMain(symbol: "main_thread_probe")
             #expect(offMain == 0)
             let onMain = try session.runOnMain(symbol: "main_thread_probe")
@@ -58,7 +62,7 @@ struct IOSSimSpikeTests {
 
     @Test(.enabled(if: artifactsPresent), .timeLimit(.minutes(5)))
     func buildsUIHostingControllerInSimulator() throws {
-        try SimSpikeSupport.withRemoteSession(fixture: "ios_hosting_probe.swift") { session in
+        try IOSPreviewE2ESupport.withRemoteSession(fixture: "ios_hosting_probe.swift") { session in
             let result = try session.runOnMain(symbol: "ios_hosting_probe_value")
             #expect(result == 1)
         }
@@ -66,7 +70,7 @@ struct IOSSimSpikeTests {
 
     @Test(.enabled(if: artifactsPresent), .timeLimit(.minutes(5)))
     func rendersSwiftUIContentInSimulator() throws {
-        try SimSpikeSupport.withRemoteSession(fixture: "ios_render_probe.swift") { session in
+        try IOSPreviewE2ESupport.withRemoteSession(fixture: "ios_render_probe.swift") { session in
             let packed = try session.runOnMain(symbol: "ios_render_probe_value")
             #expect(packed >= 0)
             let r = (packed >> 16) & 0xFF
@@ -84,8 +88,8 @@ struct IOSSimSpikeTests {
     /// the termination handler, proving in-session spawn works without xcrun.
     @Test(.enabled(if: jitOrcRuntimePresent), .timeLimit(.minutes(5)))
     func spawnInSessionRunsProgramAndReportsExit() async throws {
-        let udid = try SimSpikeSupport.bootSimulator()
-        let exe = try SimSpikeSupport.compileExecutableForIOSSim(
+        let udid = try IOSPreviewE2ESupport.bootSimulator()
+        let exe = try IOSPreviewE2ESupport.compileExecutableForIOSSim(
             source: "int main(void) { return 0; }", name: "trivial_exit")
 
         let manager = SimulatorManager()
@@ -112,8 +116,8 @@ struct IOSSimSpikeTests {
     /// the daemon-side spawn a viable launch primitive (the plan's fallback).
     @Test(.enabled(if: jitOrcRuntimePresent), .timeLimit(.minutes(5)))
     func inSessionSpawnGetsHostLoopbackNetworking() async throws {
-        let udid = try SimSpikeSupport.bootSimulator()
-        let exe = try SimSpikeSupport.compileExecutableForIOSSim(
+        let udid = try IOSPreviewE2ESupport.bootSimulator()
+        let exe = try IOSPreviewE2ESupport.compileExecutableForIOSSim(
             source: """
                 #include <sys/socket.h>
                 #include <netinet/in.h>
@@ -137,7 +141,7 @@ struct IOSSimSpikeTests {
                 """,
             name: "loopback_connect")
 
-        let listener = try SimSpikeSupport.openLoopbackListener()
+        let listener = try IOSPreviewE2ESupport.openLoopbackListener()
         defer { close(listener.fd) }
 
         let manager = SimulatorManager()
@@ -147,7 +151,7 @@ struct IOSSimSpikeTests {
             arguments: [exe.path, String(listener.port)])
         #expect(pid > 0)
 
-        let conn = try SimSpikeSupport.acceptOne(listenFD: listener.fd, timeoutSeconds: 30)
+        let conn = try IOSPreviewE2ESupport.acceptOne(listenFD: listener.fd, timeoutSeconds: 30)
         defer { close(conn) }
         var byte: UInt8 = 0
         let n = read(conn, &byte, 1)
@@ -161,24 +165,24 @@ struct IOSSimSpikeTests {
     /// mode needs no preview dylib, so the app launches with `--jit-port` alone.
     @Test(.enabled(if: jitOrcRuntimePresent), .timeLimit(.minutes(10)))
     func hostsRemoteSessionInRealHostApp() async throws {
-        let udid = try SimSpikeSupport.bootSimulator()
-        let object = try SimSpikeSupport.compileForIOSSim("answer.c")
+        let udid = try IOSPreviewE2ESupport.bootSimulator()
+        let object = try IOSPreviewE2ESupport.compileForIOSSim("answer.c")
         let appPath = try await IOSHostBuilder().ensureHostApp()
-        try SimSpikeSupport.installApp(udid: udid, appPath: appPath.path)
+        try IOSPreviewE2ESupport.installApp(udid: udid, appPath: appPath.path)
 
-        let listener = try SimSpikeSupport.openLoopbackListener()
+        let listener = try IOSPreviewE2ESupport.openLoopbackListener()
         defer { close(listener.fd) }
 
-        try SimSpikeSupport.launchApp(
+        try IOSPreviewE2ESupport.launchApp(
             udid: udid, bundleID: IOSPreviewSession.hostBundleID,
             args: ["--jit-port", "\(listener.port)"])
         defer {
-            SimSpikeSupport.terminateApp(udid: udid, bundleID: IOSPreviewSession.hostBundleID)
+            IOSPreviewE2ESupport.terminateApp(udid: udid, bundleID: IOSPreviewSession.hostBundleID)
         }
 
-        let conn = try SimSpikeSupport.acceptOne(listenFD: listener.fd, timeoutSeconds: 60)
+        let conn = try IOSPreviewE2ESupport.acceptOne(listenFD: listener.fd, timeoutSeconds: 60)
         guard let orcPath = IOSHostBuilder.jitOrcRuntimePath else {
-            throw SimSpikeSupport.SpikeError.message("bundled iossim orc runtime missing")
+            throw IOSPreviewE2ESupport.SpikeError.message("bundled iossim orc runtime missing")
         }
         let session = try JITSession(remoteFD: conn, orcRuntimePath: orcPath)
         try session.addObject(path: object.path)
@@ -194,8 +198,8 @@ struct IOSSimSpikeTests {
     /// (it links answer.c and runs 42 inside the closure).
     @Test(.enabled(if: jitOrcRuntimePresent), .timeLimit(.minutes(10)))
     func productionSessionEstablishesJITOverSecondSocket() async throws {
-        let udid = try SimSpikeSupport.bootSimulator()
-        let object = try SimSpikeSupport.compileForIOSSim("answer.c")
+        let udid = try IOSPreviewE2ESupport.bootSimulator()
+        let object = try IOSPreviewE2ESupport.compileForIOSSim("answer.c")
 
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("previewsmcp-ios-jit-prod-\(UUID().uuidString)")
@@ -223,7 +227,7 @@ struct IOSSimSpikeTests {
             }
         )
         defer {
-            SimSpikeSupport.terminateApp(udid: udid, bundleID: IOSPreviewSession.hostBundleID)
+            IOSPreviewE2ESupport.terminateApp(udid: udid, bundleID: IOSPreviewSession.hostBundleID)
         }
 
         let pid = try await session.start()
@@ -239,7 +243,7 @@ struct IOSSimSpikeTests {
     /// must then contain the rendered text — proving the preview renders over JIT, not dylib.
     @Test(.enabled(if: jitOrcRuntimePresent), .timeLimit(.minutes(10)))
     func endToEndRendersOverJIT() async throws {
-        let udid = try SimSpikeSupport.bootSimulator()
+        let udid = try IOSPreviewE2ESupport.bootSimulator()
 
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("previewsmcp-ios-jit-e2e-\(UUID().uuidString)")
@@ -263,7 +267,7 @@ struct IOSSimSpikeTests {
             }
         )
         defer {
-            SimSpikeSupport.terminateApp(udid: udid, bundleID: IOSPreviewSession.hostBundleID)
+            IOSPreviewE2ESupport.terminateApp(udid: udid, bundleID: IOSPreviewSession.hostBundleID)
         }
 
         let pid = try await session.start()
@@ -289,7 +293,7 @@ struct IOSSimSpikeTests {
     /// agent stays non-`active` across respawn, where the value is meaningful.
     @Test(.enabled(if: jitOrcRuntimePresent), .timeLimit(.minutes(10)))
     func agentReportsForegroundLifecycleState() async throws {
-        let udid = try SimSpikeSupport.bootSimulator()
+        let udid = try IOSPreviewE2ESupport.bootSimulator()
 
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("previewsmcp-ios-jit-lifecycle-\(UUID().uuidString)")
@@ -313,7 +317,7 @@ struct IOSSimSpikeTests {
             }
         )
         defer {
-            SimSpikeSupport.terminateApp(udid: udid, bundleID: IOSPreviewSession.hostBundleID)
+            IOSPreviewE2ESupport.terminateApp(udid: udid, bundleID: IOSPreviewSession.hostBundleID)
         }
 
         let pid = try await session.start()
@@ -337,7 +341,7 @@ struct IOSSimSpikeTests {
     /// restart, which is how leaked `__swift5_*`/ObjC metadata is reclaimed.
     @Test(.enabled(if: jitOrcRuntimePresent), .timeLimit(.minutes(10)))
     func relaunchReRendersCurrentPreview() async throws {
-        let udid = try SimSpikeSupport.bootSimulator()
+        let udid = try IOSPreviewE2ESupport.bootSimulator()
 
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("previewsmcp-ios-jit-relaunch-\(UUID().uuidString)")
@@ -361,7 +365,7 @@ struct IOSSimSpikeTests {
             }
         )
         defer {
-            SimSpikeSupport.terminateApp(udid: udid, bundleID: IOSPreviewSession.hostBundleID)
+            IOSPreviewE2ESupport.terminateApp(udid: udid, bundleID: IOSPreviewSession.hostBundleID)
         }
 
         let pid = try await session.start()
@@ -399,7 +403,7 @@ struct IOSSimSpikeTests {
     /// assertion (the signal is visual); saves frames to /tmp/flashfree-gap.
     @Test(.enabled(if: jitOrcRuntimePresent), .timeLimit(.minutes(10)))
     func flashFreeRespawnGap() async throws {
-        let udid = try SimSpikeSupport.bootSimulator()
+        let udid = try IOSPreviewE2ESupport.bootSimulator()
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("previewsmcp-gap-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
@@ -421,8 +425,8 @@ struct IOSSimSpikeTests {
             }
         )
         defer {
-            SimSpikeSupport.terminateApp(udid: udid, bundleID: IOSPreviewSession.shellBundleID)
-            SimSpikeSupport.terminateApp(udid: udid, bundleID: IOSPreviewSession.hostBundleID)
+            IOSPreviewE2ESupport.terminateApp(udid: udid, bundleID: IOSPreviewSession.shellBundleID)
+            IOSPreviewE2ESupport.terminateApp(udid: udid, bundleID: IOSPreviewSession.hostBundleID)
         }
 
         _ = try await session.start()
@@ -481,7 +485,7 @@ struct IOSSimSpikeTests {
                 """
         }
 
-        let udid = try SimSpikeSupport.bootSimulator()
+        let udid = try IOSPreviewE2ESupport.bootSimulator()
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("previewsmcp-ios-jit-gate-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
@@ -505,7 +509,7 @@ struct IOSSimSpikeTests {
             }
         )
         defer {
-            SimSpikeSupport.terminateApp(udid: udid, bundleID: IOSPreviewSession.hostBundleID)
+            IOSPreviewE2ESupport.terminateApp(udid: udid, bundleID: IOSPreviewSession.hostBundleID)
         }
 
         _ = try await session.start()
@@ -534,7 +538,7 @@ struct IOSSimSpikeTests {
     /// baseline and the second crosses it, so a relaunch must fire (relaunchCount == 1).
     @Test(.enabled(if: jitOrcRuntimePresent), .timeLimit(.minutes(10)))
     func reloadPastThresholdRelaunches() async throws {
-        let udid = try SimSpikeSupport.bootSimulator()
+        let udid = try IOSPreviewE2ESupport.bootSimulator()
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("previewsmcp-ios-jit-reloadgate-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
@@ -558,7 +562,7 @@ struct IOSSimSpikeTests {
             }
         )
         defer {
-            SimSpikeSupport.terminateApp(udid: udid, bundleID: IOSPreviewSession.hostBundleID)
+            IOSPreviewE2ESupport.terminateApp(udid: udid, bundleID: IOSPreviewSession.hostBundleID)
         }
 
         _ = try await session.start()
@@ -583,7 +587,7 @@ struct IOSSimSpikeTests {
     /// tracking reloader asserts no two renders overlap when many edits fire at once.
     @Test(.enabled(if: jitOrcRuntimePresent), .timeLimit(.minutes(10)))
     func concurrentEditsSerialize() async throws {
-        let udid = try SimSpikeSupport.bootSimulator()
+        let udid = try IOSPreviewE2ESupport.bootSimulator()
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("previewsmcp-ios-jit-serialize-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
@@ -610,7 +614,7 @@ struct IOSSimSpikeTests {
             }
         )
         defer {
-            SimSpikeSupport.terminateApp(udid: udid, bundleID: IOSPreviewSession.hostBundleID)
+            IOSPreviewE2ESupport.terminateApp(udid: udid, bundleID: IOSPreviewSession.hostBundleID)
         }
 
         _ = try await session.start()
@@ -638,7 +642,7 @@ struct IOSSimSpikeTests {
     /// second render carried a fresh object path.
     @Test(.enabled(if: jitOrcRuntimePresent), .timeLimit(.minutes(10)))
     func literalEditReSeedsSameObjectWithoutRecompile() async throws {
-        let udid = try SimSpikeSupport.bootSimulator()
+        let udid = try IOSPreviewE2ESupport.bootSimulator()
 
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("previewsmcp-ios-jit-literal-\(UUID().uuidString)")
@@ -666,7 +670,7 @@ struct IOSSimSpikeTests {
             }
         )
         defer {
-            SimSpikeSupport.terminateApp(udid: udid, bundleID: IOSPreviewSession.hostBundleID)
+            IOSPreviewE2ESupport.terminateApp(udid: udid, bundleID: IOSPreviewSession.hostBundleID)
         }
 
         let pid = try await session.start()
@@ -698,7 +702,7 @@ struct IOSSimSpikeTests {
     /// After the fix the banner's `dev@example.com` appears in the a11y tree.
     @Test(.enabled(if: jitOrcRuntimePresent), .timeLimit(.minutes(10)))
     func endToEndRendersSetupWrappedOverJIT() async throws {
-        let udid = try SimSpikeSupport.bootSimulator()
+        let udid = try IOSPreviewE2ESupport.bootSimulator()
 
         let hot = Self.packageRoot
             .appendingPathComponent("examples/spm/Sources/ToDo/Summary.swift")
@@ -735,7 +739,7 @@ struct IOSSimSpikeTests {
             }
         )
         defer {
-            SimSpikeSupport.terminateApp(udid: udid, bundleID: IOSPreviewSession.hostBundleID)
+            IOSPreviewE2ESupport.terminateApp(udid: udid, bundleID: IOSPreviewSession.hostBundleID)
         }
 
         let pid = try await session.start()
@@ -834,7 +838,7 @@ private final class ResultBox: @unchecked Sendable {
     func get() -> Int32? { lock.lock(); defer { lock.unlock() }; return value }
 }
 
-enum SimSpikeSupport {
+enum IOSPreviewE2ESupport {
     enum SpikeError: Error, CustomStringConvertible {
         case message(String)
         var description: String {
@@ -854,12 +858,12 @@ enum SimSpikeSupport {
         defer { close(listener.fd) }
 
         let proc = try spawnExecutor(
-            udid: udid, executor: IOSSimSpikeTests.executor, port: listener.port)
+            udid: udid, executor: IOSPreviewE2ETests.executor, port: listener.port)
         defer { proc.terminate() }
 
         let conn = try acceptOne(listenFD: listener.fd, timeoutSeconds: 60)
         let session = try JITSession(
-            remoteFD: conn, orcRuntimePath: IOSSimSpikeTests.orcRuntime.path)
+            remoteFD: conn, orcRuntimePath: IOSPreviewE2ETests.orcRuntime.path)
         try session.addObject(path: object.path)
         try body(session)
     }
