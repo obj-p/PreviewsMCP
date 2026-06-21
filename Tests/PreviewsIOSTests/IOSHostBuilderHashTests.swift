@@ -61,7 +61,10 @@ struct IOSHostBuilderHashTests {
         // (silent), gated so the hosted-launch transient .active does not bounce.
         // Updated 2026-06-21 for #217: HostApp.swift reports an in-app JIT executor
         // failure (connect/executor) to the daemon over the JSON channel.
-        let expected = "b76d69511202dabeb5f22ce52b1cd2d2e929d31b455c255f23b118011377d403"
+        // Updated 2026-06-21 for agent-icon arrows: AppIcon.png redrawn with the
+        // top arrow solid pink and the bottom arrow solid cyan, dropping the
+        // gradient bleed (assets/agent-icon.svg).
+        let expected = "6bf7311a7722d887f27d2616c364d9ce08cc21eae99a20cf1da984acba9136a5"
         #expect(hash == expected, "host-app artifact hash drifted (was \(expected), now \(hash))")
     }
 }
