@@ -1,10 +1,56 @@
 import SwiftUI
 import UIKit
 
-@main
-class PreviewHostAppDelegate: UIResponder, UIApplicationDelegate {
-    var window: UIWindow?
+/// Holds the rendered preview controller for the SwiftUI window to display.
+/// The agent is a SwiftUI `App` so SwiftUI owns the scene -> window -> render
+/// binding (matching Apple's XCPreviewAgent); a manually built UIKit window
+/// installed after the hosted scene activates renders only intermittently.
+final class PreviewStore: ObservableObject {
+    static let shared = PreviewStore()
+    @Published var contentViewController: UIViewController?
+}
 
+/// Called by the JIT'd render entry (over the in-app executor) to install the
+/// freshly rendered preview. Exported as a C symbol so the JIT can resolve it.
+@_cdecl("previewsmcp_set_preview_vc")
+public func previewsmcp_set_preview_vc(_ pointer: UnsafeRawPointer) {
+    let viewController = Unmanaged<UIViewController>.fromOpaque(pointer).takeRetainedValue()
+    if Thread.isMainThread {
+        PreviewStore.shared.contentViewController = viewController
+    } else {
+        DispatchQueue.main.async { PreviewStore.shared.contentViewController = viewController }
+    }
+}
+
+private struct PreviewContainer: UIViewControllerRepresentable {
+    let viewController: UIViewController
+    func makeUIViewController(context: Context) -> UIViewController { viewController }
+    func updateUIViewController(_ uiViewController: UIViewController, context: Context) {}
+}
+
+private struct PreviewRootView: View {
+    @ObservedObject private var store = PreviewStore.shared
+    var body: some View {
+        ZStack {
+            Color.white.ignoresSafeArea()
+            if let viewController = store.contentViewController {
+                PreviewContainer(viewController: viewController)
+                    .id(ObjectIdentifier(viewController))
+                    .ignoresSafeArea()
+            }
+        }
+    }
+}
+
+@main
+struct PreviewAgentApp: App {
+    @UIApplicationDelegateAdaptor(PreviewHostAppDelegate.self) var appDelegate
+    var body: some Scene {
+        WindowGroup { PreviewRootView() }
+    }
+}
+
+class PreviewHostAppDelegate: UIResponder, UIApplicationDelegate {
     // TCP socket state
     private var socketFD: Int32 = -1
     private var socketReadSource: DispatchSourceRead?
@@ -14,10 +60,6 @@ class PreviewHostAppDelegate: UIResponder, UIApplicationDelegate {
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
     ) -> Bool {
-        let window = UIWindow(frame: UIScreen.main.bounds)
-        window.backgroundColor = .white
-        self.window = window
-
         let args = ProcessInfo.processInfo.arguments
 
         // The in-process ORC executor links objects pushed by the daemon over the
@@ -29,14 +71,17 @@ class PreviewHostAppDelegate: UIResponder, UIApplicationDelegate {
             startJITExecutor(port: jitPort)
         }
 
-        // No preview is loaded at launch; the daemon's first render over EPC
-        // installs the real hosting controller. Until then, give the window a
-        // placeholder root view controller so UIKit's end-of-launch assertion
-        // ("windows are expected to have a root view controller") doesn't abort.
-        window.rootViewController = UIViewController()
-
         initTouchInjection()
         activateAccessibility()
+
+        // Bind the hosting-handshake socket before connecting the JSON channel.
+        // The daemon waits for that JSON connection before launching the shell,
+        // so binding first guarantees the socket exists when the shell connects.
+        if let sockIndex = args.firstIndex(of: "--agent-sock"),
+            sockIndex + 1 < args.count
+        {
+            startAgentSocket(path: args[sockIndex + 1])
+        }
 
         if let portIndex = args.firstIndex(of: "--port"),
             portIndex + 1 < args.count,
@@ -45,8 +90,39 @@ class PreviewHostAppDelegate: UIResponder, UIApplicationDelegate {
             connectToServer(port: port)
         }
 
-        window.makeKeyAndVisible()
+        sendLifecycle("didFinishLaunching")
         return true
+    }
+
+    // Lifecycle breadcrumb (flash detector): report whether the agent comes to
+    // the foreground. A shell-hosted agent must stay non-foreground; a self-
+    // foregrounding launch (the relaunch flash) shows up here as `active`.
+    func applicationDidBecomeActive(_ application: UIApplication) {
+        sendLifecycle("didBecomeActive")
+    }
+
+    func applicationDidEnterBackground(_ application: UIApplication) {
+        sendLifecycle("didEnterBackground")
+    }
+
+    private func sendLifecycle(_ phase: String) {
+        let state: String
+        switch UIApplication.shared.applicationState {
+        case .active: state = "active"
+        case .inactive: state = "inactive"
+        case .background: state = "background"
+        @unknown default: state = "unknown"
+        }
+        sendResponse(["type": "lifecycle", "phase": phase, "state": state])
+    }
+
+    // The visible window is owned by SwiftUI's WindowGroup. The touch and
+    // accessibility paths look it up dynamically rather than holding a ref.
+    func currentWindow() -> UIWindow? {
+        let windows = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap { $0.windows }
+        return windows.first { $0.isKeyWindow } ?? windows.first
     }
 
     // Connect back to the daemon's EPC listener and run the in-process ORC
@@ -117,6 +193,56 @@ class PreviewHostAppDelegate: UIResponder, UIApplicationDelegate {
         NSLog("PreviewHost: Connected to server on port \(port)")
         startReadLoop()
         startMemoryReporting()
+    }
+
+    // MARK: - Hosted-scene handshake socket
+
+    // Unix-domain socket the shell connects to during the cross-process
+    // scene-hosting handshake. The shell reads this process's audit token off
+    // the peer connection (getsockopt LOCAL_PEERTOKEN) and registers it with
+    // FrontBoard so it can route a hosted scene to us. We only accept and hold
+    // the connection open; no bytes are exchanged.
+    private var agentSocketFD: Int32 = -1
+
+    private func startAgentSocket(path: String) {
+        unlink(path)
+        let fd = Darwin.socket(AF_UNIX, SOCK_STREAM, 0)
+        guard fd >= 0 else {
+            NSLog("PreviewHost: agent socket create failed")
+            return
+        }
+
+        var addr = sockaddr_un()
+        addr.sun_family = sa_family_t(AF_UNIX)
+        let pathCapacity = MemoryLayout.size(ofValue: addr.sun_path)
+        withUnsafeMutablePointer(to: &addr.sun_path) { pathPtr in
+            pathPtr.withMemoryRebound(to: CChar.self, capacity: pathCapacity) { dst in
+                _ = path.withCString { strncpy(dst, $0, pathCapacity - 1) }
+            }
+        }
+
+        let bound = withUnsafePointer(to: &addr) { ptr in
+            ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockPtr in
+                Darwin.bind(fd, sockPtr, socklen_t(MemoryLayout<sockaddr_un>.size))
+            }
+        }
+        guard bound == 0 else {
+            NSLog("PreviewHost: agent socket bind failed errno=\(errno)")
+            Darwin.close(fd)
+            return
+        }
+
+        Darwin.listen(fd, 8)
+        agentSocketFD = fd
+        NSLog("PreviewHost: agent socket listening at \(path)")
+
+        Thread.detachNewThread {
+            while true {
+                let client = Darwin.accept(fd, nil, nil)
+                if client < 0 { break }
+                NSLog("PreviewHost: agent socket client accepted")
+            }
+        }
     }
 
     // Report resident memory to the daemon once a second over the JSON channel.
@@ -190,7 +316,7 @@ class PreviewHostAppDelegate: UIResponder, UIApplicationDelegate {
             handleTouchCommand(msg)
 
         case "elements":
-            guard let window = self.window else { return }
+            guard let window = currentWindow() else { return }
             let tree = snapshotElement(window, window: window) ?? ["children": [] as [Any]]
             var response: [String: Any] = ["type": "elementsResponse", "tree": tree]
             if let id = msg["id"] { response["id"] = id }
@@ -413,7 +539,7 @@ class PreviewHostAppDelegate: UIResponder, UIApplicationDelegate {
 
         // Get window context ID via private _contextId property
         var contextId: UInt32 = 0
-        if let w = self.window {
+        if let w = currentWindow() {
             let sel = NSSelectorFromString("_contextId")
             if w.responds(to: sel) {
                 contextId = UInt32(

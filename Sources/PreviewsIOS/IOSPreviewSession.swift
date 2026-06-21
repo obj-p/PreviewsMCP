@@ -45,6 +45,11 @@ public actor IOSPreviewSession {
     private var jitListenFD: Int32 = -1
 
     public static let hostBundleID = "com.previewsmcp.host"
+    public static let shellBundleID = "com.previewsmcp.shell"
+
+    private static func agentLaunchArgs(port: Int, jitPort: Int, agentSockPath: String) -> [String] {
+        ["--port", String(port), "--jit-port", String(jitPort), "--agent-sock", agentSockPath]
+    }
 
     public init(
         sourceFile: URL,
@@ -95,6 +100,11 @@ public actor IOSPreviewSession {
     /// Number of memory-triggered host relaunches this session has performed.
     public private(set) var relaunchCount = 0
 
+    /// Stable agent handshake socket path, set at `start()` and reused across
+    /// respawns so the long-lived shell reconnects to the same path the new
+    /// agent rebinds (the shell is never relaunched).
+    private var agentSockPath: String?
+
     /// Serializes the mutating render entry points (`reload`, `handleSourceChange`). The file
     /// watcher fires a Task per change, so without this two edits could interleave at an
     /// `await` and one could render or relaunch while the other has the channel torn down.
@@ -143,10 +153,14 @@ public actor IOSPreviewSession {
         let previewSession = makePreviewSession()
         self.session = previewSession
 
-        // 2. Build host app.
+        // 2. Build host (agent) app and the foreground shell app that hosts
+        // its cross-process scene.
         stage("building host app")
         await progress?.report(.compilingHostApp, message: "Building iOS host app...")
-        let appPath = try await hostBuilder.ensureHostApp()
+        async let hostBuild = hostBuilder.ensureHostApp()
+        async let shellBuild = hostBuilder.ensureShellApp()
+        let appPath = try await hostBuild
+        let shellPath = try await shellBuild
         stage("host app ready")
 
         // 4. Create TCP server on loopback, bind to ephemeral port
@@ -169,7 +183,13 @@ public actor IOSPreviewSession {
         await progress?.report(.installingApp, message: "Installing host app...")
         await progress?.report(.launchingApp, message: "Launching host app...")
 
-        let launchArgs = ["--port", String(port), "--jit-port", String(jitPort)]
+        // The agent binds this Unix-domain socket; the shell connects to it to
+        // read the agent's audit token for the hosting handshake. It lives in
+        // the simulator's shared /tmp, keyed by port so concurrent sessions on
+        // one simulator don't collide.
+        let agentSockPath = "/tmp/previewsmcp-agent-\(port).sock"
+        self.agentSockPath = agentSockPath
+        let launchArgs = Self.agentLaunchArgs(port: port, jitPort: jitPort, agentSockPath: agentSockPath)
 
         var launchedPid: Int?
         var lastError: Error?
@@ -186,6 +206,7 @@ public actor IOSPreviewSession {
                 }
                 stage("attempt \(attempt): installApp")
                 try await simulatorManager.installApp(udid: deviceUDID, appPath: appPath.path)
+                try await simulatorManager.installApp(udid: deviceUDID, appPath: shellPath.path)
                 stage("attempt \(attempt): install ok")
 
                 // Open Simulator.app GUI if not headless (only on successful
@@ -200,7 +221,9 @@ public actor IOSPreviewSession {
                 // Terminate any stale host instance first (orphan from a
                 // prior test or retry). simctl terminate is a no-op when
                 // the app isn't running and bounds any hang at 30s.
-                stage("attempt \(attempt): pre-launch terminate stale host")
+                stage("attempt \(attempt): pre-launch terminate stale host + shell")
+                await simulatorManager.terminateAppIfRunning(
+                    udid: deviceUDID, bundleID: Self.shellBundleID)
                 await simulatorManager.terminateAppIfRunning(
                     udid: deviceUDID, bundleID: Self.hostBundleID)
 
@@ -229,10 +252,23 @@ public actor IOSPreviewSession {
         if let lastError { throw lastError }
         guard let pid = launchedPid else { throw lastError ?? IOSPreviewSessionError.socketCreateFailed }
 
-        // 6. Accept connection from host app (up to 10 seconds)
+        // 6. Accept connection from host app (up to 10 seconds). This also
+        // confirms the agent's didFinishLaunchingWithOptions has run, so its
+        // handshake socket is bound before the shell connects to it below.
         stage("launched pid=\(pid); awaiting socket connection")
         await progress?.report(.connectingToApp, message: "Waiting for host app connection...")
         try await channel.awaitConnect(timeout: .seconds(10))
+
+        // 6b. Launch the foreground shell that hosts the agent's scene. The
+        // shell reads the agent's audit token off the now-bound handshake socket
+        // and routes a cross-process scene back to the agent. The shell is
+        // long-lived and survives agent respawns (no relaunch flash).
+        stage("launching shell app")
+        _ = try await simulatorManager.launchApp(
+            udid: deviceUDID,
+            bundleID: Self.shellBundleID,
+            arguments: ["--agent-sock", agentSockPath]
+        )
 
         // 8. Accept the executor's EPC connection and stand up the remote session
         // over it. The host connects --port and --jit-port independently, so this
@@ -242,8 +278,17 @@ public actor IOSPreviewSession {
         let epcFD = try acceptJIT(timeoutSeconds: 10)
         let reloader = try makeJITReloader(epcFD, orcPath)
         jitReloader = reloader
-        stage("JIT executor connected; rendering initial preview")
+        stage("JIT executor connected; compiling initial preview")
         let build = try await previewSession.compileObjectForJIT()
+
+        // The render entry installs the SwiftUI hosting controller into the
+        // agent's key window, which only exists once the shell completes the
+        // hosting handshake and the agent's scene connects. Wait for the agent's
+        // sceneReady signal so the render targets a real window deterministically.
+        // The agent is a SwiftUI App; the render hands its controller to a store
+        // the WindowGroup observes, so the render can run before the hosted
+        // scene attaches (the store buffers it until SwiftUI's window is up).
+        stage("rendering initial preview")
         try await reloader.render(build)
         stage("initial JIT render complete")
 
@@ -261,6 +306,8 @@ public actor IOSPreviewSession {
             Darwin.close(jitListenFD)
             jitListenFD = -1
         }
+        await simulatorManager.terminateAppIfRunning(udid: deviceUDID, bundleID: Self.shellBundleID)
+        await simulatorManager.terminateAppIfRunning(udid: deviceUDID, bundleID: Self.hostBundleID)
     }
 
     // MARK: - JIT EPC socket
@@ -344,6 +391,14 @@ public actor IOSPreviewSession {
     /// Zero before the first report or after a disconnect.
     public var hostRSS: UInt64 {
         get async { await channel.latestRSS }
+    }
+
+    /// Latest `applicationState` (`active` / `inactive` / `background`) the host
+    /// app reported over the JSON channel. Nil before the first breadcrumb or
+    /// after a disconnect. The flash detector: a shell-hosted agent must never
+    /// report `active`.
+    public var agentApplicationState: String? {
+        get async { await channel.latestApplicationState }
     }
 
     // MARK: - Communication
@@ -434,15 +489,23 @@ public actor IOSPreviewSession {
 
         let port = try await channel.bindAndListen()
         let jitPort = try bindJITListener()
+        guard let agentSockPath = self.agentSockPath else {
+            throw IOSPreviewSessionError.notStarted
+        }
 
         await simulatorManager.terminateAppIfRunning(udid: deviceUDID, bundleID: Self.hostBundleID)
         let pid = try await simulatorManager.launchApp(
             udid: deviceUDID,
             bundleID: Self.hostBundleID,
-            arguments: ["--port", String(port), "--jit-port", String(jitPort)]
+            arguments: Self.agentLaunchArgs(port: port, jitPort: jitPort, agentSockPath: agentSockPath)
         )
 
         try await channel.awaitConnect(timeout: .seconds(10))
+
+        // Flash-free respawn: the long-lived shell detects the old agent's death
+        // (its agent-UDS EOFs), holds its cached frame + spinner, then reconnects
+        // to the same stable sock path the new agent rebinds and re-hosts. No
+        // shell relaunch, so the device display never blanks.
         let epcFD = try acceptJIT(timeoutSeconds: 10)
         let reloader = try makeJITReloader(epcFD, orcPath)
         self.jitReloader = reloader

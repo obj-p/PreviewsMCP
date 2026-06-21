@@ -40,6 +40,13 @@ public actor IOSHostChannel {
     private var latestRSSBytes: UInt64 = 0
     public var latestRSS: UInt64 { latestRSSBytes }
 
+    /// Latest `applicationState` the host app reported over its `lifecycle`
+    /// message (`active` / `inactive` / `background`). Nil until the first
+    /// breadcrumb arrives or after a disconnect. Used as the flash detector:
+    /// a shell-hosted agent must never report `active`.
+    private var latestApplicationStateValue: String?
+    public var latestApplicationState: String? { latestApplicationStateValue }
+
     public init() {}
 
     /// Whether the channel has an established connection to the host
@@ -326,6 +333,12 @@ public actor IOSHostChannel {
                 continue
             }
 
+            // Unsolicited lifecycle breadcrumb (no id) — record and move on.
+            if message["type"] as? String == "lifecycle", let state = message["state"] as? String {
+                latestApplicationStateValue = state
+                continue
+            }
+
             // Everything else is a response routed by id.
             guard let id = message["id"] as? String else {
                 continue
@@ -342,6 +355,7 @@ public actor IOSHostChannel {
     private func handleDisconnect() {
         connectedFD = -1
         latestRSSBytes = 0
+        latestApplicationStateValue = nil
         for (_, continuation) in pendingDataResponses {
             continuation.resume(throwing: IOSPreviewSessionError.connectionLost)
         }

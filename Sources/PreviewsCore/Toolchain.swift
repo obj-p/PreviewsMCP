@@ -51,6 +51,13 @@ public enum Toolchain {
         }
     }
 
+    /// Absolute path to the active clang binary (compiles the ObjC shell app).
+    public static func clangPath() async throws -> String {
+        try await cached(key: "find:clang") {
+            try await xcrun(["--find", "clang"], discardStderr: true)
+        }
+    }
+
     /// Absolute path to the compiler-rt builtins archive (`libclang_rt.osx.a`), or nil if not
     /// found. The JIT agent links this so compiler builtins like `__isPlatformVersionAtLeast`
     /// (emitted by `#available`) resolve at JIT-link time (#191 G3-c).

@@ -23,14 +23,19 @@ import Foundation
 enum EmbedHostAppSourceTool {
     static func main() throws {
         let args = CommandLine.arguments
-        guard args.count == 5 else {
-            fail("usage: \(args.first ?? "tool") <hostAppSwift> <infoPlist> <iconPng> <output>")
+        guard args.count == 8 else {
+            fail(
+                "usage: \(args.first ?? "tool") <hostAppSwift> <infoPlist> <iconPng> "
+                    + "<shellSource> <shellInfoPlist> <shellEntitlements> <output>")
         }
 
         let hostAppB64 = readBase64(args[1])
         let infoPlistB64 = readBase64(args[2])
         let iconB64 = readBase64(args[3])
-        let outputPath = args[4]
+        let shellCodeB64 = readBase64(args[4])
+        let shellInfoPlistB64 = readBase64(args[5])
+        let shellEntitlementsB64 = readBase64(args[6])
+        let outputPath = args[7]
 
         // Interpolating these directly into a Swift source string is safe
         // because the base64 alphabet (`A-Z a-z 0-9 + /` plus `=` padding) is
@@ -52,9 +57,18 @@ enum EmbedHostAppSourceTool {
                 static let bytes: Data = _decodeData(_iconBase64, label: "AppIcon.png")
             }
 
+            enum IOSShellAppSource {
+                static let code: String = _decodeUTF8(_shellCodeBase64, label: "Shell/ShellMain.m")
+                static let infoPlist: String = _decodeUTF8(_shellInfoPlistBase64, label: "Shell/Info.plist")
+                static let entitlements: String = _decodeUTF8(_shellEntitlementsBase64, label: "Shell/Shell.entitlements")
+            }
+
             private let _hostAppCodeBase64 = "\(hostAppB64)"
             private let _infoPlistBase64 = "\(infoPlistB64)"
             private let _iconBase64 = "\(iconB64)"
+            private let _shellCodeBase64 = "\(shellCodeB64)"
+            private let _shellInfoPlistBase64 = "\(shellInfoPlistB64)"
+            private let _shellEntitlementsBase64 = "\(shellEntitlementsB64)"
 
             private func _decodeData(_ b64: String, label: String) -> Data {
                 guard let data = Data(base64Encoded: b64) else {

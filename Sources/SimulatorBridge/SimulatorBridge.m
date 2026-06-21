@@ -258,11 +258,17 @@ static id _defaultDeviceSet(NSError **error) {
   }
 }
 
-- (NSInteger)spawnProcess:(NSString *)path
-                arguments:(NSArray<NSString *> *)args
-              environment:(NSDictionary<NSString *, NSString *> *)env
-                    error:(NSError **)error {
+- (NSInteger)spawnInSessionWithPath:(NSString *)path
+                          arguments:(NSArray<NSString *> *)args
+                        environment:(NSDictionary<NSString *, NSString *> *)env
+                 terminationHandler:(void (^)(int status))handler
+                              error:(NSError **)error {
   @try {
+    // Default options (no kSimDeviceSpawnStandalone) → in-session spawn on a
+    // booted device, matching `simctl spawn` without `--standalone`. The
+    // SimLaunchHostClient `spawnInSession:` API is not used: it requires the
+    // device's bootSessionUUID, which is set only in the process that performed
+    // the boot and is nil for a device booted elsewhere.
     NSMutableDictionary *options = [NSMutableDictionary dictionary];
     if (args)
       options[@"arguments"] = args;
@@ -271,8 +277,10 @@ static id _defaultDeviceSet(NSError **error) {
 
     int pid = [(id<_SimDevice>)_simDevice spawnWithPath:path
                                                 options:options
-                                       terminationQueue:nil
-                                     terminationHandler:nil
+                                       terminationQueue:
+                                           dispatch_get_global_queue(
+                                               QOS_CLASS_USER_INITIATED, 0)
+                                     terminationHandler:handler
                                                   error:error];
     return (NSInteger)pid;
   } @catch (NSException *exception) {
