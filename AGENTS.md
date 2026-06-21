@@ -8,10 +8,12 @@ PreviewsMCP — standalone SwiftUI preview renderer with MCP server for AI-drive
 
 ## Setup
 
+Bazel (via [bazelisk](https://github.com/bazelbuild/bazelisk)) is the build for development, tests, and CI. SwiftPM is kept for external consumers of the library products (see [Consuming via SwiftPM](#consuming-via-swiftpm)).
+
 ```bash
-brew bundle                              # Install tools (swift-format)
+brew bundle                              # Install tools (bazelisk, swift-format)
 git config core.hooksPath .githooks      # Activate pre-commit formatting hook
-swift build                              # Build all targets
+bazel build //...                        # Build all targets (first build builds LLVM, ~3-4 min)
 ```
 
 Or run `/bootstrap` in Claude Code.
@@ -19,16 +21,19 @@ Or run `/bootstrap` in Claude Code.
 ## Build & Test
 
 ```bash
-swift build              # Build all targets
-swift test               # Run all tests (~100+ tests, 12+ suites)
-swift test --filter "PreviewParser"      # Run specific suite
-swift test --filter "IOSAgentBuilder"     # Test iOS agent app compilation
-swift test --filter "endToEnd"           # Full iOS pipeline (slow, boots simulator)
-swift test --filter "VariantsCommandTests"       # CLI integration tests for a specific command
-swift test --filter "MacOSMCPTests"              # MCP integration tests (real daemon)
+bazel build //...                                  # Build all targets
+bazel test //Tests/...                             # Run all test suites
+bazel test //Tests/PreviewsJITLinkTests            # Run a specific suite
+bazel run //Sources/previewsmcp -- --version       # Run the CLI
 ```
 
-Daemon-touching test suites use `DaemonTestLock` (flock) for cross-target serialization — `@Suite(.serialized)` only orders within a suite, not across test targets.
+The first `bazel build` compiles the Swift-fork LLVM from source via `rules_foreign_cc` (~3-4 min); it is pinned, so later builds reuse it. The iOS JIT resources (`server.o`, `liborc_rt_iossim.a`, the LLVM TargetProcess libs) and the `PreviewAgent` executor are built and wired through runfiles automatically — no `scripts/build-jit-llvm*.sh` needed under Bazel.
+
+Daemon-touching test suites use `DaemonTestLock` (flock) for cross-target serialization — `@Suite(.serialized)` only orders within a suite, not across test targets. The integration suites are tagged `local` (unsandboxed, like `swift test`) and `exclusive`.
+
+### Consuming via SwiftPM
+
+`Package.swift` stays the published manifest so other Swift projects can depend on the library products (notably `PreviewsSetupKit`). It also feeds the Bazel build: `rules_swift_package_manager` reads it to sync external dependencies. SwiftPM still builds and tests the package directly (`swift build` / `swift test`), with the same coverage, as a fallback and for consumers.
 
 ## Formatting & Linting
 
@@ -227,7 +232,7 @@ The `main` branch has branch protections — all changes must go through a pull 
 
 ### Verifying a PR before merge
 
-CI is disabled — the GitHub Actions `CI` and `Cache warmer` workflows are turned off and the `required_status_checks` rule has been removed from the `main` ruleset, so nothing gates a merge automatically. Verification is local and mandatory: a PR does **not** merge until **all unit tests pass** and **the example integration tests pass via the `integration-test` skill**. Run the unit and JIT suites with `swift test` (use `--filter PreviewsJITLinkTests --no-parallel` for the JIT tests), then run the `integration-test` skill for the example end-to-end coverage. No CI is not a license to merge broken code.
+CI is disabled — the GitHub Actions `CI` and `Cache warmer` workflows are turned off and the `required_status_checks` rule has been removed from the `main` ruleset, so nothing gates a merge automatically. Verification is local and mandatory: a PR does **not** merge until **all unit tests pass** and **the example integration tests pass via the `integration-test` skill**. Run the suites with `bazel test //Tests/...`, then run the `integration-test` skill for the example end-to-end coverage. (`swift test` still works as a fallback; pass `--filter PreviewsJITLinkTests --no-parallel` for the JIT tests there.) No CI is not a license to merge broken code.
 
 ## Test Notes
 
