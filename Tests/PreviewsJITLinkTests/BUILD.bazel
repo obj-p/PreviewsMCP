@@ -4,8 +4,12 @@ swift_test(
     name = "PreviewsJITLinkTests",
     srcs = glob(
         ["**/*.swift"],
-        # Fixtures are compiled at runtime by the tests, not test sources.
-        exclude = ["Fixtures/**"],
+        exclude = [
+            # Fixtures are compiled at runtime by the tests, not test sources.
+            "Fixtures/**",
+            # The iOS end-to-end suite is its own (slow, simulator-driven) target.
+            "IOSPreviewE2ETests.swift",
+        ],
     ),
     copts = ["-swift-version", "6"],
     data = [
@@ -22,6 +26,31 @@ swift_test(
     ],
     deps = [
         "//Sources/PreviewsCore",
+        "//Sources/PreviewsJITLink",
+    ],
+)
+
+swift_test(
+    name = "IOSPreviewE2ETests",
+    srcs = ["IOSPreviewE2ETests.swift"],
+    copts = ["-swift-version", "6"],
+    data = [
+        "//:ios_jit_resources",
+        "//:orc_rt_archive",
+        "//Sources/PreviewAgent",
+    ],
+    env = {
+        "PREVIEWSMCP_AGENT": "$(rlocationpath //Sources/PreviewAgent)",
+        "PREVIEWSMCP_IOS_JIT_DIR": "$(rlocationpath //:ios_jit_resources)",
+        "PREVIEWSMCP_ORC_RT": "$(rlocationpath //:orc_rt_archive)",
+    },
+    tags = [
+        "exclusive",
+        "local",
+    ],
+    deps = [
+        "//Sources/PreviewsCore",
+        "//Sources/PreviewsIOS",
         "//Sources/PreviewsJITLink",
     ],
 )

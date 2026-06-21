@@ -15,10 +15,15 @@ import Testing
 /// runs clobber the agent-app source mid-build). See #244.
 @Suite(.serialized)
 struct IOSPreviewE2ETests {
-    static let packageRoot = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent()
-        .deletingLastPathComponent()
-        .deletingLastPathComponent()
+    static let packageRoot: URL = {
+        if let root = ProcessInfo.processInfo.environment["PREVIEWSMCP_REPO_ROOT"] {
+            return URL(fileURLWithPath: root, isDirectory: true)
+        }
+        return URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+    }()
 
     static var executor: URL {
         packageRoot.appendingPathComponent(".build-iossim/iossim-executor")
