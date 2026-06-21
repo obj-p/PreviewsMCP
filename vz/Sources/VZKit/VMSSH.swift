@@ -112,8 +112,8 @@ public enum VMSSH {
         var args = [
             "-i", endpoint.privateKeyPath,
             "-p", "\(endpoint.port)",
-            "-o", "UserKnownHostsFile=\(endpoint.knownHostsPath)",
-            "-o", "StrictHostKeyChecking=accept-new",
+            "-o", "UserKnownHostsFile=/dev/null",
+            "-o", "StrictHostKeyChecking=no",
             "-o", "IdentitiesOnly=yes",
             "-o", "PasswordAuthentication=no",
             "-o", "PreferredAuthentications=publickey",
