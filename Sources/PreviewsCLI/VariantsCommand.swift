@@ -37,7 +37,7 @@ struct VariantsCommand: AsyncParsableCommand {
             """
     )
 
-    @Argument(help: "Path to Swift source file containing #Preview")
+    @Argument(help: "Path to Swift source file containing #Preview", transform: Path.normalize)
     var file: String?
 
     @Option(
@@ -74,7 +74,11 @@ struct VariantsCommand: AsyncParsableCommand {
     @Option(name: .long, help: "Target platform: 'macos' or 'ios' (auto-detected if omitted)")
     var platform: CLIPlatform?
 
-    @Option(name: .long, help: "Project root path (auto-detected if omitted)")
+    @Option(
+        name: .long,
+        help: "Project root path (auto-detected if omitted)",
+        transform: Path.normalize
+    )
     var project: String?
 
     @Option(
@@ -95,7 +99,11 @@ struct VariantsCommand: AsyncParsableCommand {
     )
     var session: String?
 
-    @Option(name: .long, help: "Path to .previewsmcp.json config file (auto-discovered if omitted)")
+    @Option(
+        name: .long,
+        help: "Path to .previewsmcp.json config file (auto-discovered if omitted)",
+        transform: Path.normalize
+    )
     var config: String?
 
     @Flag(
@@ -127,7 +135,7 @@ struct VariantsCommand: AsyncParsableCommand {
             )
         }
         if let file {
-            guard FileManager.default.fileExists(atPath: Path.normalize(file)) else {
+            guard FileManager.default.fileExists(atPath: file) else {
                 throw ValidationError("File not found: \(file)")
             }
         }
@@ -198,11 +206,11 @@ struct VariantsCommand: AsyncParsableCommand {
         outputDir: URL,
         client: Client
     ) async throws -> Int32 {
-        // Normalize locally — used for client-side helpers (config
-        // discovery, platform inference) and sent to the daemon, which
-        // runs in its own process and does not share our CWD. The daemon
-        // re-normalizes on receipt for non-CLI MCP clients.
-        let fileURL = Path.normalizeURL(file)
+        // `file` is canonicalized at the argument boundary. The absolute
+        // path is sent to the daemon, which runs in its own process and
+        // does not share our CWD; the daemon re-normalizes on receipt for
+        // non-CLI MCP clients.
+        let fileURL = URL(fileURLWithPath: file)
         let configResult = loadProjectConfig(explicit: config, fileURL: fileURL)
         let resolvedPlatform = SnapshotCommand.resolvePlatform(
             explicit: platform,
@@ -220,11 +228,11 @@ struct VariantsCommand: AsyncParsableCommand {
             "headless": .bool(true),
             "platform": .string(resolvedPlatform.rawValue),
         ]
-        if let project { startArgs["projectPath"] = .string(Path.normalize(project)) }
+        if let project { startArgs["projectPath"] = .string(project) }
         if let scheme { startArgs["scheme"] = .string(scheme) }
         if let buildSystem { startArgs["buildSystem"] = .string(buildSystem.rawValue) }
         if let device { startArgs["deviceUDID"] = .string(device) }
-        if let config { startArgs["config"] = .string(Path.normalize(config)) }
+        if let config { startArgs["config"] = .string(config) }
 
         let startResponse = try await client.callToolStructured(
             name: "preview_start", arguments: startArgs
