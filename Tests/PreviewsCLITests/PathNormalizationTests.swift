@@ -8,10 +8,15 @@ struct PathNormalizationTests {
 
     private static let home = FileManager.default.homeDirectoryForCurrentUser.path
 
-    private static let repoRoot = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent()
-        .deletingLastPathComponent()
-        .deletingLastPathComponent()
+    private static let repoRoot: URL = {
+        if let root = ProcessInfo.processInfo.environment["PREVIEWSMCP_REPO_ROOT"] {
+            return URL(fileURLWithPath: root, isDirectory: true)
+        }
+        return URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+    }()
 
     private static let existingFile =
         repoRoot

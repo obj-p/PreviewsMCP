@@ -368,6 +368,10 @@ struct SnapshotCommandTests {
 
     @Test("Snapshot with --platform ios produces valid image", .timeLimit(.minutes(10)))
     func snapshotIOS() async throws {
+        if ProcessInfo.processInfo.environment["PREVIEWSMCP_SKIP_IOS_JIT"] != nil {
+            print("iOS JIT resources not bundled — skipping iOS snapshot test")
+            return
+        }
         try await DaemonTestLock.run {
             try await Self.cleanSlate()
             let simResult = try await CLIRunner.runExternal(

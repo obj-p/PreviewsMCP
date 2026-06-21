@@ -1,0 +1,22 @@
+load("@rules_cc//cc:objc_library.bzl", "objc_library")
+load("@rules_swift//swift:swift.bzl", "swift_interop_hint")
+
+swift_interop_hint(
+    name = "SimulatorBridge_swift_hint",
+    module_name = "SimulatorBridge",
+)
+
+objc_library(
+    name = "SimulatorBridge",
+    srcs = ["SimulatorBridge.m"],
+    hdrs = ["include/SimulatorBridge.h"],
+    aspect_hints = [":SimulatorBridge_swift_hint"],
+    includes = ["include"],
+    linkopts = [
+        "-framework IOSurface",
+        "-framework CoreImage",
+        "-framework ImageIO",
+        "-framework UniformTypeIdentifiers",
+    ],
+    visibility = ["//visibility:public"],
+)

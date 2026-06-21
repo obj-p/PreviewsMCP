@@ -1,0 +1,18 @@
+load("@rules_swift//swift:swift.bzl", "swift_library")
+
+swift_library(
+    name = "PreviewsCLI",
+    srcs = glob(["**/*.swift"]) + ["//:generated_version"],
+    copts = ["-swift-version", "6"],
+    module_name = "PreviewsCLI",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//Sources/PreviewsCore",
+        "//Sources/PreviewsEngine",
+        "//Sources/PreviewsIOS",
+        "//Sources/PreviewsJITLink",
+        "//Sources/PreviewsMacOS",
+        "@swiftpkg_swift_argument_parser//:ArgumentParser",
+        "@swiftpkg_swift_sdk//:MCP",
+    ],
+)

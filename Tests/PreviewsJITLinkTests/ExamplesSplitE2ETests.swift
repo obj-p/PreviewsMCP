@@ -15,10 +15,15 @@ import Testing
 /// `__isPlatformVersionAtLeast` emitted by `#available`).
 @Suite(.serialized)
 struct ExamplesSplitE2ETests {
-    static let repoRoot: URL = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent()  // PreviewsJITLinkTests/
-        .deletingLastPathComponent()  // Tests/
-        .deletingLastPathComponent()  // repo root
+    static let repoRoot: URL = {
+        if let root = ProcessInfo.processInfo.environment["PREVIEWSMCP_REPO_ROOT"] {
+            return URL(fileURLWithPath: root, isDirectory: true)
+        }
+        return URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()  // PreviewsJITLinkTests/
+            .deletingLastPathComponent()  // Tests/
+            .deletingLastPathComponent()  // repo root
+    }()
     static let spmRoot = repoRoot.appendingPathComponent("examples/spm")
 
     enum E2EError: Error { case noBuildSystem }

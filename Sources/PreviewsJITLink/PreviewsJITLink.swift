@@ -4,7 +4,71 @@ import PreviewsJITLinkCxx
 public final class JITSession {
     private let handle: OpaquePointer
 
+    static func runfilesRoot() -> URL? {
+        let env = ProcessInfo.processInfo.environment
+        for key in ["TEST_SRCDIR", "RUNFILES_DIR"] {
+            if let base = env[key], FileManager.default.fileExists(atPath: base) {
+                return URL(fileURLWithPath: base, isDirectory: true)
+            }
+        }
+        // bazel run / detached daemon: the env vars above are absent, so derive
+        // the runfiles tree from the running executable's own location.
+        var candidates: [String] = []
+        if let exe = Bundle.main.executableURL?.path {
+            candidates.append(exe + ".runfiles")
+        }
+        if let argv0 = CommandLine.arguments.first {
+            candidates.append(argv0 + ".runfiles")
+        }
+        for runfiles in candidates where FileManager.default.fileExists(atPath: runfiles) {
+            return URL(fileURLWithPath: runfiles, isDirectory: true)
+        }
+        return nil
+    }
+
+    static func searchRunfiles(name: String) -> String? {
+        guard let root = runfilesRoot() else { return nil }
+        guard let enumerator = FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil)
+        else { return nil }
+        for case let url as URL in enumerator where url.lastPathComponent == name {
+            // Follow symlinks (runfiles entries are symlinks) and skip the
+            // package directory that shares the binary's name.
+            var isDir: ObjCBool = false
+            if FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir),
+                !isDir.boolValue
+            {
+                return url.path
+            }
+        }
+        return nil
+    }
+
+    /// Resolve a Bazel runfile, preferring an explicit env override (a runfiles
+    /// path the test harness injects) and otherwise searching the binary's own
+    /// runfiles tree by name (the `bazel run` path, where no env is set).
+    static func runfilesOverride(_ envVar: String, name: String? = nil) -> String? {
+        let env = ProcessInfo.processInfo.environment
+        if let rel = env[envVar] {
+            if rel.hasPrefix("/") {
+                return FileManager.default.fileExists(atPath: rel) ? rel : nil
+            }
+            for key in ["TEST_SRCDIR", "RUNFILES_DIR"] {
+                if let base = env[key] {
+                    let candidate = URL(fileURLWithPath: base, isDirectory: true)
+                        .appendingPathComponent(rel).path
+                    if FileManager.default.fileExists(atPath: candidate) {
+                        return candidate
+                    }
+                }
+            }
+        }
+        return name.flatMap(searchRunfiles)
+    }
+
     private static func orcRuntimePath() throws -> String {
+        if let path = runfilesOverride("PREVIEWSMCP_ORC_RT", name: "liborc_rt_osx.a") {
+            return path
+        }
         guard
             let path = Bundle.module
                 .url(forResource: "liborc_rt_osx", withExtension: "a")?.path
@@ -30,6 +94,9 @@ public final class JITSession {
     }
 
     public static func bundledAgentPath() throws -> String {
+        if let path = runfilesOverride("PREVIEWSMCP_AGENT", name: "PreviewAgent") {
+            return path
+        }
         let buildDir = Bundle.module.bundleURL.deletingLastPathComponent()
         let agent = buildDir.appendingPathComponent("PreviewAgent")
         guard FileManager.default.isExecutableFile(atPath: agent.path) else {

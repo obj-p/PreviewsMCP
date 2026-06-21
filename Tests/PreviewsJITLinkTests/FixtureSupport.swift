@@ -13,7 +13,11 @@ enum FixtureSupport {
     }
 
     private static var fixturesDirectory: URL {
-        URL(fileURLWithPath: #filePath)
+        if let root = ProcessInfo.processInfo.environment["PREVIEWSMCP_REPO_ROOT"] {
+            return URL(fileURLWithPath: root, isDirectory: true)
+                .appendingPathComponent("Tests/PreviewsJITLinkTests/Fixtures", isDirectory: true)
+        }
+        return URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .appendingPathComponent("Fixtures", isDirectory: true)
     }

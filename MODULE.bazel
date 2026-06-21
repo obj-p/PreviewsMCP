@@ -1,0 +1,42 @@
+module(
+    name = "previewsmcp",
+    version = "0.0.0",
+)
+
+bazel_dep(name = "apple_support", version = "2.3.0")
+bazel_dep(name = "rules_apple", version = "4.4.0")
+bazel_dep(name = "platforms", version = "0.0.11")
+bazel_dep(name = "rules_swift", version = "3.5.0")
+bazel_dep(name = "rules_cc", version = "0.2.17")
+bazel_dep(name = "rules_foreign_cc", version = "0.15.1")
+bazel_dep(name = "rules_swift_package_manager", version = "1.19.0")
+
+swift_deps = use_extension(
+    "@rules_swift_package_manager//:extensions.bzl",
+    "swift_deps",
+)
+swift_deps.from_package(
+    resolved = "//:Package.resolved",
+    swift = "//:Package.swift",
+)
+use_repo(swift_deps, "swift_package", "swiftpkg_swift_argument_parser", "swiftpkg_swift_sdk", "swiftpkg_swift_syntax")
+
+llvm_repository = use_repo_rule("//bazel:llvm.bzl", "llvm_repository")
+
+llvm_repository(
+    name = "llvm_src",
+    commit = "9784760565e8cae0bc0b97bad69aaf498408dc3d",
+    patches = [
+        "//scripts/patches:llvm-machoplatform-bootstrap-race.patch",
+        "//scripts/patches:llvm-mapperjitlink-abandon-slab.patch",
+    ],
+    remote = "https://github.com/swiftlang/llvm-project.git",
+    sparse_paths = [
+        "llvm",
+        "compiler-rt",
+        "cmake",
+        "third-party",
+        "runtimes",
+    ],
+    tag = "swift-6.2.3-RELEASE",
+)

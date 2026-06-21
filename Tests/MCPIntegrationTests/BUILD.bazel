@@ -1,0 +1,27 @@
+load("@rules_swift//swift:swift.bzl", "swift_test")
+
+swift_test(
+    name = "MCPIntegrationTests",
+    srcs = glob(["**/*.swift"]),
+    copts = ["-swift-version", "6"],
+    data = [
+        "//:ios_jit_resources",
+        "//:orc_rt_archive",
+        "//Sources/PreviewAgent",
+        "//Sources/previewsmcp",
+    ],
+    env = {
+        "PREVIEWSMCP_AGENT": "$(rlocationpath //Sources/PreviewAgent)",
+        "PREVIEWSMCP_BINARY": "$(rlocationpath //Sources/previewsmcp)",
+        "PREVIEWSMCP_IOS_JIT_DIR": "$(rlocationpath //:ios_jit_resources)",
+        "PREVIEWSMCP_ORC_RT": "$(rlocationpath //:orc_rt_archive)",
+    },
+    tags = [
+        "exclusive",
+        "local",
+    ],
+    deps = [
+        "//Sources/PreviewsCLI",
+        "@swiftpkg_swift_sdk//:MCP",
+    ],
+)

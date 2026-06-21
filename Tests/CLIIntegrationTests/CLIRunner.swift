@@ -14,14 +14,28 @@ enum CLIRunner {
 
     // MARK: - Paths
 
-    static let repoRoot: URL = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent()  // CLIIntegrationTests/
-        .deletingLastPathComponent()  // Tests/
-        .deletingLastPathComponent()  // repo root
+    static let repoRoot: URL = {
+        if let root = ProcessInfo.processInfo.environment["PREVIEWSMCP_REPO_ROOT"] {
+            return URL(fileURLWithPath: root, isDirectory: true)
+        }
+        return URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()  // CLIIntegrationTests/
+            .deletingLastPathComponent()  // Tests/
+            .deletingLastPathComponent()  // repo root
+    }()
 
-    static let binaryPath: String =
-        repoRoot
-        .appendingPathComponent(".build/debug/previewsmcp").path
+    static let binaryPath: String = {
+        let env = ProcessInfo.processInfo.environment
+        if let explicit = env["PREVIEWSMCP_BINARY"] {
+            if explicit.hasPrefix("/") { return explicit }
+            if let srcdir = env["TEST_SRCDIR"] {
+                return URL(fileURLWithPath: srcdir)
+                    .appendingPathComponent(explicit).path
+            }
+            return explicit
+        }
+        return repoRoot.appendingPathComponent(".build/debug/previewsmcp").path
+    }()
 
     static let spmExampleRoot: URL = repoRoot.appendingPathComponent("examples/spm")
     static let xcodeprojExampleRoot: URL = repoRoot.appendingPathComponent("examples/xcodeproj")

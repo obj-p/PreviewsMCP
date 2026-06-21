@@ -249,10 +249,72 @@ extension IOSAgentBuilder {
         let libDir: URL
     }
 
-    /// Locate the iossim JIT executor artifacts staged into PreviewsIOS
-    /// resources by the BundleIOSSimJIT plugin. `server.o` and the LLVM
-    /// archives share the bundle's resource directory.
+    /// Bazel staging directory holding server.o, the LLVM TargetProcess
+    /// archives, and liborc_rt_iossim.a, resolved from runfiles. nil under
+    /// SwiftPM, where the artifacts come from Bundle.module instead.
+    static func runfilesJITDir() -> URL? {
+        let env = ProcessInfo.processInfo.environment
+        if let rel = env["PREVIEWSMCP_IOS_JIT_DIR"] {
+            if rel.hasPrefix("/") {
+                return FileManager.default.fileExists(atPath: rel)
+                    ? URL(fileURLWithPath: rel, isDirectory: true) : nil
+            }
+            for key in ["TEST_SRCDIR", "RUNFILES_DIR"] {
+                if let base = env[key] {
+                    let candidate = URL(fileURLWithPath: base, isDirectory: true)
+                        .appendingPathComponent(rel, isDirectory: true)
+                    if FileManager.default.fileExists(atPath: candidate.path) {
+                        return candidate
+                    }
+                }
+            }
+        }
+        return searchRunfilesDir(named: "ios_jit_resources")
+    }
+
+    /// Find the resource directory `name` in the binary's runfiles tree, used on
+    /// the `bazel run` path where no PREVIEWSMCP_IOS_JIT_DIR env is set. The dir
+    /// is a single tree-artifact symlink, so match the entry itself rather than
+    /// descending into it.
+    private static func searchRunfilesDir(named name: String) -> URL? {
+        let env = ProcessInfo.processInfo.environment
+        var root: URL?
+        for key in ["RUNFILES_DIR", "TEST_SRCDIR"] {
+            if let base = env[key], FileManager.default.fileExists(atPath: base) {
+                root = URL(fileURLWithPath: base, isDirectory: true)
+                break
+            }
+        }
+        if root == nil {
+            var candidates: [String] = []
+            if let exe = Bundle.main.executableURL?.path {
+                candidates.append(exe + ".runfiles")
+            }
+            if let argv0 = CommandLine.arguments.first {
+                candidates.append(argv0 + ".runfiles")
+            }
+            root = candidates.first { FileManager.default.fileExists(atPath: $0) }
+                .map { URL(fileURLWithPath: $0, isDirectory: true) }
+        }
+        guard let root,
+            let enumerator = FileManager.default.enumerator(
+                at: root, includingPropertiesForKeys: nil)
+        else { return nil }
+        for case let url as URL in enumerator where url.lastPathComponent == name {
+            return url
+        }
+        return nil
+    }
+
+    /// Locate the iossim JIT executor artifacts (server.o + the LLVM
+    /// TargetProcess archives) that share one resource directory.
     static func jitArtifacts() throws -> JITArtifacts {
+        if let dir = runfilesJITDir() {
+            return JITArtifacts(
+                serverObject: dir.appendingPathComponent("server.o"),
+                libDir: dir
+            )
+        }
         guard let serverObject = Bundle.module.url(forResource: "server", withExtension: "o") else {
             throw IOSAgentBuildError.compilationFailed(
                 "iOS JIT build requested but server.o is missing from the PreviewsIOS resource bundle"
@@ -269,7 +331,10 @@ extension IOSAgentBuilder {
     /// Path to the iossim orc runtime archive the daemon injects remotely via
     /// `JITSession(remoteFD:orcRuntimePath:)`. Not linked into the agent app.
     public static var jitOrcRuntimePath: String? {
-        Bundle.module.url(forResource: "liborc_rt_iossim", withExtension: "a")?.path
+        if let dir = runfilesJITDir() {
+            return dir.appendingPathComponent("liborc_rt_iossim.a").path
+        }
+        return Bundle.module.url(forResource: "liborc_rt_iossim", withExtension: "a")?.path
     }
 }
 

@@ -8,10 +8,15 @@ struct PreviewSessionBuildContextTests {
 
     // MARK: - Paths
 
-    static let repoRoot: URL = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent()  // PreviewsCoreTests/
-        .deletingLastPathComponent()  // Tests/
-        .deletingLastPathComponent()  // repo root
+    static let repoRoot: URL = {
+        if let root = ProcessInfo.processInfo.environment["PREVIEWSMCP_REPO_ROOT"] {
+            return URL(fileURLWithPath: root, isDirectory: true)
+        }
+        return URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()  // PreviewsCoreTests/
+            .deletingLastPathComponent()  // Tests/
+            .deletingLastPathComponent()  // repo root
+    }()
 
     static let spmExampleRoot = repoRoot.appendingPathComponent("examples/spm")
     static let toDoViewFile = spmExampleRoot.appendingPathComponent("Sources/ToDo/ToDoView.swift")

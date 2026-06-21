@@ -1,0 +1,5 @@
+exports_files([
+    "AgentApp.swift",
+    "Info.plist",
+    "AppIcon.png",
+])

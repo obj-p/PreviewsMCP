@@ -1,0 +1,198 @@
+load("@rules_foreign_cc//foreign_cc:defs.bzl", "cmake")
+load("//bazel:ios_resources.bzl", "ios_jit_resources")
+load("//bazel:object.bzl", "cc_object")
+load("//bazel:transitions.bzl", "ios_sim_build")
+load("//bazel:version.bzl", "generated_version")
+
+generated_version(
+    name = "generated_version",
+    out = "GeneratedVersion.swift",
+    visibility = ["//visibility:public"],
+)
+
+cmake(
+    name = "llvm",
+    cache_entries = {
+        "CMAKE_BUILD_TYPE": "Release",
+        "LLVM_ENABLE_ASSERTIONS": "ON",
+        "CMAKE_OSX_ARCHITECTURES": "arm64",
+        "LLVM_TARGETS_TO_BUILD": "AArch64;X86",
+        "LLVM_BUILD_LLVM_DYLIB": "ON",
+        "LLVM_LINK_LLVM_DYLIB": "ON",
+        "LLVM_ENABLE_PROJECTS": "",
+        "LLVM_ENABLE_RUNTIMES": "",
+        "LLVM_INCLUDE_TESTS": "OFF",
+        "LLVM_INCLUDE_BENCHMARKS": "OFF",
+        "LLVM_INCLUDE_EXAMPLES": "OFF",
+        "LLVM_DISTRIBUTION_COMPONENTS": "LLVM;llvm-config;llvm-headers",
+    },
+    generate_args = ["-GNinja"],
+    install = False,
+    lib_source = "@llvm_src//:all",
+    out_shared_libs = ["libLLVM.dylib"],
+    targets = ["LLVM", "llvm-config", "install-distribution"],
+    visibility = ["//visibility:public"],
+    working_directory = "llvm",
+)
+
+cmake(
+    name = "llvm_tblgen",
+    cache_entries = {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_OSX_ARCHITECTURES": "arm64",
+        "LLVM_TARGETS_TO_BUILD": "AArch64;X86",
+        "LLVM_INCLUDE_TESTS": "OFF",
+        "LLVM_INCLUDE_BENCHMARKS": "OFF",
+        "LLVM_INCLUDE_EXAMPLES": "OFF",
+    },
+    generate_args = ["-GNinja"],
+    install = False,
+    lib_source = "@llvm_src//:all",
+    out_binaries = ["llvm-tblgen"],
+    postfix_script = "mkdir -p $$INSTALLDIR/bin && find $$BUILD_TMPDIR -name llvm-tblgen -type f -perm -u+x -exec cp {} $$INSTALLDIR/bin/ ';'",
+    targets = ["llvm-tblgen"],
+    visibility = ["//visibility:public"],
+    working_directory = "llvm",
+)
+
+filegroup(
+    name = "llvm_tblgen_bin",
+    srcs = [":llvm_tblgen"],
+    output_group = "llvm-tblgen",
+)
+
+cmake(
+    name = "iossim_orc",
+    build_data = ["//:llvm_tblgen_bin"],
+    cache_entries = {
+        "CMAKE_BUILD_TYPE": "Release",
+        "LLVM_ENABLE_ASSERTIONS": "ON",
+        "CMAKE_SYSTEM_NAME": "iOS",
+        "CMAKE_CROSSCOMPILING": "TRUE",
+        "CMAKE_OSX_ARCHITECTURES": "arm64",
+        "CMAKE_OSX_DEPLOYMENT_TARGET": "14.0",
+        "LLVM_TARGETS_TO_BUILD": "AArch64;X86",
+        "LLVM_TABLEGEN": "$(execpath //:llvm_tblgen_bin)",
+        "LLVM_BUILD_LLVM_DYLIB": "OFF",
+        "LLVM_LINK_LLVM_DYLIB": "OFF",
+        "LLVM_BUILD_TOOLS": "OFF",
+        "LLVM_BUILD_UTILS": "OFF",
+        "LLVM_BUILD_RUNTIME": "OFF",
+        "LLVM_INCLUDE_TESTS": "OFF",
+        "LLVM_INCLUDE_BENCHMARKS": "OFF",
+        "LLVM_INCLUDE_EXAMPLES": "OFF",
+        "LLVM_INCLUDE_UTILS": "OFF",
+        "LLVM_INCLUDE_TOOLS": "OFF",
+    },
+    generate_args = ["-GNinja"],
+    install = False,
+    lib_source = "@llvm_src//:all",
+    out_static_libs = [
+        "libLLVMOrcTargetProcess.a",
+        "libLLVMOrcShared.a",
+        "libLLVMSupport.a",
+        "libLLVMTargetParser.a",
+        "libLLVMDemangle.a",
+    ],
+    postfix_script = "mkdir -p $$INSTALLDIR/lib && find $$BUILD_TMPDIR -name 'libLLVM*.a' -exec cp {} $$INSTALLDIR/lib/ ';'",
+    targets = ["LLVMOrcTargetProcess"],
+    visibility = ["//visibility:public"],
+    working_directory = "llvm",
+)
+
+ios_sim_build(
+    name = "iossim_orc_simbuilt",
+    target = ":iossim_orc",
+    visibility = ["//visibility:public"],
+)
+
+cmake(
+    name = "orc_rt",
+    cache_entries = {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_OSX_ARCHITECTURES": "arm64",
+        "COMPILER_RT_STANDALONE_BUILD": "ON",
+        "LLVM_CMAKE_DIR": "$$EXT_BUILD_ROOT$$/external/+llvm_repository+llvm_src/llvm/cmake/modules",
+        "COMPILER_RT_BUILD_ORC": "ON",
+        "COMPILER_RT_BUILD_BUILTINS": "OFF",
+        "COMPILER_RT_BUILD_SANITIZERS": "OFF",
+        "COMPILER_RT_BUILD_XRAY": "OFF",
+        "COMPILER_RT_BUILD_LIBFUZZER": "OFF",
+        "COMPILER_RT_BUILD_PROFILE": "OFF",
+        "COMPILER_RT_BUILD_MEMPROF": "OFF",
+        "COMPILER_RT_DEBUG": "ON",
+    },
+    generate_args = ["-GNinja"],
+    install = False,
+    lib_source = "@llvm_src//:all",
+    out_static_libs = ["liborc_rt_osx.a"],
+    postfix_script = "mkdir -p $$INSTALLDIR/lib && find $$BUILD_TMPDIR -name liborc_rt_osx.a -exec cp {} $$INSTALLDIR/lib/ ';'",
+    targets = ["orc"],
+    visibility = ["//visibility:public"],
+    working_directory = "compiler-rt",
+)
+
+filegroup(
+    name = "orc_rt_archive",
+    srcs = [":orc_rt"],
+    output_group = "liborc_rt_osx.a",
+    visibility = ["//visibility:public"],
+)
+
+cmake(
+    name = "orc_rt_iossim",
+    cache_entries = {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_OSX_ARCHITECTURES": "arm64",
+        "CMAKE_OSX_DEPLOYMENT_TARGET": "14.0",
+        "COMPILER_RT_STANDALONE_BUILD": "ON",
+        "LLVM_CMAKE_DIR": "$$EXT_BUILD_ROOT$$/external/+llvm_repository+llvm_src/llvm/cmake/modules",
+        "COMPILER_RT_BUILD_ORC": "ON",
+        "COMPILER_RT_BUILD_BUILTINS": "OFF",
+        "COMPILER_RT_BUILD_SANITIZERS": "OFF",
+        "COMPILER_RT_BUILD_XRAY": "OFF",
+        "COMPILER_RT_BUILD_LIBFUZZER": "OFF",
+        "COMPILER_RT_BUILD_PROFILE": "OFF",
+        "COMPILER_RT_BUILD_MEMPROF": "OFF",
+        "COMPILER_RT_DEBUG": "ON",
+    },
+    generate_args = ["-GNinja"],
+    install = False,
+    lib_source = "@llvm_src//:all",
+    out_static_libs = ["liborc_rt_iossim.a"],
+    postfix_script = "mkdir -p $$INSTALLDIR/lib && find $$BUILD_TMPDIR -name liborc_rt_iossim.a -exec cp {} $$INSTALLDIR/lib/ ';'",
+    targets = ["orc"],
+    visibility = ["//visibility:public"],
+    working_directory = "compiler-rt",
+)
+
+ios_sim_build(
+    name = "orc_rt_iossim_simbuilt",
+    target = ":orc_rt_iossim",
+    visibility = ["//visibility:public"],
+)
+
+cc_object(
+    name = "ios_server_object",
+    srcs = ["ios-host/executor/server.cpp"],
+    hdrs = ["ios-host/executor/server.h"],
+    copts = [
+        "-std=c++17",
+        "-fno-rtti",
+        "-O2",
+    ],
+    llvm_headers = ["//:llvm"],
+    out = "server.o",
+    visibility = ["//visibility:public"],
+)
+
+ios_jit_resources(
+    name = "ios_jit_resources",
+    srcs = [
+        ":ios_server_object",
+        ":iossim_orc_simbuilt",
+        ":orc_rt_iossim_simbuilt",
+    ],
+    visibility = ["//visibility:public"],
+)
+

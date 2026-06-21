@@ -1,0 +1,17 @@
+load("@rules_swift//swift:swift.bzl", "swift_library")
+
+swift_library(
+    name = "PreviewsIOS",
+    srcs = glob(["*.swift"]) + [
+        "//bazel/embed:ios_host_app_source",
+        "//bazel/shims:bundle_module_stub.swift",
+    ],
+    copts = ["-swift-version", "6"],
+    data = ["//:iossim_orc_simbuilt"],
+    module_name = "PreviewsIOS",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//Sources/PreviewsCore",
+        "//Sources/SimulatorBridge",
+    ],
+)

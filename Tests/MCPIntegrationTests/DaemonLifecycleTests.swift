@@ -13,13 +13,7 @@ struct DaemonLifecycleTests {
 
     // MARK: - Paths
 
-    static let repoRoot: URL = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent()
-        .deletingLastPathComponent()
-        .deletingLastPathComponent()
-
-    static let binaryPath: String =
-        repoRoot.appendingPathComponent(".build/debug/previewsmcp").path
+    static let binaryPath: String = MCPTestServer.binaryPath
 
     /// Socket path for the current test's daemon.
     static var socketPath: String {
