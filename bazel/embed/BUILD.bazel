@@ -10,5 +10,9 @@ embed_host_app_source(
     app_icon = "//ios-host/agent:AppIcon.png",
     host_app = "//ios-host/agent:AgentApp.swift",
     info_plist = "//ios-host/agent:Info.plist",
+    shell_entitlements = "//ios-host/shell:Shell.entitlements",
+    shell_icon = "//ios-host/shell:AppIcon.png",
+    shell_info_plist = "//ios-host/shell:Info.plist",
+    shell_source = "//ios-host/shell:ShellMain.m",
     visibility = ["//visibility:public"],
 )

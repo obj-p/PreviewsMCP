@@ -1,0 +1,6 @@
+exports_files([
+    "ShellMain.m",
+    "Shell.entitlements",
+    "Info.plist",
+    "AppIcon.png",
+])

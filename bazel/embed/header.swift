@@ -12,3 +12,10 @@ enum IOSAppIconData {
     static let bytes: Data = _decodeData(_iconBase64, label: "AppIcon.png")
 }
 
+enum IOSShellAppSource {
+    static let code: String = _decodeUTF8(_shellCodeBase64, label: "Shell/ShellMain.m")
+    static let infoPlist: String = _decodeUTF8(_shellInfoPlistBase64, label: "Shell/Info.plist")
+    static let entitlements: String = _decodeUTF8(_shellEntitlementsBase64, label: "Shell/Shell.entitlements")
+    static let iconBytes: Data = _decodeData(_shellIconBase64, label: "Shell/AppIcon.png")
+}
+
