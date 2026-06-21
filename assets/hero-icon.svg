@@ -4,10 +4,6 @@
       <stop offset="0" stop-color="#2D2E35"/>
       <stop offset="1" stop-color="#1A1B1F"/>
     </linearGradient>
-    <linearGradient id="arrows" gradientUnits="userSpaceOnUse" x1="118" y1="146" x2="139" y2="146">
-      <stop offset="0" stop-color="#5DD8FF"/>
-      <stop offset="1" stop-color="#FF7AB2"/>
-    </linearGradient>
   </defs>
 
   <rect width="256" height="256" rx="56" fill="url(#bg)"/>
@@ -42,11 +38,11 @@
   <rect x="154" y="160" width="44" height="5" rx="2.5" fill="#3F4048"/>
   <rect x="162" y="176" width="34" height="10" rx="5" fill="#67B7A4"/>
 
-  <!-- Refresh arrows (no disc, gradient bleed) on the seam -->
+  <!-- Refresh arrows (top pink, bottom cyan) on the seam -->
   <g>
-    <path d="M 119 144 A 9 9 0 0 1 135 140" fill="none" stroke="url(#arrows)" stroke-width="3" stroke-linecap="round"/>
+    <path d="M 119 144 A 9 9 0 0 1 135 140" fill="none" stroke="#FF7AB2" stroke-width="3" stroke-linecap="round"/>
     <path d="M -5 -4 L 0 0 L -5 4" fill="none" stroke="#FF7AB2" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" transform="translate(135 140) rotate(30)"/>
-    <path d="M 137 148 A 9 9 0 0 1 121 152" fill="none" stroke="url(#arrows)" stroke-width="3" stroke-linecap="round"/>
+    <path d="M 137 148 A 9 9 0 0 1 121 152" fill="none" stroke="#5DD8FF" stroke-width="3" stroke-linecap="round"/>
     <path d="M -5 -4 L 0 0 L -5 4" fill="none" stroke="#5DD8FF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" transform="translate(121 152) rotate(-150)"/>
   </g>
 </svg>

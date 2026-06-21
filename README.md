@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/icon.svg" width="128" height="128" alt="PreviewsMCP icon">
+  <img src="assets/hero-icon.svg" width="128" height="128" alt="PreviewsMCP icon">
 </p>
 
 <h1 align="center">PreviewsMCP</h1>
