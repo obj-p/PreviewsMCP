@@ -14,9 +14,11 @@ XIP_CACHE  ?= $(HOME)/.cache/merge-queue/xcode
 SA_RETRIES ?= 3
 SSH_RETRIES ?= 2
 SA_PLAN    ?= $(CURDIR)/sa-plan.json
+REPO_ROOT  ?= $(CURDIR)/..
+JIT_CACHE  ?= /Users/$(ADMIN_USER)/jit-cache
 
 .PHONY: bundle snapshots clean xcode-xip
-bundle: $(STATE)/post-toolchain
+bundle: $(STATE)/post-jit
 
 xcode-xip:
 	command -v xcodes >/dev/null || { echo "xcodes not found; run bootstrap (Brewfile)" >&2; exit 1; }
@@ -54,6 +56,16 @@ $(STATE)/toolchain: $(STATE)/ssh | $(STATE)
 $(STATE)/post-toolchain: $(STATE)/toolchain | $(STATE)
 	$(VZ_BIN) snapshot delete $(BUNDLE) post-toolchain 2>/dev/null || true
 	$(VZ_BIN) snapshot take $(BUNDLE) post-toolchain
+	touch $@
+
+$(STATE)/jit: $(STATE)/post-toolchain | $(STATE)
+	$(VZ_BIN) snapshot restore $(BUNDLE) post-toolchain
+	VZ_BIN="$(VZ_BIN)" BUNDLE="$(BUNDLE)" REPO_ROOT="$(REPO_ROOT)" JIT_CACHE="$(JIT_CACHE)" ADMIN_PASS="$(ADMIN_PASS)" STATE="$(CURDIR)/$(STATE)" ./provision-jit.sh
+	touch $@
+
+$(STATE)/post-jit: $(STATE)/jit | $(STATE)
+	$(VZ_BIN) snapshot delete $(BUNDLE) post-jit 2>/dev/null || true
+	$(VZ_BIN) snapshot take $(BUNDLE) post-jit
 	touch $@
 
 snapshots:
