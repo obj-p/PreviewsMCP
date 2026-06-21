@@ -1,6 +1,7 @@
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "cmake")
 load("//bazel:ios_resources.bzl", "ios_jit_resources")
 load("//bazel:object.bzl", "cc_object")
+load("//bazel:stage_dir.bzl", "stage_dir")
 load("//bazel:transitions.bzl", "ios_sim_build")
 load("//bazel:version.bzl", "generated_version")
 
@@ -106,13 +107,21 @@ ios_sim_build(
     visibility = ["//visibility:public"],
 )
 
+stage_dir(
+    name = "llvm_cmake_modules",
+    srcs = ["@llvm_src//:all"],
+    subdir = "llvm/cmake/modules",
+    visibility = ["//visibility:public"],
+)
+
 cmake(
     name = "orc_rt",
+    build_data = ["//:llvm_cmake_modules"],
     cache_entries = {
         "CMAKE_BUILD_TYPE": "Release",
         "CMAKE_OSX_ARCHITECTURES": "arm64",
         "COMPILER_RT_STANDALONE_BUILD": "ON",
-        "LLVM_CMAKE_DIR": "$$EXT_BUILD_ROOT$$/external/+llvm_repository+llvm_src/llvm/cmake/modules",
+        "LLVM_CMAKE_DIR": "$(execpath //:llvm_cmake_modules)",
         "COMPILER_RT_BUILD_ORC": "ON",
         "COMPILER_RT_BUILD_BUILTINS": "OFF",
         "COMPILER_RT_BUILD_SANITIZERS": "OFF",
@@ -141,12 +150,13 @@ filegroup(
 
 cmake(
     name = "orc_rt_iossim",
+    build_data = ["//:llvm_cmake_modules"],
     cache_entries = {
         "CMAKE_BUILD_TYPE": "Release",
         "CMAKE_OSX_ARCHITECTURES": "arm64",
         "CMAKE_OSX_DEPLOYMENT_TARGET": "14.0",
         "COMPILER_RT_STANDALONE_BUILD": "ON",
-        "LLVM_CMAKE_DIR": "$$EXT_BUILD_ROOT$$/external/+llvm_repository+llvm_src/llvm/cmake/modules",
+        "LLVM_CMAKE_DIR": "$(execpath //:llvm_cmake_modules)",
         "COMPILER_RT_BUILD_ORC": "ON",
         "COMPILER_RT_BUILD_BUILTINS": "OFF",
         "COMPILER_RT_BUILD_SANITIZERS": "OFF",
