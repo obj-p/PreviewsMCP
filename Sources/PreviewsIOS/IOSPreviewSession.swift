@@ -328,6 +328,27 @@ public actor IOSPreviewSession {
     public func stop() async {
         stopping = true
 
+        // Take the render lock so stop wins the respawn race (#257). An iOS
+        // eviction can have a `_relaunch` in flight (via `handleUnexpectedAgentDeath`)
+        // holding the lock; without waiting it out, that respawn relaunches the agent
+        // AFTER we tear down and orphans a host. Waiting drains the in-flight respawn,
+        // then we terminate its result. Any respawn that starts later sees `stopping`
+        // at its post-lock guard and bails, so it is safe to release after teardown.
+        // Take the render lock so stop wins the respawn race (#257). An iOS
+        // eviction can have a `_relaunch` in flight (via `handleUnexpectedAgentDeath`)
+        // holding the lock; without waiting it out, that respawn relaunches the agent
+        // AFTER we tear down and orphans a host. Waiting drains the in-flight respawn,
+        // then we terminate its result. Any respawn that starts later sees `stopping`
+        // at its post-lock guard and bails, so it is safe to release after teardown.
+        // Take the render lock so stop wins the respawn race (#257). An iOS
+        // eviction can have a `_relaunch` in flight (via `handleUnexpectedAgentDeath`)
+        // holding the lock; without waiting it out, that respawn relaunches the agent
+        // AFTER we tear down and orphans a host. Waiting drains the in-flight respawn,
+        // then we terminate its result. Any respawn that starts later sees `stopping`
+        // at its post-lock guard and bails, so it is safe to release after teardown.
+        await acquireRenderLock()
+        defer { releaseRenderLock() }
+
         // Kill the apps BEFORE tearing down the JIT session. The agent's live
         // SwiftUI view graph runs in JIT'd code, so freeing the session while the
         // agent is alive makes its next main-loop render fault on freed pages
