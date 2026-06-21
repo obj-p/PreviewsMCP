@@ -1,1 +1,2 @@
 brew "bazelisk"
+brew "xcodes"

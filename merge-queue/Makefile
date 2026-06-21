@@ -15,8 +15,13 @@ SA_RETRIES ?= 3
 SSH_RETRIES ?= 2
 SA_PLAN    ?= $(CURDIR)/sa-plan.json
 
-.PHONY: bundle snapshots clean
+.PHONY: bundle snapshots clean xcode-xip
 bundle: $(STATE)/post-toolchain
+
+xcode-xip:
+	command -v xcodes >/dev/null || { echo "xcodes not found; run bootstrap (Brewfile)" >&2; exit 1; }
+	mkdir -p $(XIP_CACHE)
+	xcodes download "$(XCODE_VER)" --directory "$(XIP_CACHE)"
 
 $(STATE):
 	mkdir -p $(STATE)

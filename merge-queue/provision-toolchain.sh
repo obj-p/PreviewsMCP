@@ -19,7 +19,7 @@ resolve_xip() {
         return
     fi
     mkdir -p "$XIP_CACHE"
-    XIP="$(ls "$XIP_CACHE"/Xcode-"$XCODE_VER"*.xip 2>/dev/null | head -1 || true)"
+    XIP="$(ls "$XIP_CACHE"/Xcode*"$XCODE_VER"*.xip 2>/dev/null | head -1 || true)"
     if [ -z "$XIP" ]; then
         command -v xcodes >/dev/null || { echo "no XCODE_XIP and xcodes not installed (brew install xcodes)" >&2; exit 1; }
         log "xcodes download $XCODE_VER (Apple auth + 2FA on first run)"
