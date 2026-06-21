@@ -7,9 +7,9 @@
     <key>CFBundleExecutable</key>
     <string>PreviewsMCPHost</string>
     <key>CFBundleName</key>
-    <string>PreviewsMCP</string>
+    <string>Agent</string>
     <key>CFBundleDisplayName</key>
-    <string>PreviewsMCP</string>
+    <string>Agent</string>
     <key>CFBundleVersion</key>
     <string>1</string>
     <key>CFBundleShortVersionString</key>

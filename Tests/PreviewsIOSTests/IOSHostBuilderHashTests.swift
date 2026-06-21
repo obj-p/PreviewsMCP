@@ -54,7 +54,9 @@ struct IOSHostBuilderHashTests {
         // Updated 2026-06-20 for shell-owns-agent Stage 0: HostApp.swift gained the
         // lifecycle breadcrumb (sendLifecycle + applicationDidBecomeActive/
         // applicationDidEnterBackground reporting applicationState over the channel).
-        let expected = "07b2e439789a8916b5e8525a650748efb3abdaa743ae44ec0589616d32256798"
+        // Updated 2026-06-21 for Agent rebrand: Info.plist display name is now
+        // "Agent" and AppIcon.png is the cyan-to-pink sync glyph (assets/agent-icon.svg).
+        let expected = "56f6d48382bb8401dfe0a4fb5ef2cdf033ea448c7fe8cfb70f8af2801be2717c"
         #expect(hash == expected, "host-app artifact hash drifted (was \(expected), now \(hash))")
     }
 }

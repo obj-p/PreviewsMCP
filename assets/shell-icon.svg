@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="Shell">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2D2E35"/>
+      <stop offset="1" stop-color="#1A1B1F"/>
+    </linearGradient>
+    <linearGradient id="accent" gradientUnits="userSpaceOnUse" x1="96" y1="96" x2="160" y2="160">
+      <stop offset="0" stop-color="#5DD8FF"/>
+      <stop offset="1" stop-color="#FF7AB2"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="256" height="256" rx="56" fill="url(#bg)"/>
+
+  <!-- Phone body -->
+  <rect x="84" y="40" width="88" height="176" rx="24" fill="#26272D" stroke="#C8CBD2" stroke-width="6"/>
+  <!-- Dynamic island -->
+  <rect x="113" y="54" width="30" height="9" rx="4.5" fill="#0E0F12"/>
+  <!-- Home indicator -->
+  <rect x="110" y="198" width="36" height="5" rx="2.5" fill="#7F8C98"/>
+
+  <!-- On-screen preview app -->
+  <circle cx="108" cy="92" r="9" fill="url(#accent)"/>
+  <rect x="123" y="86" width="32" height="5" rx="2.5" fill="#DFDFE0"/>
+  <rect x="123" y="96" width="22" height="4" rx="2" fill="#7F8C98"/>
+  <rect x="100" y="118" width="56" height="5" rx="2.5" fill="#5DD8FF"/>
+  <rect x="100" y="132" width="48" height="5" rx="2.5" fill="#3F4048"/>
+  <rect x="100" y="146" width="52" height="5" rx="2.5" fill="#3F4048"/>
+  <rect x="108" y="166" width="40" height="12" rx="6" fill="#67B7A4"/>
+</svg>

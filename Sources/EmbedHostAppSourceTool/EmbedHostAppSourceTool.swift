@@ -23,10 +23,10 @@ import Foundation
 enum EmbedHostAppSourceTool {
     static func main() throws {
         let args = CommandLine.arguments
-        guard args.count == 8 else {
+        guard args.count == 9 else {
             fail(
                 "usage: \(args.first ?? "tool") <hostAppSwift> <infoPlist> <iconPng> "
-                    + "<shellSource> <shellInfoPlist> <shellEntitlements> <output>")
+                    + "<shellSource> <shellInfoPlist> <shellEntitlements> <shellIconPng> <output>")
         }
 
         let hostAppB64 = readBase64(args[1])
@@ -35,7 +35,8 @@ enum EmbedHostAppSourceTool {
         let shellCodeB64 = readBase64(args[4])
         let shellInfoPlistB64 = readBase64(args[5])
         let shellEntitlementsB64 = readBase64(args[6])
-        let outputPath = args[7]
+        let shellIconB64 = readBase64(args[7])
+        let outputPath = args[8]
 
         // Interpolating these directly into a Swift source string is safe
         // because the base64 alphabet (`A-Z a-z 0-9 + /` plus `=` padding) is
@@ -61,6 +62,7 @@ enum EmbedHostAppSourceTool {
                 static let code: String = _decodeUTF8(_shellCodeBase64, label: "Shell/ShellMain.m")
                 static let infoPlist: String = _decodeUTF8(_shellInfoPlistBase64, label: "Shell/Info.plist")
                 static let entitlements: String = _decodeUTF8(_shellEntitlementsBase64, label: "Shell/Shell.entitlements")
+                static let iconBytes: Data = _decodeData(_shellIconBase64, label: "Shell/AppIcon.png")
             }
 
             private let _hostAppCodeBase64 = "\(hostAppB64)"
@@ -69,6 +71,7 @@ enum EmbedHostAppSourceTool {
             private let _shellCodeBase64 = "\(shellCodeB64)"
             private let _shellInfoPlistBase64 = "\(shellInfoPlistB64)"
             private let _shellEntitlementsBase64 = "\(shellEntitlementsB64)"
+            private let _shellIconBase64 = "\(shellIconB64)"
 
             private func _decodeData(_ b64: String, label: String) -> Data {
                 guard let data = Data(base64Encoded: b64) else {

@@ -73,12 +73,13 @@ public actor IOSHostBuilder {
         return hasher.finalize().map { String(format: "%02x", $0) }.joined()
     }
 
-    /// SHA-256 of the shell app source, plist, and entitlements, for cache
-    /// invalidation (mirrors `sourceHash` for the host app).
+    /// SHA-256 of the shell app source, plist, entitlements, and icon, for
+    /// cache invalidation (mirrors `sourceHash` for the host app).
     private static let shellSourceHash: String = hashHex([
         Data(IOSShellAppSource.code.utf8),
         Data(IOSShellAppSource.infoPlist.utf8),
         Data(IOSShellAppSource.entitlements.utf8),
+        IOSShellAppSource.iconBytes,
     ])
 
     /// SHA-256 hash of the host app source, info plist, and embedded
@@ -209,6 +210,9 @@ public actor IOSHostBuilder {
         }
         try FileManager.default.copyItem(at: binaryPath, to: appBinary)
         try IOSShellAppSource.infoPlist.write(to: plistPath, atomically: true, encoding: .utf8)
+
+        let iconDest = appDir.appendingPathComponent("AppIcon.png")
+        try IOSShellAppSource.iconBytes.write(to: iconDest)
 
         // Ad-hoc sign WITHOUT --entitlements (they are section-embedded above).
         try await run(codesignPath, "-s", "-", "--force", appDir.path)
