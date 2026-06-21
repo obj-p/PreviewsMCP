@@ -41,13 +41,16 @@ struct SSHCommand: AsyncParsableCommand {
         }
         let endpoint = VMSSH.endpoint(bundle: bundle, host: ip)
 
-        // Short readiness probe so we don't drop the user into ssh that
-        // immediately fails with "Connection refused" right after boot.
-        if !remoteCommand.isEmpty {
+        var passthrough = remoteCommand
+        if passthrough.first == "--" {
+            passthrough.removeFirst()
+        }
+
+        if !passthrough.isEmpty {
             try await VMSSH.waitForReady(endpoint: endpoint, timeout: sshTimeout)
         }
 
-        let command = remoteCommand.isEmpty ? nil : remoteCommand.joined(separator: " ")
+        let command = passthrough.isEmpty ? nil : passthrough.joined(separator: " ")
         let exit = try VMSSH.execInteractive(endpoint: endpoint, command: command)
         Darwin.exit(exit)
     }

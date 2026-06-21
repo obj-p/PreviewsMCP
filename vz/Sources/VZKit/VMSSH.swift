@@ -72,9 +72,6 @@ public enum VMSSH {
         let p = Process()
         p.executableURL = URL(filePath: "/usr/bin/ssh")
         p.arguments = args
-        p.standardInput = FileHandle.standardInput
-        p.standardOutput = FileHandle.standardOutput
-        p.standardError = FileHandle.standardError
         do {
             try p.run()
         } catch {
@@ -147,6 +144,7 @@ public enum VMSSH {
             process.arguments = arguments
             let outPipe = Pipe()
             let errPipe = Pipe()
+            process.standardInput = FileHandle.nullDevice
             process.standardOutput = outPipe
             process.standardError = errPipe
 

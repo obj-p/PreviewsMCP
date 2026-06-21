@@ -14,24 +14,26 @@ struct VZApp {
         }
 
         if let asyncCmd = command as? any AsyncParsableCommand {
-            // Drive AppKit's runloop. The install command needs it for
-            // the hidden-window first-boot driver; boot/ssh/stop/status
-            // tolerate it (`NSApp.run` is a superset of `dispatchMain`
-            // for their purposes). `.accessory` keeps the binary off the
-            // Dock — matches PreviewsMCP's `serve` pattern.
-            let app = NSApplication.shared
-            app.setActivationPolicy(.accessory)
-
-            Task {
-                do {
-                    var mutable = asyncCmd
-                    try await mutable.run()
-                    Darwin.exit(0)
-                } catch {
-                    VZCommand.exit(withError: error)
+            let runAsync = {
+                Task {
+                    do {
+                        var mutable = asyncCmd
+                        try await mutable.run()
+                        Darwin.exit(0)
+                    } catch {
+                        VZCommand.exit(withError: error)
+                    }
                 }
             }
-            app.run()  // never returns; Task exits the process
+            if command is SSHCommand {
+                runAsync()
+                dispatchMain()
+            } else {
+                let app = NSApplication.shared
+                app.setActivationPolicy(.accessory)
+                runAsync()
+                app.run()
+            }
         }
 
         do {
