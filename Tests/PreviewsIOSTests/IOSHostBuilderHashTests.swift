@@ -59,7 +59,9 @@ struct IOSHostBuilderHashTests {
         // Updated 2026-06-21 for agent->shell redirect: HostApp.swift bounces a
         // direct foreground to the shell via the private LSApplicationWorkspace
         // (silent), gated so the hosted-launch transient .active does not bounce.
-        let expected = "89bc57661ae627bacf9c1b94247cd53999efc53adc8f3318be25045372d42ef8"
+        // Updated 2026-06-21 for #217: HostApp.swift reports an in-app JIT executor
+        // failure (connect/executor) to the daemon over the JSON channel.
+        let expected = "b76d69511202dabeb5f22ce52b1cd2d2e929d31b455c255f23b118011377d403"
         #expect(hash == expected, "host-app artifact hash drifted (was \(expected), now \(hash))")
     }
 }
