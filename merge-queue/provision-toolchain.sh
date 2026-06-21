@@ -79,7 +79,20 @@ remote 'NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubuserconten
 remote 'eval "$(/opt/homebrew/bin/brew shellenv)" && brew install bazelisk mise'
 
 log "enabling autologin for $ADMIN_USER"
-rsudo "sysadminctl -autologin set -userName $ADMIN_USER -password $ADMIN_PASS"
+KC_TMP="$(mktemp)"
+perl -e '
+my @key = (0x7D,0x89,0x52,0x23,0xD2,0xBC,0xDD,0xEA,0xA3,0xB9,0x1F);
+my @p = unpack("C*", $ARGV[0]);
+my $rem = scalar(@p) % 12;
+my $pad = (12 - $rem); $pad = 12 if $rem == 0;
+push @p, (0) x $pad;
+for my $i (0..$#p) { $p[$i] ^= $key[$i % 11]; }
+binmode STDOUT;
+print pack("C*", @p);
+' "$ADMIN_PASS" > "$KC_TMP"
+"$VZ_BIN" ssh "$BUNDLE" -- "cat > /tmp/kcpassword" < "$KC_TMP"
+rm -f "$KC_TMP"
+rsudo "bash -c 'install -m 0600 -o root -g wheel /tmp/kcpassword /etc/kcpassword && rm -f /tmp/kcpassword && defaults write /Library/Preferences/com.apple.loginwindow autoLoginUser $ADMIN_USER'"
 
 log "verifying swift toolchain in guest"
 remote "xcrun swift --version"

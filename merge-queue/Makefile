@@ -37,11 +37,13 @@ $(STATE)/install: $(STATE)/vz | $(STATE)
 
 $(STATE)/setup: $(STATE)/install | $(STATE)
 	$(VZ_BIN) setup $(BUNDLE) --transport vnc --plan $(SA_PLAN) --retry $(SA_RETRIES) --restore-from base --output-dir $(CURDIR)/$(STATE)/sa-logs
+	$(VZ_BIN) snapshot delete $(BUNDLE) post-sa 2>/dev/null || true
 	$(VZ_BIN) snapshot take $(BUNDLE) post-sa
 	touch $@
 
 $(STATE)/ssh: $(STATE)/setup | $(STATE)
 	$(VZ_BIN) setup $(BUNDLE) --transport vnc --preset provision-ssh --retry $(SSH_RETRIES) --restore-from post-sa --output-dir $(CURDIR)/$(STATE)/ssh-logs
+	$(VZ_BIN) snapshot delete $(BUNDLE) post-ssh 2>/dev/null || true
 	$(VZ_BIN) snapshot take $(BUNDLE) post-ssh
 	touch $@
 
@@ -50,6 +52,7 @@ $(STATE)/toolchain: $(STATE)/ssh | $(STATE)
 	touch $@
 
 $(STATE)/post-toolchain: $(STATE)/toolchain | $(STATE)
+	$(VZ_BIN) snapshot delete $(BUNDLE) post-toolchain 2>/dev/null || true
 	$(VZ_BIN) snapshot take $(BUNDLE) post-toolchain
 	touch $@
 
