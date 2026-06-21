@@ -118,9 +118,11 @@ extension SetupAssistantSequence {
         }
         let framebuffer = CGSize(width: 1280, height: 720)
         let persistLimit = 20
+        let blankLimit = 30
         var lastMatch: String?
         var persistCount = 0
         var noMatchCount = 0
+        var blankCount = 0
 
         for iteration in 0..<maxIterations {
             let observations = try await ocrScreen(host: host, framebufferSize: framebuffer)
@@ -135,16 +137,25 @@ extension SetupAssistantSequence {
             guard let rule = rules.first(where: {
                 FramebufferOCR.find($0.match, in: observations) != nil
             }) else {
-                noMatchCount += 1
-                if noMatchCount >= 5 {
-                    let seen = observations.prefix(20).map { $0.text }
-                    throw VMError(
-                        "dispatch: no rule matched the current screen. " +
-                        "Saw: \(seen.joined(separator: " | "))")
+                if observations.isEmpty {
+                    blankCount += 1
+                    if blankCount >= blankLimit {
+                        throw VMError(
+                            "dispatch: framebuffer stayed blank for \(blankCount) iterations")
+                    }
+                } else {
+                    noMatchCount += 1
+                    if noMatchCount >= 5 {
+                        let seen = observations.prefix(20).map { $0.text }
+                        throw VMError(
+                            "dispatch: no rule matched the current screen. " +
+                            "Saw: \(seen.joined(separator: " | "))")
+                    }
                 }
                 try await Task.sleep(for: .seconds(settleSeconds))
                 continue
             }
+            blankCount = 0
             noMatchCount = 0
 
             if rule.match == lastMatch {
