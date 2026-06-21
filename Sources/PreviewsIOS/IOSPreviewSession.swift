@@ -275,22 +275,26 @@ public actor IOSPreviewSession {
         // accept is ordered after the JSON connect but either may arrive first
         // (the listen backlog holds the other).
         stage("awaiting JIT executor connection")
-        let epcFD = try acceptJIT(timeoutSeconds: 10)
-        let reloader = try makeJITReloader(epcFD, orcPath)
-        jitReloader = reloader
-        stage("JIT executor connected; compiling initial preview")
-        let build = try await previewSession.compileObjectForJIT()
+        do {
+            let epcFD = try acceptJIT(timeoutSeconds: 10)
+            let reloader = try makeJITReloader(epcFD, orcPath)
+            jitReloader = reloader
+            stage("JIT executor connected; compiling initial preview")
+            let build = try await previewSession.compileObjectForJIT()
 
-        // The render entry installs the SwiftUI hosting controller into the
-        // agent's key window, which only exists once the shell completes the
-        // hosting handshake and the agent's scene connects. Wait for the agent's
-        // sceneReady signal so the render targets a real window deterministically.
-        // The agent is a SwiftUI App; the render hands its controller to a store
-        // the WindowGroup observes, so the render can run before the hosted
-        // scene attaches (the store buffers it until SwiftUI's window is up).
-        stage("rendering initial preview")
-        try await reloader.render(build)
-        stage("initial JIT render complete")
+            // The render entry installs the SwiftUI hosting controller into the
+            // agent's key window, which only exists once the shell completes the
+            // hosting handshake and the agent's scene connects. Wait for the agent's
+            // sceneReady signal so the render targets a real window deterministically.
+            // The agent is a SwiftUI App; the render hands its controller to a store
+            // the WindowGroup observes, so the render can run before the hosted
+            // scene attaches (the store buffers it until SwiftUI's window is up).
+            stage("rendering initial preview")
+            try await reloader.render(build)
+            stage("initial JIT render complete")
+        } catch {
+            throw await enrichedJITFailure(error)
+        }
 
         stage("connected; start complete")
 
@@ -367,6 +371,18 @@ public actor IOSPreviewSession {
             throw IOSPreviewSessionError.socketAcceptFailed
         }
         return conn
+    }
+
+    /// If the host reported an in-app JIT failure over the JSON channel, return
+    /// that as the error so the caller sees the host-side cause instead of a
+    /// generic accept timeout or downstream link error; otherwise pass `fallback`
+    /// through unchanged. See issue #217.
+    private func enrichedJITFailure(_ fallback: Error) async -> Error {
+        if let jitError = await channel.latestJITError {
+            return IOSPreviewSessionError.jitExecutorFailed(
+                stage: jitError.stage, code: jitError.code)
+        }
+        return fallback
     }
 
     /// Build a fresh `PreviewSession` for the current source, index, and traits.
@@ -506,14 +522,18 @@ public actor IOSPreviewSession {
         // (its agent-UDS EOFs), holds its cached frame + spinner, then reconnects
         // to the same stable sock path the new agent rebinds and re-hosts. No
         // shell relaunch, so the device display never blanks.
-        let epcFD = try acceptJIT(timeoutSeconds: 10)
-        let reloader = try makeJITReloader(epcFD, orcPath)
-        self.jitReloader = reloader
+        do {
+            let epcFD = try acceptJIT(timeoutSeconds: 10)
+            let reloader = try makeJITReloader(epcFD, orcPath)
+            self.jitReloader = reloader
 
-        let previewSession = makePreviewSession()
-        self.session = previewSession
-        let build = try await previewSession.compileObjectForJIT()
-        try await reloader.render(build)
+            let previewSession = makePreviewSession()
+            self.session = previewSession
+            let build = try await previewSession.compileObjectForJIT()
+            try await reloader.render(build)
+        } catch {
+            throw await enrichedJITFailure(error)
+        }
         baselineRSS = nil
         relaunchCount += 1
         return pid
@@ -682,6 +702,11 @@ public enum IOSPreviewSessionError: Error, LocalizedError, CustomStringConvertib
     /// from `socketResponseTimeout` so callers and operators can tell
     /// "host app didn't respond" from "host app responded with garbage."
     case responseDecodeFailed(operation: String)
+    /// The in-app ORC executor reported a failure over the JSON channel
+    /// (`connect` = EPC socket never connected; `executor` = ORC server failed
+    /// to start). Replaces the generic accept timeout / downstream link error
+    /// with the host-side cause. See issue #217.
+    case jitExecutorFailed(stage: String, code: Int?)
 
     public var description: String {
         switch self {
@@ -694,6 +719,9 @@ public enum IOSPreviewSessionError: Error, LocalizedError, CustomStringConvertib
         case .connectionLost: return "Connection to host app lost"
         case .responseDecodeFailed(let operation):
             return "Failed to decode host app response (operation: \(operation))"
+        case .jitExecutorFailed(let stage, let code):
+            let suffix = code.map { " (code \($0))" } ?? ""
+            return "In-app JIT executor failed during \(stage)\(suffix)"
         }
     }
 

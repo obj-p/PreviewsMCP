@@ -2,6 +2,15 @@ import Darwin
 import Foundation
 import PreviewsCore
 
+/// An in-app JIT executor failure the host reported over its `jitError`
+/// breadcrumb. `stage` is `connect` (the EPC socket never connected) or
+/// `executor` (the ORC server failed to start after connecting); `code` is the
+/// host-side return value when one is available.
+public struct IOSHostJITError: Sendable, Equatable {
+    public let stage: String
+    public let code: Int?
+}
+
 /// TCP loopback transport between `IOSPreviewSession` and the iOS host
 /// app. Owns all socket state (listen FD, connected FD, read source,
 /// pending response continuations) and the line-delimited JSON protocol
@@ -46,6 +55,14 @@ public actor IOSHostChannel {
     /// a shell-hosted agent must never report `active`.
     private var latestApplicationStateValue: String?
     public var latestApplicationState: String? { latestApplicationStateValue }
+
+    /// Last in-app JIT executor failure the host reported over its `jitError`
+    /// message. Set when `connectLoopback`/`previewsmcp_ios_executor_start` fail
+    /// inside the agent — a host-side fault the daemon would otherwise see only
+    /// as a generic `acceptJIT` timeout or a confusing downstream link error.
+    /// Sticky across disconnect so the start flow can enrich its thrown error.
+    private var latestJITErrorValue: IOSHostJITError?
+    public var latestJITError: IOSHostJITError? { latestJITErrorValue }
 
     public init() {}
 
@@ -336,6 +353,14 @@ public actor IOSHostChannel {
             // Unsolicited lifecycle breadcrumb (no id) — record and move on.
             if message["type"] as? String == "lifecycle", let state = message["state"] as? String {
                 latestApplicationStateValue = state
+                continue
+            }
+
+            // Unsolicited in-app JIT failure breadcrumb (no id) — record and move on.
+            if message["type"] as? String == "jitError" {
+                latestJITErrorValue = IOSHostJITError(
+                    stage: message["stage"] as? String ?? "unknown",
+                    code: message["code"] as? Int)
                 continue
             }
 

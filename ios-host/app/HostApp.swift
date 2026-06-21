@@ -171,14 +171,44 @@ class PreviewHostAppDelegate: UIResponder, UIApplicationDelegate {
     // block on the socket while the UIApplication run loop stays live on main
     // (run_on_main dispatches to it).
     private func startJITExecutor(port: UInt16) {
-        Thread.detachNewThread {
+        Thread.detachNewThread { [weak self] in
             let fd = Self.connectLoopback(port: port)
             guard fd >= 0 else {
                 NSLog("PreviewHost: JIT executor failed to connect on port \(port)")
+                self?.reportJITError(stage: "connect", code: -1)
                 return
             }
-            _ = previewsmcp_ios_executor_start(fd, fd)
+            let rc = previewsmcp_ios_executor_start(fd, fd)
+            // rc == 1 is an ORC server setup failure (the fd connected but the
+            // executor never came up). rc == 2 / 0 fire on disconnect during
+            // normal teardown, so reporting them would be a false positive.
+            if rc == 1 {
+                NSLog("PreviewHost: JIT executor setup failed (rc=\(rc))")
+                self?.reportJITError(stage: "executor", code: rc)
+            }
         }
+    }
+
+    // Report an in-app JIT failure to the daemon over the JSON channel. The
+    // executor thread can fail before `connectToServer` binds the socket, so
+    // stash the breadcrumb and flush it once the channel is up.
+    private var pendingJITError: [String: Any]?
+
+    private func reportJITError(stage: String, code: Int32) {
+        DispatchQueue.main.async {
+            let msg: [String: Any] = ["type": "jitError", "stage": stage, "code": Int(code)]
+            if self.socketFD >= 0 {
+                self.sendResponse(msg)
+            } else {
+                self.pendingJITError = msg
+            }
+        }
+    }
+
+    private func flushPendingJITError() {
+        guard let pending = pendingJITError else { return }
+        pendingJITError = nil
+        sendResponse(pending)
     }
 
     private static func connectLoopback(port: UInt16) -> Int32 {
@@ -234,6 +264,7 @@ class PreviewHostAppDelegate: UIResponder, UIApplicationDelegate {
         NSLog("PreviewHost: Connected to server on port \(port)")
         startReadLoop()
         startMemoryReporting()
+        flushPendingJITError()
     }
 
     // MARK: - Hosted-scene handshake socket

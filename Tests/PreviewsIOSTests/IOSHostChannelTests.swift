@@ -92,6 +92,30 @@ struct IOSHostChannelTests {
         #expect(elapsed < 2.0, "pending continuation should be failed by disconnect well before the 10s timeout")
     }
 
+    @Test("jitError breadcrumb from the host is recorded")
+    func recordsJITError() async throws {
+        let channel = IOSHostChannel()
+        defer { Task { await channel.close() } }
+
+        let port = try await channel.bindAndListen()
+        async let connect: Void = channel.awaitConnect(timeout: .seconds(5))
+        let clientFD = try connectClient(port: port)
+        try await connect
+
+        let line = #"{"type":"jitError","stage":"connect","code":-1}"# + "\n"
+        _ = line.withCString { Darwin.write(clientFD, $0, strlen($0)) }
+
+        let deadline = Date().addingTimeInterval(2.0)
+        while Date() < deadline, await channel.latestJITError == nil {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        let recorded = await channel.latestJITError
+        #expect(recorded?.stage == "connect")
+        #expect(recorded?.code == -1)
+
+        Darwin.close(clientFD)
+    }
+
     @Test("close() is idempotent after a successful connect")
     func closeIsIdempotent() async throws {
         let channel = IOSHostChannel()
