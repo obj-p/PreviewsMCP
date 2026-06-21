@@ -53,11 +53,18 @@
 - (NSString *)identifier;
 @end
 
+@protocol _SimDeviceLegacyHIDClient
+- (instancetype)initWithDevice:(id)device error:(NSError **)error;
+@end
+
 #pragma mark - Framework State
 
 static BOOL _frameworkLoaded = NO;
 static Class _SimServiceContextClass = Nil;
 static dispatch_once_t _loadOnce;
+
+static Class _SimDeviceLegacyHIDClientClass = Nil;
+static dispatch_once_t _hidLoadOnce;
 
 static NSString *_developerDir(void) {
   static NSString *cached = nil;
@@ -126,6 +133,37 @@ static id _defaultDeviceSet(NSError **error) {
   if (!context)
     return nil;
   return [(id<_SimServiceContext>)context defaultDeviceSetWithError:error];
+}
+
+// SimDeviceLegacyHIDClient lives in SimulatorKit, which ships inside Xcode and
+// moved from PrivateFrameworks (Xcode 26 and older) to SharedFrameworks (Xcode
+// 27+). Loaded lazily and separately from CoreSimulator so non-HID callers
+// never pay for it or fail if SimulatorKit moved.
+static Class _loadSimulatorKitHIDClass(NSError **error) {
+  dispatch_once(&_hidLoadOnce, ^{
+    NSString *dev = _developerDir();
+    if (!dev)
+      return;
+    NSArray<NSString *> *candidates = @[
+      [dev stringByAppendingPathComponent:
+               @"Library/PrivateFrameworks/SimulatorKit.framework"],
+      [dev stringByAppendingPathComponent:
+               @"../SharedFrameworks/SimulatorKit.framework"],
+    ];
+    for (NSString *path in candidates) {
+      NSBundle *bundle = [NSBundle bundleWithPath:path];
+      if (bundle && [bundle loadAndReturnError:NULL])
+        break;
+    }
+    _SimDeviceLegacyHIDClientClass =
+        objc_lookUpClass("_TtC12SimulatorKit24SimDeviceLegacyHIDClient");
+  });
+
+  if (!_SimDeviceLegacyHIDClientClass && error) {
+    *error = _makeError(30, @"SimDeviceLegacyHIDClient unavailable (could not "
+                            @"load SimulatorKit from this Xcode)");
+  }
+  return _SimDeviceLegacyHIDClientClass;
 }
 
 #pragma mark - SBDevice
@@ -275,13 +313,13 @@ static id _defaultDeviceSet(NSError **error) {
     if (env)
       options[@"environment"] = env;
 
-    int pid = [(id<_SimDevice>)_simDevice spawnWithPath:path
-                                                options:options
-                                       terminationQueue:
-                                           dispatch_get_global_queue(
-                                               QOS_CLASS_USER_INITIATED, 0)
-                                     terminationHandler:handler
-                                                  error:error];
+    int pid = [(id<_SimDevice>)_simDevice
+             spawnWithPath:path
+                   options:options
+          terminationQueue:dispatch_get_global_queue(QOS_CLASS_USER_INITIATED,
+                                                     0)
+        terminationHandler:handler
+                     error:error];
     return (NSInteger)pid;
   } @catch (NSException *exception) {
     if (error) {
@@ -467,10 +505,59 @@ SBDevice *SBFindBootedDevice(NSError **error) {
   return nil;
 }
 
-// Touch injection is handled in-app by the iOS host app using the Hammer
+// In-app touch injection is handled by the iOS agent app using the Hammer
 // approach: IOHIDEvent + BKSHIDEventSetDigitizerInfo +
 // UIApplication._enqueueHIDEvent: See IOSAgentAppSource.swift for the
-// implementation. No SimulatorBridge involvement needed for touch.
+// implementation. That path is independent of the daemon-side HID client below,
+// which injects at the simulator digitizer for streamed/agent sessions.
+
+#pragma mark - HID Input Client
+
+@interface SBHIDClient ()
+@property(nonatomic, strong) id hidClient;
+- (instancetype)initWithHIDClient:(id)client;
+@end
+
+@implementation SBHIDClient
+
+- (instancetype)initWithHIDClient:(id)client {
+  self = [super init];
+  if (self) {
+    _hidClient = client;
+  }
+  return self;
+}
+
+@end
+
+SBHIDClient *SBCreateHIDClient(SBDevice *device, NSError **error) {
+  if (!_frameworkLoaded && !SBLoadFramework(error))
+    return nil;
+
+  Class hidClass = _loadSimulatorKitHIDClass(error);
+  if (!hidClass)
+    return nil;
+
+  id simDevice = device.simDevice;
+  if (!simDevice) {
+    if (error)
+      *error = _makeError(31, @"SBDevice has no underlying SimDevice");
+    return nil;
+  }
+
+  NSError *initError = nil;
+  id<_SimDeviceLegacyHIDClient> raw = [hidClass alloc];
+  id client = [raw initWithDevice:simDevice error:&initError];
+  if (!client) {
+    if (error)
+      *error =
+          initError
+              ?: _makeError(32, @"Failed to create SimDeviceLegacyHIDClient");
+    return nil;
+  }
+
+  return [[SBHIDClient alloc] initWithHIDClient:client];
+}
 
 #pragma mark - Framebuffer Capture
 

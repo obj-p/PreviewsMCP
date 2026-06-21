@@ -99,6 +99,20 @@ public actor SimulatorManager {
         return device(from: sbDevice)
     }
 
+    /// Create a daemon-side HID input client bound to a device. Injects events
+    /// at the simulator digitizer, independent of the in-app host touch path.
+    public func makeHIDClient(udid: String) throws -> SBHIDClient {
+        try ensureLoaded()
+        var error: NSError?
+        guard let sbDevice = SBFindDeviceByUDID(udid, &error) else {
+            throw SimulatorError.deviceNotFound(error?.localizedDescription ?? "device not found: \(udid)")
+        }
+        guard let client = SBCreateHIDClient(sbDevice, &error) else {
+            throw SimulatorError.hidClientFailed(error?.localizedDescription ?? "unknown")
+        }
+        return client
+    }
+
     // MARK: - Device Operations
 
     /// Boot a simulator device and block until it's fully booted (SpringBoard
@@ -499,6 +513,7 @@ public enum SimulatorError: Error, LocalizedError, CustomStringConvertible {
     case installFailed(String)
     case launchFailed(String)
     case screenshotFailed(String)
+    case hidClientFailed(String)
 
     public var description: String {
         switch self {
@@ -510,6 +525,7 @@ public enum SimulatorError: Error, LocalizedError, CustomStringConvertible {
         case .installFailed(let msg): return "Install failed: \(msg)"
         case .launchFailed(let msg): return "Launch failed: \(msg)"
         case .screenshotFailed(let msg): return "Screenshot failed: \(msg)"
+        case .hidClientFailed(let msg): return "HID client creation failed: \(msg)"
         }
     }
 

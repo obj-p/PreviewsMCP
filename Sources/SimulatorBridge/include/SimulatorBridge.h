@@ -63,6 +63,12 @@ typedef NS_ENUM(NSInteger, SBDeviceState) {
 
 @end
 
+/// Daemon-side HID input client. Injects events at the simulator digitizer via
+/// SimulatorKit's SimDeviceLegacyHIDClient, independent of the in-app host
+/// touch path (see the touch note in SimulatorBridge.m).
+@interface SBHIDClient : NSObject
+@end
+
 /// Load CoreSimulator.framework at runtime. Safe to call multiple times.
 BOOL SBLoadFramework(NSError *_Nullable *_Nullable error);
 
@@ -89,5 +95,10 @@ SBDevice *_Nullable SBFindBootedDevice(NSError *_Nullable *_Nullable error);
 /// @return Image data, or nil on failure.
 NSData *_Nullable SBCaptureFramebuffer(SBDevice *device, double jpegQuality,
                                        NSError *_Nullable *_Nullable error);
+
+/// Create a HID input client bound to a device. Loads SimulatorKit (separate
+/// from CoreSimulator) on first use. Returns nil on failure.
+SBHIDClient *_Nullable SBCreateHIDClient(SBDevice *device,
+                                         NSError *_Nullable *_Nullable error);
 
 NS_ASSUME_NONNULL_END
