@@ -65,8 +65,21 @@ typedef NS_ENUM(NSInteger, SBDeviceState) {
 
 /// Daemon-side HID input client. Injects events at the simulator digitizer via
 /// SimulatorKit's SimDeviceLegacyHIDClient, independent of the in-app host
-/// touch path (see the touch note in SimulatorBridge.m).
+/// touch path (see the touch note in SimulatorBridge.m). Coordinates are
+/// normalized 0..1 across the device screen. Gestures run asynchronously on a
+/// private serial queue; the BOOL reports only whether the HID symbol resolved.
 @interface SBHIDClient : NSObject
+
+/// Tap at a normalized point.
+- (BOOL)tapAtX:(double)x y:(double)y;
+
+/// Drag from one normalized point to another over `steps` interpolated moves
+/// (a value < 1 uses a default of 10).
+- (BOOL)dragFromX:(double)fromX
+            fromY:(double)fromY
+              toX:(double)toX
+              toY:(double)toY
+            steps:(NSInteger)steps;
 @end
 
 /// Load CoreSimulator.framework at runtime. Safe to call multiple times.

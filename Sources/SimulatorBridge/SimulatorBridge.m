@@ -3,7 +3,9 @@
 #import <IOSurface/IOSurface.h>
 #import <ImageIO/ImageIO.h>
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
+#import <dlfcn.h>
 #import <objc/runtime.h>
+#import <unistd.h>
 
 #pragma mark - Private API Protocols
 
@@ -55,6 +57,10 @@
 
 @protocol _SimDeviceLegacyHIDClient
 - (instancetype)initWithDevice:(id)device error:(NSError **)error;
+- (void)sendWithMessage:(void *)message
+           freeWhenDone:(BOOL)freeWhenDone
+        completionQueue:(dispatch_queue_t)queue
+             completion:(void (^)(void))completion;
 @end
 
 #pragma mark - Framework State
@@ -513,8 +519,27 @@ SBDevice *SBFindBootedDevice(NSError **error) {
 
 #pragma mark - HID Input Client
 
+// IndigoHIDMessageForMouseNSEvent(const CGPoint *, const CGPoint *,
+//   IndigoHIDTarget, NSEventType, NSSize, IndigoHIDEdge) -> IndigoMessage *.
+// Apple's Simulator.app always passes NSSize(1,1), so the Indigo ratio reduces
+// to the point itself, i.e. our normalized 0..1 coordinate. Resolved once from
+// the simulator frameworks loaded for the HID client.
+typedef void *(*SBIndigoMouseFunc)(const CGPoint *, const CGPoint *, uint32_t,
+                                   int32_t, CGFloat, CGFloat, uint32_t);
+static SBIndigoMouseFunc _mouseFunc = NULL;
+static dispatch_once_t _mouseFuncOnce;
+
+static SBIndigoMouseFunc _loadMouseFunc(void) {
+  dispatch_once(&_mouseFuncOnce, ^{
+    _mouseFunc = (SBIndigoMouseFunc)dlsym(RTLD_DEFAULT,
+                                          "IndigoHIDMessageForMouseNSEvent");
+  });
+  return _mouseFunc;
+}
+
 @interface SBHIDClient ()
 @property(nonatomic, strong) id hidClient;
+@property(nonatomic, strong) dispatch_queue_t inputQueue;
 - (instancetype)initWithHIDClient:(id)client;
 @end
 
@@ -524,8 +549,61 @@ SBDevice *SBFindBootedDevice(NSError **error) {
   self = [super init];
   if (self) {
     _hidClient = client;
+    _inputQueue = dispatch_queue_create("com.previewsmcp.hid-input",
+                                        DISPATCH_QUEUE_SERIAL);
   }
   return self;
+}
+
+// 0x32 = digitizer target. eventType 1 = down (begin and move), 2 = up. Must
+// run on `inputQueue` so concurrent gestures never interleave on the shared
+// client.
+- (void)_sendEventType:(int32_t)eventType x:(double)x y:(double)y {
+  SBIndigoMouseFunc mouse = _loadMouseFunc();
+  if (!mouse)
+    return;
+  CGPoint pt = CGPointMake(x, y);
+  void *msg = mouse(&pt, NULL, 0x32, eventType, 1.0, 1.0, 0);
+  if (!msg)
+    return;
+  [(id<_SimDeviceLegacyHIDClient>)self.hidClient sendWithMessage:msg
+                                                    freeWhenDone:YES
+                                                 completionQueue:NULL
+                                                      completion:nil];
+}
+
+- (BOOL)tapAtX:(double)x y:(double)y {
+  if (!_loadMouseFunc())
+    return NO;
+  dispatch_async(self.inputQueue, ^{
+    [self _sendEventType:1 x:x y:y];
+    usleep(60000);
+    [self _sendEventType:2 x:x y:y];
+  });
+  return YES;
+}
+
+- (BOOL)dragFromX:(double)fromX
+            fromY:(double)fromY
+              toX:(double)toX
+              toY:(double)toY
+            steps:(NSInteger)steps {
+  if (!_loadMouseFunc())
+    return NO;
+  NSInteger n = steps < 1 ? 10 : steps;
+  dispatch_async(self.inputQueue, ^{
+    [self _sendEventType:1 x:fromX y:fromY];
+    usleep(8000);
+    for (NSInteger i = 1; i <= n; i++) {
+      double t = (double)i / (double)n;
+      [self _sendEventType:1
+                         x:fromX + (toX - fromX) * t
+                         y:fromY + (toY - fromY) * t];
+      usleep(16000);
+    }
+    [self _sendEventType:2 x:toX y:toY];
+  });
+  return YES;
 }
 
 @end
