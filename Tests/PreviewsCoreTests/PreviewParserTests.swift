@@ -601,4 +601,42 @@ struct PreviewParserTests {
         #expect(secondParse.count == 1)
         #expect(secondParse[0].closureBody.contains("MyView()"))
     }
+
+    @Test("PreviewProvider conformance on an extension is detected")
+    func previewProviderOnExtension() {
+        let source = """
+            import SwiftUI
+
+            struct MyView: View {
+                var body: some View { Text("Hello") }
+            }
+
+            extension MyView_Previews: PreviewProvider {
+                static var previews: some View {
+                    MyView()
+                }
+            }
+            """
+
+        let previews = PreviewParser.parse(source: source)
+        #expect(previews.count == 1)
+        #expect(previews[0].closureBody.contains("MyView()"))
+    }
+
+    @Test("PreviewProvider conformance on a class is detected")
+    func previewProviderOnClass() {
+        let source = """
+            import SwiftUI
+
+            final class MyView_Previews: PreviewProvider {
+                static var previews: some View {
+                    MyView()
+                }
+            }
+            """
+
+        let previews = PreviewParser.parse(source: source)
+        #expect(previews.count == 1)
+        #expect(previews[0].closureBody.contains("MyView()"))
+    }
 }

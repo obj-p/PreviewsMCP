@@ -116,11 +116,31 @@ private final class PreviewVisitor: SyntaxVisitor {
     // MARK: - PreviewProvider support
 
     override func visit(_ node: StructDeclSyntax) -> SyntaxVisitorContinueKind {
+        visitPreviewProvider(node)
+    }
+
+    override func visit(_ node: ClassDeclSyntax) -> SyntaxVisitorContinueKind {
+        visitPreviewProvider(node)
+    }
+
+    override func visit(_ node: EnumDeclSyntax) -> SyntaxVisitorContinueKind {
+        visitPreviewProvider(node)
+    }
+
+    override func visit(_ node: ActorDeclSyntax) -> SyntaxVisitorContinueKind {
+        visitPreviewProvider(node)
+    }
+
+    override func visit(_ node: ExtensionDeclSyntax) -> SyntaxVisitorContinueKind {
+        visitPreviewProvider(node)
+    }
+
+    private func visitPreviewProvider(_ node: some DeclGroupSyntax) -> SyntaxVisitorContinueKind {
         guard conformsToPreviewProvider(node) else {
-            return .skipChildren
+            return .visitChildren
         }
         guard let body = findPreviewsBody(in: node) else {
-            return .skipChildren
+            return .visitChildren
         }
 
         // Collect static computed properties for cross-property reference resolution
@@ -293,7 +313,7 @@ private final class PreviewVisitor: SyntaxVisitor {
 
     /// Collect all static computed properties (other than `previews`) from the struct.
     /// Returns a dictionary of property name → body source text.
-    private func collectStaticProperties(in node: StructDeclSyntax) -> [String: String] {
+    private func collectStaticProperties(in node: some DeclGroupSyntax) -> [String: String] {
         var props: [String: String] = [:]
         for member in node.memberBlock.members {
             guard let varDecl = member.decl.as(VariableDeclSyntax.self),
@@ -323,16 +343,16 @@ private final class PreviewVisitor: SyntaxVisitor {
     }
 
     /// Check if struct has `PreviewProvider` in its inheritance clause.
-    private func conformsToPreviewProvider(_ node: StructDeclSyntax) -> Bool {
+    private func conformsToPreviewProvider(_ node: some DeclGroupSyntax) -> Bool {
         guard let inheritanceClause = node.inheritanceClause else { return false }
         return inheritanceClause.inheritedTypes.contains { inherited in
-            let name = inherited.type.description.trimmed
+            let name = inherited.type.trimmedDescription
             return name == "PreviewProvider" || name == "SwiftUI.PreviewProvider"
         }
     }
 
     /// Find `static var previews: some View { ... }` and return its code block.
-    private func findPreviewsBody(in node: StructDeclSyntax) -> CodeBlockItemListSyntax? {
+    private func findPreviewsBody(in node: some DeclGroupSyntax) -> CodeBlockItemListSyntax? {
         for member in node.memberBlock.members {
             guard let varDecl = member.decl.as(VariableDeclSyntax.self),
                 varDecl.modifiers.contains(where: { $0.name.text == "static" }),
