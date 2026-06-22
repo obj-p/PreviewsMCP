@@ -69,26 +69,6 @@ let bundle = try VMBundle(directory: URL(filePath: arguments[1]))
 let repoRoot = arguments[2]
 let jitCache = arguments.count > 3 ? arguments[3] : "/Users/admin/jit-cache"
 
-let host = try await MainActor.run { try VMHost(bundle: bundle) }
-try await host.start()
-let ip = try await host.waitForIP(timeout: 120)
-let endpoint = VMSSH.endpoint(bundle: bundle, host: ip)
-print("==> waiting for SSH at \(endpoint.user)@\(ip)")
-try await VMSSH.waitForReady(endpoint: endpoint, timeout: 180)
-
-let guest = Guest(endpoint: endpoint, adminPass: "vzvz")
-do {
+try await Guest.session(bundle: bundle, adminPass: "vzvz") { guest in
     try await provisionJIT(guest, repoRoot: repoRoot, jitCache: jitCache)
-} catch {
-    try? await host.forceStop()
-    throw error
-}
-
-print("==> stopping guest")
-do {
-    try host.requestStop()
-    try await host.waitForStop(timeout: 120)
-} catch {
-    print("==> graceful shutdown timed out; force-stopping")
-    try? await host.forceStop()
 }

@@ -55,4 +55,40 @@ public struct Guest: Sendable {
     public static func shellQuote(_ value: String) -> String {
         "'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'"
     }
+
+    /// Boot `bundle`, wait for SSH, hand a connected `Guest` to `body`, then
+    /// shut the VM down. On a thrown body the VM is force-stopped; on success
+    /// it is asked to stop gracefully and force-stopped if that times out.
+    public static func session(
+        bundle: VMBundle,
+        adminPass: String,
+        bootTimeout: TimeInterval = 120,
+        sshTimeout: TimeInterval = 180,
+        stopTimeout: TimeInterval = 120,
+        _ body: (Guest) async throws -> Void
+    ) async throws {
+        let host = try await MainActor.run { try VMHost(bundle: bundle) }
+        try await host.start()
+        let ip = try await host.waitForIP(timeout: bootTimeout)
+        let endpoint = VMSSH.endpoint(bundle: bundle, host: ip)
+        Log.info("waiting for SSH at \(endpoint.user)@\(ip)")
+        try await VMSSH.waitForReady(endpoint: endpoint, timeout: sshTimeout)
+
+        let guest = Guest(endpoint: endpoint, adminPass: adminPass)
+        do {
+            try await body(guest)
+        } catch {
+            try? await host.forceStop()
+            throw error
+        }
+
+        Log.info("stopping guest")
+        do {
+            try await host.requestStop()
+            try await host.waitForStop(timeout: stopTimeout)
+        } catch {
+            Log.info("graceful shutdown timed out; force-stopping")
+            try? await host.forceStop()
+        }
+    }
 }
