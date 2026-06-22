@@ -334,18 +334,6 @@ public actor IOSPreviewSession {
         // AFTER we tear down and orphans a host. Waiting drains the in-flight respawn,
         // then we terminate its result. Any respawn that starts later sees `stopping`
         // at its post-lock guard and bails, so it is safe to release after teardown.
-        // Take the render lock so stop wins the respawn race (#257). An iOS
-        // eviction can have a `_relaunch` in flight (via `handleUnexpectedAgentDeath`)
-        // holding the lock; without waiting it out, that respawn relaunches the agent
-        // AFTER we tear down and orphans a host. Waiting drains the in-flight respawn,
-        // then we terminate its result. Any respawn that starts later sees `stopping`
-        // at its post-lock guard and bails, so it is safe to release after teardown.
-        // Take the render lock so stop wins the respawn race (#257). An iOS
-        // eviction can have a `_relaunch` in flight (via `handleUnexpectedAgentDeath`)
-        // holding the lock; without waiting it out, that respawn relaunches the agent
-        // AFTER we tear down and orphans a host. Waiting drains the in-flight respawn,
-        // then we terminate its result. Any respawn that starts later sees `stopping`
-        // at its post-lock guard and bails, so it is safe to release after teardown.
         await acquireRenderLock()
         defer { releaseRenderLock() }
 
