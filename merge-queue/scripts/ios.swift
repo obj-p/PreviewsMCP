@@ -1,8 +1,8 @@
 import Foundation
 import VZKit
 
-func provisionIOS(_ guest: Guest, xcodeApp: String = "/Applications/Xcode.app") async throws {
-    try await guest.sudo("xcode-select -s \(xcodeApp)")
+func provisionIOS(_ guest: Guest) async throws {
+    try await guest.sudo("xcode-select -s /Applications/Xcode.app")
 
     if try await guest.test("xcrun simctl list devices available 2>/dev/null | grep -qi iPhone") {
         step("an iPhone simulator is already available")

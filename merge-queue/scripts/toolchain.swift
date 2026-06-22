@@ -12,10 +12,9 @@ func kcpassword(_ password: String) -> Data {
     return Data(bytes)
 }
 
-func provisionToolchain(
-    _ guest: Guest, xip: String, adminUser: String = "admin",
-    xcodeApp: String = "/Applications/Xcode.app"
-) async throws {
+func provisionToolchain(_ guest: Guest, xip: String) async throws {
+    let adminUser = "admin"
+    let xcodeApp = "/Applications/Xcode.app"
     if try await guest.test("test -d \(xcodeApp)") {
         step("Xcode already present, skipping install")
     } else {

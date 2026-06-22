@@ -1,10 +1,8 @@
 import Foundation
 import VZKit
 
-func provisionJIT(
-    _ guest: Guest, repoRoot: String, jitCache: String,
-    xcodeApp: String = "/Applications/Xcode.app"
-) async throws {
+func provisionJIT(_ guest: Guest, repoRoot: String, jitCache: String) async throws {
+    let xcodeApp = "/Applications/Xcode.app"
     let osxOrc = "\(jitCache)/llvm-build-rt/lib/darwin/liborc_rt_osx.a"
     let iossimOrc = "\(jitCache)/llvm-build-rt/lib/darwin/liborc_rt_iossim.a"
     let iossimLib = "\(jitCache)/llvm-build-iossim/lib/libLLVMOrcTargetProcess.a"
