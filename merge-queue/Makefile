@@ -18,7 +18,7 @@ REPO_ROOT  ?= $(CURDIR)/..
 JIT_CACHE  ?= /Users/$(ADMIN_USER)/jit-cache
 
 .PHONY: bundle snapshots clean xcode-xip
-bundle: $(STATE)/post-jit
+bundle: $(STATE)/post-ios
 
 xcode-xip:
 	command -v xcodes >/dev/null || { echo "xcodes not found; run bootstrap (Brewfile)" >&2; exit 1; }
@@ -66,6 +66,16 @@ $(STATE)/jit: $(STATE)/post-toolchain | $(STATE)
 $(STATE)/post-jit: $(STATE)/jit | $(STATE)
 	$(VZ_BIN) snapshot delete $(BUNDLE) post-jit 2>/dev/null || true
 	$(VZ_BIN) snapshot take $(BUNDLE) post-jit
+	touch $@
+
+$(STATE)/ios: $(STATE)/post-jit | $(STATE)
+	$(VZ_BIN) snapshot restore $(BUNDLE) post-jit
+	VZ_BIN="$(VZ_BIN)" BUNDLE="$(BUNDLE)" ADMIN_PASS="$(ADMIN_PASS)" STATE="$(CURDIR)/$(STATE)" ./provision-ios.sh
+	touch $@
+
+$(STATE)/post-ios: $(STATE)/ios | $(STATE)
+	$(VZ_BIN) snapshot delete $(BUNDLE) post-ios 2>/dev/null || true
+	$(VZ_BIN) snapshot take $(BUNDLE) post-ios
 	touch $@
 
 snapshots:

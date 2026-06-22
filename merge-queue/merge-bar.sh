@@ -55,7 +55,37 @@ run_build_and_test() {
     swift test --filter "MCPIntegrationTests" --skip "IOSMCPTests"
 }
 
+run_jit() {
+    export NSUnbufferedIO=YES
+    log "test: PreviewsJITLinkTests (--no-parallel)"
+    swift test --filter "PreviewsJITLinkTests" --no-parallel
+}
+
+run_ios() {
+    export PREVIEWSMCP_SOCKET_DIR=/tmp/previewsmcp-mq-ios
+    export NSUnbufferedIO=YES
+    log "ios: warm CoreSimulator"
+    xcrun simctl list devices available >/dev/null
+    log "test: PreviewsIOSTests"
+    swift test --filter "PreviewsIOSTests"
+    log "test: snapshotIOS"
+    swift test --filter "snapshotIOS"
+    log "ios: kill stale daemon"
+    .build/debug/previewsmcp kill-daemon --timeout 3 || true
+    log "test: iosCLIWorkflow"
+    swift test --filter "iosCLIWorkflow"
+    log "ios: reset CoreSimulator"
+    xcrun simctl shutdown all 2>&1 || true
+    killall -9 "Simulator" "com.apple.CoreSimulator.CoreSimulatorService" 2>&1 || true
+    sleep 3
+    xcrun simctl list devices >/dev/null 2>&1 || true
+    log "test: IOSMCPTests"
+    swift test --filter "IOSMCPTests"
+}
+
 run_lint
 run_build_and_test
+run_jit
+run_ios
 
 log "merge bar PASSED for $CANDIDATE_REF"
