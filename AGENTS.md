@@ -27,7 +27,7 @@ bazel test //previewsmcp/Tests/PreviewsJITLinkTests  # Run a specific suite
 bazel run //previewsmcp/cli:previewsmcp -- --version  # Run the CLI
 ```
 
-The first `bazel build` compiles the Swift-fork LLVM from source via `rules_foreign_cc` (~3-4 min); it is pinned, so later builds reuse it. The iOS JIT resources (`server.o`, `liborc_rt_iossim.a`, the LLVM TargetProcess libs) and the `PreviewAgent` executor are built and wired through runfiles automatically — no `scripts/build-jit-llvm*.sh` needed under Bazel.
+The first `bazel build` compiles the Swift-fork LLVM from source via `rules_foreign_cc` (~3-4 min); it is pinned, so later builds reuse it. The iOS JIT resources (`server.o`, `liborc_rt_iossim.a`, the LLVM TargetProcess libs) and the `PreviewAgent` executor are built and wired through runfiles automatically — Bazel builds LLVM hermetically, so no helper scripts are needed.
 
 Daemon-touching test suites use `DaemonTestLock` (flock) for cross-target serialization — `@Suite(.serialized)` only orders within a suite, not across test targets. The integration suites are tagged `local` (unsandboxed, like `swift test`) and `exclusive`.
 

@@ -1,7 +1,7 @@
 """Hermetic fetch of the swiftlang/llvm-project fork PreviewsJITLink links against.
 
-Reproduces scripts/build-jit-llvm.sh's clone (shallow + sparse + partial, pinned
-to the exact commit), applies the local patches, and strips a cyclic test
+Clones the fork (shallow + sparse + partial, pinned to the exact commit),
+applies the local patches, and strips a cyclic test
 symlink that otherwise breaks Bazel's source glob. The cmake build of the result
 lives in the BUILD file that consumes @llvm_src//:all.
 """

@@ -28,8 +28,8 @@ llvm_repository(
     name = "llvm_src",
     commit = "9784760565e8cae0bc0b97bad69aaf498408dc3d",
     patches = [
-        "//scripts/patches:llvm-machoplatform-bootstrap-race.patch",
-        "//scripts/patches:llvm-mapperjitlink-abandon-slab.patch",
+        "//patches:llvm-machoplatform-bootstrap-race.patch",
+        "//patches:llvm-mapperjitlink-abandon-slab.patch",
     ],
     remote = "https://github.com/swiftlang/llvm-project.git",
     sparse_paths = [

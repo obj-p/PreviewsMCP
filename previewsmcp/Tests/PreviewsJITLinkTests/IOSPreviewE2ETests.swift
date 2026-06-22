@@ -6,9 +6,7 @@ import Testing
 
 /// End-to-end iOS preview tests: the daemon builds the real agent app, boots the
 /// simulator, and drives the production `IOSPreviewSession` over EPC (flash-free
-/// respawn, relaunch, JIT render, agent->shell redirect). A few early tests use
-/// the standalone `iossim-executor` (built by `ios-host/executor/build.sh`) and
-/// self-skip when that artifact is absent.
+/// respawn, relaunch, JIT render, agent->shell redirect).
 ///
 /// `.serialized` because every test shares one simulator, one agent-app bundle
 /// ID, and one IOSAgentBuilder workDir, so they cannot run concurrently (parallel
@@ -24,66 +22,6 @@ struct IOSPreviewE2ETests {
             .deletingLastPathComponent()
             .deletingLastPathComponent()
     }()
-
-    static var executor: URL {
-        packageRoot.appendingPathComponent(".build-iossim/iossim-executor")
-    }
-
-    static var orcRuntime: URL {
-        packageRoot.appendingPathComponent(
-            "third_party/llvm-build-rt/lib/darwin/liborc_rt_iossim.a")
-    }
-
-    static var artifactsPresent: Bool {
-        FileManager.default.isExecutableFile(atPath: executor.path)
-            && FileManager.default.fileExists(atPath: orcRuntime.path)
-    }
-
-    @Test(.enabled(if: artifactsPresent), .timeLimit(.minutes(5)))
-    func linksCObjectRemotelyIntoSimulator() throws {
-        try IOSPreviewE2ESupport.withRemoteSession(fixture: "answer.c") { session in
-            let result = try session.runMain(symbol: "answer")
-            #expect(result == 42)
-        }
-    }
-
-    @Test(.enabled(if: artifactsPresent), .timeLimit(.minutes(5)))
-    func linksSwiftObjectRemotelyIntoSimulator() throws {
-        try IOSPreviewE2ESupport.withRemoteSession(fixture: "swift_answer.swift") { session in
-            let result = try session.runMain(symbol: "swift_answer")
-            #expect(result == 42)
-        }
-    }
-
-    @Test(.enabled(if: artifactsPresent), .timeLimit(.minutes(5)))
-    func runsOnMainThreadInSimulator() throws {
-        try IOSPreviewE2ESupport.withRemoteSession(fixture: "main_thread_probe.swift") { session in
-            let offMain = try session.runMain(symbol: "main_thread_probe")
-            #expect(offMain == 0)
-            let onMain = try session.runOnMain(symbol: "main_thread_probe")
-            #expect(onMain == 1)
-        }
-    }
-
-    @Test(.enabled(if: artifactsPresent), .timeLimit(.minutes(5)))
-    func buildsUIHostingControllerInSimulator() throws {
-        try IOSPreviewE2ESupport.withRemoteSession(fixture: "ios_hosting_probe.swift") { session in
-            let result = try session.runOnMain(symbol: "ios_hosting_probe_value")
-            #expect(result == 1)
-        }
-    }
-
-    @Test(.enabled(if: artifactsPresent), .timeLimit(.minutes(5)))
-    func rendersSwiftUIContentInSimulator() throws {
-        try IOSPreviewE2ESupport.withRemoteSession(fixture: "ios_render_probe.swift") { session in
-            let packed = try session.runOnMain(symbol: "ios_render_probe_value")
-            #expect(packed >= 0)
-            let r = (packed >> 16) & 0xFF
-            let g = (packed >> 8) & 0xFF
-            let b = packed & 0xFF
-            #expect(r > 200 && g < 60 && b < 60)
-        }
-    }
 
     /// Stage 0 (shell-owns-agent): the xcrun-free in-session spawn primitive.
     /// `SimulatorManager.spawnInSession` drives the default `SimDevice
@@ -866,26 +804,6 @@ enum IOSPreviewE2ESupport {
         }
     }
 
-    static func withRemoteSession(
-        fixture: String, _ body: (JITSession) throws -> Void
-    ) throws {
-        let udid = try bootSimulator()
-        let object = try compileForIOSSim(fixture)
-
-        let listener = try openLoopbackListener()
-        defer { close(listener.fd) }
-
-        let proc = try spawnExecutor(
-            udid: udid, executor: IOSPreviewE2ETests.executor, port: listener.port)
-        defer { proc.terminate() }
-
-        let conn = try acceptOne(listenFD: listener.fd, timeoutSeconds: 60)
-        let session = try JITSession(
-            remoteFD: conn, orcRuntimePath: IOSPreviewE2ETests.orcRuntime.path)
-        try session.addObject(path: object.path)
-        try body(session)
-    }
-
     static func compileForIOSSim(_ source: String) throws -> URL {
         let input = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
@@ -994,14 +912,6 @@ enum IOSPreviewE2ESupport {
             return false
         }
         return result.output.contains(bundleID)
-    }
-
-    static func spawnExecutor(udid: String, executor: URL, port: UInt16) throws -> Process {
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
-        p.arguments = ["simctl", "spawn", udid, executor.path, "port=\(port)"]
-        try p.run()
-        return p
     }
 
     static func openLoopbackListener() throws -> (fd: Int32, port: UInt16) {
