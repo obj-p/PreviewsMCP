@@ -24,7 +24,7 @@ Sources/
 ├── SimulatorBridge/     ObjC — runtime-loads CoreSimulator.framework
 ├── PreviewsCore/        Platform-agnostic: parser, compiler, bridge gen, differ, watcher
 ├── PreviewsMacOS/       macOS host: NSApplication + NSWindow + snapshot
-├── PreviewsIOS/         iOS simulator: SimulatorManager, IOSHostBuilder, IOSPreviewSession
+├── PreviewsIOS/         iOS simulator: SimulatorManager, IOSAgentBuilder, IOSPreviewSession
 ├── PreviewsCLI/         CLI (ArgumentParser) + MCP server (swift-sdk)
 └── PreviewsSetupKit/    Zero-dependency setup-plugin protocol (PreviewSetup)
 ```
@@ -32,7 +32,7 @@ Sources/
 - **PreviewsCore** has no platform-specific dependencies (no AppKit, no CoreSimulator).
 - **SimulatorBridge** is ObjC because it uses `objc_lookUpClass` / protocol casts for private API access.
 - **PreviewsIOS** depends on `SimulatorBridge`; touch injection runs in-app via the Hammer approach (`IOHIDEventCreateDigitizerFingerEvent` + `BKSHIDEventSetDigitizerInfo` + `UIApplication._enqueueHIDEvent:`).
-- **IOSHostAppSource.swift** holds the iOS host app as an embedded string, compiled at runtime by `IOSHostBuilder` for `arm64-apple-ios-simulator`.
+- **IOSAgentAppSource** (generated) holds the iOS agent app as an embedded string, compiled at runtime by `IOSAgentBuilder` for `arm64-apple-ios-simulator`.
 
 ## Private-framework surface & stability
 

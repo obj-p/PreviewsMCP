@@ -6,7 +6,7 @@ import PreviewsCore
 /// breadcrumb. `stage` is `connect` (the EPC socket never connected) or
 /// `executor` (the ORC server failed to start after connecting); `code` is the
 /// host-side return value when one is available.
-public struct IOSHostJITError: Sendable, Equatable {
+public struct IOSAgentJITError: Sendable, Equatable {
     public let stage: String
     public let code: Int?
 }
@@ -20,8 +20,8 @@ public struct IOSHostJITError: Sendable, Equatable {
 /// Lifecycle:
 /// 1. `bindAndListen()` creates the server socket on an ephemeral
 ///    127.0.0.1 port and returns the assigned port. Caller passes the
-///    port to the launching host app.
-/// 2. `awaitConnect(timeout:)` waits up to `timeout` for the host app
+///    port to the launching agent app.
+/// 2. `awaitConnect(timeout:)` waits up to `timeout` for the agent app
 ///    to connect, then starts the read loop. After this returns,
 ///    `send` / `sendAndAwait` are usable.
 /// 3. `send(_:)` and `sendAndAwait(_:id:timeout:)` push messages over
@@ -36,7 +36,7 @@ public struct IOSHostJITError: Sendable, Equatable {
 /// Errors thrown match the existing `IOSPreviewSessionError` cases —
 /// callers' error handling on `IOSPreviewSession.start()` etc. is
 /// preserved.
-public actor IOSHostChannel {
+public actor IOSAgentChannel {
     private var listenFD: Int32 = -1
     private var connectedFD: Int32 = -1
     private var readSource: DispatchSourceRead?
@@ -44,12 +44,12 @@ public actor IOSHostChannel {
     /// Data-typed continuations for Sendable compliance across task boundaries.
     private var pendingDataResponses: [String: CheckedContinuation<Data, Error>] = [:]
 
-    /// Latest resident-memory reading (bytes) pushed by the host app's `memory`
+    /// Latest resident-memory reading (bytes) pushed by the agent app's `memory`
     /// message. Zero until the first report arrives or after a disconnect.
     private var latestRSSBytes: UInt64 = 0
     public var latestRSS: UInt64 { latestRSSBytes }
 
-    /// Latest `applicationState` the host app reported over its `lifecycle`
+    /// Latest `applicationState` the agent app reported over its `lifecycle`
     /// message (`active` / `inactive` / `background`). Nil until the first
     /// breadcrumb arrives or after a disconnect. Used as the flash detector:
     /// a shell-hosted agent must never report `active`.
@@ -61,10 +61,10 @@ public actor IOSHostChannel {
     /// inside the agent — a host-side fault the daemon would otherwise see only
     /// as a generic `acceptJIT` timeout or a confusing downstream link error.
     /// Sticky across disconnect so the start flow can enrich its thrown error.
-    private var latestJITErrorValue: IOSHostJITError?
-    public var latestJITError: IOSHostJITError? { latestJITErrorValue }
+    private var latestJITErrorValue: IOSAgentJITError?
+    public var latestJITError: IOSAgentJITError? { latestJITErrorValue }
 
-    /// Invoked once when the host app disconnects unexpectedly (EOF or read
+    /// Invoked once when the agent app disconnects unexpectedly (EOF or read
     /// error), never on an intentional `close()`. Lets the session respawn a
     /// dead agent. See issue #253.
     private var onDisconnect: (@Sendable () async -> Void)?
@@ -129,7 +129,7 @@ public actor IOSHostChannel {
         return Int(UInt16(bigEndian: boundAddr.sin_port))
     }
 
-    /// Wait for the host app to connect (up to `timeout`), then start
+    /// Wait for the agent app to connect (up to `timeout`), then start
     /// the read loop. After this returns, `send` and `sendAndAwait`
     /// are usable.
     public func awaitConnect(timeout: Duration) async throws {
@@ -258,7 +258,7 @@ public actor IOSHostChannel {
                 // 10s timer throws, the group waits for Task 1 to
                 // terminate, and the whole acceptConnection hangs until
                 // some upstream kills the caller (see iOS CI regression
-                // where a flaky host-app connection turned into a 20-min
+                // where a flaky agent-app connection turned into a 20-min
                 // step timeout instead of a 10s clean failure).
                 let sourceBox = DispatchSourceBox()
                 return try await withTaskCancellationHandler {
@@ -319,7 +319,7 @@ public actor IOSHostChannel {
                     Task { await self.processIncomingData(data) }
                 }
             } else if n == 0 {
-                // EOF — host app disconnected
+                // EOF — agent app disconnected
                 if let self {
                     Task { await self.handleDisconnect() }
                 }
@@ -368,7 +368,7 @@ public actor IOSHostChannel {
 
             // Unsolicited in-app JIT failure breadcrumb (no id) — record and move on.
             if message["type"] as? String == "jitError" {
-                latestJITErrorValue = IOSHostJITError(
+                latestJITErrorValue = IOSAgentJITError(
                     stage: message["stage"] as? String ?? "unknown",
                     code: message["code"] as? Int)
                 continue
@@ -386,7 +386,7 @@ public actor IOSHostChannel {
         }
     }
 
-    /// Handle host app disconnect. The read source keeps waking on EOF, so guard
+    /// Handle agent app disconnect. The read source keeps waking on EOF, so guard
     /// on `connectedFD` to run (and fire the callback) exactly once, and cancel
     /// the source to stop the wakeups.
     private func handleDisconnect() {

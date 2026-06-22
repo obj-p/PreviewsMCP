@@ -3,9 +3,9 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleIdentifier</key>
-    <string>com.previewsmcp.host</string>
+    <string>com.previewsmcp.agent</string>
     <key>CFBundleExecutable</key>
-    <string>PreviewsMCPHost</string>
+    <string>PreviewsMCPAgent</string>
     <key>CFBundleName</key>
     <string>Agent</string>
     <key>CFBundleDisplayName</key>

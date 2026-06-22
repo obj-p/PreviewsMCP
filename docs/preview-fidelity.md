@@ -574,7 +574,7 @@ In standalone mode (no build system), setup plugin is not supported — there's 
 | `Sources/PreviewsCLI/SnapshotCommand.swift` | Add new CLI flags, load config, apply defaults |
 | `Sources/PreviewsCLI/VariantsCommand.swift` | Load config, apply defaults |
 | `Sources/PreviewsIOS/IOSPreviewSession.swift` | Thread setup params through to PreviewSession |
-| `Sources/PreviewsIOS/IOSHostAppSource.swift` | Run `previewSetUp` once per agent process, surface setUp errors in the `preview_start` response |
+| `ios-host/agent/AgentApp.swift` | Run `previewSetUp` once per agent process, surface setUp errors in the `preview_start` response |
 | `Sources/PreviewsMacOS/HostApp.swift` | Run `previewSetUp` once per agent process |
 
 ## 6. Code Style

@@ -4,8 +4,8 @@
 # server.o) and copies it, the iossim LLVM TargetProcess libs, the iossim orc
 # runtime, and the C bridging header into an output directory. The
 # BundleIOSSimJIT build-tool plugin invokes this so the artifacts land in
-# PreviewsIOS's resource bundle, where IOSHostBuilder finds them via
-# Bundle.module to link the in-app JIT executor into the iOS host app.
+# PreviewsIOS's resource bundle, where IOSAgentBuilder finds them via
+# Bundle.module to link the in-app JIT executor into the iOS agent app.
 #
 # Usage: bundle.sh <packageRoot> <outDir>
 set -euo pipefail

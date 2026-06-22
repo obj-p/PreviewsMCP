@@ -1,16 +1,17 @@
 import Foundation
 import PackagePlugin
 
-/// Build-tool plugin that embeds the iOS host-app artifacts
-/// (`ios-host/app/HostApp.swift`, `Info.plist`, `AppIcon.png`) into a
-/// single Swift source file consumed by `PreviewsIOS`.
+/// Build-tool plugin that embeds the iOS agent-app artifacts
+/// (`ios-host/agent/AgentApp.swift`, `Info.plist`, `AppIcon.png`) and the
+/// shell-app artifacts (`ios-host/shell/*`) into a single Swift source file
+/// consumed by `PreviewsIOS`.
 ///
-/// Lives in `ios-host/app/` at the package root rather than under
-/// `Sources/` so SPM doesn't try to compile the iOS-only host-app
+/// The sources live under `ios-host/` at the package root rather than under
+/// `Sources/` so SPM doesn't try to compile the iOS-only agent-app
 /// source as a macOS Swift target. The plugin reads the bytes; the
-/// generated file exposes `IOSHostAppSource.code`, `.infoPlist`, and
+/// generated file exposes `IOSAgentAppSource.code`, `.infoPlist`, and
 /// `IOSAppIconData.bytes` with byte-equivalent runtime values to the
-/// prior hand-written stringified versions. See `IOSHostBuilderHashTests`
+/// prior hand-written stringified versions. See `IOSAgentBuilderHashTests`
 /// for the gate.
 ///
 /// Assumes the plugin runs only inside the PreviewsMCP package itself —
@@ -25,23 +26,23 @@ struct EmbedHostAppSource: BuildToolPlugin {
         context: PluginContext,
         target: Target
     ) throws -> [Command] {
-        let hostAppDir = context.package.directoryURL.appending(path: "ios-host/app")
-        let hostAppSwift = hostAppDir.appending(path: "HostApp.swift")
-        let infoPlist = hostAppDir.appending(path: "Info.plist")
-        let appIconPng = hostAppDir.appending(path: "AppIcon.png")
-        let shellDir = hostAppDir.appending(path: "Shell")
+        let agentDir = context.package.directoryURL.appending(path: "ios-host/agent")
+        let agentSource = agentDir.appending(path: "AgentApp.swift")
+        let infoPlist = agentDir.appending(path: "Info.plist")
+        let appIconPng = agentDir.appending(path: "AppIcon.png")
+        let shellDir = context.package.directoryURL.appending(path: "ios-host/shell")
         let shellSource = shellDir.appending(path: "ShellMain.m")
         let shellInfoPlist = shellDir.appending(path: "Info.plist")
         let shellEntitlements = shellDir.appending(path: "Shell.entitlements")
         let shellIconPng = shellDir.appending(path: "AppIcon.png")
-        let output = context.pluginWorkDirectoryURL.appending(path: "IOSHostAppSource.generated.swift")
+        let output = context.pluginWorkDirectoryURL.appending(path: "IOSAgentAppSource.generated.swift")
 
         return [
             .buildCommand(
-                displayName: "Embed iOS host-app source",
+                displayName: "Embed iOS agent-app source",
                 executable: try context.tool(named: "EmbedHostAppSourceTool").url,
                 arguments: [
-                    hostAppSwift.path(),
+                    agentSource.path(),
                     infoPlist.path(),
                     appIconPng.path(),
                     shellSource.path(),
@@ -51,7 +52,7 @@ struct EmbedHostAppSource: BuildToolPlugin {
                     output.path(),
                 ],
                 inputFiles: [
-                    hostAppSwift, infoPlist, appIconPng,
+                    agentSource, infoPlist, appIconPng,
                     shellSource, shellInfoPlist, shellEntitlements, shellIconPng,
                 ],
                 outputFiles: [output]

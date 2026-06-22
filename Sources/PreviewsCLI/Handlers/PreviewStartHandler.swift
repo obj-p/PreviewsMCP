@@ -262,8 +262,8 @@ private func handleIOSPreviewStart(
 
     stage("getting compiler")
     let iosCompiler = try await ctx.iosState.getCompiler()
-    stage("getting hostBuilder")
-    let hostBuilder = try await ctx.iosState.getHostBuilder()
+    stage("getting agentBuilder")
+    let agentBuilder = try await ctx.iosState.getAgentBuilder()
     stage("getting simulatorManager")
     let simulatorManager = await ctx.iosState.simulatorManager
 
@@ -291,7 +291,7 @@ private func handleIOSPreviewStart(
         previewIndex: previewIndex,
         deviceUDID: deviceUDID,
         compiler: iosCompiler,
-        hostBuilder: hostBuilder,
+        agentBuilder: agentBuilder,
         simulatorManager: simulatorManager,
         headless: headless,
         buildContext: buildContext,

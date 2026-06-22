@@ -469,7 +469,7 @@ SBDevice *SBFindBootedDevice(NSError **error) {
 
 // Touch injection is handled in-app by the iOS host app using the Hammer
 // approach: IOHIDEvent + BKSHIDEventSetDigitizerInfo +
-// UIApplication._enqueueHIDEvent: See IOSHostAppSource.swift for the
+// UIApplication._enqueueHIDEvent: See IOSAgentAppSource.swift for the
 // implementation. No SimulatorBridge involvement needed for touch.
 
 #pragma mark - Framebuffer Capture
