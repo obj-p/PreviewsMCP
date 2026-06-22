@@ -1,6 +1,7 @@
 import Darwin
 import Foundation
 import PreviewsCore
+@preconcurrency import SimulatorBridge
 
 /// Orchestrates the full iOS preview pipeline:
 /// boot simulator → install agent app → compile object → launch → JIT-link + render.
@@ -101,6 +102,12 @@ public actor IOSPreviewSession {
     /// respawns so the long-lived shell reconnects to the same path the new
     /// agent rebinds (the shell is never relaunched).
     private var agentSockPath: String?
+
+    /// Per-session app interface (loopback stream + control). Hosted here so it
+    /// captures the display in-process and survives agent respawn (it targets
+    /// the device, not the agent process).
+    private var appServer: PreviewAppServer?
+    public private(set) var appServerPort: UInt16?
 
     /// Serializes the mutating render entry points (`reload`, `handleSourceChange`). The file
     /// watcher fires a Task per change, so without this two edits could interleave at an
@@ -293,6 +300,22 @@ public actor IOSPreviewSession {
             throw await enrichedJITFailure(error)
         }
 
+        // Start the app interface in-process so it captures the shell composite
+        // and drives input over the same device. Best-effort: a failure here
+        // must not fail the preview itself.
+        do {
+            let hidClient = try await simulatorManager.makeHIDClient(udid: deviceUDID)
+            let server = PreviewAppServer(
+                sink: IndigoHIDInputSink(client: hidClient),
+                frameSource: SimulatorFrameSource(manager: simulatorManager, udid: deviceUDID)
+            )
+            appServerPort = try await server.start()
+            appServer = server
+            stage("app interface on 127.0.0.1:\(appServerPort ?? 0)")
+        } catch {
+            Log.info("iOS preview: app interface unavailable: \(error)")
+        }
+
         stage("connected; start complete")
 
         await channel.setOnDisconnect { [weak self] in
@@ -327,6 +350,10 @@ public actor IOSPreviewSession {
     /// `IOSAgentChannel.close()` is safe to call when nothing was opened.
     public func stop() async {
         stopping = true
+
+        appServer?.stop()
+        appServer = nil
+        appServerPort = nil
 
         // Take the render lock so stop wins the respawn race (#257). An iOS
         // eviction can have a `_relaunch` in flight (via `handleUnexpectedAgentDeath`)

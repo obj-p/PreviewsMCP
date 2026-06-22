@@ -220,7 +220,8 @@ enum PreviewStartHandler: ToolHandler {
                 DaemonProtocol.PreviewInfoDTO(from: $0, activeIndex: previewIndex)
             },
             activeIndex: previewIndex,
-            setupWarning: standaloneSetupWarning.isEmpty ? nil : standaloneSetupWarning
+            setupWarning: standaloneSetupWarning.isEmpty ? nil : standaloneSetupWarning,
+            appServerPort: nil
         )
         return try CallTool.Result(
             content: [
@@ -347,7 +348,8 @@ private func handleIOSPreviewStart(
             DaemonProtocol.PreviewInfoDTO(from: $0, activeIndex: previewIndex)
         },
         activeIndex: previewIndex,
-        setupWarning: nil
+        setupWarning: nil,
+        appServerPort: (await session.appServerPort).map(Int.init)
     )
     return try CallTool.Result(
         content: [
