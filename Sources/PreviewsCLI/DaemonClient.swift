@@ -58,8 +58,8 @@ enum DaemonClient {
         // version — no handshake check needed on this branch.
         let weJustSpawned = !DaemonProbe.canConnect()
         if weJustSpawned {
-            try spawnDaemon()
-            try await waitForSocket(timeout: startTimeout)
+            let child = try spawnDaemon()
+            try await waitForSocket(timeout: startTimeout, child: child)
         }
 
         // If the daemon was already running but disappears between
@@ -218,7 +218,8 @@ enum DaemonClient {
     /// `restartReason` is propagated via `_PREVIEWSMCP_DAEMON_RESTART_REASON`
     /// so the new daemon logs a diagnostic breadcrumb to `serve.log` on
     /// startup. Only set when this spawn is a version-mismatch recovery.
-    static func spawnDaemon(restartReason: String? = nil) throws {
+    @discardableResult
+    static func spawnDaemon(restartReason: String? = nil) throws -> Process {
         // `_NSGetExecutablePath` returns the kernel's record of the binary
         // we're executing, set at exec() time. Authoritative regardless of
         // CWD, PATH resolution, or what the caller put in argv[0].
@@ -282,21 +283,32 @@ enum DaemonClient {
         }
 
         try proc.run()
+        return proc
     }
 
     /// Poll the socket until it accepts connections or we give up.
-    static func waitForSocket(timeout: TimeInterval) async throws {
+    ///
+    /// When `child` is the daemon process we just spawned, a startup crash
+    /// is surfaced immediately as `daemonStartupFailed(exitCode:)` instead
+    /// of waiting out the full timeout. The socket check runs first each
+    /// iteration so a child that exited only because a sibling won the bind
+    /// race still reads as success. See issue #99.
+    static func waitForSocket(timeout: TimeInterval, child: Process? = nil) async throws {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
             if DaemonProbe.canConnect() { return }
+            if let child, !child.isRunning {
+                throw DaemonClientError.daemonStartupFailed(exitCode: child.terminationStatus)
+            }
             try await Task.sleep(nanoseconds: 100_000_000)
         }
         throw DaemonClientError.startupTimedOut
     }
 }
 
-enum DaemonClientError: Error, CustomStringConvertible {
+enum DaemonClientError: Error, Equatable, CustomStringConvertible {
     case startupTimedOut
+    case daemonStartupFailed(exitCode: Int32)
     case binaryNotFound(path: String)
     case couldNotSignalDaemon(pid: Int32, errno: Int32)
     case restartTimedOut(pid: Int32)
@@ -307,6 +319,10 @@ enum DaemonClientError: Error, CustomStringConvertible {
         switch self {
         case .startupTimedOut:
             return "daemon did not become ready on \(DaemonPaths.socket.path)"
+        case .daemonStartupFailed(let exitCode):
+            return
+                "daemon exited with status \(exitCode) during startup; "
+                + "see \(DaemonPaths.logFile.path)"
         case .binaryNotFound(let path):
             return "previewsmcp binary not found or not executable at \(path)"
         case .couldNotSignalDaemon(let pid, let err):
