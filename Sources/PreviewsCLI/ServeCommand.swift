@@ -136,6 +136,7 @@ struct ServeCommand: ParsableCommand {
                 let host = Self.sharedHost!
                 _ = try await DaemonListener.start(host: host)
                 try DaemonLifecycle.register()
+                startLogRotation()
                 let startISO = ISO8601DateFormatter().string(from: ProcessStartup.time)
                 Log.info(
                     "daemon ready (pid \(ProcessInfo.processInfo.processIdentifier), started \(startISO))"
@@ -153,6 +154,25 @@ struct ServeCommand: ParsableCommand {
                 Log.error("daemon startup failed: \(error)")
                 DaemonLifecycle.unregister()
                 Darwin.exit(1)
+            }
+        }
+    }
+
+    /// Cap `serve.log` for the life of this daemon process. Daemon-only: stdio
+    /// mode never calls this, so fd 2 there (the parent's pipe) is untouched.
+    /// One rotator per process — never start this on the per-connection path or
+    /// concurrent cascades would corrupt the ring. The first check runs before
+    /// the first sleep so a large inherited log rotates promptly. Nothing
+    /// cancels the task; the `!Task.isCancelled` guard is a clean-stop
+    /// courtesy, and otherwise it ends when the process exits.
+    private func startLogRotation() {
+        let logFile = DaemonPaths.logFile
+        Task.detached {
+            while !Task.isCancelled {
+                LogRotation.rotateIfNeeded(
+                    logURL: logFile, fd: STDERR_FILENO,
+                    maxBytes: 5 * 1024 * 1024, keep: 3)
+                try? await Task.sleep(for: .seconds(60))
             }
         }
     }
