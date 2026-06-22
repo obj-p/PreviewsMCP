@@ -62,7 +62,7 @@ struct IOSAppServerTests {
             sessionID: sessionID, baseline: beforeDrag, timeout: .seconds(10))
 
         // Stream: the in-process capture serves a real JPEG over /stream.mjpeg.
-        let sample = try await streamSample(port: port)
+        let sample = try await readStreamSample(port: port, limit: 20_000)
         #expect(
             sample.range(of: Data([0xFF, 0xD8, 0xFF])) != nil,
             "stream should carry a real JPEG frame")
@@ -70,24 +70,25 @@ struct IOSAppServerTests {
         _ = try await server.callToolResult(
             name: "preview_stop", arguments: ["sessionID": .string(sessionID)])
     }
+}
 
-    /// Read a bounded sample of the MJPEG stream. URLSession unwraps
-    /// multipart/x-mixed-replace and delivers the JPEG part bodies.
-    private func streamSample(port: Int) async throws -> Data {
-        var request = URLRequest(url: URL(string: "http://127.0.0.1:\(port)/stream.mjpeg")!)
-        request.timeoutInterval = 15
-        let (bytes, response) = try await URLSession.shared.bytes(for: request)
-        let contentType = (response as? HTTPURLResponse)?.value(forHTTPHeaderField: "Content-Type") ?? ""
-        #expect(contentType.contains("multipart/x-mixed-replace"), "stream should be MJPEG multipart")
+/// Read a bounded sample of an MJPEG stream, asserting the multipart content
+/// type. URLSession unwraps multipart/x-mixed-replace and delivers the JPEG
+/// part bodies without the boundary.
+private func readStreamSample(port: Int, limit: Int) async throws -> Data {
+    var request = URLRequest(url: URL(string: "http://127.0.0.1:\(port)/stream.mjpeg")!)
+    request.timeoutInterval = 15
+    let (bytes, response) = try await URLSession.shared.bytes(for: request)
+    let contentType = (response as? HTTPURLResponse)?.value(forHTTPHeaderField: "Content-Type") ?? ""
+    #expect(contentType.contains("multipart/x-mixed-replace"), "stream should be MJPEG multipart")
 
-        var buffer = Data()
-        let deadline = ContinuousClock.now + .seconds(10)
-        for try await byte in bytes {
-            buffer.append(byte)
-            if buffer.count >= 20_000 || ContinuousClock.now >= deadline { break }
-        }
-        return buffer
+    var buffer = Data()
+    let deadline = ContinuousClock.now + .seconds(10)
+    for try await byte in bytes {
+        buffer.append(byte)
+        if buffer.count >= limit || ContinuousClock.now >= deadline { break }
     }
+    return buffer
 }
 
 /// Verifies the PreviewAppServer MJPEG plumbing with a stub frame source. No
@@ -117,19 +118,7 @@ struct PreviewAppServerStreamTests {
         let port = try await appServer.start()
         defer { appServer.stop() }
 
-        var request = URLRequest(url: URL(string: "http://127.0.0.1:\(port)/stream.mjpeg")!)
-        request.timeoutInterval = 10
-        let (bytes, response) = try await URLSession.shared.bytes(for: request)
-        let contentType = (response as? HTTPURLResponse)?.value(forHTTPHeaderField: "Content-Type") ?? ""
-        #expect(contentType.contains("multipart/x-mixed-replace"), "stream should be MJPEG multipart")
-
-        // URLSession unwraps multipart/x-mixed-replace, delivering the part
-        // bodies without the boundary, so assert on the JPEG payload itself.
-        var buffer = Data()
-        for try await byte in bytes {
-            buffer.append(byte)
-            if buffer.count >= 256 { break }
-        }
-        #expect(buffer.range(of: jpeg) != nil, "stream should carry the source JPEG bytes")
+        let sample = try await readStreamSample(port: Int(port), limit: 256)
+        #expect(sample.range(of: jpeg) != nil, "stream should carry the source JPEG bytes")
     }
 }
