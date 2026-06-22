@@ -18,6 +18,7 @@ public final class PreviewAppServer: @unchecked Sendable {
     private let queue = DispatchQueue(label: "com.previewsmcp.app-server")
     private var listener: NWListener?
     private var connections: [NWConnection] = []
+    private var streamTasks: [ObjectIdentifier: Task<Void, Never>] = [:]
 
     public init(
         sink: any InputSink,
@@ -55,6 +56,9 @@ public final class PreviewAppServer: @unchecked Sendable {
                 case .failed(let error):
                     listener.stateUpdateHandler = nil
                     continuation.resume(throwing: error)
+                case .cancelled:
+                    listener.stateUpdateHandler = nil
+                    continuation.resume(throwing: PreviewAppServerError.cancelled)
                 default:
                     break
                 }
@@ -65,6 +69,8 @@ public final class PreviewAppServer: @unchecked Sendable {
 
     public func stop() {
         queue.sync {
+            streamTasks.values.forEach { $0.cancel() }
+            streamTasks.removeAll()
             connections.forEach { $0.cancel() }
             connections.removeAll()
             listener?.cancel()
@@ -77,9 +83,15 @@ public final class PreviewAppServer: @unchecked Sendable {
     private func handle(_ connection: NWConnection) {
         connections.append(connection)
         connection.stateUpdateHandler = { [weak self] state in
+            guard let self else { return }
             switch state {
             case .cancelled, .failed:
-                self?.queue.async { self?.connections.removeAll { $0 === connection } }
+                self.queue.async {
+                    let key = ObjectIdentifier(connection)
+                    self.streamTasks[key]?.cancel()
+                    self.streamTasks[key] = nil
+                    self.connections.removeAll { $0 === connection }
+                }
             default:
                 break
             }
@@ -173,7 +185,7 @@ public final class PreviewAppServer: @unchecked Sendable {
 
     private func stream(_ connection: NWConnection, source: any FrameSource) {
         let intervalMS = streamIntervalMS
-        Task { [weak self] in
+        let task = Task { [weak self] in
             guard let self else { return }
             let head =
                 "HTTP/1.1 200 OK\r\n"
@@ -182,6 +194,7 @@ public final class PreviewAppServer: @unchecked Sendable {
             do {
                 try await self.send(connection, Data(head.utf8))
                 while true {
+                    try Task.checkCancellation()
                     guard let jpeg = await source.nextFrame() else {
                         try await Task.sleep(for: .milliseconds(100))
                         continue
@@ -197,6 +210,7 @@ public final class PreviewAppServer: @unchecked Sendable {
                 connection.cancel()
             }
         }
+        queue.async { self.streamTasks[ObjectIdentifier(connection)] = task }
     }
 
     private func send(_ connection: NWConnection, _ data: Data) async throws {
@@ -227,4 +241,5 @@ private struct ControlCommand: Decodable {
 
 public enum PreviewAppServerError: Error {
     case noPort
+    case cancelled
 }

@@ -300,9 +300,6 @@ public actor IOSPreviewSession {
             throw await enrichedJITFailure(error)
         }
 
-        // Start the app interface in-process so it captures the shell composite
-        // and drives input over the same device. Best-effort: a failure here
-        // must not fail the preview itself.
         do {
             let hidClient = try await simulatorManager.makeHIDClient(udid: deviceUDID)
             let server = PreviewAppServer(
