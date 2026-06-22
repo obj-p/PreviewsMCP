@@ -14,16 +14,12 @@ public struct Guest: Sendable {
         try await VMSSH.exec(endpoint: endpoint, command: command, timeout: timeout)
     }
 
-    public enum Env: Sendable {
-        case sh
-        case brew
+    public struct Env: Sendable, ExpressibleByStringLiteral {
+        public let preamble: String
+        public init(stringLiteral preamble: String) { self.preamble = preamble }
 
-        var preamble: String {
-            switch self {
-            case .sh: return ""
-            case .brew: return "eval \"$(/opt/homebrew/bin/brew shellenv)\" && "
-            }
-        }
+        public static let sh: Self = ""
+        public static let brew: Self = "eval \"$(/opt/homebrew/bin/brew shellenv)\" && "
     }
 
     @discardableResult
