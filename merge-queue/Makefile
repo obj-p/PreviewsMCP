@@ -14,7 +14,6 @@ XIP_CACHE  ?= $(HOME)/.cache/merge-queue/xcode
 XIP        := $(or $(XCODE_XIP),$(firstword $(wildcard $(XIP_CACHE)/Xcode*.xip)))
 SA_RETRIES ?= 3
 SSH_RETRIES ?= 2
-SA_PLAN    ?= $(CURDIR)/sa-plan.json
 REPO_ROOT  ?= $(CURDIR)/..
 JIT_CACHE  ?= /Users/$(ADMIN_USER)/jit-cache
 
@@ -39,7 +38,7 @@ $(STATE)/install: $(STATE)/vz | $(STATE)
 	touch $@
 
 $(STATE)/setup: $(STATE)/install | $(STATE)
-	$(VZ_BIN) setup $(BUNDLE) --transport vnc --plan $(SA_PLAN) --retry $(SA_RETRIES) --restore-from base --output-dir $(CURDIR)/$(STATE)/sa-logs
+	$(VZ_BIN) run $(CURDIR)/scripts/setup.swift $(BUNDLE) base $(SA_RETRIES)
 	$(VZ_BIN) snapshot delete $(BUNDLE) post-sa 2>/dev/null || true
 	$(VZ_BIN) snapshot take $(BUNDLE) post-sa
 	touch $@
