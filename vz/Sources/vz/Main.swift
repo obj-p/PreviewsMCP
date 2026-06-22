@@ -70,6 +70,7 @@ struct VZCommand: ParsableCommand {
             TestKeysCommand.self,
             SetupCommand.self,
             TestVNCCommand.self,
+            RunCommand.self,
         ],
         defaultSubcommand: StatusCommand.self
     )
