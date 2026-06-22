@@ -805,10 +805,17 @@ enum IOSPreviewE2ESupport {
     }
 
     static func compileForIOSSim(_ source: String) throws -> URL {
-        let input = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .appendingPathComponent("Fixtures", isDirectory: true)
-            .appendingPathComponent(source)
+        let fixtures: URL
+        if let root = ProcessInfo.processInfo.environment["PREVIEWSMCP_REPO_ROOT"] {
+            fixtures = URL(fileURLWithPath: root, isDirectory: true)
+                .appendingPathComponent(
+                    "previewsmcp/Tests/PreviewsJITLinkTests/Fixtures", isDirectory: true)
+        } else {
+            fixtures = URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent()
+                .appendingPathComponent("Fixtures", isDirectory: true)
+        }
+        let input = fixtures.appendingPathComponent(source)
         let outDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("PreviewsJITLinkIOSSimFixtures", isDirectory: true)
         try FileManager.default.createDirectory(at: outDir, withIntermediateDirectories: true)
