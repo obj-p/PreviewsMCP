@@ -78,15 +78,10 @@ func driveSetup(bundle: VMBundle, outputDir: URL) async throws {
     await MainActor.run { host.close() }
 }
 
-let arguments = CommandLine.arguments
-guard arguments.count >= 2 else {
-    FileHandle.standardError.write(
-        Data("usage: vz run setup.swift <bundle> [restoreFrom] [retries]\n".utf8))
-    exit(2)
-}
-let bundle = try VMBundle(directory: URL(filePath: arguments[1]))
-let restoreFrom = arguments.count > 2 ? arguments[2] : "base"
-let retries = arguments.count > 3 ? (Int(arguments[3]) ?? 3) : 3
+let script = Script(usage: "vz run setup.swift <bundle> [restoreFrom] [retries]", min: 2)
+let bundle = try script.bundle()
+let restoreFrom = script[arg: 2, default: "base"]
+let retries = script[arg: 3, default: 3]
 let outputDir = URL(filePath: "/tmp/mq-setup")
 try? FileManager.default.removeItem(at: outputDir)
 try FileManager.default.createDirectory(at: outputDir, withIntermediateDirectories: true)

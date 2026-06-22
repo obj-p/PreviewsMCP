@@ -16,12 +16,8 @@ func provisionIOS(_ guest: Guest) async throws {
     step("ios provisioning complete")
 }
 
-let arguments = CommandLine.arguments
-guard arguments.count >= 2 else {
-    FileHandle.standardError.write(Data("usage: vz run ios.swift <bundle>\n".utf8))
-    exit(2)
-}
-let bundle = try VMBundle(directory: URL(filePath: arguments[1]))
+let script = Script(usage: "vz run ios.swift <bundle>", min: 2)
+let bundle = try script.bundle()
 
 try await Guest.session(bundle: bundle, adminPass: "vzvz") { guest in
     try await provisionIOS(guest)

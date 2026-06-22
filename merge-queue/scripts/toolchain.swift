@@ -53,14 +53,9 @@ func provisionToolchain(_ guest: Guest, xip: String) async throws {
     step("toolchain provisioning complete")
 }
 
-let arguments = CommandLine.arguments
-guard arguments.count >= 3 else {
-    FileHandle.standardError.write(
-        Data("usage: vz run toolchain.swift <bundle> <xip>\n".utf8))
-    exit(2)
-}
-let bundle = try VMBundle(directory: URL(filePath: arguments[1]))
-let xipPath = arguments[2]
+let script = Script(usage: "vz run toolchain.swift <bundle> <xip>", min: 3)
+let bundle = try script.bundle()
+let xipPath = script[arg: 2]
 
 try await Guest.session(bundle: bundle, adminPass: "vzvz") { guest in
     try await provisionToolchain(guest, xip: xipPath)

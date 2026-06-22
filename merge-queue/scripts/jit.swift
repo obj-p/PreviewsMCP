@@ -39,15 +39,10 @@ func provisionJIT(_ guest: Guest, repoRoot: String, jitCache: String) async thro
     step("jit bake complete")
 }
 
-let arguments = CommandLine.arguments
-guard arguments.count >= 3 else {
-    FileHandle.standardError.write(
-        Data("usage: vz run jit.swift <bundle> <repoRoot> [jitCache]\n".utf8))
-    exit(2)
-}
-let bundle = try VMBundle(directory: URL(filePath: arguments[1]))
-let repoRoot = arguments[2]
-let jitCache = arguments.count > 3 ? arguments[3] : "/Users/admin/jit-cache"
+let script = Script(usage: "vz run jit.swift <bundle> <repoRoot> [jitCache]", min: 3)
+let bundle = try script.bundle()
+let repoRoot = script[arg: 2]
+let jitCache = script[arg: 3, default: "/Users/admin/jit-cache"]
 
 try await Guest.session(bundle: bundle, adminPass: "vzvz") { guest in
     try await provisionJIT(guest, repoRoot: repoRoot, jitCache: jitCache)
