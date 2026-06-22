@@ -24,6 +24,7 @@ swift_test(
         "exclusive",
         "local",
     ],
+    visibility = ["//visibility:public"],
     deps = [
         "//previewsmcp/PreviewsCore",
         "//previewsmcp/PreviewsJITLink",
@@ -48,6 +49,7 @@ swift_test(
         "exclusive",
         "local",
     ],
+    visibility = ["//visibility:public"],
     deps = [
         "//previewsmcp/PreviewsCore",
         "//previewsmcp/PreviewsIOS",

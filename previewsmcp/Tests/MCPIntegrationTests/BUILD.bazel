@@ -20,6 +20,7 @@ swift_test(
         "exclusive",
         "local",
     ],
+    visibility = ["//visibility:public"],
     deps = [
         "//previewsmcp/PreviewsCLI",
         "@swiftpkg_swift_sdk//:MCP",

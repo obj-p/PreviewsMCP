@@ -220,7 +220,29 @@ _RUNFILES_ENV = {
 xcodeproj(
     name = "xcodeproj",
     project_name = "PreviewsMCP",
-    top_level_targets = ["//previewsmcp/cli:previewsmcp"],
+    scheme_autogeneration_config = xcschemes.autogeneration_config(
+        scheme_name_exclude_patterns = [
+            "^_",
+            ".*\\.rspm_c$",
+            "^C?NIO",
+            "^Swift(Syntax|Parser)",
+            "^ArgumentParser",
+            "^(Atomics|DequeModule|OrderedCollections|InternalCollectionsUtilities|AsyncAlgorithms|SystemPackage|Logging|EventSource|MCP|ContainersPreview)$",
+        ],
+    ),
+    scheme_autogeneration_mode = "all",
+    top_level_targets = [
+        "//previewsmcp/cli:previewsmcp",
+        "//previewsmcp/Tests/CLIIntegrationTests:CLIIntegrationTests",
+        "//previewsmcp/Tests/MCPIntegrationTests:MCPIntegrationTests",
+        "//previewsmcp/Tests/PreviewsCLITests:PreviewsCLITests",
+        "//previewsmcp/Tests/PreviewsCoreTests:PreviewsCoreTests",
+        "//previewsmcp/Tests/PreviewsEngineTests:PreviewsEngineTests",
+        "//previewsmcp/Tests/PreviewsIOSTests:PreviewsIOSTests",
+        "//previewsmcp/Tests/PreviewsJITLinkTests:IOSPreviewE2ETests",
+        "//previewsmcp/Tests/PreviewsJITLinkTests:PreviewsJITLinkTests",
+        "//previewsmcp/Tests/PreviewsMacOSTests:PreviewsMacOSTests",
+    ],
     xcschemes = [
         xcschemes.scheme(
             name = "previewsmcp",

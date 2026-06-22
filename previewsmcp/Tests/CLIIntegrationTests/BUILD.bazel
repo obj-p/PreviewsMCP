@@ -20,4 +20,5 @@ swift_test(
         "exclusive",
         "local",
     ],
+    visibility = ["//visibility:public"],
 )

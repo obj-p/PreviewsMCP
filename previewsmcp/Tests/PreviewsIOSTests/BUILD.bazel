@@ -7,5 +7,6 @@ swift_test(
     data = ["//:ios_jit_resources"],
     env = {"PREVIEWSMCP_IOS_JIT_DIR": "$(rlocationpath //:ios_jit_resources)"},
     tags = ["local"],
+    visibility = ["//visibility:public"],
     deps = ["//previewsmcp/PreviewsIOS"],
 )
