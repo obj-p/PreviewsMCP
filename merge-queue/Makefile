@@ -11,6 +11,7 @@ XCODE_VER  ?= 26.3
 IPSW       ?= https://updates.cdn-apple.com/2026SpringFCS/fullrestores/122-88870/E47EBB85-45F2-4E3C-B9E7-6FF7868C2FBA/UniversalMac_26.5.1_25F80_Restore.ipsw
 XCODE_XIP  ?=
 XIP_CACHE  ?= $(HOME)/.cache/merge-queue/xcode
+XIP        := $(or $(XCODE_XIP),$(firstword $(wildcard $(XIP_CACHE)/Xcode*.xip)))
 SA_RETRIES ?= 3
 SSH_RETRIES ?= 2
 SA_PLAN    ?= $(CURDIR)/sa-plan.json
@@ -50,7 +51,8 @@ $(STATE)/ssh: $(STATE)/setup | $(STATE)
 	touch $@
 
 $(STATE)/toolchain: $(STATE)/ssh | $(STATE)
-	VZ_BIN="$(VZ_BIN)" BUNDLE="$(BUNDLE)" XCODE_VER="$(XCODE_VER)" XCODE_XIP="$(XCODE_XIP)" XIP_CACHE="$(XIP_CACHE)" ADMIN_USER="$(ADMIN_USER)" ADMIN_PASS="$(ADMIN_PASS)" STATE="$(CURDIR)/$(STATE)" ./provision-toolchain.sh
+	$(VZ_BIN) snapshot restore $(BUNDLE) post-ssh
+	$(VZ_BIN) run $(CURDIR)/scripts/toolchain.swift $(BUNDLE) $(XIP)
 	touch $@
 
 $(STATE)/post-toolchain: $(STATE)/toolchain | $(STATE)
@@ -60,7 +62,7 @@ $(STATE)/post-toolchain: $(STATE)/toolchain | $(STATE)
 
 $(STATE)/jit: $(STATE)/post-toolchain | $(STATE)
 	$(VZ_BIN) snapshot restore $(BUNDLE) post-toolchain
-	VZ_BIN="$(VZ_BIN)" BUNDLE="$(BUNDLE)" REPO_ROOT="$(REPO_ROOT)" JIT_CACHE="$(JIT_CACHE)" ADMIN_PASS="$(ADMIN_PASS)" STATE="$(CURDIR)/$(STATE)" ./provision-jit.sh
+	$(VZ_BIN) run $(CURDIR)/scripts/jit.swift $(BUNDLE) $(REPO_ROOT) $(JIT_CACHE)
 	touch $@
 
 $(STATE)/post-jit: $(STATE)/jit | $(STATE)
@@ -70,7 +72,7 @@ $(STATE)/post-jit: $(STATE)/jit | $(STATE)
 
 $(STATE)/ios: $(STATE)/post-jit | $(STATE)
 	$(VZ_BIN) snapshot restore $(BUNDLE) post-jit
-	VZ_BIN="$(VZ_BIN)" BUNDLE="$(BUNDLE)" ADMIN_PASS="$(ADMIN_PASS)" STATE="$(CURDIR)/$(STATE)" ./provision-ios.sh
+	$(VZ_BIN) run $(CURDIR)/scripts/ios.swift $(BUNDLE)
 	touch $@
 
 $(STATE)/post-ios: $(STATE)/ios | $(STATE)
