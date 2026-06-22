@@ -2,9 +2,9 @@ import CryptoKit
 import Foundation
 import PreviewsCore
 
-/// Compiles the embedded iOS host app source into a signed .app bundle
+/// Compiles the embedded iOS agent app source into a signed .app bundle
 /// for the iOS simulator.
-public actor IOSHostBuilder {
+public actor IOSAgentBuilder {
     private let workDir: URL
     private let swiftcPath: String
     private let clangPath: String
@@ -18,7 +18,7 @@ public actor IOSHostBuilder {
         let dir =
             workDir
             ?? FileManager.default.temporaryDirectory
-            .appendingPathComponent("previewsmcp-host", isDirectory: true)
+            .appendingPathComponent("previewsmcp-agent", isDirectory: true)
 
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         self.workDir = dir
@@ -33,20 +33,20 @@ public actor IOSHostBuilder {
         self.moduleCachePath = cacheDir
     }
 
-    /// Build the iOS host app, returning the path to the .app bundle.
+    /// Build the iOS agent app, returning the path to the .app bundle.
     /// Caches the result — subsequent calls return the cached path.
-    /// Rebuilds if the host app source has changed (detected via hash marker).
-    public func ensureHostApp() async throws -> URL {
+    /// Rebuilds if the agent app source has changed (detected via hash marker).
+    public func ensureAgentApp() async throws -> URL {
         if let fresh = Self.cachedAppIfFresh(cachedAppPath, hash: Self.sourceHash) {
             return fresh
         }
-        let path = try await buildHostApp()
+        let path = try await buildAgentApp()
         cachedAppPath = path
         return path
     }
 
     /// Build the foreground shell app that hosts the agent's cross-process
-    /// scene, returning the path to the .app bundle. Caches like `ensureHostApp`.
+    /// scene, returning the path to the .app bundle. Caches like `ensureAgentApp`.
     public func ensureShellApp() async throws -> URL {
         if let fresh = Self.cachedAppIfFresh(cachedShellAppPath, hash: Self.shellSourceHash) {
             return fresh
@@ -74,7 +74,7 @@ public actor IOSHostBuilder {
     }
 
     /// SHA-256 of the shell app source, plist, entitlements, and icon, for
-    /// cache invalidation (mirrors `sourceHash` for the host app).
+    /// cache invalidation (mirrors `sourceHash` for the agent app).
     private static let shellSourceHash: String = hashHex([
         Data(IOSShellAppSource.code.utf8),
         Data(IOSShellAppSource.infoPlist.utf8),
@@ -82,26 +82,26 @@ public actor IOSHostBuilder {
         IOSShellAppSource.iconBytes,
     ])
 
-    /// SHA-256 hash of the host app source, info plist, and embedded
+    /// SHA-256 hash of the agent app source, info plist, and embedded
     /// AppIcon.png, used for cache invalidation. Hashing only the Swift
     /// source would miss icon changes — replacing the PNG with a new
     /// design wouldn't rebuild the cached .app.
     private static let sourceHash: String = hashHex([
-        Data(IOSHostAppSource.code.utf8),
-        Data(IOSHostAppSource.infoPlist.utf8),
+        Data(IOSAgentAppSource.code.utf8),
+        Data(IOSAgentAppSource.infoPlist.utf8),
         IOSAppIconData.bytes,
     ])
 
-    /// Compile and package the iOS host app.
-    private func buildHostApp() async throws -> URL {
-        let sourceFile = workDir.appendingPathComponent("PreviewsMCPHost.swift")
-        let binaryPath = workDir.appendingPathComponent("PreviewsMCPHost")
-        let appDir = workDir.appendingPathComponent("PreviewsMCPHost.app")
-        let appBinary = appDir.appendingPathComponent("PreviewsMCPHost")
+    /// Compile and package the iOS agent app.
+    private func buildAgentApp() async throws -> URL {
+        let sourceFile = workDir.appendingPathComponent("PreviewsMCPAgent.swift")
+        let binaryPath = workDir.appendingPathComponent("PreviewsMCPAgent")
+        let appDir = workDir.appendingPathComponent("PreviewsMCPAgent.app")
+        let appBinary = appDir.appendingPathComponent("PreviewsMCPAgent")
         let plistPath = appDir.appendingPathComponent("Info.plist")
 
         // Write source
-        try IOSHostAppSource.code.write(to: sourceFile, atomically: true, encoding: .utf8)
+        try IOSAgentAppSource.code.write(to: sourceFile, atomically: true, encoding: .utf8)
 
         // Compile
         var compileArgs = [
@@ -110,14 +110,14 @@ public actor IOSHostBuilder {
             "-parse-as-library",
             "-target", PreviewPlatform.iOS.targetTriple,
             "-sdk", sdkPath,
-            "-module-name", "PreviewsMCPHost",
+            "-module-name", "PreviewsMCPAgent",
             "-Onone",
             "-gnone",
             "-module-cache-path", moduleCachePath.path,
             "-o", binaryPath.path,
         ]
 
-        // Link the in-app ORC executor so the host can JIT-link objects pushed
+        // Link the in-app ORC executor so the agent can JIT-link objects pushed
         // by the daemon over the second (EPC) socket. server.o references the
         // LLVM symbols, so it must precede the archives; the orc runtime is NOT
         // linked here — the daemon injects it remotely.
@@ -154,7 +154,7 @@ public actor IOSHostBuilder {
         try FileManager.default.copyItem(at: binaryPath, to: appBinary)
 
         // Write Info.plist
-        try IOSHostAppSource.infoPlist.write(to: plistPath, atomically: true, encoding: .utf8)
+        try IOSAgentAppSource.infoPlist.write(to: plistPath, atomically: true, encoding: .utf8)
 
         // Write embedded app icon
         let iconDest = appDir.appendingPathComponent("AppIcon.png")
@@ -234,7 +234,7 @@ public actor IOSHostBuilder {
     private func run(_ args: [String]) async throws -> String {
         let output = try await runAsync(args[0], arguments: Array(args.dropFirst()))
         guard output.exitCode == 0 else {
-            throw IOSHostBuildError.compilationFailed(
+            throw IOSAgentBuildError.compilationFailed(
                 "Command failed: \(args.joined(separator: " "))\n\(output.stderr)"
             )
         }
@@ -243,7 +243,7 @@ public actor IOSHostBuilder {
 
 }
 
-extension IOSHostBuilder {
+extension IOSAgentBuilder {
     struct JITArtifacts {
         let serverObject: URL
         let libDir: URL
@@ -254,7 +254,7 @@ extension IOSHostBuilder {
     /// archives share the bundle's resource directory.
     static func jitArtifacts() throws -> JITArtifacts {
         guard let serverObject = Bundle.module.url(forResource: "server", withExtension: "o") else {
-            throw IOSHostBuildError.compilationFailed(
+            throw IOSAgentBuildError.compilationFailed(
                 "iOS JIT build requested but server.o is missing from the PreviewsIOS resource bundle"
             )
         }
@@ -267,18 +267,18 @@ extension IOSHostBuilder {
     static let bridgingHeaderSource = "int previewsmcp_ios_executor_start(int in_fd, int out_fd);\n"
 
     /// Path to the iossim orc runtime archive the daemon injects remotely via
-    /// `JITSession(remoteFD:orcRuntimePath:)`. Not linked into the host app.
+    /// `JITSession(remoteFD:orcRuntimePath:)`. Not linked into the agent app.
     public static var jitOrcRuntimePath: String? {
         Bundle.module.url(forResource: "liborc_rt_iossim", withExtension: "a")?.path
     }
 }
 
-public enum IOSHostBuildError: Error, LocalizedError, CustomStringConvertible {
+public enum IOSAgentBuildError: Error, LocalizedError, CustomStringConvertible {
     case compilationFailed(String)
 
     public var description: String {
         switch self {
-        case .compilationFailed(let msg): return "iOS host app build failed: \(msg)"
+        case .compilationFailed(let msg): return "iOS agent app build failed: \(msg)"
         }
     }
 

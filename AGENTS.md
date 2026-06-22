@@ -22,7 +22,7 @@ Or run `/bootstrap` in Claude Code.
 swift build              # Build all targets
 swift test               # Run all tests (~100+ tests, 12+ suites)
 swift test --filter "PreviewParser"      # Run specific suite
-swift test --filter "IOSHostBuilder"     # Test iOS host app compilation
+swift test --filter "IOSAgentBuilder"     # Test iOS agent app compilation
 swift test --filter "endToEnd"           # Full iOS pipeline (slow, boots simulator)
 swift test --filter "VariantsCommandTests"       # CLI integration tests for a specific command
 swift test --filter "MacOSMCPTests"              # MCP integration tests (real daemon)
@@ -49,7 +49,7 @@ Sources/
 ├── SimulatorBridge/     # ObjC — runtime-loads CoreSimulator.framework (no build-time linking)
 ├── PreviewsCore/        # Platform-agnostic: parser, compiler, bridge gen, differ, file watcher
 ├── PreviewsMacOS/       # macOS host: NSApplication + NSWindow + Snapshot (runs inside the daemon)
-├── PreviewsIOS/         # iOS simulator: SimulatorManager, IOSHostBuilder, IOSPreviewSession
+├── PreviewsIOS/         # iOS simulator: SimulatorManager, IOSAgentBuilder, IOSPreviewSession
 ├── PreviewsCLI/         # CLI (ArgumentParser) + daemon + MCP server (swift-sdk) — library target
 ├── previewsmcp/         # Thin executable shim: one-line main.swift → PreviewsMCPApp.main()
 └── PreviewsSetupKit/    # Setup plugin protocol (PreviewSetup) — zero-dependency SwiftUI-only library
@@ -60,7 +60,7 @@ Sources/
 - **PreviewsCore** has no platform-specific dependencies (no AppKit, no CoreSimulator)
 - **SimulatorBridge** is ObjC because it uses `objc_lookUpClass` / protocol casts for private API access
 - **PreviewsIOS** depends on SimulatorBridge; touch injection runs in-app via Hammer approach (IOHIDEvent + BKSHIDEventSetDigitizerInfo)
-- **iOS host-app source lives in `ios-host/app/`** at the package root (`HostApp.swift`, `Info.plist`, `AppIcon.png`). The `EmbedHostAppSource` build-tool plugin (driven by `Sources/EmbedHostAppSourceTool/`) reads those files and emits `IOSHostAppSource.generated.swift` exposing them as `IOSHostAppSource.code` / `.infoPlist` / `IOSAppIconData.bytes` (base64-encoded). `IOSHostBuilder` writes the source out at session start and compiles it with swiftc targeting arm64-apple-ios-simulator. Byte-equivalence with the previous stringified blob is pinned by `IOSHostBuilderHashTests`.
+- **iOS agent-app source lives in `ios-host/agent/`** at the package root (`AgentApp.swift`, `Info.plist`, `AppIcon.png`), with the shell app alongside it in `ios-host/shell/`. The `EmbedHostAppSource` build-tool plugin (driven by `Sources/EmbedHostAppSourceTool/`) reads those files and emits `IOSAgentAppSource.generated.swift` exposing them as `IOSAgentAppSource.code` / `.infoPlist` / `IOSAppIconData.bytes` (base64-encoded). `IOSAgentBuilder` writes the source out at session start and compiles it with swiftc targeting arm64-apple-ios-simulator. Byte-equivalence with the previous stringified blob is pinned by `IOSAgentBuilderHashTests`.
 
 ### Daemon model
 
@@ -132,7 +132,7 @@ CLI commands follow a stdout-for-data, stderr-for-side-effects convention:
 
 - Swift 6.0 strict concurrency — actors for shared state, Sendable structs for cross-isolation data
 - Private framework access: runtime-load via `Bundle(path:).loadAndReturnError()` + `objc_lookUpClass()`, never build-time link
-- iOS host app source is real Swift in `ios-host/app/HostApp.swift` (lintable, formatable, compile-checked); the `EmbedHostAppSource` build-tool plugin embeds it as a base64 constant for runtime compilation with swiftc targeting arm64-apple-ios-simulator
+- iOS agent app source is real Swift in `ios-host/agent/AgentApp.swift` (lintable, formatable, compile-checked); the `EmbedHostAppSource` build-tool plugin embeds it as a base64 constant for runtime compilation with swiftc targeting arm64-apple-ios-simulator
 - Old dylibs/views are retained (never dlclose) to prevent EXC_BAD_ACCESS
 - `.tag()` integer literals are excluded from ThunkGenerator to avoid Int/CGFloat overload ambiguity
 - All custom Error types must conform to `LocalizedError` with `errorDescription` (not just `CustomStringConvertible`) so MCP server reports useful messages

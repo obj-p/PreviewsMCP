@@ -675,9 +675,9 @@ Use Approach B for hosting, but add interactivity via the **Facebook IDB approac
 previews-mcp (macOS host)
   ├─ Compile view for iOS simulator target (arm64-apple-ios-simulator)
   ├─ Boot simulator: xcrun simctl --set <previews-device-set> boot <device>
-  ├─ Install host app: xcrun simctl install <device> PreviewHost.app
-  ├─ Launch: xcrun simctl launch <device> com.previewsmcp.host
-  ├─ Host app: dlopen(preview.dylib) → UIHostingController → UIWindow
+  ├─ Install agent app: xcrun simctl install <device> PreviewsMCPAgent.app
+  ├─ Launch: xcrun simctl launch <device> com.previewsmcp.agent
+  ├─ Agent app: dlopen(preview.dylib) → UIHostingController → UIWindow
   ├─ Snapshot: xcrun simctl io <device> screenshot
   ├─ Interact: CoreSimulator.framework → SimDevice.sendTouchEvent(x, y)
   └─ Hot-reload: file watcher → recompile → signal host app to reload

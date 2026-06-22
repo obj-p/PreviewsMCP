@@ -4,15 +4,15 @@ import PreviewsIOS
 import PreviewsJITLink
 import Testing
 
-/// End-to-end iOS preview tests: the daemon builds the real host app, boots the
+/// End-to-end iOS preview tests: the daemon builds the real agent app, boots the
 /// simulator, and drives the production `IOSPreviewSession` over EPC (flash-free
 /// respawn, relaunch, JIT render, agent->shell redirect). A few early tests use
 /// the standalone `iossim-executor` (built by `ios-host/executor/build.sh`) and
 /// self-skip when that artifact is absent.
 ///
-/// `.serialized` because every test shares one simulator, one host-app bundle
-/// ID, and one IOSHostBuilder workDir, so they cannot run concurrently (parallel
-/// runs clobber the host-app source mid-build). See #244.
+/// `.serialized` because every test shares one simulator, one agent-app bundle
+/// ID, and one IOSAgentBuilder workDir, so they cannot run concurrently (parallel
+/// runs clobber the agent-app source mid-build). See #244.
 @Suite(.serialized)
 struct IOSPreviewE2ETests {
     static let packageRoot = URL(fileURLWithPath: #filePath)
@@ -159,7 +159,7 @@ struct IOSPreviewE2ETests {
         #expect(byte == 42)
     }
 
-    /// Phase 2 fold: the REAL production host app (built by IOSHostBuilder with
+    /// Phase 2 fold: the REAL production agent app (built by IOSAgentBuilder with
     /// the executor linked from PreviewsIOS resources) hosts the ORC executor
     /// and the daemon links + runs an object inside it over the EPC socket. JIT
     /// mode needs no preview dylib, so the app launches with `--jit-port` alone.
@@ -167,21 +167,21 @@ struct IOSPreviewE2ETests {
     func hostsRemoteSessionInRealHostApp() async throws {
         let udid = try IOSPreviewE2ESupport.bootSimulator()
         let object = try IOSPreviewE2ESupport.compileForIOSSim("answer.c")
-        let appPath = try await IOSHostBuilder().ensureHostApp()
+        let appPath = try await IOSAgentBuilder().ensureAgentApp()
         try IOSPreviewE2ESupport.installApp(udid: udid, appPath: appPath.path)
 
         let listener = try IOSPreviewE2ESupport.openLoopbackListener()
         defer { close(listener.fd) }
 
         try IOSPreviewE2ESupport.launchApp(
-            udid: udid, bundleID: IOSPreviewSession.hostBundleID,
+            udid: udid, bundleID: IOSPreviewSession.agentBundleID,
             args: ["--jit-port", "\(listener.port)"])
         defer {
-            IOSPreviewE2ESupport.terminateApp(udid: udid, bundleID: IOSPreviewSession.hostBundleID)
+            IOSPreviewE2ESupport.terminateApp(udid: udid, bundleID: IOSPreviewSession.agentBundleID)
         }
 
         let conn = try IOSPreviewE2ESupport.acceptOne(listenFD: listener.fd, timeoutSeconds: 60)
-        guard let orcPath = IOSHostBuilder.jitOrcRuntimePath else {
+        guard let orcPath = IOSAgentBuilder.jitOrcRuntimePath else {
             throw IOSPreviewE2ESupport.SpikeError.message("bundled iossim orc runtime missing")
         }
         let session = try JITSession(remoteFD: conn, orcRuntimePath: orcPath)
@@ -209,7 +209,7 @@ struct IOSPreviewE2ETests {
         try Self.helloViewSource.write(to: sourceFile, atomically: true, encoding: .utf8)
 
         let compiler = try await Compiler(platform: .iOS)
-        let hostBuilder = try await IOSHostBuilder()
+        let agentBuilder = try await IOSAgentBuilder()
         let simulatorManager = SimulatorManager()
 
         let linked = ResultBox()
@@ -217,7 +217,7 @@ struct IOSPreviewE2ETests {
             sourceFile: sourceFile,
             deviceUDID: udid,
             compiler: compiler,
-            hostBuilder: hostBuilder,
+            agentBuilder: agentBuilder,
             simulatorManager: simulatorManager,
             makeJITReloader: { fd, orcPath in
                 let s = try JITSession(remoteFD: fd, orcRuntimePath: orcPath)
@@ -227,7 +227,7 @@ struct IOSPreviewE2ETests {
             }
         )
         defer {
-            IOSPreviewE2ESupport.terminateApp(udid: udid, bundleID: IOSPreviewSession.hostBundleID)
+            IOSPreviewE2ESupport.terminateApp(udid: udid, bundleID: IOSPreviewSession.agentBundleID)
         }
 
         let pid = try await session.start()
@@ -253,21 +253,21 @@ struct IOSPreviewE2ETests {
         try Self.helloViewSource.write(to: sourceFile, atomically: true, encoding: .utf8)
 
         let compiler = try await Compiler(platform: .iOS)
-        let hostBuilder = try await IOSHostBuilder()
+        let agentBuilder = try await IOSAgentBuilder()
         let simulatorManager = SimulatorManager()
 
         let session = IOSPreviewSession(
             sourceFile: sourceFile,
             deviceUDID: udid,
             compiler: compiler,
-            hostBuilder: hostBuilder,
+            agentBuilder: agentBuilder,
             simulatorManager: simulatorManager,
             makeJITReloader: { fd, orcPath in
                 try IOSJITStructuralReloader(remoteFD: fd, orcRuntimePath: orcPath)
             }
         )
         defer {
-            IOSPreviewE2ESupport.terminateApp(udid: udid, bundleID: IOSPreviewSession.hostBundleID)
+            IOSPreviewE2ESupport.terminateApp(udid: udid, bundleID: IOSPreviewSession.agentBundleID)
         }
 
         let pid = try await session.start()
@@ -284,7 +284,7 @@ struct IOSPreviewE2ETests {
         await session.stop()
     }
 
-    /// Stage 0 (shell-owns-agent): the agent lifecycle breadcrumb. The host app
+    /// Stage 0 (shell-owns-agent): the agent lifecycle breadcrumb. The agent app
     /// reports its `applicationState` over the JSON channel; `IOSPreviewSession`
     /// exposes the latest as `agentApplicationState`. After `start()` the daemon
     /// must observe a valid breadcrumb, proving the flash detector is wired end
@@ -303,21 +303,21 @@ struct IOSPreviewE2ETests {
         try Self.helloViewSource.write(to: sourceFile, atomically: true, encoding: .utf8)
 
         let compiler = try await Compiler(platform: .iOS)
-        let hostBuilder = try await IOSHostBuilder()
+        let agentBuilder = try await IOSAgentBuilder()
         let simulatorManager = SimulatorManager()
 
         let session = IOSPreviewSession(
             sourceFile: sourceFile,
             deviceUDID: udid,
             compiler: compiler,
-            hostBuilder: hostBuilder,
+            agentBuilder: agentBuilder,
             simulatorManager: simulatorManager,
             makeJITReloader: { fd, orcPath in
                 try IOSJITStructuralReloader(remoteFD: fd, orcRuntimePath: orcPath)
             }
         )
         defer {
-            IOSPreviewE2ESupport.terminateApp(udid: udid, bundleID: IOSPreviewSession.hostBundleID)
+            IOSPreviewE2ESupport.terminateApp(udid: udid, bundleID: IOSPreviewSession.agentBundleID)
         }
 
         let pid = try await session.start()
@@ -351,21 +351,21 @@ struct IOSPreviewE2ETests {
         try Self.helloViewSource.write(to: sourceFile, atomically: true, encoding: .utf8)
 
         let compiler = try await Compiler(platform: .iOS)
-        let hostBuilder = try await IOSHostBuilder()
+        let agentBuilder = try await IOSAgentBuilder()
         let simulatorManager = SimulatorManager()
 
         let session = IOSPreviewSession(
             sourceFile: sourceFile,
             deviceUDID: udid,
             compiler: compiler,
-            hostBuilder: hostBuilder,
+            agentBuilder: agentBuilder,
             simulatorManager: simulatorManager,
             makeJITReloader: { fd, orcPath in
                 try IOSJITStructuralReloader(remoteFD: fd, orcRuntimePath: orcPath)
             }
         )
         defer {
-            IOSPreviewE2ESupport.terminateApp(udid: udid, bundleID: IOSPreviewSession.hostBundleID)
+            IOSPreviewE2ESupport.terminateApp(udid: udid, bundleID: IOSPreviewSession.agentBundleID)
         }
 
         let pid = try await session.start()
@@ -375,7 +375,7 @@ struct IOSPreviewE2ETests {
 
         // The host reports RSS once a second over the JSON channel; allow one tick.
         try await Task.sleep(for: .seconds(2))
-        let reportedRSS = await session.hostRSS
+        let reportedRSS = await session.agentRSS
         #expect(reportedRSS > 0)
 
         let newPid = try await session.relaunch()
@@ -412,13 +412,13 @@ struct IOSPreviewE2ETests {
         try Self.helloViewSource.write(to: sourceFile, atomically: true, encoding: .utf8)
 
         let compiler = try await Compiler(platform: .iOS)
-        let hostBuilder = try await IOSHostBuilder()
+        let agentBuilder = try await IOSAgentBuilder()
         let simulatorManager = SimulatorManager()
         let session = IOSPreviewSession(
             sourceFile: sourceFile,
             deviceUDID: udid,
             compiler: compiler,
-            hostBuilder: hostBuilder,
+            agentBuilder: agentBuilder,
             simulatorManager: simulatorManager,
             makeJITReloader: { fd, orcPath in
                 try IOSJITStructuralReloader(remoteFD: fd, orcRuntimePath: orcPath)
@@ -426,7 +426,7 @@ struct IOSPreviewE2ETests {
         )
         defer {
             IOSPreviewE2ESupport.terminateApp(udid: udid, bundleID: IOSPreviewSession.shellBundleID)
-            IOSPreviewE2ESupport.terminateApp(udid: udid, bundleID: IOSPreviewSession.hostBundleID)
+            IOSPreviewE2ESupport.terminateApp(udid: udid, bundleID: IOSPreviewSession.agentBundleID)
         }
 
         _ = try await session.start()
@@ -444,7 +444,7 @@ struct IOSPreviewE2ETests {
         // spinner overlay should be on screen. Capture it serially. With the fix
         // these frames show the held "Hello" + spinner; pre-fix they were black.
         await simulatorManager.terminateAppIfRunning(
-            udid: udid, bundleID: IOSPreviewSession.hostBundleID)
+            udid: udid, bundleID: IOSPreviewSession.agentBundleID)
         for i in 1...8 {
             try await Task.sleep(for: .milliseconds(700))
             let shot = try await simulatorManager.screenshotData(udid: udid)
@@ -480,7 +480,7 @@ struct IOSPreviewE2ETests {
         try Self.helloViewSource.write(to: sourceFile, atomically: true, encoding: .utf8)
 
         let compiler = try await Compiler(platform: .iOS)
-        let hostBuilder = try await IOSHostBuilder()
+        let agentBuilder = try await IOSAgentBuilder()
         let simulatorManager = SimulatorManager()
 
         // Gate the SECOND reloader the session builds: #1 is the initial `start()`
@@ -491,7 +491,7 @@ struct IOSPreviewE2ETests {
             sourceFile: sourceFile,
             deviceUDID: udid,
             compiler: compiler,
-            hostBuilder: hostBuilder,
+            agentBuilder: agentBuilder,
             simulatorManager: simulatorManager,
             makeJITReloader: { fd, orcPath in
                 let inner = try IOSJITStructuralReloader(remoteFD: fd, orcRuntimePath: orcPath)
@@ -502,14 +502,14 @@ struct IOSPreviewE2ETests {
         )
         defer {
             IOSPreviewE2ESupport.terminateApp(udid: udid, bundleID: IOSPreviewSession.shellBundleID)
-            IOSPreviewE2ESupport.terminateApp(udid: udid, bundleID: IOSPreviewSession.hostBundleID)
+            IOSPreviewE2ESupport.terminateApp(udid: udid, bundleID: IOSPreviewSession.agentBundleID)
         }
 
         _ = try await session.start()
         #expect(try await session.fetchElements().contains("Hello from iOS JIT!"))
 
         // Kill the agent; the auto-respawn parks at its gated render, holding the lock.
-        IOSPreviewE2ESupport.terminateApp(udid: udid, bundleID: IOSPreviewSession.hostBundleID)
+        IOSPreviewE2ESupport.terminateApp(udid: udid, bundleID: IOSPreviewSession.agentBundleID)
         let gateDeadline = Date().addingTimeInterval(30)
         while Date() < gateDeadline {
             if reloaderBox.gated()?.didEnterGate == true { break }
@@ -534,8 +534,8 @@ struct IOSPreviewE2ETests {
         #expect(stopDone.isSet)
         try await Task.sleep(for: .seconds(2))
         #expect(
-            !IOSPreviewE2ESupport.isAppRunning(udid: udid, bundleID: IOSPreviewSession.hostBundleID),
-            "stop() must terminate the respawned host it waited out")
+            !IOSPreviewE2ESupport.isAppRunning(udid: udid, bundleID: IOSPreviewSession.agentBundleID),
+            "stop() must terminate the respawned agent it waited out")
     }
 
     /// Concurrency: the file watcher fires a Task per change, so several reloads can race on
@@ -553,7 +553,7 @@ struct IOSPreviewE2ETests {
         try Self.helloViewSource.write(to: sourceFile, atomically: true, encoding: .utf8)
 
         let compiler = try await Compiler(platform: .iOS)
-        let hostBuilder = try await IOSHostBuilder()
+        let agentBuilder = try await IOSAgentBuilder()
         let simulatorManager = SimulatorManager()
 
         let trackerBox = TrackerBox()
@@ -561,7 +561,7 @@ struct IOSPreviewE2ETests {
             sourceFile: sourceFile,
             deviceUDID: udid,
             compiler: compiler,
-            hostBuilder: hostBuilder,
+            agentBuilder: agentBuilder,
             simulatorManager: simulatorManager,
             makeJITReloader: { fd, orcPath in
                 let tracker = ConcurrencyTrackingReloader(
@@ -571,7 +571,7 @@ struct IOSPreviewE2ETests {
             }
         )
         defer {
-            IOSPreviewE2ESupport.terminateApp(udid: udid, bundleID: IOSPreviewSession.hostBundleID)
+            IOSPreviewE2ESupport.terminateApp(udid: udid, bundleID: IOSPreviewSession.agentBundleID)
         }
 
         _ = try await session.start()
@@ -609,7 +609,7 @@ struct IOSPreviewE2ETests {
         try Self.helloViewSource.write(to: sourceFile, atomically: true, encoding: .utf8)
 
         let compiler = try await Compiler(platform: .iOS)
-        let hostBuilder = try await IOSHostBuilder()
+        let agentBuilder = try await IOSAgentBuilder()
         let simulatorManager = SimulatorManager()
 
         let recorderBox = RecorderBox()
@@ -617,7 +617,7 @@ struct IOSPreviewE2ETests {
             sourceFile: sourceFile,
             deviceUDID: udid,
             compiler: compiler,
-            hostBuilder: hostBuilder,
+            agentBuilder: agentBuilder,
             simulatorManager: simulatorManager,
             makeJITReloader: { fd, orcPath in
                 let recorder = RecordingReloader(
@@ -627,7 +627,7 @@ struct IOSPreviewE2ETests {
             }
         )
         defer {
-            IOSPreviewE2ESupport.terminateApp(udid: udid, bundleID: IOSPreviewSession.hostBundleID)
+            IOSPreviewE2ESupport.terminateApp(udid: udid, bundleID: IOSPreviewSession.agentBundleID)
         }
 
         let pid = try await session.start()
@@ -676,14 +676,14 @@ struct IOSPreviewE2ETests {
             config: setupConfig, configDirectory: configResult.directory, platform: .iOS)
 
         let compiler = try await Compiler(platform: .iOS)
-        let hostBuilder = try await IOSHostBuilder()
+        let agentBuilder = try await IOSAgentBuilder()
         let simulatorManager = SimulatorManager()
 
         let session = IOSPreviewSession(
             sourceFile: hot,
             deviceUDID: udid,
             compiler: compiler,
-            hostBuilder: hostBuilder,
+            agentBuilder: agentBuilder,
             simulatorManager: simulatorManager,
             buildContext: buildContext,
             setupModule: setup.moduleName,
@@ -696,7 +696,7 @@ struct IOSPreviewE2ETests {
             }
         )
         defer {
-            IOSPreviewE2ESupport.terminateApp(udid: udid, bundleID: IOSPreviewSession.hostBundleID)
+            IOSPreviewE2ESupport.terminateApp(udid: udid, bundleID: IOSPreviewSession.agentBundleID)
         }
 
         let pid = try await session.start()
@@ -708,7 +708,7 @@ struct IOSPreviewE2ETests {
     }
 
     static var jitOrcRuntimePresent: Bool {
-        IOSHostBuilder.jitOrcRuntimePath != nil
+        IOSAgentBuilder.jitOrcRuntimePath != nil
     }
 
     static let helloViewSource = """

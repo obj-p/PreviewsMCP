@@ -4,18 +4,18 @@ import Testing
 
 @testable import PreviewsIOS
 
-/// Race-tests for the iOS host-app socket channel. The most error-prone
+/// Race-tests for the iOS agent-app socket channel. The most error-prone
 /// piece of the original `IOSPreviewSession` socket layer was the
 /// accept/disconnect cleanup: a peer that connects and immediately
 /// closes can leave `pendingDataResponses` continuations dangling, leak
 /// the `DispatchSourceRead`, or double-resume a continuation. These
 /// tests exercise that path without spinning up a real iOS simulator.
-@Suite("IOSHostChannel")
-struct IOSHostChannelTests {
+@Suite("IOSAgentChannel")
+struct IOSAgentChannelTests {
 
     @Test("sendAndAwait after peer disconnect fails fast with connectionLost")
     func disconnectBeforeSendFailsFast() async throws {
-        let channel = IOSHostChannel()
+        let channel = IOSAgentChannel()
         defer { Task { await channel.close() } }
 
         let port = try await channel.bindAndListen()
@@ -54,7 +54,7 @@ struct IOSHostChannelTests {
 
     @Test("pending sendAndAwait fails with connectionLost when peer disconnects mid-flight")
     func pendingFailsOnDisconnect() async throws {
-        let channel = IOSHostChannel()
+        let channel = IOSAgentChannel()
         defer { Task { await channel.close() } }
 
         let port = try await channel.bindAndListen()
@@ -94,7 +94,7 @@ struct IOSHostChannelTests {
 
     @Test("jitError breadcrumb from the host is recorded")
     func recordsJITError() async throws {
-        let channel = IOSHostChannel()
+        let channel = IOSAgentChannel()
         defer { Task { await channel.close() } }
 
         let port = try await channel.bindAndListen()
@@ -119,7 +119,7 @@ struct IOSHostChannelTests {
     @Test("onDisconnect fires once on peer death, never on close()")
     func onDisconnectFiresOnDeathNotClose() async throws {
         // Peer death (EOF) fires the callback exactly once.
-        let channel = IOSHostChannel()
+        let channel = IOSAgentChannel()
         let deaths = DisconnectCounter()
         await channel.setOnDisconnect { await deaths.increment() }
 
@@ -140,7 +140,7 @@ struct IOSHostChannelTests {
         await channel.close()
 
         // Intentional close() must NOT fire the callback.
-        let ch2 = IOSHostChannel()
+        let ch2 = IOSAgentChannel()
         let closes = DisconnectCounter()
         await ch2.setOnDisconnect { await closes.increment() }
 
@@ -157,7 +157,7 @@ struct IOSHostChannelTests {
 
     @Test("close() is idempotent after a successful connect")
     func closeIsIdempotent() async throws {
-        let channel = IOSHostChannel()
+        let channel = IOSAgentChannel()
         let port = try await channel.bindAndListen()
         async let connect: Void = channel.awaitConnect(timeout: .seconds(5))
         let clientFD = try connectClient(port: port)
@@ -176,7 +176,7 @@ struct IOSHostChannelTests {
 
     @Test("close() before any connect succeeds")
     func closeBeforeConnect() async throws {
-        let channel = IOSHostChannel()
+        let channel = IOSAgentChannel()
         _ = try await channel.bindAndListen()
         await channel.close()
         // Second close() with everything already torn down must be a no-op.
@@ -188,7 +188,7 @@ struct IOSHostChannelTests {
 
     @Test("close() before bindAndListen is a no-op")
     func closeWithoutBind() async {
-        let channel = IOSHostChannel()
+        let channel = IOSAgentChannel()
         await channel.close()
         let isConnected = await channel.isConnected
         #expect(!isConnected)

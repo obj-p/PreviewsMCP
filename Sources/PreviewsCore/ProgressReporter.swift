@@ -3,7 +3,7 @@ public enum BuildPhase: String, Sendable {
     case detectingProject
     case buildingProject
     case compilingBridge
-    case compilingHostApp
+    case compilingAgentApp
     case bootingSimulator
     case installingApp
     case launchingApp

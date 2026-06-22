@@ -191,7 +191,7 @@ The CLI uses an auto-started background daemon that manages preview sessions. On
 
 When a command appears stuck — most commonly `run` during an iOS host build — there are two places to look:
 
-1. **The CLI's own stderr.** The daemon streams progress messages for each build phase (`detecting project`, `compiling host app`, `booting simulator`, …) back to the CLI as MCP log notifications, which the CLI forwards to stderr. Whichever phase was printed last is where it's stuck.
+1. **The CLI's own stderr.** The daemon streams progress messages for each build phase (`detecting project`, `building agent app`, `booting simulator`, …) back to the CLI as MCP log notifications, which the CLI forwards to stderr. Whichever phase was printed last is where it's stuck.
 2. **The daemon log.** Daemon stderr is redirected to `~/.previewsmcp/serve.log` on spawn, so startup failures and anything the daemon logs outside an active RPC land in this file. Stream it in a second terminal:
 
    ```bash

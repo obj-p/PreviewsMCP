@@ -45,7 +45,7 @@ private struct PreviewRootView: View {
 
 @main
 struct PreviewAgentApp: App {
-    @UIApplicationDelegateAdaptor(PreviewHostAppDelegate.self) var appDelegate
+    @UIApplicationDelegateAdaptor(PreviewAgentAppDelegate.self) var appDelegate
     @Environment(\.scenePhase) private var scenePhase
     var body: some Scene {
         WindowGroup { PreviewRootView() }
@@ -91,7 +91,7 @@ private final class AgentForegroundRedirect {
     }
 }
 
-class PreviewHostAppDelegate: UIResponder, UIApplicationDelegate {
+class PreviewAgentAppDelegate: UIResponder, UIApplicationDelegate {
     // TCP socket state
     private var socketFD: Int32 = -1
     private var socketReadSource: DispatchSourceRead?
@@ -174,7 +174,7 @@ class PreviewHostAppDelegate: UIResponder, UIApplicationDelegate {
         Thread.detachNewThread { [weak self] in
             let fd = Self.connectLoopback(port: port)
             guard fd >= 0 else {
-                NSLog("PreviewHost: JIT executor failed to connect on port \(port)")
+                NSLog("PreviewAgent: JIT executor failed to connect on port \(port)")
                 self?.reportJITError(stage: "connect", code: -1)
                 return
             }
@@ -183,7 +183,7 @@ class PreviewHostAppDelegate: UIResponder, UIApplicationDelegate {
             // executor never came up). rc == 2 / 0 fire on disconnect during
             // normal teardown, so reporting them would be a false positive.
             if rc == 1 {
-                NSLog("PreviewHost: JIT executor setup failed (rc=\(rc))")
+                NSLog("PreviewAgent: JIT executor setup failed (rc=\(rc))")
                 self?.reportJITError(stage: "executor", code: rc)
             }
         }
@@ -238,7 +238,7 @@ class PreviewHostAppDelegate: UIResponder, UIApplicationDelegate {
     private func connectToServer(port: UInt16) {
         let fd = Darwin.socket(AF_INET, SOCK_STREAM, 0)
         guard fd >= 0 else {
-            NSLog("PreviewHost: Failed to create socket")
+            NSLog("PreviewAgent: Failed to create socket")
             return
         }
 
@@ -255,13 +255,13 @@ class PreviewHostAppDelegate: UIResponder, UIApplicationDelegate {
         }
 
         guard result == 0 else {
-            NSLog("PreviewHost: Failed to connect to server on port \(port)")
+            NSLog("PreviewAgent: Failed to connect to server on port \(port)")
             Darwin.close(fd)
             return
         }
 
         socketFD = fd
-        NSLog("PreviewHost: Connected to server on port \(port)")
+        NSLog("PreviewAgent: Connected to server on port \(port)")
         startReadLoop()
         startMemoryReporting()
         flushPendingJITError()
@@ -280,7 +280,7 @@ class PreviewHostAppDelegate: UIResponder, UIApplicationDelegate {
         unlink(path)
         let fd = Darwin.socket(AF_UNIX, SOCK_STREAM, 0)
         guard fd >= 0 else {
-            NSLog("PreviewHost: agent socket create failed")
+            NSLog("PreviewAgent: agent socket create failed")
             return
         }
 
@@ -299,28 +299,27 @@ class PreviewHostAppDelegate: UIResponder, UIApplicationDelegate {
             }
         }
         guard bound == 0 else {
-            NSLog("PreviewHost: agent socket bind failed errno=\(errno)")
+            NSLog("PreviewAgent: agent socket bind failed errno=\(errno)")
             Darwin.close(fd)
             return
         }
 
         Darwin.listen(fd, 8)
         agentSocketFD = fd
-        NSLog("PreviewHost: agent socket listening at \(path)")
+        NSLog("PreviewAgent: agent socket listening at \(path)")
 
         Thread.detachNewThread {
             while true {
                 let client = Darwin.accept(fd, nil, nil)
                 if client < 0 { break }
-                NSLog("PreviewHost: agent socket client accepted")
+                NSLog("PreviewAgent: agent socket client accepted")
             }
         }
     }
 
     // Report resident memory to the daemon once a second over the JSON channel.
-    // The daemon gates host relaunch (to reclaim leaked JIT'd `__swift5_*`/ObjC
-    // metadata it cannot free in-process) on this value. Sends run on the main
-    // queue so they never interleave with response writes on the same socket.
+    // The daemon exposes it as an observability metric (`agentRSS`). Sends run on
+    // the main queue so they never interleave with response writes on the same socket.
     private var memoryTimer: DispatchSourceTimer?
 
     private func startMemoryReporting() {
@@ -358,7 +357,7 @@ class PreviewHostAppDelegate: UIResponder, UIApplicationDelegate {
                     self?.processIncomingData(data)
                 }
             } else if n == 0 {
-                NSLog("PreviewHost: Server disconnected")
+                NSLog("PreviewAgent: Server disconnected")
             }
         }
         source.setCancelHandler {
@@ -474,13 +473,13 @@ class PreviewHostAppDelegate: UIResponder, UIApplicationDelegate {
 
     private func initTouchInjection() {
         guard let iokit = dlopen("/System/Library/Frameworks/IOKit.framework/IOKit", RTLD_NOW) else {
-            NSLog("PreviewHost: Failed to load IOKit"); return
+            NSLog("PreviewAgent: Failed to load IOKit"); return
         }
         guard
             let bbs = dlopen(
                 "/System/Library/PrivateFrameworks/BackBoardServices.framework/BackBoardServices", RTLD_NOW)
         else {
-            NSLog("PreviewHost: Failed to load BackBoardServices"); return
+            NSLog("PreviewAgent: Failed to load BackBoardServices"); return
         }
 
         createDigitizerEvent = unsafeBitCast(
@@ -497,7 +496,7 @@ class PreviewHostAppDelegate: UIResponder, UIApplicationDelegate {
             (createDigitizerEvent != nil && createDigitizerFingerEvent != nil && appendEvent != nil
                 && setIntegerValue != nil && bksSetDigitizerInfo != nil)
 
-        NSLog("PreviewHost: Touch injection \(touchReady ? "ready" : "FAILED")")
+        NSLog("PreviewAgent: Touch injection \(touchReady ? "ready" : "FAILED")")
     }
 
     private func handleTouchCommand(_ command: [String: Any]) {

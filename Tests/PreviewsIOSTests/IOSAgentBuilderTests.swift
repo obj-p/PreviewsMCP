@@ -3,17 +3,17 @@ import Testing
 
 @testable import PreviewsIOS
 
-@Suite("IOSHostBuilder", .serialized)
-struct IOSHostBuilderTests {
+@Suite("IOSAgentBuilder", .serialized)
+struct IOSAgentBuilderTests {
 
-    @Test("Build iOS host app produces valid .app bundle")
-    func buildHostApp() async throws {
+    @Test("Build iOS agent app produces valid .app bundle")
+    func buildAgentApp() async throws {
         let workDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("ios-host-test-\(UUID().uuidString)")
-        let builder = try await IOSHostBuilder(workDir: workDir)
+        let builder = try await IOSAgentBuilder(workDir: workDir)
         defer { try? FileManager.default.removeItem(at: workDir) }
 
-        let appPath = try await builder.ensureHostApp()
+        let appPath = try await builder.ensureAgentApp()
 
         // Verify .app directory exists
         var isDir: ObjCBool = false
@@ -21,7 +21,7 @@ struct IOSHostBuilderTests {
         #expect(isDir.boolValue)
 
         // Verify binary exists inside .app
-        let binaryPath = appPath.appendingPathComponent("PreviewsMCPHost")
+        let binaryPath = appPath.appendingPathComponent("PreviewsMCPAgent")
         #expect(FileManager.default.fileExists(atPath: binaryPath.path))
 
         // Verify Info.plist exists
@@ -39,30 +39,30 @@ struct IOSHostBuilderTests {
         let output = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
         #expect(output.contains("arm64"))
 
-        // Guard against silent mis-escaping in the embedded `"""…"""` host-app
+        // Guard against silent mis-escaping in the embedded `"""…"""` agent-app
         // source: a known literal string should survive round-tripping into the
         // compiled binary verbatim. If someone double-escapes or drops a
         // character, the byte search misses.
         let binaryData = try Data(contentsOf: binaryPath)
-        let marker = Data("PreviewHost: Failed to create socket".utf8)
+        let marker = Data("PreviewAgent: Failed to create socket".utf8)
         #expect(
             binaryData.range(of: marker) != nil,
-            "compiled host binary should embed the host-app log string verbatim"
+            "compiled agent binary should embed the agent-app log string verbatim"
         )
 
-        print("Built iOS host app at: \(appPath.path)")
+        print("Built iOS agent app at: \(appPath.path)")
         print("Binary info: \(output.trimmingCharacters(in: .whitespacesAndNewlines))")
     }
 
-    @Test("ensureHostApp returns cached path on second call")
+    @Test("ensureAgentApp returns cached path on second call")
     func caching() async throws {
         let workDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("ios-host-test-\(UUID().uuidString)")
-        let builder = try await IOSHostBuilder(workDir: workDir)
+        let builder = try await IOSAgentBuilder(workDir: workDir)
         defer { try? FileManager.default.removeItem(at: workDir) }
 
-        let first = try await builder.ensureHostApp()
-        let second = try await builder.ensureHostApp()
+        let first = try await builder.ensureAgentApp()
+        let second = try await builder.ensureAgentApp()
         #expect(first.path == second.path)
     }
 }

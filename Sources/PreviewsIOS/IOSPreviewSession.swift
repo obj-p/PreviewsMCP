@@ -3,9 +3,9 @@ import Foundation
 import PreviewsCore
 
 /// Orchestrates the full iOS preview pipeline:
-/// boot simulator → install host app → compile object → launch → JIT-link + render.
+/// boot simulator → install agent app → compile object → launch → JIT-link + render.
 ///
-/// Drives the host app over two TCP loopback sockets (127.0.0.1): a JSON channel
+/// Drives the agent app over two TCP loopback sockets (127.0.0.1): a JSON channel
 /// for touch / elements, and the JIT EPC channel that links each compiled preview
 /// object into the in-app ORC executor. See docs/communication-protocol.md.
 public actor IOSPreviewSession {
@@ -15,7 +15,7 @@ public actor IOSPreviewSession {
     public nonisolated let deviceUDID: String
 
     private let compiler: Compiler
-    private let hostBuilder: IOSHostBuilder
+    private let agentBuilder: IOSAgentBuilder
     private let simulatorManager: SimulatorManager
     private let progress: (any ProgressReporter)?
 
@@ -30,10 +30,10 @@ public actor IOSPreviewSession {
     private let setupDylibPath: URL?
     public var currentTraits: PreviewTraits { traits }
 
-    /// Transport to the iOS host app. Owns all socket state — bind,
+    /// Transport to the iOS agent app. Owns all socket state — bind,
     /// accept, line-delimited JSON send/receive, lifecycle. Constructed
     /// per-session and torn down by `stop()`.
-    private let channel = IOSHostChannel()
+    private let channel = IOSAgentChannel()
 
     /// Builds the JIT reloader from the accepted EPC socket and the bundled
     /// iossim orc runtime path. Injected by the composition root so every
@@ -53,7 +53,7 @@ public actor IOSPreviewSession {
     private var isRelaunching = false
     private var recovering = false
 
-    public static let hostBundleID = "com.previewsmcp.host"
+    public static let agentBundleID = "com.previewsmcp.agent"
     public static let shellBundleID = "com.previewsmcp.shell"
 
     private static func agentLaunchArgs(port: Int, jitPort: Int, agentSockPath: String) -> [String] {
@@ -65,7 +65,7 @@ public actor IOSPreviewSession {
         previewIndex: Int = 0,
         deviceUDID: String,
         compiler: Compiler,
-        hostBuilder: IOSHostBuilder,
+        agentBuilder: IOSAgentBuilder,
         simulatorManager: SimulatorManager,
         headless: Bool = true,
         buildContext: BuildContext? = nil,
@@ -83,7 +83,7 @@ public actor IOSPreviewSession {
         self.previewIndex = previewIndex
         self.deviceUDID = deviceUDID
         self.compiler = compiler
-        self.hostBuilder = hostBuilder
+        self.agentBuilder = agentBuilder
         self.simulatorManager = simulatorManager
         self.headless = headless
         self.buildContext = buildContext
@@ -127,9 +127,9 @@ public actor IOSPreviewSession {
     // MARK: - Lifecycle
 
     /// Start the iOS preview: compile, boot sim, install host, launch, connect socket.
-    /// Returns the PID of the launched host app.
+    /// Returns the PID of the launched agent app.
     public func start() async throws -> Int {
-        guard let orcPath = IOSHostBuilder.jitOrcRuntimePath else {
+        guard let orcPath = IOSAgentBuilder.jitOrcRuntimePath else {
             throw IOSPreviewSessionError.jitRuntimeMissing
         }
 
@@ -152,13 +152,13 @@ public actor IOSPreviewSession {
 
         // 2. Build host (agent) app and the foreground shell app that hosts
         // its cross-process scene.
-        stage("building host app")
-        await progress?.report(.compilingHostApp, message: "Building iOS host app...")
-        async let hostBuild = hostBuilder.ensureHostApp()
-        async let shellBuild = hostBuilder.ensureShellApp()
-        let appPath = try await hostBuild
+        stage("building agent app")
+        await progress?.report(.compilingAgentApp, message: "Building iOS agent app...")
+        async let agentBuild = agentBuilder.ensureAgentApp()
+        async let shellBuild = agentBuilder.ensureShellApp()
+        let appPath = try await agentBuild
         let shellPath = try await shellBuild
-        stage("host app ready")
+        stage("agent app ready")
 
         // 4. Create TCP server on loopback, bind to ephemeral port
         let port = try await channel.bindAndListen()
@@ -177,8 +177,8 @@ public actor IOSPreviewSession {
         // boot→install→launch cycle inside the retry loop, with a
         // shutdown between attempts.
         await progress?.report(.bootingSimulator, message: "Booting simulator (\(deviceUDID.prefix(8))...)...")
-        await progress?.report(.installingApp, message: "Installing host app...")
-        await progress?.report(.launchingApp, message: "Launching host app...")
+        await progress?.report(.installingApp, message: "Installing agent app...")
+        await progress?.report(.launchingApp, message: "Launching agent app...")
 
         // The agent binds this Unix-domain socket; the shell connects to it to
         // read the agent's audit token for the hosting handshake. It lives in
@@ -215,19 +215,19 @@ public actor IOSPreviewSession {
                     )
                 }
 
-                // Terminate any stale host instance first (orphan from a
+                // Terminate any stale agent instance first (orphan from a
                 // prior test or retry). simctl terminate is a no-op when
                 // the app isn't running and bounds any hang at 30s.
-                stage("attempt \(attempt): pre-launch terminate stale host + shell")
+                stage("attempt \(attempt): pre-launch terminate stale agent + shell")
                 await simulatorManager.terminateAppIfRunning(
                     udid: deviceUDID, bundleID: Self.shellBundleID)
                 await simulatorManager.terminateAppIfRunning(
-                    udid: deviceUDID, bundleID: Self.hostBundleID)
+                    udid: deviceUDID, bundleID: Self.agentBundleID)
 
-                stage("attempt \(attempt): launching host app")
+                stage("attempt \(attempt): launching agent app")
                 launchedPid = try await simulatorManager.launchApp(
                     udid: deviceUDID,
-                    bundleID: Self.hostBundleID,
+                    bundleID: Self.agentBundleID,
                     arguments: launchArgs
                 )
                 lastError = nil
@@ -249,11 +249,11 @@ public actor IOSPreviewSession {
         if let lastError { throw lastError }
         guard let pid = launchedPid else { throw lastError ?? IOSPreviewSessionError.socketCreateFailed }
 
-        // 6. Accept connection from host app (up to 10 seconds). This also
+        // 6. Accept connection from agent app (up to 10 seconds). This also
         // confirms the agent's didFinishLaunchingWithOptions has run, so its
         // handshake socket is bound before the shell connects to it below.
         stage("launched pid=\(pid); awaiting socket connection")
-        await progress?.report(.connectingToApp, message: "Waiting for host app connection...")
+        await progress?.report(.connectingToApp, message: "Waiting for agent app connection...")
         try await channel.awaitConnect(timeout: .seconds(10))
 
         // 6b. Launch the foreground shell that hosts the agent's scene. The
@@ -324,7 +324,7 @@ public actor IOSPreviewSession {
     }
 
     /// Close the socket connection and clean up resources. Idempotent —
-    /// `IOSHostChannel.close()` is safe to call when nothing was opened.
+    /// `IOSAgentChannel.close()` is safe to call when nothing was opened.
     public func stop() async {
         stopping = true
 
@@ -343,7 +343,7 @@ public actor IOSPreviewSession {
         // (EXC_BAD_ACCESS). simctl terminate is a SIGKILL, clean with no crash
         // report, and a dead agent cannot render.
         await simulatorManager.terminateAppIfRunning(udid: deviceUDID, bundleID: Self.shellBundleID)
-        await simulatorManager.terminateAppIfRunning(udid: deviceUDID, bundleID: Self.hostBundleID)
+        await simulatorManager.terminateAppIfRunning(udid: deviceUDID, bundleID: Self.agentBundleID)
 
         await channel.close()
         jitReloader = nil
@@ -442,9 +442,9 @@ public actor IOSPreviewSession {
         )
     }
 
-    /// Latest resident memory (bytes) the host app reported over the JSON channel.
+    /// Latest resident memory (bytes) the agent app reported over the JSON channel.
     /// Zero before the first report or after a disconnect.
-    public var hostRSS: UInt64 {
+    public var agentRSS: UInt64 {
         get async { await channel.latestRSS }
     }
 
@@ -504,7 +504,7 @@ public actor IOSPreviewSession {
         try await jitReloader.render(build)
     }
 
-    /// Relaunch the whole host app to reclaim leaked `__swift5_*`/ObjC metadata that the
+    /// Relaunch the whole agent app to reclaim leaked `__swift5_*`/ObjC metadata that the
     /// Swift runtime cannot unregister in-process. Tears down both sockets, terminates and
     /// relaunches the host, re-accepts the JSON and EPC channels, rebuilds the reloader, and
     /// re-renders the current source. Costs a full-screen flash and `@State` loss, so callers
@@ -525,7 +525,7 @@ public actor IOSPreviewSession {
         // channel already disconnected, so there is no `isConnected` precondition.
         isRelaunching = true
         defer { isRelaunching = false }
-        guard let orcPath = IOSHostBuilder.jitOrcRuntimePath else {
+        guard let orcPath = IOSAgentBuilder.jitOrcRuntimePath else {
             throw IOSPreviewSessionError.jitRuntimeMissing
         }
         guard let agentSockPath = self.agentSockPath else {
@@ -536,7 +536,7 @@ public actor IOSPreviewSession {
         // path the agent is still alive and rendering JIT'd code, so freeing first
         // faults it on unmapped pages (EXC_BAD_ACCESS). A no-op on the death path,
         // where the agent is already gone.
-        await simulatorManager.terminateAppIfRunning(udid: deviceUDID, bundleID: Self.hostBundleID)
+        await simulatorManager.terminateAppIfRunning(udid: deviceUDID, bundleID: Self.agentBundleID)
 
         await channel.close()
         self.jitReloader = nil
@@ -550,7 +550,7 @@ public actor IOSPreviewSession {
 
         let pid = try await simulatorManager.launchApp(
             udid: deviceUDID,
-            bundleID: Self.hostBundleID,
+            bundleID: Self.agentBundleID,
             arguments: Self.agentLaunchArgs(port: port, jitPort: jitPort, agentSockPath: agentSockPath)
         )
 
@@ -588,7 +588,7 @@ public actor IOSPreviewSession {
         }
     }
 
-    /// Update traits and recompile. Signals the host app to reload. @State is lost.
+    /// Update traits and recompile. Signals the agent app to reload. @State is lost.
     ///
     /// See `PreviewSession.reconfigure(traits:clearing:)` for the semantics
     /// of `clearing`.
@@ -712,9 +712,9 @@ public enum IOSPreviewSessionError: Error, LocalizedError, CustomStringConvertib
     case jitRuntimeMissing
     case socketResponseTimeout(String)
     case connectionLost
-    /// JSON parse or shape mismatch on a host-app response. Distinct
+    /// JSON parse or shape mismatch on a agent-app response. Distinct
     /// from `socketResponseTimeout` so callers and operators can tell
-    /// "host app didn't respond" from "host app responded with garbage."
+    /// "agent app didn't respond" from "agent app responded with garbage."
     case responseDecodeFailed(operation: String)
     /// The in-app ORC executor reported a failure over the JSON channel
     /// (`connect` = EPC socket never connected; `executor` = ORC server failed
@@ -726,13 +726,13 @@ public enum IOSPreviewSessionError: Error, LocalizedError, CustomStringConvertib
         switch self {
         case .notStarted: return "iOS preview session has not been started"
         case .socketCreateFailed: return "Failed to create TCP server socket"
-        case .socketAcceptFailed: return "Failed to accept connection from host app"
-        case .socketAcceptTimeout: return "Timed out waiting for host app to connect"
+        case .socketAcceptFailed: return "Failed to accept connection from agent app"
+        case .socketAcceptTimeout: return "Timed out waiting for agent app to connect"
         case .jitRuntimeMissing: return "Bundled iossim orc runtime archive not found"
         case .socketResponseTimeout(let id): return "Timed out waiting for response (id: \(id))"
-        case .connectionLost: return "Connection to host app lost"
+        case .connectionLost: return "Connection to agent app lost"
         case .responseDecodeFailed(let operation):
-            return "Failed to decode host app response (operation: \(operation))"
+            return "Failed to decode agent app response (operation: \(operation))"
         case .jitExecutorFailed(let stage, let code):
             let suffix = code.map { " (code \($0))" } ?? ""
             return "In-app JIT executor failed during \(stage)\(suffix)"

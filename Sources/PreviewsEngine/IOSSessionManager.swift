@@ -8,7 +8,7 @@ import PreviewsIOS
 public actor IOSSessionManager {
     public let simulatorManager = SimulatorManager()
     private var compiler: Compiler?
-    private var hostBuilder: IOSHostBuilder?
+    private var agentBuilder: IOSAgentBuilder?
     private var sessions: [String: IOSPreviewSession] = [:]
     private var fileWatchers: [String: FileWatcher] = [:]
     /// Cross-process session registry. When attached, every mutation
@@ -33,10 +33,10 @@ public actor IOSSessionManager {
         return c
     }
 
-    public func getHostBuilder() async throws -> IOSHostBuilder {
-        if let b = hostBuilder { return b }
-        let b = try await IOSHostBuilder()
-        hostBuilder = b
+    public func getAgentBuilder() async throws -> IOSAgentBuilder {
+        if let b = agentBuilder { return b }
+        let b = try await IOSAgentBuilder()
+        agentBuilder = b
         return b
     }
 

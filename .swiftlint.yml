@@ -4,8 +4,8 @@
 excluded:
   - .build
   - examples
-  # Embedded iOS host app source — a string constant compiled at runtime, not regular Swift
-  - Sources/PreviewsIOS/IOSHostAppSource.swift
+  # Embedded iOS agent app source — a string constant compiled at runtime, not regular Swift
+  - Sources/PreviewsIOS/IOSAgentAppSource.swift
   # Embedded AppIcon.png bytes as a base64 literal — data, not regular Swift
   - Sources/PreviewsIOS/IOSAppIconData.swift
 
