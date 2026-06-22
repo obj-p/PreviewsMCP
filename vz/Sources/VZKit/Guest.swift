@@ -14,9 +14,23 @@ public struct Guest: Sendable {
         try await VMSSH.exec(endpoint: endpoint, command: command, timeout: timeout)
     }
 
+    public enum Env: Sendable {
+        case sh
+        case brew
+
+        var preamble: String {
+            switch self {
+            case .sh: return ""
+            case .brew: return "eval \"$(/opt/homebrew/bin/brew shellenv)\" && "
+            }
+        }
+    }
+
     @discardableResult
-    public func sh(_ command: String, timeout: TimeInterval = 600) async throws -> String {
-        let result = try await run(command, timeout: timeout)
+    public func sh(_ command: String, env: Env = .sh, timeout: TimeInterval = 600) async throws
+        -> String
+    {
+        let result = try await run(env.preamble + command, timeout: timeout)
         guard result.exitCode == 0 else {
             throw VMError(
                 "remote command failed (exit \(result.exitCode)): \(command)\n\(result.stderr)")
@@ -33,11 +47,6 @@ public struct Guest: Sendable {
         try await sh(
             "printf '%s\\n' \(Self.shellQuote(adminPass)) | sudo -S -p '' \(command)",
             timeout: timeout)
-    }
-
-    @discardableResult
-    public func brew(_ command: String, timeout: TimeInterval = 600) async throws -> String {
-        try await sh("eval \"$(/opt/homebrew/bin/brew shellenv)\" && \(command)", timeout: timeout)
     }
 
     public func upload(localPath: String, to remotePath: String) throws {

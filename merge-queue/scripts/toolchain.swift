@@ -41,7 +41,7 @@ func provisionToolchain(
         "NONINTERACTIVE=1 /bin/bash -c \"$(curl -fsSL "
             + "https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\"",
         timeout: 1800)
-    try await guest.brew("brew install bazelisk mise", timeout: 1800)
+    try await guest.sh("brew install bazelisk mise", env: .brew, timeout: 1800)
 
     step("enabling autologin for \(adminUser)")
     let encoded = kcpassword(guest.adminPass).base64EncodedString()

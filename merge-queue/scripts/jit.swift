@@ -16,17 +16,18 @@ func provisionJIT(
         try await guest.sudo("xcode-select -s \(xcodeApp)")
 
         step("installing cmake + ninja")
-        try await guest.brew("brew install cmake ninja", timeout: 1800)
+        try await guest.sh("brew install cmake ninja", env: .brew, timeout: 1800)
 
         step("streaming repo scripts into guest")
         try await guest.uploadTree(localDir: "\(repoRoot)/scripts", to: "~/jit-build-repo/scripts")
 
         step("building macOS LLVM (build-jit-llvm.sh) — this is the long step")
-        try await guest.brew("cd ~/jit-build-repo && bash scripts/build-jit-llvm.sh", timeout: 5400)
+        try await guest.sh(
+            "cd ~/jit-build-repo && bash scripts/build-jit-llvm.sh", env: .brew, timeout: 5400)
 
         step("building iossim LLVM (build-jit-llvm-iossim.sh)")
-        try await guest.brew(
-            "cd ~/jit-build-repo && bash scripts/build-jit-llvm-iossim.sh", timeout: 5400)
+        try await guest.sh(
+            "cd ~/jit-build-repo && bash scripts/build-jit-llvm-iossim.sh", env: .brew, timeout: 5400)
 
         step("staging artifacts into \(jitCache)")
         try await guest.sh(
