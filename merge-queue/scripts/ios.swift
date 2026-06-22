@@ -5,15 +5,15 @@ func provisionIOS(_ guest: Guest, xcodeApp: String = "/Applications/Xcode.app") 
     try await guest.sudo("xcode-select -s \(xcodeApp)")
 
     if try await guest.test("xcrun simctl list devices available 2>/dev/null | grep -qi iPhone") {
-        print("==> an iPhone simulator is already available")
+        step("an iPhone simulator is already available")
     } else {
-        print("==> downloading iOS simulator runtime (multi-GB, slow)")
+        step("downloading iOS simulator runtime (multi-GB, slow)")
         try await guest.sh("xcodebuild -downloadPlatform iOS", timeout: 5400)
     }
 
-    print("==> verifying an iPhone simulator is available")
+    step("verifying an iPhone simulator is available")
     try await guest.sh("xcrun simctl list devices available | grep -i iPhone")
-    print("==> ios provisioning complete")
+    step("ios provisioning complete")
 }
 
 let arguments = CommandLine.arguments

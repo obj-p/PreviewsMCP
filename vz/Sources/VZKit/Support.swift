@@ -17,6 +17,10 @@ public struct VMError: LocalizedError, Sendable {
     }
 }
 
+public func step(_ message: String) {
+    FileHandle.standardError.write(Data("==> \(message)\n".utf8))
+}
+
 public enum Log {
     nonisolated(unsafe) public static var prefix = "vz"
 

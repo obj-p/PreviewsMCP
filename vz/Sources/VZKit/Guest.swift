@@ -35,6 +35,11 @@ public struct Guest: Sendable {
             timeout: timeout)
     }
 
+    @discardableResult
+    public func brew(_ command: String, timeout: TimeInterval = 600) async throws -> String {
+        try await sh("eval \"$(/opt/homebrew/bin/brew shellenv)\" && \(command)", timeout: timeout)
+    }
+
     public func upload(localPath: String, to remotePath: String) throws {
         let process = Process()
         process.executableURL = URL(filePath: "/usr/bin/scp")
@@ -50,6 +55,25 @@ public struct Guest: Sendable {
         guard process.terminationStatus == 0 else {
             throw VMError("scp exited \(process.terminationStatus)")
         }
+    }
+
+    public func uploadTree(localDir: String, to remoteDir: String) async throws {
+        let name = (localDir as NSString).lastPathComponent
+        let hostTar = NSTemporaryDirectory() + "vzkit-tree-\(name).tar"
+        let remoteTar = "/tmp/vzkit-tree-\(name).tar"
+        let tar = Process()
+        tar.executableURL = URL(filePath: "/usr/bin/tar")
+        tar.arguments = ["-cf", hostTar, "-C", localDir, "."]
+        try tar.run()
+        tar.waitUntilExit()
+        guard tar.terminationStatus == 0 else {
+            throw VMError("tar of \(localDir) exited \(tar.terminationStatus)")
+        }
+        defer { try? FileManager.default.removeItem(atPath: hostTar) }
+        try upload(localPath: hostTar, to: remoteTar)
+        try await sh(
+            "rm -rf \(remoteDir) && mkdir -p \(remoteDir) "
+                + "&& tar -xf \(remoteTar) -C \(remoteDir) && rm -f \(remoteTar)")
     }
 
     public static func shellQuote(_ value: String) -> String {

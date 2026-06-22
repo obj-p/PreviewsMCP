@@ -98,10 +98,10 @@ Task {
     let maxAttempts = retries + 1
     for attempt in 1...maxAttempts {
         do {
-            print("==> setup attempt \(attempt)/\(maxAttempts): restoring \(restoreFrom)")
+            step("setup attempt \(attempt)/\(maxAttempts): restoring \(restoreFrom)")
             try SnapshotStore.restore(name: restoreFrom, in: bundle)
             try await driveSetup(bundle: bundle, outputDir: outputDir)
-            print("==> setup assistant complete")
+            step("setup assistant complete")
             Darwin.exit(0)
         } catch {
             FileHandle.standardError.write(Data("attempt \(attempt) failed: \(error)\n".utf8))

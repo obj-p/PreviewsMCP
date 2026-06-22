@@ -1,22 +1,6 @@
 import Foundation
 import VZKit
 
-func hostRun(_ path: String, _ args: [String]) throws {
-    let process = Process()
-    process.executableURL = URL(filePath: path)
-    process.arguments = args
-    try process.run()
-    process.waitUntilExit()
-    guard process.terminationStatus == 0 else {
-        throw VMError("\(path) exited \(process.terminationStatus)")
-    }
-}
-
-@discardableResult
-func brewsh(_ guest: Guest, _ command: String, timeout: TimeInterval = 5400) async throws -> String {
-    try await guest.sh("eval \"$(/opt/homebrew/bin/brew shellenv)\" && \(command)", timeout: timeout)
-}
-
 func provisionJIT(
     _ guest: Guest, repoRoot: String, jitCache: String,
     xcodeApp: String = "/Applications/Xcode.app"
@@ -26,37 +10,34 @@ func provisionJIT(
     let iossimLib = "\(jitCache)/llvm-build-iossim/lib/libLLVMOrcTargetProcess.a"
 
     if try await guest.test("test -f \(osxOrc) && test -f \(iossimLib)") {
-        print("==> JIT artifacts already present in \(jitCache), skipping build")
+        step("JIT artifacts already present in \(jitCache), skipping build")
     } else {
-        print("==> selecting Xcode at \(xcodeApp)")
+        step("selecting Xcode at \(xcodeApp)")
         try await guest.sudo("xcode-select -s \(xcodeApp)")
 
-        print("==> installing cmake + ninja")
-        try await brewsh(guest, "brew install cmake ninja", timeout: 1800)
+        step("installing cmake + ninja")
+        try await guest.brew("brew install cmake ninja", timeout: 1800)
 
-        print("==> streaming repo scripts into guest")
-        let hostTar = "/tmp/mq-jit-scripts.tar"
-        try hostRun("/usr/bin/git", ["-C", repoRoot, "archive", "--format=tar", "-o", hostTar, "HEAD", "scripts"])
-        try await guest.sh("rm -rf ~/jit-build-repo && mkdir -p ~/jit-build-repo")
-        try guest.upload(localPath: hostTar, to: "/tmp/mq-jit-scripts.tar")
-        try await guest.sh("tar -xf /tmp/mq-jit-scripts.tar -C ~/jit-build-repo")
+        step("streaming repo scripts into guest")
+        try await guest.uploadTree(localDir: "\(repoRoot)/scripts", to: "~/jit-build-repo/scripts")
 
-        print("==> building macOS LLVM (build-jit-llvm.sh) — this is the long step")
-        try await brewsh(guest, "cd ~/jit-build-repo && bash scripts/build-jit-llvm.sh")
+        step("building macOS LLVM (build-jit-llvm.sh) — this is the long step")
+        try await guest.brew("cd ~/jit-build-repo && bash scripts/build-jit-llvm.sh", timeout: 5400)
 
-        print("==> building iossim LLVM (build-jit-llvm-iossim.sh)")
-        try await brewsh(guest, "cd ~/jit-build-repo && bash scripts/build-jit-llvm-iossim.sh")
+        step("building iossim LLVM (build-jit-llvm-iossim.sh)")
+        try await guest.brew(
+            "cd ~/jit-build-repo && bash scripts/build-jit-llvm-iossim.sh", timeout: 5400)
 
-        print("==> staging artifacts into \(jitCache)")
+        step("staging artifacts into \(jitCache)")
         try await guest.sh(
             "rm -rf \(jitCache) && mv ~/jit-build-repo/third_party \(jitCache) && rm -rf ~/jit-build-repo")
     }
 
-    print("==> verifying baked artifacts")
+    step("verifying baked artifacts")
     try await guest.sh(
         "test -d \(jitCache)/llvm-build && test -f \(osxOrc) && test -f \(iossimOrc) "
             + "&& test -f \(iossimLib) && test -d \(jitCache)/llvm-project/llvm/include")
-    print("==> jit bake complete")
+    step("jit bake complete")
 }
 
 let arguments = CommandLine.arguments
