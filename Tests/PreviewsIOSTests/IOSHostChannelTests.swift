@@ -116,6 +116,45 @@ struct IOSHostChannelTests {
         Darwin.close(clientFD)
     }
 
+    @Test("onDisconnect fires once on peer death, never on close()")
+    func onDisconnectFiresOnDeathNotClose() async throws {
+        // Peer death (EOF) fires the callback exactly once.
+        let channel = IOSHostChannel()
+        let deaths = DisconnectCounter()
+        await channel.setOnDisconnect { await deaths.increment() }
+
+        let port = try await channel.bindAndListen()
+        async let connect: Void = channel.awaitConnect(timeout: .seconds(5))
+        let clientFD = try connectClient(port: port)
+        try await connect
+
+        Darwin.close(clientFD)
+
+        let deadline = Date().addingTimeInterval(2.0)
+        while Date() < deadline, await deaths.count == 0 {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        // Settle: a re-entrant read-loop EOF must not double-fire.
+        try await Task.sleep(for: .milliseconds(200))
+        #expect(await deaths.count == 1, "peer death fires the callback exactly once")
+        await channel.close()
+
+        // Intentional close() must NOT fire the callback.
+        let ch2 = IOSHostChannel()
+        let closes = DisconnectCounter()
+        await ch2.setOnDisconnect { await closes.increment() }
+
+        let port2 = try await ch2.bindAndListen()
+        async let connect2: Void = ch2.awaitConnect(timeout: .seconds(5))
+        let clientFD2 = try connectClient(port: port2)
+        try await connect2
+
+        await ch2.close()
+        try await Task.sleep(for: .milliseconds(200))
+        #expect(await closes.count == 0, "intentional close() does not fire the callback")
+        Darwin.close(clientFD2)
+    }
+
     @Test("close() is idempotent after a successful connect")
     func closeIsIdempotent() async throws {
         let channel = IOSHostChannel()
@@ -183,4 +222,10 @@ struct IOSHostChannelTests {
         }
         return fd
     }
+}
+
+/// Thread-safe disconnect-callback counter for the channel tests.
+private actor DisconnectCounter {
+    private(set) var count = 0
+    func increment() { count += 1 }
 }

@@ -458,89 +458,22 @@ struct IOSPreviewE2ETests {
         }
     }
 
-    /// Chunk 3 gating: a structural edit past the memory threshold relaunches the host
-    /// instead of relinking in place. With the threshold forced to 0, the first structural
-    /// edit seeds the RSS baseline (no relaunch) and the second crosses it, so `relaunchCount`
-    /// becomes 1 and the latest edit must still render — proving the gate fires at the edit
-    /// boundary and the fresh process shows the current source.
+    /// #257: `stop()` must win the race against an in-flight respawn. Killing the
+    /// agent fires `onDisconnect` -> `handleUnexpectedAgentDeath` -> `_relaunch`,
+    /// which holds the render lock across its `render`. If `stop()` does not take
+    /// that lock it runs to completion while the respawn is mid-flight, then
+    /// `_relaunch`'s relaunch leaves an orphaned host. The fix makes `stop()`
+    /// acquire the render lock, so it blocks until the respawn drains, then kills
+    /// its result. A `GatedReloader` parks the respawn's render (lock held open)
+    /// so the probe is deterministic: with the fix `stop()` stays pending while the
+    /// respawn is gated; without it `stop()` returns early. Green after the fix,
+    /// red before it.
     @Test(.enabled(if: jitOrcRuntimePresent), .timeLimit(.minutes(10)))
-    func structuralEditPastThresholdRelaunches() async throws {
-        func structuralSource(rows: Int) -> String {
-            let extra = (0..<rows).map { "                    Text(\"row \($0)\")" }.joined(separator: "\n")
-            return """
-                import SwiftUI
-
-                struct HelloView: View {
-                    var body: some View {
-                        VStack {
-                            Text("Hello from iOS JIT!")
-                \(extra)
-                        }
-                    }
-                }
-
-                #Preview {
-                    HelloView()
-                }
-                """
-        }
-
+    func stopWaitsOutInFlightRespawn() async throws {
         let udid = try IOSPreviewE2ESupport.bootSimulator()
+
         let tempDir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("previewsmcp-ios-jit-gate-\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: tempDir) }
-        let sourceFile = tempDir.appendingPathComponent("HelloView.swift")
-        try structuralSource(rows: 0).write(to: sourceFile, atomically: true, encoding: .utf8)
-
-        let compiler = try await Compiler(platform: .iOS)
-        let hostBuilder = try await IOSHostBuilder()
-        let simulatorManager = SimulatorManager()
-
-        let session = IOSPreviewSession(
-            sourceFile: sourceFile,
-            deviceUDID: udid,
-            compiler: compiler,
-            hostBuilder: hostBuilder,
-            simulatorManager: simulatorManager,
-            memoryRelaunchThresholdBytes: 0,
-            makeJITReloader: { fd, orcPath in
-                try IOSJITStructuralReloader(remoteFD: fd, orcRuntimePath: orcPath)
-            }
-        )
-        defer {
-            IOSPreviewE2ESupport.terminateApp(udid: udid, bundleID: IOSPreviewSession.hostBundleID)
-        }
-
-        _ = try await session.start()
-        try await Task.sleep(for: .seconds(2))  // let the first RSS report arrive
-
-        // First structural edit seeds the baseline — no relaunch yet.
-        try structuralSource(rows: 1).write(to: sourceFile, atomically: true, encoding: .utf8)
-        try await session.handleSourceChange()
-        let countAfterFirst = await session.relaunchCount
-        #expect(countAfterFirst == 0)
-
-        // Second structural edit crosses baseline + 0 — relaunch fires here.
-        try structuralSource(rows: 2).write(to: sourceFile, atomically: true, encoding: .utf8)
-        try await session.handleSourceChange()
-        let countAfterSecond = await session.relaunchCount
-        #expect(countAfterSecond == 1)
-
-        let elements = try await session.fetchElements()
-        #expect(elements.contains("row 1"))
-        await session.stop()
-    }
-
-    /// Gate covers the reload path too: `reload()` (used by switchPreview/reconfigure/
-    /// setTraits) mints a fresh object, so it links a new generation and grows the leak
-    /// like a structural edit. With the threshold forced to 0, the first reload seeds the
-    /// baseline and the second crosses it, so a relaunch must fire (relaunchCount == 1).
-    @Test(.enabled(if: jitOrcRuntimePresent), .timeLimit(.minutes(10)))
-    func reloadPastThresholdRelaunches() async throws {
-        let udid = try IOSPreviewE2ESupport.bootSimulator()
-        let tempDir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("previewsmcp-ios-jit-reloadgate-\(UUID().uuidString)")
+            .appendingPathComponent("previewsmcp-stop-race-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: tempDir) }
         let sourceFile = tempDir.appendingPathComponent("HelloView.swift")
@@ -550,35 +483,59 @@ struct IOSPreviewE2ETests {
         let hostBuilder = try await IOSHostBuilder()
         let simulatorManager = SimulatorManager()
 
+        // Gate the SECOND reloader the session builds: #1 is the initial `start()`
+        // render, #2 is the respawn's render in `_relaunch`, which runs under the
+        // render lock.
+        let reloaderBox = GatedReloaderBox()
         let session = IOSPreviewSession(
             sourceFile: sourceFile,
             deviceUDID: udid,
             compiler: compiler,
             hostBuilder: hostBuilder,
             simulatorManager: simulatorManager,
-            memoryRelaunchThresholdBytes: 0,
             makeJITReloader: { fd, orcPath in
-                try IOSJITStructuralReloader(remoteFD: fd, orcRuntimePath: orcPath)
+                let inner = try IOSJITStructuralReloader(remoteFD: fd, orcRuntimePath: orcPath)
+                let reloader = GatedReloader(inner: inner, shouldGate: reloaderBox.count == 1)
+                reloaderBox.add(reloader)
+                return reloader
             }
         )
         defer {
+            IOSPreviewE2ESupport.terminateApp(udid: udid, bundleID: IOSPreviewSession.shellBundleID)
             IOSPreviewE2ESupport.terminateApp(udid: udid, bundleID: IOSPreviewSession.hostBundleID)
         }
 
         _ = try await session.start()
-        try await Task.sleep(for: .seconds(2))  // let the first RSS report arrive
+        #expect(try await session.fetchElements().contains("Hello from iOS JIT!"))
 
-        try await session.reload()
-        let countAfterFirst = await session.relaunchCount
-        #expect(countAfterFirst == 0)
+        // Kill the agent; the auto-respawn parks at its gated render, holding the lock.
+        IOSPreviewE2ESupport.terminateApp(udid: udid, bundleID: IOSPreviewSession.hostBundleID)
+        let gateDeadline = Date().addingTimeInterval(30)
+        while Date() < gateDeadline {
+            if reloaderBox.gated()?.didEnterGate == true { break }
+            try await Task.sleep(for: .milliseconds(100))
+        }
+        let gated = try #require(reloaderBox.gated())
+        #expect(gated.didEnterGate, "respawn never reached its gated render")
 
-        try await session.reload()
-        let countAfterSecond = await session.relaunchCount
-        #expect(countAfterSecond == 1)
+        // Probe: with the lock, stop() must block behind the gated respawn.
+        let stopDone = FlagBox()
+        let stopTask = Task {
+            await session.stop(); stopDone.set()
+        }
+        try await Task.sleep(for: .seconds(2))
+        #expect(
+            !stopDone.isSet,
+            "stop() returned while a respawn was mid-flight — it did not take the render lock (#257)")
 
-        let elements = try await session.fetchElements()
-        #expect(elements.contains("Hello from iOS JIT!"))
-        await session.stop()
+        // Release the respawn; stop must now finish and leave no host behind.
+        gated.openGate()
+        await stopTask.value
+        #expect(stopDone.isSet)
+        try await Task.sleep(for: .seconds(2))
+        #expect(
+            !IOSPreviewE2ESupport.isAppRunning(udid: udid, bundleID: IOSPreviewSession.hostBundleID),
+            "stop() must terminate the respawned host it waited out")
     }
 
     /// Concurrency: the file watcher fires a Task per change, so several reloads can race on
@@ -830,6 +787,62 @@ private final class RecorderBox: @unchecked Sendable {
     func get() -> RecordingReloader? { lock.withLock { value } }
 }
 
+/// Wraps a real reloader and, when `shouldGate`, parks its `render` on a
+/// continuation until the test opens the gate. `_relaunch` holds the render lock
+/// across `render`, so gating the respawn's render keeps that lock held open,
+/// letting a test deterministically probe whether `stop()` blocks behind it (#257).
+private final class GatedReloader: IOSStructuralReloader, @unchecked Sendable {
+    let inner: any IOSStructuralReloader
+    let shouldGate: Bool
+    private let lock = NSLock()
+    private var entered = false
+    private var release: CheckedContinuation<Void, Never>?
+    init(inner: any IOSStructuralReloader, shouldGate: Bool) {
+        self.inner = inner
+        self.shouldGate = shouldGate
+    }
+    var didEnterGate: Bool { lock.withLock { entered } }
+    func openGate() {
+        lock.lock()
+        let cont = release
+        release = nil
+        lock.unlock()
+        cont?.resume()
+    }
+    func render(_ build: JITRenderBuild) async throws {
+        if shouldGate {
+            await withCheckedContinuation { cont in
+                lock.withLock {
+                    entered = true
+                    release = cont
+                }
+            }
+        }
+        try await inner.render(build)
+    }
+}
+
+/// Thread-safe box handing each `GatedReloader` back from the @Sendable factory.
+/// `count` lets the factory decide which reloader to gate; `gated()` returns the
+/// second one built (the respawn's).
+private final class GatedReloaderBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var reloaders: [GatedReloader] = []
+    var count: Int { lock.withLock { reloaders.count } }
+    func add(_ r: GatedReloader) { lock.withLock { reloaders.append(r) } }
+    func gated() -> GatedReloader? {
+        lock.withLock { reloaders.count >= 2 ? reloaders[1] : nil }
+    }
+}
+
+/// Thread-safe one-shot flag, so a test can observe whether a spawned Task finished.
+private final class FlagBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value = false
+    func set() { lock.withLock { value = true } }
+    var isSet: Bool { lock.withLock { value } }
+}
+
 /// Thread-safe box so the @Sendable factory closure can report the linked result.
 private final class ResultBox: @unchecked Sendable {
     private let lock = NSLock()
@@ -963,6 +976,19 @@ enum IOSPreviewE2ESupport {
 
     static func terminateApp(udid: String, bundleID: String) {
         _ = try? run("/usr/bin/xcrun", ["simctl", "terminate", udid, bundleID])
+    }
+
+    /// Whether an app is currently running on the sim. `launchctl list` inside the
+    /// sim labels running apps `UIKitApplication:<bundleID>[...]`, so a substring
+    /// match on the bundle id is sufficient.
+    static func isAppRunning(udid: String, bundleID: String) -> Bool {
+        guard
+            let result = try? run(
+                "/usr/bin/xcrun", ["simctl", "spawn", udid, "launchctl", "list"])
+        else {
+            return false
+        }
+        return result.output.contains(bundleID)
     }
 
     static func spawnExecutor(udid: String, executor: URL, port: UInt16) throws -> Process {

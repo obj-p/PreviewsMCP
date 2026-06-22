@@ -64,7 +64,17 @@ public actor IOSHostChannel {
     private var latestJITErrorValue: IOSHostJITError?
     public var latestJITError: IOSHostJITError? { latestJITErrorValue }
 
+    /// Invoked once when the host app disconnects unexpectedly (EOF or read
+    /// error), never on an intentional `close()`. Lets the session respawn a
+    /// dead agent. See issue #253.
+    private var onDisconnect: (@Sendable () async -> Void)?
+
     public init() {}
+
+    /// Register the unexpected-disconnect callback. Replaces any prior one.
+    public func setOnDisconnect(_ callback: @escaping @Sendable () async -> Void) {
+        onDisconnect = callback
+    }
 
     /// Whether the channel has an established connection to the host
     /// app. Used by callers to early-fail with `notStarted` before
@@ -376,15 +386,26 @@ public actor IOSHostChannel {
         }
     }
 
-    /// Handle host app disconnect.
+    /// Handle host app disconnect. The read source keeps waking on EOF, so guard
+    /// on `connectedFD` to run (and fire the callback) exactly once, and cancel
+    /// the source to stop the wakeups.
     private func handleDisconnect() {
+        guard connectedFD >= 0 else { return }
         connectedFD = -1
         latestRSSBytes = 0
         latestApplicationStateValue = nil
+        if let source = readSource {
+            source.cancel()
+            readSource = nil
+        }
         for (_, continuation) in pendingDataResponses {
             continuation.resume(throwing: IOSPreviewSessionError.connectionLost)
         }
         pendingDataResponses.removeAll()
+
+        if let onDisconnect {
+            Task { await onDisconnect() }
+        }
     }
 
     /// Remove and return a pending response continuation (actor-isolated, prevents double-resume).

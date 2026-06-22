@@ -44,6 +44,15 @@ public actor IOSPreviewSession {
     private var jitReloader: (any IOSStructuralReloader)?
     private var jitListenFD: Int32 = -1
 
+    /// `stop()` was called — suppress the death watcher so an intentional
+    /// teardown never respawns. `isRelaunching` is true for the duration of a
+    /// planned `_relaunch()` (memory-cap or recovery) so its own host-termination
+    /// EOF does not re-trigger the watcher. `recovering` coalesces concurrent
+    /// death callbacks into one respawn. See issue #253.
+    private var stopping = false
+    private var isRelaunching = false
+    private var recovering = false
+
     public static let hostBundleID = "com.previewsmcp.host"
     public static let shellBundleID = "com.previewsmcp.shell"
 
@@ -67,7 +76,6 @@ public actor IOSPreviewSession {
         setupSDKPath: String? = nil,
         setupDylibPath: URL? = nil,
         progress: (any ProgressReporter)? = nil,
-        memoryRelaunchThresholdBytes: UInt64 = 150 * 1024 * 1024,
         makeJITReloader: @escaping MakeJITReloader
     ) {
         self.id = UUID().uuidString
@@ -86,19 +94,8 @@ public actor IOSPreviewSession {
         self.setupSDKPath = setupSDKPath
         self.setupDylibPath = setupDylibPath
         self.progress = progress
-        self.memoryRelaunchThresholdBytes = memoryRelaunchThresholdBytes
         self.makeJITReloader = makeJITReloader
     }
-
-    /// Relaunch the host once its reported RSS grows this many bytes past the
-    /// post-start baseline, reclaiming leaked JIT'd metadata. Checked before every
-    /// render that mints a new generation (structural edit or reload), so memory
-    /// stays bounded by baseline + threshold + one generation.
-    private let memoryRelaunchThresholdBytes: UInt64
-    private var baselineRSS: UInt64?
-
-    /// Number of memory-triggered host relaunches this session has performed.
-    public private(set) var relaunchCount = 0
 
     /// Stable agent handshake socket path, set at `start()` and reused across
     /// respawns so the long-lived shell reconnects to the same path the new
@@ -298,20 +295,62 @@ public actor IOSPreviewSession {
 
         stage("connected; start complete")
 
+        await channel.setOnDisconnect { [weak self] in
+            await self?.handleUnexpectedAgentDeath()
+        }
+
         return pid
+    }
+
+    /// Respawn the agent when it dies out of band (crash, user kill, sim
+    /// eviction). The session owns the agent lifecycle, so recovery is
+    /// unconditional — only `stop()` ends it. Suppressed during a planned
+    /// `_relaunch()` (its own teardown EOFs the channel) and coalesced so
+    /// concurrent death callbacks produce one respawn. See issue #253.
+    private func handleUnexpectedAgentDeath() async {
+        guard !stopping, !isRelaunching, !recovering else { return }
+        recovering = true
+        defer { recovering = false }
+
+        await acquireRenderLock()
+        defer { releaseRenderLock() }
+        guard !stopping else { return }
+
+        do {
+            _ = try await _relaunch()
+        } catch {
+            print("iOS preview: agent respawn after unexpected death failed: \(error)")
+        }
     }
 
     /// Close the socket connection and clean up resources. Idempotent —
     /// `IOSHostChannel.close()` is safe to call when nothing was opened.
     public func stop() async {
+        stopping = true
+
+        // Take the render lock so stop wins the respawn race (#257). An iOS
+        // eviction can have a `_relaunch` in flight (via `handleUnexpectedAgentDeath`)
+        // holding the lock; without waiting it out, that respawn relaunches the agent
+        // AFTER we tear down and orphans a host. Waiting drains the in-flight respawn,
+        // then we terminate its result. Any respawn that starts later sees `stopping`
+        // at its post-lock guard and bails, so it is safe to release after teardown.
+        await acquireRenderLock()
+        defer { releaseRenderLock() }
+
+        // Kill the apps BEFORE tearing down the JIT session. The agent's live
+        // SwiftUI view graph runs in JIT'd code, so freeing the session while the
+        // agent is alive makes its next main-loop render fault on freed pages
+        // (EXC_BAD_ACCESS). simctl terminate is a SIGKILL, clean with no crash
+        // report, and a dead agent cannot render.
+        await simulatorManager.terminateAppIfRunning(udid: deviceUDID, bundleID: Self.shellBundleID)
+        await simulatorManager.terminateAppIfRunning(udid: deviceUDID, bundleID: Self.hostBundleID)
+
         await channel.close()
         jitReloader = nil
         if jitListenFD >= 0 {
             Darwin.close(jitListenFD)
             jitListenFD = -1
         }
-        await simulatorManager.terminateAppIfRunning(udid: deviceUDID, bundleID: Self.shellBundleID)
-        await simulatorManager.terminateAppIfRunning(udid: deviceUDID, bundleID: Self.hostBundleID)
     }
 
     // MARK: - JIT EPC socket
@@ -432,10 +471,6 @@ public actor IOSPreviewSession {
             throw IOSPreviewSessionError.notStarted
         }
 
-        // A reload mints a fresh object, so it links a new generation and grows the
-        // leak just like a structural edit. Reclaim first if over threshold.
-        if try await relaunchIfMemoryPressure() { return }
-
         let previewSession = makePreviewSession()
         self.session = previewSession
 
@@ -465,10 +500,6 @@ public actor IOSPreviewSession {
             return
         }
 
-        // Structural edit grows leaked metadata. Reclaim by relaunching if over
-        // threshold, instead of relinking a new generation.
-        if try await relaunchIfMemoryPressure() { return }
-
         let build = try await session.compileObjectForJIT()
         try await jitReloader.render(build)
     }
@@ -489,12 +520,23 @@ public actor IOSPreviewSession {
     /// since it already holds the render lock; the public `relaunch()` wraps it in the lock.
     @discardableResult
     private func _relaunch() async throws -> Int {
-        guard await channel.isConnected else {
-            throw IOSPreviewSessionError.notStarted
-        }
+        // Suppress the death watcher for the duration: this path terminates the
+        // host itself, which EOFs the channel. Recovery reaches here with the
+        // channel already disconnected, so there is no `isConnected` precondition.
+        isRelaunching = true
+        defer { isRelaunching = false }
         guard let orcPath = IOSHostBuilder.jitOrcRuntimePath else {
             throw IOSPreviewSessionError.jitRuntimeMissing
         }
+        guard let agentSockPath = self.agentSockPath else {
+            throw IOSPreviewSessionError.notStarted
+        }
+
+        // Kill the old agent BEFORE freeing its JIT session. On the memory-cap
+        // path the agent is still alive and rendering JIT'd code, so freeing first
+        // faults it on unmapped pages (EXC_BAD_ACCESS). A no-op on the death path,
+        // where the agent is already gone.
+        await simulatorManager.terminateAppIfRunning(udid: deviceUDID, bundleID: Self.hostBundleID)
 
         await channel.close()
         self.jitReloader = nil
@@ -505,11 +547,7 @@ public actor IOSPreviewSession {
 
         let port = try await channel.bindAndListen()
         let jitPort = try bindJITListener()
-        guard let agentSockPath = self.agentSockPath else {
-            throw IOSPreviewSessionError.notStarted
-        }
 
-        await simulatorManager.terminateAppIfRunning(udid: deviceUDID, bundleID: Self.hostBundleID)
         let pid = try await simulatorManager.launchApp(
             udid: deviceUDID,
             bundleID: Self.hostBundleID,
@@ -534,31 +572,7 @@ public actor IOSPreviewSession {
         } catch {
             throw await enrichedJITFailure(error)
         }
-        baselineRSS = nil
-        relaunchCount += 1
         return pid
-    }
-
-    /// Whether the host's reported RSS has grown past the relaunch threshold.
-    /// The first non-zero reading seeds the baseline (and never triggers).
-    private func shouldRelaunchForMemory() async -> Bool {
-        let rss = await channel.latestRSS
-        guard rss > 0 else { return false }
-        guard let baseline = baselineRSS else {
-            baselineRSS = rss
-            return false
-        }
-        return rss >= baseline + memoryRelaunchThresholdBytes
-    }
-
-    /// If the host has crossed the memory threshold, relaunch (which recompiles and
-    /// renders the current source in a fresh process) and return true. Callers that
-    /// mint a new generation route through this first and return when it relaunches,
-    /// since the relaunch has already rendered.
-    private func relaunchIfMemoryPressure() async throws -> Bool {
-        guard await shouldRelaunchForMemory() else { return false }
-        try await _relaunch()
-        return true
     }
 
     /// Switch to a different preview index and recompile. Traits are preserved. @State is lost.
