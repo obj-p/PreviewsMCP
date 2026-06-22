@@ -1,4 +1,5 @@
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "cmake")
+load("@rules_xcodeproj//xcodeproj:defs.bzl", "xcodeproj", "xcschemes")
 load("//bazel:ios_resources.bzl", "ios_jit_resources")
 load("//bazel:object.bzl", "cc_object")
 load("//bazel:stage_dir.bzl", "stage_dir")
@@ -204,5 +205,38 @@ ios_jit_resources(
         ":orc_rt_iossim_simbuilt",
     ],
     visibility = ["//visibility:public"],
+)
+
+_STAGE_RUNFILES = """\
+cd "$BUILD_WORKSPACE_DIRECTORY"
+bazelisk build //Sources/previewsmcp >/dev/null 2>&1 || \
+  bazel build //Sources/previewsmcp >/dev/null 2>&1
+"""
+
+_RUNFILES_ENV = {
+    "RUNFILES_DIR": "$(BUILD_WORKSPACE_DIRECTORY)/bazel-bin/Sources/previewsmcp/previewsmcp.runfiles",
+}
+
+xcodeproj(
+    name = "xcodeproj",
+    project_name = "PreviewsMCP",
+    top_level_targets = ["//Sources/previewsmcp"],
+    xcschemes = [
+        xcschemes.scheme(
+            name = "previewsmcp",
+            run = xcschemes.run(
+                launch_target = xcschemes.launch_target(
+                    "//Sources/previewsmcp",
+                    pre_actions = [
+                        xcschemes.pre_post_actions.launch_script(
+                            title = "Stage previewsmcp runfiles",
+                            script_text = _STAGE_RUNFILES,
+                        ),
+                    ],
+                ),
+                env = _RUNFILES_ENV,
+            ),
+        ),
+    ],
 )
 

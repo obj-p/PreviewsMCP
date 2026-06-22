@@ -9,3 +9,5 @@ DerivedData/
 
 /third_party
 /bazel-*
+
+/PreviewsMCP.xcodeproj
