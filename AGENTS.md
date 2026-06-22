@@ -22,9 +22,9 @@ Or run `/bootstrap` in Claude Code.
 
 ```bash
 bazel build //...                                  # Build all targets
-bazel test //Tests/...                             # Run all test suites
-bazel test //Tests/PreviewsJITLinkTests            # Run a specific suite
-bazel run //Sources/previewsmcp -- --version       # Run the CLI
+bazel test //previewsmcp/Tests/...                 # Run all test suites
+bazel test //previewsmcp/Tests/PreviewsJITLinkTests  # Run a specific suite
+bazel run //previewsmcp/cli:previewsmcp -- --version  # Run the CLI
 ```
 
 The first `bazel build` compiles the Swift-fork LLVM from source via `rules_foreign_cc` (~3-4 min); it is pinned, so later builds reuse it. The iOS JIT resources (`server.o`, `liborc_rt_iossim.a`, the LLVM TargetProcess libs) and the `PreviewAgent` executor are built and wired through runfiles automatically — no `scripts/build-jit-llvm*.sh` needed under Bazel.
@@ -40,9 +40,9 @@ Daemon-touching test suites use `DaemonTestLock` (flock) for cross-target serial
 Swift sources are formatted with [swift-format](https://github.com/swiftlang/swift-format) (config: `.swift-format`) and linted with [SwiftLint](https://github.com/realm/SwiftLint) (config: `.swiftlint.yml`). The pre-commit hook runs both on staged files automatically.
 
 ```bash
-swift-format format --in-place --recursive Sources/ Tests/ examples/   # Auto-fix formatting
-swift-format lint --strict --recursive Sources/ Tests/ examples/        # Check formatting only
-swiftlint lint --quiet Sources/ Tests/                                  # Semantic lint checks
+swift-format format --in-place --recursive Sources/ previewsmcp/ examples/   # Auto-fix formatting
+swift-format lint --strict --recursive Sources/ previewsmcp/ examples/        # Check formatting only
+swiftlint lint --quiet Sources/ previewsmcp/                                  # Semantic lint checks
 ```
 
 SwiftLint complements swift-format: formatting rules are disabled (swift-format owns those), while SwiftLint catches semantic issues (cyclomatic complexity, function length, nesting depth, etc.).
@@ -50,22 +50,29 @@ SwiftLint complements swift-format: formatting rules are disabled (swift-format 
 ## Architecture
 
 ```
-Sources/
+previewsmcp/             # Umbrella for all first-party Bazel-built code (one dir per module)
 ├── SimulatorBridge/     # ObjC — runtime-loads CoreSimulator.framework (no build-time linking)
 ├── PreviewsCore/        # Platform-agnostic: parser, compiler, bridge gen, differ, file watcher
 ├── PreviewsMacOS/       # macOS host: NSApplication + NSWindow + Snapshot (runs inside the daemon)
 ├── PreviewsIOS/         # iOS simulator: SimulatorManager, IOSAgentBuilder, IOSPreviewSession
+├── PreviewsEngine/      # Cross-platform engine wiring PreviewsCore + iOS/macOS hosts
+├── PreviewsJITLink/     # Swift JIT-link layer (+ PreviewsJITLinkCxx C++ shim)
 ├── PreviewsCLI/         # CLI (ArgumentParser) + daemon + MCP server (swift-sdk) — library target
-├── previewsmcp/         # Thin executable shim: one-line main.swift → PreviewsMCPApp.main()
-└── PreviewsSetupKit/    # Setup plugin protocol (PreviewSetup) — zero-dependency SwiftUI-only library
+├── PreviewAgent/        # C++ in-process JIT executor binary
+├── cli/                 # Thin executable shim (Bazel target //previewsmcp/cli:previewsmcp)
+├── ios-host/            # iOS agent/shell/executor app source embedded at session start
+└── Tests/               # All unit + integration test suites
+
+Sources/
+└── PreviewsSetupKit/    # Setup plugin protocol (PreviewSetup) — the only SwiftPM-exposed library
 ```
 
-`PreviewsCLI` is a library, not an `executableTarget`, so the test targets in `Tests/PreviewsCLITests/` and `Tests/MCPIntegrationTests/` can `@testable import PreviewsCLI` under both `swift test` and Xcode-driven SPM builds (Xcode's dependency scanner refuses to expose an executable target's swiftmodule to dependent tests, which broke `xcodebuild build-for-testing` before PR #184). `Sources/previewsmcp/` is a three-line shim that imports `PreviewsCLI` and calls `PreviewsMCPApp.main()` — the only purpose of that target is to be the executable product. Match the `previewsmcp` directory/target naming if `PreviewsCLI` is sliced further (see `prompts/modularization.md` on the `previews-research` branch).
+`PreviewsCLI` is a library, not an `executableTarget`, so the test targets in `previewsmcp/Tests/PreviewsCLITests/` and `previewsmcp/Tests/MCPIntegrationTests/` can `@testable import PreviewsCLI` under both `swift test` and Xcode-driven SPM builds (Xcode's dependency scanner refuses to expose an executable target's swiftmodule to dependent tests, which broke `xcodebuild build-for-testing` before PR #184). `previewsmcp/cli/` is a three-line shim that imports `PreviewsCLI` and calls `PreviewsMCPApp.main()` — the only purpose of that target is to be the executable product. Match the `previewsmcp` directory/target naming if `PreviewsCLI` is sliced further (see `prompts/modularization.md` on the `previews-research` branch).
 
 - **PreviewsCore** has no platform-specific dependencies (no AppKit, no CoreSimulator)
 - **SimulatorBridge** is ObjC because it uses `objc_lookUpClass` / protocol casts for private API access
 - **PreviewsIOS** depends on SimulatorBridge; touch injection runs in-app via Hammer approach (IOHIDEvent + BKSHIDEventSetDigitizerInfo)
-- **iOS agent-app source lives in `ios-host/agent/`** at the package root (`AgentApp.swift`, `Info.plist`, `AppIcon.png`), with the shell app alongside it in `ios-host/shell/`. The `EmbedHostAppSource` build-tool plugin (driven by `Sources/EmbedHostAppSourceTool/`) reads those files and emits `IOSAgentAppSource.generated.swift` exposing them as `IOSAgentAppSource.code` / `.infoPlist` / `IOSAppIconData.bytes` (base64-encoded). `IOSAgentBuilder` writes the source out at session start and compiles it with swiftc targeting arm64-apple-ios-simulator. Byte-equivalence with the previous stringified blob is pinned by `IOSAgentBuilderHashTests`.
+- **iOS agent-app source lives in `previewsmcp/ios-host/agent/`** (`AgentApp.swift`, `Info.plist`, `AppIcon.png`), with the shell app alongside it in `previewsmcp/ios-host/shell/`. The `embed_host_app_source` rule (driven by `bazel/embed.bzl`, wired in `bazel/embed/BUILD.bazel`) reads those files and emits `IOSAgentAppSource.generated.swift` exposing them as `IOSAgentAppSource.code` / `.infoPlist` / `IOSAppIconData.bytes` (base64-encoded). `IOSAgentBuilder` writes the source out at session start and compiles it with swiftc targeting arm64-apple-ios-simulator. Byte-equivalence with the previous stringified blob is pinned by `IOSAgentBuilderHashTests`.
 
 ### Daemon model
 
@@ -137,14 +144,14 @@ CLI commands follow a stdout-for-data, stderr-for-side-effects convention:
 
 - Swift 6.0 strict concurrency — actors for shared state, Sendable structs for cross-isolation data
 - Private framework access: runtime-load via `Bundle(path:).loadAndReturnError()` + `objc_lookUpClass()`, never build-time link
-- iOS agent app source is real Swift in `ios-host/agent/AgentApp.swift` (lintable, formatable, compile-checked); the `EmbedHostAppSource` build-tool plugin embeds it as a base64 constant for runtime compilation with swiftc targeting arm64-apple-ios-simulator
+- iOS agent app source is real Swift in `previewsmcp/ios-host/agent/AgentApp.swift` (lintable, formatable, compile-checked); the `embed_host_app_source` rule embeds it as a base64 constant for runtime compilation with swiftc targeting arm64-apple-ios-simulator
 - Old dylibs/views are retained (never dlclose) to prevent EXC_BAD_ACCESS
 - `.tag()` integer literals are excluded from ThunkGenerator to avoid Int/CGFloat overload ambiguity
 - All custom Error types must conform to `LocalizedError` with `errorDescription` (not just `CustomStringConvertible`) so MCP server reports useful messages
 
 ## MCP Server
 
-Binary: `.build/debug/previewsmcp serve`
+Binary: `scripts/previewsmcp serve` (builds `//previewsmcp/cli:previewsmcp` via bazelisk, then execs it)
 Config: `/.mcp.json` (in parent directory)
 
 Tools: `preview_list`, `preview_start`, `preview_configure`, `preview_switch`, `preview_variants`, `preview_snapshot`, `preview_elements`, `preview_touch`, `preview_stop`, `simulator_list`, `session_list`, `preview_build_info`
@@ -232,7 +239,7 @@ The `main` branch has branch protections — all changes must go through a pull 
 
 ### Verifying a PR before merge
 
-CI is disabled — the GitHub Actions `CI` and `Cache warmer` workflows are turned off and the `required_status_checks` rule has been removed from the `main` ruleset, so nothing gates a merge automatically. Verification is local and mandatory: a PR does **not** merge until **all unit tests pass** and **the example integration tests pass via the `integration-test` skill**. Run the suites with `bazel test //Tests/...`, then run the `integration-test` skill for the example end-to-end coverage. (`swift test` still works as a fallback; pass `--filter PreviewsJITLinkTests --no-parallel` for the JIT tests there.) No CI is not a license to merge broken code.
+CI is disabled — the GitHub Actions `CI` and `Cache warmer` workflows are turned off and the `required_status_checks` rule has been removed from the `main` ruleset, so nothing gates a merge automatically. Verification is local and mandatory: a PR does **not** merge until **all unit tests pass** and **the example integration tests pass via the `integration-test` skill**. Run the suites with `bazel test //previewsmcp/Tests/...`, then run the `integration-test` skill for the example end-to-end coverage. (`swift test` still works as a fallback; pass `--filter PreviewsJITLinkTests --no-parallel` for the JIT tests there.) No CI is not a license to merge broken code.
 
 ## Test Notes
 

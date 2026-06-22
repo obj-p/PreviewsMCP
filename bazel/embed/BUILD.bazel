@@ -7,12 +7,12 @@ exports_files([
 
 embed_host_app_source(
     name = "ios_host_app_source",
-    app_icon = "//ios-host/agent:AppIcon.png",
-    host_app = "//ios-host/agent:AgentApp.swift",
-    info_plist = "//ios-host/agent:Info.plist",
-    shell_entitlements = "//ios-host/shell:Shell.entitlements",
-    shell_icon = "//ios-host/shell:AppIcon.png",
-    shell_info_plist = "//ios-host/shell:Info.plist",
-    shell_source = "//ios-host/shell:ShellMain.m",
+    app_icon = "//previewsmcp/ios-host/agent:AppIcon.png",
+    host_app = "//previewsmcp/ios-host/agent:AgentApp.swift",
+    info_plist = "//previewsmcp/ios-host/agent:Info.plist",
+    shell_entitlements = "//previewsmcp/ios-host/shell:Shell.entitlements",
+    shell_icon = "//previewsmcp/ios-host/shell:AppIcon.png",
+    shell_info_plist = "//previewsmcp/ios-host/shell:Info.plist",
+    shell_source = "//previewsmcp/ios-host/shell:ShellMain.m",
     visibility = ["//visibility:public"],
 )

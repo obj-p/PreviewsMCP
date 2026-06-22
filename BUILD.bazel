@@ -185,8 +185,8 @@ ios_sim_build(
 
 cc_object(
     name = "ios_server_object",
-    srcs = ["ios-host/executor/server.cpp"],
-    hdrs = ["ios-host/executor/server.h"],
+    srcs = ["previewsmcp/ios-host/executor/server.cpp"],
+    hdrs = ["previewsmcp/ios-host/executor/server.h"],
     copts = [
         "-std=c++17",
         "-fno-rtti",
@@ -209,24 +209,24 @@ ios_jit_resources(
 
 _STAGE_RUNFILES = """\
 cd "$BUILD_WORKSPACE_DIRECTORY"
-bazelisk build //Sources/previewsmcp >/dev/null 2>&1 || \
-  bazel build //Sources/previewsmcp >/dev/null 2>&1
+bazelisk build //previewsmcp/cli:previewsmcp >/dev/null 2>&1 || \
+  bazel build //previewsmcp/cli:previewsmcp >/dev/null 2>&1
 """
 
 _RUNFILES_ENV = {
-    "RUNFILES_DIR": "$(BUILD_WORKSPACE_DIRECTORY)/bazel-bin/Sources/previewsmcp/previewsmcp.runfiles",
+    "RUNFILES_DIR": "$(BUILD_WORKSPACE_DIRECTORY)/bazel-bin/previewsmcp/cli/previewsmcp.runfiles",
 }
 
 xcodeproj(
     name = "xcodeproj",
     project_name = "PreviewsMCP",
-    top_level_targets = ["//Sources/previewsmcp"],
+    top_level_targets = ["//previewsmcp/cli:previewsmcp"],
     xcschemes = [
         xcschemes.scheme(
             name = "previewsmcp",
             run = xcschemes.run(
                 launch_target = xcschemes.launch_target(
-                    "//Sources/previewsmcp",
+                    "//previewsmcp/cli:previewsmcp",
                     pre_actions = [
                         xcschemes.pre_post_actions.launch_script(
                             title = "Stage previewsmcp runfiles",
