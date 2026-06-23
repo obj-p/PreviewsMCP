@@ -7,5 +7,6 @@ DerivedData/
 .claude/scheduled_tasks.lock
 
 /bazel-*
+/.bazelrc.user
 
 /PreviewsMCP.xcodeproj
