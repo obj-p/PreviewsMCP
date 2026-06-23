@@ -81,6 +81,32 @@ public struct Guest: Sendable {
                 + "&& tar -xf \(remoteTar) -C \(remoteDir) && rm -f \(remoteTar)")
     }
 
+    public func rsync(
+        localDir: String,
+        to remoteDir: String,
+        exclude: [String] = [".build", ".git"]
+    ) throws {
+        let sshTransport =
+            "/usr/bin/ssh -i \(endpoint.privateKeyPath) -p \(endpoint.port) "
+            + "-o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no "
+            + "-o IdentitiesOnly=yes -o LogLevel=ERROR"
+        var args = ["-az", "--delete", "-e", sshTransport]
+        for pattern in exclude {
+            args += ["--exclude", pattern]
+        }
+        let source = localDir.hasSuffix("/") ? localDir : localDir + "/"
+        args += [source, "\(endpoint.user)@\(endpoint.host):\(remoteDir)/"]
+
+        let process = Process()
+        process.executableURL = URL(filePath: "/usr/bin/rsync")
+        process.arguments = args
+        try process.run()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else {
+            throw VMError("rsync \(localDir) -> \(remoteDir) exited \(process.terminationStatus)")
+        }
+    }
+
     public static func shellQuote(_ value: String) -> String {
         "'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'"
     }
