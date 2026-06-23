@@ -110,15 +110,21 @@ public actor PreviewSession {
             .appendingPathComponent("previewsmcp-jit-frame-\(id).json")
     }
 
+    /// A window frame recorded by the agent for a session.
+    public struct WindowFrame: Sendable {
+        public let x: Double
+        public let y: Double
+        public let width: Double
+        public let height: Double
+    }
+
     /// The last window frame the agent recorded for this session, or nil when none was written.
-    public nonisolated static func storedWindowFrame(
-        for id: String
-    ) -> (x: Double, y: Double, width: Double, height: Double)? {
+    public nonisolated static func storedWindowFrame(for id: String) -> WindowFrame? {
         guard let data = try? Data(contentsOf: frameSidecarPath(for: id)),
             let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Double],
             let x = obj["x"], let y = obj["y"], let width = obj["width"], let height = obj["height"]
         else { return nil }
-        return (x, y, width, height)
+        return WindowFrame(x: x, y: y, width: width, height: height)
     }
 
     /// Compile the preview for the JIT structural-reload path. Generates a render bridge

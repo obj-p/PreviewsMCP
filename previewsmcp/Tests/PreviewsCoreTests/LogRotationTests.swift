@@ -10,10 +10,10 @@ import Testing
 @Suite("LogRotation")
 struct LogRotationTests {
 
-    private func tempDir() -> URL {
+    private func tempDir() throws -> URL {
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent("logrot-\(UUID().uuidString)", isDirectory: true)
-        try! FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir
     }
 
@@ -22,11 +22,11 @@ struct LogRotationTests {
     }
 
     @Test("under threshold is a no-op")
-    func underThreshold() {
-        let dir = tempDir()
+    func underThreshold() throws {
+        let dir = try tempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
         let log = dir.appendingPathComponent("serve.log")
-        try! Data("small".utf8).write(to: log)
+        try Data("small".utf8).write(to: log)
         let fd = open(log.path, O_WRONLY)
         defer { close(fd) }
 
@@ -38,13 +38,13 @@ struct LogRotationTests {
     }
 
     @Test("rotates and reopens over threshold")
-    func rotateReopen() {
-        let dir = tempDir()
+    func rotateReopen() throws {
+        let dir = try tempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
         let log = dir.appendingPathComponent("serve.log")
         let dot1 = dir.appendingPathComponent("serve.log.1")
         let old = String(repeating: "x", count: 2048)
-        try! Data(old.utf8).write(to: log)
+        try Data(old.utf8).write(to: log)
         let fd = open(log.path, O_WRONLY)
         defer { close(fd) }
 
@@ -63,15 +63,15 @@ struct LogRotationTests {
     }
 
     @Test("ring caps and drops the oldest")
-    func ringCap() {
-        let dir = tempDir()
+    func ringCap() throws {
+        let dir = try tempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
         func f(_ name: String) -> URL { dir.appendingPathComponent(name) }
         let log = f("serve.log")
-        try! Data("C".utf8).write(to: f("serve.log.3"))
-        try! Data("B".utf8).write(to: f("serve.log.2"))
-        try! Data("A".utf8).write(to: f("serve.log.1"))
-        try! Data(String(repeating: "D", count: 2048).utf8).write(to: log)
+        try Data("C".utf8).write(to: f("serve.log.3"))
+        try Data("B".utf8).write(to: f("serve.log.2"))
+        try Data("A".utf8).write(to: f("serve.log.1"))
+        try Data(String(repeating: "D", count: 2048).utf8).write(to: log)
         let fd = open(log.path, O_WRONLY)
         defer { close(fd) }
 
@@ -86,11 +86,11 @@ struct LogRotationTests {
     }
 
     @Test("filesystem failure rolls back without losing the live log")
-    func failureRollback() {
-        let dir = tempDir()
+    func failureRollback() throws {
+        let dir = try tempDir()
         let log = dir.appendingPathComponent("serve.log")
         let payload = String(repeating: "D", count: 2048)
-        try! Data(payload.utf8).write(to: log)
+        try Data(payload.utf8).write(to: log)
         let fd = open(log.path, O_WRONLY)
         defer {
             close(fd)

@@ -1339,6 +1339,9 @@ struct BuildSystemTests {
             )
         )
     }
+}
+
+extension BuildSystemTests {
 
     // MARK: - XcodeBuildSystem.collectGeneratedSources
 
