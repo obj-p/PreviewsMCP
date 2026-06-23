@@ -99,6 +99,38 @@ public actor SimulatorManager {
         return device(from: sbDevice)
     }
 
+    /// Create a daemon-side HID input client bound to a device. Injects events
+    /// at the simulator digitizer, independent of the in-app host touch path.
+    public func makeHIDClient(udid: String) throws -> SBHIDClient {
+        try ensureLoaded()
+        var error: NSError?
+        guard let sbDevice = SBFindDeviceByUDID(udid, &error) else {
+            throw SimulatorError.deviceNotFound(error?.localizedDescription ?? "device not found: \(udid)")
+        }
+        guard let client = SBCreateHIDClient(sbDevice, &error) else {
+            throw SimulatorError.hidClientFailed(error?.localizedDescription ?? "unknown")
+        }
+        return client
+    }
+
+    /// Create a daemon-side event-driven framebuffer streamer bound to a device.
+    /// Registers screen callbacks to keep the display pipeline wired to us and
+    /// caches the latest frame as it changes — the hot-loop counterpart to the
+    /// one-shot `screenshotData`.
+    public func makeFramebufferStreamer(
+        udid: String, jpegQuality: Double = 0.7
+    ) throws -> SBFramebufferStreamer {
+        try ensureLoaded()
+        var error: NSError?
+        guard let sbDevice = SBFindDeviceByUDID(udid, &error) else {
+            throw SimulatorError.deviceNotFound(error?.localizedDescription ?? "device not found: \(udid)")
+        }
+        guard let streamer = SBCreateFramebufferStreamer(sbDevice, jpegQuality, &error) else {
+            throw SimulatorError.screenshotFailed(error?.localizedDescription ?? "unknown")
+        }
+        return streamer
+    }
+
     // MARK: - Device Operations
 
     /// Boot a simulator device and block until it's fully booted (SpringBoard
@@ -499,6 +531,7 @@ public enum SimulatorError: Error, LocalizedError, CustomStringConvertible {
     case installFailed(String)
     case launchFailed(String)
     case screenshotFailed(String)
+    case hidClientFailed(String)
 
     public var description: String {
         switch self {
@@ -510,6 +543,7 @@ public enum SimulatorError: Error, LocalizedError, CustomStringConvertible {
         case .installFailed(let msg): return "Install failed: \(msg)"
         case .launchFailed(let msg): return "Launch failed: \(msg)"
         case .screenshotFailed(let msg): return "Screenshot failed: \(msg)"
+        case .hidClientFailed(let msg): return "HID client creation failed: \(msg)"
         }
     }
 

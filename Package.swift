@@ -67,6 +67,7 @@ var targets: [Target] = [
     .target(
         name: "PreviewsIOS",
         dependencies: ["PreviewsCore", "SimulatorBridge"],
+        resources: [.embedInCode("Resources/client.html")],
         plugins: [.plugin(name: "EmbedHostAppSource")] + iosJitPlugins
     ),
     .target(
