@@ -15,60 +15,68 @@ f=
 set -e
 # --- end runfiles.bash initialization v3 ---
 
+# Modes: check (whole tree, verify), fix (whole tree, format in place),
+# staged (verify only the git-staged files; used by the pre-commit hook).
 mode="${1:-check}"
 cd "$BUILD_WORKSPACE_DIRECTORY"
-
-swift_dirs=(previewsmcp Sources)
 fail=0
+
+# Generated sources and example projects are never linted.
+_exclude='(^examples/|/IOSAgentAppSource\.swift$|/IOSAppIconData\.swift$)'
+
+_candidates() {
+  if [[ "$mode" == staged ]]; then
+    git diff --cached --name-only --diff-filter=ACM
+  else
+    git ls-files
+  fi
+}
+
+# select <include-ERE> [<extra-exclude-ERE>] -> newline-separated paths
+select_files() {
+  local out
+  out="$(_candidates | grep -E "$1" | grep -vE "$_exclude" || true)"
+  if [[ -n "${2:-}" ]]; then out="$(echo "$out" | grep -vE "$2" || true)"; fi
+  echo "$out"
+}
 
 note() { echo "==> $1"; }
 
 if [[ -n "${BUILDIFIER:-}" ]]; then
-  note "buildifier ($mode)"
-  bf="$(rlocation "$BUILDIFIER")"
-  files=()
-  while IFS= read -r p; do files+=("$p"); done < <(
-    find . -path './bazel-*' -prune -o -path './.git' -prune -o -path './examples' -prune -o \
-      \( -name 'BUILD.bazel' -o -name '*.bzl' -o -name 'MODULE.bazel' \) -type f -print
-  )
-  if [[ "$mode" == fix ]]; then
-    "$bf" --mode=fix "${files[@]}"
-  else
-    "$bf" --mode=check "${files[@]}" || fail=1
+  mapfile -t files < <(select_files '(/BUILD\.bazel|\.bzl|/MODULE\.bazel|^MODULE\.bazel)$')
+  if ((${#files[@]})); then
+    note "buildifier ($mode)"
+    bf="$(rlocation "$BUILDIFIER")"
+    if [[ "$mode" == fix ]]; then "$bf" --mode=fix "${files[@]}"; else "$bf" --mode=check "${files[@]}" || fail=1; fi
   fi
 fi
 
 if [[ -n "${CLANG_FORMAT:-}" ]]; then
-  note "clang-format ($mode)"
-  cf="$(rlocation "$CLANG_FORMAT")"
-  files=()
-  while IFS= read -r p; do files+=("$p"); done < <(
-    find . -path './bazel-*' -prune -o -path './.git' -prune -o -path './examples' -prune -o \
-      -path '*/Fixtures' -prune -o \
-      \( -name '*.c' -o -name '*.cc' -o -name '*.cpp' -o -name '*.h' -o -name '*.hpp' -o -name '*.m' -o -name '*.mm' \) -type f -print
-  )
-  if [[ "$mode" == fix ]]; then
-    "$cf" --style=file -i "${files[@]}"
-  else
-    "$cf" --style=file --dry-run -Werror "${files[@]}" || fail=1
+  mapfile -t files < <(select_files '\.(c|cc|cpp|h|hpp|m|mm)$' '/Fixtures/')
+  if ((${#files[@]})); then
+    note "clang-format ($mode)"
+    cf="$(rlocation "$CLANG_FORMAT")"
+    if [[ "$mode" == fix ]]; then "$cf" --style=file -i "${files[@]}"; else "$cf" --style=file --dry-run -Werror "${files[@]}" || fail=1; fi
   fi
 fi
 
 if [[ -n "${SWIFTFORMAT:-}" ]]; then
-  note "swiftformat ($mode)"
-  sf="$(rlocation "$SWIFTFORMAT")"
-  if [[ "$mode" == fix ]]; then
-    "$sf" "${swift_dirs[@]}"
-  else
-    "$sf" "${swift_dirs[@]}" --lint || fail=1
+  mapfile -t files < <(select_files '\.swift$' '^bazel/')
+  if ((${#files[@]})); then
+    note "swiftformat ($mode)"
+    sf="$(rlocation "$SWIFTFORMAT")"
+    if [[ "$mode" == fix ]]; then "$sf" "${files[@]}"; else "$sf" "${files[@]}" --lint || fail=1; fi
   fi
 fi
 
-# SwiftLint is a semantic linter, not a formatter, so it only runs in check mode.
-if [[ -n "${SWIFTLINT:-}" && "$mode" == check ]]; then
-  note "swiftlint (check)"
-  sl="$(rlocation "$SWIFTLINT")"
-  "$sl" lint --quiet "${swift_dirs[@]}" || fail=1
+# SwiftLint is a semantic linter, not a formatter, so it never runs in fix mode.
+if [[ -n "${SWIFTLINT:-}" && "$mode" != fix ]]; then
+  mapfile -t files < <(select_files '\.swift$' '^bazel/')
+  if ((${#files[@]})); then
+    note "swiftlint ($mode)"
+    sl="$(rlocation "$SWIFTLINT")"
+    "$sl" lint --quiet "${files[@]}" || fail=1
+  fi
 fi
 
 exit "$fail"

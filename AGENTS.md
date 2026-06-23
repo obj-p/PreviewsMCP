@@ -11,7 +11,7 @@ PreviewsMCP — standalone SwiftUI preview renderer with MCP server for AI-drive
 Bazel (via [bazelisk](https://github.com/bazelbuild/bazelisk)) is the build for development, tests, and CI. SwiftPM is kept for external consumers of the library products (see [Consuming via SwiftPM](#consuming-via-swiftpm)).
 
 ```bash
-brew bundle                              # Install tools (bazelisk, swift-format)
+brew bundle                              # Install tools (bazelisk; lint tools are hermetic via //tools/lint)
 git config core.hooksPath .githooks      # Activate pre-commit formatting hook
 bazel build //...                        # Build all targets (first build builds LLVM, ~3-4 min)
 ```
@@ -37,15 +37,15 @@ Daemon-touching test suites use `DaemonTestLock` (flock) for cross-target serial
 
 ## Formatting & Linting
 
-Swift sources are formatted with [swift-format](https://github.com/swiftlang/swift-format) (config: `.swift-format`) and linted with [SwiftLint](https://github.com/realm/SwiftLint) (config: `.swiftlint.yml`). The pre-commit hook runs both on staged files automatically.
+Lint and format run through hermetic, Bazel-pinned tools under `//tools/lint`, so no host installs are needed (only `bazelisk`) and a local commit can never disagree with the merge gate on tool versions. The tools are [SwiftFormat](https://github.com/nicklockwood/SwiftFormat) (config: `.swiftformat`), [SwiftLint](https://github.com/realm/SwiftLint) (config: `.swiftlint.yml`), [clang-format](https://clang.llvm.org/docs/ClangFormat.html) (config: `.clang-format`), and [buildifier](https://github.com/bazelbuild/buildtools) for Starlark.
 
 ```bash
-swift-format format --in-place --recursive Sources/ previewsmcp/ examples/   # Auto-fix formatting
-swift-format lint --strict --recursive Sources/ previewsmcp/ examples/        # Check formatting only
-swiftlint lint --quiet Sources/ previewsmcp/                                  # Semantic lint checks
+bazel run //tools/lint:format   # auto-fix formatting (SwiftFormat, clang-format, buildifier)
+bazel run //tools/lint:check    # verify everything; the merge-queue gate runs this
+bazel run //tools/lint:staged   # verify only git-staged files (what the pre-commit hook runs)
 ```
 
-SwiftLint complements swift-format: formatting rules are disabled (swift-format owns those), while SwiftLint catches semantic issues (cyclomatic complexity, function length, nesting depth, etc.).
+SwiftFormat owns formatting; SwiftLint runs non-strict and catches semantic issues (cyclomatic complexity, function length, nesting depth) with the overlapping formatting rules disabled. SwiftFormat's `hoistTry`, `hoistAwait`, and `preferKeyPath` rules are disabled in `.swiftformat` because they produced invalid or compiler-crashing Swift; re-verify the full build, not just lint, before re-enabling them.
 
 ## Architecture
 

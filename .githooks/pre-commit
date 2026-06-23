@@ -1,26 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if ! command -v swift-format &>/dev/null; then
-    echo "error: swift-format not found. Install with: brew bundle" >&2
-    exit 1
-fi
-
-# clang-format only staged C/C++/Obj-C files under Sources/ (null-delimited to handle spaces in paths)
-if command -v clang-format &>/dev/null; then
-    if git diff --cached --name-only --diff-filter=ACM -z -- '*.c' '*.cc' '*.cpp' '*.h' '*.hpp' '*.m' '*.mm' | grep -qz '^Sources/'; then
-        git diff --cached --name-only --diff-filter=ACM -z -- '*.c' '*.cc' '*.cpp' '*.h' '*.hpp' '*.m' '*.mm' | grep -z '^Sources/' | xargs -0 clang-format --dry-run --Werror 2>&1
-    fi
-fi
-
-# Lint only staged .swift files (null-delimited to handle spaces in paths)
-if ! git diff --cached --name-only --diff-filter=ACM -z -- '*.swift' | grep -qz .; then
-    exit 0
-fi
-
-git diff --cached --name-only --diff-filter=ACM -z -- '*.swift' | xargs -0 swift-format lint --strict 2>&1
-
-# SwiftLint (semantic checks that complement swift-format)
-if command -v swiftlint &>/dev/null; then
-    git diff --cached --name-only --diff-filter=ACM -z -- '*.swift' | xargs -0 swiftlint lint --quiet 2>&1
-fi
+# Lint the staged files with the hermetic, Bazel-pinned tools (the same ones the
+# merge gate uses), so a local commit and the gate can never disagree on tool
+# versions. First run on a fresh checkout fetches the tool binaries, then caches.
+cd "$(git rev-parse --show-toplevel)"
+exec ./tools/bazel run --ui_event_filters=-info --noshow_progress //tools/lint:staged
