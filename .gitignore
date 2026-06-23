@@ -6,7 +6,6 @@ DerivedData/
 .claude/worktrees/
 .claude/scheduled_tasks.lock
 
-/third_party
 /bazel-*
 
 /PreviewsMCP.xcodeproj
