@@ -56,6 +56,8 @@ $(STATE)/toolchain: $(STATE)/ssh | $(STATE)
 $(STATE)/post-toolchain: $(STATE)/toolchain | $(STATE)
 	$(VZ_BIN) snapshot delete $(BUNDLE) post-toolchain 2>/dev/null || true
 	$(VZ_BIN) snapshot take $(BUNDLE) post-toolchain
+	$(VZ_BIN) snapshot delete $(BUNDLE) post-sa 2>/dev/null || true
+	$(VZ_BIN) snapshot delete $(BUNDLE) post-ssh 2>/dev/null || true
 	touch $@
 
 snapshots:
