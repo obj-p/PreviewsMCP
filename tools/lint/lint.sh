@@ -54,13 +54,13 @@ if [[ -n "${CLANG_FORMAT:-}" ]]; then
   fi
 fi
 
-if [[ -n "${SWIFT_FORMAT:-}" ]]; then
-  note "swift-format ($mode)"
-  sf="$(rlocation "$SWIFT_FORMAT")"
+if [[ -n "${SWIFTFORMAT:-}" ]]; then
+  note "swiftformat ($mode)"
+  sf="$(rlocation "$SWIFTFORMAT")"
   if [[ "$mode" == fix ]]; then
-    "$sf" format --in-place --recursive "${swift_dirs[@]}"
+    "$sf" "${swift_dirs[@]}"
   else
-    "$sf" lint --strict --recursive "${swift_dirs[@]}" || fail=1
+    "$sf" "${swift_dirs[@]}" --lint || fail=1
   fi
 fi
 

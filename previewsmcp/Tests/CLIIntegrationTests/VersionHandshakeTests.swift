@@ -13,7 +13,6 @@ import Testing
 /// view.
 @Suite(.serialized)
 struct VersionHandshakeTests {
-
     private static let staleVersion = "0.0.0-stale-test"
 
     private static func cleanSlate() async throws {
@@ -235,9 +234,9 @@ private enum VersionHandshakeTestError: Error, CustomStringConvertible {
     var description: String {
         switch self {
         case .staleDaemonStartupTimeout:
-            return "manual stale-daemon startup did not complete within 10s"
-        case .pidFileUnparseable(let contents):
-            return "pid file contents unparseable: \(contents)"
+            "manual stale-daemon startup did not complete within 10s"
+        case let .pidFileUnparseable(contents):
+            "pid file contents unparseable: \(contents)"
         }
     }
 }

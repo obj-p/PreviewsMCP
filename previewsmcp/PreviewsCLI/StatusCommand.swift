@@ -20,8 +20,8 @@ struct StatusCommand: ParsableCommand {
         if json {
             let state: String =
                 alive
-                ? "running"
-                : (pid != nil ? "transitional" : "stopped")
+                    ? "running"
+                    : (pid != nil ? "transitional" : "stopped")
             try emitJSON(
                 StatusJSONOutput(
                     state: state,
@@ -30,7 +30,7 @@ struct StatusCommand: ParsableCommand {
                     socketPath: DaemonPaths.socket.path
                 )
             )
-            if !alive && pid == nil { throw ExitCode(1) }
+            if !alive, pid == nil { throw ExitCode(1) }
             return
         }
 

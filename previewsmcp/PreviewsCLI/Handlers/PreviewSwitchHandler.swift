@@ -9,7 +9,7 @@ enum PreviewSwitchHandler: ToolHandler {
     static let schema = Tool(
         name: ToolName.previewSwitch.rawValue,
         description:
-            "Switch which #Preview block is rendered in a running session. Triggers recompile; @State is reset. Traits persist across switches.",
+        "Switch which #Preview block is rendered in a running session. Triggers recompile; @State is reset. Traits persist across switches.",
         inputSchema: .object([
             "type": .string("object"),
             "properties": .object([
@@ -20,7 +20,8 @@ enum PreviewSwitchHandler: ToolHandler {
                 "previewIndex": .object([
                     "type": .string("integer"),
                     "description": .string(
-                        "0-based index of the #Preview block to switch to"),
+                        "0-based index of the #Preview block to switch to"
+                    ),
                 ]),
             ]),
             "required": .array([.string("sessionID"), .string("previewIndex")]),
@@ -73,7 +74,7 @@ enum PreviewSwitchHandler: ToolHandler {
             content: [
                 .text(
                     "Switched to preview \(newIndex) in session \(sessionID).\(traitInfo) View recompiled (@State was reset).\n\(previewList)"
-                )
+                ),
             ],
             structuredContent: structured
         )
@@ -88,7 +89,7 @@ private func previewIndexOutOfRangeError(_ newIndex: Int, count: Int) -> CallToo
     guard newIndex < 0 || newIndex >= count else { return nil }
     return CallTool.Result(
         content: [
-            .text("Preview index \(newIndex) out of range (available: 0..<\(count))")
+            .text("Preview index \(newIndex) out of range (available: 0..<\(count))"),
         ],
         isError: true
     )

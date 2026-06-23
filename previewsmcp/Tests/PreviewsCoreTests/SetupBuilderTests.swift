@@ -1,11 +1,9 @@
 import Foundation
-import Testing
-
 @testable import PreviewsCore
+import Testing
 
 @Suite("SetupBuilder")
 struct SetupBuilderTests {
-
     // MARK: - Result struct
 
     @Test("SetupBuilder.Result includes dylibPath and sdkPath fields")
@@ -30,9 +28,9 @@ struct SetupBuilderTests {
     @Test("SetupBuilder builds example setup package for macOS and produces dylib")
     func buildExampleSetupMacOS() async throws {
         let repoRoot = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()  // Tests/PreviewsCoreTests
-            .deletingLastPathComponent()  // Tests
-            .deletingLastPathComponent()  // repo root
+            .deletingLastPathComponent() // Tests/PreviewsCoreTests
+            .deletingLastPathComponent() // Tests
+            .deletingLastPathComponent() // repo root
 
         let configURL = repoRoot.appendingPathComponent("examples/.previewsmcp.json")
         guard FileManager.default.fileExists(atPath: configURL.path) else { return }
@@ -72,10 +70,10 @@ struct SetupBuilderTests {
     @Test("SetupBuilder throws packageNotFound for missing directory")
     func missingPackageThrows() async throws {
         let json = """
-            {"moduleName": "DoesNotExist", "typeName": "Setup", "packagePath": "nonexistent"}
-            """
+        {"moduleName": "DoesNotExist", "typeName": "Setup", "packagePath": "nonexistent"}
+        """
         let config = try JSONDecoder().decode(
-            ProjectConfig.SetupConfig.self, from: json.data(using: .utf8)!
+            ProjectConfig.SetupConfig.self, from: try #require(json.data(using: .utf8))
         )
 
         do {

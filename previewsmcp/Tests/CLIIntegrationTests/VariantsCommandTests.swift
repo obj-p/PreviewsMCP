@@ -3,7 +3,6 @@ import Testing
 
 @Suite("CLI variants command", .serialized)
 struct VariantsCommandTests {
-
     private static func cleanSlate() async throws {
         _ = try? await CLIRunner.run("kill-daemon", arguments: ["--timeout", "2"])
     }
@@ -32,12 +31,14 @@ struct VariantsCommandTests {
                     "--platform", "macos",
                     "--project", CLIRunner.spmExampleRoot.path,
                     "--config", configPath,
-                ])
+                ]
+            )
 
             #expect(result.exitCode == 0, "stderr: \(result.stderr)")
             #expect(
                 result.stderr.contains("Captured 2/2 variants"),
-                "Expected success summary in stderr: \(result.stderr)")
+                "Expected success summary in stderr: \(result.stderr)"
+            )
 
             let lightPath = tempDir.appendingPathComponent("light.jpg").path
             let darkPath = tempDir.appendingPathComponent("dark.jpg").path
@@ -75,7 +76,8 @@ struct VariantsCommandTests {
                     "--platform", "macos",
                     "--project", CLIRunner.spmExampleRoot.path,
                     "--config", configPath,
-                ])
+                ]
+            )
 
             #expect(result.exitCode == 0, "stderr: \(result.stderr)")
             let outPath = tempDir.appendingPathComponent("my-custom-label.jpg").path
@@ -107,7 +109,8 @@ struct VariantsCommandTests {
                     "--platform", "macos",
                     "--project", CLIRunner.spmExampleRoot.path,
                     "--config", configPath,
-                ])
+                ]
+            )
 
             #expect(result.exitCode == 0, "stderr: \(result.stderr)")
             try CLIRunner.assertValidPNG(at: tempDir.appendingPathComponent("light.png").path)
@@ -155,7 +158,8 @@ struct VariantsCommandTests {
                     "-o", tempDir.path,
                     "--platform", "macos",
                     "--config", configPath,
-                ])
+                ]
+            )
             #expect(result.exitCode == 0, "stderr: \(result.stderr)")
 
             // The session should still exist after variants finishes.
@@ -201,7 +205,8 @@ struct VariantsCommandTests {
                     "--platform", "macos",
                     "--project", CLIRunner.spmExampleRoot.path,
                     "--config", configPath,
-                ])
+                ]
+            )
 
             #expect(result.exitCode == 0, "stderr: \(result.stderr)")
             #expect(
@@ -230,7 +235,8 @@ struct VariantsCommandTests {
                 arguments: [
                     file, "--variant", "light",
                     "--format", "jpeg", "--quality", "1.0",
-                ])
+                ]
+            )
 
             #expect(result.exitCode != 0)
             #expect(
@@ -252,7 +258,8 @@ struct VariantsCommandTests {
             #expect(result.exitCode != 0, "Should fail without --variant")
             #expect(
                 result.stderr.contains("At least one --variant is required"),
-                "stderr: \(result.stderr)")
+                "stderr: \(result.stderr)"
+            )
         }
     }
 
@@ -264,15 +271,18 @@ struct VariantsCommandTests {
                 .appendingPathComponent("Sources/ToDo/ToDoView.swift").path
 
             let result = try await CLIRunner.run(
-                "variants", arguments: [file, "--variant", "neon"])
+                "variants", arguments: [file, "--variant", "neon"]
+            )
 
             #expect(result.exitCode != 0, "Should fail with invalid preset")
             #expect(
                 result.stderr.contains("Unknown variant 'neon'"),
-                "stderr should name the bad variant: \(result.stderr)")
+                "stderr should name the bad variant: \(result.stderr)"
+            )
             #expect(
                 result.stderr.contains("light"),
-                "stderr should list valid presets: \(result.stderr)")
+                "stderr should list valid presets: \(result.stderr)"
+            )
         }
     }
 
@@ -292,12 +302,14 @@ struct VariantsCommandTests {
                     file,
                     "--variant", #"{"colorScheme":"dark","label":"../escape"}"#,
                     "-o", tempDir.path,
-                ])
+                ]
+            )
 
             #expect(result.exitCode != 0, "Should fail with path-traversal label")
             #expect(
                 result.stderr.contains("Invalid variant label"),
-                "stderr should explain rejection: \(result.stderr)")
+                "stderr should explain rejection: \(result.stderr)"
+            )
         }
     }
 
@@ -313,12 +325,14 @@ struct VariantsCommandTests {
                 arguments: [
                     file,
                     "--variant", #"{"colorScheme":"dark","label":".hidden"}"#,
-                ])
+                ]
+            )
 
             #expect(result.exitCode != 0, "Should reject hidden-file label")
             #expect(
                 result.stderr.contains("cannot start with '.'"),
-                "stderr: \(result.stderr)")
+                "stderr: \(result.stderr)"
+            )
         }
     }
 
@@ -339,15 +353,18 @@ struct VariantsCommandTests {
                     "--variant", "dark",
                     "--variant", #"{"colorScheme":"light","label":"dark"}"#,
                     "-o", tempDir.path,
-                ])
+                ]
+            )
 
             #expect(result.exitCode != 0, "Should reject duplicate label")
             #expect(
                 result.stderr.contains("Duplicate variant label 'dark'"),
-                "stderr: \(result.stderr)")
+                "stderr: \(result.stderr)"
+            )
             #expect(
                 result.stderr.contains("indices 0 and 1"),
-                "stderr should name conflicting indices: \(result.stderr)")
+                "stderr should name conflicting indices: \(result.stderr)"
+            )
         }
     }
 
@@ -360,12 +377,14 @@ struct VariantsCommandTests {
 
             let result = try await CLIRunner.run(
                 "variants",
-                arguments: [file, "--variant", "{}"])
+                arguments: [file, "--variant", "{}"]
+            )
 
             #expect(result.exitCode != 0, "Should reject empty JSON variant")
             #expect(
                 result.stderr.contains("at least one trait"),
-                "stderr: \(result.stderr)")
+                "stderr: \(result.stderr)"
+            )
         }
     }
 
@@ -375,7 +394,8 @@ struct VariantsCommandTests {
             try await Self.cleanSlate()
             let result = try await CLIRunner.run(
                 "variants",
-                arguments: ["/nonexistent/file.swift", "--variant", "light"])
+                arguments: ["/nonexistent/file.swift", "--variant", "light"]
+            )
 
             #expect(result.exitCode != 0, "Should fail with nonexistent file")
             #expect(result.stderr.contains("File not found"), "stderr: \(result.stderr)")

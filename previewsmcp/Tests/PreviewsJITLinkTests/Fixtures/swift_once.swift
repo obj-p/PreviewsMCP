@@ -1,6 +1,8 @@
 let swiftOnceComputed: Int32 = {
     var sum: Int32 = 0
-    for i in 1...100 { sum &+= Int32(i) }
+    for i in 1 ... 100 {
+        sum &+= Int32(i)
+    }
     return sum
 }()
 

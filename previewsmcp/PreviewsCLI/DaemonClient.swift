@@ -24,7 +24,6 @@ import PreviewsCore
 ///
 /// All three live as extensions on this `enum DaemonClient` namespace.
 enum DaemonClient {
-
     /// Connect to the daemon, auto-starting it if necessary, and return a
     /// ready-to-use MCP client.
     ///
@@ -76,12 +75,14 @@ enum DaemonClient {
         let initResult: Initialize.Result
         do {
             (client, initResult) = try await openClient(
-                clientName: clientName, configure: configure)
+                clientName: clientName, configure: configure
+            )
         } catch {
             guard !weJustSpawned else { throw error }
             try await waitForSocket(timeout: startTimeout)
             (client, initResult) = try await openClient(
-                clientName: clientName, configure: configure)
+                clientName: clientName, configure: configure
+            )
         }
 
         if weJustSpawned {
@@ -319,26 +320,26 @@ enum DaemonClientError: Error, Equatable, CustomStringConvertible {
         switch self {
         case .startupTimedOut:
             return "daemon did not become ready on \(DaemonPaths.socket.path)"
-        case .daemonStartupFailed(let exitCode):
+        case let .daemonStartupFailed(exitCode):
             return
                 "daemon exited with status \(exitCode) during startup; "
-                + "see \(DaemonPaths.logFile.path)"
-        case .binaryNotFound(let path):
+                    + "see \(DaemonPaths.logFile.path)"
+        case let .binaryNotFound(path):
             return "previewsmcp binary not found or not executable at \(path)"
-        case .couldNotSignalDaemon(let pid, let err):
+        case let .couldNotSignalDaemon(pid, err):
             let reason = String(cString: strerror(err))
             return "could not signal daemon (pid \(pid)): \(reason)"
-        case .restartTimedOut(let pid):
+        case let .restartTimedOut(pid):
             return
                 "stale daemon (pid \(pid)) did not exit within the restart timeout; "
-                + "try `previewsmcp kill-daemon` and retry"
-        case .lockFailed(let err):
+                    + "try `previewsmcp kill-daemon` and retry"
+        case let .lockFailed(err):
             let reason = String(cString: strerror(err))
             return "could not acquire daemon restart lock: \(reason)"
-        case .versionStillMismatched(let reported):
+        case let .versionStillMismatched(reported):
             return
                 "daemon still reports version \(reported) after restart; "
-                + "check `_PREVIEWSMCP_TEST_DAEMON_VERSION` in your shell environment"
+                    + "check `_PREVIEWSMCP_TEST_DAEMON_VERSION` in your shell environment"
         }
     }
 }

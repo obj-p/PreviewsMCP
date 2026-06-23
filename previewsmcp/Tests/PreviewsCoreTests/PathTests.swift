@@ -1,11 +1,9 @@
 import Foundation
-import Testing
-
 @testable import PreviewsCore
+import Testing
 
 @Suite("Path.normalize")
 struct PathTests {
-
     @Test("expands a leading tilde to the user's home directory")
     func expandsLeadingTilde() {
         let home = NSHomeDirectory()

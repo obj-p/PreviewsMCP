@@ -9,7 +9,7 @@ enum PreviewConfigureHandler: ToolHandler {
     static let schema = Tool(
         name: ToolName.previewConfigure.rawValue,
         description:
-            "Change rendering traits (color scheme, dynamic type, locale, layout direction, legibility weight) for a running preview. Triggers recompile; @State is reset. Pass empty string to clear a trait. Note: dynamicTypeSize only has a visible effect on iOS simulator — macOS does not scale fonts in response to this modifier.",
+        "Change rendering traits (color scheme, dynamic type, locale, layout direction, legibility weight) for a running preview. Triggers recompile; @State is reset. Pass empty string to clear a trait. Note: dynamicTypeSize only has a visible effect on iOS simulator — macOS does not scale fonts in response to this modifier.",
         inputSchema: .object([
             "type": .string("object"),
             "properties": .object([
@@ -27,15 +27,15 @@ enum PreviewConfigureHandler: ToolHandler {
                 ),
                 "locale": traitProperty(
                     description:
-                        "BCP 47 locale identifier (e.g., 'en', 'ar', 'ja-JP'). Pass empty string to clear."
+                    "BCP 47 locale identifier (e.g., 'en', 'ar', 'ja-JP'). Pass empty string to clear."
                 ),
                 "layoutDirection": traitProperty(
                     description:
-                        "Layout direction: 'leftToRight' or 'rightToLeft'. Pass empty string to clear."
+                    "Layout direction: 'leftToRight' or 'rightToLeft'. Pass empty string to clear."
                 ),
                 "legibilityWeight": traitProperty(
                     description:
-                        "Legibility weight: 'regular' or 'bold'. Pass empty string to clear."
+                    "Legibility weight: 'regular' or 'bold'. Pass empty string to clear."
                 ),
             ]),
             "required": .array([.string("sessionID")]),
@@ -56,7 +56,7 @@ enum PreviewConfigureHandler: ToolHandler {
         if let validationError { return validationError }
 
         // "No-op" = no fields were set AND no fields were requested to be cleared.
-        if traits.isEmpty && clearedFields.isEmpty {
+        if traits.isEmpty, clearedFields.isEmpty {
             return CallTool.Result(content: [.text("No configuration changes specified.")])
         }
 
@@ -72,7 +72,7 @@ enum PreviewConfigureHandler: ToolHandler {
         return CallTool.Result(content: [
             .text(
                 "Configured session \(sessionID): \(traitsSummary(activeTraits)). View recompiled (@State was reset)."
-            )
+            ),
         ])
     }
 }

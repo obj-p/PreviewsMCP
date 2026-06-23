@@ -26,7 +26,7 @@ enum ProcessStartup {
     static let time = Date()
 }
 
-public struct PreviewsMCPApp {
+public enum PreviewsMCPApp {
     @MainActor
     public static func main() {
         // Touch ProcessStartup.time at the earliest possible point so its
@@ -75,7 +75,7 @@ public struct PreviewsMCPApp {
                         PreviewsMCPCommand.exit(withError: error)
                     }
                 }
-                dispatchMain()  // never returns; Task exits the process
+                dispatchMain() // never returns; Task exits the process
             }
 
             do {
@@ -119,21 +119,21 @@ struct PreviewsMCPCommand: ParsableCommand {
         commandName: "previewsmcp",
         abstract: "Render, snapshot, and interact with SwiftUI previews outside of Xcode",
         discussion: """
-            Works in two modes:
+        Works in two modes:
 
-              • CLI — run, snapshot, or enumerate #Preview blocks directly from
-                your shell (run / snapshot / variants / list).
-              • MCP server — `previewsmcp serve` exposes the same capabilities as
-                tools over stdio for Claude Code, Cursor, or any other
-                MCP-compatible agent.
+          • CLI — run, snapshot, or enumerate #Preview blocks directly from
+            your shell (run / snapshot / variants / list).
+          • MCP server — `previewsmcp serve` exposes the same capabilities as
+            tools over stdio for Claude Code, Cursor, or any other
+            MCP-compatible agent.
 
-            Supports both #Preview macros and legacy PreviewProvider. Renders on
-            macOS via NSHostingView or on a booted iOS simulator, with trait
-            overrides, hot reload, accessibility-tree inspection, and touch
-            injection.
+        Supports both #Preview macros and legacy PreviewProvider. Renders on
+        macOS via NSHostingView or on a booted iOS simulator, with trait
+        overrides, hot reload, accessibility-tree inspection, and touch
+        injection.
 
-            Run `previewsmcp help <subcommand>` for full options on each command.
-            """,
+        Run `previewsmcp help <subcommand>` for full options on each command.
+        """,
         version: version,
         subcommands: [
             RunCommand.self, ListCommand.self, SnapshotCommand.self, VariantsCommand.self,

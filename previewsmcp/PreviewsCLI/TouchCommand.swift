@@ -16,17 +16,17 @@ struct TouchCommand: AsyncParsableCommand {
         commandName: "touch",
         abstract: "Inject a tap or swipe into an iOS simulator preview",
         discussion: """
-            Sends a synthetic touch event to a running iOS session.
-            Coordinates are in device points; pair with `previewsmcp
-            elements` to resolve labels to frames.
+        Sends a synthetic touch event to a running iOS session.
+        Coordinates are in device points; pair with `previewsmcp
+        elements` to resolve labels to frames.
 
-                previewsmcp touch 120 200
-                previewsmcp touch 40 300 --to-x 300 --to-y 300
-                previewsmcp touch 40 300 --to-x 300 --to-y 300 --duration 0.5
+            previewsmcp touch 120 200
+            previewsmcp touch 40 300 --to-x 300 --to-y 300
+            previewsmcp touch 40 300 --to-x 300 --to-y 300 --duration 0.5
 
-            Only available for iOS simulator sessions — this command
-            errors against a macOS session.
-            """
+        Only available for iOS simulator sessions — this command
+        errors against a macOS session.
+        """
     )
 
     @Argument(help: "X coordinate in points (start point for swipe)")
@@ -71,7 +71,7 @@ struct TouchCommand: AsyncParsableCommand {
                 client: client
             )
 
-            guard case .found(let sessionID) = resolution else {
+            guard case let .found(sessionID) = resolution else {
                 throw ValidationError(
                     "No session found. Start an iOS session with "
                         + "`previewsmcp run <file> --platform ios --detach` or "

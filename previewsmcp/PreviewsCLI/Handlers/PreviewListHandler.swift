@@ -14,7 +14,7 @@ enum PreviewListHandler: ToolHandler {
                 "filePath": .object([
                     "type": .string("string"),
                     "description": .string("Absolute path to a Swift source file"),
-                ])
+                ]),
             ]),
             "required": .array([.string("filePath")]),
         ])
@@ -22,7 +22,7 @@ enum PreviewListHandler: ToolHandler {
 
     static func handle(
         _ params: CallTool.Parameters,
-        ctx: HandlerContext
+        ctx _: HandlerContext
     ) async throws -> CallTool.Result {
         let rawFilePath: String
         do { rawFilePath = try extractString("filePath", from: params) } catch {

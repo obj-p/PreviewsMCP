@@ -14,7 +14,9 @@ public struct CompilationError: Error, LocalizedError, CustomStringConvertible {
         """
     }
 
-    public var errorDescription: String? { description }
+    public var errorDescription: String? {
+        description
+    }
 }
 
 /// Compiles Swift source code into object files for the JIT render path.
@@ -33,23 +35,23 @@ public actor Compiler {
 
         let dir =
             workDir
-            ?? FileManager.default.temporaryDirectory
-            .appendingPathComponent("previewsmcp", isDirectory: true)
-            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+                ?? FileManager.default.temporaryDirectory
+                .appendingPathComponent("previewsmcp", isDirectory: true)
+                .appendingPathComponent(UUID().uuidString, isDirectory: true)
 
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         self.workDir = dir
 
-        self.sdkPath = try await Toolchain.sdkPath(for: platform)
-        self.targetTriple = platform.targetTriple
-        self.swiftcPath = try await Toolchain.swiftcPath()
+        sdkPath = try await Toolchain.sdkPath(for: platform)
+        targetTriple = platform.targetTriple
+        swiftcPath = try await Toolchain.swiftcPath()
 
         // Shared module cache at parent of workDir, keyed by platform to avoid SDK conflicts.
         let cacheDir =
             dir.deletingLastPathComponent()
-            .appendingPathComponent("ModuleCache-\(platform)", isDirectory: true)
+                .appendingPathComponent("ModuleCache-\(platform)", isDirectory: true)
         try FileManager.default.createDirectory(at: cacheDir, withIntermediateDirectories: true)
-        self.moduleCachePath = cacheDir
+        moduleCachePath = cacheDir
     }
 
     private var compilationCounter = 0
@@ -105,7 +107,8 @@ public actor Compiler {
     ) async throws -> StableModule {
         compilationCounter += 1
         let moduleDir = workDir.appendingPathComponent(
-            "stable-\(moduleName)-\(compilationCounter)", isDirectory: true)
+            "stable-\(moduleName)-\(compilationCounter)", isDirectory: true
+        )
         try FileManager.default.createDirectory(at: moduleDir, withIntermediateDirectories: true)
 
         var sourceFiles: [URL] = []
@@ -117,7 +120,8 @@ public actor Compiler {
 
         return try await emitStableModule(
             sourceFiles: sourceFiles, moduleName: moduleName, moduleDir: moduleDir,
-            extraFlags: extraFlags, overrideSDK: overrideSDK)
+            extraFlags: extraFlags, overrideSDK: overrideSDK
+        )
     }
 
     /// File-based variant: compile existing project sources in place (their real paths) into
@@ -130,11 +134,13 @@ public actor Compiler {
     ) async throws -> StableModule {
         compilationCounter += 1
         let moduleDir = workDir.appendingPathComponent(
-            "stable-\(moduleName)-\(compilationCounter)", isDirectory: true)
+            "stable-\(moduleName)-\(compilationCounter)", isDirectory: true
+        )
         try FileManager.default.createDirectory(at: moduleDir, withIntermediateDirectories: true)
         return try await emitStableModule(
             sourceFiles: sourceFiles, moduleName: moduleName, moduleDir: moduleDir,
-            extraFlags: extraFlags, overrideSDK: overrideSDK)
+            extraFlags: extraFlags, overrideSDK: overrideSDK
+        )
     }
 
     private func emitStableModule(
@@ -199,7 +205,8 @@ public actor Compiler {
     ) async throws -> (overlayObject: URL, bulkObjects: [URL]) {
         try await compileModuleIncremental(
             overlaySource: overlaySource, bulkFiles: bulkFiles, moduleName: moduleName,
-            extraFlags: extraFlags, overrideSDK: overrideSDK, bypassDriver: true)
+            extraFlags: extraFlags, overrideSDK: overrideSDK, bypassDriver: true
+        )
     }
 
     /// `bypassDriver` is an internal seam: production always bypasses; tests pass `false` to
@@ -287,8 +294,8 @@ public actor Compiler {
         if bypassDriver {
             if let argv = try? await captureOverlayFrontendJob(
                 moduleName: moduleName, overlayFile: overlayFile, overlayObject: overlayObject,
-                bulkFiles: bulkFiles, extraFlags: extraFlags, overrideSDK: overrideSDK)
-            {
+                bulkFiles: bulkFiles, extraFlags: extraFlags, overrideSDK: overrideSDK
+            ) {
                 frontendTemplates[moduleName] = (fingerprint, argv)
             }
         }
@@ -330,8 +337,8 @@ public actor Compiler {
         for line in plan.split(whereSeparator: \.isNewline) {
             let toks = Self.shellSplit(String(line))
             guard let pf = toks.firstIndex(of: "-primary-file"), pf + 1 < toks.count,
-                toks[pf + 1] == overlayFile.path,
-                let o = toks.firstIndex(of: "-o"), o + 1 < toks.count
+                  toks[pf + 1] == overlayFile.path,
+                  let o = toks.firstIndex(of: "-o"), o + 1 < toks.count
             else { continue }
             var argv = toks
             argv[o + 1] = overlayObject.path
@@ -401,7 +408,7 @@ public actor Compiler {
         guard FileManager.default.fileExists(atPath: overrideSDK) else {
             throw CompilationError(
                 message:
-                    "Setup module was built against SDK at \(overrideSDK), which "
+                "Setup module was built against SDK at \(overrideSDK), which "
                     + "no longer exists on disk. The active toolchain resolves to "
                     + "\(sdkPath). Delete the setup cache (.build/previewsmcp-setup-cache) "
                     + "or rebuild the setup package to capture the current SDK.",
@@ -413,7 +420,8 @@ public actor Compiler {
             Log.warn(
                 "compile: setup SDK differs from active toolchain SDK "
                     + "(setup=\(overrideSDK), default=\(sdkPath)). Inheriting setup "
-                    + "SDK to keep swiftmodule load consistent.")
+                    + "SDK to keep swiftmodule load consistent."
+            )
         }
         return overrideSDK
     }
@@ -430,5 +438,4 @@ public actor Compiler {
         }
         return output.stdout
     }
-
 }

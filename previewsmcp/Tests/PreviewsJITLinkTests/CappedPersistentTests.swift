@@ -93,7 +93,7 @@ struct CappedPersistentTests {
         let session = PreviewSession(sourceFile: sourceFile, compiler: compiler)
         let reloader = JITStructuralReloader(generationCap: 2)
 
-        for _ in 0..<5 {
+        for _ in 0 ..< 5 {
             let build = try await session.compileObjectForJIT()
             try await reloader.render(build)
             let data = try Data(contentsOf: build.imagePath)
@@ -125,18 +125,18 @@ struct CappedPersistentTests {
 
         let probe = try await compiler.compileObject(
             source: """
-                import AppKit
+            import AppKit
 
-                @_cdecl("preview_window_probe")
-                public func preview_window_probe() -> Int32 {
-                    MainActor.assumeIsolated {
-                        Int32(
-                            NSApplication.shared.windows.filter {
-                                $0.identifier?.rawValue == "previewsmcp-preview"
-                            }.count)
-                    }
+            @_cdecl("preview_window_probe")
+            public func preview_window_probe() -> Int32 {
+                MainActor.assumeIsolated {
+                    Int32(
+                        NSApplication.shared.windows.filter {
+                            $0.identifier?.rawValue == "previewsmcp-preview"
+                        }.count)
                 }
-                """,
+            }
+            """,
             moduleName: "WindowProbeFixture"
         )
 
@@ -146,10 +146,12 @@ struct CappedPersistentTests {
             try agent.addObject(path: build.objectPath.path)
             #expect(try agent.runOnMain(symbol: build.entrySymbol) == 0)
             let rep = try #require(
-                NSBitmapImageRep(data: Data(contentsOf: build.imagePath)))
+                NSBitmapImageRep(data: Data(contentsOf: build.imagePath))
+            )
             let color = try #require(
                 rep.colorAt(x: rep.pixelsWide / 2, y: rep.pixelsHigh / 2)?
-                    .usingColorSpace(.deviceRGB))
+                    .usingColorSpace(.deviceRGB)
+            )
             #expect((index == 0) == (color.redComponent > 0.5))
             #expect((index == 1) == (color.blueComponent > 0.5))
         }
@@ -178,33 +180,35 @@ struct CappedPersistentTests {
         let build = try await session.compileObjectForJIT(
             window: JITRenderWindow(
                 x: -9000, y: -9000, width: 320, height: 240,
-                title: "Preview: ColorView.swift"))
+                title: "Preview: ColorView.swift"
+            )
+        )
 
         let probe = try await compiler.compileObject(
             source: """
-                import AppKit
+            import AppKit
 
-                @_cdecl("preview_window_spec_probe")
-                public func preview_window_spec_probe() -> Int32 {
-                    MainActor.assumeIsolated {
-                        guard
-                            let window = NSApplication.shared.windows.first(where: {
-                                $0.identifier?.rawValue == "previewsmcp-preview"
-                            })
-                        else { return -1 }
-                        var bits: Int32 = 0
-                        if window.title == "Preview: ColorView.swift" { bits |= 1 }
-                        if abs(window.frame.width - 320) < 1 { bits |= 2 }
-                        if let content = window.contentView,
-                            abs(content.bounds.height - 240) < 1
-                        {
-                            bits |= 4
-                        }
-                        if window.styleMask.contains(.titled) { bits |= 8 }
-                        return bits
+            @_cdecl("preview_window_spec_probe")
+            public func preview_window_spec_probe() -> Int32 {
+                MainActor.assumeIsolated {
+                    guard
+                        let window = NSApplication.shared.windows.first(where: {
+                            $0.identifier?.rawValue == "previewsmcp-preview"
+                        })
+                    else { return -1 }
+                    var bits: Int32 = 0
+                    if window.title == "Preview: ColorView.swift" { bits |= 1 }
+                    if abs(window.frame.width - 320) < 1 { bits |= 2 }
+                    if let content = window.contentView,
+                        abs(content.bounds.height - 240) < 1
+                    {
+                        bits |= 4
                     }
+                    if window.styleMask.contains(.titled) { bits |= 8 }
+                    return bits
                 }
-                """,
+            }
+            """,
             moduleName: "WindowSpecProbeFixture"
         )
 
@@ -237,7 +241,9 @@ struct CappedPersistentTests {
         let build = try await session.compileObjectForJIT(
             window: JITRenderWindow(
                 x: -9000, y: -9000, width: 320, height: 240,
-                title: "Preview: ColorView.swift"))
+                title: "Preview: ColorView.swift"
+            )
+        )
 
         let sidecar = PreviewSession.frameSidecarPath(for: session.id)
         try? FileManager.default.removeItem(at: sidecar)
@@ -245,22 +251,22 @@ struct CappedPersistentTests {
 
         let probe = try await compiler.compileObject(
             source: """
-                import AppKit
+            import AppKit
 
-                @_cdecl("preview_move_probe")
-                public func preview_move_probe() -> Int32 {
-                    MainActor.assumeIsolated {
-                        guard
-                            let window = NSApplication.shared.windows.first(where: {
-                                $0.identifier?.rawValue == "previewsmcp-preview"
-                            })
-                        else { return -1 }
-                        window.setFrame(
-                            NSRect(x: -8000, y: -7000, width: 321, height: 654), display: false)
-                        return 0
-                    }
+            @_cdecl("preview_move_probe")
+            public func preview_move_probe() -> Int32 {
+                MainActor.assumeIsolated {
+                    guard
+                        let window = NSApplication.shared.windows.first(where: {
+                            $0.identifier?.rawValue == "previewsmcp-preview"
+                        })
+                    else { return -1 }
+                    window.setFrame(
+                        NSRect(x: -8000, y: -7000, width: 321, height: 654), display: false)
+                    return 0
                 }
-                """,
+            }
+            """,
             moduleName: "FrameMoveProbeFixture"
         )
 

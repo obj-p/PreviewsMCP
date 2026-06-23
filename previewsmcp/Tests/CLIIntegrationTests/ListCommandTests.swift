@@ -3,7 +3,6 @@ import Testing
 
 @Suite("CLI list command")
 struct ListCommandTests {
-
     @Test("Lists #Preview blocks in SPM example ToDoView.swift")
     func listToDoViewPreviews() async throws {
         let file = CLIRunner.spmExampleRoot

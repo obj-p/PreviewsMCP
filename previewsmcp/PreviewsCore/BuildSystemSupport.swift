@@ -62,8 +62,8 @@ enum BuildSystemSupport {
         }
         return
             entries
-            .filter { $0.pathExtension == "swift" }
-            .map { $0.standardizedFileURL }
+                .filter { $0.pathExtension == "swift" }
+                .map { $0.standardizedFileURL }
     }
 
     /// Verify that `<modulesDir>/<moduleName>.swiftmodule` exists; if

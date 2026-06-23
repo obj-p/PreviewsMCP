@@ -16,15 +16,15 @@ struct ElementsCommand: AsyncParsableCommand {
         commandName: "elements",
         abstract: "Dump the accessibility tree of an iOS simulator preview as JSON",
         discussion: """
-            Writes a JSON document to stdout describing the current
-            accessibility tree of a running iOS preview. Each element has
-            its label, frame, and traits, so you can target taps or swipes
-            by matching against the structure.
+        Writes a JSON document to stdout describing the current
+        accessibility tree of a running iOS preview. Each element has
+        its label, frame, and traits, so you can target taps or swipes
+        by matching against the structure.
 
-            Only available for iOS simulator sessions — this command
-            errors against a macOS session. Use `--filter interactable`
-            or `--filter labeled` to narrow the tree.
-            """
+        Only available for iOS simulator sessions — this command
+        errors against a macOS session. Use `--filter interactable`
+        or `--filter labeled` to narrow the tree.
+        """
     )
 
     @OptionGroup var target: SessionTargetingOptions
@@ -55,7 +55,7 @@ struct ElementsCommand: AsyncParsableCommand {
                 client: client
             )
 
-            guard case .found(let sessionID) = resolution else {
+            guard case let .found(sessionID) = resolution else {
                 throw ValidationError(
                     "No session found. Start an iOS session with "
                         + "`previewsmcp run <file> --platform ios --detach` or "

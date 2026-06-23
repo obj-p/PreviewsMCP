@@ -14,7 +14,7 @@ enum PreviewStopHandler: ToolHandler {
                 "sessionID": .object([
                     "type": .string("string"),
                     "description": .string("Session ID from preview_start"),
-                ])
+                ]),
             ]),
             "required": .array([.string("sessionID")]),
         ])

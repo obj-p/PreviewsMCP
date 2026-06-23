@@ -1,6 +1,5 @@
-import Testing
-
 @testable import PreviewsCLI
+import Testing
 
 /// Unit tests for `StallTimer`. Wall-clock timing is used deliberately —
 /// the timer's contract is "N seconds without a bump declares stall,"
@@ -9,7 +8,6 @@ import Testing
 /// Thresholds are kept small (≤2s) to keep the suite fast.
 @Suite("StallTimer")
 struct StallTimerTests {
-
     @Test("waitForStall returns true when no bumps arrive within threshold")
     func stallsWithNoBumps() async {
         let timer = StallTimer()
@@ -20,10 +18,12 @@ struct StallTimerTests {
         #expect(stalled, "expected stall after 200ms of inactivity")
         #expect(
             elapsed >= .milliseconds(200),
-            "waitForStall returned before threshold elapsed (got \(elapsed))")
+            "waitForStall returned before threshold elapsed (got \(elapsed))"
+        )
         #expect(
             elapsed < .milliseconds(500),
-            "waitForStall took much longer than threshold (got \(elapsed))")
+            "waitForStall took much longer than threshold (got \(elapsed))"
+        )
     }
 
     @Test("bump() defers stall")
@@ -46,10 +46,12 @@ struct StallTimerTests {
         #expect(stalled)
         #expect(
             elapsed >= .milliseconds(300),
-            "bump at +100ms should push stall to >=300ms (got \(elapsed))")
+            "bump at +100ms should push stall to >=300ms (got \(elapsed))"
+        )
         #expect(
             elapsed < .milliseconds(600),
-            "waitForStall overshot by too much (got \(elapsed))")
+            "waitForStall overshot by too much (got \(elapsed))"
+        )
     }
 
     @Test("waitForStall returns false when containing Task is cancelled")

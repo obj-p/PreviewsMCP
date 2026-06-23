@@ -12,7 +12,6 @@ import Testing
 /// only one daemon-owning test runs at a time.
 @Suite(.serialized)
 struct RunCommandTests {
-
     static var daemonDir: URL {
         if let dir = ProcessInfo.processInfo.environment["PREVIEWSMCP_SOCKET_DIR"] {
             return URL(fileURLWithPath: dir, isDirectory: true)
@@ -21,7 +20,9 @@ struct RunCommandTests {
             .appendingPathComponent(".previewsmcp")
     }
 
-    static var socketPath: String { daemonDir.appendingPathComponent("serve.sock").path }
+    static var socketPath: String {
+        daemonDir.appendingPathComponent("serve.sock").path
+    }
 
     /// Kill any running daemon between tests so we start from a known state.
     private static func cleanSlate() async throws {
@@ -107,7 +108,7 @@ struct RunCommandTests {
 
             kill(proc.processIdentifier, SIGINT)
             let exitDeadline = Date().addingTimeInterval(10)
-            while proc.isRunning && Date() < exitDeadline {
+            while proc.isRunning, Date() < exitDeadline {
                 try await Task.sleep(nanoseconds: 50_000_000)
             }
             if proc.isRunning { proc.terminate() }
@@ -158,7 +159,7 @@ struct RunCommandTests {
 
             kill(proc.processIdentifier, SIGHUP)
             let exitDeadline = Date().addingTimeInterval(10)
-            while proc.isRunning && Date() < exitDeadline {
+            while proc.isRunning, Date() < exitDeadline {
                 try await Task.sleep(nanoseconds: 50_000_000)
             }
             if proc.isRunning { proc.terminate() }
@@ -190,7 +191,7 @@ struct RunCommandTests {
 
             let readyDeadline = Date().addingTimeInterval(5)
             while Date() < readyDeadline,
-                !FileManager.default.fileExists(atPath: Self.socketPath)
+                  !FileManager.default.fileExists(atPath: Self.socketPath)
             {
                 try await Task.sleep(nanoseconds: 50_000_000)
             }
@@ -230,9 +231,9 @@ struct RunCommandTests {
 
     // MARK: - Helpers
 
-    private static func waitForStderrMatch<Output>(
+    private static func waitForStderrMatch(
         pipe: Pipe,
-        pattern: Regex<Output>,
+        pattern: Regex<some Any>,
         timeout: TimeInterval
     ) async throws -> Bool {
         let buffer = PipeBuffer()

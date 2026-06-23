@@ -7,24 +7,27 @@ enum PreviewTouchHandler: ToolHandler {
     static let schema = Tool(
         name: ToolName.previewTouch.rawValue,
         description:
-            "Send a touch event to an iOS simulator preview. Coordinates are in device points. For swipe, x/y is the start point.",
+        "Send a touch event to an iOS simulator preview. Coordinates are in device points. For swipe, x/y is the start point.",
         inputSchema: .object([
             "type": .string("object"),
             "properties": .object([
                 "sessionID": .object([
                     "type": .string("string"),
                     "description": .string(
-                        "Session ID from preview_start (iOS simulator only)"),
+                        "Session ID from preview_start (iOS simulator only)"
+                    ),
                 ]),
                 "x": .object([
                     "type": .string("number"),
                     "description": .string(
-                        "X coordinate in points (start point for swipe)"),
+                        "X coordinate in points (start point for swipe)"
+                    ),
                 ]),
                 "y": .object([
                     "type": .string("number"),
                     "description": .string(
-                        "Y coordinate in points (start point for swipe)"),
+                        "Y coordinate in points (start point for swipe)"
+                    ),
                 ]),
                 "action": .object([
                     "type": .string("string"),
@@ -65,8 +68,9 @@ enum PreviewTouchHandler: ToolHandler {
         guard let iosSession = await ctx.iosState.getSession(sessionID) else {
             return CallTool.Result(
                 content: [
-                    .text("No iOS session found for \(sessionID). Touch is only supported for iOS simulator previews.")
-                ], isError: true)
+                    .text("No iOS session found for \(sessionID). Touch is only supported for iOS simulator previews."),
+                ], isError: true
+            )
         }
 
         let action = extractOptionalString("action", from: params) ?? "tap"

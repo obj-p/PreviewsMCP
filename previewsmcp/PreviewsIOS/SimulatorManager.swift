@@ -1,11 +1,10 @@
 import Foundation
+import os
 import PreviewsCore
 @preconcurrency import SimulatorBridge
-import os
 
 /// Manages iOS simulator devices via CoreSimulator.framework (loaded at runtime).
 public actor SimulatorManager {
-
     /// Sendable snapshot of a simulator device.
     public struct Device: Sendable, CustomStringConvertible {
         public let name: String
@@ -242,15 +241,17 @@ public actor SimulatorManager {
         }
         guard output.exitCode == 0 else {
             throw SimulatorError.launchFailed(
-                "simctl launch failed (exit \(output.exitCode)): \(output.stderr)")
+                "simctl launch failed (exit \(output.exitCode)): \(output.stderr)"
+            )
         }
         // Output format: `<bundleID>: <pid>\n`
         let trimmed = output.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let pidPart = trimmed.split(separator: ":").last,
-            let pid = Int(pidPart.trimmingCharacters(in: .whitespaces))
+              let pid = Int(pidPart.trimmingCharacters(in: .whitespaces))
         else {
             throw SimulatorError.launchFailed(
-                "simctl launch returned unexpected stdout: \(trimmed.debugDescription)")
+                "simctl launch returned unexpected stdout: \(trimmed.debugDescription)"
+            )
         }
         return pid
     }
@@ -277,10 +278,12 @@ public actor SimulatorManager {
             arguments: arguments,
             environment: environment,
             terminationHandler: onExit.map { cb in { status in cb(status) } },
-            error: &error)
+            error: &error
+        )
         guard pid >= 0 else {
             throw SimulatorError.launchFailed(
-                error?.localizedDescription ?? "spawnInSession failed for \(program)")
+                error?.localizedDescription ?? "spawnInSession failed for \(program)"
+            )
         }
         return pid
     }
@@ -320,20 +323,21 @@ public actor SimulatorManager {
         let iosurfaceBackoff = Duration.seconds(2)
         let iosurfacePerAttemptTimeout: TimeInterval = 5
         var lastFBError: NSError?
-        for attempt in 1...iosurfaceRetryCount {
+        for attempt in 1 ... iosurfaceRetryCount {
             let result = await captureFramebufferWithTimeout(
                 sbDevice: sbDevice,
                 jpegQuality: jpegQuality,
-                timeout: iosurfacePerAttemptTimeout)
+                timeout: iosurfacePerAttemptTimeout
+            )
             switch result {
-            case .success(let data):
+            case let .success(data):
                 if attempt > 1 {
                     Log.info(
                         "SimulatorBridge: IOSurface capture succeeded on attempt \(attempt)/\(iosurfaceRetryCount)"
                     )
                 }
                 return data
-            case .failure(let err):
+            case let .failure(err):
                 lastFBError = err
             case .timedOut:
                 Log.warn(
@@ -502,16 +506,18 @@ public enum SimulatorError: Error, LocalizedError, CustomStringConvertible {
 
     public var description: String {
         switch self {
-        case .frameworkLoadFailed(let msg): return "Failed to load CoreSimulator: \(msg)"
-        case .listFailed(let msg): return "Failed to list devices: \(msg)"
-        case .deviceNotFound(let msg): return "Device not found: \(msg)"
-        case .bootFailed(let msg): return "Boot failed: \(msg)"
-        case .shutdownFailed(let msg): return "Shutdown failed: \(msg)"
-        case .installFailed(let msg): return "Install failed: \(msg)"
-        case .launchFailed(let msg): return "Launch failed: \(msg)"
-        case .screenshotFailed(let msg): return "Screenshot failed: \(msg)"
+        case let .frameworkLoadFailed(msg): "Failed to load CoreSimulator: \(msg)"
+        case let .listFailed(msg): "Failed to list devices: \(msg)"
+        case let .deviceNotFound(msg): "Device not found: \(msg)"
+        case let .bootFailed(msg): "Boot failed: \(msg)"
+        case let .shutdownFailed(msg): "Shutdown failed: \(msg)"
+        case let .installFailed(msg): "Install failed: \(msg)"
+        case let .launchFailed(msg): "Launch failed: \(msg)"
+        case let .screenshotFailed(msg): "Screenshot failed: \(msg)"
         }
     }
 
-    public var errorDescription: String? { description }
+    public var errorDescription: String? {
+        description
+    }
 }

@@ -13,7 +13,7 @@ struct PreviewsJITLinkTests {
 
     @Test(.timeLimit(.minutes(5))) func survivesRepeatedRemoteSessionBootstrap() throws {
         let agentPath = try JITSession.bundledAgentPath()
-        for _ in 0..<40 {
+        for _ in 0 ..< 40 {
             _ = try JITSession(remoteAgentPath: agentPath)
         }
     }
@@ -129,7 +129,7 @@ struct PreviewsJITLinkTests {
         try session.addObject(path: object.path)
         #expect(try session.runOnMain(symbol: "event_pump_install") == 1)
         var observed: Int32 = 0
-        for _ in 0..<20 where observed != 1 {
+        for _ in 0 ..< 20 where observed != 1 {
             Thread.sleep(forTimeInterval: 0.1)
             observed = try session.runOnMain(symbol: "event_pump_check")
         }

@@ -1,11 +1,9 @@
 import Foundation
-import Testing
-
 @testable import PreviewsCore
+import Testing
 
 @Suite("SetupCache")
 struct SetupCacheTests {
-
     // MARK: - Helpers
 
     /// Create a minimal SPM package directory with Package.swift and one source file.
@@ -20,7 +18,8 @@ struct SetupCacheTests {
         try FileManager.default.createDirectory(at: sourcesDir, withIntermediateDirectories: true)
         try Data(packageSwift.utf8).write(to: dir.appendingPathComponent("Package.swift"))
         try Data(sourceContent.utf8).write(
-            to: sourcesDir.appendingPathComponent("TestSetup.swift"))
+            to: sourcesDir.appendingPathComponent("TestSetup.swift")
+        )
         return dir
     }
 
@@ -67,7 +66,8 @@ struct SetupCacheTests {
 
         let hash1 = try SetupCache.hashSources(packageDir: dir)
         try Data("{\"version\": 1}\n".utf8).write(
-            to: dir.appendingPathComponent("Package.resolved"))
+            to: dir.appendingPathComponent("Package.resolved")
+        )
         let hash2 = try SetupCache.hashSources(packageDir: dir)
         #expect(hash1 != hash2)
     }
@@ -99,9 +99,11 @@ struct SetupCacheTests {
 
         let hashNoSDK = try SetupCache.hashSources(packageDir: dir)
         let hashSDK1 = try SetupCache.hashSources(
-            packageDir: dir, sdkPath: "/Xcode_16.0/iPhoneSimulator.sdk")
+            packageDir: dir, sdkPath: "/Xcode_16.0/iPhoneSimulator.sdk"
+        )
         let hashSDK2 = try SetupCache.hashSources(
-            packageDir: dir, sdkPath: "/Xcode_16.1/iPhoneSimulator.sdk")
+            packageDir: dir, sdkPath: "/Xcode_16.1/iPhoneSimulator.sdk"
+        )
 
         #expect(hashNoSDK != hashSDK1)
         #expect(hashSDK1 != hashSDK2)
@@ -113,9 +115,11 @@ struct SetupCacheTests {
         defer { try? FileManager.default.removeItem(at: dir) }
 
         let hash1 = try SetupCache.hashSources(
-            packageDir: dir, swiftVersion: "Swift 6.0")
+            packageDir: dir, swiftVersion: "Swift 6.0"
+        )
         let hash2 = try SetupCache.hashSources(
-            packageDir: dir, swiftVersion: "Swift 6.1")
+            packageDir: dir, swiftVersion: "Swift 6.1"
+        )
         let hashNil = try SetupCache.hashSources(packageDir: dir)
 
         #expect(hash1 != hash2)
@@ -140,14 +144,17 @@ struct SetupCacheTests {
         let buildDir = packageDir.appendingPathComponent(".build/debug")
         let modulesDir = buildDir.appendingPathComponent("Modules")
         try FileManager.default.createDirectory(
-            at: modulesDir, withIntermediateDirectories: true)
+            at: modulesDir, withIntermediateDirectories: true
+        )
 
         // Create .swiftmodule with content (validation checks non-empty)
         let swiftmoduleDir = modulesDir.appendingPathComponent("\(moduleName).swiftmodule")
         try FileManager.default.createDirectory(
-            at: swiftmoduleDir, withIntermediateDirectories: true)
+            at: swiftmoduleDir, withIntermediateDirectories: true
+        )
         try Data("fake".utf8).write(
-            to: swiftmoduleDir.appendingPathComponent("arm64-apple-macos.swiftmodule"))
+            to: swiftmoduleDir.appendingPathComponent("arm64-apple-macos.swiftmodule")
+        )
 
         // Create setup dylib
         let dylibPath = buildDir.appendingPathComponent("libPreviewSetup.dylib")
@@ -166,7 +173,8 @@ struct SetupCacheTests {
 
         let result = SetupCache.load(
             packageDir: dir, platform: .macOS, sourceHash: "abc123",
-            swiftVersion: "Swift 6.0")
+            swiftVersion: "Swift 6.0"
+        )
         #expect(result == nil)
     }
 
@@ -183,7 +191,8 @@ struct SetupCacheTests {
 
         let result = SetupCache.load(
             packageDir: dir, platform: .macOS, sourceHash: "abc123",
-            swiftVersion: "Swift 6.0")
+            swiftVersion: "Swift 6.0"
+        )
         #expect(result == nil)
         #expect(!FileManager.default.fileExists(atPath: cacheFile.path))
     }
@@ -198,14 +207,17 @@ struct SetupCacheTests {
             moduleName: "TestSetup", typeName: "Setup",
             compilerFlags: ["-I", "/nonexistent/Modules", "-L", "/nonexistent"],
             dylibPath: URL(fileURLWithPath: "/nonexistent/libPreviewSetup.dylib"),
-            sdkPath: "/test-sdk")
+            sdkPath: "/test-sdk"
+        )
         SetupCache.store(
             fakeResult, packageDir: dir, platform: .macOS,
-            sourceHash: "abc123", swiftVersion: "Swift 6.0")
+            sourceHash: "abc123", swiftVersion: "Swift 6.0"
+        )
 
         let loaded = SetupCache.load(
             packageDir: dir, platform: .macOS, sourceHash: "abc123",
-            swiftVersion: "Swift 6.0")
+            swiftVersion: "Swift 6.0"
+        )
         #expect(loaded == nil)
     }
 
@@ -219,9 +231,11 @@ struct SetupCacheTests {
         let modulesDir = buildDir.appendingPathComponent("Modules")
         let swiftmoduleDir = modulesDir.appendingPathComponent("TestSetup.swiftmodule")
         try FileManager.default.createDirectory(
-            at: swiftmoduleDir, withIntermediateDirectories: true)
+            at: swiftmoduleDir, withIntermediateDirectories: true
+        )
         try Data("fake".utf8).write(
-            to: swiftmoduleDir.appendingPathComponent("arm64.swiftmodule"))
+            to: swiftmoduleDir.appendingPathComponent("arm64.swiftmodule")
+        )
 
         let dylibPath = buildDir.appendingPathComponent("libPreviewSetup.dylib")
         try Data("fake".utf8).write(to: dylibPath)
@@ -230,17 +244,20 @@ struct SetupCacheTests {
             moduleName: "TestSetup", typeName: "Setup",
             compilerFlags: ["-I", modulesDir.path, "-L", buildDir.path, "-lPreviewSetup"],
             dylibPath: dylibPath,
-            sdkPath: "/test-sdk")
+            sdkPath: "/test-sdk"
+        )
         SetupCache.store(
             fakeResult, packageDir: dir, platform: .macOS,
-            sourceHash: "abc123", swiftVersion: "Swift 6.0")
+            sourceHash: "abc123", swiftVersion: "Swift 6.0"
+        )
 
         // Delete the dylib to simulate missing artifact
         try FileManager.default.removeItem(at: dylibPath)
 
         let loaded = SetupCache.load(
             packageDir: dir, platform: .macOS, sourceHash: "abc123",
-            swiftVersion: "Swift 6.0")
+            swiftVersion: "Swift 6.0"
+        )
         #expect(loaded == nil)
     }
 
@@ -256,15 +273,18 @@ struct SetupCacheTests {
         let original = SetupBuilder.Result(
             moduleName: "TestSetup", typeName: "AppSetup", compilerFlags: flags,
             dylibPath: dylibPath,
-            sdkPath: sdkStub)
+            sdkPath: sdkStub
+        )
 
         SetupCache.store(
             original, packageDir: dir, platform: .macOS,
-            sourceHash: "def456", swiftVersion: "Swift 6.0")
+            sourceHash: "def456", swiftVersion: "Swift 6.0"
+        )
 
         let loaded = SetupCache.load(
             packageDir: dir, platform: .macOS, sourceHash: "def456",
-            swiftVersion: "Swift 6.0")
+            swiftVersion: "Swift 6.0"
+        )
 
         #expect(loaded != nil)
         #expect(loaded?.moduleName == "TestSetup")
@@ -282,15 +302,18 @@ struct SetupCacheTests {
         let result = SetupBuilder.Result(
             moduleName: "TestSetup", typeName: "AppSetup", compilerFlags: flags,
             dylibPath: dylibPath,
-            sdkPath: "/this-sdk-does-not-exist-\(UUID().uuidString)")
+            sdkPath: "/this-sdk-does-not-exist-\(UUID().uuidString)"
+        )
 
         SetupCache.store(
             result, packageDir: dir, platform: .macOS,
-            sourceHash: "abc", swiftVersion: "Swift 6.0")
+            sourceHash: "abc", swiftVersion: "Swift 6.0"
+        )
 
         let loaded = SetupCache.load(
             packageDir: dir, platform: .macOS, sourceHash: "abc",
-            swiftVersion: "Swift 6.0")
+            swiftVersion: "Swift 6.0"
+        )
         #expect(loaded == nil)
     }
 
@@ -305,20 +328,24 @@ struct SetupCacheTests {
         let buildDir = dir.appendingPathComponent(".build")
         try FileManager.default.createDirectory(at: buildDir, withIntermediateDirectories: true)
         try FileManager.default.setAttributes(
-            [.posixPermissions: 0o444], ofItemAtPath: buildDir.path)
+            [.posixPermissions: 0o444], ofItemAtPath: buildDir.path
+        )
         defer {
             try? FileManager.default.setAttributes(
-                [.posixPermissions: 0o755], ofItemAtPath: buildDir.path)
+                [.posixPermissions: 0o755], ofItemAtPath: buildDir.path
+            )
         }
 
         let result = SetupBuilder.Result(
             moduleName: "Test", typeName: "Setup", compilerFlags: [],
             dylibPath: URL(fileURLWithPath: "/tmp/libPreviewSetup.dylib"),
-            sdkPath: "/test-sdk")
+            sdkPath: "/test-sdk"
+        )
         // Should not throw — errors are swallowed
         SetupCache.store(
             result, packageDir: dir, platform: .macOS,
-            sourceHash: "xyz", swiftVersion: "Swift 6.0")
+            sourceHash: "xyz", swiftVersion: "Swift 6.0"
+        )
     }
 
     // MARK: - Platform Isolation
@@ -333,39 +360,47 @@ struct SetupCacheTests {
         let macResult = SetupBuilder.Result(
             moduleName: "TestSetup", typeName: "Setup", compilerFlags: macFlags,
             dylibPath: macDylibPath,
-            sdkPath: sdkStub)
+            sdkPath: sdkStub
+        )
 
         // Create separate iOS artifacts
         let iosBuildDir = dir.appendingPathComponent(".build/ios-debug")
         let iosModulesDir = iosBuildDir.appendingPathComponent("Modules")
         let iosSwiftmodule = iosModulesDir.appendingPathComponent("TestSetup.swiftmodule")
         try FileManager.default.createDirectory(
-            at: iosSwiftmodule, withIntermediateDirectories: true)
+            at: iosSwiftmodule, withIntermediateDirectories: true
+        )
         try Data("fake".utf8).write(
-            to: iosSwiftmodule.appendingPathComponent("arm64.swiftmodule"))
+            to: iosSwiftmodule.appendingPathComponent("arm64.swiftmodule")
+        )
         let iosDylibPath = iosBuildDir.appendingPathComponent("libPreviewSetup.dylib")
         try Data("fake".utf8).write(to: iosDylibPath)
         let iosFlags = ["-I", iosModulesDir.path, "-L", iosBuildDir.path, "-lPreviewSetup"]
         let iosResult = SetupBuilder.Result(
             moduleName: "TestSetup", typeName: "Setup", compilerFlags: iosFlags,
             dylibPath: iosDylibPath,
-            sdkPath: sdkStub)
+            sdkPath: sdkStub
+        )
 
         // Store both
         SetupCache.store(
             macResult, packageDir: dir, platform: .macOS,
-            sourceHash: "samehash", swiftVersion: "Swift 6.0")
+            sourceHash: "samehash", swiftVersion: "Swift 6.0"
+        )
         SetupCache.store(
             iosResult, packageDir: dir, platform: .iOS,
-            sourceHash: "samehash", swiftVersion: "Swift 6.0")
+            sourceHash: "samehash", swiftVersion: "Swift 6.0"
+        )
 
         // Both should load independently
         let loadedMac = SetupCache.load(
             packageDir: dir, platform: .macOS, sourceHash: "samehash",
-            swiftVersion: "Swift 6.0")
+            swiftVersion: "Swift 6.0"
+        )
         let loadedIOS = SetupCache.load(
             packageDir: dir, platform: .iOS, sourceHash: "samehash",
-            swiftVersion: "Swift 6.0")
+            swiftVersion: "Swift 6.0"
+        )
 
         #expect(loadedMac != nil)
         #expect(loadedIOS != nil)
@@ -382,26 +417,27 @@ struct SetupCacheTests {
         try FileManager.default.createDirectory(at: sourcesDir, withIntermediateDirectories: true)
 
         let packageSwift = """
-            // swift-tools-version: 6.0
-            import PackageDescription
-            let package = Package(
-                name: "TestSetup",
-                platforms: [.macOS(.v14)],
-                products: [.library(name: "TestSetup", targets: ["TestSetup"])],
-                targets: [.target(name: "TestSetup")]
-            )
-            """
+        // swift-tools-version: 6.0
+        import PackageDescription
+        let package = Package(
+            name: "TestSetup",
+            platforms: [.macOS(.v14)],
+            products: [.library(name: "TestSetup", targets: ["TestSetup"])],
+            targets: [.target(name: "TestSetup")]
+        )
+        """
         try Data(packageSwift.utf8).write(to: dir.appendingPathComponent("Package.swift"))
 
         let source = """
-            public struct TestSetup {
-                public static func hello() -> String { "hello" }
-            }
-            """
+        public struct TestSetup {
+            public static func hello() -> String { "hello" }
+        }
+        """
         try Data(source.utf8).write(to: sourcesDir.appendingPathComponent("TestSetup.swift"))
 
         let config = ProjectConfig.SetupConfig(
-            moduleName: "TestSetup", typeName: "TestSetup", packagePath: ".")
+            moduleName: "TestSetup", typeName: "TestSetup", packagePath: "."
+        )
         return (dir, config)
     }
 
@@ -412,25 +448,30 @@ struct SetupCacheTests {
 
         // Cold build
         let coldResult = try await SetupBuilder.build(
-            config: config, configDirectory: dir, platform: .macOS)
+            config: config, configDirectory: dir, platform: .macOS
+        )
 
         // Verify cache file exists on disk
         let cacheDir = dir.appendingPathComponent(".build/\(SetupCache.cacheDirectory)")
         let filesAfterCold = try FileManager.default.contentsOfDirectory(
-            at: cacheDir, includingPropertiesForKeys: nil)
+            at: cacheDir, includingPropertiesForKeys: nil
+        )
         #expect(filesAfterCold.count >= 1, "Cache file should exist after cold build")
 
         // Warm build
         let warmResult = try await SetupBuilder.build(
-            config: config, configDirectory: dir, platform: .macOS)
+            config: config, configDirectory: dir, platform: .macOS
+        )
 
         // No new cache file written — proves the cache was hit, not rebuilt
         let filesAfterWarm = try FileManager.default.contentsOfDirectory(
-            at: cacheDir, includingPropertiesForKeys: nil)
+            at: cacheDir, includingPropertiesForKeys: nil
+        )
         #expect(coldResult == warmResult, "Warm result must equal cold result")
         #expect(
             filesAfterWarm.count == filesAfterCold.count,
-            "No new cache entry should be written on cache hit")
+            "No new cache entry should be written on cache hit"
+        )
     }
 
     @Test("Source change invalidates cache and triggers rebuild")
@@ -440,7 +481,8 @@ struct SetupCacheTests {
 
         // First build populates cache
         let result1 = try await SetupBuilder.build(
-            config: config, configDirectory: dir, platform: .macOS)
+            config: config, configDirectory: dir, platform: .macOS
+        )
 
         // List cache files before modification
         let cacheDir = dir.appendingPathComponent(".build/\(SetupCache.cacheDirectory)")
@@ -458,7 +500,8 @@ struct SetupCacheTests {
 
         // Second build should create a new cache entry with different hash
         let result2 = try await SetupBuilder.build(
-            config: config, configDirectory: dir, platform: .macOS)
+            config: config, configDirectory: dir, platform: .macOS
+        )
 
         let filesAfter = try FileManager.default.contentsOfDirectory(
             at: cacheDir, includingPropertiesForKeys: nil
@@ -470,6 +513,7 @@ struct SetupCacheTests {
         #expect(result1.moduleName == result2.moduleName)
         #expect(
             Set(filesAfter).isStrictSuperset(of: Set(filesBefore)),
-            "New cache entry should be added alongside old one")
+            "New cache entry should be added alongside old one"
+        )
     }
 }

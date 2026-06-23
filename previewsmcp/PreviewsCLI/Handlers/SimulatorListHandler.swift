@@ -13,7 +13,7 @@ enum SimulatorListHandler: ToolHandler {
     )
 
     static func handle(
-        _ params: CallTool.Parameters,
+        _: CallTool.Parameters,
         ctx: HandlerContext
     ) async throws -> CallTool.Result {
         let manager = await ctx.iosState.simulatorManager

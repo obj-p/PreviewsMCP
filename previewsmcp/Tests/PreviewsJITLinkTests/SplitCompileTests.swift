@@ -21,9 +21,9 @@ struct SplitCompileTests {
             func bulkSquare(red: Double, green: Double, blue: Double) -> some View {
                 Color(red: red, green: green, blue: blue).frame(width: 8, height: 8)
             }
-            """
+            """,
         ]
-        for i in 1..<count {
+        for i in 1 ..< count {
             sources.append(
                 """
                 import SwiftUI
@@ -155,8 +155,9 @@ struct SplitCompileTests {
 
         let wholeSource =
             bulk.joined(separator: "\n\n") + "\n\n"
-            + Self.editableUnit(green: 1).replacingOccurrences(
-                of: "@testable import SplitBulk", with: "")
+                + Self.editableUnit(green: 1).replacingOccurrences(
+                    of: "@testable import SplitBulk", with: ""
+                )
         let w0 = clock.now
         _ = try await compiler.compileObject(source: wholeSource, moduleName: "SplitWhole")
         let wholeMs = Self.ms(w0.duration(to: clock.now))

@@ -1,7 +1,6 @@
 import Foundation
-import Testing
-
 @testable import PreviewsCore
+import Testing
 
 /// Direct fixture tests for `BuildSystemSupport`. The shared filesystem
 /// helpers are now load-bearing for SPM and SetupBuilder linking; without
@@ -10,7 +9,6 @@ import Testing
 /// `Xcode` shims for `collectGeneratedSources`).
 @Suite("BuildSystemSupport")
 struct BuildSystemSupportTests {
-
     // MARK: - collectFrameworks
 
     @Test("collectFrameworks returns names of .framework bundles in binPath")
@@ -70,9 +68,11 @@ struct BuildSystemSupportTests {
         defer { cleanup(tmp) }
 
         try "// a".write(
-            to: tmp.appendingPathComponent("a.swift"), atomically: true, encoding: .utf8)
+            to: tmp.appendingPathComponent("a.swift"), atomically: true, encoding: .utf8
+        )
         try "// b".write(
-            to: tmp.appendingPathComponent("b.swift"), atomically: true, encoding: .utf8)
+            to: tmp.appendingPathComponent("b.swift"), atomically: true, encoding: .utf8
+        )
 
         let found = BuildSystemSupport.collectGeneratedSources(in: tmp)
             .map(\.lastPathComponent)
@@ -86,11 +86,14 @@ struct BuildSystemSupportTests {
         defer { cleanup(tmp) }
 
         try "// keep".write(
-            to: tmp.appendingPathComponent("keep.swift"), atomically: true, encoding: .utf8)
+            to: tmp.appendingPathComponent("keep.swift"), atomically: true, encoding: .utf8
+        )
         try "// header".write(
-            to: tmp.appendingPathComponent("ignore.h"), atomically: true, encoding: .utf8)
+            to: tmp.appendingPathComponent("ignore.h"), atomically: true, encoding: .utf8
+        )
         try "// no ext".write(
-            to: tmp.appendingPathComponent("README"), atomically: true, encoding: .utf8)
+            to: tmp.appendingPathComponent("README"), atomically: true, encoding: .utf8
+        )
 
         #expect(
             BuildSystemSupport.collectGeneratedSources(in: tmp)
@@ -106,9 +109,11 @@ struct BuildSystemSupportTests {
         try FileManager.default.createDirectory(at: nested, withIntermediateDirectories: true)
 
         try "// shallow".write(
-            to: tmp.appendingPathComponent("shallow.swift"), atomically: true, encoding: .utf8)
+            to: tmp.appendingPathComponent("shallow.swift"), atomically: true, encoding: .utf8
+        )
         try "// deep".write(
-            to: nested.appendingPathComponent("deep.swift"), atomically: true, encoding: .utf8)
+            to: nested.appendingPathComponent("deep.swift"), atomically: true, encoding: .utf8
+        )
 
         let found = BuildSystemSupport.collectGeneratedSources(in: tmp)
             .map(\.lastPathComponent)
@@ -149,7 +154,8 @@ struct BuildSystemSupportTests {
 
         try Data().write(to: tmp.appendingPathComponent("keep.o"))
         try "src".write(
-            to: tmp.appendingPathComponent("source.swift"), atomically: true, encoding: .utf8)
+            to: tmp.appendingPathComponent("source.swift"), atomically: true, encoding: .utf8
+        )
         try Data().write(to: tmp.appendingPathComponent("static.a"))
 
         #expect(

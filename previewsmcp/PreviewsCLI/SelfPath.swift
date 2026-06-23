@@ -24,7 +24,7 @@ func resolveRunningBinaryPath() -> String? {
     }
     guard result == 0 else { return nil }
     if let nulIndex = buf.firstIndex(of: 0) {
-        buf.removeSubrange(nulIndex..<buf.endIndex)
+        buf.removeSubrange(nulIndex ..< buf.endIndex)
     }
     let raw = String(decoding: buf, as: UTF8.self)
     return URL(fileURLWithPath: raw).resolvingSymlinksInPath().path

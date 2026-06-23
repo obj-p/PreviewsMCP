@@ -1,7 +1,9 @@
 import Foundation
 
 class JITCounter: NSObject {
-    @objc func answer() -> Int32 { 42 }
+    @objc func answer() -> Int32 {
+        42
+    }
 }
 
 @_cdecl("objc_class_value")

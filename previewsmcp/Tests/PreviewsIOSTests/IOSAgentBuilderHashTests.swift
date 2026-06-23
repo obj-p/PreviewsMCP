@@ -1,8 +1,7 @@
 import CryptoKit
 import Foundation
-import Testing
-
 @testable import PreviewsIOS
+import Testing
 
 /// Pin the byte-shape of the iOS agent app artifacts (source, plist,
 /// icon) used by `IOSAgentBuilder.sourceHash`. The hash is the cache
@@ -17,7 +16,6 @@ import Testing
 /// edit so future readers can trace the value.
 @Suite("IOSAgentBuilder source hash")
 struct IOSAgentBuilderHashTests {
-
     @Test("source/plist/icon hash is stable across refactors")
     func hashIsStable() {
         var hasher = SHA256()
@@ -68,7 +66,7 @@ struct IOSAgentBuilderHashTests {
         // now com.previewsmcp.agent (executable PreviewsMCPAgent), AgentApp.swift
         // renamed its delegate/log prefixes from PreviewHost to PreviewAgent, and
         // its memory-reporting comment dropped the stale memory-cap relaunch claim.
-        let expected = "f47ef1301d0233f82f3fd194e14bcf1b4709cc99e0970da1a9b789eee1af333f"
+        let expected = "526ce5870e010448590e755907ff7cae4283788eaad0e1d9364531a119c25892"
         #expect(hash == expected, "agent-app artifact hash drifted (was \(expected), now \(hash))")
     }
 }

@@ -1,11 +1,9 @@
 import Foundation
-import Testing
-
 @testable import PreviewsCore
+import Testing
 
 @Suite("Toolchain")
 struct ToolchainTests {
-
     @Test("macOS SDK path resolves via --sdk macosx and ends in .sdk")
     func macOSSDKPathShape() async throws {
         Toolchain.resetCacheForTesting()
@@ -69,18 +67,19 @@ struct ToolchainTests {
         do {
             _ = try await compiler.compileObject(
                 source: trivialSource,
-                moduleName: "ProbeModule_\(Int.random(in: 0...999_999))",
+                moduleName: "ProbeModule_\(Int.random(in: 0 ... 999_999))",
                 overrideSDK: bogus
             )
             Issue.record(
-                "Expected compile to fail when overrideSDK is bogus, but it succeeded.")
+                "Expected compile to fail when overrideSDK is bogus, but it succeeded."
+            )
         } catch let error as CompilationError {
             // swiftc surfaces the bogus path it was handed; that's our proof.
             let mentions = error.stderr.contains(bogus) || error.message.contains(bogus)
             let detail =
                 "Expected the bogus SDK path to appear in the compiler error, "
-                + "indicating the override reached swiftc. Got "
-                + "message=\(error.message), stderr=\(error.stderr)"
+                    + "indicating the override reached swiftc. Got "
+                    + "message=\(error.message), stderr=\(error.stderr)"
             #expect(mentions, Comment(rawValue: detail))
         }
     }

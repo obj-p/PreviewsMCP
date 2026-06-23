@@ -17,14 +17,14 @@ struct SimulatorsCommand: AsyncParsableCommand {
         commandName: "simulators",
         abstract: "List available iOS simulator devices",
         discussion: """
-            Writes one line per available device to stdout in the form:
+        Writes one line per available device to stdout in the form:
 
-                <name> — <udid> [BOOTED] (<runtime>)
+            <name> — <udid> [BOOTED] (<runtime>)
 
-            The `[BOOTED]` marker is present only for currently booted
-            devices. Pipe through grep or fzf to pick a UDID for
-            `--device` on run / snapshot.
-            """
+        The `[BOOTED]` marker is present only for currently booted
+        devices. Pipe through grep or fzf to pick a UDID for
+        `--device` on run / snapshot.
+        """
     )
 
     @Flag(

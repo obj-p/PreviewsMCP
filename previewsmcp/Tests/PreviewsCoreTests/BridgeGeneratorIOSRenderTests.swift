@@ -1,21 +1,20 @@
 import Foundation
-import Testing
-
 @testable import PreviewsCore
+import Testing
 
 @Suite("BridgeGenerator iOS render entry")
 struct BridgeGeneratorIOSRenderTests {
     static let source = """
-        import SwiftUI
+    import SwiftUI
 
-        struct TestView: View {
-            var body: some View {
-                Text("Hello")
-            }
+    struct TestView: View {
+        var body: some View {
+            Text("Hello")
         }
+    }
 
-        #Preview { TestView() }
-        """
+    #Preview { TestView() }
+    """
 
     @Test("iOS JIT source emits a renderPreviewToFile entry that installs the view via previewsmcp_set_preview_vc")
     func iosEmitsRenderEntry() {
@@ -24,7 +23,8 @@ struct BridgeGeneratorIOSRenderTests {
             closureBody: "TestView()",
             platform: .iOS,
             renderOutputPath: "/tmp/out.png",
-            designTimeValuesPath: "/tmp/out.json")
+            designTimeValuesPath: "/tmp/out.json"
+        )
         #expect(generated.source.contains("@_cdecl(\"renderPreviewToFile\")"))
         #expect(generated.source.contains("UIHostingController(rootView: view)"))
         #expect(generated.source.contains("previewsmcp_set_preview_vc"))
@@ -40,7 +40,8 @@ struct BridgeGeneratorIOSRenderTests {
             closureBody: "TestView()",
             platform: .iOS,
             renderOutputPath: "/tmp/out.png",
-            designTimeValuesPath: "/tmp/out.json")
+            designTimeValuesPath: "/tmp/out.json"
+        )
         #expect(generated.source.contains("DesignTimeStore.shared.values = __dtValues"))
     }
 
@@ -49,7 +50,8 @@ struct BridgeGeneratorIOSRenderTests {
         let generated = BridgeGenerator.generateCombinedSource(
             originalSource: Self.source,
             closureBody: "TestView()",
-            platform: .iOS)
+            platform: .iOS
+        )
         #expect(!generated.source.contains("renderPreviewToFile"))
     }
 }

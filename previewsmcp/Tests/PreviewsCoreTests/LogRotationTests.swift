@@ -1,7 +1,6 @@
 import Foundation
-import Testing
-
 @testable import PreviewsCore
+import Testing
 
 /// Each test opens its own private fd to a temp `serve.log` and passes that fd
 /// to `rotateIfNeeded`, so the `dup2` inside rotation only retargets the test's
@@ -9,7 +8,6 @@ import Testing
 /// serialize around. That keeps this suite parallel-safe.
 @Suite("LogRotation")
 struct LogRotationTests {
-
     private func tempDir() throws -> URL {
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent("logrot-\(UUID().uuidString)", isDirectory: true)
@@ -31,7 +29,8 @@ struct LogRotationTests {
         defer { close(fd) }
 
         let rotated = LogRotation.rotateIfNeeded(
-            logURL: log, fd: fd, maxBytes: 1024, keep: 3)
+            logURL: log, fd: fd, maxBytes: 1024, keep: 3
+        )
 
         #expect(rotated == false)
         #expect(!FileManager.default.fileExists(atPath: dir.appendingPathComponent("serve.log.1").path))
@@ -49,7 +48,8 @@ struct LogRotationTests {
         defer { close(fd) }
 
         let rotated = LogRotation.rotateIfNeeded(
-            logURL: log, fd: fd, maxBytes: 1024, keep: 3)
+            logURL: log, fd: fd, maxBytes: 1024, keep: 3
+        )
 
         #expect(rotated)
         #expect(read(dot1) == old)
@@ -66,7 +66,9 @@ struct LogRotationTests {
     func ringCap() throws {
         let dir = try tempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
-        func f(_ name: String) -> URL { dir.appendingPathComponent(name) }
+        func f(_ name: String) -> URL {
+            dir.appendingPathComponent(name)
+        }
         let log = f("serve.log")
         try Data("C".utf8).write(to: f("serve.log.3"))
         try Data("B".utf8).write(to: f("serve.log.2"))
@@ -76,7 +78,8 @@ struct LogRotationTests {
         defer { close(fd) }
 
         let rotated = LogRotation.rotateIfNeeded(
-            logURL: log, fd: fd, maxBytes: 1024, keep: 3)
+            logURL: log, fd: fd, maxBytes: 1024, keep: 3
+        )
 
         #expect(rotated)
         #expect(read(f("serve.log.1")) == String(repeating: "D", count: 2048))
@@ -104,12 +107,13 @@ struct LogRotationTests {
         stripACL(dir)
         chmod(dir.path, 0o500)
         let rotated = LogRotation.rotateIfNeeded(
-            logURL: log, fd: fd, maxBytes: 1024, keep: 3)
+            logURL: log, fd: fd, maxBytes: 1024, keep: 3
+        )
 
         #expect(rotated == false)
         let survived =
             read(log) == payload
-            || read(dir.appendingPathComponent("serve.log.1")) == payload
+                || read(dir.appendingPathComponent("serve.log.1")) == payload
         #expect(survived)
         let n = "x".withCString { write(fd, $0, 1) }
         #expect(n == 1)

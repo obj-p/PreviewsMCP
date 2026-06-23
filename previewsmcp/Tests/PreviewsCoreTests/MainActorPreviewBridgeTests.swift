@@ -1,7 +1,6 @@
 import Foundation
-import Testing
-
 @testable import PreviewsCore
+import Testing
 
 /// Regression coverage for #175: a `#Preview` whose state type is `@MainActor`-isolated
 /// (the common `@Observable` view-model shape) must compile through the JIT bridge. The
@@ -12,26 +11,26 @@ struct MainActorPreviewBridgeTests {
     @Test("MainActor @Observable preview state compiles through the bridge")
     func mainActorObservableStateCompiles() async throws {
         let body = """
-            let state = CounterState()
-            state.count = 3
-            return CounterView(state: state)
-            """
+        let state = CounterState()
+        state.count = 3
+        return CounterView(state: state)
+        """
         let source = """
-            import SwiftUI
+        import SwiftUI
 
-            @MainActor @Observable final class CounterState {
-                var count = 0
-            }
+        @MainActor @Observable final class CounterState {
+            var count = 0
+        }
 
-            struct CounterView: View {
-                var state: CounterState
-                var body: some View { Text("\\(state.count)") }
-            }
+        struct CounterView: View {
+            var state: CounterState
+            var body: some View { Text("\\(state.count)") }
+        }
 
-            #Preview {
-                \(body)
-            }
-            """
+        #Preview {
+            \(body)
+        }
+        """
 
         let generated = BridgeGenerator.generateCombinedSource(
             originalSource: source,

@@ -11,7 +11,6 @@ import PreviewsCore
 /// by integration tests to run per-suite daemons on isolated sockets
 /// so test suites execute in parallel without a global lock.
 enum DaemonPaths {
-
     /// The daemon state directory. Defaults to `~/.previewsmcp/`;
     /// overridden by the `PREVIEWSMCP_SOCKET_DIR` environment variable.
     static var directory: URL {

@@ -1,17 +1,18 @@
 import Foundation
-import Testing
-
 @testable import PreviewsCore
+import Testing
 
 @Suite("StructuralReloader seam")
 struct StructuralReloaderTests {
-
     private actor MockReloader: StructuralReloader {
         private(set) var calls: [(objectPath: URL, entrySymbol: String)] = []
         func render(_ build: JITRenderBuild) async throws {
             calls.append((objectPath: build.objectPath, entrySymbol: build.entrySymbol))
         }
-        func recorded() -> [(objectPath: URL, entrySymbol: String)] { calls }
+
+        func recorded() -> [(objectPath: URL, entrySymbol: String)] {
+            calls
+        }
     }
 
     @Test("compileObjectForJIT emits a linkable .o carrying renderPreviewToFile")

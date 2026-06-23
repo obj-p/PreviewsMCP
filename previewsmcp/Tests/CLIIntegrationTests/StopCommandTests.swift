@@ -5,7 +5,6 @@ import Testing
 /// resolution, explicit `--session`, `--all`, and error paths.
 @Suite(.serialized)
 struct StopCommandTests {
-
     private static func cleanSlate() async throws {
         _ = try? await CLIRunner.run("kill-daemon", arguments: ["--timeout", "2"])
     }

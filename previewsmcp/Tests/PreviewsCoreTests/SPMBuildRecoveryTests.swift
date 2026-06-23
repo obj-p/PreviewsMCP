@@ -1,17 +1,15 @@
 import Foundation
-import Testing
-
 @testable import PreviewsCore
+import Testing
 
 @Suite("SPMBuildRecovery")
 struct SPMBuildRecoveryTests {
-
     @Test("parseStaleTripleDirectory extracts <triple> dir from real SPM error")
     func parsesRealError() {
         let stderr = """
-            error: command /pkg/.build/arm64-apple-ios-simulator/debug/swift-version--FE76C4972A19952.txt not registered
-            error: failed to write auxiliary file: command /pkg/.build/arm64-apple-ios-simulator/debug/swift-version--FE76C4972A19952.txt not registered
-            """
+        error: command /pkg/.build/arm64-apple-ios-simulator/debug/swift-version--FE76C4972A19952.txt not registered
+        error: failed to write auxiliary file: command /pkg/.build/arm64-apple-ios-simulator/debug/swift-version--FE76C4972A19952.txt not registered
+        """
 
         let url = SPMBuildRecovery.parseStaleTripleDirectory(stderr: stderr)
         #expect(url?.path == "/pkg/.build/arm64-apple-ios-simulator")
@@ -53,10 +51,10 @@ struct SPMBuildRecoveryTests {
         #expect(SPMBuildRecovery.looksLikeTriple("arm64-apple-macosx"))
         #expect(SPMBuildRecovery.looksLikeTriple("arm64-apple-ios-simulator"))
         #expect(SPMBuildRecovery.looksLikeTriple("x86_64-unknown-linux-gnu"))
-        #expect(!SPMBuildRecovery.looksLikeTriple("workspace-state"))  // not a triple
-        #expect(!SPMBuildRecovery.looksLikeTriple("checkouts"))  // SPM internal
-        #expect(!SPMBuildRecovery.looksLikeTriple("build.db"))  // file, not dir
-        #expect(!SPMBuildRecovery.looksLikeTriple("Some/Path"))  // contains slash
+        #expect(!SPMBuildRecovery.looksLikeTriple("workspace-state")) // not a triple
+        #expect(!SPMBuildRecovery.looksLikeTriple("checkouts")) // SPM internal
+        #expect(!SPMBuildRecovery.looksLikeTriple("build.db")) // file, not dir
+        #expect(!SPMBuildRecovery.looksLikeTriple("Some/Path")) // contains slash
     }
 
     @Test("cleanStaleArtifacts removes both <triple>/ and sibling build.db, leaves peer dirs")

@@ -4,7 +4,6 @@ import SwiftSyntax
 
 /// Transforms Swift source code by replacing eligible literals with `DesignTimeStore` lookups.
 public enum ThunkGenerator {
-
     public struct Result: Sendable {
         /// The transformed source with literals replaced.
         public let source: String
@@ -28,7 +27,8 @@ public enum ThunkGenerator {
                     utf8Start: raw.utf8Start,
                     utf8End: raw.utf8End,
                     region: raw.region
-                ))
+                )
+            )
         }
 
         // Apply replacements back-to-front so offsets stay valid
@@ -37,20 +37,20 @@ public enum ThunkGenerator {
             let id = "#\(index)"
             let replacement: String
             switch raw.value {
-            case .string(let s):
+            case let .string(s):
                 let escaped = s.replacingOccurrences(of: "\\", with: "\\\\")
                     .replacingOccurrences(of: "\"", with: "\\\"")
                     .replacingOccurrences(of: "\n", with: "\\n")
                     .replacingOccurrences(of: "\t", with: "\\t")
                 replacement = "DesignTimeStore.shared.string(\"\(id)\", fallback: \"\(escaped)\")"
-            case .integer(let n):
+            case let .integer(n):
                 replacement = "DesignTimeStore.shared.integer(\"\(id)\", fallback: \(n))"
-            case .float(let d):
+            case let .float(d):
                 replacement = "DesignTimeStore.shared.float(\"\(id)\", fallback: \(d))"
-            case .boolean(let b):
+            case let .boolean(b):
                 replacement = "DesignTimeStore.shared.boolean(\"\(id)\", fallback: \(b))"
             }
-            utf8.replaceSubrange(raw.utf8Start..<raw.utf8End, with: Array(replacement.utf8))
+            utf8.replaceSubrange(raw.utf8Start ..< raw.utf8End, with: Array(replacement.utf8))
         }
 
         let transformedSource = String(decoding: utf8, as: UTF8.self)
@@ -77,7 +77,7 @@ final class LiteralCollector: SyntaxVisitor {
         guard isSimpleString(node) else { return .visitChildren }
 
         let text = node.segments.compactMap { segment -> String? in
-            if case .stringSegment(let s) = segment { return s.content.text }
+            if case let .stringSegment(s) = segment { return s.content.text }
             return nil
         }.joined()
 
@@ -87,7 +87,8 @@ final class LiteralCollector: SyntaxVisitor {
                 utf8Start: node.position.utf8Offset,
                 utf8End: node.endPosition.utf8Offset,
                 region: LiteralRegionClassifier.classify(node)
-            ))
+            )
+        )
         return .skipChildren
     }
 
@@ -97,22 +98,21 @@ final class LiteralCollector: SyntaxVisitor {
         guard isEligible(node) else { return .visitChildren }
 
         let text = node.literal.text.filter { $0 != "_" }
-        let value: Int?
-        if text.hasPrefix("0x") || text.hasPrefix("0X") {
-            value = Int(text.dropFirst(2), radix: 16)
+        let value: Int? = if text.hasPrefix("0x") || text.hasPrefix("0X") {
+            Int(text.dropFirst(2), radix: 16)
         } else if text.hasPrefix("0o") || text.hasPrefix("0O") {
-            value = Int(text.dropFirst(2), radix: 8)
+            Int(text.dropFirst(2), radix: 8)
         } else if text.hasPrefix("0b") || text.hasPrefix("0B") {
-            value = Int(text.dropFirst(2), radix: 2)
+            Int(text.dropFirst(2), radix: 2)
         } else {
-            value = Int(text)
+            Int(text)
         }
 
         guard let intValue = value else { return .visitChildren }
 
         // Check for negation: if parent is PrefixOperatorExprSyntax with "-"
         if let prefix = node.parent?.as(PrefixOperatorExprSyntax.self),
-            prefix.operator.text == "-"
+           prefix.operator.text == "-"
         {
             rawEntries.append(
                 RawLiteralEntry(
@@ -120,7 +120,8 @@ final class LiteralCollector: SyntaxVisitor {
                     utf8Start: prefix.position.utf8Offset,
                     utf8End: prefix.endPosition.utf8Offset,
                     region: LiteralRegionClassifier.classify(node)
-                ))
+                )
+            )
         } else {
             rawEntries.append(
                 RawLiteralEntry(
@@ -128,7 +129,8 @@ final class LiteralCollector: SyntaxVisitor {
                     utf8Start: node.position.utf8Offset,
                     utf8End: node.endPosition.utf8Offset,
                     region: LiteralRegionClassifier.classify(node)
-                ))
+                )
+            )
         }
         return .skipChildren
     }
@@ -142,7 +144,7 @@ final class LiteralCollector: SyntaxVisitor {
         guard let doubleValue = Double(text) else { return .visitChildren }
 
         if let prefix = node.parent?.as(PrefixOperatorExprSyntax.self),
-            prefix.operator.text == "-"
+           prefix.operator.text == "-"
         {
             rawEntries.append(
                 RawLiteralEntry(
@@ -150,7 +152,8 @@ final class LiteralCollector: SyntaxVisitor {
                     utf8Start: prefix.position.utf8Offset,
                     utf8End: prefix.endPosition.utf8Offset,
                     region: LiteralRegionClassifier.classify(node)
-                ))
+                )
+            )
         } else {
             rawEntries.append(
                 RawLiteralEntry(
@@ -158,7 +161,8 @@ final class LiteralCollector: SyntaxVisitor {
                     utf8Start: node.position.utf8Offset,
                     utf8End: node.endPosition.utf8Offset,
                     region: LiteralRegionClassifier.classify(node)
-                ))
+                )
+            )
         }
         return .skipChildren
     }
@@ -175,7 +179,8 @@ final class LiteralCollector: SyntaxVisitor {
                 utf8Start: node.position.utf8Offset,
                 utf8End: node.endPosition.utf8Offset,
                 region: LiteralRegionClassifier.classify(node)
-            ))
+            )
+        )
         return .skipChildren
     }
 
@@ -199,7 +204,7 @@ final class LiteralCollector: SyntaxVisitor {
         while let parent = current?.parent {
             if let call = parent.as(FunctionCallExprSyntax.self) {
                 if let member = call.calledExpression.as(MemberAccessExprSyntax.self),
-                    member.declName.baseName.text == "tag"
+                   member.declName.baseName.text == "tag"
                 {
                     return true
                 }
@@ -228,7 +233,7 @@ final class LiteralCollector: SyntaxVisitor {
             // we'll hit CodeBlockSyntax/AccessorDeclSyntax before reaching here.
             if let binding = parent.as(PatternBindingSyntax.self) {
                 // If this binding has an initializer and no accessors, it's a stored property
-                if binding.initializer != nil && binding.accessorBlock == nil {
+                if binding.initializer != nil, binding.accessorBlock == nil {
                     return false
                 }
             }
@@ -304,7 +309,7 @@ final class LiteralCollector: SyntaxVisitor {
         var current: Syntax? = Syntax(node)
         while let parent = current?.parent {
             if parent.is(IfConfigClauseSyntax.self),
-                current?.is(ExprSyntax.self) != true
+               current?.is(ExprSyntax.self) != true
             {
                 // We're in the condition, not the body
                 return true

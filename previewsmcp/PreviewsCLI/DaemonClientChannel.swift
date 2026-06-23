@@ -21,7 +21,6 @@ import PreviewsCore
 ///     so humans reading the CLI's stderr don't see "alive alive
 ///     alive" spam.
 extension DaemonClient {
-
     /// Register the MCP LogMessageNotification → stderr bridge that every
     /// CLI command shares. Daemon-side progress messages and warnings
     /// are surfaced as MCP notifications; without this bridge they'd be
@@ -35,7 +34,7 @@ extension DaemonClient {
     static func registerStderrLogForwarder(on client: Client) async {
         await client.onNotification(LogMessageNotification.self) { message in
             if message.params.logger == "heartbeat" { return }
-            if case .string(let text) = message.params.data {
+            if case let .string(text) = message.params.data {
                 Log.info(text)
             }
         }

@@ -1,8 +1,7 @@
 import Darwin
 import Foundation
-import Testing
-
 @testable import PreviewsEngine
+import Testing
 
 /// Round-trip + stale-PID-filter tests for the cross-process session
 /// registry. These don't fork a real second process — they construct
@@ -13,15 +12,16 @@ import Testing
 /// fake PIDs we hand to test registries don't get filtered out as
 /// stale on read. Tests that care about stale-PID behavior override
 /// this back to the real check or a custom predicate.
-@Sendable private func alwaysLive(_ pid: Int32) -> Bool { true }
+@Sendable private func alwaysLive(_: Int32) -> Bool {
+    true
+}
 
 @Suite("SessionRegistry")
 struct SessionRegistryTests {
-
     // MARK: - publish round trip
 
     @Test("publishIOSSessions writes a file the peer can read")
-    func iosRoundTrip() async throws {
+    func iosRoundTrip() async {
         let dir = makeFixture()
         defer { cleanup(dir) }
 
@@ -29,7 +29,7 @@ struct SessionRegistryTests {
         let reader = SessionRegistry(registryDir: dir, liveCheck: alwaysLive, pid: 100_002)
 
         await writer.publishIOSSessions([
-            (id: "ios-A", sourceFile: URL(fileURLWithPath: "/tmp/A.swift"))
+            (id: "ios-A", sourceFile: URL(fileURLWithPath: "/tmp/A.swift")),
         ])
 
         let entries = await reader.readOthers()
@@ -40,7 +40,7 @@ struct SessionRegistryTests {
     }
 
     @Test("publishMacOSSessions writes a file the peer can read")
-    func macRoundTrip() async throws {
+    func macRoundTrip() async {
         let dir = makeFixture()
         defer { cleanup(dir) }
 
@@ -48,7 +48,7 @@ struct SessionRegistryTests {
         let reader = SessionRegistry(registryDir: dir, liveCheck: alwaysLive, pid: 100_012)
 
         await writer.publishMacOSSessions([
-            (id: "mac-A", sourceFile: URL(fileURLWithPath: "/tmp/Mac.swift"))
+            (id: "mac-A", sourceFile: URL(fileURLWithPath: "/tmp/Mac.swift")),
         ])
 
         let entries = await reader.readOthers()
@@ -58,7 +58,7 @@ struct SessionRegistryTests {
     }
 
     @Test("publish combines iOS and macOS slices in one file")
-    func combinedSlices() async throws {
+    func combinedSlices() async {
         let dir = makeFixture()
         defer { cleanup(dir) }
 
@@ -66,10 +66,10 @@ struct SessionRegistryTests {
         let reader = SessionRegistry(registryDir: dir, liveCheck: alwaysLive, pid: 100_022)
 
         await writer.publishIOSSessions([
-            (id: "ios-X", sourceFile: URL(fileURLWithPath: "/tmp/X.swift"))
+            (id: "ios-X", sourceFile: URL(fileURLWithPath: "/tmp/X.swift")),
         ])
         await writer.publishMacOSSessions([
-            (id: "mac-Y", sourceFile: URL(fileURLWithPath: "/tmp/Y.swift"))
+            (id: "mac-Y", sourceFile: URL(fileURLWithPath: "/tmp/Y.swift")),
         ])
 
         let entries = await reader.readOthers().sorted { $0.sessionID < $1.sessionID }
@@ -78,13 +78,13 @@ struct SessionRegistryTests {
     }
 
     @Test("readOthers excludes the reader's own PID file")
-    func excludesOwn() async throws {
+    func excludesOwn() async {
         let dir = makeFixture()
         defer { cleanup(dir) }
 
         let writer = SessionRegistry(registryDir: dir, liveCheck: alwaysLive, pid: 100_031)
         await writer.publishIOSSessions([
-            (id: "self-only", sourceFile: URL(fileURLWithPath: "/tmp/me.swift"))
+            (id: "self-only", sourceFile: URL(fileURLWithPath: "/tmp/me.swift")),
         ])
 
         // The same PID reads its own file via `readOthers` — must not see itself.
@@ -95,7 +95,7 @@ struct SessionRegistryTests {
     // MARK: - mutation behavior
 
     @Test("publishing an empty set leaves an empty file (peer sees no sessions)")
-    func clearsByPublishingEmpty() async throws {
+    func clearsByPublishingEmpty() async {
         let dir = makeFixture()
         defer { cleanup(dir) }
 
@@ -103,7 +103,7 @@ struct SessionRegistryTests {
         let reader = SessionRegistry(registryDir: dir, liveCheck: alwaysLive, pid: 100_042)
 
         await writer.publishIOSSessions([
-            (id: "ephemeral", sourceFile: URL(fileURLWithPath: "/tmp/e.swift"))
+            (id: "ephemeral", sourceFile: URL(fileURLWithPath: "/tmp/e.swift")),
         ])
         #expect(await reader.readOthers().count == 1)
 
@@ -112,7 +112,7 @@ struct SessionRegistryTests {
     }
 
     @Test("unpublish removes the writer's file")
-    func unpublishRemoves() async throws {
+    func unpublishRemoves() async {
         let dir = makeFixture()
         defer { cleanup(dir) }
 
@@ -120,7 +120,7 @@ struct SessionRegistryTests {
         let reader = SessionRegistry(registryDir: dir, liveCheck: alwaysLive, pid: 100_052)
 
         await writer.publishIOSSessions([
-            (id: "vanishing", sourceFile: URL(fileURLWithPath: "/tmp/v.swift"))
+            (id: "vanishing", sourceFile: URL(fileURLWithPath: "/tmp/v.swift")),
         ])
         #expect(await reader.readOthers().count == 1)
 

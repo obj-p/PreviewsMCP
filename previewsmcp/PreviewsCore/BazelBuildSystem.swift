@@ -27,12 +27,13 @@ public actor BazelBuildSystem: BuildSystem {
                 let markerFile = dir.appendingPathComponent(marker)
                 var isDir: ObjCBool = false
                 if FileManager.default.fileExists(atPath: markerFile.path, isDirectory: &isDir),
-                    !isDir.boolValue
+                   !isDir.boolValue
                 {
                     // Verify bazel is actually available
                     guard await isBazelAvailable(in: dir) else { return nil }
                     return BazelBuildSystem(
-                        projectRoot: dir, sourceFile: sourceFile.standardizedFileURL)
+                        projectRoot: dir, sourceFile: sourceFile.standardizedFileURL
+                    )
                 }
             }
             dir = dir.deletingLastPathComponent()
@@ -45,7 +46,8 @@ public actor BazelBuildSystem: BuildSystem {
         do {
             let output = try await runAsync(
                 "/usr/bin/env", arguments: ["bazel", "version"],
-                workingDirectory: directory, discardStderr: true)
+                workingDirectory: directory, discardStderr: true
+            )
             return output.exitCode == 0
         } catch {
             return false
@@ -68,20 +70,23 @@ public actor BazelBuildSystem: BuildSystem {
 
         // 4. Locate the .swiftmodule
         var compilerFlags = try await findCompilerFlags(
-            target: target, moduleName: moduleName, platform: platform)
+            target: target, moduleName: moduleName, platform: platform
+        )
 
         // 4b. Add dependency module search paths (swift_library deps and
         //     objc_library module maps) from the target's SwiftCompile action,
         //     so the bridge's `import <Dep>` resolves.
         compilerFlags += try await findDependencyModuleFlags(
-            target: target, platform: platform)
+            target: target, platform: platform
+        )
 
         // 4c. Add dependency archive link flags (`-L`/`-l`) for the target's
         //     static-library deps, so the preview JIT link resolves their
         //     cross-target symbols (`findDependencyModuleFlags` only covers the
         //     compile-time module search).
         compilerFlags += try await findDependencyArchiveFlags(
-            target: target, platform: platform)
+            target: target, platform: platform
+        )
 
         // 5. Collect source files for Tier 2
         let sourceFiles = try await collectSourceFiles(target: target)
@@ -108,9 +113,8 @@ public actor BazelBuildSystem: BuildSystem {
                 let markerFile = dir.appendingPathComponent(marker)
                 if FileManager.default.fileExists(atPath: markerFile.path) {
                     // Package path is relative to project root
-                    let relativePath = String(dir.path.dropFirst(rootPath.count))
+                    return String(dir.path.dropFirst(rootPath.count))
                         .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-                    return relativePath
                 }
             }
             dir = dir.deletingLastPathComponent()
@@ -130,11 +134,10 @@ public actor BazelBuildSystem: BuildSystem {
         let packageDirPath = packageDir.path
 
         // The file component is the relative path from the package directory
-        let fileComponent: String
-        if filePath.hasPrefix(packageDirPath + "/") {
-            fileComponent = String(filePath.dropFirst(packageDirPath.count + 1))
+        let fileComponent: String = if filePath.hasPrefix(packageDirPath + "/") {
+            String(filePath.dropFirst(packageDirPath.count + 1))
         } else {
-            fileComponent = sourceFile.lastPathComponent
+            sourceFile.lastPathComponent
         }
 
         return "//\(packagePath):\(fileComponent)"
@@ -171,9 +174,13 @@ public actor BazelBuildSystem: BuildSystem {
             let match = output[range]
             // Extract the quoted value
             if let quoteStart = match.range(of: "\""),
-                let quoteEnd = match.range(of: "\"", options: .backwards, range: quoteStart.upperBound..<match.endIndex)
+               let quoteEnd = match.range(
+                   of: "\"",
+                   options: .backwards,
+                   range: quoteStart.upperBound ..< match.endIndex
+               )
             {
-                return String(match[quoteStart.upperBound..<quoteEnd.lowerBound])
+                return String(match[quoteStart.upperBound ..< quoteEnd.lowerBound])
             }
         }
 
@@ -211,11 +218,10 @@ public actor BazelBuildSystem: BuildSystem {
 
         if let swiftmodulePath = swiftmoduleFile {
             // Resolve to absolute path (cquery may return relative paths from execroot)
-            let absolutePath: URL
-            if swiftmodulePath.hasPrefix("/") {
-                absolutePath = URL(fileURLWithPath: swiftmodulePath)
+            let absolutePath: URL = if swiftmodulePath.hasPrefix("/") {
+                URL(fileURLWithPath: swiftmodulePath)
             } else {
-                absolutePath = projectRoot.appendingPathComponent(swiftmodulePath)
+                projectRoot.appendingPathComponent(swiftmodulePath)
             }
             return ["-I", absolutePath.deletingLastPathComponent().path]
         }
@@ -224,10 +230,12 @@ public actor BazelBuildSystem: BuildSystem {
         let bazelBin = projectRoot.appendingPathComponent("bazel-bin")
         let moduleDir = bazelBin.appendingPathComponent(
             target.replacingOccurrences(of: "//", with: "")
-                .split(separator: ":").first.map(String.init) ?? "")
+                .split(separator: ":").first.map(String.init) ?? ""
+        )
         try BuildSystemSupport.verifySwiftModule(named: moduleName, in: moduleDir) {
             BuildSystemError.missingArtifacts(
-                "Expected \(moduleName).swiftmodule in bazel-bin output for \(target)")
+                "Expected \(moduleName).swiftmodule in bazel-bin output for \(target)"
+            )
         }
 
         return ["-I", moduleDir.path]
@@ -258,13 +266,15 @@ public actor BazelBuildSystem: BuildSystem {
         args += platformFlags(for: platform)
         let output = (try? await runBazel(args, discardStderr: true)) ?? ""
 
-        func resolve(_ path: String) -> String { resolveExecrootPath(path).path }
+        func resolve(_ path: String) -> String {
+            resolveExecrootPath(path).path
+        }
 
         let tokens =
             output
-            .split(whereSeparator: { $0 == "\n" || $0 == " " || $0 == "\t" })
-            .map { $0.trimmingCharacters(in: CharacterSet(charactersIn: " \t\\'\"")) }
-            .filter { !$0.isEmpty }
+                .split(whereSeparator: { $0 == "\n" || $0 == " " || $0 == "\t" })
+                .map { $0.trimmingCharacters(in: CharacterSet(charactersIn: " \t\\'\"")) }
+                .filter { !$0.isEmpty }
 
         var flags: [String] = []
         var seen = Set<String>()
@@ -320,7 +330,8 @@ public actor BazelBuildSystem: BuildSystem {
 
         let depLibs =
             (try? await runBazelQuery(
-                "kind(\"(swift|objc)_library\", deps(\(target)))")) ?? ""
+                "kind(\"(swift|objc)_library\", deps(\(target)))"
+            )) ?? ""
         let labels = depLibs.split(separator: "\n").map(String.init)
             .filter { $0.hasPrefix("//") }
         if !labels.isEmpty {
@@ -330,7 +341,8 @@ public actor BazelBuildSystem: BuildSystem {
         let output =
             (try? await runBazel(
                 ["bazel", "cquery", "deps(\(target))", "--output=files"]
-                    + platformArgs, discardStderr: true)) ?? ""
+                    + platformArgs, discardStderr: true
+            )) ?? ""
 
         let ownArchive = "lib\(target.split(separator: ":").last.map(String.init) ?? target).a"
 
@@ -426,7 +438,7 @@ public actor BazelBuildSystem: BuildSystem {
         // Split on ":" — package:file
         guard let colonIndex = label.firstIndex(of: ":") else { return nil }
 
-        let packagePath = String(label[label.startIndex..<colonIndex])
+        let packagePath = String(label[label.startIndex ..< colonIndex])
         let fileName = String(label[label.index(after: colonIndex)...])
 
         if packagePath.isEmpty {
@@ -444,7 +456,7 @@ public actor BazelBuildSystem: BuildSystem {
             // (`Platform.macOS` -> macosx14.0), so dependency modules built by
             // Bazel do not come out at the SDK-default min (e.g. 26.2) and fail
             // to load against the 14.0 bridge.
-            return ["--macos_minimum_os=14.0"]
+            ["--macos_minimum_os=14.0"]
         case .iOS:
             // The real iOS-simulator transition needs `--platforms` (the legacy
             // `--cpu`/`--apple_platform_type` flags name the output dir but do
@@ -457,7 +469,7 @@ public actor BazelBuildSystem: BuildSystem {
             // (`Platform.iOS` -> ios17.0): a bare swift_library otherwise gets
             // the SDK-default min (e.g. 26.2), which fails to load against the
             // 17.0 bridge ("module has a minimum deployment target of iOS 26.2").
-            return [
+            [
                 "--platforms=@\(appleSupportRepoName())//platforms:ios_sim_arm64",
                 "--ios_minimum_os=17.0",
             ]
@@ -478,21 +490,23 @@ public actor BazelBuildSystem: BuildSystem {
         guard
             let depRange = text.range(
                 of: #"bazel_dep\([^)]*name\s*=\s*"apple_support"[^)]*\)"#,
-                options: .regularExpression)
+                options: .regularExpression
+            )
         else {
             return "apple_support"
         }
         let depCall = text[depRange]
         if let rnRange = depCall.range(
-            of: #"repo_name\s*=\s*"([^"]+)""#, options: .regularExpression)
-        {
+            of: #"repo_name\s*=\s*"([^"]+)""#, options: .regularExpression
+        ) {
             let match = depCall[rnRange]
             if let q1 = match.range(of: "\""),
-                let q2 = match.range(
-                    of: "\"", options: .backwards,
-                    range: q1.upperBound..<match.endIndex)
+               let q2 = match.range(
+                   of: "\"", options: .backwards,
+                   range: q1.upperBound ..< match.endIndex
+               )
             {
-                return String(match[q1.upperBound..<q2.lowerBound])
+                return String(match[q1.upperBound ..< q2.lowerBound])
             }
         }
         return "apple_support"
@@ -524,19 +538,20 @@ public actor BazelBuildSystem: BuildSystem {
     ) async throws -> String {
         let output = try await runAsync(
             "/usr/bin/env", arguments: arguments,
-            workingDirectory: projectRoot, discardStderr: discardStderr)
+            workingDirectory: projectRoot, discardStderr: discardStderr
+        )
         guard output.exitCode == 0 else {
             let cmd = arguments.joined(separator: " ")
             let stderrSection = output.stderr.isEmpty ? "(empty)" : output.stderr
             let stdoutSection = output.stdout.isEmpty ? "(empty)" : output.stdout
             let diagnostic = """
-                command: \(cmd)
-                cwd: \(projectRoot.path)
-                stderr:
-                \(stderrSection)
-                stdout:
-                \(stdoutSection)
-                """
+            command: \(cmd)
+            cwd: \(projectRoot.path)
+            stderr:
+            \(stderrSection)
+            stdout:
+            \(stdoutSection)
+            """
             throw BuildSystemError.buildFailed(
                 stderr: diagnostic,
                 exitCode: output.exitCode

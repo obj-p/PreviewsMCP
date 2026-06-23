@@ -1,34 +1,32 @@
 import Foundation
-import Testing
-
 @testable import PreviewsCore
+import Testing
 
 @Suite("ProjectConfig")
 struct ProjectConfigTests {
-
     // MARK: - JSON Decoding
 
     @Test("Decodes full JSON with all fields")
     func decodesFullJSON() throws {
         let json = """
-            {
-                "platform": "ios",
-                "device": "iPhone 16 Pro",
-                "traits": {
-                    "colorScheme": "dark",
-                    "dynamicTypeSize": "large",
-                    "locale": "ar",
-                    "layoutDirection": "rightToLeft",
-                    "legibilityWeight": "bold"
-                },
-                "quality": 0.9,
-                "setup": {
-                    "moduleName": "MyAppPreviewSetup",
-                    "typeName": "AppPreviewSetup",
-                    "packagePath": "../PreviewSetup"
-                }
+        {
+            "platform": "ios",
+            "device": "iPhone 16 Pro",
+            "traits": {
+                "colorScheme": "dark",
+                "dynamicTypeSize": "large",
+                "locale": "ar",
+                "layoutDirection": "rightToLeft",
+                "legibilityWeight": "bold"
+            },
+            "quality": 0.9,
+            "setup": {
+                "moduleName": "MyAppPreviewSetup",
+                "typeName": "AppPreviewSetup",
+                "packagePath": "../PreviewSetup"
             }
-            """
+        }
+        """
         let config = try JSONDecoder().decode(ProjectConfig.self, from: Data(json.utf8))
         #expect(config.platform == "ios")
         #expect(config.device == "iPhone 16 Pro")
@@ -46,8 +44,8 @@ struct ProjectConfigTests {
     @Test("Decodes minimal JSON with single field")
     func decodesMinimalJSON() throws {
         let json = """
-            { "platform": "ios" }
-            """
+        { "platform": "ios" }
+        """
         let config = try JSONDecoder().decode(ProjectConfig.self, from: Data(json.utf8))
         #expect(config.platform == "ios")
         #expect(config.device == nil)
@@ -68,8 +66,8 @@ struct ProjectConfigTests {
     @Test("Ignores unknown fields (forward-compatible)")
     func ignoresUnknownFields() throws {
         let json = """
-            { "platform": "ios", "futureFeature": true, "nested": { "key": "value" } }
-            """
+        { "platform": "ios", "futureFeature": true, "nested": { "key": "value" } }
+        """
         let config = try JSONDecoder().decode(ProjectConfig.self, from: Data(json.utf8))
         #expect(config.platform == "ios")
     }

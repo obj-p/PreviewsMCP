@@ -19,19 +19,21 @@ enum PreviewStartHandler: ToolHandler {
     static let schema = Tool(
         name: ToolName.previewStart.rawValue,
         description:
-            "Compile and launch a live SwiftUI preview. Returns a session ID. Supports macOS (default) and iOS simulator.",
+        "Compile and launch a live SwiftUI preview. Returns a session ID. Supports macOS (default) and iOS simulator.",
         inputSchema: .object([
             "type": .string("object"),
             "properties": .object([
                 "filePath": .object([
                     "type": .string("string"),
                     "description": .string(
-                        "Absolute path to a Swift source file containing #Preview"),
+                        "Absolute path to a Swift source file containing #Preview"
+                    ),
                 ]),
                 "previewIndex": .object([
                     "type": .string("integer"),
                     "description": .string(
-                        "0-based index of which #Preview to show (default: 0)"),
+                        "0-based index of which #Preview to show (default: 0)"
+                    ),
                 ]),
                 "platform": .object([
                     "type": .string("string"),
@@ -40,22 +42,26 @@ enum PreviewStartHandler: ToolHandler {
                 "deviceUDID": .object([
                     "type": .string("string"),
                     "description": .string(
-                        "Simulator device UDID (for ios; auto-selects if omitted)"),
+                        "Simulator device UDID (for ios; auto-selects if omitted)"
+                    ),
                 ]),
                 "headless": .object([
                     "type": .string("boolean"),
                     "description": .string(
-                        "If false, shows the preview window (default: true)"),
+                        "If false, shows the preview window (default: true)"
+                    ),
                 ]),
                 "width": .object([
                     "type": .string("integer"),
                     "description": .string(
-                        "Window width in points (macOS only, default: 400)"),
+                        "Window width in points (macOS only, default: 400)"
+                    ),
                 ]),
                 "height": .object([
                     "type": .string("integer"),
                     "description": .string(
-                        "Window height in points (macOS only, default: 600)"),
+                        "Window height in points (macOS only, default: 600)"
+                    ),
                 ]),
                 "projectPath": .object([
                     "type": .string("string"),
@@ -125,26 +131,27 @@ enum PreviewStartHandler: ToolHandler {
         let previewIndex = extractOptionalInt("previewIndex", from: params) ?? 0
 
         Log.info("preview_start: loading config")
-        let configResult: ProjectConfigLoader.Result?
-        if let explicitConfig = extractOptionalString("config", from: params) {
+        let configResult: ProjectConfigLoader.Result? = if let explicitConfig = extractOptionalString(
+            "config",
+            from: params
+        ) {
             // Explicit `config` bypasses the auto-discovery cache. One-shot
             // load is fine: config is read once at session start; long-lived
             // sessions don't consult it again.
-            configResult = loadProjectConfig(explicit: explicitConfig, fileURL: fileURL)
+            loadProjectConfig(explicit: explicitConfig, fileURL: fileURL)
         } else {
-            configResult = await ctx.configCache.load(for: fileURL)
+            await ctx.configCache.load(for: fileURL)
         }
         Log.info("preview_start: config loaded")
         let config = configResult?.config
-        let platformStr: String
-        if let explicit = extractOptionalString("platform", from: params) {
-            platformStr = explicit
+        let platformStr: String = if let explicit = extractOptionalString("platform", from: params) {
+            explicit
         } else if let configPlatform = config?.platform {
-            platformStr = configPlatform
+            configPlatform
         } else if await SPMBuildSystem.inferredPlatformAsync(for: fileURL) == .iOS {
-            platformStr = "ios"
+            "ios"
         } else {
-            platformStr = "macos"
+            "macos"
         }
 
         // preview_start ignores clearedFields — traits start from empty so there's
@@ -178,10 +185,12 @@ enum PreviewStartHandler: ToolHandler {
         let buildContext: BuildContext?
         do {
             buildContext = try await detectBuildContext(
-                for: fileURL, params: params, platform: .macOS, progress: progress)
+                for: fileURL, params: params, platform: .macOS, progress: progress
+            )
         } catch {
             return CallTool.Result(
-                content: [.text("Project build failed: \(error.localizedDescription)")], isError: true)
+                content: [.text("Project build failed: \(error.localizedDescription)")], isError: true
+            )
         }
 
         // Build setup plugin if configured
@@ -190,8 +199,8 @@ enum PreviewStartHandler: ToolHandler {
         )
         let standaloneSetupWarning =
             (config?.setup != nil && buildContext == nil)
-            ? " Warning: setup plugin requires a project build system and is ignored in standalone mode."
-            : ""
+                ? " Warning: setup plugin requires a project build system and is ignored in standalone mode."
+                : ""
 
         await progress.report(.compilingBridge, message: "Compiling \(fileURL.lastPathComponent)...")
         let sessionID = try await startMacOSPreview(
@@ -226,7 +235,7 @@ enum PreviewStartHandler: ToolHandler {
             content: [
                 .text(
                     "macOS preview started. Session ID: \(sessionID).\(traitInfo)\(standaloneSetupWarning) File is being watched for changes.\n\(previewList)\(switchHint)"
-                )
+                ),
             ],
             structuredContent: structured
         )
@@ -241,11 +250,13 @@ private func handleIOSPreviewStart(
     traits: PreviewTraits = PreviewTraits(),
     ctx: HandlerContext
 ) async throws -> CallTool.Result {
-    // Stage markers on stderr so CI diagnostic dumps show where a hang
-    // occurred before session.start() gets a chance to log anything.
-    // Progress reported via `progress` goes over the MCP stdio protocol
-    // and is invisible in the captured stderr log.
-    func stage(_ s: String) { Log.info("preview_start/ios: \(s)") }
+    /// Stage markers on stderr so CI diagnostic dumps show where a hang
+    /// occurred before session.start() gets a chance to log anything.
+    /// Progress reported via `progress` goes over the MCP stdio protocol
+    /// and is invisible in the captured stderr log.
+    func stage(_ s: String) {
+        Log.info("preview_start/ios: \(s)")
+    }
     stage("enter")
 
     let config = configResult?.config
@@ -283,7 +294,8 @@ private func handleIOSPreviewStart(
 
     stage("buildSetupIfConfigured begin")
     let setupResult = try await buildSetupIfConfigured(
-        config: config, configDirectory: configResult?.directory, platform: .iOS)
+        config: config, configDirectory: configResult?.directory, platform: .iOS
+    )
     stage("buildSetupIfConfigured done (\(setupResult == nil ? "nil" : "ok"))")
 
     let session = IOSPreviewSession(
@@ -353,7 +365,7 @@ private func handleIOSPreviewStart(
         content: [
             .text(
                 "iOS simulator preview started on device \(deviceUDID). Session ID: \(sessionID). PID: \(pid).\(traitInfo) File is being watched for changes.\n\(previewList)\(switchHint)"
-            )
+            ),
         ],
         structuredContent: structured
     )
@@ -399,7 +411,7 @@ private func parseBuildSystemOverride(
         throw BuildSystemError.buildSystemUnavailable(
             kind: raw,
             reason:
-                "unknown build system; valid values: \(BuildSystemKind.allCases.map(\.rawValue).joined(separator: ", "))"
+            "unknown build system; valid values: \(BuildSystemKind.allCases.map(\.rawValue).joined(separator: ", "))"
         )
     }
     return kind

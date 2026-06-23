@@ -1,11 +1,9 @@
 import Foundation
-import Testing
-
 @testable import PreviewsCLI
+import Testing
 
 @Suite("CLI path normalization at the argument boundary")
 struct PathNormalizationTests {
-
     private static let home = FileManager.default.homeDirectoryForCurrentUser.path
 
     private static let repoRoot: URL = {
@@ -20,7 +18,7 @@ struct PathNormalizationTests {
 
     private static let existingFile =
         repoRoot
-        .appendingPathComponent("examples/spm/Sources/ToDo/ToDoView.swift").path
+            .appendingPathComponent("examples/spm/Sources/ToDo/ToDoView.swift").path
 
     @Test("run expands tilde in project and config and resolves the file")
     func runNormalizesPaths() throws {

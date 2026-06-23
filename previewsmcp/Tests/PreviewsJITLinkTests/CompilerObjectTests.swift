@@ -9,9 +9,9 @@ struct CompilerObjectTests {
         let compiler = try await Compiler()
         let object = try await compiler.compileObject(
             source: """
-                @_cdecl("compiler_answer")
-                public func compilerAnswer() -> Int32 { 42 }
-                """,
+            @_cdecl("compiler_answer")
+            public func compilerAnswer() -> Int32 { 42 }
+            """,
             moduleName: "CompilerObjectFixture"
         )
 
@@ -26,16 +26,16 @@ struct CompilerObjectTests {
 
         let v1 = try await compiler.compileObject(
             source: """
-                @_cdecl("reload_value")
-                public func reloadValue() -> Int32 { 42 }
-                """,
+            @_cdecl("reload_value")
+            public func reloadValue() -> Int32 { 42 }
+            """,
             moduleName: "ReloadFixture"
         )
         let v2 = try await compiler.compileObject(
             source: """
-                @_cdecl("reload_value")
-                public func reloadValue() -> Int32 { 43 }
-                """,
+            @_cdecl("reload_value")
+            public func reloadValue() -> Int32 { 43 }
+            """,
             moduleName: "ReloadFixture"
         )
 
@@ -121,28 +121,28 @@ struct CompilerObjectTests {
         let compiler = try await Compiler()
         let object = try await compiler.compileObject(
             source: """
-                import SwiftUI
+            import SwiftUI
 
-                @_cdecl("render_to_file")
-                public func render_to_file() -> Int32 {
-                    MainActor.assumeIsolated {
-                        let content = Color(red: 1, green: 0, blue: 0).frame(width: 8, height: 8)
-                        let renderer = ImageRenderer(content: content)
-                        renderer.scale = 1
-                        guard let cgImage = renderer.cgImage else { return Int32(-1) }
-                        let rep = NSBitmapImageRep(cgImage: cgImage)
-                        guard let data = rep.representation(using: .png, properties: [:]) else {
-                            return Int32(-2)
-                        }
-                        do {
-                            try data.write(to: URL(fileURLWithPath: "\(outURL.path)"))
-                        } catch {
-                            return Int32(-3)
-                        }
-                        return 0
+            @_cdecl("render_to_file")
+            public func render_to_file() -> Int32 {
+                MainActor.assumeIsolated {
+                    let content = Color(red: 1, green: 0, blue: 0).frame(width: 8, height: 8)
+                    let renderer = ImageRenderer(content: content)
+                    renderer.scale = 1
+                    guard let cgImage = renderer.cgImage else { return Int32(-1) }
+                    let rep = NSBitmapImageRep(cgImage: cgImage)
+                    guard let data = rep.representation(using: .png, properties: [:]) else {
+                        return Int32(-2)
                     }
+                    do {
+                        try data.write(to: URL(fileURLWithPath: "\(outURL.path)"))
+                    } catch {
+                        return Int32(-3)
+                    }
+                    return 0
                 }
-                """,
+            }
+            """,
             moduleName: "RenderToFileFixture"
         )
 
@@ -169,18 +169,18 @@ struct CompilerObjectTests {
         defer { try? FileManager.default.removeItem(at: outURL) }
 
         let originalSource = """
-            import SwiftUI
+        import SwiftUI
 
-            struct ColorView: View {
-                var body: some View {
-                    Color(red: 0, green: 1, blue: 0).frame(width: 8, height: 8)
-                }
+        struct ColorView: View {
+            var body: some View {
+                Color(red: 0, green: 1, blue: 0).frame(width: 8, height: 8)
             }
+        }
 
-            #Preview {
-                ColorView()
-            }
-            """
+        #Preview {
+            ColorView()
+        }
+        """
 
         let generated = BridgeGenerator.generateCombinedSource(
             originalSource: originalSource,

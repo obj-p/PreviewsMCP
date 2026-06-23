@@ -1,6 +1,5 @@
-import Testing
-
 @testable import PreviewsCLI
+import Testing
 
 /// Unit tests for `VariantsCommand.exitCode(successCount:failCount:)`.
 /// The doc comment commits to three branches:
@@ -11,7 +10,6 @@ import Testing
 /// is expensive, so pin the mapping directly.
 @Suite("variants exitCode mapping")
 struct VariantsExitCodeTests {
-
     @Test("all success → 0")
     func allSuccess() {
         #expect(VariantsCommand.exitCode(successCount: 3, failCount: 0) == 0)

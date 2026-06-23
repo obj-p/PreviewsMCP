@@ -1,11 +1,9 @@
 import Foundation
-import Testing
-
 @testable import PreviewsIOS
+import Testing
 
 @Suite("SimulatorManager", .serialized)
 struct SimulatorManagerTests {
-
     @Test("Load CoreSimulator and list devices")
     func listDevices() async throws {
         let manager = SimulatorManager()

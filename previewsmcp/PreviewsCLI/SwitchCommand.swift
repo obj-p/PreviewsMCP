@@ -17,17 +17,17 @@ struct SwitchCommand: AsyncParsableCommand {
         commandName: "switch",
         abstract: "Switch which #Preview block is active in a running session",
         discussion: """
-            Selects a different #Preview block to render. Use
-            `previewsmcp list <file>` to enumerate available previews.
+        Selects a different #Preview block to render. Use
+        `previewsmcp list <file>` to enumerate available previews.
 
-            Targets the session using the same resolution rules as
-            `configure` and `snapshot`: pass --session for a specific
-            session, --file to look up by source path, or no flag when
-            exactly one session is running.
+        Targets the session using the same resolution rules as
+        `configure` and `snapshot`: pass --session for a specific
+        session, --file to look up by source path, or no flag when
+        exactly one session is running.
 
-            @State is reset on each switch; traits (color scheme, dynamic
-            type, locale, etc.) persist.
-            """
+        @State is reset on each switch; traits (color scheme, dynamic
+        type, locale, etc.) persist.
+        """
     )
 
     @Argument(help: "0-based index of the #Preview block to render")
@@ -47,7 +47,7 @@ struct SwitchCommand: AsyncParsableCommand {
                 client: client
             )
 
-            guard case .found(let sessionID) = resolution else {
+            guard case let .found(sessionID) = resolution else {
                 throw ValidationError(
                     "No session found to switch. Start one with "
                         + "`previewsmcp run <file> --detach` or pass an "
@@ -70,5 +70,4 @@ struct SwitchCommand: AsyncParsableCommand {
             if !text.isEmpty { fputs("\(text)\n", stderr) }
         }
     }
-
 }

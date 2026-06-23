@@ -1,11 +1,9 @@
 import Foundation
-import Testing
-
 @testable import PreviewsIOS
+import Testing
 
 @Suite("IOSAgentBuilder", .serialized)
 struct IOSAgentBuilderTests {
-
     @Test("Build iOS agent app produces valid .app bundle")
     func buildAgentApp() async throws {
         let workDir = FileManager.default.temporaryDirectory

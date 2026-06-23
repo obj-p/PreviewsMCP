@@ -12,7 +12,7 @@ public func render_probe_value() -> Int32 {
         let rep = NSBitmapImageRep(cgImage: cgImage)
         guard
             let color = rep.colorAt(x: rep.pixelsWide / 2, y: rep.pixelsHigh / 2)?
-                .usingColorSpace(.deviceRGB)
+            .usingColorSpace(.deviceRGB)
         else {
             return Int32(-2)
         }

@@ -76,7 +76,7 @@ struct JITStructuralReloaderTests {
         #expect(b1 < 0.4)
 
         let whiteLiteral = try #require(
-            build.literals.first { if case .float = $0.value { return true } else { return false } }
+            build.literals.first { if case .float = $0.value { true } else { false } }
         )
         var values = try #require(
             JSONSerialization.jsonObject(with: Data(contentsOf: build.valuesPath)) as? [String: Any]
@@ -95,7 +95,7 @@ struct JITStructuralReloaderTests {
         guard
             let rep = NSBitmapImageRep(data: data),
             let color = rep.colorAt(x: rep.pixelsWide / 2, y: rep.pixelsHigh / 2)?
-                .usingColorSpace(.deviceRGB)
+            .usingColorSpace(.deviceRGB)
         else {
             throw JITReloadError.renderFailed(status: -99)
         }

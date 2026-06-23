@@ -1,29 +1,27 @@
 import Foundation
-import Testing
-
 @testable import PreviewsCore
+import Testing
 
 /// Tests for the `Generated*Symbols.swift` resource-bundle rewrite (#151) —
 /// kept in their own suite to keep `BuildSystemTests` under SwiftLint's
 /// `type_body_length` cap.
 @Suite("ResourceBundleRewrite")
 struct ResourceBundleRewriteTests {
-
     /// Sample preamble emitted by Xcode at the top of `Generated*Symbols.swift`
     /// files. The recompiled-into-bridge form (`Bundle(for:)`) breaks asset
     /// lookup at runtime; the rewrite replaces it with an absolute-path lookup.
     private static let generatedSymbolsPreamble = """
-        import Foundation
+    import Foundation
 
-        #if SWIFT_PACKAGE
-        private let resourceBundle = Foundation.Bundle.module
-        #else
-        private class ResourceBundleClass {}
-        private let resourceBundle = Foundation.Bundle(for: ResourceBundleClass.self)
-        #endif
+    #if SWIFT_PACKAGE
+    private let resourceBundle = Foundation.Bundle.module
+    #else
+    private class ResourceBundleClass {}
+    private let resourceBundle = Foundation.Bundle(for: ResourceBundleClass.self)
+    #endif
 
-        // MARK: - Color Symbols -
-        """
+    // MARK: - Color Symbols -
+    """
 
     @Test("rewriteResourceBundle replaces Bundle(for:) with absolute path lookup")
     func rewriteResourceBundleReplacesPreamble() throws {
@@ -38,7 +36,8 @@ struct ResourceBundleRewriteTests {
         let rewriteDir = tmpDir.appendingPathComponent("PreviewsMCPRewrites")
         let wrapperPath = "/path/to/Build/Products/Debug-iphonesimulator/ToDo.framework"
         let result = XcodeBuildSystem.rewriteResourceBundle(
-            source: source, wrapperPath: wrapperPath, rewriteDir: rewriteDir)
+            source: source, wrapperPath: wrapperPath, rewriteDir: rewriteDir
+        )
 
         #expect(result != source, "Expected rewritten file to live under rewriteDir")
         #expect(result.path.hasPrefix(rewriteDir.path))
@@ -61,12 +60,14 @@ struct ResourceBundleRewriteTests {
 
         let source = tmpDir.appendingPathComponent("GeneratedSomethingElse.swift")
         try "import Foundation\n// no preamble here\n".write(
-            to: source, atomically: true, encoding: .utf8)
+            to: source, atomically: true, encoding: .utf8
+        )
 
         let result = XcodeBuildSystem.rewriteResourceBundle(
             source: source,
             wrapperPath: "/some/path.framework",
-            rewriteDir: tmpDir.appendingPathComponent("PreviewsMCPRewrites"))
+            rewriteDir: tmpDir.appendingPathComponent("PreviewsMCPRewrites")
+        )
 
         #expect(result == source, "Expected source URL to be returned unchanged")
     }
@@ -85,7 +86,8 @@ struct ResourceBundleRewriteTests {
         let result = XcodeBuildSystem.rewriteResourceBundle(
             source: source,
             wrapperPath: "/some/path.framework",
-            rewriteDir: tmpDir.appendingPathComponent("PreviewsMCPRewrites"))
+            rewriteDir: tmpDir.appendingPathComponent("PreviewsMCPRewrites")
+        )
 
         #expect(result == source)
     }
@@ -122,7 +124,8 @@ struct ResourceBundleRewriteTests {
 
         let result = XcodeBuildSystem.applyResourceBundleRewrites(
             sources: [assetSymbols, stringSymbols, regularSource],
-            settings: settings)
+            settings: settings
+        )
 
         let rewriteDir = derivedFileDir.appendingPathComponent("PreviewsMCPRewrites").path
         #expect(result.count == 3)
@@ -148,7 +151,8 @@ struct ResourceBundleRewriteTests {
 
         let result = XcodeBuildSystem.applyResourceBundleRewrites(
             sources: [assetSymbols],
-            settings: ["DERIVED_FILE_DIR": tmpDir.path])
+            settings: ["DERIVED_FILE_DIR": tmpDir.path]
+        )
         #expect(result == [assetSymbols])
     }
 
@@ -167,7 +171,8 @@ struct ResourceBundleRewriteTests {
             settings: [
                 "CODESIGNING_FOLDER_PATH": "/nonexistent/path/Foo.framework",
                 "DERIVED_FILE_DIR": tmpDir.path,
-            ])
+            ]
+        )
         // Bug-prevention: must NOT silently produce a path that leads to
         // Bundle(path:) returning nil at runtime — return original instead.
         #expect(result == [assetSymbols])
@@ -187,7 +192,8 @@ struct ResourceBundleRewriteTests {
         let result = XcodeBuildSystem.rewriteResourceBundle(
             source: source,
             wrapperPath: weirdPath,
-            rewriteDir: tmpDir.appendingPathComponent("PreviewsMCPRewrites"))
+            rewriteDir: tmpDir.appendingPathComponent("PreviewsMCPRewrites")
+        )
 
         let rewritten = try String(contentsOf: result, encoding: .utf8)
         // Backslashes and quotes must be escaped so the result is valid Swift.

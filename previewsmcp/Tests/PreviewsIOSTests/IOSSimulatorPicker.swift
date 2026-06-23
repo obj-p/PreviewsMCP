@@ -15,7 +15,6 @@ import PreviewsIOS
 /// device. This file provides the picker; each test passes a distinct
 /// index. No coordination required; tests can again run in parallel.
 enum IOSSimulatorPicker {
-
     /// Deterministic per-test device assignment. `index` must be unique
     /// per test function that needs an isolated simulator; the returned
     /// device is the `index`-th available iOS simulator in runtime-sorted
@@ -45,17 +44,17 @@ enum IOSSimulatorPicker {
         // previews that don't care which iPhone class they run on.
         let iPhones =
             devices
-            .filter { d in
-                let runtime = d.runtimeName ?? ""
-                let name = d.name
-                return d.isAvailable && runtime.contains("iOS") && name.contains("iPhone")
-            }
-            .sorted { a, b in
-                let aRuntime = a.runtimeName ?? ""
-                let bRuntime = b.runtimeName ?? ""
-                if aRuntime != bRuntime { return aRuntime < bRuntime }
-                return a.udid < b.udid
-            }
+                .filter { d in
+                    let runtime = d.runtimeName ?? ""
+                    let name = d.name
+                    return d.isAvailable && runtime.contains("iOS") && name.contains("iPhone")
+                }
+                .sorted { a, b in
+                    let aRuntime = a.runtimeName ?? ""
+                    let bRuntime = b.runtimeName ?? ""
+                    if aRuntime != bRuntime { return aRuntime < bRuntime }
+                    return a.udid < b.udid
+                }
         guard index < iPhones.count else { return nil }
         return iPhones[index]
     }

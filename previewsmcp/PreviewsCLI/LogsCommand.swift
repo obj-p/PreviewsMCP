@@ -6,14 +6,14 @@ struct LogsCommand: ParsableCommand {
         commandName: "logs",
         abstract: "Print the daemon log for debugging (~/.previewsmcp/serve.log)",
         discussion: """
-            Prints the last N lines of the daemon log and exits. Pass
-            --follow to stream new lines as they're appended — useful for
-            diagnosing a stuck command (e.g., an iOS host build) from a
-            second terminal.
+        Prints the last N lines of the daemon log and exits. Pass
+        --follow to stream new lines as they're appended — useful for
+        diagnosing a stuck command (e.g., an iOS host build) from a
+        second terminal.
 
-            Log path: ~/.previewsmcp/serve.log, or $PREVIEWSMCP_SOCKET_DIR/serve.log
-            when that variable is set.
-            """
+        Log path: ~/.previewsmcp/serve.log, or $PREVIEWSMCP_SOCKET_DIR/serve.log
+        when that variable is set.
+        """
     )
 
     @Flag(
@@ -96,7 +96,9 @@ struct LogsCommand: ParsableCommand {
             // rather than the prior disposition is safe. If a future
             // pre-run hook at the app layer installs one, revisit this
             // and RunCommand.blockUntilSignal together.
-            for src in signalSources { src.cancel() }
+            for src in signalSources {
+                src.cancel()
+            }
             signal(SIGINT, SIG_DFL)
             signal(SIGTERM, SIG_DFL)
         }

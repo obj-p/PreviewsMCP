@@ -6,7 +6,6 @@ import Testing
 /// human-readable output on stdout.
 @Suite(.serialized)
 struct SimulatorsCommandTests {
-
     private static func cleanSlate() async throws {
         _ = try? await CLIRunner.run("kill-daemon", arguments: ["--timeout", "2"])
     }
@@ -38,8 +37,8 @@ struct SimulatorsCommandTests {
             if hasSimulator {
                 let lines =
                     stdout
-                    .split(separator: "\n", omittingEmptySubsequences: true)
-                    .map(String.init)
+                        .split(separator: "\n", omittingEmptySubsequences: true)
+                        .map(String.init)
                 #expect(!lines.isEmpty, "should list at least one device: \(stdout)")
 
                 // Daemon formats each line as "<name> — <udid> [BOOTED]? (<runtime>)".

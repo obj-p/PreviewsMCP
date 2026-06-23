@@ -34,19 +34,21 @@ struct IOSPreviewE2ETests {
     func spawnInSessionRunsProgramAndReportsExit() async throws {
         let udid = try IOSPreviewE2ESupport.bootSimulator()
         let exe = try IOSPreviewE2ESupport.compileExecutableForIOSSim(
-            source: "int main(void) { return 0; }", name: "trivial_exit")
+            source: "int main(void) { return 0; }", name: "trivial_exit"
+        )
 
         let manager = SimulatorManager()
         let exitStatus = ResultBox()
         let pid = try await manager.spawnInSession(
             udid: udid,
             program: exe.path,
-            onExit: { status in exitStatus.set(status) })
+            onExit: { status in exitStatus.set(status) }
+        )
         #expect(pid > 0)
 
         // The termination handler fires once the trivial program returns.
         let deadline = Date().addingTimeInterval(30)
-        while exitStatus.get() == nil && Date() < deadline {
+        while exitStatus.get() == nil, Date() < deadline {
             try await Task.sleep(for: .milliseconds(100))
         }
         #expect(exitStatus.get() != nil)
@@ -63,27 +65,28 @@ struct IOSPreviewE2ETests {
         let udid = try IOSPreviewE2ESupport.bootSimulator()
         let exe = try IOSPreviewE2ESupport.compileExecutableForIOSSim(
             source: """
-                #include <sys/socket.h>
-                #include <netinet/in.h>
-                #include <arpa/inet.h>
-                #include <unistd.h>
-                #include <stdlib.h>
-                int main(int argc, char **argv) {
-                    if (argc < 2) return 1;
-                    int fd = socket(AF_INET, SOCK_STREAM, 0);
-                    if (fd < 0) return 2;
-                    struct sockaddr_in addr;
-                    addr.sin_family = AF_INET;
-                    addr.sin_port = htons((unsigned short)atoi(argv[1]));
-                    addr.sin_addr.s_addr = inet_addr("127.0.0.1");
-                    if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) != 0) return 3;
-                    char b = 42;
-                    write(fd, &b, 1);
-                    close(fd);
-                    return 0;
-                }
-                """,
-            name: "loopback_connect")
+            #include <sys/socket.h>
+            #include <netinet/in.h>
+            #include <arpa/inet.h>
+            #include <unistd.h>
+            #include <stdlib.h>
+            int main(int argc, char **argv) {
+                if (argc < 2) return 1;
+                int fd = socket(AF_INET, SOCK_STREAM, 0);
+                if (fd < 0) return 2;
+                struct sockaddr_in addr;
+                addr.sin_family = AF_INET;
+                addr.sin_port = htons((unsigned short)atoi(argv[1]));
+                addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+                if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) != 0) return 3;
+                char b = 42;
+                write(fd, &b, 1);
+                close(fd);
+                return 0;
+            }
+            """,
+            name: "loopback_connect"
+        )
 
         let listener = try IOSPreviewE2ESupport.openLoopbackListener()
         defer { close(listener.fd) }
@@ -92,7 +95,8 @@ struct IOSPreviewE2ETests {
         let pid = try await manager.spawnInSession(
             udid: udid,
             program: exe.path,
-            arguments: [exe.path, String(listener.port)])
+            arguments: [exe.path, String(listener.port)]
+        )
         #expect(pid > 0)
 
         let conn = try IOSPreviewE2ESupport.acceptOne(listenFD: listener.fd, timeoutSeconds: 30)
@@ -119,7 +123,8 @@ struct IOSPreviewE2ETests {
 
         try IOSPreviewE2ESupport.launchApp(
             udid: udid, bundleID: IOSPreviewSession.agentBundleID,
-            args: ["--jit-port", "\(listener.port)"])
+            args: ["--jit-port", "\(listener.port)"]
+        )
         defer {
             IOSPreviewE2ESupport.terminateApp(udid: udid, bundleID: IOSPreviewSession.agentBundleID)
         }
@@ -388,8 +393,9 @@ struct IOSPreviewE2ETests {
         // spinner overlay should be on screen. Capture it serially. With the fix
         // these frames show the held "Hello" + spinner; pre-fix they were black.
         await simulatorManager.terminateAppIfRunning(
-            udid: udid, bundleID: IOSPreviewSession.agentBundleID)
-        for i in 1...8 {
+            udid: udid, bundleID: IOSPreviewSession.agentBundleID
+        )
+        for i in 1 ... 8 {
             try await Task.sleep(for: .milliseconds(700))
             let shot = try await simulatorManager.screenshotData(udid: udid)
             try shot.write(to: outDir.appendingPathComponent(String(format: "%02d-gap.jpg", i)))
@@ -398,7 +404,7 @@ struct IOSPreviewE2ETests {
             // ~61KB, the held cached frame + dim + spinner is ~86KB, and the
             // springboard (shell crashed/backgrounded) is ~364KB. Require the
             // held band: not black (too small) and not springboard (too big).
-            #expect(shot.count > 70_000 && shot.count < 200_000)
+            #expect(shot.count > 70000 && shot.count < 200_000)
         }
     }
 
@@ -470,7 +476,8 @@ struct IOSPreviewE2ETests {
         try await Task.sleep(for: .seconds(2))
         #expect(
             !stopDone.isSet,
-            "stop() returned while a respawn was mid-flight — it did not take the render lock (#257)")
+            "stop() returned while a respawn was mid-flight — it did not take the render lock (#257)"
+        )
 
         // Release the respawn; stop must now finish and leave no host behind.
         gated.openGate()
@@ -479,7 +486,8 @@ struct IOSPreviewE2ETests {
         try await Task.sleep(for: .seconds(2))
         #expect(
             !IOSPreviewE2ESupport.isAppRunning(udid: udid, bundleID: IOSPreviewSession.agentBundleID),
-            "stop() must terminate the respawned agent it waited out")
+            "stop() must terminate the respawned agent it waited out"
+        )
     }
 
     /// Concurrency: the file watcher fires a Task per change, so several reloads can race on
@@ -509,7 +517,8 @@ struct IOSPreviewE2ETests {
             simulatorManager: simulatorManager,
             makeJITReloader: { fd, orcPath in
                 let tracker = ConcurrencyTrackingReloader(
-                    inner: try IOSJITStructuralReloader(remoteFD: fd, orcRuntimePath: orcPath))
+                    inner: try IOSJITStructuralReloader(remoteFD: fd, orcRuntimePath: orcPath)
+                )
                 trackerBox.set(tracker)
                 return tracker
             }
@@ -522,7 +531,7 @@ struct IOSPreviewE2ETests {
 
         // Fire several reloads at once; serialized renders must never overlap.
         await withThrowingTaskGroup(of: Void.self) { group in
-            for _ in 0..<5 {
+            for _ in 0 ..< 5 {
                 group.addTask { try await session.reload() }
             }
             try? await group.waitForAll()
@@ -565,7 +574,8 @@ struct IOSPreviewE2ETests {
             simulatorManager: simulatorManager,
             makeJITReloader: { fd, orcPath in
                 let recorder = RecordingReloader(
-                    inner: try IOSJITStructuralReloader(remoteFD: fd, orcRuntimePath: orcPath))
+                    inner: try IOSJITStructuralReloader(remoteFD: fd, orcRuntimePath: orcPath)
+                )
                 recorderBox.set(recorder)
                 return recorder
             }
@@ -580,7 +590,8 @@ struct IOSPreviewE2ETests {
         #expect(before.contains("Hello from iOS JIT!"))
 
         let edited = Self.helloViewSource.replacingOccurrences(
-            of: "Hello from iOS JIT!", with: "Hello from literal edit!")
+            of: "Hello from iOS JIT!", with: "Hello from literal edit!"
+        )
         try edited.write(to: sourceFile, atomically: true, encoding: .utf8)
         try await session.handleSourceChange()
 
@@ -591,7 +602,8 @@ struct IOSPreviewE2ETests {
         #expect(paths.count == 2)
         #expect(
             paths.first == paths.last,
-            "literal edit must re-render the same object (no recompile)")
+            "literal edit must re-render the same object (no recompile)"
+        )
         await session.stop()
     }
 
@@ -614,10 +626,12 @@ struct IOSPreviewE2ETests {
         let buildContext = try await spm.build(platform: .iOS)
 
         let configResult = try #require(
-            ProjectConfigLoader.find(from: hot.deletingLastPathComponent()))
+            ProjectConfigLoader.find(from: hot.deletingLastPathComponent())
+        )
         let setupConfig = try #require(configResult.config.setup)
         let setup = try await SetupBuilder.build(
-            config: setupConfig, configDirectory: configResult.directory, platform: .iOS)
+            config: setupConfig, configDirectory: configResult.directory, platform: .iOS
+        )
 
         let compiler = try await Compiler(platform: .iOS)
         let agentBuilder = try await IOSAgentBuilder()
@@ -656,28 +670,31 @@ struct IOSPreviewE2ETests {
     }
 
     static let helloViewSource = """
-        import SwiftUI
+    import SwiftUI
 
-        struct HelloView: View {
-            var body: some View {
-                Text("Hello from iOS JIT!")
-                    .font(.largeTitle)
-                    .padding()
-            }
+    struct HelloView: View {
+        var body: some View {
+            Text("Hello from iOS JIT!")
+                .font(.largeTitle)
+                .padding()
         }
+    }
 
-        #Preview {
-            HelloView()
-        }
-        """
+    #Preview {
+        HelloView()
+    }
+    """
 }
 
 /// Holds the remote JIT session for the lifetime of the preview session, mirroring
 /// how the real reloader will retain it to drive renders.
 private final class CapturingReloader: IOSStructuralReloader, @unchecked Sendable {
     let session: JITSession
-    init(session: JITSession) { self.session = session }
-    func render(_ build: JITRenderBuild) async throws {}
+    init(session: JITSession) {
+        self.session = session
+    }
+
+    func render(_: JITRenderBuild) async throws {}
 }
 
 /// Wraps a real reloader and records the object path of every rendered build, so a test
@@ -687,11 +704,15 @@ private final class RecordingReloader: IOSStructuralReloader, @unchecked Sendabl
     let inner: any IOSStructuralReloader
     private let lock = NSLock()
     private var paths: [String] = []
-    init(inner: any IOSStructuralReloader) { self.inner = inner }
+    init(inner: any IOSStructuralReloader) {
+        self.inner = inner
+    }
+
     func render(_ build: JITRenderBuild) async throws {
         lock.withLock { paths.append(build.objectPath.path) }
         try await inner.render(build)
     }
+
     var objectPaths: [String] {
         lock.withLock { paths }
     }
@@ -704,7 +725,10 @@ private final class ConcurrencyTrackingReloader: IOSStructuralReloader, @uncheck
     private let lock = NSLock()
     private var active = 0
     private(set) var maxActive = 0
-    init(inner: any IOSStructuralReloader) { self.inner = inner }
+    init(inner: any IOSStructuralReloader) {
+        self.inner = inner
+    }
+
     func render(_ build: JITRenderBuild) async throws {
         lock.withLock {
             active += 1
@@ -719,16 +743,26 @@ private final class ConcurrencyTrackingReloader: IOSStructuralReloader, @uncheck
 private final class TrackerBox: @unchecked Sendable {
     private let lock = NSLock()
     private var value: ConcurrencyTrackingReloader?
-    func set(_ v: ConcurrencyTrackingReloader) { lock.withLock { value = v } }
-    func get() -> ConcurrencyTrackingReloader? { lock.withLock { value } }
+    func set(_ v: ConcurrencyTrackingReloader) {
+        lock.withLock { value = v }
+    }
+
+    func get() -> ConcurrencyTrackingReloader? {
+        lock.withLock { value }
+    }
 }
 
 /// Thread-safe box so the @Sendable factory closure can hand the recorder back to the test.
 private final class RecorderBox: @unchecked Sendable {
     private let lock = NSLock()
     private var value: RecordingReloader?
-    func set(_ v: RecordingReloader) { lock.withLock { value = v } }
-    func get() -> RecordingReloader? { lock.withLock { value } }
+    func set(_ v: RecordingReloader) {
+        lock.withLock { value = v }
+    }
+
+    func get() -> RecordingReloader? {
+        lock.withLock { value }
+    }
 }
 
 /// Wraps a real reloader and, when `shouldGate`, parks its `render` on a
@@ -745,7 +779,11 @@ private final class GatedReloader: IOSStructuralReloader, @unchecked Sendable {
         self.inner = inner
         self.shouldGate = shouldGate
     }
-    var didEnterGate: Bool { lock.withLock { entered } }
+
+    var didEnterGate: Bool {
+        lock.withLock { entered }
+    }
+
     func openGate() {
         lock.lock()
         let cont = release
@@ -753,6 +791,7 @@ private final class GatedReloader: IOSStructuralReloader, @unchecked Sendable {
         lock.unlock()
         cont?.resume()
     }
+
     func render(_ build: JITRenderBuild) async throws {
         if shouldGate {
             await withCheckedContinuation { cont in
@@ -772,8 +811,14 @@ private final class GatedReloader: IOSStructuralReloader, @unchecked Sendable {
 private final class GatedReloaderBox: @unchecked Sendable {
     private let lock = NSLock()
     private var reloaders: [GatedReloader] = []
-    var count: Int { lock.withLock { reloaders.count } }
-    func add(_ r: GatedReloader) { lock.withLock { reloaders.append(r) } }
+    var count: Int {
+        lock.withLock { reloaders.count }
+    }
+
+    func add(_ r: GatedReloader) {
+        lock.withLock { reloaders.append(r) }
+    }
+
     func gated() -> GatedReloader? {
         lock.withLock { reloaders.count >= 2 ? reloaders[1] : nil }
     }
@@ -783,16 +828,26 @@ private final class GatedReloaderBox: @unchecked Sendable {
 private final class FlagBox: @unchecked Sendable {
     private let lock = NSLock()
     private var value = false
-    func set() { lock.withLock { value = true } }
-    var isSet: Bool { lock.withLock { value } }
+    func set() {
+        lock.withLock { value = true }
+    }
+
+    var isSet: Bool {
+        lock.withLock { value }
+    }
 }
 
 /// Thread-safe box so the @Sendable factory closure can report the linked result.
 private final class ResultBox: @unchecked Sendable {
     private let lock = NSLock()
     private var value: Int32?
-    func set(_ v: Int32) { lock.lock(); value = v; lock.unlock() }
-    func get() -> Int32? { lock.lock(); defer { lock.unlock() }; return value }
+    func set(_ v: Int32) {
+        lock.lock(); value = v; lock.unlock()
+    }
+
+    func get() -> Int32? {
+        lock.lock(); defer { lock.unlock() }; return value
+    }
 }
 
 enum IOSPreviewE2ESupport {
@@ -800,19 +855,19 @@ enum IOSPreviewE2ESupport {
         case message(String)
         var description: String {
             switch self {
-            case let .message(m): return m
+            case let .message(m): m
             }
         }
     }
 
     static func compileForIOSSim(_ source: String) throws -> URL {
-        let fixtures: URL
-        if let root = ProcessInfo.processInfo.environment["PREVIEWSMCP_REPO_ROOT"] {
-            fixtures = URL(fileURLWithPath: root, isDirectory: true)
+        let fixtures = if let root = ProcessInfo.processInfo.environment["PREVIEWSMCP_REPO_ROOT"] {
+            URL(fileURLWithPath: root, isDirectory: true)
                 .appendingPathComponent(
-                    "previewsmcp/Tests/PreviewsJITLinkTests/Fixtures", isDirectory: true)
+                    "previewsmcp/Tests/PreviewsJITLinkTests/Fixtures", isDirectory: true
+                )
         } else {
-            fixtures = URL(fileURLWithPath: #filePath)
+            URL(fileURLWithPath: #filePath)
                 .deletingLastPathComponent()
                 .appendingPathComponent("Fixtures", isDirectory: true)
         }
@@ -821,19 +876,19 @@ enum IOSPreviewE2ESupport {
             .appendingPathComponent("PreviewsJITLinkIOSSimFixtures", isDirectory: true)
         try FileManager.default.createDirectory(at: outDir, withIntermediateDirectories: true)
         let output = outDir.appendingPathComponent(
-            (source as NSString).deletingPathExtension + ".o")
+            (source as NSString).deletingPathExtension + ".o"
+        )
 
         let sdk = try run("/usr/bin/xcrun", ["--sdk", "iphonesimulator", "--show-sdk-path"])
             .output.trimmingCharacters(in: .whitespacesAndNewlines)
         let target = "arm64-apple-ios16.0-simulator"
-        let arguments: [String]
-        if input.pathExtension == "swift" {
-            arguments = [
+        let arguments: [String] = if input.pathExtension == "swift" {
+            [
                 "swiftc", "-c", "-parse-as-library", "-module-name", "Fixtures",
                 "-target", target, "-sdk", sdk, input.path, "-o", output.path,
             ]
         } else {
-            arguments = [
+            [
                 "clang", "-target", target, "-isysroot", sdk,
                 "-c", input.path, "-o", output.path,
             ]
@@ -860,7 +915,8 @@ enum IOSPreviewE2ESupport {
         let target = "arm64-apple-ios16.0-simulator"
         let result = try run(
             "/usr/bin/xcrun",
-            ["clang", "-target", target, "-isysroot", sdk, src.path, "-o", exe.path])
+            ["clang", "-target", target, "-isysroot", sdk, src.path, "-o", exe.path]
+        )
         guard result.status == 0 else {
             throw SpikeError.message("compiling executable \(name) for iossim failed:\n\(result.output)")
         }
@@ -871,8 +927,8 @@ enum IOSPreviewE2ESupport {
         if let udid = firstUDID(
             in: try run(
                 "/usr/bin/xcrun", ["simctl", "list", "devices", "booted"]
-            ).output)
-        {
+            ).output
+        ) {
             return udid
         }
         guard
@@ -880,7 +936,8 @@ enum IOSPreviewE2ESupport {
                 in: try run(
                     "/usr/bin/xcrun", ["simctl", "list", "devices", "available"]
                 ).output,
-                onLinesMatching: "iPhone")
+                onLinesMatching: "iPhone"
+            )
         else {
             throw SpikeError.message("no available iPhone simulator to boot")
         }
@@ -899,7 +956,8 @@ enum IOSPreviewE2ESupport {
     static func launchApp(udid: String, bundleID: String, args: [String]) throws {
         let result = try run(
             "/usr/bin/xcrun",
-            ["simctl", "launch", "--terminate-running-process", udid, bundleID] + args)
+            ["simctl", "launch", "--terminate-running-process", udid, bundleID] + args
+        )
         guard result.status == 0 else {
             throw SpikeError.message("simctl launch failed:\n\(result.output)")
         }
@@ -915,7 +973,8 @@ enum IOSPreviewE2ESupport {
     static func isAppRunning(udid: String, bundleID: String) -> Bool {
         guard
             let result = try? run(
-                "/usr/bin/xcrun", ["simctl", "spawn", udid, "launchctl", "list"])
+                "/usr/bin/xcrun", ["simctl", "spawn", udid, "launchctl", "list"]
+            )
         else {
             return false
         }
@@ -930,7 +989,7 @@ enum IOSPreviewE2ESupport {
 
         var addr = sockaddr_in()
         addr.sin_family = sa_family_t(AF_INET)
-        addr.sin_addr.s_addr = (0x7f00_0001 as in_addr_t).bigEndian
+        addr.sin_addr.s_addr = (0x7F00_0001 as in_addr_t).bigEndian
         addr.sin_port = 0
         let bound = withUnsafePointer(to: &addr) {
             $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {

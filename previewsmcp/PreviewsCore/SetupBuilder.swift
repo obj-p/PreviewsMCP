@@ -2,7 +2,6 @@ import Foundation
 
 /// Builds a setup plugin package and returns compiler flags for importing its module.
 public enum SetupBuilder {
-
     public struct Result: Sendable, Equatable {
         public let moduleName: String
         public let typeName: String
@@ -67,7 +66,8 @@ public enum SetupBuilder {
         let sdkPath = try await Toolchain.sdkPath(for: platform)
         let swiftVersion = try await SetupCache.resolveSwiftVersion()
         let sourceHash = try SetupCache.hashSources(
-            packageDir: packageDir, sdkPath: sdkPath, swiftVersion: swiftVersion)
+            packageDir: packageDir, sdkPath: sdkPath, swiftVersion: swiftVersion
+        )
 
         if let cached = SetupCache.load(
             packageDir: packageDir,
@@ -284,7 +284,6 @@ public enum SetupBuilder {
             }
         }
     }
-
 }
 
 public enum SetupBuilderError: Error, LocalizedError {
@@ -294,13 +293,12 @@ public enum SetupBuilderError: Error, LocalizedError {
 
     public var errorDescription: String? {
         switch self {
-        case .packageNotFound(let path):
-            return "Setup package not found at '\(path)'. Check the 'packagePath' in .previewsmcp.json."
-        case .buildFailed(let pkg, let stderr):
-            return "Setup package '\(pkg)' build failed:\n\(stderr)"
-        case .moduleNotFound(let module, let searchPath):
-            return
-                "Setup module '\(module)' not found after build. Expected .swiftmodule at \(searchPath)."
+        case let .packageNotFound(path):
+            "Setup package not found at '\(path)'. Check the 'packagePath' in .previewsmcp.json."
+        case let .buildFailed(pkg, stderr):
+            "Setup package '\(pkg)' build failed:\n\(stderr)"
+        case let .moduleNotFound(module, searchPath):
+            "Setup module '\(module)' not found after build. Expected .swiftmodule at \(searchPath)."
         }
     }
 }

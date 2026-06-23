@@ -121,10 +121,11 @@ public func runAsync(
         // below, but sees `resumed == true` and no-ops.
         let timeoutSource: DispatchSourceTimer? = timeout.map { duration in
             let source = DispatchSource.makeTimerSource(
-                queue: DispatchQueue.global(qos: .userInitiated))
+                queue: DispatchQueue.global(qos: .userInitiated)
+            )
             let seconds =
                 Double(duration.components.seconds)
-                + Double(duration.components.attoseconds) / 1e18
+                    + Double(duration.components.attoseconds) / 1e18
             source.schedule(deadline: .now() + seconds)
             source.setEventHandler {
                 let shouldResume = resumed.withLock { done -> Bool in
@@ -165,7 +166,9 @@ public func runAsync(
                         executable: executable,
                         duration: duration,
                         capturedStdout: capturedStdout,
-                        capturedStderr: capturedStderr))
+                        capturedStderr: capturedStderr
+                    )
+                )
             }
             source.resume()
             return source
@@ -192,7 +195,8 @@ public func runAsync(
                     stdout: stdout,
                     stderr: stderr,
                     exitCode: proc.terminationStatus
-                ))
+                )
+            )
         }
 
         do {
@@ -214,7 +218,7 @@ public func runAsync(
 /// Thread-safe mutable data buffer for collecting pipe output across callbacks.
 private final class UnsafeSendableBox<T: Sendable>: @unchecked Sendable {
     private let lock = NSLock()
-    private var _value: Data = Data()
+    private var _value: Data = .init()
 
     var value: Data {
         lock.lock()

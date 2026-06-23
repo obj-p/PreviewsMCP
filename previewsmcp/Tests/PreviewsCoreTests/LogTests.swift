@@ -1,7 +1,6 @@
 import Foundation
-import Testing
-
 @testable import PreviewsCore
+import Testing
 
 /// Pin the on-disk format of `Log` so future changes don't silently
 /// break `previewsmcp logs` consumers or grep patterns in CI dumps.
@@ -19,14 +18,14 @@ import Testing
 /// flaking on cross-suite stderr interleaving.
 @Suite("Log", .serialized)
 struct LogTests {
-
     @Test("info writes timestamped plain message to stderr")
     func infoFormat() {
         let captured = captureStderr { Log.info("hello world") }
         let pattern = #"\[\d{2}:\d{2}:\d{2}\.\d{3}\] hello world"#
         #expect(
             captured.containsLine(matching: pattern),
-            "got: \(captured.debugDescription)")
+            "got: \(captured.debugDescription)"
+        )
     }
 
     @Test("warn prefixes WARN: after the timestamp")
@@ -35,7 +34,8 @@ struct LogTests {
         let pattern = #"\[\d{2}:\d{2}:\d{2}\.\d{3}\] WARN: retrying"#
         #expect(
             captured.containsLine(matching: pattern),
-            "got: \(captured.debugDescription)")
+            "got: \(captured.debugDescription)"
+        )
     }
 
     @Test("error prefixes ERROR: after the timestamp")
@@ -44,7 +44,8 @@ struct LogTests {
         let pattern = #"\[\d{2}:\d{2}:\d{2}\.\d{3}\] ERROR: boom"#
         #expect(
             captured.containsLine(matching: pattern),
-            "got: \(captured.debugDescription)")
+            "got: \(captured.debugDescription)"
+        )
     }
 
     /// Redirects fd 2 to a temp file for the duration of `body`, then

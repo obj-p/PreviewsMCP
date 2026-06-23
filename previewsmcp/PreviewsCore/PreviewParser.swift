@@ -29,7 +29,6 @@ public struct PreviewInfo: Sendable {
 
 /// Parses Swift source files to find `#Preview` macro invocations and `PreviewProvider` conformances.
 public enum PreviewParser {
-
     /// Parse a Swift source file and return all `#Preview` blocks and `PreviewProvider` previews found.
     public static func parse(source: String) -> [PreviewInfo] {
         let sourceFile = Parser.parse(source: source)
@@ -50,7 +49,7 @@ private final class PreviewVisitor: SyntaxVisitor {
     /// Static computed properties from the current PreviewProvider struct, for cross-property resolution.
     var currentStaticProperties: [String: String] = [:]
 
-    // SwiftParser parses file-scope #Preview as MacroExpansionExprSyntax
+    /// SwiftParser parses file-scope #Preview as MacroExpansionExprSyntax
     override func visit(_ node: MacroExpansionExprSyntax) -> SyntaxVisitorContinueKind {
         guard node.macroName.text == "Preview" else {
             return .skipChildren
@@ -63,7 +62,7 @@ private final class PreviewVisitor: SyntaxVisitor {
         return .skipChildren
     }
 
-    // Some parser versions may use MacroExpansionDeclSyntax instead
+    /// Some parser versions may use MacroExpansionDeclSyntax instead
     override func visit(_ node: MacroExpansionDeclSyntax) -> SyntaxVisitorContinueKind {
         guard node.macroName.text == "Preview" else {
             return .skipChildren
@@ -90,7 +89,8 @@ private final class PreviewVisitor: SyntaxVisitor {
             converter: SourceLocationConverter(
                 fileName: "",
                 tree: node.root
-            ))
+            )
+        )
 
         let info = PreviewInfo(
             name: name,
@@ -106,7 +106,7 @@ private final class PreviewVisitor: SyntaxVisitor {
 
     private func extractName(from arguments: LabeledExprListSyntax) -> String? {
         guard let firstArg = arguments.first,
-            let stringLiteral = firstArg.expression.as(StringLiteralExprSyntax.self)
+              let stringLiteral = firstArg.expression.as(StringLiteralExprSyntax.self)
         else {
             return nil
         }
@@ -151,7 +151,7 @@ private final class PreviewVisitor: SyntaxVisitor {
 
         // Unwrap single `return` statement
         if items.count == 1, let returnStmt = items[0].item.as(ReturnStmtSyntax.self),
-            let expr = returnStmt.expression
+           let expr = returnStmt.expression
         {
             addPreviewProviderItems(from: expr)
         } else if items.count == 1 {
@@ -185,7 +185,7 @@ private final class PreviewVisitor: SyntaxVisitor {
             }
 
             if callee.baseName.text == "ForEach",
-                let expanded = expandForEach(funcCall)
+               let expanded = expandForEach(funcCall)
             {
                 for preview in expanded {
                     addSingleProviderPreview(from: preview)
@@ -202,8 +202,8 @@ private final class PreviewVisitor: SyntaxVisitor {
     private func expandForEach(_ funcCall: FunctionCallExprSyntax) -> [SyntaxProtocol]? {
         // Need a trailing closure with a parameter
         guard let trailingClosure = funcCall.trailingClosure,
-            let signature = trailingClosure.signature,
-            let paramClause = signature.parameterClause
+              let signature = trailingClosure.signature,
+              let paramClause = signature.parameterClause
         else {
             return nil
         }
@@ -211,11 +211,11 @@ private final class PreviewVisitor: SyntaxVisitor {
         // Extract the closure parameter name
         let paramName: String
         if let simpleParam = paramClause.as(ClosureShorthandParameterListSyntax.self),
-            let first = simpleParam.first
+           let first = simpleParam.first
         {
             paramName = first.name.text
         } else if let paramList = paramClause.as(ClosureParameterClauseSyntax.self),
-            let first = paramList.parameters.first
+                  let first = paramList.parameters.first
         {
             paramName = first.firstName.text
         } else {
@@ -224,7 +224,7 @@ private final class PreviewVisitor: SyntaxVisitor {
 
         // Find the first argument — must be an inline array literal
         guard let firstArg = funcCall.arguments.first,
-            let arrayExpr = firstArg.expression.as(ArrayExprSyntax.self)
+              let arrayExpr = firstArg.expression.as(ArrayExprSyntax.self)
         else {
             return nil
         }
@@ -282,7 +282,7 @@ private final class PreviewVisitor: SyntaxVisitor {
         // Resolve cross-property references: if the expression is a bare identifier
         // matching a static computed property, inline that property's body.
         if let declRef = syntax.as(DeclReferenceExprSyntax.self),
-            let inlinedBody = currentStaticProperties[declRef.baseName.text]
+           let inlinedBody = currentStaticProperties[declRef.baseName.text]
         {
             let parsed = Parser.parse(source: inlinedBody)
             if let firstStmt = parsed.statements.first {
@@ -297,7 +297,8 @@ private final class PreviewVisitor: SyntaxVisitor {
             converter: SourceLocationConverter(
                 fileName: "",
                 tree: syntax.root
-            ))
+            )
+        )
 
         let info = PreviewInfo(
             name: modifiers.displayName,
@@ -317,10 +318,10 @@ private final class PreviewVisitor: SyntaxVisitor {
         var props: [String: String] = [:]
         for member in node.memberBlock.members {
             guard let varDecl = member.decl.as(VariableDeclSyntax.self),
-                varDecl.modifiers.contains(where: { $0.name.text == "static" }),
-                let binding = varDecl.bindings.first,
-                let pattern = binding.pattern.as(IdentifierPatternSyntax.self),
-                pattern.identifier.text != "previews"
+                  varDecl.modifiers.contains(where: { $0.name.text == "static" }),
+                  let binding = varDecl.bindings.first,
+                  let pattern = binding.pattern.as(IdentifierPatternSyntax.self),
+                  pattern.identifier.text != "previews"
             else {
                 continue
             }
@@ -330,8 +331,8 @@ private final class PreviewVisitor: SyntaxVisitor {
                 // Handle single-statement bodies that might have `return`
                 let items = Array(codeBlock)
                 if items.count == 1,
-                    let returnStmt = items[0].item.as(ReturnStmtSyntax.self),
-                    let expr = returnStmt.expression
+                   let returnStmt = items[0].item.as(ReturnStmtSyntax.self),
+                   let expr = returnStmt.expression
                 {
                     props[pattern.identifier.text] = expr.description.trimmed
                 } else {
@@ -355,10 +356,10 @@ private final class PreviewVisitor: SyntaxVisitor {
     private func findPreviewsBody(in node: some DeclGroupSyntax) -> CodeBlockItemListSyntax? {
         for member in node.memberBlock.members {
             guard let varDecl = member.decl.as(VariableDeclSyntax.self),
-                varDecl.modifiers.contains(where: { $0.name.text == "static" }),
-                let binding = varDecl.bindings.first,
-                let pattern = binding.pattern.as(IdentifierPatternSyntax.self),
-                pattern.identifier.text == "previews"
+                  varDecl.modifiers.contains(where: { $0.name.text == "static" }),
+                  let binding = varDecl.bindings.first,
+                  let pattern = binding.pattern.as(IdentifierPatternSyntax.self),
+                  pattern.identifier.text == "previews"
             else {
                 continue
             }
@@ -398,7 +399,7 @@ private final class PreviewVisitor: SyntaxVisitor {
 
     private func collectPreviewModifiers(from syntax: SyntaxProtocol, into result: inout PreviewModifiers) {
         guard let funcCall = syntax.as(FunctionCallExprSyntax.self),
-            let memberAccess = funcCall.calledExpression.as(MemberAccessExprSyntax.self)
+              let memberAccess = funcCall.calledExpression.as(MemberAccessExprSyntax.self)
         else {
             return
         }
@@ -408,18 +409,18 @@ private final class PreviewVisitor: SyntaxVisitor {
         switch methodName {
         case "previewDisplayName":
             if let firstArg = funcCall.arguments.first,
-                let stringLiteral = firstArg.expression.as(StringLiteralExprSyntax.self)
+               let stringLiteral = firstArg.expression.as(StringLiteralExprSyntax.self)
             {
                 result.displayName = stringLiteral.segments.description
             }
         case "previewDevice":
             // .previewDevice(PreviewDevice(rawValue: "iPhone 14"))
             if let firstArg = funcCall.arguments.first,
-                let deviceCall = firstArg.expression.as(FunctionCallExprSyntax.self),
-                let rawValueArg = deviceCall.arguments.first(where: {
-                    $0.label?.text == "rawValue"
-                }),
-                let stringLiteral = rawValueArg.expression.as(StringLiteralExprSyntax.self)
+               let deviceCall = firstArg.expression.as(FunctionCallExprSyntax.self),
+               let rawValueArg = deviceCall.arguments.first(where: {
+                   $0.label?.text == "rawValue"
+               }),
+               let stringLiteral = rawValueArg.expression.as(StringLiteralExprSyntax.self)
             {
                 result.device = stringLiteral.segments.description
             }
@@ -429,7 +430,7 @@ private final class PreviewVisitor: SyntaxVisitor {
                 if let memberAccess = firstArg.expression.as(MemberAccessExprSyntax.self) {
                     result.layout = memberAccess.declName.baseName.text
                 } else if let funcCallArg = firstArg.expression.as(FunctionCallExprSyntax.self),
-                    funcCallArg.calledExpression.is(MemberAccessExprSyntax.self)
+                          funcCallArg.calledExpression.is(MemberAccessExprSyntax.self)
                 {
                     // .fixed(width: 300, height: 500)
                     result.layout = funcCallArg.description.trimmed

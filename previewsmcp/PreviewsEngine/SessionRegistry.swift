@@ -26,7 +26,6 @@ import PreviewsMacOS
 /// We don't register an `atexit` cleanup hook because Swift's bridge
 /// to it is fragile and the lazy filter is sufficient for correctness.
 public actor SessionRegistry {
-
     /// One row in the per-process registry file. Mirrors
     /// `DaemonProtocol.SessionDTO` in shape; defined here so
     /// `PreviewsEngine` doesn't need to import `PreviewsCLI`.
@@ -65,7 +64,7 @@ public actor SessionRegistry {
     ) {
         self.registryDir = registryDir
         self.pid = pid
-        self.pidFileName = "\(pid).json"
+        pidFileName = "\(pid).json"
         self.liveCheck = liveCheck ?? Self.defaultLiveCheck
     }
 
@@ -141,7 +140,8 @@ public actor SessionRegistry {
             let entries = try? fm.contentsOfDirectory(
                 at: registryDir,
                 includingPropertiesForKeys: nil,
-                options: [.skipsHiddenFiles])
+                options: [.skipsHiddenFiles]
+            )
         else {
             return []
         }
@@ -176,7 +176,8 @@ public actor SessionRegistry {
         let fm = FileManager.default
         try? fm.createDirectory(
             at: registryDir, withIntermediateDirectories: true,
-            attributes: [.posixPermissions: 0o700])
+            attributes: [.posixPermissions: 0o700]
+        )
 
         let target = registryDir.appendingPathComponent(pidFileName)
         // Write atomically so concurrent readers can't observe a
@@ -189,5 +190,4 @@ public actor SessionRegistry {
         // someone has to look to verify that.
         try? fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: target.path)
     }
-
 }

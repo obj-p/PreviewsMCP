@@ -1,11 +1,9 @@
 import Foundation
-import Testing
-
 @testable import PreviewsCore
+import Testing
 
 @Suite("AsyncProcess")
 struct AsyncProcessTests {
-
     @Test("captures stdout")
     func captureStdout() async throws {
         let output = try await runAsync("/bin/echo", arguments: ["hello"])
@@ -54,7 +52,7 @@ struct AsyncProcessTests {
         let elapsed = ContinuousClock.now - start
         let elapsedSeconds =
             Double(elapsed.components.seconds)
-            + Double(elapsed.components.attoseconds) / 1e18
+                + Double(elapsed.components.attoseconds) / 1e18
         #expect(
             elapsedSeconds >= 0.5 && elapsedSeconds < 3,
             "expected timeout in 0.5-3s (got \(elapsedSeconds)s)"
@@ -94,10 +92,12 @@ struct AsyncProcessTests {
         } catch let t as AsyncProcessTimeout {
             #expect(
                 t.capturedStdout.contains("booting SpringBoard"),
-                "expected pre-kill stdout, got: \(t.capturedStdout.debugDescription)")
+                "expected pre-kill stdout, got: \(t.capturedStdout.debugDescription)"
+            )
             #expect(
                 t.capturedStderr.contains("stage=kickoff"),
-                "expected pre-kill stderr, got: \(t.capturedStderr.debugDescription)")
+                "expected pre-kill stderr, got: \(t.capturedStderr.debugDescription)"
+            )
         }
     }
 }

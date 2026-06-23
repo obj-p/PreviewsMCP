@@ -1,11 +1,9 @@
 import Foundation
-import Testing
-
 @testable import PreviewsCore
+import Testing
 
 @Suite("BridgeGenerator setup and escaping guards")
 struct BridgeGeneratorSetupGuardTests {
-
     @Test("isUsableSetup rejects non-identifier module or type names")
     func isUsableSetupValidation() {
         #expect(BridgeGenerator.isUsableSetup(module: "MySetup", type: "MySetup"))
@@ -32,7 +30,8 @@ struct BridgeGeneratorSetupGuardTests {
             closureBody: "Text(\"hi\")",
             renderOutputPath: "/tmp/out.png",
             renderWindow: JITRenderWindow(
-                x: 0, y: 0, width: 100, height: 100, title: "Preview: a\nb.swift")
+                x: 0, y: 0, width: 100, height: 100, title: "Preview: a\nb.swift"
+            )
         )
         #expect(generated.source.contains(#"created.title = "Preview: a\u{a}b.swift""#))
     }

@@ -1,7 +1,6 @@
 import Foundation
-import Testing
-
 @testable import PreviewsCLI
+import Testing
 
 /// Unit tests for `DaemonClient.waitForSocket(timeout:child:)`. The contract:
 /// when the spawned daemon child exits before the socket comes up, throw
@@ -10,7 +9,6 @@ import Testing
 /// for the real daemon so the test is deterministic and fast.
 @Suite(.serialized)
 struct WaitForSocketTests {
-
     /// Point `DaemonPaths` at an empty directory so `canConnect()` is false
     /// (no `serve.sock`), run `body`, then restore the prior override.
     private func withEmptySocketDir(_ body: () async throws -> Void) async throws {

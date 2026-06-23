@@ -5,7 +5,6 @@ import os
 /// Caches `SetupBuilder` results on disk to skip redundant `swift build` invocations
 /// when the setup package sources haven't changed.
 public enum SetupCache {
-
     static let cacheDirectory = "previewsmcp-setup-cache"
 
     // MARK: - Swift Version
@@ -21,7 +20,7 @@ public enum SetupCache {
         }
         let version =
             result.stdout.components(separatedBy: .newlines).first?
-            .trimmingCharacters(in: .whitespaces) ?? result.stdout
+                .trimmingCharacters(in: .whitespaces) ?? result.stdout
         swiftVersionCache.withLock { $0 = version }
         return version
     }
@@ -67,7 +66,7 @@ public enum SetupCache {
         ) {
             let packageDirPath =
                 packageDir.path.hasSuffix("/")
-                ? packageDir.path : packageDir.path + "/"
+                    ? packageDir.path : packageDir.path + "/"
             for case let url as URL in enumerator where url.pathExtension == "swift" {
                 let relative = String(url.path.dropFirst(packageDirPath.count))
                 files.append((relative, url))
@@ -103,7 +102,7 @@ public enum SetupCache {
 
     // MARK: - Cache Entry
 
-    struct Entry: Codable, Sendable {
+    struct Entry: Codable {
         let moduleName: String
         let typeName: String
         let compilerFlags: [String]
@@ -143,8 +142,8 @@ public enum SetupCache {
         // Defense-in-depth: verify entry metadata matches even though the filename
         // already encodes platform and sourceHash.
         guard entry.swiftVersion == swiftVersion,
-            entry.sourceHash == sourceHash,
-            entry.platform == platform.rawValue
+              entry.sourceHash == sourceHash,
+              entry.platform == platform.rawValue
         else { return nil }
 
         guard validateArtifacts(moduleName: entry.moduleName, flags: entry.compilerFlags) else {
@@ -183,7 +182,8 @@ public enum SetupCache {
         do {
             let dir = cacheDir(packageDir: packageDir)
             try FileManager.default.createDirectory(
-                at: dir, withIntermediateDirectories: true)
+                at: dir, withIntermediateDirectories: true
+            )
 
             let entry = Entry(
                 moduleName: result.moduleName,
@@ -201,11 +201,13 @@ public enum SetupCache {
             let data = try encoder.encode(entry)
 
             let file = cacheFile(
-                packageDir: packageDir, platform: platform, sourceHash: sourceHash)
+                packageDir: packageDir, platform: platform, sourceHash: sourceHash
+            )
             try data.write(to: file, options: .atomic)
         } catch {
             fputs(
-                "Warning: failed to write setup cache: \(error.localizedDescription)\n", stderr)
+                "Warning: failed to write setup cache: \(error.localizedDescription)\n", stderr
+            )
         }
     }
 
@@ -244,7 +246,8 @@ public enum SetupCache {
         for dir in iDirs {
             guard fm.fileExists(atPath: dir) else { return false }
             let swiftmodule = (dir as NSString).appendingPathComponent(
-                "\(moduleName).swiftmodule")
+                "\(moduleName).swiftmodule"
+            )
             guard fm.fileExists(atPath: swiftmodule) else { return false }
             // Ensure the .swiftmodule directory has contents (not left empty by partial clean)
             let contents = try? fm.contentsOfDirectory(atPath: swiftmodule)
@@ -260,9 +263,11 @@ public enum SetupCache {
         for lib in libs {
             let found = lDirs.contains { dir in
                 fm.fileExists(
-                    atPath: (dir as NSString).appendingPathComponent("lib\(lib).dylib"))
+                    atPath: (dir as NSString).appendingPathComponent("lib\(lib).dylib")
+                )
                     || fm.fileExists(
-                        atPath: (dir as NSString).appendingPathComponent("lib\(lib).a"))
+                        atPath: (dir as NSString).appendingPathComponent("lib\(lib).a")
+                    )
             }
             guard found else { return false }
         }
@@ -276,7 +281,8 @@ public enum SetupCache {
         for fw in frameworks {
             let found = fDirs.contains { dir in
                 fm.fileExists(
-                    atPath: (dir as NSString).appendingPathComponent("\(fw).framework"))
+                    atPath: (dir as NSString).appendingPathComponent("\(fw).framework")
+                )
             }
             guard found else { return false }
         }
@@ -305,10 +311,10 @@ public enum SetupCacheError: Error, LocalizedError {
 
     public var errorDescription: String? {
         switch self {
-        case .swiftVersionFailed(let stderr):
-            return "Failed to resolve Swift version: \(stderr)"
-        case .packageNotFound(let path):
-            return "Setup package not found at '\(path)'."
+        case let .swiftVersionFailed(stderr):
+            "Failed to resolve Swift version: \(stderr)"
+        case let .packageNotFound(path):
+            "Setup package not found at '\(path)'."
         }
     }
 }

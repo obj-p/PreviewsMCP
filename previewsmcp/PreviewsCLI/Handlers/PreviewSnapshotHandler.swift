@@ -7,7 +7,7 @@ enum PreviewSnapshotHandler: ToolHandler {
     static let schema = Tool(
         name: ToolName.previewSnapshot.rawValue,
         description:
-            "Capture a screenshot of a running preview. Returns the image as JPEG (default) or PNG.",
+        "Capture a screenshot of a running preview. Returns the image as JPEG (default) or PNG.",
         inputSchema: .object([
             "type": .string("object"),
             "properties": .object([
@@ -50,7 +50,7 @@ enum PreviewSnapshotHandler: ToolHandler {
         let base64 = imageData.base64EncodedString()
 
         return CallTool.Result(content: [
-            .image(data: base64, mimeType: mimeType, metadata: nil)
+            .image(data: base64, mimeType: mimeType, metadata: nil),
         ])
     }
 }

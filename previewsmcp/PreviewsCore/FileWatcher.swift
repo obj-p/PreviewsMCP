@@ -45,7 +45,7 @@ public final class FileWatcher: @unchecked Sendable {
             parentDirs.insert((resolved as NSString).deletingLastPathComponent)
         }
 
-        self.box = CallbackBox(canonicalPaths: canonical, callback: callback)
+        box = CallbackBox(canonicalPaths: canonical, callback: callback)
 
         // Hand FSEvents a retained pointer to `box`, not to `self`. The
         // context's `release` callback drops the +1 when the stream is
@@ -59,7 +59,7 @@ public final class FileWatcher: @unchecked Sendable {
             release: nil,
             copyDescription: nil
         )
-        context.info = Unmanaged.passRetained(self.box).toOpaque()
+        context.info = Unmanaged.passRetained(box).toOpaque()
         context.release = { info in
             guard let info else { return }
             Unmanaged<CallbackBox>.fromOpaque(info).release()
@@ -155,10 +155,12 @@ public enum FileWatcherError: Error, LocalizedError, CustomStringConvertible {
 
     public var description: String {
         switch self {
-        case .cannotOpen(let path):
-            return "Cannot watch file: \(path)"
+        case let .cannotOpen(path):
+            "Cannot watch file: \(path)"
         }
     }
 
-    public var errorDescription: String? { description }
+    public var errorDescription: String? {
+        description
+    }
 }

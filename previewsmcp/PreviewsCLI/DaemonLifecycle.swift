@@ -4,7 +4,6 @@ import PreviewsCore
 /// Writes the daemon PID on startup and removes it on graceful shutdown.
 /// Installs SIGTERM/SIGINT handlers that trigger cleanup before exiting.
 enum DaemonLifecycle {
-
     /// Detach from the parent's controlling terminal and process group.
     ///
     /// Call this as the *first* step of daemon startup — before the socket

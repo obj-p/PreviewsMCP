@@ -86,7 +86,7 @@ public actor SPMBuildSystem: BuildSystem {
             let packageSwift = dir.appendingPathComponent("Package.swift")
             var isDir: ObjCBool = false
             if fm.fileExists(atPath: packageSwift.path, isDirectory: &isDir),
-                !isDir.boolValue
+               !isDir.boolValue
             {
                 return dir
             }
@@ -141,7 +141,7 @@ public actor SPMBuildSystem: BuildSystem {
             struct PlatformEntry: Decodable { let name: String }
         }
         guard let info = try? JSONDecoder().decode(PlatformInfo.self, from: data),
-            let platforms = info.platforms, !platforms.isEmpty
+              let platforms = info.platforms, !platforms.isEmpty
         else { return nil }
         return platforms.map(\.name)
     }
@@ -156,7 +156,7 @@ public actor SPMBuildSystem: BuildSystem {
             let packageSwift = dir.appendingPathComponent("Package.swift")
             var isDir: ObjCBool = false
             if FileManager.default.fileExists(atPath: packageSwift.path, isDirectory: &isDir),
-                !isDir.boolValue
+               !isDir.boolValue
             {
                 return SPMBuildSystem(projectRoot: dir, sourceFile: sourceFile.standardizedFileURL)
             }
@@ -249,8 +249,9 @@ public actor SPMBuildSystem: BuildSystem {
         // just wrote. Deriving the manifest path from `binPath` also covers
         // users who relocate `.build` via --scratch-path / SWIFTPM_BUILD_DIR.
         if let manifestPath = Self.manifestPath(forBinPath: binPath),
-            let packageName = Self.readPackageName(
-                fromManifestAt: manifestPath, forTarget: targetName)
+           let packageName = Self.readPackageName(
+               fromManifestAt: manifestPath, forTarget: targetName
+           )
         {
             flags += ["-package-name", packageName]
         }
@@ -292,8 +293,8 @@ public actor SPMBuildSystem: BuildSystem {
     ) -> [URL] {
         let derivedDir =
             binPath
-            .appendingPathComponent("\(targetName).build")
-            .appendingPathComponent("DerivedSources")
+                .appendingPathComponent("\(targetName).build")
+                .appendingPathComponent("DerivedSources")
         return BuildSystemSupport.collectGeneratedSources(in: derivedDir)
     }
 
@@ -472,7 +473,8 @@ public actor SPMBuildSystem: BuildSystem {
             // concurrent linker never sees the archive as missing.
             let archivePath = binPath.appendingPathComponent("lib\(targetName).a")
             let tmpArchivePath = binPath.appendingPathComponent(
-                "lib\(targetName).a.\(ProcessInfo.processInfo.globallyUniqueString).tmp")
+                "lib\(targetName).a.\(ProcessInfo.processInfo.globallyUniqueString).tmp"
+            )
 
             var arArgs = ["rcs", tmpArchivePath.path]
             arArgs.append(contentsOf: objectFiles.map(\.path))
@@ -522,7 +524,7 @@ public actor SPMBuildSystem: BuildSystem {
     /// `ToDoExtras`.
     static func readPackageName(fromManifestAt url: URL, forTarget target: String) -> String? {
         guard let data = try? Data(contentsOf: url),
-            let contents = String(data: data, encoding: .utf8)
+              let contents = String(data: data, encoding: .utf8)
         else { return nil }
 
         let moduleNeedle = "\"-module-name\",\"\(target)\""

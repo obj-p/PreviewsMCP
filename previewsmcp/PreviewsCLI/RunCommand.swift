@@ -8,14 +8,14 @@ struct RunCommand: AsyncParsableCommand {
         commandName: "run",
         abstract: "Compile and display a live SwiftUI preview",
         discussion: """
-            Starts a preview session in the previewsmcp daemon. The daemon owns
-            the preview window and file watcher; this command is a lightweight
-            client. Starts the daemon automatically if not running.
+        Starts a preview session in the previewsmcp daemon. The daemon owns
+        the preview window and file watcher; this command is a lightweight
+        client. Starts the daemon automatically if not running.
 
-            By default, blocks until Ctrl+C, which stops the session. Pass
-            `--detach` to start the session and exit (session UUID is printed
-            to stdout for use with other commands).
-            """
+        By default, blocks until Ctrl+C, which stops the session. Pass
+        `--detach` to start the session and exit (session UUID is printed
+        to stdout for use with other commands).
+        """
     )
 
     @Argument(help: "Path to Swift source file containing #Preview", transform: Path.normalize)
@@ -213,7 +213,6 @@ struct RunCommand: AsyncParsableCommand {
         args["headless"] = .bool(headless)
         return args
     }
-
 }
 
 /// Block the calling task until the process receives SIGINT or SIGTERM.

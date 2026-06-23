@@ -67,12 +67,14 @@ struct PreviewSessionSplitTests {
 
     @Test func splitCompileRendersHotFileAgainstStableBulk() async throws {
         let project = try Self.makeProject(
-            previewBody: "Palette.square(red: 1, green: 0, blue: 0)")
+            previewBody: "Palette.square(red: 1, green: 0, blue: 0)"
+        )
         defer { try? FileManager.default.removeItem(at: project.dir) }
 
         let compiler = try await Compiler()
         let session = PreviewSession(
-            sourceFile: project.hotFile, compiler: compiler, buildContext: project.context)
+            sourceFile: project.hotFile, compiler: compiler, buildContext: project.context
+        )
 
         let build = try await session.compileObjectForJIT()
         #expect(!build.supportObjectPaths.isEmpty)
@@ -85,12 +87,14 @@ struct PreviewSessionSplitTests {
 
     @Test func stableModuleCachedAcrossHotEditsAndInvalidatedByBulkChange() async throws {
         let project = try Self.makeProject(
-            previewBody: "Palette.square(red: 1, green: 0, blue: 0)")
+            previewBody: "Palette.square(red: 1, green: 0, blue: 0)"
+        )
         defer { try? FileManager.default.removeItem(at: project.dir) }
 
         let compiler = try await Compiler()
         let session = PreviewSession(
-            sourceFile: project.hotFile, compiler: compiler, buildContext: project.context)
+            sourceFile: project.hotFile, compiler: compiler, buildContext: project.context
+        )
 
         let build1 = try await session.compileObjectForJIT()
 
@@ -118,7 +122,8 @@ struct PreviewSessionSplitTests {
         }
         """.write(to: bulkFile, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes(
-            [.modificationDate: Date(timeIntervalSinceNow: 5)], ofItemAtPath: bulkFile.path)
+            [.modificationDate: Date(timeIntervalSinceNow: 5)], ofItemAtPath: bulkFile.path
+        )
         let build3 = try await session.compileObjectForJIT()
 
         #expect(build3.supportObjectPaths != build2.supportObjectPaths)
@@ -126,12 +131,14 @@ struct PreviewSessionSplitTests {
 
     @Test func reloaderRendersSplitBuildThroughBothObjects() async throws {
         let project = try Self.makeProject(
-            previewBody: "Palette.square(red: 1, green: 0, blue: 0)")
+            previewBody: "Palette.square(red: 1, green: 0, blue: 0)"
+        )
         defer { try? FileManager.default.removeItem(at: project.dir) }
 
         let compiler = try await Compiler()
         let session = PreviewSession(
-            sourceFile: project.hotFile, compiler: compiler, buildContext: project.context)
+            sourceFile: project.hotFile, compiler: compiler, buildContext: project.context
+        )
         let build = try await session.compileObjectForJIT()
 
         let reloader = JITStructuralReloader()
@@ -149,12 +156,14 @@ struct PreviewSessionSplitTests {
 
     @Test func structuralEditReRendersThroughSplit() async throws {
         let project = try Self.makeProject(
-            previewBody: "Palette.square(red: 1, green: 0, blue: 0)")
+            previewBody: "Palette.square(red: 1, green: 0, blue: 0)"
+        )
         defer { try? FileManager.default.removeItem(at: project.dir) }
 
         let compiler = try await Compiler()
         let session = PreviewSession(
-            sourceFile: project.hotFile, compiler: compiler, buildContext: project.context)
+            sourceFile: project.hotFile, compiler: compiler, buildContext: project.context
+        )
 
         let red = try await session.compileObjectForJIT()
         let redColor = try Self.renderColor(red)

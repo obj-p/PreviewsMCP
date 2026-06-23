@@ -3,7 +3,6 @@ import Testing
 
 @Suite("CLI snapshot command", .serialized)
 struct SnapshotCommandTests {
-
     /// Kill any leftover daemon so each test starts from a known state.
     /// Parity with `SwitchCommandTests.cleanSlate` — without this, a
     /// prior test that left the daemon in a wedged session state can
@@ -34,12 +33,14 @@ struct SnapshotCommandTests {
                 "snapshot",
                 arguments: [
                     file, "-o", outputPath, "--project", CLIRunner.spmExampleRoot.path,
-                ])
+                ]
+            )
 
             #expect(result.exitCode == 0, "stderr: \(result.stderr)")
             #expect(result.stdout.contains(outputPath), "stdout should print output path")
             try CLIRunner.assertValidPNG(
-                at: outputPath, minSize: 10_000, expectedWidth: 400, expectedHeight: 600)
+                at: outputPath, minSize: 10000, expectedWidth: 400, expectedHeight: 600
+            )
         }
     }
 
@@ -60,17 +61,19 @@ struct SnapshotCommandTests {
                 "snapshot",
                 arguments: [
                     file, "-o", output0, "--project", project,
-                ])
+                ]
+            )
             #expect(result0.exitCode == 0, "preview 0 stderr: \(result0.stderr)")
 
             let result1 = try await CLIRunner.run(
                 "snapshot",
                 arguments: [
                     file, "-o", output1, "--preview", "1", "--project", project,
-                ])
+                ]
+            )
             #expect(result1.exitCode == 0, "preview 1 stderr: \(result1.stderr)")
 
-            try CLIRunner.assertValidPNG(at: output0, minSize: 10_000)
+            try CLIRunner.assertValidPNG(at: output0, minSize: 10000)
             try CLIRunner.assertValidPNG(at: output1)
 
             let size0 = try Data(contentsOf: URL(fileURLWithPath: output0)).count
@@ -99,14 +102,16 @@ struct SnapshotCommandTests {
                 "snapshot",
                 arguments: [
                     file, "-o", outputLight, "--color-scheme", "light", "--project", project,
-                ])
+                ]
+            )
             #expect(resultLight.exitCode == 0, "light stderr: \(resultLight.stderr)")
 
             let resultDark = try await CLIRunner.run(
                 "snapshot",
                 arguments: [
                     file, "-o", outputDark, "--color-scheme", "dark", "--project", project,
-                ])
+                ]
+            )
             #expect(resultDark.exitCode == 0, "dark stderr: \(resultDark.stderr)")
 
             try CLIRunner.assertValidPNG(at: outputLight)
@@ -138,7 +143,8 @@ struct SnapshotCommandTests {
                     file, "-o", outputPath,
                     "--dynamic-type-size", "accessibility3",
                     "--project", CLIRunner.spmExampleRoot.path,
-                ])
+                ]
+            )
 
             #expect(result.exitCode == 0, "stderr: \(result.stderr)")
             try CLIRunner.assertValidPNG(at: outputPath)
@@ -160,7 +166,8 @@ struct SnapshotCommandTests {
                 "snapshot",
                 arguments: [
                     file, "-o", outputPath, "--project", CLIRunner.spmExampleRoot.path,
-                ])
+                ]
+            )
 
             #expect(result.exitCode == 0, "stderr: \(result.stderr)")
             try CLIRunner.assertValidJPEG(at: outputPath)
@@ -182,7 +189,8 @@ struct SnapshotCommandTests {
                 "snapshot",
                 arguments: [
                     file, "-o", outputPath, "--project", CLIRunner.spmExampleRoot.path,
-                ])
+                ]
+            )
 
             #expect(result.exitCode == 0, "stderr: \(result.stderr)")
             try CLIRunner.assertValidPNG(at: outputPath)
@@ -207,7 +215,8 @@ struct SnapshotCommandTests {
                 arguments: [
                     file, "-o", outputPath, "--preview", "99",
                     "--project", CLIRunner.spmExampleRoot.path,
-                ])
+                ]
+            )
 
             #expect(result.exitCode != 0, "Should fail with invalid preview index")
             #expect(result.stderr.contains("Error"), "stderr should contain error message")
@@ -230,7 +239,8 @@ struct SnapshotCommandTests {
                 arguments: [
                     file, "-o", outputPath, "--dynamic-type-size", "bananas",
                     "--project", CLIRunner.spmExampleRoot.path,
-                ])
+                ]
+            )
 
             #expect(result.exitCode != 0, "Should fail with invalid dynamic type size")
         }
@@ -249,7 +259,8 @@ struct SnapshotCommandTests {
                 "snapshot",
                 arguments: [
                     "/nonexistent/file.swift", "-o", outputPath,
-                ])
+                ]
+            )
 
             #expect(result.exitCode != 0, "Should fail with nonexistent file")
         }
@@ -292,7 +303,8 @@ struct SnapshotCommandTests {
                 "snapshot",
                 arguments: [
                     file, "-o", outputPath, "--project", CLIRunner.xcodeprojExampleRoot.path,
-                ])
+                ]
+            )
 
             #expect(result.exitCode == 0, "stderr: \(result.stderr)")
             try CLIRunner.assertValidPNG(at: outputPath)
@@ -328,7 +340,8 @@ struct SnapshotCommandTests {
                 "snapshot",
                 arguments: [
                     file, "-o", outputPath, "--project", CLIRunner.xcworkspaceExampleRoot.path,
-                ])
+                ]
+            )
 
             #expect(result.exitCode == 0, "stderr: \(result.stderr)")
             try CLIRunner.assertValidPNG(at: outputPath)
@@ -357,7 +370,8 @@ struct SnapshotCommandTests {
                 "snapshot",
                 arguments: [
                     file, "-o", outputPath, "--project", CLIRunner.bazelExampleRoot.path,
-                ])
+                ]
+            )
 
             #expect(result.exitCode == 0, "stderr: \(result.stderr)")
             try CLIRunner.assertValidPNG(at: outputPath)
@@ -395,7 +409,8 @@ struct SnapshotCommandTests {
                 arguments: [
                     file, "-o", outputPath, "--platform", "ios",
                     "--project", CLIRunner.spmExampleRoot.path,
-                ])
+                ]
+            )
 
             #expect(result.exitCode == 0, "stderr: \(result.stderr)")
             try CLIRunner.assertValidPNG(at: outputPath)

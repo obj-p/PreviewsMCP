@@ -22,13 +22,13 @@ struct SnapshotCommand: AsyncParsableCommand {
         commandName: "snapshot",
         abstract: "Compile a SwiftUI preview and save a screenshot",
         discussion: """
-            Reuses an existing preview session if one is running for the
-            target file (or if you pass --session). Otherwise starts an
-            ephemeral session in the daemon, captures, and cleans up.
+        Reuses an existing preview session if one is running for the
+        target file (or if you pass --session). Otherwise starts an
+        ephemeral session in the daemon, captures, and cleans up.
 
-            Uses the `previewsmcp` daemon — it will be auto-started if not
-            already running.
-            """
+        Uses the `previewsmcp` daemon — it will be auto-started if not
+        already running.
+        """
     )
 
     @Argument(help: "Path to Swift source file containing #Preview", transform: Path.normalize)
@@ -81,7 +81,8 @@ struct SnapshotCommand: AsyncParsableCommand {
     var device: String?
 
     @Option(
-        name: .long, help: "Color scheme: 'light' or 'dark' (new session only; ignored when reusing a live session)")
+        name: .long, help: "Color scheme: 'light' or 'dark' (new session only; ignored when reusing a live session)"
+    )
     var colorScheme: String?
 
     @Option(name: .long, help: "Dynamic Type size (e.g., 'large', 'accessibility3')")
@@ -123,7 +124,7 @@ struct SnapshotCommand: AsyncParsableCommand {
 
         // Resolve file argument — required unless the user passes --session
         // and there's exactly one match (unambiguous).
-        if file == nil && session == nil {
+        if file == nil, session == nil {
             throw ValidationError(
                 "Missing file argument. Pass a path or --session <uuid>."
             )
@@ -143,7 +144,7 @@ struct SnapshotCommand: AsyncParsableCommand {
             )
 
             switch resolution {
-            case .found(let sessionID):
+            case let .found(sessionID):
                 try await snapshotExisting(sessionID: sessionID, client: client)
             case .notFound:
                 guard let file else {
@@ -251,7 +252,7 @@ struct SnapshotCommand: AsyncParsableCommand {
         }
         let sessionID =
             try structured
-            .decode(DaemonProtocol.PreviewStartResult.self).sessionID
+                .decode(DaemonProtocol.PreviewStartResult.self).sessionID
 
         var snapshotArgs: [String: Value] = ["sessionID": .string(sessionID)]
         snapshotArgs["quality"] = .double(resolvedQuality())
@@ -341,7 +342,7 @@ struct SnapshotCommand: AsyncParsableCommand {
         }
 
         for item in response.content {
-            if case .image(let base64, let mimeType, _) = item {
+            if case let .image(base64, mimeType, _) = item {
                 guard let data = Data(base64Encoded: base64) else {
                     throw SnapshotCommandError.invalidImageData
                 }
@@ -367,9 +368,9 @@ struct SnapshotCommand: AsyncParsableCommand {
 
     private func format(for mimeType: String) -> String {
         switch mimeType {
-        case "image/png": return "png"
-        case "image/jpeg": return "jpeg"
-        default: return mimeType
+        case "image/png": "png"
+        case "image/jpeg": "jpeg"
+        default: mimeType
         }
     }
 }
@@ -382,7 +383,6 @@ struct SnapshotJSONOutput: Encodable {
     let outputPath: String
     let format: String
     let bytes: Int
-
 }
 
 enum SnapshotCommandError: Error, CustomStringConvertible {
@@ -391,9 +391,9 @@ enum SnapshotCommandError: Error, CustomStringConvertible {
 
     var description: String {
         switch self {
-        case .invalidImageData: return "daemon returned invalid (non-base64) image data"
-        case .noImageContent(let text):
-            return "daemon response contained no image content: \(text)"
+        case .invalidImageData: "daemon returned invalid (non-base64) image data"
+        case let .noImageContent(text):
+            "daemon response contained no image content: \(text)"
         }
     }
 }

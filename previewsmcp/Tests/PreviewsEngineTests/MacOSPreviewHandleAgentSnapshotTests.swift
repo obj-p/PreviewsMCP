@@ -1,15 +1,13 @@
 import AppKit
 import Foundation
 import PreviewsCore
+@testable import PreviewsEngine
 import PreviewsMacOS
 import Testing
-
-@testable import PreviewsEngine
 
 @MainActor
 @Suite("MacOSPreviewHandle agent snapshot")
 struct MacOSPreviewHandleAgentSnapshotTests {
-
     final class RecordingReloader: StructuralReloader, @unchecked Sendable {
         private(set) var builds: [JITRenderBuild] = []
         func render(_ build: JITRenderBuild) async throws {

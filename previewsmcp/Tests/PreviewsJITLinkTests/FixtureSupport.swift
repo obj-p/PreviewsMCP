@@ -7,7 +7,7 @@ enum FixtureSupport {
         var description: String {
             switch self {
             case let .compileFailed(source, status, output):
-                return "compiling \(source) failed (status \(status)):\n\(output)"
+                "compiling \(source) failed (status \(status)):\n\(output)"
             }
         }
     }
@@ -16,7 +16,8 @@ enum FixtureSupport {
         if let root = ProcessInfo.processInfo.environment["PREVIEWSMCP_REPO_ROOT"] {
             return URL(fileURLWithPath: root, isDirectory: true)
                 .appendingPathComponent(
-                    "previewsmcp/Tests/PreviewsJITLinkTests/Fixtures", isDirectory: true)
+                    "previewsmcp/Tests/PreviewsJITLinkTests/Fixtures", isDirectory: true
+                )
         }
         return URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
@@ -51,13 +52,13 @@ enum FixtureSupport {
     private static func compileArguments(input: URL, output: URL) -> [String] {
         switch input.pathExtension {
         case "swift":
-            return [
+            [
                 "swiftc", "-c", "-parse-as-library",
                 "-module-name", "Fixtures",
                 input.path, "-o", output.path,
             ]
         default:
-            return ["clang", "-c", input.path, "-o", output.path]
+            ["clang", "-c", input.path, "-o", output.path]
         }
     }
 

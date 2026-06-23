@@ -1,15 +1,13 @@
 import Foundation
 import MCP
-import Testing
-
 @testable import PreviewsCLI
+import Testing
 
 /// All macOS MCP tests share a single server process to avoid repeated
 /// swift build / swiftc overhead. Tests are serialized and reuse sessions
 /// where possible.
 @Suite("MCP macOS integration", .serialized)
 struct MacOSMCPTests {
-
     // MARK: - Session lifecycle, snapshots, switch, configure, hot reload
 
     @Test("Full macOS MCP workflow", .timeLimit(.minutes(20)))
@@ -44,7 +42,8 @@ struct MacOSMCPTests {
         )
         #expect(jpegError != true, "Snapshot should succeed")
         try MCPTestServer.assertValidImage(
-            jpegContent, expectedMimeType: "image/jpeg", minSize: 10_000)
+            jpegContent, expectedMimeType: "image/jpeg", minSize: 10000
+        )
 
         // --- preview_snapshot returns PNG when quality >= 1.0 ---
         let (pngContent, _) = try await server.callTool(
@@ -56,7 +55,8 @@ struct MacOSMCPTests {
         )
         try MCPTestServer.assertValidImage(
             pngContent, expectedMimeType: "image/png",
-            minSize: 10_000, expectedWidth: 400, expectedHeight: 600)
+            minSize: 10000, expectedWidth: 400, expectedHeight: 600
+        )
         try MCPTestServer.assertNotBlank(pngContent)
         let (data0, _) = try MCPTestServer.extractImageData(from: jpegContent)
 
@@ -150,7 +150,8 @@ struct MacOSMCPTests {
         let noTraitText = MCPTestServer.extractText(from: noTraitConfig)
         #expect(
             noTraitText.contains("No configuration changes specified"),
-            "Should indicate no changes")
+            "Should indicate no changes"
+        )
 
         // --- preview_configure invalid trait ---
         let (_, invalidErr) = try await server.callTool(
@@ -173,7 +174,8 @@ struct MacOSMCPTests {
         #expect(traitSwitchErr != true, "Switch should succeed")
         let traitSwitchText = MCPTestServer.extractText(from: traitSwitch)
         #expect(
-            traitSwitchText.contains("colorScheme=dark"), "Traits should persist across switch")
+            traitSwitchText.contains("colorScheme=dark"), "Traits should persist across switch"
+        )
 
         // --- preview_stop ---
         let (stopContent, stopError) = try await server.callTool(
@@ -292,7 +294,7 @@ struct MacOSMCPTests {
             // Image index must address a valid .image block
             let blocks = variantsResult.content
             if let idx = v.imageIndex, idx < blocks.count,
-                case .image = blocks[idx]
+               case .image = blocks[idx]
             {
                 // ok
             } else {
@@ -478,7 +480,8 @@ struct MacOSMCPTests {
         let modified = originalContent.replacingOccurrences(of: "\"Progress\"", with: "\"Totals\"")
         #expect(modified != originalContent, "Replacement should have changed the content")
         try modified.write(
-            to: URL(fileURLWithPath: filePath), atomically: false, encoding: .utf8)
+            to: URL(fileURLWithPath: filePath), atomically: false, encoding: .utf8
+        )
 
         try await server.awaitStderrContains("Literal-only change:", timeout: .seconds(30))
         _ = try await server.awaitSnapshotChange(
@@ -523,7 +526,8 @@ struct MacOSMCPTests {
         )
         #expect(modified != originalContent, "Replacement should have changed the content")
         try modified.write(
-            to: URL(fileURLWithPath: filePath), atomically: false, encoding: .utf8)
+            to: URL(fileURLWithPath: filePath), atomically: false, encoding: .utf8
+        )
 
         // CI swiftc on cold caches is slow; AGENTS.md notes daemon startup alone is 5–10s.
         // "Reloaded" matches both daemon kinds: the JIT agent logs "Reloaded (JIT agent)!" and
@@ -668,9 +672,11 @@ struct MacOSMCPTests {
         #expect(pngError != true, "Snapshot should succeed")
         try MCPTestServer.assertValidImage(
             pngContent, expectedMimeType: "image/png",
-            minSize: 10_000, expectedWidth: 800, expectedHeight: 1000)
+            minSize: 10000, expectedWidth: 800, expectedHeight: 1000
+        )
 
         _ = try await server.callTool(
-            name: "preview_stop", arguments: ["sessionID": .string(sessionID)])
+            name: "preview_stop", arguments: ["sessionID": .string(sessionID)]
+        )
     }
 }

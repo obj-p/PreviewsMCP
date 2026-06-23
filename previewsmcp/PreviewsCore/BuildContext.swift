@@ -22,7 +22,9 @@ public struct BuildContext: Sendable {
     public let sourceFiles: [URL]?
 
     /// Whether this context supports Tier 2 (source compilation with literal hot-reload).
-    public var supportsTier2: Bool { sourceFiles != nil }
+    public var supportsTier2: Bool {
+        sourceFiles != nil
+    }
 
     public init(
         moduleName: String,

@@ -6,7 +6,6 @@ import Testing
 /// repeated simulator boot and compilation overhead.
 @Suite("MCP iOS integration", .serialized)
 struct IOSMCPTests {
-
     // MARK: - simulator_list (requires CoreSimulator; ios-tests job warms daemon)
 
     @Test("simulator_list returns available devices", .timeLimit(.minutes(10)))
@@ -21,7 +20,8 @@ struct IOSMCPTests {
         let uuidPattern =
             /[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}/
         #expect(
-            text.firstMatch(of: uuidPattern) != nil, "Should contain at least one device UDID")
+            text.firstMatch(of: uuidPattern) != nil, "Should contain at least one device UDID"
+        )
     }
 
     // MARK: - Full iOS workflow
@@ -53,7 +53,8 @@ struct IOSMCPTests {
         .disabled(
             if: ProcessInfo.processInfo.environment["CI"] != nil,
             "iOS MCP workflow wedges CoreSimulator under combined load on GHA macos-15; see PR #141 for details"
-        ))
+        )
+    )
     func fullIOSWorkflow() async throws {
         // Use picker index 1, the same device IOSPreviewSessionTests.endToEnd
         // uses in the PreviewsIOSTests target. That test runs in an earlier

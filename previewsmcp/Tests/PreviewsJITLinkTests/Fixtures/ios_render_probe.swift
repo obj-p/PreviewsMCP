@@ -16,7 +16,8 @@ public func ios_render_probe_value() -> Int32 {
             let ctx = CGContext(
                 data: &pixel, width: 1, height: 1, bitsPerComponent: 8,
                 bytesPerRow: 4, space: space,
-                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            )
         else {
             return Int32(-2)
         }

@@ -17,7 +17,6 @@ import SwiftSyntax
 /// are different concerns and were sharing a 320-line host. Public seam is
 /// `classify(_:)` so future tests / callers can reach it directly.
 enum LiteralRegionClassifier {
-
     /// Classify the syntactic region a node lives in. Walks parent nodes
     /// looking for an enclosing UIKit-typed scope: a function/var with a
     /// UIKit return type, a class extending `UIView`/`UIViewController`,
@@ -34,7 +33,7 @@ enum LiteralRegionClassifier {
         while let parent = current?.parent {
             if let funcDecl = parent.as(FunctionDeclSyntax.self) {
                 if let returnClause = funcDecl.signature.returnClause,
-                    typeNameMentionsUIKit(returnClause.type)
+                   typeNameMentionsUIKit(returnClause.type)
                 {
                     return .uiKit
                 }
@@ -42,19 +41,19 @@ enum LiteralRegionClassifier {
             if let varDecl = parent.as(VariableDeclSyntax.self) {
                 for binding in varDecl.bindings {
                     if let typeAnnotation = binding.typeAnnotation,
-                        typeNameMentionsUIKit(typeAnnotation.type)
+                       typeNameMentionsUIKit(typeAnnotation.type)
                     {
                         return .uiKit
                     }
                 }
             }
             if let classDecl = parent.as(ClassDeclSyntax.self),
-                inheritanceMentionsUIKit(classDecl.inheritanceClause)
+               inheritanceMentionsUIKit(classDecl.inheritanceClause)
             {
                 return .uiKit
             }
             if let structDecl = parent.as(StructDeclSyntax.self),
-                inheritanceMentionsUIKit(structDecl.inheritanceClause)
+               inheritanceMentionsUIKit(structDecl.inheritanceClause)
             {
                 return .uiKit
             }
@@ -86,7 +85,7 @@ enum LiteralRegionClassifier {
             return true
         }
         // Common UIKit class names that don't fit the UIView* prefix.
-        let uikitClasses: Set<String> = [
+        let uikitClasses: Set = [
             "UILabel", "UIButton", "UIImageView", "UIScrollView", "UITableView",
             "UICollectionView", "UIStackView", "UISwitch", "UISlider", "UIStepper",
             "UISegmentedControl", "UIPageControl", "UIProgressView", "UIActivityIndicatorView",

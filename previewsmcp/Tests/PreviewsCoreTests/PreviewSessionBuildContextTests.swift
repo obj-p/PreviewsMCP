@@ -1,11 +1,9 @@
 import Foundation
-import Testing
-
 @testable import PreviewsCore
+import Testing
 
 @Suite("PreviewSession with BuildContext", .serialized)
 struct PreviewSessionBuildContextTests {
-
     // MARK: - Paths
 
     static let repoRoot: URL = {
@@ -13,9 +11,9 @@ struct PreviewSessionBuildContextTests {
             return URL(fileURLWithPath: root, isDirectory: true)
         }
         return URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()  // PreviewsCoreTests/
-            .deletingLastPathComponent()  // Tests/
-            .deletingLastPathComponent()  // repo root
+            .deletingLastPathComponent() // PreviewsCoreTests/
+            .deletingLastPathComponent() // Tests/
+            .deletingLastPathComponent() // repo root
     }()
 
     static let spmExampleRoot = repoRoot.appendingPathComponent("examples/spm")
@@ -46,7 +44,7 @@ struct PreviewSessionBuildContextTests {
         var errorDescription: String? {
             switch self {
             case .noBuildSystem:
-                return "SPMBuildSystem.detect returned nil for examples/spm"
+                "SPMBuildSystem.detect returned nil for examples/spm"
             }
         }
     }
@@ -121,7 +119,8 @@ struct PreviewSessionBuildContextTests {
         let ctx = try await Self.buildSPMExample()
         #expect(ctx.supportsTier2)
         #expect(
-            ctx.sourceFiles?.contains(where: { $0.lastPathComponent == "Item.swift" }) == true)
+            ctx.sourceFiles?.contains(where: { $0.lastPathComponent == "Item.swift" }) == true
+        )
 
         let compiler = try await Compiler()
         let session = PreviewSession(
@@ -230,31 +229,34 @@ struct PreviewSessionBuildContextTests {
         defer { try? FileManager.default.removeItem(at: tmpDir) }
 
         let packageSwift = """
-            // swift-tools-version: 6.0
-            import PackageDescription
+        // swift-tools-version: 6.0
+        import PackageDescription
 
-            let package = Package(
-                name: "Fixture",
-                platforms: [.macOS(.v14)],
-                products: [
-                    .library(name: "ConsumerLib", targets: ["ConsumerLib"]),
-                    .library(name: "SiblingDyn", type: .dynamic, targets: ["SiblingDyn"]),
-                ],
-                targets: [
-                    .target(name: "SiblingDyn", path: "Sources/SiblingDyn"),
-                    .target(name: "ConsumerLib", path: "Sources/ConsumerLib"),
-                ]
-            )
-            """
+        let package = Package(
+            name: "Fixture",
+            platforms: [.macOS(.v14)],
+            products: [
+                .library(name: "ConsumerLib", targets: ["ConsumerLib"]),
+                .library(name: "SiblingDyn", type: .dynamic, targets: ["SiblingDyn"]),
+            ],
+            targets: [
+                .target(name: "SiblingDyn", path: "Sources/SiblingDyn"),
+                .target(name: "ConsumerLib", path: "Sources/ConsumerLib"),
+            ]
+        )
+        """
         try packageSwift.write(
             to: tmpDir.appendingPathComponent("Package.swift"),
-            atomically: true, encoding: .utf8)
+            atomically: true, encoding: .utf8
+        )
         try "public func siblingHello() -> String { \"hi\" }".write(
             to: siblingDir.appendingPathComponent("SiblingDyn.swift"),
-            atomically: true, encoding: .utf8)
+            atomically: true, encoding: .utf8
+        )
         let consumerFile = consumerDir.appendingPathComponent("ConsumerLib.swift")
         try "public func consumerHello() -> String { \"hi\" }".write(
-            to: consumerFile, atomically: true, encoding: .utf8)
+            to: consumerFile, atomically: true, encoding: .utf8
+        )
 
         let buildSystem = SPMBuildSystem(projectRoot: tmpDir, sourceFile: consumerFile)
         let context = try await buildSystem.build(platform: .macOS)
@@ -272,7 +274,9 @@ struct PreviewSessionBuildContextTests {
         )
         let binPath = URL(
             fileURLWithPath: binPathResult.stdout.trimmingCharacters(
-                in: .whitespacesAndNewlines))
+                in: .whitespacesAndNewlines
+            )
+        )
         let dylibPath = binPath.appendingPathComponent("libSiblingDyn.dylib")
         #expect(
             FileManager.default.fileExists(atPath: dylibPath.path),

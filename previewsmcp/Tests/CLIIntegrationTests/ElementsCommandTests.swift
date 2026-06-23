@@ -7,7 +7,6 @@ import Testing
 /// tree.
 @Suite(.serialized)
 struct ElementsCommandTests {
-
     private static func cleanSlate() async throws {
         _ = try? await CLIRunner.run("kill-daemon", arguments: ["--timeout", "2"])
     }

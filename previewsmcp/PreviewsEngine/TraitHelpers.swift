@@ -13,7 +13,7 @@ public func traitsSummary(_ traits: PreviewTraits) -> String {
 
 /// Formatted preview list with `<- active` marker on the active index.
 public func formatPreviewList(previews: [PreviewInfo], activeIndex: Int) -> String {
-    var lines: [String] = ["Available previews:"]
+    var lines = ["Available previews:"]
     for preview in previews {
         let name = preview.name ?? "Preview"
         let marker = preview.index == activeIndex ? " <- active" : ""

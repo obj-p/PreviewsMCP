@@ -3,13 +3,12 @@ import Foundation
 /// Cross-suite serialization for MCP integration tests.
 /// See CLIIntegrationTests/DaemonTestLock.swift for rationale.
 enum DaemonTestLock {
-
     @TaskLocal static var socketDir: String?
 
     private static var lockPath: String {
         let dir =
             ProcessInfo.processInfo.environment["PREVIEWSMCP_SOCKET_DIR"]
-            ?? FileManager.default.temporaryDirectory.path
+                ?? FileManager.default.temporaryDirectory.path
         return (dir as NSString).appendingPathComponent("previewsmcp-daemon-test.lock")
     }
 
@@ -20,15 +19,18 @@ enum DaemonTestLock {
             DispatchQueue.global(qos: .userInitiated).async {
                 let dir = (path as NSString).deletingLastPathComponent
                 try? FileManager.default.createDirectory(
-                    atPath: dir, withIntermediateDirectories: true)
+                    atPath: dir, withIntermediateDirectories: true
+                )
                 let fd = open(path, O_CREAT | O_RDWR, 0o644)
                 guard fd >= 0 else {
                     cont.resume(
                         throwing: NSError(
                             domain: NSPOSIXErrorDomain, code: Int(errno),
                             userInfo: [
-                                NSLocalizedDescriptionKey: "open(\(path)) failed"
-                            ]))
+                                NSLocalizedDescriptionKey: "open(\(path)) failed",
+                            ]
+                        )
+                    )
                     return
                 }
                 if flock(fd, LOCK_EX) != 0 {
@@ -37,8 +39,10 @@ enum DaemonTestLock {
                         throwing: NSError(
                             domain: NSPOSIXErrorDomain, code: Int(errno),
                             userInfo: [
-                                NSLocalizedDescriptionKey: "flock failed"
-                            ]))
+                                NSLocalizedDescriptionKey: "flock failed",
+                            ]
+                        )
+                    )
                     return
                 }
                 cont.resume(returning: fd)

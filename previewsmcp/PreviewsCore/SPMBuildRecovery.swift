@@ -16,7 +16,6 @@ import Foundation
 /// directory; this helper detects the error pattern in stderr, parses the
 /// affected directory from the message, removes it, and retries once.
 public enum SPMBuildRecovery {
-
     /// Run `swift build` with the given arguments. On llbuild
     /// "not registered" failures, clean the affected `.build/<triple>/`
     /// directory and retry once.
@@ -90,10 +89,11 @@ public enum SPMBuildRecovery {
             guard line.contains("not registered") else { continue }
             // Extract the path between "command " and " not registered".
             guard let cmdRange = line.range(of: "command "),
-                let endRange = line.range(
-                    of: " not registered", range: cmdRange.upperBound..<line.endIndex)
+                  let endRange = line.range(
+                      of: " not registered", range: cmdRange.upperBound ..< line.endIndex
+                  )
             else { continue }
-            let pathSubstring = line[cmdRange.upperBound..<endRange.lowerBound]
+            let pathSubstring = line[cmdRange.upperBound ..< endRange.lowerBound]
             let path = String(pathSubstring).trimmingCharacters(in: .whitespaces)
             guard path.hasPrefix("/") else { continue }
             // Walk up from the offending file until the parent's

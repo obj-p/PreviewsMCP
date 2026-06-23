@@ -1,13 +1,13 @@
 import Foundation
 import MCP
 
-extension Array where Element == Tool.Content {
+extension [Tool.Content] {
     /// Concatenate all text items in a tool result's content with newlines,
     /// skipping image and other non-text items. Convenient for CLI commands
     /// that want to display the daemon's human-readable response.
     func joinedText() -> String {
         compactMap { item in
-            if case .text(let t) = item { return t }
+            if case let .text(t) = item { return t }
             return nil
         }.joined(separator: "\n")
     }
@@ -25,9 +25,9 @@ enum DecodeStructuredError: Error, CustomStringConvertible {
     var description: String {
         switch self {
         case .missingStructuredContent:
-            return "daemon response missing expected structuredContent payload"
-        case .decodeFailed(let underlying):
-            return "failed to decode structuredContent: \(underlying.localizedDescription)"
+            "daemon response missing expected structuredContent payload"
+        case let .decodeFailed(underlying):
+            "failed to decode structuredContent: \(underlying.localizedDescription)"
         }
     }
 }
@@ -51,7 +51,7 @@ extension Client {
 /// Write a single JSON document to stdout, followed by a newline. Used by
 /// CLI commands in `--json` mode. Pretty-printed with sorted keys for
 /// stable `diff`-friendly output when piping through `jq` or fixtures.
-func emitJSON<T: Encodable>(_ value: T) throws {
+func emitJSON(_ value: some Encodable) throws {
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
     let data = try encoder.encode(value)

@@ -13,7 +13,6 @@ import Foundation
 /// (`keep + 1`) and total disk (~`(keep + 1) * maxBytes`) stay bounded while
 /// the `.1 = newest history` convention `previewsmcp logs` relies on is kept.
 public enum LogRotation {
-
     /// Rotate `logURL` if the file behind `fd` has reached `maxBytes`.
     ///
     /// Returns `true` when a rotation happened. Returns `false` (and does
@@ -32,7 +31,9 @@ public enum LogRotation {
         guard st.st_size >= off_t(maxBytes) else { return false }
 
         let path = logURL.path
-        func ring(_ k: Int) -> String { "\(path).\(k)" }
+        func ring(_ k: Int) -> String {
+            "\(path).\(k)"
+        }
 
         // Cascade oldest-first so each destination slot is vacated before it is
         // written, never clobbering a file we mean to keep.

@@ -10,7 +10,6 @@ import os
 /// threads, preventing the lock-holding task's subprocess
 /// completion handlers from firing.
 enum DaemonTestLock {
-
     /// Set true the first time any test acquires the lock in this process.
     /// Used to truncate `serve.log` exactly once per `swift test` run so
     /// CI failure dumps stay scoped to the failing run rather than
@@ -33,7 +32,7 @@ enum DaemonTestLock {
     private static var lockPath: String {
         let dir =
             ProcessInfo.processInfo.environment["PREVIEWSMCP_SOCKET_DIR"]
-            ?? FileManager.default.temporaryDirectory.path
+                ?? FileManager.default.temporaryDirectory.path
         return (dir as NSString).appendingPathComponent("previewsmcp-daemon-test.lock")
     }
 
@@ -55,7 +54,8 @@ enum DaemonTestLock {
             DispatchQueue.global(qos: .userInitiated).async {
                 let dir = (path as NSString).deletingLastPathComponent
                 try? FileManager.default.createDirectory(
-                    atPath: dir, withIntermediateDirectories: true)
+                    atPath: dir, withIntermediateDirectories: true
+                )
                 let fd = open(path, O_CREAT | O_RDWR, 0o644)
                 guard fd >= 0 else {
                     cont.resume(
@@ -63,8 +63,10 @@ enum DaemonTestLock {
                             domain: NSPOSIXErrorDomain, code: Int(errno),
                             userInfo: [
                                 NSLocalizedDescriptionKey:
-                                    "open(\(path)) failed"
-                            ]))
+                                    "open(\(path)) failed",
+                            ]
+                        )
+                    )
                     return
                 }
                 // Blocking flock — this thread sleeps in the kernel
@@ -77,8 +79,10 @@ enum DaemonTestLock {
                             domain: NSPOSIXErrorDomain, code: Int(errno),
                             userInfo: [
                                 NSLocalizedDescriptionKey:
-                                    "flock failed"
-                            ]))
+                                    "flock failed",
+                            ]
+                        )
+                    )
                     return
                 }
                 cont.resume(returning: fd)
@@ -113,7 +117,8 @@ enum DaemonTestLock {
         // started yet on the very first test.
         try? fm.createDirectory(
             at: logURL.deletingLastPathComponent(),
-            withIntermediateDirectories: true)
+            withIntermediateDirectories: true
+        )
 
         let shouldTruncate = didTruncateLog.withLock { flag -> Bool in
             if flag { return false }

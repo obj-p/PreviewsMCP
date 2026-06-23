@@ -1,8 +1,8 @@
 import Foundation
 import MCP
+import os
 import PreviewsCore
 import PreviewsEngine
-import os
 
 // MARK: - Progress
 
@@ -17,17 +17,18 @@ final class MCPProgressReporter: ProgressReporter, @unchecked Sendable {
         self.server = server
         self.progressToken = progressToken
         self.totalSteps = totalSteps
-        self.stepCounter = OSAllocatedUnfairLock(initialState: 0)
+        stepCounter = OSAllocatedUnfairLock(initialState: 0)
     }
 
-    func report(_ phase: BuildPhase, message: String) async {
+    func report(_: BuildPhase, message: String) async {
         let step = stepCounter.withLock { value -> Int in
             value += 1
             return value
         }
         try? await server.log(
             level: .info, logger: "preview",
-            data: .string("[\(step)/\(totalSteps)] \(message)"))
+            data: .string("[\(step)/\(totalSteps)] \(message)")
+        )
         if let token = progressToken {
             try? await server.notify(
                 ProgressNotification.message(
@@ -36,7 +37,9 @@ final class MCPProgressReporter: ProgressReporter, @unchecked Sendable {
                         progress: Double(step),
                         total: Double(totalSteps),
                         message: message
-                    )))
+                    )
+                )
+            )
         }
     }
 }
@@ -63,7 +66,7 @@ func mcpReporter(
 /// never reads this variable.
 func advertisedServerVersion() -> String {
     if let override = ProcessInfo.processInfo.environment["_PREVIEWSMCP_TEST_DAEMON_VERSION"],
-        !override.isEmpty
+       !override.isEmpty
     {
         return override
     }
@@ -100,7 +103,8 @@ func runMCPServer(_ server: Server, transport: any Transport) async throws {
         while !Task.isCancelled {
             try? await Task.sleep(for: .seconds(2))
             try? await server.log(
-                level: .debug, logger: "heartbeat", data: .string("alive"))
+                level: .debug, logger: "heartbeat", data: .string("alive")
+            )
         }
     }
     defer { heartbeat.cancel() }

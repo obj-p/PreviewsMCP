@@ -3,7 +3,6 @@ import Foundation
 /// Namespace for path canonicalization helpers shared between the CLI,
 /// daemon, and build-system modules.
 public enum Path {
-
     /// Canonicalize a user-supplied path:
     /// 1. Expand a leading `~` or `~user` against the home directory.
     /// 2. Resolve relative paths against the current working directory.

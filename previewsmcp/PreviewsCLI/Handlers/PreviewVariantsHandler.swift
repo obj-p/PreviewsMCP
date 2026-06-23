@@ -8,7 +8,7 @@ enum PreviewVariantsHandler: ToolHandler {
     static let schema = Tool(
         name: ToolName.previewVariants.rawValue,
         description:
-            "Capture screenshots under multiple trait configurations in a single call. Renders each variant, snapshots it, then restores original traits. Accepts preset names or JSON trait objects.",
+        "Capture screenshots under multiple trait configurations in a single call. Renders each variant, snapshots it, then restores original traits. Accepts preset names or JSON trait objects.",
         inputSchema: .object([
             "type": .string("object"),
             "properties": .object([
@@ -64,7 +64,8 @@ enum PreviewVariantsHandler: ToolHandler {
 
         guard !variantValues.isEmpty else {
             return CallTool.Result(
-                content: [.text(VariantError.emptyVariantsArray.localizedDescription)], isError: true)
+                content: [.text(VariantError.emptyVariantsArray.localizedDescription)], isError: true
+            )
         }
 
         // Resolve all variants upfront — fail fast on validation errors before any recompilation
@@ -92,12 +93,14 @@ enum PreviewVariantsHandler: ToolHandler {
         for (index, variant) in resolved.enumerated() {
             do {
                 await progress.report(
-                    .compilingBridge, message: "Recompiling for variant \"\(variant.label)\"...")
+                    .compilingBridge, message: "Recompiling for variant \"\(variant.label)\"..."
+                )
                 try await handle.setTraits(variant.traits)
                 await handle.awaitLayoutSettle()
                 await progress.report(
                     .capturingSnapshot,
-                    message: "Capturing variant \(index + 1)/\(resolved.count) \"\(variant.label)\"...")
+                    message: "Capturing variant \(index + 1)/\(resolved.count) \"\(variant.label)\"..."
+                )
                 let imageData = try await handle.snapshot(quality: quality)
                 let base64 = imageData.base64EncodedString()
                 contentBlocks.append(.text("[\(index)] \(variant.label):"))
@@ -115,7 +118,8 @@ enum PreviewVariantsHandler: ToolHandler {
             } catch {
                 failCount += 1
                 contentBlocks.append(
-                    .text("[\(index)] \(variant.label): ERROR — \(error.localizedDescription)"))
+                    .text("[\(index)] \(variant.label): ERROR — \(error.localizedDescription)")
+                )
                 outcomes.append(
                     DaemonProtocol.VariantOutcomeDTO(
                         status: "error",
@@ -141,7 +145,8 @@ enum PreviewVariantsHandler: ToolHandler {
                 try await handle.setTraits(savedTraits)
             } catch {
                 contentBlocks.append(
-                    .text("Warning: failed to restore original traits: \(error.localizedDescription)"))
+                    .text("Warning: failed to restore original traits: \(error.localizedDescription)")
+                )
             }
         }
 
@@ -165,17 +170,16 @@ private enum VariantError: Error, LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidVariantType:
-            return
-                "Each variant must be a preset name string or a JSON object string with trait fields (colorScheme, dynamicTypeSize, locale, layoutDirection, legibilityWeight)"
+            "Each variant must be a preset name string or a JSON object string with trait fields (colorScheme, dynamicTypeSize, locale, layoutDirection, legibilityWeight)"
         case .emptyVariantsArray:
-            return "variants array must not be empty"
+            "variants array must not be empty"
         }
     }
 }
 
 /// Unwrap an MCP Value to a String, then resolve via PreviewTraits.parseVariantString.
 private func resolveVariant(_ value: Value) throws -> PreviewTraits.Variant {
-    guard case .string(let str) = value else {
+    guard case let .string(str) = value else {
         throw VariantError.invalidVariantType
     }
     return try PreviewTraits.parseVariantString(str)

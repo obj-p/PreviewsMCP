@@ -12,7 +12,6 @@ import SwiftUI
 /// non-`serve` CLI command moved to the daemon client path.
 @MainActor
 public class PreviewHost: NSObject, NSApplicationDelegate {
-
     private var sessions: [String: PreviewSession] = [:]
     /// Latest agent-rendered PNG per session. Set once a session goes through the
     /// JIT structural-reload path; `preview_snapshot` serves this for the session.
@@ -68,14 +67,14 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
         retainedFileWatchers.append(watcher)
     }
 
-    public func applicationDidFinishLaunching(_ notification: Notification) {
+    public func applicationDidFinishLaunching(_: Notification) {
         onLaunch?()
     }
 
-    public func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+    public func applicationShouldTerminateAfterLastWindowClosed(_: NSApplication) -> Bool {
         // The daemon must stay alive after all preview windows close so
         // it can accept new session requests without a cold restart.
-        return false
+        false
     }
 
     /// Start watching source files and reload the preview on changes.
@@ -85,9 +84,9 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
         sessionID: String,
         session: PreviewSession,
         filePath: String,
-        compiler: Compiler,
+        compiler _: Compiler,
         additionalPaths: [String] = [],
-        buildContext: BuildContext? = nil
+        buildContext _: BuildContext? = nil
     ) {
         sessions[sessionID] = session
         notifySessionsChanged()
@@ -111,13 +110,14 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
                 // (rewrite the design-time values JSON, re-run the same object — no
                 // recompile).
                 if let currentSession = await MainActor.run(body: { self.sessions[sessionID] }),
-                    let changes = await currentSession.tryLiteralUpdate(newSource: newSource),
-                    !changes.isEmpty
+                   let changes = await currentSession.tryLiteralUpdate(newSource: newSource),
+                   !changes.isEmpty
                 {
                     fputs("Literal-only change: \(changes.count) value(s)\n", stderr)
                     do {
                         try await self.jitLiteralReload(
-                            sessionID: sessionID, session: currentSession, changes: changes)
+                            sessionID: sessionID, session: currentSession, changes: changes
+                        )
                         fputs("Literal re-rendered in agent (no recompile)\n", stderr)
                     } catch {
                         fputs("JIT literal reload failed: \(error)\n", stderr)
@@ -141,7 +141,8 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
                     }
 
                     _ = try await self.jitStructuralReload(
-                        sessionID: sessionID, session: existingSession)
+                        sessionID: sessionID, session: existingSession
+                    )
                     fputs("Reloaded (JIT agent)!\n", stderr); fflush(stderr)
                 } catch {
                     fputs("Recompilation failed: \(error)\n", stderr)
@@ -170,7 +171,9 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
     /// All active macOS sessions, keyed by session ID. Used by session
     /// discovery (e.g., `snapshot <file>` looking for an existing session
     /// that matches the target source file).
-    public var allSessions: [String: PreviewSession] { sessions }
+    public var allSessions: [String: PreviewSession] {
+        sessions
+    }
 
     /// Structural reload via the JIT path: compile the preview to a render-bridge
     /// object, render it in the agent, and record the agent's PNG for snapshots.
@@ -191,11 +194,12 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
     /// (#195). Only for visible sessions; absent sidecar keeps the stored spec unchanged.
     private func restoreAgentWindowFrame(sessionID: String, session: PreviewSession) {
         guard let spec = agentWindowSpecs[sessionID], !spec.headless,
-            let frame = PreviewSession.storedWindowFrame(for: session.id)
+              let frame = PreviewSession.storedWindowFrame(for: session.id)
         else { return }
         agentWindowSpecs[sessionID] = JITRenderWindow(
             x: frame.x, y: frame.y, width: frame.width, height: frame.height,
-            title: spec.title, headless: false)
+            title: spec.title, headless: false
+        )
     }
 
     /// Start a session with the agent as its surface from the first render: no
@@ -214,12 +218,14 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
                 x: screen.midX - size.width / 2,
                 y: screen.midY - size.height / 2,
                 width: size.width, height: size.height,
-                title: title)
+                title: title
+            )
         } else {
             // Headless, or no screen to place a visible window on: still bake the requested size
             // so the render matches it; the bridge keeps this window off-screen and unshown.
             agentWindowSpecs[sessionID] = JITRenderWindow(
-                x: 0, y: 0, width: size.width, height: size.height, title: title, headless: true)
+                x: 0, y: 0, width: size.width, height: size.height, title: title, headless: true
+            )
         }
         do {
             try await jitStructuralReload(sessionID: sessionID, session: session)

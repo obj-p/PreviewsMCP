@@ -84,10 +84,10 @@ private struct PreviewLine: Encodable {
 
     init(from preview: PreviewInfo, file: String) {
         self.file = file
-        self.index = preview.index
-        self.name = preview.name
-        self.line = preview.line
-        self.snippet = preview.snippet
+        index = preview.index
+        name = preview.name
+        line = preview.line
+        snippet = preview.snippet
     }
 }
 
@@ -103,10 +103,10 @@ private extension ListCommand {
         else { return [] }
         return
             enumerator
-            .compactMap { $0 as? URL }
-            .filter { $0.pathExtension == "swift" }
-            .map(\.path)
-            .sorted()
+                .compactMap { $0 as? URL }
+                .filter { $0.pathExtension == "swift" }
+                .map(\.path)
+                .sorted()
     }
 
     func humanLine(_ preview: PreviewInfo) -> String {

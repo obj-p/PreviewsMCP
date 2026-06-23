@@ -21,7 +21,6 @@ import PreviewsCore
 /// uses the in-process Swift API. Keep both in sync; the device
 /// selection contract is what matters, not the enumeration path.
 enum IOSSimulatorPicker {
-
     /// Deterministic per-test device UDID assignment. `index` must be
     /// unique per test function that needs an isolated simulator.
     ///
@@ -73,9 +72,9 @@ enum IOSSimulatorPicker {
             guard let list = devicesByRuntime[runtime] else { continue }
             let udids =
                 list
-                .filter { ($0["name"] as? String)?.contains("iPhone") == true }
-                .compactMap { $0["udid"] as? String }
-                .sorted()
+                    .filter { ($0["name"] as? String)?.contains("iPhone") == true }
+                    .compactMap { $0["udid"] as? String }
+                    .sorted()
             iPhoneUDIDs.append(contentsOf: udids)
         }
         guard index < iPhoneUDIDs.count else { return nil }

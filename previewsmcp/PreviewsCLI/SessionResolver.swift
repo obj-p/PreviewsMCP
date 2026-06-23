@@ -10,7 +10,6 @@ import PreviewsCore
 /// sole session. When zero or multiple sessions are running and no flag
 /// disambiguates, return a clear error.
 enum SessionResolver {
-
     /// Resolve a session targeting policy. Returns `.found(id)` on success
     /// or `.notFound` when the caller should decide how to proceed
     /// (e.g., snapshot creates an ephemeral session; configure errors out).
@@ -95,17 +94,15 @@ enum SessionResolver {
             )
         }
     }
-
 }
 
 extension SessionResolver {
-
     enum Resolution: Equatable {
         case found(sessionID: String)
         case notFound
     }
 
-    struct SessionInfo: Equatable, Sendable {
+    struct SessionInfo: Equatable {
         let sessionID: String
         let platform: String
         let sourceFilePath: String
@@ -119,19 +116,19 @@ enum SessionResolverError: Error, CustomStringConvertible {
 
     var description: String {
         switch self {
-        case .multipleMatches(let file, let ids):
+        case let .multipleMatches(file, ids):
             return
                 "multiple sessions match \(file): \(ids.joined(separator: ", ")). "
-                + "Pass --session <id> to disambiguate."
-        case .ambiguous(let sessions):
+                    + "Pass --session <id> to disambiguate."
+        case let .ambiguous(sessions):
             let listing =
                 sessions
-                .map { "  \($0.sessionID) (\($0.platform)) \($0.sourceFilePath)" }
-                .joined(separator: "\n")
+                    .map { "  \($0.sessionID) (\($0.platform)) \($0.sourceFilePath)" }
+                    .joined(separator: "\n")
             return
                 "multiple sessions are running; specify one with --session <id> or --file <path>:\n"
-                + listing
-        case .daemonError(let text):
+                    + listing
+        case let .daemonError(text):
             return "daemon error: \(text)"
         }
     }

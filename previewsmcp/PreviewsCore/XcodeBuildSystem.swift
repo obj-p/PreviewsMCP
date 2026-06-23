@@ -44,7 +44,8 @@ public actor XcodeBuildSystem: BuildSystem {
                     projectRoot: dir,
                     sourceFile: sourceFile.standardizedFileURL,
                     projectFile: projectFile,
-                    requestedScheme: scheme)
+                    requestedScheme: scheme
+                )
             }
             dir = dir.deletingLastPathComponent()
         }
@@ -57,7 +58,8 @@ public actor XcodeBuildSystem: BuildSystem {
     static func findXcodeProject(in directory: URL) -> URL? {
         guard
             let contents = try? FileManager.default.contentsOfDirectory(
-                at: directory, includingPropertiesForKeys: nil)
+                at: directory, includingPropertiesForKeys: nil
+            )
         else { return nil }
         let workspaces = contents.filter { $0.pathExtension == "xcworkspace" }
         let projects = contents.filter { $0.pathExtension == "xcodeproj" }
@@ -97,12 +99,14 @@ public actor XcodeBuildSystem: BuildSystem {
         // 4. Verify build products exist
         guard let builtProductsDir = settings["BUILT_PRODUCTS_DIR"] else {
             throw BuildSystemError.missingArtifacts(
-                "BUILT_PRODUCTS_DIR not found in build settings for scheme \(scheme)")
+                "BUILT_PRODUCTS_DIR not found in build settings for scheme \(scheme)"
+            )
         }
 
         guard FileManager.default.fileExists(atPath: builtProductsDir) else {
             throw BuildSystemError.missingArtifacts(
-                "Build products directory not found at \(builtProductsDir)")
+                "Build products directory not found at \(builtProductsDir)"
+            )
         }
 
         // 5. Collect source files for Tier 2 (from OutputFileMap.json)
@@ -150,15 +154,19 @@ public actor XcodeBuildSystem: BuildSystem {
 
     struct ProjectInfo {
         let schemes: [String]
-        init(schemes: [String]) { self.schemes = schemes }
+        init(schemes: [String]) {
+            self.schemes = schemes
+        }
     }
 
     private func listSchemes() async throws -> ProjectInfo {
         let output = try await runXcodebuild(
-            xcodebuildFlag, projectFile.path, "-list", "-json")
+            xcodebuildFlag, projectFile.path, "-list", "-json"
+        )
         guard let data = output.data(using: .utf8) else {
             throw BuildSystemError.missingArtifacts(
-                "Could not parse xcodebuild -list output")
+                "Could not parse xcodebuild -list output"
+            )
         }
         return try JSONDecoder().decode(ProjectInfo.self, from: data)
     }
@@ -168,7 +176,8 @@ public actor XcodeBuildSystem: BuildSystem {
         guard !schemes.isEmpty else {
             throw BuildSystemError.targetNotFound(
                 sourceFile: sourceFile.lastPathComponent,
-                project: projectFile.lastPathComponent)
+                project: projectFile.lastPathComponent
+            )
         }
 
         // 1. Explicit scheme from caller wins, if it's actually in the list.
@@ -178,7 +187,8 @@ public actor XcodeBuildSystem: BuildSystem {
             }
             throw BuildSystemError.unknownScheme(
                 requested: requested,
-                candidates: schemes)
+                candidates: schemes
+            )
         }
 
         // 2. Exactly one scheme: unambiguous.
@@ -195,7 +205,8 @@ public actor XcodeBuildSystem: BuildSystem {
         // 4. Give up and ask the caller to disambiguate.
         throw BuildSystemError.ambiguousTarget(
             sourceFile: sourceFile.lastPathComponent,
-            candidates: schemes)
+            candidates: schemes
+        )
     }
 
     // MARK: - Private: Build Settings
@@ -208,7 +219,8 @@ public actor XcodeBuildSystem: BuildSystem {
             xcodebuildFlag, projectFile.path,
             "-scheme", scheme,
             "-showBuildSettings",
-            "-destination", destination)
+            "-destination", destination
+        )
         return Self.parseBuildSettings(output)
     }
 
@@ -225,7 +237,7 @@ public actor XcodeBuildSystem: BuildSystem {
                 continue
             }
             guard let equalsRange = trimmed.range(of: " = ") else { continue }
-            let key = String(trimmed[trimmed.startIndex..<equalsRange.lowerBound])
+            let key = String(trimmed[trimmed.startIndex ..< equalsRange.lowerBound])
                 .trimmingCharacters(in: .whitespaces)
             let value = String(trimmed[equalsRange.upperBound...])
                 .trimmingCharacters(in: .whitespaces)
@@ -244,7 +256,8 @@ public actor XcodeBuildSystem: BuildSystem {
             "-scheme", scheme,
             "-configuration", "Debug",
             "-destination", destination,
-            "-quiet")
+            "-quiet"
+        )
     }
 
     // MARK: - Private: Source Files (Tier 2)
@@ -260,7 +273,7 @@ public actor XcodeBuildSystem: BuildSystem {
             .appendingPathComponent("\(targetName)-OutputFileMap.json")
 
         guard let data = try? Data(contentsOf: outputFileMapPath),
-            let map = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+              let map = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
         else { return nil }
 
         // Keys are absolute source file paths; "" is module-level metadata (skip it)
@@ -305,7 +318,8 @@ public actor XcodeBuildSystem: BuildSystem {
             Log.warn(
                 "CODESIGNING_FOLDER_PATH=\(wrapperPath) does not exist; "
                     + "skipping resource-bundle rewrite. Asset lookups in "
-                    + "the bridge dylib may return nothing.")
+                    + "the bridge dylib may return nothing."
+            )
             return sources
         }
         guard let derivedFileDir = settings["DERIVED_FILE_DIR"] else {
@@ -315,7 +329,8 @@ public actor XcodeBuildSystem: BuildSystem {
             .appendingPathComponent("PreviewsMCPRewrites")
         return sources.map { source in
             rewriteResourceBundle(
-                source: source, wrapperPath: wrapperPath, rewriteDir: rewriteDir)
+                source: source, wrapperPath: wrapperPath, rewriteDir: rewriteDir
+            )
         }
     }
 
@@ -328,47 +343,50 @@ public actor XcodeBuildSystem: BuildSystem {
         rewriteDir: URL
     ) -> URL {
         guard source.lastPathComponent.hasPrefix("Generated"),
-            source.lastPathComponent.hasSuffix("Symbols.swift"),
-            let original = try? String(contentsOf: source, encoding: .utf8)
+              source.lastPathComponent.hasSuffix("Symbols.swift"),
+              let original = try? String(contentsOf: source, encoding: .utf8)
         else {
             return source
         }
         let needle = """
-            #if SWIFT_PACKAGE
-            private let resourceBundle = Foundation.Bundle.module
-            #else
-            private class ResourceBundleClass {}
-            private let resourceBundle = Foundation.Bundle(for: ResourceBundleClass.self)
-            #endif
-            """
+        #if SWIFT_PACKAGE
+        private let resourceBundle = Foundation.Bundle.module
+        #else
+        private class ResourceBundleClass {}
+        private let resourceBundle = Foundation.Bundle(for: ResourceBundleClass.self)
+        #endif
+        """
         guard original.contains(needle) else {
             return source
         }
         let escaped = wrapperPath.replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "\"", with: "\\\"")
         let replacement = """
-            #if SWIFT_PACKAGE
-            private let resourceBundle = Foundation.Bundle.module
-            #else
-            // PreviewsMCP rewrite (#151): the recompiled bridge dylib has no
-            // resource bundle of its own; point at the framework on disk.
-            private let resourceBundle = Foundation.Bundle(path: "\(escaped)") ?? Foundation.Bundle.main
-            #endif
-            """
+        #if SWIFT_PACKAGE
+        private let resourceBundle = Foundation.Bundle.module
+        #else
+        // PreviewsMCP rewrite (#151): the recompiled bridge dylib has no
+        // resource bundle of its own; point at the framework on disk.
+        private let resourceBundle = Foundation.Bundle(path: "\(escaped)") ?? Foundation.Bundle.main
+        #endif
+        """
         let rewritten = original.replacingOccurrences(of: needle, with: replacement)
         do {
             try FileManager.default.createDirectory(
-                at: rewriteDir, withIntermediateDirectories: true)
+                at: rewriteDir, withIntermediateDirectories: true
+            )
             let dest = rewriteDir.appendingPathComponent(source.lastPathComponent)
             try rewritten.write(to: dest, atomically: true, encoding: .utf8)
             Log.info(
                 "rewroteResourceBundle: \(source.lastPathComponent) -> \(dest.path) "
-                    + "(bundle=\(wrapperPath))")
+                    + "(bundle=\(wrapperPath))"
+            )
             return dest
         } catch {
             Log.warn(
                 "rewriteResourceBundle failed for \(source.lastPathComponent): \(error). "
-                    + "Falling back to original; asset lookups may return nothing.")
+                    + "Falling back to original; asset lookups may return nothing."
+            )
             return source
         }
     }
@@ -388,7 +406,8 @@ public actor XcodeBuildSystem: BuildSystem {
         // Additional framework search paths for dependencies
         if let searchPaths = settings["FRAMEWORK_SEARCH_PATHS"] {
             for path in Self.parseSearchPaths(searchPaths)
-            where seenPaths.insert(path).inserted {
+                where seenPaths.insert(path).inserted
+            {
                 flags += ["-F", path]
             }
         }
@@ -476,7 +495,7 @@ public actor XcodeBuildSystem: BuildSystem {
     /// are dropped.
     static func extractDependencyImportFlags(fromOtherSwiftFlags flags: String) -> [String] {
         let tokens = tokenizeFlags(flags)
-        let clangValueFlags: Set<String> = ["-iquote", "-isystem", "-working-directory", "-I"]
+        let clangValueFlags: Set = ["-iquote", "-isystem", "-working-directory", "-I"]
         var result: [String] = []
         var seen = Set<String>()
         func add(_ items: [String], key: String) {
@@ -532,9 +551,9 @@ public actor XcodeBuildSystem: BuildSystem {
     private func destinationString(for platform: PreviewPlatform) -> String {
         switch platform {
         case .macOS:
-            return "platform=macOS"
+            "platform=macOS"
         case .iOS:
-            return "generic/platform=iOS Simulator"
+            "generic/platform=iOS Simulator"
         }
     }
 
@@ -550,11 +569,13 @@ public actor XcodeBuildSystem: BuildSystem {
         let fullArgs = ["xcodebuild"] + args
         let output = try await runAsync(
             "/usr/bin/env", arguments: fullArgs,
-            workingDirectory: projectRoot)
+            workingDirectory: projectRoot
+        )
         guard output.exitCode == 0 else {
             throw BuildSystemError.buildFailed(
                 stderr: output.stderr.isEmpty ? output.stdout : output.stderr,
-                exitCode: output.exitCode)
+                exitCode: output.exitCode
+            )
         }
         return output.stdout
     }
@@ -575,16 +596,17 @@ extension XcodeBuildSystem.ProjectInfo: Decodable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         if container.contains(.project) {
-            self.schemes = try container.decode(Details.self, forKey: .project).schemes
+            schemes = try container.decode(Details.self, forKey: .project).schemes
         } else if container.contains(.workspace) {
-            self.schemes = try container.decode(Details.self, forKey: .workspace).schemes
+            schemes = try container.decode(Details.self, forKey: .workspace).schemes
         } else {
             throw DecodingError.dataCorrupted(
                 DecodingError.Context(
                     codingPath: decoder.codingPath,
                     debugDescription:
-                        "Expected 'project' or 'workspace' key in xcodebuild -list JSON"
-                ))
+                    "Expected 'project' or 'workspace' key in xcodebuild -list JSON"
+                )
+            )
         }
     }
 }

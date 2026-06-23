@@ -7,7 +7,7 @@ enum SessionListHandler: ToolHandler {
     static let schema = Tool(
         name: ToolName.sessionList.rawValue,
         description:
-            "List all active preview sessions in the daemon, with their source file paths and platforms. Used by CLI commands to resolve --file to --session, and for diagnostic tooling.",
+        "List all active preview sessions in the daemon, with their source file paths and platforms. Used by CLI commands to resolve --file to --session, and for diagnostic tooling.",
         inputSchema: .object([
             "type": .string("object"),
             "properties": .object([:]),
@@ -27,7 +27,7 @@ enum SessionListHandler: ToolHandler {
     /// returns the union). See `SessionRegistry` and the architectural
     /// plan's #6b for context.
     static func handle(
-        _ params: CallTool.Parameters,
+        _: CallTool.Parameters,
         ctx: HandlerContext
     ) async throws -> CallTool.Result {
         var sessions: [DaemonProtocol.SessionDTO] = []

@@ -26,7 +26,6 @@ import MCP
 ///
 /// Version comparison rules: see `versionsMatch`.
 extension DaemonClient {
-
     /// Kill the stale daemon and bring up a fresh one matching the
     /// current CLI binary. Serialized across concurrent CLIs via
     /// `flock` on `DaemonPaths.restartLock` so two upgraded CLIs
@@ -57,7 +56,8 @@ extension DaemonClient {
         // if it still mismatches; the kill+respawn below needs the
         // socket free of our own connection.
         let (probeClient, probeInit) = try await openClient(
-            clientName: clientName, configure: configure)
+            clientName: clientName, configure: configure
+        )
         if versionsMatch(currentVersion, probeInit.serverInfo.version) {
             return probeClient
         }
@@ -74,16 +74,18 @@ extension DaemonClient {
 
         let reason =
             "prev=\(staleVersion),now=\(currentVersion),"
-            + "by=pid\(ProcessInfo.processInfo.processIdentifier)"
+                + "by=pid\(ProcessInfo.processInfo.processIdentifier)"
         let child = try spawnDaemon(restartReason: reason)
         try await waitForSocket(timeout: startTimeout, child: child)
 
         let (client, initResult) = try await openClient(
-            clientName: clientName, configure: configure)
+            clientName: clientName, configure: configure
+        )
         if !versionsMatch(currentVersion, initResult.serverInfo.version) {
             await client.disconnect()
             throw DaemonClientError.versionStillMismatched(
-                reported: initResult.serverInfo.version)
+                reported: initResult.serverInfo.version
+            )
         }
         return client
     }
@@ -92,7 +94,7 @@ extension DaemonClient {
     /// timeout. Swallows ESRCH — the daemon may have exited on its
     /// own between our read and our signal.
     static func killDaemonAndWait(pid: Int32, timeout: TimeInterval) throws {
-        if kill(pid, SIGTERM) != 0 && errno != ESRCH {
+        if kill(pid, SIGTERM) != 0, errno != ESRCH {
             throw DaemonClientError.couldNotSignalDaemon(pid: pid, errno: errno)
         }
         let deadline = Date().addingTimeInterval(timeout)
@@ -157,7 +159,7 @@ extension DaemonClient {
     static func versionsMatch(_ a: String, _ b: String) -> Bool {
         let aHasSuffix = gitDescribeRange(in: a) != nil
         let bHasSuffix = gitDescribeRange(in: b) != nil
-        if aHasSuffix && bHasSuffix {
+        if aHasSuffix, bHasSuffix {
             return a == b
         }
         return baseVersion(a) == baseVersion(b)

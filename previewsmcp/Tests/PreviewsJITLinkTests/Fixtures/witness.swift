@@ -3,7 +3,9 @@ protocol Valued {
 }
 
 struct DefaultValued: Valued {
-    func value() -> Int32 { 7 }
+    func value() -> Int32 {
+        7
+    }
 }
 
 @_cdecl("witness_value")

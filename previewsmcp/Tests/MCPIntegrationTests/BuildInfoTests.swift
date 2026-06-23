@@ -1,8 +1,7 @@
 import Foundation
 import MCP
-import Testing
-
 @testable import PreviewsCLI
+import Testing
 
 /// Coverage for `preview_build_info` and the staleness primitive it
 /// surfaces. The integration-test skill aborts when `stale: true`, so the
@@ -12,7 +11,6 @@ import Testing
 /// See issue #147.
 @Suite("preview_build_info", .serialized)
 struct BuildInfoTests {
-
     /// Fresh server, untouched binary. Round-trip the structured payload
     /// and confirm shape: every field present, `stale: false`, mtime
     /// strictly less than (or equal to) processStartTime.
@@ -101,8 +99,8 @@ struct BuildInfoTests {
             (date.timeIntervalSince1970 - TimeInterval(seconds)) * 1_000_000_000
         )
         var times = (
-            timespec(tv_sec: seconds, tv_nsec: nanoseconds),  // atime
-            timespec(tv_sec: seconds, tv_nsec: nanoseconds)  // mtime
+            timespec(tv_sec: seconds, tv_nsec: nanoseconds), // atime
+            timespec(tv_sec: seconds, tv_nsec: nanoseconds) // mtime
         )
         let result = withUnsafePointer(to: &times) { ptr -> Int32 in
             ptr.withMemoryRebound(to: timespec.self, capacity: 2) { ts in
@@ -120,8 +118,8 @@ struct BuildInfoTests {
 
         var description: String {
             switch self {
-            case .utimensatFailed(let path, let message):
-                return "utimensat(\(path)) failed: \(message)"
+            case let .utimensatFailed(path, message):
+                "utimensat(\(path)) failed: \(message)"
             }
         }
     }

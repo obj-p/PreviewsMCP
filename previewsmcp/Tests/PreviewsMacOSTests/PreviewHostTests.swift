@@ -1,17 +1,15 @@
 import Foundation
 import PreviewsCore
-import Testing
-
 @testable import PreviewsMacOS
+import Testing
 
 @MainActor
 @Suite("PreviewHost")
 struct PreviewHostTests {
-
     /// This suite never triggers a reload, so the injected factory just needs to
     /// satisfy the now-required constructor parameter.
     final class StubReloader: StructuralReloader, @unchecked Sendable {
-        func render(_ build: JITRenderBuild) async throws {}
+        func render(_: JITRenderBuild) async throws {}
     }
 
     /// Regression guard for the iOS `run` hot-reload bug.
@@ -68,7 +66,9 @@ final class Mutex<T>: @unchecked Sendable {
     private var value: T
     private let lock = NSLock()
 
-    init(_ value: T) { self.value = value }
+    init(_ value: T) {
+        self.value = value
+    }
 
     func withLock<R>(_ body: (inout T) -> R) -> R {
         lock.lock()

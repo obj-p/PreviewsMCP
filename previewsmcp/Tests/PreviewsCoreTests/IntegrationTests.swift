@@ -1,28 +1,26 @@
 import Foundation
-import Testing
-
 @testable import PreviewsCore
+import Testing
 
 @Suite("Integration Tests")
 struct IntegrationTests {
-
     static let testViewSource = """
-        import SwiftUI
+    import SwiftUI
 
-        struct TestView: View {
-            @State private var count = 0
-            var body: some View {
-                VStack {
-                    Text("Count: \\(count)")
-                    Button("Increment") { count += 1 }
-                }
+    struct TestView: View {
+        @State private var count = 0
+        var body: some View {
+            VStack {
+                Text("Count: \\(count)")
+                Button("Increment") { count += 1 }
             }
         }
+    }
 
-        #Preview {
-            TestView()
-        }
-        """
+    #Preview {
+        TestView()
+    }
+    """
 
     // MARK: - Parse → Generate → Compile
 
@@ -52,7 +50,7 @@ struct IntegrationTests {
         let compiler = try await Compiler(platform: .iOS)
         let objectURL = try await compiler.compileObject(
             source: combined,
-            moduleName: "IOSTest_\(Int.random(in: 0...999999))"
+            moduleName: "IOSTest_\(Int.random(in: 0 ... 999_999))"
         )
 
         #expect(objectURL.pathExtension == "o")
@@ -98,7 +96,7 @@ struct IntegrationTests {
         let compiler = try await Compiler()
         let session = PreviewSession(
             sourceFile: sourceFile,
-            previewIndex: 5,  // only 1 preview exists
+            previewIndex: 5, // only 1 preview exists
             compiler: compiler
         )
 
@@ -115,7 +113,7 @@ struct IntegrationTests {
         await #expect(throws: CompilationError.self) {
             _ = try await compiler.compileObject(
                 source: badSource,
-                moduleName: "BadSource_\(Int.random(in: 0...999999))"
+                moduleName: "BadSource_\(Int.random(in: 0 ... 999_999))"
             )
         }
     }
@@ -173,7 +171,7 @@ struct IntegrationTests {
 
         let initialInode =
             try FileManager.default.attributesOfItem(atPath: file.path)[.systemFileNumber]
-            as? UInt64
+                as? UInt64
 
         // Explicit write-temp + rename, not `atomically: true` (which would
         // hide whether the rename path is what we actually exercise).
@@ -184,7 +182,7 @@ struct IntegrationTests {
 
         let finalInode =
             try FileManager.default.attributesOfItem(atPath: file.path)[.systemFileNumber]
-            as? UInt64
+                as? UInt64
         #expect(
             initialInode != nil && finalInode != nil && initialInode != finalInode,
             "rename(2) should have replaced the file's inode (so this exercises the inode-vanish hole, not an in-place write)"
@@ -256,7 +254,7 @@ struct IntegrationTests {
         // coalesced into the first. Per-cycle assertion catches the
         // regression where only the initial cycle fires. 500ms leaves
         // ~10× the FSEvents latency for headroom on heavily-loaded CI.
-        for i in 1...2 {
+        for i in 1 ... 2 {
             let beforeCycle = callCount.withLock { $0 }
             try FileManager.default.removeItem(at: file)
             try "save \(i)".write(to: file, atomically: false, encoding: .utf8)

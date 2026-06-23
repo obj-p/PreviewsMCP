@@ -47,14 +47,18 @@ public actor IOSAgentChannel {
     /// Latest resident-memory reading (bytes) pushed by the agent app's `memory`
     /// message. Zero until the first report arrives or after a disconnect.
     private var latestRSSBytes: UInt64 = 0
-    public var latestRSS: UInt64 { latestRSSBytes }
+    public var latestRSS: UInt64 {
+        latestRSSBytes
+    }
 
     /// Latest `applicationState` the agent app reported over its `lifecycle`
     /// message (`active` / `inactive` / `background`). Nil until the first
     /// breadcrumb arrives or after a disconnect. Used as the flash detector:
     /// a shell-hosted agent must never report `active`.
     private var latestApplicationStateValue: String?
-    public var latestApplicationState: String? { latestApplicationStateValue }
+    public var latestApplicationState: String? {
+        latestApplicationStateValue
+    }
 
     /// Last in-app JIT executor failure the host reported over its `jitError`
     /// message. Set when `connectLoopback`/`previewsmcp_ios_executor_start` fail
@@ -62,7 +66,9 @@ public actor IOSAgentChannel {
     /// as a generic `acceptJIT` timeout or a confusing downstream link error.
     /// Sticky across disconnect so the start flow can enrich its thrown error.
     private var latestJITErrorValue: IOSAgentJITError?
-    public var latestJITError: IOSAgentJITError? { latestJITErrorValue }
+    public var latestJITError: IOSAgentJITError? {
+        latestJITErrorValue
+    }
 
     /// Invoked once when the agent app disconnects unexpectedly (EOF or read
     /// error), never on an intentional `close()`. Lets the session respawn a
@@ -79,7 +85,9 @@ public actor IOSAgentChannel {
     /// Whether the channel has an established connection to the host
     /// app. Used by callers to early-fail with `notStarted` before
     /// invoking transport methods.
-    public var isConnected: Bool { connectedFD >= 0 }
+    public var isConnected: Bool {
+        connectedFD >= 0
+    }
 
     // MARK: - Lifecycle
 
@@ -96,7 +104,7 @@ public actor IOSAgentChannel {
         var addr = sockaddr_in()
         addr.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
         addr.sin_family = sa_family_t(AF_INET)
-        addr.sin_port = 0  // ephemeral
+        addr.sin_port = 0 // ephemeral
         addr.sin_addr.s_addr = inet_addr("127.0.0.1")
 
         let bindResult = withUnsafePointer(to: &addr) { ptr in
@@ -172,9 +180,9 @@ public actor IOSAgentChannel {
     /// drops the dict) and the caller releases its reference.
     public func send(_ dict: sending [String: Any]) {
         guard connectedFD >= 0,
-            var data = try? JSONSerialization.data(withJSONObject: dict)
+              var data = try? JSONSerialization.data(withJSONObject: dict)
         else { return }
-        data.append(0x0A)  // newline delimiter
+        data.append(0x0A) // newline delimiter
         let fd = connectedFD
         var writeFailed = false
         data.withUnsafeBytes { buf in
@@ -237,7 +245,7 @@ public actor IOSAgentChannel {
             Task { [weak self] in
                 try? await Task.sleep(for: timeout)
                 guard let self else { return }
-                if let cont = await self.removePendingResponse(forKey: id) {
+                if let cont = await removePendingResponse(forKey: id) {
                     cont.resume(throwing: IOSPreviewSessionError.socketResponseTimeout(id))
                 }
             }
@@ -265,7 +273,8 @@ public actor IOSAgentChannel {
                     try await withCheckedThrowingContinuation {
                         (cont: CheckedContinuation<Int32, Error>) in
                         let source = DispatchSource.makeReadSource(
-                            fileDescriptor: listenFD, queue: .global())
+                            fileDescriptor: listenFD, queue: .global()
+                        )
                         sourceBox.store(source)
                         var resumed = false
                         source.setEventHandler {
@@ -314,7 +323,7 @@ public actor IOSAgentChannel {
             var buf = [UInt8](repeating: 0, count: 8192)
             let n = Darwin.read(fd, &buf, buf.count)
             if n > 0 {
-                let data = Data(buf[0..<n])
+                let data = Data(buf[0 ..< n])
                 if let self {
                     Task { await self.processIncomingData(data) }
                 }
@@ -326,7 +335,7 @@ public actor IOSAgentChannel {
             } else {
                 // read() error — treat as disconnect (ECONNRESET, etc.)
                 let err = errno
-                if err != EAGAIN && err != EWOULDBLOCK {
+                if err != EAGAIN, err != EWOULDBLOCK {
                     if let self {
                         Task { await self.handleDisconnect() }
                     }
@@ -346,7 +355,7 @@ public actor IOSAgentChannel {
 
         // Split on newlines and process complete messages
         while let newlineIndex = readBuffer.firstIndex(of: 0x0A) {
-            let lineData = Data(readBuffer[readBuffer.startIndex..<newlineIndex])
+            let lineData = Data(readBuffer[readBuffer.startIndex ..< newlineIndex])
             readBuffer = Data(readBuffer[(newlineIndex + 1)...])
 
             guard let message = try? JSONSerialization.jsonObject(with: lineData) as? [String: Any]
@@ -370,7 +379,8 @@ public actor IOSAgentChannel {
             if message["type"] as? String == "jitError" {
                 latestJITErrorValue = IOSAgentJITError(
                     stage: message["stage"] as? String ?? "unknown",
-                    code: message["code"] as? Int)
+                    code: message["code"] as? Int
+                )
                 continue
             }
 

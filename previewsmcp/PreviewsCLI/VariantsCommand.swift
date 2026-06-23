@@ -23,18 +23,18 @@ struct VariantsCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "variants",
         abstract:
-            "Capture multiple snapshots of a SwiftUI preview under different trait configurations",
+        "Capture multiple snapshots of a SwiftUI preview under different trait configurations",
         discussion: """
-            Reuses an existing preview session if one is running for the
-            target file (or if you pass --session). Otherwise starts an
-            ephemeral session, captures every variant, and cleans up.
+        Reuses an existing preview session if one is running for the
+        target file (or if you pass --session). Otherwise starts an
+        ephemeral session, captures every variant, and cleans up.
 
-            Each --variant is either a preset name (light, dark,
-            xSmall…accessibility5, rtl, ltr, boldText) or a JSON object
-            string with trait fields (colorScheme, dynamicTypeSize,
-            locale, layoutDirection, legibilityWeight) and an optional
-            label that determines the output filename.
-            """
+        Each --variant is either a preset name (light, dark,
+        xSmall…accessibility5, rtl, ltr, boldText) or a JSON object
+        string with trait fields (colorScheme, dynamicTypeSize,
+        locale, layoutDirection, legibilityWeight) and an optional
+        label that determines the output filename.
+        """
     )
 
     @Argument(help: "Path to Swift source file containing #Preview", transform: Path.normalize)
@@ -45,10 +45,10 @@ struct VariantsCommand: AsyncParsableCommand {
         help: ArgumentHelp(
             "A trait variant to capture. Repeat for multiple variants.",
             discussion: """
-                Either a preset name (light, dark, xSmall…accessibility5, rtl, ltr, boldText) or a JSON object \
-                string with trait fields (colorScheme, dynamicTypeSize, locale, layoutDirection, legibilityWeight) \
-                and an optional label.
-                """
+            Either a preset name (light, dark, xSmall…accessibility5, rtl, ltr, boldText) or a JSON object \
+            string with trait fields (colorScheme, dynamicTypeSize, locale, layoutDirection, legibilityWeight) \
+            and an optional label.
+            """
         )
     )
     var variant: [String] = []
@@ -129,7 +129,7 @@ struct VariantsCommand: AsyncParsableCommand {
                 "--quality must be < 1.0 when --format jpeg; use --format png for lossless output."
             )
         }
-        if file == nil && session == nil {
+        if file == nil, session == nil {
             throw ValidationError(
                 "Missing file argument. Pass a path or --session <uuid>."
             )
@@ -153,14 +153,16 @@ struct VariantsCommand: AsyncParsableCommand {
             if let prior = seen[v.label] {
                 throw ValidationError(
                     "Duplicate variant label '\(v.label)' at indices \(prior) and \(index). "
-                        + "Provide a unique 'label' field in JSON variants.")
+                        + "Provide a unique 'label' field in JSON variants."
+                )
             }
             seen[v.label] = index
         }
 
         let outputDirURL = URL(fileURLWithPath: Path.normalize(outputDir))
         try FileManager.default.createDirectory(
-            at: outputDirURL, withIntermediateDirectories: true)
+            at: outputDirURL, withIntermediateDirectories: true
+        )
 
         let exitCode: Int32 = try await DaemonClient.withDaemonClient(
             name: "previewsmcp-variants"
@@ -172,7 +174,7 @@ struct VariantsCommand: AsyncParsableCommand {
             )
 
             switch resolution {
-            case .found(let sessionID):
+            case let .found(sessionID):
                 return try await captureVariants(
                     sessionID: sessionID,
                     labels: resolvedVariants.map(\.label),
@@ -249,7 +251,7 @@ struct VariantsCommand: AsyncParsableCommand {
         }
         let sessionID =
             try startStructured
-            .decode(DaemonProtocol.PreviewStartResult.self).sessionID
+                .decode(DaemonProtocol.PreviewStartResult.self).sessionID
 
         do {
             let code = try await captureVariants(
@@ -302,8 +304,8 @@ struct VariantsCommand: AsyncParsableCommand {
             switch outcome.status {
             case "ok":
                 guard let imageIndex = outcome.imageIndex,
-                    imageIndex < response.content.count,
-                    case .image(let base64, _, _) = response.content[imageIndex]
+                      imageIndex < response.content.count,
+                      case let .image(base64, _, _) = response.content[imageIndex]
                 else {
                     fputs(
                         "[error] \(outcome.label): daemon reported ok but imageIndex is invalid\n",
@@ -420,7 +422,8 @@ struct VariantsCommand: AsyncParsableCommand {
         } else {
             fputs(
                 "Captured \(successCount)/\(total) variants (\(failCount) failed). "
-                    + "See stderr for details.\n", stderr)
+                    + "See stderr for details.\n", stderr
+            )
         }
         return Self.exitCode(successCount: successCount, failCount: failCount)
     }

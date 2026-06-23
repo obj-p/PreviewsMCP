@@ -14,7 +14,6 @@ import Network
 /// - `StatusCommand` for its liveness report.
 /// - `DaemonClient` (PR 2) as the auto-start trigger.
 enum DaemonProbe {
-
     /// Try to connect to the daemon socket with a short timeout.
     /// Returns true on success, false on ENOENT / ECONNREFUSED / timeout.
     static func canConnect(timeout: TimeInterval = 1.0) -> Bool {
@@ -57,6 +56,7 @@ private final class ConnectResult: @unchecked Sendable {
         lock.lock(); defer { lock.unlock() }
         return _value
     }
+
     func set(_ v: Bool) {
         lock.lock(); defer { lock.unlock() }
         _value = v

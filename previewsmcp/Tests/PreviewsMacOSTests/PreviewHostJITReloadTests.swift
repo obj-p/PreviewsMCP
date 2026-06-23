@@ -1,13 +1,11 @@
 import Foundation
 import PreviewsCore
-import Testing
-
 @testable import PreviewsMacOS
+import Testing
 
 @MainActor
 @Suite("PreviewHost JIT structural reload")
 struct PreviewHostJITReloadTests {
-
     final class RecordingReloader: StructuralReloader, @unchecked Sendable {
         private(set) var calls: [(objectPath: URL, entrySymbol: String)] = []
         func render(_ build: JITRenderBuild) async throws {
@@ -124,7 +122,7 @@ struct PreviewHostJITReloadTests {
         host.watchFile(sessionID: "s1", session: session, filePath: sourceFile.path, compiler: compiler)
 
         let stringLiteral = try #require(
-            build.literals.first { if case .string = $0.value { return true } else { return false } }
+            build.literals.first { if case .string = $0.value { true } else { false } }
         )
         let img = try await host.jitLiteralReload(
             sessionID: "s1",
@@ -164,7 +162,8 @@ struct PreviewHostJITReloadTests {
         try await host.jitStart(
             sessionID: "visible", session: session,
             title: "Preview: ColorView.swift",
-            size: NSSize(width: 320, height: 240), headless: false)
+            size: NSSize(width: 320, height: 240), headless: false
+        )
         #expect(host.agentSnapshotPath(for: "visible") != nil)
         let spec = try #require(host.agentWindowSpec(for: "visible"))
         #expect(spec.title == "Preview: ColorView.swift")
@@ -173,7 +172,8 @@ struct PreviewHostJITReloadTests {
 
         try await host.jitStart(
             sessionID: "hidden", session: session,
-            title: "ignored", size: NSSize(width: 320, height: 240), headless: true)
+            title: "ignored", size: NSSize(width: 320, height: 240), headless: true
+        )
         let hiddenSpec = try #require(host.agentWindowSpec(for: "hidden"))
         #expect(hiddenSpec.headless)
         #expect(hiddenSpec.width == 320)
@@ -210,7 +210,8 @@ struct PreviewHostJITReloadTests {
 
         try await host.jitStart(
             sessionID: "s", session: session,
-            title: "t", size: NSSize(width: 8, height: 8), headless: true)
+            title: "t", size: NSSize(width: 8, height: 8), headless: true
+        )
         #expect(madeCount == 1)
         #expect(host.allSessions["s"] != nil)
 

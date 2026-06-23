@@ -32,7 +32,8 @@ public actor JITStructuralReloader: StructuralReloader {
         let session = try nextSession(forceFresh: build.requiresFreshAgent)
         Log.info(
             "jit_latency: agent-session force-fresh=\(build.requiresFreshAgent) "
-                + "\(Log.millis(mark, ContinuousClock.now))ms")
+                + "\(Log.millis(mark, ContinuousClock.now))ms"
+        )
         mark = ContinuousClock.now
         for dylib in build.dylibPaths {
             try session.addDylib(path: dylib.path)
@@ -42,7 +43,8 @@ public actor JITStructuralReloader: StructuralReloader {
         }
         Log.info(
             "jit_latency: add-deps dylibs=\(build.dylibPaths.count) "
-                + "archives=\(build.archivePaths.count) \(Log.millis(mark, ContinuousClock.now))ms")
+                + "archives=\(build.archivePaths.count) \(Log.millis(mark, ContinuousClock.now))ms"
+        )
         mark = ContinuousClock.now
         for support in build.supportObjectPaths {
             try session.addObject(path: support.path)
@@ -50,7 +52,8 @@ public actor JITStructuralReloader: StructuralReloader {
         try session.addObject(path: build.objectPath.path)
         Log.info(
             "jit_latency: add-objects \(build.supportObjectPaths.count + 1) "
-                + "\(Log.millis(mark, ContinuousClock.now))ms")
+                + "\(Log.millis(mark, ContinuousClock.now))ms"
+        )
         lastObjectPath = build.objectPath
         // Setup runs once per agent process (its plugin state lives for the process's
         // lifetime), so re-run after a respawn but not per generation. The entry is
@@ -94,10 +97,12 @@ public enum JITReloadError: Error, LocalizedError, CustomStringConvertible {
 
     public var description: String {
         switch self {
-        case .renderFailed(let status):
-            return "JIT render entry returned non-zero status \(status)"
+        case let .renderFailed(status):
+            "JIT render entry returned non-zero status \(status)"
         }
     }
 
-    public var errorDescription: String? { description }
+    public var errorDescription: String? {
+        description
+    }
 }

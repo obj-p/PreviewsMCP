@@ -4,7 +4,6 @@ import Testing
 /// Integration tests for the `switch` subcommand.
 @Suite(.serialized)
 struct SwitchCommandTests {
-
     private static func cleanSlate() async throws {
         _ = try? await CLIRunner.run("kill-daemon", arguments: ["--timeout", "2"])
     }

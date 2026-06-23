@@ -3,7 +3,9 @@ protocol Castable {
 }
 
 struct DefaultCastable: Castable {
-    func value() -> Int32 { 9 }
+    func value() -> Int32 {
+        9
+    }
 }
 
 @_cdecl("dynamic_cast_value")

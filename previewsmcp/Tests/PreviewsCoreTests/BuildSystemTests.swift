@@ -1,11 +1,9 @@
 import Foundation
-import Testing
-
 @testable import PreviewsCore
+import Testing
 
 @Suite("BuildSystem")
 struct BuildSystemTests {
-
     // MARK: - SPMBuildSystem.detect
 
     @Test("SPMBuildSystem detects Package.swift walking up directories")
@@ -95,7 +93,8 @@ struct BuildSystemTests {
         defer { try? FileManager.default.removeItem(at: tmpDir) }
 
         let buildSystem = try await BuildSystemDetector.detect(
-            for: sourceFile, projectRoot: tmpDir)
+            for: sourceFile, projectRoot: tmpDir
+        )
         #expect(buildSystem == nil)
     }
 
@@ -115,14 +114,15 @@ struct BuildSystemTests {
         defer { try? FileManager.default.removeItem(at: tmpDir) }
 
         let buildSystem = try await BuildSystemDetector.detect(
-            for: sourceFile, projectRoot: tmpDir)
+            for: sourceFile, projectRoot: tmpDir
+        )
         #expect(buildSystem == nil)
     }
 
     // MARK: - BazelBuildSystem.detect
 
     @Test("BazelBuildSystem detects MODULE.bazel walking up directories")
-    func detectBazelModuleBazel() async throws {
+    func detectBazelModuleBazel() throws {
         let tmpDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("previewsmcp-test-\(UUID().uuidString)")
         let sourcesDir = tmpDir.appendingPathComponent("Sources/MyTarget")
@@ -143,7 +143,7 @@ struct BuildSystemTests {
     }
 
     @Test("BazelBuildSystem detects WORKSPACE walking up directories")
-    func detectBazelWorkspace() async throws {
+    func detectBazelWorkspace() throws {
         let tmpDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("previewsmcp-test-\(UUID().uuidString)")
         let sourcesDir = tmpDir.appendingPathComponent("Sources/MyTarget")
@@ -204,7 +204,7 @@ struct BuildSystemTests {
     }
 
     @Test("BazelBuildSystem constructs correct source label")
-    func buildSourceLabel() async throws {
+    func buildSourceLabel() {
         let tmpDir = URL(fileURLWithPath: "/tmp/test-project")
         let sourceFile = URL(fileURLWithPath: "/tmp/test-project/Sources/ToDo/ToDoView.swift")
 
@@ -214,7 +214,7 @@ struct BuildSystemTests {
     }
 
     @Test("BazelBuildSystem constructs label for nested file in package")
-    func buildSourceLabelNested() async throws {
+    func buildSourceLabelNested() {
         let tmpDir = URL(fileURLWithPath: "/tmp/test-project")
         let sourceFile = URL(fileURLWithPath: "/tmp/test-project/Sources/Feature/Sub/View.swift")
 
@@ -226,7 +226,7 @@ struct BuildSystemTests {
     // MARK: - BazelBuildSystem label-to-path conversion
 
     @Test("BazelBuildSystem converts label to relative path")
-    func labelToPath() async throws {
+    func labelToPath() {
         let bazel = BazelBuildSystem(
             projectRoot: URL(fileURLWithPath: "/tmp"),
             sourceFile: URL(fileURLWithPath: "/tmp/a.swift")
@@ -249,9 +249,11 @@ struct BuildSystemTests {
 
         // Create both SPM and Bazel markers
         try "// swift-tools-version: 6.0".write(
-            to: tmpDir.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+            to: tmpDir.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8
+        )
         try "module(name = \"test\")".write(
-            to: tmpDir.appendingPathComponent("MODULE.bazel"), atomically: true, encoding: .utf8)
+            to: tmpDir.appendingPathComponent("MODULE.bazel"), atomically: true, encoding: .utf8
+        )
 
         let sourceFile = tmpDir.appendingPathComponent("main.swift")
         try "import SwiftUI".write(to: sourceFile, atomically: true, encoding: .utf8)
@@ -260,7 +262,8 @@ struct BuildSystemTests {
 
         // With explicit projectRoot, SPM should win when Package.swift exists
         let buildSystem = try await BuildSystemDetector.detect(
-            for: sourceFile, projectRoot: tmpDir)
+            for: sourceFile, projectRoot: tmpDir
+        )
         #expect(buildSystem is SPMBuildSystem)
     }
 
@@ -272,7 +275,8 @@ struct BuildSystemTests {
 
         // Only Bazel markers, no Package.swift
         try "module(name = \"test\")".write(
-            to: tmpDir.appendingPathComponent("MODULE.bazel"), atomically: true, encoding: .utf8)
+            to: tmpDir.appendingPathComponent("MODULE.bazel"), atomically: true, encoding: .utf8
+        )
 
         let sourceFile = tmpDir.appendingPathComponent("main.swift")
         try "import SwiftUI".write(to: sourceFile, atomically: true, encoding: .utf8)
@@ -280,7 +284,8 @@ struct BuildSystemTests {
         defer { try? FileManager.default.removeItem(at: tmpDir) }
 
         let buildSystem = try await BuildSystemDetector.detect(
-            for: sourceFile, projectRoot: tmpDir)
+            for: sourceFile, projectRoot: tmpDir
+        )
         #expect(buildSystem is BazelBuildSystem)
     }
 
@@ -294,7 +299,8 @@ struct BuildSystemTests {
 
         // rules_xcodeproj shape: both a Bazel module and a generated .xcodeproj.
         try "module(name = \"test\")".write(
-            to: tmpDir.appendingPathComponent("MODULE.bazel"), atomically: true, encoding: .utf8)
+            to: tmpDir.appendingPathComponent("MODULE.bazel"), atomically: true, encoding: .utf8
+        )
         let xcodeproj = tmpDir.appendingPathComponent("MyApp.xcodeproj")
         try FileManager.default.createDirectory(at: xcodeproj, withIntermediateDirectories: true)
 
@@ -309,7 +315,8 @@ struct BuildSystemTests {
 
         // The override forces Xcode against the generated project.
         let forced = try await BuildSystemDetector.detect(
-            for: sourceFile, projectRoot: tmpDir, buildSystem: .xcode)
+            for: sourceFile, projectRoot: tmpDir, buildSystem: .xcode
+        )
         #expect(forced is XcodeBuildSystem)
     }
 
@@ -320,9 +327,11 @@ struct BuildSystemTests {
         try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
 
         try "// swift-tools-version: 6.0".write(
-            to: tmpDir.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+            to: tmpDir.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8
+        )
         try "module(name = \"test\")".write(
-            to: tmpDir.appendingPathComponent("MODULE.bazel"), atomically: true, encoding: .utf8)
+            to: tmpDir.appendingPathComponent("MODULE.bazel"), atomically: true, encoding: .utf8
+        )
 
         let sourceFile = tmpDir.appendingPathComponent("main.swift")
         try "import SwiftUI".write(to: sourceFile, atomically: true, encoding: .utf8)
@@ -333,7 +342,8 @@ struct BuildSystemTests {
         #expect(auto is SPMBuildSystem)
 
         let forced = try await BuildSystemDetector.detect(
-            for: sourceFile, projectRoot: tmpDir, buildSystem: .bazel)
+            for: sourceFile, projectRoot: tmpDir, buildSystem: .bazel
+        )
         #expect(forced is BazelBuildSystem)
     }
 
@@ -350,7 +360,8 @@ struct BuildSystemTests {
 
         await #expect(throws: BuildSystemError.self) {
             try await BuildSystemDetector.detect(
-                for: sourceFile, projectRoot: tmpDir, buildSystem: .xcode)
+                for: sourceFile, projectRoot: tmpDir, buildSystem: .xcode
+            )
         }
     }
 
@@ -388,14 +399,14 @@ struct BuildSystemTests {
     @Test("BridgeGenerator.generateCombinedSource includes DesignTimeStore")
     func combinedSourceIncludesDesignTimeStore() {
         let originalSource = """
-            import SwiftUI
-            struct MyView: View {
-                var body: some View {
-                    Text("Hello")
-                }
+        import SwiftUI
+        struct MyView: View {
+            var body: some View {
+                Text("Hello")
             }
-            #Preview { MyView() }
-            """
+        }
+        #Preview { MyView() }
+        """
 
         let (source, _) = BridgeGenerator.generateCombinedSource(
             originalSource: originalSource,
@@ -414,15 +425,15 @@ struct BuildSystemTests {
     func compilerExtraFlags() async throws {
         let compiler = try await Compiler()
         let source = """
-            import SwiftUI
-            import AppKit
+        import SwiftUI
+        import AppKit
 
-            public func renderHelper() -> UnsafeMutableRawPointer {
-                let view = SwiftUI.AnyView(Text("Hello"))
-                let hostingView = NSHostingView(rootView: view)
-                return Unmanaged.passRetained(hostingView).toOpaque()
-            }
-            """
+        public func renderHelper() -> UnsafeMutableRawPointer {
+            let view = SwiftUI.AnyView(Text("Hello"))
+            let hostingView = NSHostingView(rootView: view)
+            return Unmanaged.passRetained(hostingView).toOpaque()
+        }
+        """
 
         // -DPREVIEW_MODE is a harmless extra flag
         let objectURL = try await compiler.compileObject(
@@ -517,7 +528,7 @@ struct BuildSystemTests {
     // MARK: - XcodeBuildSystem.detect
 
     @Test("XcodeBuildSystem stores projectRoot from init")
-    func xcodeProjectInit() async throws {
+    func xcodeProjectInit() throws {
         let tmpDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("previewsmcp-test-\(UUID().uuidString)")
         let sourcesDir = tmpDir.appendingPathComponent("Sources/MyTarget")
@@ -532,12 +543,13 @@ struct BuildSystemTests {
         defer { try? FileManager.default.removeItem(at: tmpDir) }
 
         let xcode = XcodeBuildSystem(
-            projectRoot: tmpDir, sourceFile: sourceFile, projectFile: xcodeproj)
+            projectRoot: tmpDir, sourceFile: sourceFile, projectFile: xcodeproj
+        )
         #expect(xcode.projectRoot.path == tmpDir.standardizedFileURL.path)
     }
 
     @Test("XcodeBuildSystem findXcodeProject finds .xcworkspace")
-    func findXcodeProjectFindsWorkspace() async throws {
+    func findXcodeProjectFindsWorkspace() throws {
         let tmpDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("previewsmcp-test-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
@@ -553,7 +565,7 @@ struct BuildSystemTests {
     }
 
     @Test("XcodeBuildSystem findXcodeProject finds .xcodeproj in directory")
-    func findXcodeProjectFindsProject() async throws {
+    func findXcodeProjectFindsProject() throws {
         let tmpDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("previewsmcp-test-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
@@ -569,7 +581,7 @@ struct BuildSystemTests {
     }
 
     @Test("XcodeBuildSystem findXcodeProject prefers workspace over xcodeproj")
-    func findXcodeProjectPrefersWorkspace() async throws {
+    func findXcodeProjectPrefersWorkspace() throws {
         let tmpDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("previewsmcp-test-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
@@ -593,7 +605,8 @@ struct BuildSystemTests {
         let xcode = XcodeBuildSystem(
             projectRoot: URL(fileURLWithPath: "/tmp"),
             sourceFile: URL(fileURLWithPath: "/tmp/Sources/ToDo/View.swift"),
-            projectFile: URL(fileURLWithPath: "/tmp/App.xcodeproj"))
+            projectFile: URL(fileURLWithPath: "/tmp/App.xcodeproj")
+        )
 
         let info = XcodeBuildSystem.ProjectInfo(schemes: ["MyApp"])
         let scheme = try await xcode.pickScheme(from: info)
@@ -605,7 +618,8 @@ struct BuildSystemTests {
         let xcode = XcodeBuildSystem(
             projectRoot: URL(fileURLWithPath: "/tmp"),
             sourceFile: URL(fileURLWithPath: "/tmp/Sources/FeatureB/View.swift"),
-            projectFile: URL(fileURLWithPath: "/tmp/App.xcodeproj"))
+            projectFile: URL(fileURLWithPath: "/tmp/App.xcodeproj")
+        )
 
         let info = XcodeBuildSystem.ProjectInfo(schemes: ["FeatureA", "FeatureB", "FeatureC"])
         let scheme = try await xcode.pickScheme(from: info)
@@ -617,7 +631,8 @@ struct BuildSystemTests {
         let xcode = XcodeBuildSystem(
             projectRoot: URL(fileURLWithPath: "/tmp"),
             sourceFile: URL(fileURLWithPath: "/tmp/Sources/Unknown/View.swift"),
-            projectFile: URL(fileURLWithPath: "/tmp/App.xcodeproj"))
+            projectFile: URL(fileURLWithPath: "/tmp/App.xcodeproj")
+        )
 
         let info = XcodeBuildSystem.ProjectInfo(schemes: ["Alpha", "Beta"])
         await #expect(throws: BuildSystemError.self) {
@@ -630,7 +645,8 @@ struct BuildSystemTests {
         let xcode = XcodeBuildSystem(
             projectRoot: URL(fileURLWithPath: "/tmp"),
             sourceFile: URL(fileURLWithPath: "/tmp/Sources/Unknown/View.swift"),
-            projectFile: URL(fileURLWithPath: "/tmp/App.xcodeproj"))
+            projectFile: URL(fileURLWithPath: "/tmp/App.xcodeproj")
+        )
 
         let info = XcodeBuildSystem.ProjectInfo(schemes: ["Alpha", "Beta", "Gamma"])
         do {
@@ -651,7 +667,8 @@ struct BuildSystemTests {
             projectRoot: URL(fileURLWithPath: "/tmp"),
             sourceFile: URL(fileURLWithPath: "/tmp/Sources/Alpha/View.swift"),
             projectFile: URL(fileURLWithPath: "/tmp/App.xcodeproj"),
-            requestedScheme: "Beta")
+            requestedScheme: "Beta"
+        )
 
         // Path-component heuristic would pick Alpha, but explicit request wins.
         let info = XcodeBuildSystem.ProjectInfo(schemes: ["Alpha", "Beta", "Gamma"])
@@ -665,7 +682,8 @@ struct BuildSystemTests {
             projectRoot: URL(fileURLWithPath: "/tmp"),
             sourceFile: URL(fileURLWithPath: "/tmp/Sources/Alpha/View.swift"),
             projectFile: URL(fileURLWithPath: "/tmp/App.xcodeproj"),
-            requestedScheme: "DoesNotExist")
+            requestedScheme: "DoesNotExist"
+        )
 
         let info = XcodeBuildSystem.ProjectInfo(schemes: ["Alpha", "Beta"])
         do {
@@ -687,7 +705,8 @@ struct BuildSystemTests {
             projectRoot: URL(fileURLWithPath: "/tmp"),
             sourceFile: URL(fileURLWithPath: "/tmp/Sources/Alpha/View.swift"),
             projectFile: URL(fileURLWithPath: "/tmp/App.xcodeproj"),
-            requestedScheme: "WrongName")
+            requestedScheme: "WrongName"
+        )
 
         let info = XcodeBuildSystem.ProjectInfo(schemes: ["OnlyScheme"])
         await #expect(throws: BuildSystemError.self) {
@@ -711,12 +730,14 @@ struct BuildSystemTests {
 
         // Without a scheme, the detector should still return an XcodeBuildSystem.
         let unbranded = try await BuildSystemDetector.detect(
-            for: sourceFile, projectRoot: tmpDir)
+            for: sourceFile, projectRoot: tmpDir
+        )
         #expect(unbranded is XcodeBuildSystem)
 
         // With a scheme, pickScheme should honor it instead of the heuristic.
         let branded = try await BuildSystemDetector.detect(
-            for: sourceFile, projectRoot: tmpDir, scheme: "Beta")
+            for: sourceFile, projectRoot: tmpDir, scheme: "Beta"
+        )
         let xcode = try #require(branded as? XcodeBuildSystem)
         let info = XcodeBuildSystem.ProjectInfo(schemes: ["Alpha", "Beta"])
         let picked = try await xcode.pickScheme(from: info)
@@ -728,14 +749,14 @@ struct BuildSystemTests {
     @Test("XcodeBuildSystem parses build settings output")
     func parseBuildSettings() {
         let output = """
-            Build settings for action build and target ToDo:
-                BUILT_PRODUCTS_DIR = /Users/dev/DerivedData/ToDo/Build/Products/Debug
-                PRODUCT_MODULE_NAME = ToDo
-                TARGET_NAME = ToDo
-                OBJECT_FILE_DIR_normal = /Users/dev/DerivedData/ToDo/Build/Intermediates.noindex/ToDo.build/Debug/ToDo.build/Objects-normal
-                FRAMEWORK_SEARCH_PATHS = /Users/dev/DerivedData/ToDo/Build/Products/Debug
-                SWIFT_VERSION = 6.0
-            """
+        Build settings for action build and target ToDo:
+            BUILT_PRODUCTS_DIR = /Users/dev/DerivedData/ToDo/Build/Products/Debug
+            PRODUCT_MODULE_NAME = ToDo
+            TARGET_NAME = ToDo
+            OBJECT_FILE_DIR_normal = /Users/dev/DerivedData/ToDo/Build/Intermediates.noindex/ToDo.build/Debug/ToDo.build/Objects-normal
+            FRAMEWORK_SEARCH_PATHS = /Users/dev/DerivedData/ToDo/Build/Products/Debug
+            SWIFT_VERSION = 6.0
+        """
         let settings = XcodeBuildSystem.parseBuildSettings(output)
         #expect(settings["BUILT_PRODUCTS_DIR"] == "/Users/dev/DerivedData/ToDo/Build/Products/Debug")
         #expect(settings["PRODUCT_MODULE_NAME"] == "ToDo")
@@ -747,14 +768,14 @@ struct BuildSystemTests {
     @Test("XcodeBuildSystem parseBuildSettings stops at second target")
     func parseBuildSettingsMultiTarget() {
         let output = """
-            Build settings for action build and target ToDo:
-                PRODUCT_MODULE_NAME = ToDo
-                TARGET_NAME = ToDo
+        Build settings for action build and target ToDo:
+            PRODUCT_MODULE_NAME = ToDo
+            TARGET_NAME = ToDo
 
-            Build settings for action build and target ToDoTests:
-                PRODUCT_MODULE_NAME = ToDoTests
-                TARGET_NAME = ToDoTests
-            """
+        Build settings for action build and target ToDoTests:
+            PRODUCT_MODULE_NAME = ToDoTests
+            TARGET_NAME = ToDoTests
+        """
         let settings = XcodeBuildSystem.parseBuildSettings(output)
         #expect(settings["PRODUCT_MODULE_NAME"] == "ToDo")
         #expect(settings["TARGET_NAME"] == "ToDo")
@@ -765,14 +786,16 @@ struct BuildSystemTests {
     @Test("XcodeBuildSystem parses space-separated search paths")
     func parseSearchPaths() {
         let paths = XcodeBuildSystem.parseSearchPaths(
-            "/path/one /path/two $(inherited)")
+            "/path/one /path/two $(inherited)"
+        )
         #expect(paths == ["/path/one", "/path/two"])
     }
 
     @Test("XcodeBuildSystem parses search paths stripping quotes")
     func parseQuotedSearchPaths() {
         let paths = XcodeBuildSystem.parseSearchPaths(
-            "\"/path/to/libs\" /normal/path")
+            "\"/path/to/libs\" /normal/path"
+        )
         #expect(paths == ["/path/to/libs", "/normal/path"])
     }
 
@@ -785,15 +808,15 @@ struct BuildSystemTests {
         // the clang -iquote / -working-directory pairs, mixed with compile-only
         // flags that must be dropped.
         let other = """
-            -Xcc -working-directory -Xcc /exec/_main -working-directory /exec/_main \
-            -enforce-exclusivity=checked \
-            -emit-const-values-path bazel-out/bin/App/Main.swiftconstvalues -DDEBUG -Onone \
-            -I/exec/_main/bazel-out/bin/mixed/SwiftLib \
-            -Xcc -iquote -Xcc /exec/_main \
-            -Xcc -iquote -Xcc /exec/_main/bazel-out/bin \
-            -Xcc -fmodule-map-file=/exec/_main/bazel-out/bin/mixed/ObjCLib/ObjCLib_modulemap/_/module.modulemap \
-            -enable-testing -static
-            """
+        -Xcc -working-directory -Xcc /exec/_main -working-directory /exec/_main \
+        -enforce-exclusivity=checked \
+        -emit-const-values-path bazel-out/bin/App/Main.swiftconstvalues -DDEBUG -Onone \
+        -I/exec/_main/bazel-out/bin/mixed/SwiftLib \
+        -Xcc -iquote -Xcc /exec/_main \
+        -Xcc -iquote -Xcc /exec/_main/bazel-out/bin \
+        -Xcc -fmodule-map-file=/exec/_main/bazel-out/bin/mixed/ObjCLib/ObjCLib_modulemap/_/module.modulemap \
+        -enable-testing -static
+        """
 
         let flags = XcodeBuildSystem.extractDependencyImportFlags(fromOtherSwiftFlags: other)
 
@@ -804,7 +827,8 @@ struct BuildSystemTests {
         #expect(
             flags.contains(
                 "-Xcc -fmodule-map-file=/exec/_main/bazel-out/bin/mixed/ObjCLib/ObjCLib_modulemap/_/module.modulemap"
-                    .replacingOccurrences(of: "-Xcc ", with: ""))
+                    .replacingOccurrences(of: "-Xcc ", with: "")
+            )
         )
         let joined = flags.joined(separator: " ")
         #expect(joined.contains("-fmodule-map-file=/exec/_main/bazel-out/bin/mixed/ObjCLib"))
@@ -890,7 +914,8 @@ struct BuildSystemTests {
         let xcode = XcodeBuildSystem(
             projectRoot: URL(fileURLWithPath: "/project"),
             sourceFile: URL(fileURLWithPath: previewFile),
-            projectFile: URL(fileURLWithPath: "/project/App.xcodeproj"))
+            projectFile: URL(fileURLWithPath: "/project/App.xcodeproj")
+        )
 
         let settings: [String: String] = [
             "OBJECT_FILE_DIR_normal": tmpDir.appendingPathComponent("Objects-normal").path,
@@ -904,11 +929,12 @@ struct BuildSystemTests {
     }
 
     @Test("XcodeBuildSystem returns nil when OutputFileMap is missing")
-    func collectSourceFilesReturnsNilWhenMissing() async throws {
+    func collectSourceFilesReturnsNilWhenMissing() async {
         let xcode = XcodeBuildSystem(
             projectRoot: URL(fileURLWithPath: "/tmp"),
             sourceFile: URL(fileURLWithPath: "/tmp/View.swift"),
-            projectFile: URL(fileURLWithPath: "/tmp/App.xcodeproj"))
+            projectFile: URL(fileURLWithPath: "/tmp/App.xcodeproj")
+        )
 
         let settings: [String: String] = [
             "OBJECT_FILE_DIR_normal": "/nonexistent/path",
@@ -928,7 +954,8 @@ struct BuildSystemTests {
         try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
 
         try "// swift-tools-version: 6.0".write(
-            to: tmpDir.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+            to: tmpDir.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8
+        )
         let xcodeproj = tmpDir.appendingPathComponent("MyApp.xcodeproj")
         try FileManager.default.createDirectory(at: xcodeproj, withIntermediateDirectories: true)
 
@@ -938,7 +965,8 @@ struct BuildSystemTests {
         defer { try? FileManager.default.removeItem(at: tmpDir) }
 
         let buildSystem = try await BuildSystemDetector.detect(
-            for: sourceFile, projectRoot: tmpDir)
+            for: sourceFile, projectRoot: tmpDir
+        )
         #expect(buildSystem is SPMBuildSystem)
     }
 
@@ -957,7 +985,8 @@ struct BuildSystemTests {
         defer { try? FileManager.default.removeItem(at: tmpDir) }
 
         let buildSystem = try await BuildSystemDetector.detect(
-            for: sourceFile, projectRoot: tmpDir)
+            for: sourceFile, projectRoot: tmpDir
+        )
         #expect(buildSystem is XcodeBuildSystem)
     }
 
@@ -966,9 +995,9 @@ struct BuildSystemTests {
     @Test("ProjectInfo decodes from xcodebuild -project -list JSON")
     func decodeProjectInfoFromProjectJSON() throws {
         let json = """
-            {"project":{"name":"ToDo","configurations":["Debug","Release"],"schemes":["ToDo"],"targets":["ToDo"]}}
-            """
-        let data = json.data(using: .utf8)!
+        {"project":{"name":"ToDo","configurations":["Debug","Release"],"schemes":["ToDo"],"targets":["ToDo"]}}
+        """
+        let data = try #require(json.data(using: .utf8))
         let info = try JSONDecoder().decode(XcodeBuildSystem.ProjectInfo.self, from: data)
         #expect(info.schemes == ["ToDo"])
     }
@@ -976,9 +1005,9 @@ struct BuildSystemTests {
     @Test("ProjectInfo decodes from xcodebuild -workspace -list JSON")
     func decodeProjectInfoFromWorkspaceJSON() throws {
         let json = """
-            {"workspace":{"name":"ToDo","schemes":["ToDo"]}}
-            """
-        let data = json.data(using: .utf8)!
+        {"workspace":{"name":"ToDo","schemes":["ToDo"]}}
+        """
+        let data = try #require(json.data(using: .utf8))
         let info = try JSONDecoder().decode(XcodeBuildSystem.ProjectInfo.self, from: data)
         #expect(info.schemes == ["ToDo"])
     }
@@ -986,9 +1015,9 @@ struct BuildSystemTests {
     @Test("ProjectInfo throws when JSON has neither project nor workspace key")
     func decodeProjectInfoFromInvalidJSON() throws {
         let json = """
-            {"unexpected":{"schemes":["ToDo"]}}
-            """
-        let data = json.data(using: .utf8)!
+        {"unexpected":{"schemes":["ToDo"]}}
+        """
+        let data = try #require(json.data(using: .utf8))
         #expect(throws: DecodingError.self) {
             try JSONDecoder().decode(XcodeBuildSystem.ProjectInfo.self, from: data)
         }
@@ -997,7 +1026,7 @@ struct BuildSystemTests {
     // MARK: - XcodeBuildSystem workspace stem matching
 
     @Test("XcodeBuildSystem findXcodeProject prefers stem-matching workspace over auxiliary workspace")
-    func findXcodeProjectPrefersStemMatch() async throws {
+    func findXcodeProjectPrefersStemMatch() throws {
         let tmpDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("previewsmcp-test-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
@@ -1009,7 +1038,8 @@ struct BuildSystemTests {
         try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
         let podsWorkspace = tmpDir.appendingPathComponent("Pods.xcworkspace")
         try FileManager.default.createDirectory(
-            at: podsWorkspace, withIntermediateDirectories: true)
+            at: podsWorkspace, withIntermediateDirectories: true
+        )
 
         defer { try? FileManager.default.removeItem(at: tmpDir) }
 
@@ -1029,7 +1059,8 @@ struct BuildSystemTests {
 
         let packageSwift = tmpDir.appendingPathComponent("Package.swift")
         try "// swift-tools-version: 6.0".write(
-            to: packageSwift, atomically: true, encoding: .utf8)
+            to: packageSwift, atomically: true, encoding: .utf8
+        )
 
         let sourceFile = sourcesDir.appendingPathComponent("MyView.swift")
         try "import SwiftUI".write(to: sourceFile, atomically: true, encoding: .utf8)
@@ -1098,7 +1129,8 @@ struct BuildSystemTests {
         try FileManager.default.createDirectory(at: xcodeproj, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: sourceDir, withIntermediateDirectories: true)
         try "// swift-tools-version: 6.0".write(
-            to: outerPackageSwift, atomically: true, encoding: .utf8)
+            to: outerPackageSwift, atomically: true, encoding: .utf8
+        )
         let sourceFile = sourceDir.appendingPathComponent("MyView.swift")
         try "import SwiftUI".write(to: sourceFile, atomically: true, encoding: .utf8)
         defer { try? FileManager.default.removeItem(at: tmpDir) }
@@ -1121,7 +1153,8 @@ struct BuildSystemTests {
         let sourceDir = bazelDir.appendingPathComponent("lib")
         try FileManager.default.createDirectory(at: sourceDir, withIntermediateDirectories: true)
         try "// swift-tools-version: 6.0".write(
-            to: outerPackageSwift, atomically: true, encoding: .utf8)
+            to: outerPackageSwift, atomically: true, encoding: .utf8
+        )
         try "".write(to: workspace, atomically: true, encoding: .utf8)
         let sourceFile = sourceDir.appendingPathComponent("lib.swift")
         try "import SwiftUI".write(to: sourceFile, atomically: true, encoding: .utf8)
@@ -1137,9 +1170,9 @@ struct BuildSystemTests {
     func detectPlatformsFromRealPackage() {
         // Use the examples/spm package which declares both macOS and iOS
         let sourceFile = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()  // Tests/PreviewsCoreTests
-            .deletingLastPathComponent()  // Tests
-            .deletingLastPathComponent()  // repo root
+            .deletingLastPathComponent() // Tests/PreviewsCoreTests
+            .deletingLastPathComponent() // Tests
+            .deletingLastPathComponent() // repo root
             .appendingPathComponent("examples/spm/Sources/ToDo/ToDoView.swift")
 
         guard FileManager.default.fileExists(atPath: sourceFile.path) else { return }
@@ -1219,12 +1252,15 @@ struct BuildSystemTests {
 
         try "// swift".write(
             to: derivedDir.appendingPathComponent("accessor.swift"), atomically: true,
-            encoding: .utf8)
+            encoding: .utf8
+        )
         try "{}".write(
             to: derivedDir.appendingPathComponent("accessor.json"), atomically: true,
-            encoding: .utf8)
+            encoding: .utf8
+        )
         try "data".write(
-            to: derivedDir.appendingPathComponent("accessor.d"), atomically: true, encoding: .utf8)
+            to: derivedDir.appendingPathComponent("accessor.d"), atomically: true, encoding: .utf8
+        )
 
         let found = SPMBuildSystem.collectGeneratedSources(binPath: tmpDir, targetName: "Foo")
         #expect(found.map(\.lastPathComponent) == ["accessor.swift"])
@@ -1232,17 +1268,17 @@ struct BuildSystemTests {
 
     // MARK: - SPMBuildSystem.shouldSkipDependencyTarget
 
-    /// Regression guard for the swift-issue-reporting / `Testing.framework`
-    /// bug: SPM builds `IssueReportingTestSupport` as a dynamic library product
-    /// (emitting `libIssueReportingTestSupport.dylib` in binPath) that links
-    /// `Testing.framework`. The previous dependency-archiving loop linked every
-    /// sibling `<Target>.build/` via `-l<Target>`, which made the linker prefer
-    /// the dylib over the archive, burning a load command for the test-support
-    /// library into the preview host even when the consumer didn't import it.
-    /// At launch on the iOS simulator (no `Testing.framework`) the host crashed.
-    ///
-    /// The fix skips targets that already have a dylib in binPath — autolink
-    /// via `-module-link-name` handles linking from real importers.
+    // Regression guard for the swift-issue-reporting / `Testing.framework`
+    // bug: SPM builds `IssueReportingTestSupport` as a dynamic library product
+    // (emitting `libIssueReportingTestSupport.dylib` in binPath) that links
+    // `Testing.framework`. The previous dependency-archiving loop linked every
+    // sibling `<Target>.build/` via `-l<Target>`, which made the linker prefer
+    // the dylib over the archive, burning a load command for the test-support
+    // library into the preview host even when the consumer didn't import it.
+    // At launch on the iOS simulator (no `Testing.framework`) the host crashed.
+    //
+    // The fix skips targets that already have a dylib in binPath — autolink
+    // via `-module-link-name` handles linking from real importers.
 
     @Test("shouldSkipDependencyTarget skips the consumer target itself")
     func shouldSkipDependencyTarget_skipsConsumer() throws {
@@ -1342,7 +1378,6 @@ struct BuildSystemTests {
 }
 
 extension BuildSystemTests {
-
     // MARK: - XcodeBuildSystem.collectGeneratedSources
 
     @Test("XcodeBuildSystem finds Xcode-generated swift under DERIVED_FILE_DIR/DerivedSources")
@@ -1383,27 +1418,27 @@ extension BuildSystemTests {
     /// targets sharing a common prefix (ToDo / ToDoExtras) that must not
     /// collide with each other.
     private static let fixtureManifest = """
-        client:
-          name: basic
-        commands:
-          "<ToDo-debug.module>":
-            tool: swift-compiler
-            module-name: ToDo
-            description: "Compiling Swift Module 'ToDo' (5 sources)"
-            args: ["/path/swiftc","-module-name","ToDo","-emit-module","-Onone","-package-name","spm"]
+    client:
+      name: basic
+    commands:
+      "<ToDo-debug.module>":
+        tool: swift-compiler
+        module-name: ToDo
+        description: "Compiling Swift Module 'ToDo' (5 sources)"
+        args: ["/path/swiftc","-module-name","ToDo","-emit-module","-Onone","-package-name","spm"]
 
-          "<ToDoExtras-debug.module>":
-            tool: swift-compiler
-            module-name: ToDoExtras
-            description: "Compiling Swift Module 'ToDoExtras' (1 sources)"
-            args: ["/path/swiftc","-module-name","ToDoExtras","-emit-module","-Onone","-package-name","spm"]
+      "<ToDoExtras-debug.module>":
+        tool: swift-compiler
+        module-name: ToDoExtras
+        description: "Compiling Swift Module 'ToDoExtras' (1 sources)"
+        args: ["/path/swiftc","-module-name","ToDoExtras","-emit-module","-Onone","-package-name","spm"]
 
-          "<LegacyTarget-debug.module>":
-            tool: swift-compiler
-            module-name: LegacyTarget
-            description: "Compiling Swift Module 'LegacyTarget' (1 sources)"
-            args: ["/path/swiftc","-module-name","LegacyTarget","-emit-module","-Onone"]
-        """
+      "<LegacyTarget-debug.module>":
+        tool: swift-compiler
+        module-name: LegacyTarget
+        description: "Compiling Swift Module 'LegacyTarget' (1 sources)"
+        args: ["/path/swiftc","-module-name","LegacyTarget","-emit-module","-Onone"]
+    """
 
     private func writeManifest(_ contents: String) throws -> URL {
         let tmp = FileManager.default.temporaryDirectory
@@ -1418,7 +1453,8 @@ extension BuildSystemTests {
         defer { try? FileManager.default.removeItem(at: manifest) }
 
         let name = SPMBuildSystem.readPackageName(
-            fromManifestAt: manifest, forTarget: "ToDo")
+            fromManifestAt: manifest, forTarget: "ToDo"
+        )
         #expect(name == "spm")
     }
 
@@ -1431,9 +1467,11 @@ extension BuildSystemTests {
         defer { try? FileManager.default.removeItem(at: manifest) }
 
         let todo = SPMBuildSystem.readPackageName(
-            fromManifestAt: manifest, forTarget: "ToDo")
+            fromManifestAt: manifest, forTarget: "ToDo"
+        )
         let todoExtras = SPMBuildSystem.readPackageName(
-            fromManifestAt: manifest, forTarget: "ToDoExtras")
+            fromManifestAt: manifest, forTarget: "ToDoExtras"
+        )
         #expect(todo == "spm")
         #expect(todoExtras == "spm")
     }
@@ -1444,7 +1482,8 @@ extension BuildSystemTests {
         defer { try? FileManager.default.removeItem(at: manifest) }
 
         let name = SPMBuildSystem.readPackageName(
-            fromManifestAt: manifest, forTarget: "LegacyTarget")
+            fromManifestAt: manifest, forTarget: "LegacyTarget"
+        )
         #expect(name == nil)
     }
 
@@ -1454,7 +1493,8 @@ extension BuildSystemTests {
         defer { try? FileManager.default.removeItem(at: manifest) }
 
         let name = SPMBuildSystem.readPackageName(
-            fromManifestAt: manifest, forTarget: "DoesNotExist")
+            fromManifestAt: manifest, forTarget: "DoesNotExist"
+        )
         #expect(name == nil)
     }
 
@@ -1463,7 +1503,8 @@ extension BuildSystemTests {
         let missing = FileManager.default.temporaryDirectory
             .appendingPathComponent("previewsmcp-missing-\(UUID().uuidString).yaml")
         let name = SPMBuildSystem.readPackageName(
-            fromManifestAt: missing, forTarget: "ToDo")
+            fromManifestAt: missing, forTarget: "ToDo"
+        )
         #expect(name == nil)
     }
 

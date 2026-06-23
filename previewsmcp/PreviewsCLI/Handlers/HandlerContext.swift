@@ -10,7 +10,7 @@ import PreviewsMacOS
 /// All members are `Sendable`: `PreviewHost` is `@MainActor`-isolated,
 /// every other member is an actor, and `Compiler` is an actor as well.
 /// Crossing isolation domains is the caller's responsibility.
-struct HandlerContext: Sendable {
+struct HandlerContext {
     let host: PreviewHost
     let iosState: IOSSessionManager
     let configCache: ConfigCache

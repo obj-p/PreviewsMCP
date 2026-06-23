@@ -10,7 +10,6 @@ import Testing
 /// under us.
 @Suite(.serialized)
 struct LogsCommandTests {
-
     @Test(
         "logs -n prints the last N lines of an existing log",
         .timeLimit(.minutes(2))
@@ -21,7 +20,7 @@ struct LogsCommandTests {
             // a `=== TEST: ... ===` marker into serve.log. Append a known
             // sentinel block that we can locate deterministically with -n.
             let logURL = CLIRunner.daemonLogFile
-            let sentinel = (1...5).map { "logs-test-line-\($0)" }
+            let sentinel = (1 ... 5).map { "logs-test-line-\($0)" }
             if let handle = try? FileHandle(forWritingTo: logURL) {
                 _ = try? handle.seekToEnd()
                 try? handle.write(contentsOf: Data((sentinel.joined(separator: "\n") + "\n").utf8))
@@ -46,16 +45,19 @@ struct LogsCommandTests {
             try? FileManager.default.removeItem(at: logURL)
             #expect(
                 !FileManager.default.fileExists(atPath: logURL.path),
-                "precondition: log file should be absent")
+                "precondition: log file should be absent"
+            )
 
             let result = try await CLIRunner.run("logs")
             #expect(result.exitCode == 0, "stderr: \(result.stderr)")
             #expect(
                 result.stdout.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-                "stdout should be empty when log was created fresh, got: '\(result.stdout)'")
+                "stdout should be empty when log was created fresh, got: '\(result.stdout)'"
+            )
             #expect(
                 FileManager.default.fileExists(atPath: logURL.path),
-                "logs should have created the missing log file")
+                "logs should have created the missing log file"
+            )
         }
     }
 
@@ -114,7 +116,7 @@ struct LogsCommandTests {
 
             kill(proc.processIdentifier, SIGINT)
             let deadline = Date().addingTimeInterval(5)
-            while proc.isRunning && Date() < deadline {
+            while proc.isRunning, Date() < deadline {
                 try await Task.sleep(nanoseconds: 50_000_000)
             }
             if proc.isRunning { proc.terminate() }

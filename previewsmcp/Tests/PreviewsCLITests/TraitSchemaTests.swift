@@ -1,8 +1,7 @@
 import MCP
+@testable import PreviewsCLI
 import PreviewsCore
 import Testing
-
-@testable import PreviewsCLI
 
 /// Pin the contract that `preview_start` and `preview_configure` schemas
 /// derive their trait `enum` constraints from `PreviewTraits.valid*`
@@ -21,7 +20,6 @@ import Testing
 /// VALUE drift.
 @Suite("Trait schema canonical-reference")
 struct TraitSchemaTests {
-
     @Test("preview_start enum constraints match PreviewTraits canonical lists")
     func previewStartReferencesCanonical() {
         let props = traitProperties(in: PreviewStartHandler.schema)
@@ -56,8 +54,8 @@ struct TraitSchemaTests {
 
 /// Extract the `properties` object from a tool's `inputSchema`.
 private func traitProperties(in tool: Tool) -> [String: Value] {
-    guard case .object(let schema) = tool.inputSchema,
-        case .object(let props) = schema["properties"]
+    guard case let .object(schema) = tool.inputSchema,
+          case let .object(props) = schema["properties"]
     else { return [:] }
     return props
 }
@@ -65,11 +63,11 @@ private func traitProperties(in tool: Tool) -> [String: Value] {
 /// Pull the `enum` array out of a property schema as `[String]`, or `nil`
 /// if the property has no `enum` constraint.
 private func enumValues(of property: Value?) -> [String]? {
-    guard case .object(let body) = property,
-        case .array(let values) = body["enum"]
+    guard case let .object(body) = property,
+          case let .array(values) = body["enum"]
     else { return nil }
     return values.compactMap {
-        if case .string(let s) = $0 { return s }
+        if case let .string(s) = $0 { return s }
         return nil
     }
 }

@@ -1,8 +1,7 @@
 import Foundation
+@testable import PreviewsCore
 import PreviewsJITLink
 import Testing
-
-@testable import PreviewsCore
 
 struct StructuralReloadLatencyTests {
     private static func ms(_ duration: Duration) -> Double {
@@ -67,8 +66,8 @@ struct StructuralReloadLatencyTests {
         try "func bulkValue() -> Int32 { 42 }\n"
             .write(to: bulkFile, atomically: true, encoding: .utf8)
 
-        // The overlay references a bulk declaration (two-way resolution) and the token forces a
-        // textually different source each edit, so the driver recompiles instead of no-opping.
+        /// The overlay references a bulk declaration (two-way resolution) and the token forces a
+        /// textually different source each edit, so the driver recompiles instead of no-opping.
         func overlay(_ token: Int32) -> String {
             "@_cdecl(\"answer\") func answer() -> Int32 { bulkValue() + \(token) - \(token) }\n"
         }
@@ -76,37 +75,44 @@ struct StructuralReloadLatencyTests {
         let driverCompiler = try await Compiler()
         let driverBuild = try await driverCompiler.compileModuleIncremental(
             overlaySource: overlay(0), bulkFiles: [bulkFile], moduleName: "DBypass",
-            bypassDriver: false)
+            bypassDriver: false
+        )
         #expect(try linkedAnswer(driverBuild) == 42)
 
         let bypassCompiler = try await Compiler()
         // First call seeds the template via the driver; the second exercises the frontend bypass.
         _ = try await bypassCompiler.compileModuleIncremental(
             overlaySource: overlay(0), bulkFiles: [bulkFile], moduleName: "DBypass",
-            bypassDriver: true)
+            bypassDriver: true
+        )
         let bypassBuild = try await bypassCompiler.compileModuleIncremental(
             overlaySource: overlay(1), bulkFiles: [bulkFile], moduleName: "DBypass",
-            bypassDriver: true)
+            bypassDriver: true
+        )
         #expect(try linkedAnswer(bypassBuild) == 42)
 
         // Latency: comparative, so it self-normalizes for machine load. Each edit changes the
         // overlay so both paths actually recompile it.
-        func median(_ values: [Double]) -> Double { values.sorted()[values.count / 2] }
+        func median(_ values: [Double]) -> Double {
+            values.sorted()[values.count / 2]
+        }
         let clock = ContinuousClock()
         var driverMs: [Double] = []
         var bypassMs: [Double] = []
-        for i in 0..<5 {
+        for i in 0 ..< 5 {
             let token = Int32(i + 2)
             let d0 = clock.now
             _ = try await driverCompiler.compileModuleIncremental(
                 overlaySource: overlay(token), bulkFiles: [bulkFile], moduleName: "DBypass",
-                bypassDriver: false)
+                bypassDriver: false
+            )
             driverMs.append(Self.ms(d0.duration(to: clock.now)))
 
             let b0 = clock.now
             _ = try await bypassCompiler.compileModuleIncremental(
                 overlaySource: overlay(token), bulkFiles: [bulkFile], moduleName: "DBypass",
-                bypassDriver: true)
+                bypassDriver: true
+            )
             bypassMs.append(Self.ms(b0.duration(to: clock.now)))
         }
         let driverMedian = median(driverMs)
@@ -114,7 +120,8 @@ struct StructuralReloadLatencyTests {
         print(
             "driver-bypass: driver median=\(Int(driverMedian))ms "
                 + "bypass median=\(Int(bypassMedian))ms "
-                + "driver=\(driverMs.map { Int($0) }) bypass=\(bypassMs.map { Int($0) })")
+                + "driver=\(driverMs.map { Int($0) }) bypass=\(bypassMs.map { Int($0) })"
+        )
 
         #expect(bypassMedian < driverMedian)
         #expect(bypassMedian < 30000)
@@ -135,9 +142,11 @@ struct StructuralReloadLatencyTests {
         let compiler = try await Compiler()
         // Seed the template, then take the bypass path; both see bulkValue() == 42.
         _ = try await compiler.compileModuleIncremental(
-            overlaySource: overlay, bulkFiles: [bulkFile], moduleName: "BulkChange", bypassDriver: true)
+            overlaySource: overlay, bulkFiles: [bulkFile], moduleName: "BulkChange", bypassDriver: true
+        )
         let before = try await compiler.compileModuleIncremental(
-            overlaySource: overlay, bulkFiles: [bulkFile], moduleName: "BulkChange", bypassDriver: true)
+            overlaySource: overlay, bulkFiles: [bulkFile], moduleName: "BulkChange", bypassDriver: true
+        )
         #expect(try linkedAnswer(before) == 42)
 
         // Change a bulk file out of band (the overlay is unchanged). The bypass only rebuilds the
@@ -146,13 +155,16 @@ struct StructuralReloadLatencyTests {
         try "func bulkValue() -> Int32 { 99 }\n"
             .write(to: bulkFile, atomically: true, encoding: .utf8)
         let after = try await compiler.compileModuleIncremental(
-            overlaySource: overlay, bulkFiles: [bulkFile], moduleName: "BulkChange", bypassDriver: true)
+            overlaySource: overlay, bulkFiles: [bulkFile], moduleName: "BulkChange", bypassDriver: true
+        )
         #expect(try linkedAnswer(after) == 99)
     }
 
     private func linkedAnswer(_ build: (overlayObject: URL, bulkObjects: [URL])) throws -> Int32 {
         let session = try JITSession()
-        for object in build.bulkObjects { try session.addObject(path: object.path) }
+        for object in build.bulkObjects {
+            try session.addObject(path: object.path)
+        }
         try session.addObject(path: build.overlayObject.path)
         return try session.call(symbol: "answer")
     }

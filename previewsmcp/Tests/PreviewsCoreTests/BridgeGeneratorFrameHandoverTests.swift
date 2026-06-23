@@ -1,21 +1,20 @@
 import Foundation
-import Testing
-
 @testable import PreviewsCore
+import Testing
 
 @Suite("BridgeGenerator frame handover")
 struct BridgeGeneratorFrameHandoverTests {
     static let source = """
-        import SwiftUI
+    import SwiftUI
 
-        struct TestView: View {
-            var body: some View {
-                Text("Hello")
-            }
+    struct TestView: View {
+        var body: some View {
+            Text("Hello")
         }
+    }
 
-        #Preview { TestView() }
-        """
+    #Preview { TestView() }
+    """
 
     @Test("visible render window installs move/resize observers that write the frame sidecar")
     func visibleInstallsFrameObservers() {
@@ -24,8 +23,10 @@ struct BridgeGeneratorFrameHandoverTests {
             closureBody: "TestView()",
             renderOutputPath: "/tmp/out.png",
             renderWindow: JITRenderWindow(
-                x: 0, y: 0, width: 800, height: 1000, title: "t", headless: false),
-            frameSidecarPath: "/tmp/frame.json")
+                x: 0, y: 0, width: 800, height: 1000, title: "t", headless: false
+            ),
+            frameSidecarPath: "/tmp/frame.json"
+        )
         #expect(generated.source.contains("didMoveNotification"))
         #expect(generated.source.contains("didResizeNotification"))
         #expect(generated.source.contains("/tmp/frame.json"))
@@ -38,8 +39,10 @@ struct BridgeGeneratorFrameHandoverTests {
             closureBody: "TestView()",
             renderOutputPath: "/tmp/out.png",
             renderWindow: JITRenderWindow(
-                x: 0, y: 0, width: 800, height: 1000, title: "t", headless: true),
-            frameSidecarPath: "/tmp/frame.json")
+                x: 0, y: 0, width: 800, height: 1000, title: "t", headless: true
+            ),
+            frameSidecarPath: "/tmp/frame.json"
+        )
         #expect(!generated.source.contains("didMoveNotification"))
         #expect(!generated.source.contains("didResizeNotification"))
     }

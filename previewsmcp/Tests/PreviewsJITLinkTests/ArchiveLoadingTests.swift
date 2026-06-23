@@ -45,20 +45,20 @@ struct ArchiveLoadingTests {
 
         let libObject = try await compiler.compileObject(
             source: """
-                @_cdecl("g3_lib_value")
-                public func g3LibValue() -> Int32 { 7 }
-                """,
+            @_cdecl("g3_lib_value")
+            public func g3LibValue() -> Int32 { 7 }
+            """,
             moduleName: "G3Lib"
         )
         let archive = try Self.makeArchive(from: libObject, named: "G3Lib")
 
         let mainObject = try await compiler.compileObject(
             source: """
-                @_silgen_name("g3_lib_value") func g3LibValue() -> Int32
+            @_silgen_name("g3_lib_value") func g3LibValue() -> Int32
 
-                @_cdecl("g3_main")
-                public func g3Main() -> Int32 { g3LibValue() * 6 }
-                """,
+            @_cdecl("g3_main")
+            public func g3Main() -> Int32 { g3LibValue() * 6 }
+            """,
             moduleName: "G3Main"
         )
 
@@ -74,19 +74,19 @@ struct ArchiveLoadingTests {
 
         let dylib = try Self.makeDylib(
             source: """
-                @_cdecl("g3b_lib_value")
-                public func g3bLibValue() -> Int32 { 9 }
-                """,
+            @_cdecl("g3b_lib_value")
+            public func g3bLibValue() -> Int32 { 9 }
+            """,
             named: "G3bLib"
         )
 
         let mainObject = try await compiler.compileObject(
             source: """
-                @_silgen_name("g3b_lib_value") func g3bLibValue() -> Int32
+            @_silgen_name("g3b_lib_value") func g3bLibValue() -> Int32
 
-                @_cdecl("g3b_main")
-                public func g3bMain() -> Int32 { g3bLibValue() * 5 }
-                """,
+            @_cdecl("g3b_main")
+            public func g3bMain() -> Int32 { g3bLibValue() * 5 }
+            """,
             moduleName: "G3bMain"
         )
 

@@ -31,7 +31,9 @@ public protocol PreviewSetup {
     static func wrap(_ content: AnyView) -> AnyView
 }
 
-extension PreviewSetup {
-    public static func setUp() async throws {}
-    public static func wrap(_ content: AnyView) -> AnyView { content }
+public extension PreviewSetup {
+    static func setUp() async throws {}
+    static func wrap(_ content: AnyView) -> AnyView {
+        content
+    }
 }

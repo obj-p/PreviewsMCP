@@ -28,7 +28,9 @@ public actor IOSPreviewSession {
     private let setupCompilerFlags: [String]
     private let setupSDKPath: String?
     private let setupDylibPath: URL?
-    public var currentTraits: PreviewTraits { traits }
+    public var currentTraits: PreviewTraits {
+        traits
+    }
 
     /// Transport to the iOS agent app. Owns all socket state — bind,
     /// accept, line-delimited JSON send/receive, lifecycle. Constructed
@@ -78,7 +80,7 @@ public actor IOSPreviewSession {
         progress: (any ProgressReporter)? = nil,
         makeJITReloader: @escaping MakeJITReloader
     ) {
-        self.id = UUID().uuidString
+        id = UUID().uuidString
         self.sourceFile = sourceFile
         self.previewIndex = previewIndex
         self.deviceUDID = deviceUDID
@@ -133,11 +135,11 @@ public actor IOSPreviewSession {
             throw IOSPreviewSessionError.jitRuntimeMissing
         }
 
-        // Mirror stage transitions to the diagnostic log so operators
-        // running `previewsmcp logs` (or scraping CI capture files) can
-        // see where a stall occurred. MCP LogMessageNotifications go
-        // over stdout and aren't visible unless the client subscribes;
-        // stderr is always captured by the parent process. Kept terse.
+        /// Mirror stage transitions to the diagnostic log so operators
+        /// running `previewsmcp logs` (or scraping CI capture files) can
+        /// see where a stall occurred. MCP LogMessageNotifications go
+        /// over stdout and aren't visible unless the client subscribes;
+        /// stderr is always captured by the parent process. Kept terse.
         func stage(_ s: String) {
             Log.info("iOS preview: \(s) [\(deviceUDID.prefix(8))]")
         }
@@ -148,7 +150,7 @@ public actor IOSPreviewSession {
         stage("compiling (JIT)")
         await progress?.report(.compilingBridge, message: "Compiling \(sourceFile.lastPathComponent)...")
         let previewSession = makePreviewSession()
-        self.session = previewSession
+        session = previewSession
 
         // 2. Build host (agent) app and the foreground shell app that hosts
         // its cross-process scene.
@@ -190,7 +192,7 @@ public actor IOSPreviewSession {
 
         var launchedPid: Int?
         var lastError: Error?
-        for attempt in 1...3 {
+        for attempt in 1 ... 3 {
             do {
                 stage("boot/install/launch attempt \(attempt)/3")
                 let device = try await simulatorManager.findDevice(udid: deviceUDID)
@@ -220,9 +222,11 @@ public actor IOSPreviewSession {
                 // the app isn't running and bounds any hang at 30s.
                 stage("attempt \(attempt): pre-launch terminate stale agent + shell")
                 await simulatorManager.terminateAppIfRunning(
-                    udid: deviceUDID, bundleID: Self.shellBundleID)
+                    udid: deviceUDID, bundleID: Self.shellBundleID
+                )
                 await simulatorManager.terminateAppIfRunning(
-                    udid: deviceUDID, bundleID: Self.agentBundleID)
+                    udid: deviceUDID, bundleID: Self.agentBundleID
+                )
 
                 stage("attempt \(attempt): launching agent app")
                 launchedPid = try await simulatorManager.launchApp(
@@ -419,7 +423,8 @@ public actor IOSPreviewSession {
     private func enrichedJITFailure(_ fallback: Error) async -> Error {
         if let jitError = await channel.latestJITError {
             return IOSPreviewSessionError.jitExecutorFailed(
-                stage: jitError.stage, code: jitError.code)
+                stage: jitError.stage, code: jitError.code
+            )
         }
         return fallback
     }
@@ -472,7 +477,7 @@ public actor IOSPreviewSession {
         }
 
         let previewSession = makePreviewSession()
-        self.session = previewSession
+        session = previewSession
 
         // Link the freshly compiled object into the live host over EPC and re-run
         // its render entry. No dylib, no `reload` round-trip over the JSON channel.
@@ -494,7 +499,7 @@ public actor IOSPreviewSession {
 
         let newSource = try String(contentsOf: sourceFile, encoding: .utf8)
         if let changes = await session.tryLiteralUpdate(newSource: newSource), !changes.isEmpty,
-            let build = try await session.applyLiteralValuesForJIT(changes)
+           let build = try await session.applyLiteralValuesForJIT(changes)
         {
             try await jitReloader.render(build)
             return
@@ -528,7 +533,7 @@ public actor IOSPreviewSession {
         guard let orcPath = IOSAgentBuilder.jitOrcRuntimePath else {
             throw IOSPreviewSessionError.jitRuntimeMissing
         }
-        guard let agentSockPath = self.agentSockPath else {
+        guard let agentSockPath else {
             throw IOSPreviewSessionError.notStarted
         }
 
@@ -539,7 +544,7 @@ public actor IOSPreviewSession {
         await simulatorManager.terminateAppIfRunning(udid: deviceUDID, bundleID: Self.agentBundleID)
 
         await channel.close()
-        self.jitReloader = nil
+        jitReloader = nil
         if jitListenFD >= 0 {
             Darwin.close(jitListenFD)
             jitListenFD = -1
@@ -563,10 +568,10 @@ public actor IOSPreviewSession {
         do {
             let epcFD = try acceptJIT(timeoutSeconds: 10)
             let reloader = try makeJITReloader(epcFD, orcPath)
-            self.jitReloader = reloader
+            jitReloader = reloader
 
             let previewSession = makePreviewSession()
-            self.session = previewSession
+            session = previewSession
             let build = try await previewSession.compileObjectForJIT()
             try await reloader.render(build)
         } catch {
@@ -578,12 +583,12 @@ public actor IOSPreviewSession {
     /// Switch to a different preview index and recompile. Traits are preserved. @State is lost.
     /// Rolls back the index if compilation fails.
     public func switchPreview(to newIndex: Int) async throws {
-        let oldIndex = self.previewIndex
-        self.previewIndex = newIndex
+        let oldIndex = previewIndex
+        previewIndex = newIndex
         do {
             try await reload()
         } catch {
-            self.previewIndex = oldIndex
+            previewIndex = oldIndex
             throw error
         }
     }
@@ -602,7 +607,7 @@ public actor IOSPreviewSession {
 
     /// Replace traits entirely (no merge) and recompile. Used by preview_variants.
     public func setTraits(_ newTraits: PreviewTraits) async throws {
-        self.traits = newTraits
+        traits = newTraits
         try await reload()
     }
 
@@ -644,17 +649,16 @@ public actor IOSPreviewSession {
         )
 
         guard let response = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
-            let tree = response["tree"] as? [String: Any]
+              let tree = response["tree"] as? [String: Any]
         else {
             throw IOSPreviewSessionError.responseDecodeFailed(operation: "elements")
         }
 
         // Apply server-side filtering if needed
-        let resultTree: [String: Any]
-        if filter != "all", let filtered = filterTree(tree, mode: filter) {
-            resultTree = filtered
+        let resultTree: [String: Any] = if filter != "all", let filtered = filterTree(tree, mode: filter) {
+            filtered
         } else {
-            resultTree = tree
+            tree
         }
 
         let data = try JSONSerialization.data(withJSONObject: resultTree)
@@ -663,7 +667,7 @@ public actor IOSPreviewSession {
 
     /// Capture a screenshot of the simulator.
     public func screenshot(jpegQuality: Double = 0.85) async throws -> Data {
-        return try await simulatorManager.screenshotData(udid: deviceUDID, jpegQuality: jpegQuality)
+        try await simulatorManager.screenshotData(udid: deviceUDID, jpegQuality: jpegQuality)
     }
 
     // MARK: - Accessibility tree filtering
@@ -691,7 +695,7 @@ public actor IOSPreviewSession {
         switch mode {
         case "interactable":
             guard let traits = node["traits"] as? [String] else { return false }
-            let interactableTraits: Set<String> = ["button", "link", "adjustable", "searchField"]
+            let interactableTraits: Set = ["button", "link", "adjustable", "searchField"]
             return traits.contains(where: { interactableTraits.contains($0) })
         case "labeled":
             if let label = node["label"] as? String, !label.isEmpty { return true }
@@ -729,15 +733,17 @@ public enum IOSPreviewSessionError: Error, LocalizedError, CustomStringConvertib
         case .socketAcceptFailed: return "Failed to accept connection from agent app"
         case .socketAcceptTimeout: return "Timed out waiting for agent app to connect"
         case .jitRuntimeMissing: return "Bundled iossim orc runtime archive not found"
-        case .socketResponseTimeout(let id): return "Timed out waiting for response (id: \(id))"
+        case let .socketResponseTimeout(id): return "Timed out waiting for response (id: \(id))"
         case .connectionLost: return "Connection to agent app lost"
-        case .responseDecodeFailed(let operation):
+        case let .responseDecodeFailed(operation):
             return "Failed to decode agent app response (operation: \(operation))"
-        case .jitExecutorFailed(let stage, let code):
+        case let .jitExecutorFailed(stage, code):
             let suffix = code.map { " (code \($0))" } ?? ""
             return "In-app JIT executor failed during \(stage)\(suffix)"
         }
     }
 
-    public var errorDescription: String? { description }
+    public var errorDescription: String? {
+        description
+    }
 }

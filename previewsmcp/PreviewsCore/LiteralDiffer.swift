@@ -12,7 +12,6 @@ public enum ChangeKind: Sendable {
 
 /// Compares old and new source to determine if only literals changed.
 public enum LiteralDiffer {
-
     /// Compare old and new original source (before ThunkGenerator transformation).
     public static func diff(old: String, new: String) -> ChangeKind {
         let oldLiterals = collectLiterals(from: old)
@@ -31,7 +30,8 @@ public enum LiteralDiffer {
 
         var changes: [(id: String, newValue: LiteralValue)] = []
         for (index, (oldEntry, newEntry)) in zip(oldLiterals, newLiterals).enumerated()
-        where oldEntry.value != newEntry.value {
+            where oldEntry.value != newEntry.value
+        {
             // A changed literal living in a UIKit-evaluated region (e.g., inside
             // `class MyView: UIView` or `struct Wrapper: UIViewRepresentable`)
             // can't ride the @Observable DesignTimeStore re-render — UIKit
@@ -59,7 +59,7 @@ public enum LiteralDiffer {
         // Null bytes cannot appear in valid Swift source, so these won't collide.
         for (index, entry) in literals.enumerated().reversed() {
             let placeholder = Array("\0LIT_\(index)\0".utf8)
-            utf8.replaceSubrange(entry.utf8Start..<entry.utf8End, with: placeholder)
+            utf8.replaceSubrange(entry.utf8Start ..< entry.utf8End, with: placeholder)
         }
         return String(decoding: utf8, as: UTF8.self)
     }

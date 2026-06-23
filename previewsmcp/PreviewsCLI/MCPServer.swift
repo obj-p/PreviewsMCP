@@ -55,11 +55,10 @@ func configureMCPServer(
 ) async throws -> (Server, Compiler) {
     cleanupStaleTempDirs()
 
-    let compiler: Compiler
-    if let sharedCompiler {
-        compiler = sharedCompiler
+    let compiler: Compiler = if let sharedCompiler {
+        sharedCompiler
     } else {
-        compiler = try await Compiler()
+        try await Compiler()
     }
 
     let server = Server(

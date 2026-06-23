@@ -10,7 +10,6 @@ import Testing
 /// after itself, and the suite is serialized so they don't race.
 @Suite(.serialized)
 struct DaemonLifecycleTests {
-
     // MARK: - Paths
 
     static let binaryPath: String = MCPTestServer.binaryPath
@@ -19,9 +18,9 @@ struct DaemonLifecycleTests {
     static var socketPath: String {
         let dir =
             DaemonTestLock.socketDir
-            ?? ProcessInfo.processInfo.environment["PREVIEWSMCP_SOCKET_DIR"]
-            ?? FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".previewsmcp").path
+                ?? ProcessInfo.processInfo.environment["PREVIEWSMCP_SOCKET_DIR"]
+                ?? FileManager.default.homeDirectoryForCurrentUser
+                .appendingPathComponent(".previewsmcp").path
         return (dir as NSString).appendingPathComponent("serve.sock")
     }
 
@@ -227,7 +226,7 @@ struct DaemonLifecycleTests {
             // If it doesn't, the race bug has corrupted state — fail the test
             // (rather than hanging) by terminating it.
             let deadline = Date().addingTimeInterval(2)
-            while secondProc.isRunning && Date() < deadline {
+            while secondProc.isRunning, Date() < deadline {
                 try await Task.sleep(nanoseconds: 50_000_000)
             }
             let refusedInTime = !secondProc.isRunning

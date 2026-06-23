@@ -11,30 +11,30 @@ struct ServeCommand: ParsableCommand {
         commandName: "serve",
         abstract: "Expose preview tools over MCP",
         discussion: """
-            Two modes:
+        Two modes:
 
-              • Stdio (default) — reads MCP JSON-RPC from stdin, writes to stdout.
-                Intended for MCP-compatible clients (Claude Code, Cursor) that
-                launch `previewsmcp serve` as a subprocess. Example `.mcp.json`:
+          • Stdio (default) — reads MCP JSON-RPC from stdin, writes to stdout.
+            Intended for MCP-compatible clients (Claude Code, Cursor) that
+            launch `previewsmcp serve` as a subprocess. Example `.mcp.json`:
 
-                  {
-                    "mcpServers": {
-                      "previews": {
-                        "command": "/path/to/previewsmcp",
-                        "args": ["serve"]
-                      }
-                    }
+              {
+                "mcpServers": {
+                  "previews": {
+                    "command": "/path/to/previewsmcp",
+                    "args": ["serve"]
                   }
+                }
+              }
 
-              • Daemon (`--daemon`) — listens on a Unix domain socket at
-                `~/.previewsmcp/serve.sock`. Multiplexes many concurrent preview
-                sessions. Used by the CLI (run, snapshot, etc.) and by any
-                external MCP client capable of speaking over UDS.
+          • Daemon (`--daemon`) — listens on a Unix domain socket at
+            `~/.previewsmcp/serve.sock`. Multiplexes many concurrent preview
+            sessions. Used by the CLI (run, snapshot, etc.) and by any
+            external MCP client capable of speaking over UDS.
 
-            Both modes expose the same tools: preview_list, preview_start,
-            preview_snapshot, preview_configure, preview_switch, preview_variants,
-            preview_elements, preview_touch, preview_stop, simulator_list.
-            """
+        Both modes expose the same tools: preview_list, preview_start,
+        preview_snapshot, preview_configure, preview_switch, preview_variants,
+        preview_elements, preview_touch, preview_stop, simulator_list.
+        """
     )
 
     @Flag(name: .long, help: "Run as a daemon on a Unix domain socket instead of stdio")
@@ -120,7 +120,7 @@ struct ServeCommand: ParsableCommand {
                 if DaemonProbe.canConnect() {
                     let pidDesc =
                         DaemonLifecycle.daemonRunningPID().map { "pid \($0)" }
-                        ?? "pid unknown"
+                            ?? "pid unknown"
                     Log.error(
                         "daemon already running (\(pidDesc)); use `previewsmcp kill-daemon` first"
                     )
@@ -146,8 +146,8 @@ struct ServeCommand: ParsableCommand {
                 // restart. Diagnoses repeated restart loops in bug
                 // reports without any persistent state. See issue #142.
                 if let reason = ProcessInfo.processInfo.environment[
-                    "_PREVIEWSMCP_DAEMON_RESTART_REASON"], !reason.isEmpty
-                {
+                    "_PREVIEWSMCP_DAEMON_RESTART_REASON"
+                ], !reason.isEmpty {
                     Log.info("daemon: started after version-mismatch restart (\(reason))")
                 }
             } catch {
@@ -171,7 +171,8 @@ struct ServeCommand: ParsableCommand {
             while !Task.isCancelled {
                 LogRotation.rotateIfNeeded(
                     logURL: logFile, fd: STDERR_FILENO,
-                    maxBytes: 5 * 1024 * 1024, keep: 3)
+                    maxBytes: 5 * 1024 * 1024, keep: 3
+                )
                 try? await Task.sleep(for: .seconds(60))
             }
         }

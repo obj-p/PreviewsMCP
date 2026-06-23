@@ -1,8 +1,7 @@
 import Darwin
 import Foundation
-import Testing
-
 @testable import PreviewsIOS
+import Testing
 
 /// Race-tests for the iOS agent-app socket channel. The most error-prone
 /// piece of the original `IOSPreviewSession` socket layer was the
@@ -12,7 +11,6 @@ import Testing
 /// tests exercise that path without spinning up a real iOS simulator.
 @Suite("IOSAgentChannel")
 struct IOSAgentChannelTests {
-
     @Test("sendAndAwait after peer disconnect fails fast with connectionLost")
     func disconnectBeforeSendFailsFast() async throws {
         let channel = IOSAgentChannel()
@@ -227,5 +225,7 @@ struct IOSAgentChannelTests {
 /// Thread-safe disconnect-callback counter for the channel tests.
 private actor DisconnectCounter {
     private(set) var count = 0
-    func increment() { count += 1 }
+    func increment() {
+        count += 1
+    }
 }

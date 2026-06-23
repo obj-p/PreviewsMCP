@@ -1,7 +1,6 @@
 import Foundation
-import Testing
-
 @testable import PreviewsCLI
+import Testing
 
 /// Unit tests for `resolveRunningBinaryPath`. The fix for issue #100 swapped
 /// the daemon-spawn self-path lookup from `argv[0]` to `_NSGetExecutablePath`.
@@ -10,14 +9,14 @@ import Testing
 /// chdir test mutates process-global state.
 @Suite("SelfPath", .serialized)
 struct SelfPathTests {
-
     @Test("returns an absolute, executable path")
     func returnsAbsoluteExecutable() throws {
         let path = try #require(resolveRunningBinaryPath())
         #expect(path.hasPrefix("/"), "expected absolute path, got \(path)")
         #expect(
             FileManager.default.isExecutableFile(atPath: path),
-            "expected executable at \(path)")
+            "expected executable at \(path)"
+        )
     }
 
     @Test("returns the same value across calls")

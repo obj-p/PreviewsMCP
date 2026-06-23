@@ -1,0 +1,4 @@
+--swiftversion 6.0
+--maxwidth 120
+--disable hoistTry,hoistAwait,preferKeyPath
+--exclude previewsmcp/PreviewsIOS/IOSAgentAppSource.swift,previewsmcp/PreviewsIOS/IOSAppIconData.swift

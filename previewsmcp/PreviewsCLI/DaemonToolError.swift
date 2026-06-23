@@ -14,7 +14,7 @@ enum DaemonToolError: Error, CustomStringConvertible {
 
     var description: String {
         switch self {
-        case .daemonError(let text): return text
+        case let .daemonError(text): text
         }
     }
 }

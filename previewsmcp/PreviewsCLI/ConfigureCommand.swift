@@ -20,18 +20,18 @@ struct ConfigureCommand: AsyncParsableCommand {
         commandName: "configure",
         abstract: "Change rendering traits on a running preview session",
         discussion: """
-            Targets the session using the same resolution rules as
-            `snapshot`: pass --session for a specific session, --file to
-            look up by source path, or no flag when exactly one session
-            is running.
+        Targets the session using the same resolution rules as
+        `snapshot`: pass --session for a specific session, --file to
+        look up by source path, or no flag when exactly one session
+        is running.
 
-            Traits apply cumulatively — unspecified traits keep their
-            current values. Pass an empty string to clear a trait.
+        Traits apply cumulatively — unspecified traits keep their
+        current values. Pass an empty string to clear a trait.
 
-            Note: dynamicTypeSize only has a visible effect on iOS
-            simulator — macOS does not scale fonts in response to this
-            modifier.
-            """
+        Note: dynamicTypeSize only has a visible effect on iOS
+        simulator — macOS does not scale fonts in response to this
+        modifier.
+        """
     )
 
     @OptionGroup var target: SessionTargetingOptions
@@ -72,7 +72,7 @@ struct ConfigureCommand: AsyncParsableCommand {
                 client: client
             )
 
-            guard case .found(let sessionID) = resolution else {
+            guard case let .found(sessionID) = resolution else {
                 throw ValidationError(
                     "No session found to configure. Start one with "
                         + "`previewsmcp run <file> --detach` or pass an explicit "
@@ -133,5 +133,4 @@ struct ConfigureCommand: AsyncParsableCommand {
         guard let value, !value.isEmpty else { return nil }
         return value
     }
-
 }

@@ -15,8 +15,8 @@ public actor IOSPreviewHandle: PreviewSessionHandle {
     private let manager: IOSSessionManager
 
     public init(iosSession: IOSPreviewSession, manager: IOSSessionManager) {
-        self.id = iosSession.id
-        self.sourceFile = iosSession.sourceFile
+        id = iosSession.id
+        sourceFile = iosSession.sourceFile
         self.iosSession = iosSession
         self.manager = manager
     }

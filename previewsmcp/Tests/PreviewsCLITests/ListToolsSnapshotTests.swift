@@ -1,8 +1,7 @@
 import Foundation
 import MCP
-import Testing
-
 @testable import PreviewsCLI
+import Testing
 
 /// Pin the on-the-wire `ListTools` response so a future refactor can't
 /// silently change the schema agents see. The acceptance criterion for
@@ -15,7 +14,6 @@ import Testing
 /// "blessed" so the change is visible in the diff.
 @Suite("ListTools schema snapshot")
 struct ListToolsSnapshotTests {
-
     @Test("schema bytes are stable")
     func schemaBytesAreStable() throws {
         let snapshotPath = URL(fileURLWithPath: #filePath)

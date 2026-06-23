@@ -13,7 +13,6 @@ import PreviewsMacOS
 /// startup — so preview sessions persist across CLI invocations and
 /// simultaneous clients see consistent state.
 enum DaemonListener {
-
     /// Start the daemon listener. Returns once the listener is ready to accept
     /// connections. Callers hold the process alive via the existing
     /// `NSApplication` run loop (see `PreviewsMCPApp.main`).
@@ -64,7 +63,7 @@ enum DaemonListener {
                     cont.resume()
                     // Clear after resuming so the closure isn't retained.
                     listener.stateUpdateHandler = nil
-                case .failed(let error):
+                case let .failed(error):
                     cont.resume(throwing: error)
                     listener.stateUpdateHandler = nil
                 default:

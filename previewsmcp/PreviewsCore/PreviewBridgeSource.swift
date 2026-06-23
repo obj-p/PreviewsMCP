@@ -21,54 +21,54 @@ public enum PreviewBridgeSource {
     public static func code(for platform: PreviewPlatform) -> String {
         switch platform {
         case .iOS:
-            return iOSCode
+            iOSCode
         case .macOS:
-            return macOSCode
+            macOSCode
         }
     }
 
     private static let macOSCode = """
-        import SwiftUI
+    import SwiftUI
 
-        enum __PreviewBridge {
-            // Intentionally nonisolated: the render entry calls `wrap` from inside
-            // `MainActor.assumeIsolated`, so the body inherits main-actor isolation
-            // without `wrap` crossing the @_cdecl boundary as @MainActor.
-            static func wrap<V: SwiftUI.View>(@SwiftUI.ViewBuilder _ body: () -> V) -> SwiftUI.AnyView {
-                SwiftUI.AnyView(body())
-            }
+    enum __PreviewBridge {
+        // Intentionally nonisolated: the render entry calls `wrap` from inside
+        // `MainActor.assumeIsolated`, so the body inherits main-actor isolation
+        // without `wrap` crossing the @_cdecl boundary as @MainActor.
+        static func wrap<V: SwiftUI.View>(@SwiftUI.ViewBuilder _ body: () -> V) -> SwiftUI.AnyView {
+            SwiftUI.AnyView(body())
         }
-        """
+    }
+    """
 
     private static let iOSCode = """
-        import SwiftUI
-        import UIKit
+    import SwiftUI
+    import UIKit
 
-        enum __PreviewBridge {
-            // See macOS comment above — intentionally nonisolated.
-            static func wrap<V: SwiftUI.View>(@SwiftUI.ViewBuilder _ body: () -> V) -> SwiftUI.AnyView {
-                SwiftUI.AnyView(body())
-            }
-            // UIKit bodies are auto-wrapped in a SwiftUI representable, matching Xcode's #Preview.
-            // Multi-statement UIKit bodies need an explicit `return` (no @ViewBuilder equivalent in UIKit).
-            static func wrap(_ body: () -> UIKit.UIView) -> SwiftUI.AnyView {
-                SwiftUI.AnyView(__PreviewUIViewBridge(view: body()))
-            }
-            static func wrap(_ body: () -> UIKit.UIViewController) -> SwiftUI.AnyView {
-                SwiftUI.AnyView(__PreviewUIViewControllerBridge(controller: body()))
-            }
+    enum __PreviewBridge {
+        // See macOS comment above — intentionally nonisolated.
+        static func wrap<V: SwiftUI.View>(@SwiftUI.ViewBuilder _ body: () -> V) -> SwiftUI.AnyView {
+            SwiftUI.AnyView(body())
         }
+        // UIKit bodies are auto-wrapped in a SwiftUI representable, matching Xcode's #Preview.
+        // Multi-statement UIKit bodies need an explicit `return` (no @ViewBuilder equivalent in UIKit).
+        static func wrap(_ body: () -> UIKit.UIView) -> SwiftUI.AnyView {
+            SwiftUI.AnyView(__PreviewUIViewBridge(view: body()))
+        }
+        static func wrap(_ body: () -> UIKit.UIViewController) -> SwiftUI.AnyView {
+            SwiftUI.AnyView(__PreviewUIViewControllerBridge(controller: body()))
+        }
+    }
 
-        private struct __PreviewUIViewBridge: SwiftUI.UIViewRepresentable {
-            let view: UIKit.UIView
-            func makeUIView(context: Context) -> UIKit.UIView { view }
-            func updateUIView(_ uiView: UIKit.UIView, context: Context) {}
-        }
+    private struct __PreviewUIViewBridge: SwiftUI.UIViewRepresentable {
+        let view: UIKit.UIView
+        func makeUIView(context: Context) -> UIKit.UIView { view }
+        func updateUIView(_ uiView: UIKit.UIView, context: Context) {}
+    }
 
-        private struct __PreviewUIViewControllerBridge: SwiftUI.UIViewControllerRepresentable {
-            let controller: UIKit.UIViewController
-            func makeUIViewController(context: Context) -> UIKit.UIViewController { controller }
-            func updateUIViewController(_ uiViewController: UIKit.UIViewController, context: Context) {}
-        }
-        """
+    private struct __PreviewUIViewControllerBridge: SwiftUI.UIViewControllerRepresentable {
+        let controller: UIKit.UIViewController
+        func makeUIViewController(context: Context) -> UIKit.UIViewController { controller }
+        func updateUIViewController(_ uiViewController: UIKit.UIViewController, context: Context) {}
+    }
+    """
 }

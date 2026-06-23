@@ -20,11 +20,12 @@ struct ExamplesSplitE2ETests {
             return URL(fileURLWithPath: root, isDirectory: true)
         }
         return URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()  // PreviewsJITLinkTests/
-            .deletingLastPathComponent()  // Tests/
-            .deletingLastPathComponent()  // previewsmcp/
-            .deletingLastPathComponent()  // repo root
+            .deletingLastPathComponent() // PreviewsJITLinkTests/
+            .deletingLastPathComponent() // Tests/
+            .deletingLastPathComponent() // previewsmcp/
+            .deletingLastPathComponent() // repo root
     }()
+
     static let spmRoot = repoRoot.appendingPathComponent("examples/spm")
 
     enum E2EError: Error { case noBuildSystem }
@@ -89,17 +90,20 @@ struct ExamplesSplitE2ETests {
         let hot = Self.spmRoot.appendingPathComponent("Sources/ToDo/Summary.swift")
         let ctx = try await Self.context(for: hot)
         let configResult = try #require(
-            ProjectConfigLoader.find(from: hot.deletingLastPathComponent()))
+            ProjectConfigLoader.find(from: hot.deletingLastPathComponent())
+        )
         let setupConfig = try #require(configResult.config.setup)
         let setup = try await SetupBuilder.build(
-            config: setupConfig, configDirectory: configResult.directory, platform: .macOS)
+            config: setupConfig, configDirectory: configResult.directory, platform: .macOS
+        )
 
         let compiler = try await Compiler()
         let session = PreviewSession(
             sourceFile: hot, compiler: compiler, buildContext: ctx,
             setupModule: setup.moduleName, setupType: setup.typeName,
             setupCompilerFlags: setup.compilerFlags, setupSDKPath: setup.sdkPath,
-            setupDylibPath: setup.dylibPath)
+            setupDylibPath: setup.dylibPath
+        )
 
         let build = try await session.compileObjectForJIT()
         #expect(build.setupEntrySymbol == "previewSetUp")
@@ -110,11 +114,11 @@ struct ExamplesSplitE2ETests {
         let rep = try #require(NSBitmapImageRep(data: Data(contentsOf: build.imagePath)))
 
         var sawBadge = false
-        for y in 0..<rep.pixelsHigh where !sawBadge {
-            for x in 0..<rep.pixelsWide where !sawBadge {
+        for y in 0 ..< rep.pixelsHigh where !sawBadge {
+            for x in 0 ..< rep.pixelsWide where !sawBadge {
                 if let color = rep.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB),
-                    color.blueComponent > 0.6, color.greenComponent < 0.35,
-                    color.redComponent > 0.2, color.redComponent < 0.6
+                   color.blueComponent > 0.6, color.greenComponent < 0.35,
+                   color.redComponent > 0.2, color.redComponent < 0.6
                 {
                     sawBadge = true
                 }
@@ -148,7 +152,7 @@ struct ExamplesSplitE2ETests {
         let session = PreviewSession(sourceFile: hot, compiler: compiler, buildContext: ctx)
         let reloader = JITStructuralReloader()
 
-        for _ in 0..<2 {
+        for _ in 0 ..< 2 {
             let build = try await session.compileObjectForJIT()
             try await reloader.render(build)
             let png = try Data(contentsOf: build.imagePath)

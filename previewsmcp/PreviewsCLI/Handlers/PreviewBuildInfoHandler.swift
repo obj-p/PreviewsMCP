@@ -8,7 +8,7 @@ enum PreviewBuildInfoHandler: ToolHandler {
     static let schema = Tool(
         name: ToolName.previewBuildInfo.rawValue,
         description:
-            "Report the running server's binary path, mtime, and process start time. Returns stale=true when the on-disk binary has been replaced since the running process started — i.e., a swift build happened but the resident MCP server wasn't restarted. Used by the integration-test skill to detect stale-binary footguns before validating behavior.",
+        "Report the running server's binary path, mtime, and process start time. Returns stale=true when the on-disk binary has been replaced since the running process started — i.e., a swift build happened but the resident MCP server wasn't restarted. Used by the integration-test skill to detect stale-binary footguns before validating behavior.",
         inputSchema: .object([
             "type": .string("object"),
             "properties": .object([:]),
@@ -18,8 +18,8 @@ enum PreviewBuildInfoHandler: ToolHandler {
     /// Build the `preview_build_info` response. Synchronous: no I/O beyond a
     /// single stat, no daemon state read.
     static func handle(
-        _ params: CallTool.Parameters,
-        ctx: HandlerContext
+        _: CallTool.Parameters,
+        ctx _: HandlerContext
     ) async throws -> CallTool.Result {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
@@ -51,8 +51,8 @@ enum PreviewBuildInfoHandler: ToolHandler {
 
         let staleHint =
             stale
-            ? " STALE — on-disk binary was rebuilt after this server started; restart the MCP host to pick up the new binary."
-            : ""
+                ? " STALE — on-disk binary was rebuilt after this server started; restart the MCP host to pick up the new binary."
+                : ""
         let text =
             "binary=\(binaryPath) mtime=\(binaryMtimeISO) processStart=\(processStartISO) stale=\(stale).\(staleHint)"
 
@@ -74,7 +74,7 @@ enum PreviewBuildInfoHandler: ToolHandler {
 /// Stat `path` and return its mtime, or nil if the file is unreachable.
 private func mtime(at path: String) -> Date? {
     guard let attrs = try? FileManager.default.attributesOfItem(atPath: path),
-        let date = attrs[.modificationDate] as? Date
+          let date = attrs[.modificationDate] as? Date
     else { return nil }
     return date
 }

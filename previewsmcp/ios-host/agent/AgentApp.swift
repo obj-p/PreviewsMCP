@@ -25,8 +25,11 @@ public func previewsmcp_set_preview_vc(_ pointer: UnsafeRawPointer) {
 
 private struct PreviewContainer: UIViewControllerRepresentable {
     let viewController: UIViewController
-    func makeUIViewController(context: Context) -> UIViewController { viewController }
-    func updateUIViewController(_ uiViewController: UIViewController, context: Context) {}
+    func makeUIViewController(context _: Context) -> UIViewController {
+        viewController
+    }
+
+    func updateUIViewController(_: UIViewController, context _: Context) {}
 }
 
 private struct PreviewRootView: View {
@@ -82,8 +85,8 @@ private final class AgentForegroundRedirect {
     private func foregroundShell() {
         let selector = Selector(("openApplicationWithBundleID:"))
         guard let workspaceClass = NSClassFromString("LSApplicationWorkspace") as? NSObject.Type,
-            let workspace = workspaceClass.perform(Selector(("defaultWorkspace")))?.takeUnretainedValue(),
-            let method = class_getInstanceMethod(type(of: workspace), selector)
+              let workspace = workspaceClass.perform(Selector(("defaultWorkspace")))?.takeUnretainedValue(),
+              let method = class_getInstanceMethod(type(of: workspace), selector)
         else { return }
         typealias OpenByID = @convention(c) (AnyObject, Selector, NSString) -> Bool
         let open = unsafeBitCast(method_getImplementation(method), to: OpenByID.self)
@@ -98,16 +101,16 @@ class PreviewAgentAppDelegate: UIResponder, UIApplicationDelegate {
     private var socketReadBuffer = Data()
 
     func application(
-        _ application: UIApplication,
-        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
+        _: UIApplication,
+        didFinishLaunchingWithOptions _: [UIApplication.LaunchOptionsKey: Any]?
     ) -> Bool {
         let args = ProcessInfo.processInfo.arguments
 
         // The in-process ORC executor links objects pushed by the daemon over the
         // EPC socket — there is no preview dylib to load.
         if let jitPortIndex = args.firstIndex(of: "--jit-port"),
-            jitPortIndex + 1 < args.count,
-            let jitPort = UInt16(args[jitPortIndex + 1])
+           jitPortIndex + 1 < args.count,
+           let jitPort = UInt16(args[jitPortIndex + 1])
         {
             startJITExecutor(port: jitPort)
         }
@@ -119,14 +122,14 @@ class PreviewAgentAppDelegate: UIResponder, UIApplicationDelegate {
         // The daemon waits for that JSON connection before launching the shell,
         // so binding first guarantees the socket exists when the shell connects.
         if let sockIndex = args.firstIndex(of: "--agent-sock"),
-            sockIndex + 1 < args.count
+           sockIndex + 1 < args.count
         {
             startAgentSocket(path: args[sockIndex + 1])
         }
 
         if let portIndex = args.firstIndex(of: "--port"),
-            portIndex + 1 < args.count,
-            let port = UInt16(args[portIndex + 1])
+           portIndex + 1 < args.count,
+           let port = UInt16(args[portIndex + 1])
         {
             connectToServer(port: port)
         }
@@ -135,30 +138,29 @@ class PreviewAgentAppDelegate: UIResponder, UIApplicationDelegate {
         return true
     }
 
-    // Lifecycle breadcrumb (flash detector): report whether the agent comes to
-    // the foreground. A shell-hosted agent must stay non-foreground; a self-
-    // foregrounding launch (the relaunch flash) shows up here as `active`.
-    func applicationDidBecomeActive(_ application: UIApplication) {
+    /// Lifecycle breadcrumb (flash detector): report whether the agent comes to
+    /// the foreground. A shell-hosted agent must stay non-foreground; a self-
+    /// foregrounding launch (the relaunch flash) shows up here as `active`.
+    func applicationDidBecomeActive(_: UIApplication) {
         sendLifecycle("didBecomeActive")
     }
 
-    func applicationDidEnterBackground(_ application: UIApplication) {
+    func applicationDidEnterBackground(_: UIApplication) {
         sendLifecycle("didEnterBackground")
     }
 
     private func sendLifecycle(_ phase: String) {
-        let state: String
-        switch UIApplication.shared.applicationState {
-        case .active: state = "active"
-        case .inactive: state = "inactive"
-        case .background: state = "background"
-        @unknown default: state = "unknown"
+        let state = switch UIApplication.shared.applicationState {
+        case .active: "active"
+        case .inactive: "inactive"
+        case .background: "background"
+        @unknown default: "unknown"
         }
         sendResponse(["type": "lifecycle", "phase": phase, "state": state])
     }
 
-    // The visible window is owned by SwiftUI's WindowGroup. The touch and
-    // accessibility paths look it up dynamically rather than holding a ref.
+    /// The visible window is owned by SwiftUI's WindowGroup. The touch and
+    /// accessibility paths look it up dynamically rather than holding a ref.
     func currentWindow() -> UIWindow? {
         let windows = UIApplication.shared.connectedScenes
             .compactMap { $0 as? UIWindowScene }
@@ -166,10 +168,10 @@ class PreviewAgentAppDelegate: UIResponder, UIApplicationDelegate {
         return windows.first { $0.isKeyWindow } ?? windows.first
     }
 
-    // Connect back to the daemon's EPC listener and run the in-process ORC
-    // executor. Runs on a detached thread so the SimpleRemoteEPCServer can
-    // block on the socket while the UIApplication run loop stays live on main
-    // (run_on_main dispatches to it).
+    /// Connect back to the daemon's EPC listener and run the in-process ORC
+    /// executor. Runs on a detached thread so the SimpleRemoteEPCServer can
+    /// block on the socket while the UIApplication run loop stays live on main
+    /// (run_on_main dispatches to it).
     private func startJITExecutor(port: UInt16) {
         Thread.detachNewThread { [weak self] in
             let fd = Self.connectLoopback(port: port)
@@ -189,9 +191,9 @@ class PreviewAgentAppDelegate: UIResponder, UIApplicationDelegate {
         }
     }
 
-    // Report an in-app JIT failure to the daemon over the JSON channel. The
-    // executor thread can fail before `connectToServer` binds the socket, so
-    // stash the breadcrumb and flush it once the channel is up.
+    /// Report an in-app JIT failure to the daemon over the JSON channel. The
+    /// executor thread can fail before `connectToServer` binds the socket, so
+    /// stash the breadcrumb and flush it once the channel is up.
     private var pendingJITError: [String: Any]?
 
     private func reportJITError(stage: String, code: Int32) {
@@ -269,11 +271,11 @@ class PreviewAgentAppDelegate: UIResponder, UIApplicationDelegate {
 
     // MARK: - Hosted-scene handshake socket
 
-    // Unix-domain socket the shell connects to during the cross-process
-    // scene-hosting handshake. The shell reads this process's audit token off
-    // the peer connection (getsockopt LOCAL_PEERTOKEN) and registers it with
-    // FrontBoard so it can route a hosted scene to us. We only accept and hold
-    // the connection open; no bytes are exchanged.
+    /// Unix-domain socket the shell connects to during the cross-process
+    /// scene-hosting handshake. The shell reads this process's audit token off
+    /// the peer connection (getsockopt LOCAL_PEERTOKEN) and registers it with
+    /// FrontBoard so it can route a hosted scene to us. We only accept and hold
+    /// the connection open; no bytes are exchanged.
     private var agentSocketFD: Int32 = -1
 
     private func startAgentSocket(path: String) {
@@ -317,9 +319,9 @@ class PreviewAgentAppDelegate: UIResponder, UIApplicationDelegate {
         }
     }
 
-    // Report resident memory to the daemon once a second over the JSON channel.
-    // The daemon exposes it as an observability metric (`agentRSS`). Sends run on
-    // the main queue so they never interleave with response writes on the same socket.
+    /// Report resident memory to the daemon once a second over the JSON channel.
+    /// The daemon exposes it as an observability metric (`agentRSS`). Sends run on
+    /// the main queue so they never interleave with response writes on the same socket.
     private var memoryTimer: DispatchSourceTimer?
 
     private func startMemoryReporting() {
@@ -327,7 +329,7 @@ class PreviewAgentAppDelegate: UIResponder, UIApplicationDelegate {
         timer.schedule(deadline: .now() + 1, repeating: 1)
         timer.setEventHandler { [weak self] in
             guard let self else { return }
-            self.sendResponse(["type": "memory", "rss": Int(self.currentRSSBytes())])
+            sendResponse(["type": "memory", "rss": Int(currentRSSBytes())])
         }
         timer.resume()
         memoryTimer = timer
@@ -336,7 +338,8 @@ class PreviewAgentAppDelegate: UIResponder, UIApplicationDelegate {
     private func currentRSSBytes() -> UInt64 {
         var info = mach_task_basic_info()
         var count = mach_msg_type_number_t(
-            MemoryLayout<mach_task_basic_info>.size / MemoryLayout<natural_t>.size)
+            MemoryLayout<mach_task_basic_info>.size / MemoryLayout<natural_t>.size
+        )
         let result = withUnsafeMutablePointer(to: &info) {
             $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
                 task_info(mach_task_self_, task_flavor_t(MACH_TASK_BASIC_INFO), $0, &count)
@@ -352,7 +355,7 @@ class PreviewAgentAppDelegate: UIResponder, UIApplicationDelegate {
             var buf = [UInt8](repeating: 0, count: 8192)
             let n = Darwin.read(fd, &buf, buf.count)
             if n > 0 {
-                let data = Data(buf[0..<n])
+                let data = Data(buf[0 ..< n])
                 DispatchQueue.main.async {
                     self?.processIncomingData(data)
                 }
@@ -370,11 +373,11 @@ class PreviewAgentAppDelegate: UIResponder, UIApplicationDelegate {
     private func processIncomingData(_ data: Data) {
         socketReadBuffer.append(data)
         while let newlineIndex = socketReadBuffer.firstIndex(of: 0x0A) {
-            let lineData = Data(socketReadBuffer[socketReadBuffer.startIndex..<newlineIndex])
+            let lineData = Data(socketReadBuffer[socketReadBuffer.startIndex ..< newlineIndex])
             socketReadBuffer = Data(socketReadBuffer[(newlineIndex + 1)...])
 
             guard let message = try? JSONSerialization.jsonObject(with: lineData) as? [String: Any],
-                let type = message["type"] as? String
+                  let type = message["type"] as? String
             else { continue }
 
             handleMessage(message, type: type)
@@ -400,9 +403,9 @@ class PreviewAgentAppDelegate: UIResponder, UIApplicationDelegate {
 
     private func sendResponse(_ dict: [String: Any]) {
         guard socketFD >= 0,
-            var data = try? JSONSerialization.data(withJSONObject: dict)
+              var data = try? JSONSerialization.data(withJSONObject: dict)
         else { return }
-        data.append(0x0A)  // newline
+        data.append(0x0A) // newline
         let fd = socketFD
         data.withUnsafeBytes { buf in
             guard let base = buf.baseAddress else { return }
@@ -418,13 +421,14 @@ class PreviewAgentAppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     // MARK: - Touch Injection via Hammer approach (BKSHIDEvent + IOKit)
+
     //
     // Creates IOHIDEvent objects and delivers them through UIApplication._enqueueHIDEvent:
     // with BKSHIDEventSetDigitizerInfo to route to the correct window.
     // Runs entirely in-process — no Simulator.app needed, no mouse cursor movement.
     // Based on Lyft's Hammer (github.com/lyft/Hammer).
 
-    // Function pointer types
+    /// Function pointer types
     private typealias CreateDigitizerEventFn =
         @convention(c) (
             CFAllocator?, UInt64, UInt32, UInt32, UInt32, UInt32, UInt32,
@@ -477,15 +481,18 @@ class PreviewAgentAppDelegate: UIResponder, UIApplicationDelegate {
         }
         guard
             let bbs = dlopen(
-                "/System/Library/PrivateFrameworks/BackBoardServices.framework/BackBoardServices", RTLD_NOW)
+                "/System/Library/PrivateFrameworks/BackBoardServices.framework/BackBoardServices", RTLD_NOW
+            )
         else {
             NSLog("PreviewAgent: Failed to load BackBoardServices"); return
         }
 
         createDigitizerEvent = unsafeBitCast(
-            dlsym(iokit, "IOHIDEventCreateDigitizerEvent"), to: CreateDigitizerEventFn?.self)
+            dlsym(iokit, "IOHIDEventCreateDigitizerEvent"), to: CreateDigitizerEventFn?.self
+        )
         createDigitizerFingerEvent = unsafeBitCast(
-            dlsym(iokit, "IOHIDEventCreateDigitizerFingerEvent"), to: CreateDigitizerFingerEventFn?.self)
+            dlsym(iokit, "IOHIDEventCreateDigitizerFingerEvent"), to: CreateDigitizerFingerEventFn?.self
+        )
         appendEvent = unsafeBitCast(dlsym(iokit, "IOHIDEventAppendEvent"), to: AppendEventFn?.self)
         setIntegerValue = unsafeBitCast(dlsym(iokit, "IOHIDEventSetIntegerValue"), to: SetIntegerValueFn?.self)
         setFloatValue = unsafeBitCast(dlsym(iokit, "IOHIDEventSetFloatValue"), to: SetFloatValueFn?.self)
@@ -505,20 +512,21 @@ class PreviewAgentAppDelegate: UIResponder, UIApplicationDelegate {
         switch action {
         case "tap":
             guard let x = command["x"] as? Double,
-                let y = command["y"] as? Double
+                  let y = command["y"] as? Double
             else { return }
             sendTap(x: x, y: y)
         case "swipe":
             guard let fromX = command["fromX"] as? Double,
-                let fromY = command["fromY"] as? Double,
-                let toX = command["toX"] as? Double,
-                let toY = command["toY"] as? Double
+                  let fromY = command["fromY"] as? Double,
+                  let toX = command["toX"] as? Double,
+                  let toY = command["toY"] as? Double
             else { return }
             let duration = command["duration"] as? Double ?? 0.3
             let steps = command["steps"] as? Int ?? 10
             sendSwipe(
                 fromX: fromX, fromY: fromY, toX: toX, toY: toY,
-                duration: duration, steps: steps)
+                duration: duration, steps: steps
+            )
         default:
             break
         }
@@ -543,7 +551,7 @@ class PreviewAgentAppDelegate: UIResponder, UIApplicationDelegate {
         sendTouchEvent(x: fromX, y: fromY, phase: .began)
 
         // Intermediate moves
-        for i in 1..<stepCount {
+        for i in 1 ..< stepCount {
             let t = Double(i) / Double(stepCount)
             let x = fromX + (toX - fromX) * t
             let y = fromY + (toY - fromY) * t
@@ -562,11 +570,11 @@ class PreviewAgentAppDelegate: UIResponder, UIApplicationDelegate {
 
     private func sendTouchEvent(x: Double, y: Double, phase: TouchPhase) {
         guard touchReady,
-            let createParent = createDigitizerEvent,
-            let createFinger = createDigitizerFingerEvent,
-            let append = appendEvent,
-            let setInt = setIntegerValue,
-            let setBKS = bksSetDigitizerInfo
+              let createParent = createDigitizerEvent,
+              let createFinger = createDigitizerFingerEvent,
+              let append = appendEvent,
+              let setInt = setIntegerValue,
+              let setBKS = bksSetDigitizerInfo
         else { return }
 
         let timestamp = mach_absolute_time()
@@ -577,7 +585,7 @@ class PreviewAgentAppDelegate: UIResponder, UIApplicationDelegate {
         // began/ended: .touch | .range (0x03)
         // moved: .position (0x04)
         let fingerMask: UInt32 = (phase == .moved) ? 0x04 : 0x03
-        let parentMask: UInt32 = 0x02  // .touch
+        let parentMask: UInt32 = 0x02 // .touch
 
         // Parent event (hand, transducerType=3)
         guard
@@ -591,7 +599,7 @@ class PreviewAgentAppDelegate: UIResponder, UIApplicationDelegate {
         setInt(parent, 0xB0019, 1)
 
         // Set sender ID (any non-zero value)
-        setSenderID?(parent, 0x0000000123456789)
+        setSenderID?(parent, 0x0000_0001_2345_6789)
 
         // Child finger event
         guard
@@ -603,8 +611,8 @@ class PreviewAgentAppDelegate: UIResponder, UIApplicationDelegate {
         else { return }
 
         // Set radius on finger
-        setFloatValue?(finger, 0xB0014, 5.0)  // majorRadius
-        setFloatValue?(finger, 0xB0015, 5.0)  // minorRadius
+        setFloatValue?(finger, 0xB0014, 5.0) // majorRadius
+        setFloatValue?(finger, 0xB0015, 5.0) // minorRadius
 
         append(parent, finger, 0)
 
@@ -615,7 +623,8 @@ class PreviewAgentAppDelegate: UIResponder, UIApplicationDelegate {
             if w.responds(to: sel) {
                 contextId = UInt32(
                     truncatingIfNeeded:
-                        Int(bitPattern: w.perform(sel)?.toOpaque()))
+                    Int(bitPattern: w.perform(sel)?.toOpaque())
+                )
             }
         }
 
@@ -659,8 +668,8 @@ class PreviewAgentAppDelegate: UIResponder, UIApplicationDelegate {
         var children: [[String: Any]] = []
 
         let count = obj.accessibilityElementCount()
-        if count != NSNotFound && count > 0 {
-            for i in 0..<min(count, 500) {
+        if count != NSNotFound, count > 0 {
+            for i in 0 ..< min(count, 500) {
                 if let child = obj.accessibilityElement(at: i) {
                     if let childNode = snapshotElement(child, window: window) {
                         children.append(childNode)
@@ -731,7 +740,7 @@ class PreviewAgentAppDelegate: UIResponder, UIApplicationDelegate {
             }
         }
         if let identifiable = element as? UIView,
-            let identifier = identifiable.accessibilityIdentifier, !identifier.isEmpty
+           let identifier = identifiable.accessibilityIdentifier, !identifier.isEmpty
         {
             node["identifier"] = identifier
         }

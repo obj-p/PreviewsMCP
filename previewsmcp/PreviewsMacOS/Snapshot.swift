@@ -4,7 +4,6 @@ import Foundation
 /// Encodes agent-rendered preview images as output image data.
 @MainActor
 public enum Snapshot {
-
     /// Image output format.
     public enum ImageFormat: Sendable {
         case jpeg(quality: Double)
@@ -47,7 +46,8 @@ public enum Snapshot {
         }
         rep.draw(
             in: frame, from: .zero, operation: .sourceOver, fraction: 1.0,
-            respectFlipped: true, hints: nil)
+            respectFlipped: true, hints: nil
+        )
         NSGraphicsContext.restoreGraphicsState()
         return flat
     }
@@ -72,9 +72,10 @@ public enum Snapshot {
             switch format {
             case .png:
                 rep.representation(using: .png, properties: [:])
-            case .jpeg(let quality):
+            case let .jpeg(quality):
                 rep.representation(
-                    using: .jpeg, properties: [.compressionFactor: NSNumber(value: quality)])
+                    using: .jpeg, properties: [.compressionFactor: NSNumber(value: quality)]
+                )
             }
         guard let encoded else {
             throw SnapshotError.encodingFailed
@@ -89,10 +90,12 @@ public enum SnapshotError: Error, LocalizedError, CustomStringConvertible {
 
     public var description: String {
         switch self {
-        case .captureFailed: return "Failed to capture window contents"
-        case .encodingFailed: return "Failed to encode screenshot"
+        case .captureFailed: "Failed to capture window contents"
+        case .encodingFailed: "Failed to encode screenshot"
         }
     }
 
-    public var errorDescription: String? { description }
+    public var errorDescription: String? {
+        description
+    }
 }

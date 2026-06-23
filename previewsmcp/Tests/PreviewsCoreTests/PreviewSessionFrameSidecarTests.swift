@@ -1,7 +1,6 @@
 import Foundation
-import Testing
-
 @testable import PreviewsCore
+import Testing
 
 @Suite("PreviewSession frame sidecar")
 struct PreviewSessionFrameSidecarTests {

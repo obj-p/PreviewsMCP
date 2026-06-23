@@ -63,12 +63,12 @@ public struct PreviewTraits: Sendable, Equatable {
         )
     }
 
-    /// Canonical trait value lists. Stored as ordered arrays — not Sets —
-    /// because the wire shape matters: MCP tool schemas expose these as
-    /// JSON `enum` arrays in declaration order, and
-    /// `Tests/PreviewsCLITests/list_tools_snapshot.json` pins the
-    /// resulting bytes. `.contains` membership against these arrays is
-    /// O(n), but n is tiny (≤12) — acceptable for the validation paths.
+    // Canonical trait value lists. Stored as ordered arrays — not Sets —
+    // because the wire shape matters: MCP tool schemas expose these as
+    // JSON `enum` arrays in declaration order, and
+    // `Tests/PreviewsCLITests/list_tools_snapshot.json` pins the
+    // resulting bytes. `.contains` membership against these arrays is
+    // O(n), but n is tiny (≤12) — acceptable for the validation paths.
 
     public static let validColorSchemes: [String] = ["light", "dark"]
 
@@ -177,7 +177,7 @@ public struct PreviewTraits: Sendable, Equatable {
             label = str
         } else {
             guard let data = str.data(using: .utf8),
-                let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
             else {
                 throw VariantError.unknownPreset(str)
             }
@@ -233,19 +233,16 @@ public struct PreviewTraits: Sendable, Equatable {
 
         public var errorDescription: String? {
             switch self {
-            case .invalidColorScheme(let cs):
-                return "Invalid color scheme '\(cs)'. Must be 'light' or 'dark'."
-            case .invalidDynamicTypeSize(let dts):
-                return
-                    "Invalid dynamic type size '\(dts)'. Valid values: \(PreviewTraits.validDynamicTypeSizes.sorted().joined(separator: ", "))"
-            case .invalidLocale(let loc):
-                return
-                    "Invalid locale '\(loc)'. Locale identifiers must not contain quotes, backslashes, or newlines."
-            case .invalidLayoutDirection(let ld):
-                return
-                    "Invalid layout direction '\(ld)'. Must be 'leftToRight' or 'rightToLeft'."
-            case .invalidLegibilityWeight(let lw):
-                return "Invalid legibility weight '\(lw)'. Must be 'regular' or 'bold'."
+            case let .invalidColorScheme(cs):
+                "Invalid color scheme '\(cs)'. Must be 'light' or 'dark'."
+            case let .invalidDynamicTypeSize(dts):
+                "Invalid dynamic type size '\(dts)'. Valid values: \(PreviewTraits.validDynamicTypeSizes.sorted().joined(separator: ", "))"
+            case let .invalidLocale(loc):
+                "Invalid locale '\(loc)'. Locale identifiers must not contain quotes, backslashes, or newlines."
+            case let .invalidLayoutDirection(ld):
+                "Invalid layout direction '\(ld)'. Must be 'leftToRight' or 'rightToLeft'."
+            case let .invalidLegibilityWeight(lw):
+                "Invalid legibility weight '\(lw)'. Must be 'regular' or 'bold'."
             }
         }
     }
@@ -257,14 +254,14 @@ public struct PreviewTraits: Sendable, Equatable {
 
         public var errorDescription: String? {
             switch self {
-            case .unknownPreset(let name):
+            case let .unknownPreset(name):
                 let presets = PreviewTraits.allPresetNames.sorted().joined(separator: ", ")
                 return
                     "Unknown variant '\(name)'. Expected a preset name (\(presets)) or a JSON object string."
             case .emptyVariantObject:
                 return
                     "Variant object must specify at least one trait (colorScheme, dynamicTypeSize, locale, layoutDirection, or legibilityWeight)."
-            case .invalidLabel(let label, let reason):
+            case let .invalidLabel(label, reason):
                 return "Invalid variant label '\(label)': \(reason)."
             }
         }

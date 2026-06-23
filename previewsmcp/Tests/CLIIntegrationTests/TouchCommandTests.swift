@@ -6,7 +6,6 @@ import Testing
 /// + swipe round trip against an iOS session.
 @Suite(.serialized)
 struct TouchCommandTests {
-
     private static func cleanSlate() async throws {
         _ = try? await CLIRunner.run("kill-daemon", arguments: ["--timeout", "2"])
     }

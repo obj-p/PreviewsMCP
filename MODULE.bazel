@@ -52,6 +52,13 @@ http_archive(
     urls = ["https://github.com/realm/SwiftLint/releases/download/0.63.3/portable_swiftlint.zip"],
 )
 
+http_archive(
+    name = "swiftformat_darwin",
+    build_file_content = 'exports_files(["swiftformat"])',
+    sha256 = "b990400779aceb7d7020796eb9ba814d4480543f671d38fc0ff48cb72f04c584",
+    urls = ["https://github.com/nicklockwood/SwiftFormat/releases/download/0.61.1/swiftformat.zip"],
+)
+
 llvm_repository = use_repo_rule("//bazel:llvm.bzl", "llvm_repository")
 
 llvm_repository(

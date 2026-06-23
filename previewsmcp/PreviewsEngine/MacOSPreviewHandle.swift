@@ -18,7 +18,7 @@ public actor MacOSPreviewHandle: PreviewSessionHandle {
 
     public init(id: String, session: PreviewSession, host: PreviewHost) {
         self.id = id
-        self.sourceFile = session.sourceFile
+        sourceFile = session.sourceFile
         self.session = session
         self.host = host
     }
@@ -79,7 +79,8 @@ public actor MacOSPreviewHandle: PreviewSessionHandle {
                 }
             let appearance = named ?? NSApplication.shared.effectiveAppearance
             return try Snapshot.encode(
-                imageAt: imagePath, format: format, flattenedWith: appearance)
+                imageAt: imagePath, format: format, flattenedWith: appearance
+            )
         }
     }
 

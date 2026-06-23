@@ -23,7 +23,7 @@ actor StallTimer {
     private var lastActivity: ContinuousClock.Instant
 
     init() {
-        self.lastActivity = .now
+        lastActivity = .now
     }
 
     /// Reset the inactivity counter. Called from every registered

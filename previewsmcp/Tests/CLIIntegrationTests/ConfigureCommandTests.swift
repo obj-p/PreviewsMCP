@@ -7,7 +7,6 @@ import Testing
 /// suites across test targets.
 @Suite(.serialized)
 struct ConfigureCommandTests {
-
     private static func cleanSlate() async throws {
         _ = try? await CLIRunner.run("kill-daemon", arguments: ["--timeout", "2"])
     }
@@ -119,7 +118,7 @@ struct ConfigureCommandTests {
             let afterData = try Data(contentsOf: URL(fileURLWithPath: afterPath))
             let diffMessage =
                 "dark-mode snapshot (\(afterData.count) bytes) should differ from "
-                + "light-mode snapshot (\(beforeData.count) bytes)"
+                    + "light-mode snapshot (\(beforeData.count) bytes)"
             #expect(beforeData != afterData, Comment(rawValue: diffMessage))
 
             _ = try? await CLIRunner.run("kill-daemon", arguments: ["--timeout", "2"])

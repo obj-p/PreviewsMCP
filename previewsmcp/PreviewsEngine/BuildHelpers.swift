@@ -1,7 +1,7 @@
 import Foundation
+import os
 import PreviewsCore
 import PreviewsIOS
-import os
 
 /// CLI progress reporter that prints `[X/Y] message` to stderr.
 public struct StderrProgressReporter: ProgressReporter {
@@ -12,7 +12,7 @@ public struct StderrProgressReporter: ProgressReporter {
         self.totalSteps = totalSteps
     }
 
-    public func report(_ phase: BuildPhase, message: String) async {
+    public func report(_: BuildPhase, message: String) async {
         let step = counter.withLock { value -> Int in
             value += 1
             return value
@@ -27,7 +27,7 @@ public func loadProjectConfig(explicit configPath: String?, fileURL: URL) -> Pro
         let url = URL(fileURLWithPath: Path.normalize(configPath))
         let dir = url.deletingLastPathComponent()
         guard let data = try? Data(contentsOf: url),
-            let config = try? JSONDecoder().decode(ProjectConfig.self, from: data)
+              let config = try? JSONDecoder().decode(ProjectConfig.self, from: data)
         else {
             fputs("Warning: Could not load config from \(configPath)\n", stderr)
             return nil
@@ -73,12 +73,11 @@ public func detectAndBuild(
 
     let platformLabel =
         platform == .iOS
-        ? "Building for iOS (\(buildSystemName))..."
-        : "Building (\(buildSystemName))..."
+            ? "Building for iOS (\(buildSystemName))..."
+            : "Building (\(buildSystemName))..."
     await progress?.report(.buildingProject, message: platformLabel)
 
-    let context = try await buildSystem.build(platform: platform)
-    return context
+    return try await buildSystem.build(platform: platform)
 }
 
 /// Resolve a simulator device UDID: provided > booted > first available.
@@ -102,5 +101,7 @@ public func resolveDeviceUDID(
 }
 
 public struct NoSimulatorError: LocalizedError {
-    public var errorDescription: String? { "No available iOS simulator devices found" }
+    public var errorDescription: String? {
+        "No available iOS simulator devices found"
+    }
 }

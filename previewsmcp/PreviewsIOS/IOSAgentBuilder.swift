@@ -17,20 +17,20 @@ public actor IOSAgentBuilder {
     public init(workDir: URL? = nil) async throws {
         let dir =
             workDir
-            ?? FileManager.default.temporaryDirectory
-            .appendingPathComponent("previewsmcp-agent", isDirectory: true)
+                ?? FileManager.default.temporaryDirectory
+                .appendingPathComponent("previewsmcp-agent", isDirectory: true)
 
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         self.workDir = dir
 
-        self.sdkPath = try await Toolchain.sdkPath(for: .iOS)
-        self.swiftcPath = try await Toolchain.swiftcPath()
-        self.clangPath = try await Toolchain.clangPath()
-        self.codesignPath = try await Toolchain.codesignPath()
+        sdkPath = try await Toolchain.sdkPath(for: .iOS)
+        swiftcPath = try await Toolchain.swiftcPath()
+        clangPath = try await Toolchain.clangPath()
+        codesignPath = try await Toolchain.codesignPath()
 
         let cacheDir = dir.appendingPathComponent("ModuleCache", isDirectory: true)
         try FileManager.default.createDirectory(at: cacheDir, withIntermediateDirectories: true)
-        self.moduleCachePath = cacheDir
+        moduleCachePath = cacheDir
     }
 
     /// Build the iOS agent app, returning the path to the .app bundle.
@@ -69,7 +69,9 @@ public actor IOSAgentBuilder {
 
     private static func hashHex(_ chunks: [Data]) -> String {
         var hasher = SHA256()
-        for chunk in chunks { hasher.update(data: chunk) }
+        for chunk in chunks {
+            hasher.update(data: chunk)
+        }
         return hasher.finalize().map { String(format: "%02x", $0) }.joined()
     }
 
@@ -181,7 +183,8 @@ public actor IOSAgentBuilder {
 
         try IOSShellAppSource.code.write(to: sourceFile, atomically: true, encoding: .utf8)
         try IOSShellAppSource.entitlements.write(
-            to: entitlementsFile, atomically: true, encoding: .utf8)
+            to: entitlementsFile, atomically: true, encoding: .utf8
+        )
 
         // The shell carries restricted RunningBoard entitlements. The simulator
         // honors them only when embedded in the Mach-O (__TEXT,__entitlements)
@@ -240,7 +243,6 @@ public actor IOSAgentBuilder {
         }
         return output.stdout
     }
-
 }
 
 extension IOSAgentBuilder {
@@ -297,8 +299,9 @@ extension IOSAgentBuilder {
                 .map { URL(fileURLWithPath: $0, isDirectory: true) }
         }
         guard let root,
-            let enumerator = FileManager.default.enumerator(
-                at: root, includingPropertiesForKeys: nil)
+              let enumerator = FileManager.default.enumerator(
+                  at: root, includingPropertiesForKeys: nil
+              )
         else { return nil }
         for case let url as URL in enumerator where url.lastPathComponent == name {
             return url
@@ -343,9 +346,11 @@ public enum IOSAgentBuildError: Error, LocalizedError, CustomStringConvertible {
 
     public var description: String {
         switch self {
-        case .compilationFailed(let msg): return "iOS agent app build failed: \(msg)"
+        case let .compilationFailed(msg): "iOS agent app build failed: \(msg)"
         }
     }
 
-    public var errorDescription: String? { description }
+    public var errorDescription: String? {
+        description
+    }
 }

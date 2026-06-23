@@ -11,7 +11,6 @@ import Testing
 /// daemon code paths end-to-end.
 @Suite(.serialized)
 struct IOSCLIWorkflowTests {
-
     private static func cleanSlate() async throws {
         _ = try? await CLIRunner.run("kill-daemon", arguments: ["--timeout", "2"])
     }
@@ -106,16 +105,19 @@ struct IOSCLIWorkflowTests {
                     "--platform", "ios",
                     "--project", CLIRunner.spmExampleRoot.path,
                     "--config", configPath,
-                ])
+                ]
+            )
             #expect(varResult.exitCode == 0, "variants stderr: \(varResult.stderr)")
             #expect(
                 varResult.stderr.contains("Captured 2/2 variants"),
                 "variants stderr: \(varResult.stderr)"
             )
             try CLIRunner.assertValidJPEG(
-                at: tempDir.appendingPathComponent("light.jpg").path)
+                at: tempDir.appendingPathComponent("light.jpg").path
+            )
             try CLIRunner.assertValidJPEG(
-                at: tempDir.appendingPathComponent("dark.jpg").path)
+                at: tempDir.appendingPathComponent("dark.jpg").path
+            )
 
             // -- stop (last — tears down the session) --
             let stopResult = try await CLIRunner.run("stop")

@@ -15,16 +15,16 @@ struct StopCommand: AsyncParsableCommand {
         commandName: "stop",
         abstract: "Stop a running preview session",
         discussion: """
-            Closes a preview session and releases its resources. Targets
-            the session using the same resolution rules as configure and
-            switch: pass --session for a specific session, --file to
-            look up by source path, or no flag when exactly one session
-            is running.
+        Closes a preview session and releases its resources. Targets
+        the session using the same resolution rules as configure and
+        switch: pass --session for a specific session, --file to
+        look up by source path, or no flag when exactly one session
+        is running.
 
-            Use --all to stop every active session (for example, before
-            shutting down the daemon cleanly). --all cannot be combined
-            with --session or --file.
-            """
+        Use --all to stop every active session (for example, before
+        shutting down the daemon cleanly). --all cannot be combined
+        with --session or --file.
+        """
     )
 
     @OptionGroup var target: SessionTargetingOptions
@@ -53,7 +53,7 @@ struct StopCommand: AsyncParsableCommand {
             client: client
         )
 
-        guard case .found(let sessionID) = resolution else {
+        guard case let .found(sessionID) = resolution else {
             throw ValidationError(
                 "No session found to stop. Start one with "
                     + "`previewsmcp run <file> --detach` or pass an "

@@ -59,7 +59,7 @@ public actor IOSJITStructuralReloader: IOSStructuralReloader {
     /// the first render can race window attachment on a cold simulator; a few short retries
     /// cover that without failing `start()`. Any other non-zero status fails immediately.
     private func runEntry(_ entrySymbol: String) async throws {
-        for attempt in 1...5 {
+        for attempt in 1 ... 5 {
             let status = try session.runOnMain(symbol: entrySymbol)
             if status == 0 { return }
             guard status == -1, attempt < 5 else {

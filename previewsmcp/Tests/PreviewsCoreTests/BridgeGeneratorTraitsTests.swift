@@ -1,22 +1,20 @@
 import Foundation
-import Testing
-
 @testable import PreviewsCore
+import Testing
 
 @Suite("BridgeGenerator Trait Injection")
 struct BridgeGeneratorTraitsTests {
-
     static let testSource = """
-        import SwiftUI
+    import SwiftUI
 
-        struct TestView: View {
-            var body: some View {
-                Text("Hello")
-            }
+    struct TestView: View {
+        var body: some View {
+            Text("Hello")
         }
+    }
 
-        #Preview { TestView() }
-        """
+    #Preview { TestView() }
+    """
 
     // MARK: - PreviewTraits
 
@@ -333,11 +331,13 @@ struct BridgeGeneratorTraitsTests {
         let darkTraits = await session.currentTraits
         #expect(darkTraits.colorScheme == "dark")
         #expect(
-            result2.objectPath != result1.objectPath, "Reconfigure should produce a new object")
+            result2.objectPath != result1.objectPath, "Reconfigure should produce a new object"
+        )
 
         // Reconfigure with dynamic type (merge: colorScheme should persist)
         let result3 = try await session.reconfigureForJIT(
-            traits: PreviewTraits(dynamicTypeSize: "accessibility3"))
+            traits: PreviewTraits(dynamicTypeSize: "accessibility3")
+        )
         let mergedTraits = await session.currentTraits
         #expect(mergedTraits.colorScheme == "dark")
         #expect(mergedTraits.dynamicTypeSize == "accessibility3")
@@ -347,27 +347,27 @@ struct BridgeGeneratorTraitsTests {
     // MARK: - Multi-preview index selection
 
     static let multiPreviewSource = """
-        import SwiftUI
+    import SwiftUI
 
-        struct FirstView: View {
-            var body: some View {
-                Text("first")
-            }
+    struct FirstView: View {
+        var body: some View {
+            Text("first")
         }
+    }
 
-        struct SecondView: View {
-            var body: some View {
-                Text("second")
-            }
+    struct SecondView: View {
+        var body: some View {
+            Text("second")
         }
+    }
 
-        #Preview { FirstView() }
+    #Preview { FirstView() }
 
-        #Preview("Second") { SecondView() }
-        """
+    #Preview("Second") { SecondView() }
+    """
 
     @Test("generateCombinedSource with previewIndex selects correct preview closure body")
-    func combinedSourceRespectsPreviewIndex() {
+    func combinedSourceRespectsPreviewIndex() throws {
         // Parse to get preview[1]'s closure body
         let previews = PreviewParser.parse(source: Self.multiPreviewSource)
         #expect(previews.count == 2)
@@ -381,7 +381,7 @@ struct BridgeGeneratorTraitsTests {
 
         // The bridge entry point should render SecondView, not FirstView
         // Extract just the bridge region to avoid matching the full source that contains both
-        let bridgeRange = source.range(of: "__PreviewBridge.wrap")!
+        let bridgeRange = try #require(source.range(of: "__PreviewBridge.wrap"))
         let bridgeCode = String(source[bridgeRange.lowerBound...])
 
         #expect(bridgeCode.contains("SecondView()"), "Bridge should render SecondView for previewIndex 1")
@@ -389,7 +389,7 @@ struct BridgeGeneratorTraitsTests {
     }
 
     @Test("generateCombinedSource with default previewIndex selects first preview")
-    func combinedSourceDefaultIndex() {
+    func combinedSourceDefaultIndex() throws {
         let previews = PreviewParser.parse(source: Self.multiPreviewSource)
         #expect(previews.count == 2)
 
@@ -399,7 +399,7 @@ struct BridgeGeneratorTraitsTests {
             renderOutputPath: "/tmp/out.png"
         )
 
-        let bridgeRange = source.range(of: "__PreviewBridge.wrap")!
+        let bridgeRange = try #require(source.range(of: "__PreviewBridge.wrap"))
         let bridgeCode = String(source[bridgeRange.lowerBound...])
 
         #expect(bridgeCode.contains("FirstView()"), "Bridge should render FirstView for default previewIndex")
@@ -407,7 +407,7 @@ struct BridgeGeneratorTraitsTests {
     }
 
     @Test("generateCombinedSource falls back to closureBody when previewIndex is out of bounds")
-    func combinedSourceOutOfBoundsFallback() {
+    func combinedSourceOutOfBoundsFallback() throws {
         let (source, _) = BridgeGenerator.generateCombinedSource(
             originalSource: Self.multiPreviewSource,
             closureBody: "FallbackView()",
@@ -415,7 +415,7 @@ struct BridgeGeneratorTraitsTests {
             renderOutputPath: "/tmp/out.png"
         )
 
-        let bridgeRange = source.range(of: "__PreviewBridge.wrap")!
+        let bridgeRange = try #require(source.range(of: "__PreviewBridge.wrap"))
         let bridgeCode = String(source[bridgeRange.lowerBound...])
 
         #expect(bridgeCode.contains("FallbackView()"), "Bridge should fall back to closureBody for out-of-bounds index")
@@ -505,7 +505,7 @@ struct BridgeGeneratorTraitsTests {
     }
 
     @Test("generateCombinedSource with setup calls wrap and applies traits outside")
-    func combinedSourceSetupWrapAndTraits() {
+    func combinedSourceSetupWrapAndTraits() throws {
         let traits = PreviewTraits(colorScheme: "dark")
         let (source, _) = BridgeGenerator.generateCombinedSource(
             originalSource: Self.testSource,
@@ -519,8 +519,8 @@ struct BridgeGeneratorTraitsTests {
         #expect(source.contains("wrappedView"))
         #expect(source.contains(".preferredColorScheme(.dark)"))
 
-        let wrapIdx = source.range(of: "AppSetup.wrap")!.lowerBound
-        let traitIdx = source.range(of: ".preferredColorScheme(.dark)")!.lowerBound
+        let wrapIdx = try #require(source.range(of: "AppSetup.wrap")?.lowerBound)
+        let traitIdx = try #require(source.range(of: ".preferredColorScheme(.dark)")?.lowerBound)
         #expect(wrapIdx < traitIdx, "wrap() should appear before trait modifiers (traits outside wrap)")
     }
 
@@ -607,7 +607,7 @@ struct BridgeGeneratorTraitsTests {
     func stableHashKnownValue() {
         // Pin a known input/output to detect accidental algorithm changes
         let hash = PreviewSession.stableHash("hello")
-        #expect(hash == 0xa430_d846_80aa_bd0b)
+        #expect(hash == 0xA430_D846_80AA_BD0B)
     }
 
     // MARK: - @ViewBuilder nested function
@@ -620,36 +620,36 @@ struct BridgeGeneratorTraitsTests {
     }
 
     static let availablePreviewSource = """
-        import SwiftUI
+    import SwiftUI
 
-        struct NewView: View {
-            var body: some View { Text("new") }
+    struct NewView: View {
+        var body: some View { Text("new") }
+    }
+
+    struct FallbackView: View {
+        var body: some View { Text("fallback") }
+    }
+
+    #Preview {
+        if #available(iOS 16.0, *) {
+            NewView()
+        } else {
+            FallbackView()
         }
+    }
+    """
 
-        struct FallbackView: View {
-            var body: some View { Text("fallback") }
-        }
-
-        #Preview {
+    @Test("generateCombinedSource routes if #available body through __PreviewBridge.wrap")
+    func combinedSourceWrapsAvailable() throws {
+        let (source, _) = BridgeGenerator.generateCombinedSource(
+            originalSource: Self.availablePreviewSource,
+            closureBody: """
             if #available(iOS 16.0, *) {
                 NewView()
             } else {
                 FallbackView()
             }
-        }
-        """
-
-    @Test("generateCombinedSource routes if #available body through __PreviewBridge.wrap")
-    func combinedSourceWrapsAvailable() {
-        let (source, _) = BridgeGenerator.generateCombinedSource(
-            originalSource: Self.availablePreviewSource,
-            closureBody: """
-                if #available(iOS 16.0, *) {
-                    NewView()
-                } else {
-                    FallbackView()
-                }
-                """,
+            """,
             renderOutputPath: "/tmp/out.png"
         )
         let bridge = bridgeSlice(source)
@@ -658,7 +658,7 @@ struct BridgeGeneratorTraitsTests {
         #expect(wrapRange != nil, "Bridge must call __PreviewBridge.wrap")
         #expect(ifRange != nil)
         #expect(
-            wrapRange!.lowerBound < ifRange!.lowerBound,
+            try #require(wrapRange?.lowerBound) < ifRange!.lowerBound,
             "__PreviewBridge.wrap call must appear before the if #available body it contains"
         )
         #expect(
@@ -678,33 +678,33 @@ struct BridgeGeneratorTraitsTests {
     @Test("generateCombinedSource routes if #unavailable body through __PreviewBridge.wrap")
     func combinedSourceWrapsUnavailable() {
         let unavailableSource = """
-            import SwiftUI
+        import SwiftUI
 
-            struct NewView: View {
-                var body: some View { Text("new") }
-            }
+        struct NewView: View {
+            var body: some View { Text("new") }
+        }
 
-            struct FallbackView: View {
-                var body: some View { Text("fallback") }
-            }
+        struct FallbackView: View {
+            var body: some View { Text("fallback") }
+        }
 
-            #Preview {
-                if #unavailable(iOS 26.0) {
-                    FallbackView()
-                } else {
-                    NewView()
-                }
+        #Preview {
+            if #unavailable(iOS 26.0) {
+                FallbackView()
+            } else {
+                NewView()
             }
-            """
+        }
+        """
         let (source, _) = BridgeGenerator.generateCombinedSource(
             originalSource: unavailableSource,
             closureBody: """
-                if #unavailable(iOS 26.0) {
-                    FallbackView()
-                } else {
-                    NewView()
-                }
-                """,
+            if #unavailable(iOS 26.0) {
+                FallbackView()
+            } else {
+                NewView()
+            }
+            """,
             renderOutputPath: "/tmp/out.png"
         )
         let bridge = bridgeSlice(source)
@@ -728,20 +728,20 @@ struct BridgeGeneratorTraitsTests {
     }
 
     @Test("generateCombinedSource routes multi-statement body (leading let) through __PreviewBridge.wrap")
-    func combinedSourceWrapsMultiStatement() {
+    func combinedSourceWrapsMultiStatement() throws {
         let multiStmtSource = """
-            import SwiftUI
+        import SwiftUI
 
-            struct TestView: View {
-                let label: String
-                var body: some View { Text(label) }
-            }
+        struct TestView: View {
+            let label: String
+            var body: some View { Text(label) }
+        }
 
-            #Preview {
-                let label = "hello"
-                TestView(label: label)
-            }
-            """
+        #Preview {
+            let label = "hello"
+            TestView(label: label)
+        }
+        """
         let previews = PreviewParser.parse(source: multiStmtSource)
         #expect(previews.count == 1)
 
@@ -755,23 +755,23 @@ struct BridgeGeneratorTraitsTests {
         let letRange = bridge.range(of: "let label")
         #expect(wrapRange != nil && letRange != nil)
         #expect(
-            wrapRange!.lowerBound < letRange!.lowerBound,
+            try #require(wrapRange?.lowerBound) < letRange!.lowerBound,
             "__PreviewBridge.wrap call must precede the multi-statement body so `let` isn't a bare expression"
         )
     }
 
     @Test("if #available body with traits applies modifiers on the __PreviewBridge.wrap call")
-    func availableBodyWithTraits() {
+    func availableBodyWithTraits() throws {
         let traits = PreviewTraits(colorScheme: "dark")
         let (source, _) = BridgeGenerator.generateCombinedSource(
             originalSource: Self.availablePreviewSource,
             closureBody: """
-                if #available(iOS 16.0, *) {
-                    NewView()
-                } else {
-                    FallbackView()
-                }
-                """,
+            if #available(iOS 16.0, *) {
+                NewView()
+            } else {
+                FallbackView()
+            }
+            """,
             traits: traits,
             renderOutputPath: "/tmp/out.png"
         )
@@ -785,8 +785,8 @@ struct BridgeGeneratorTraitsTests {
         )
         // The wrap closure's body must come before the modifier — i.e. the modifier
         // chains on the wrap() call's result, not on something inside the body.
-        let fallbackRange = bridge.range(of: "FallbackView()")!
-        let modifierRange = bridge.range(of: ".preferredColorScheme(.dark)")!
+        let fallbackRange = try #require(bridge.range(of: "FallbackView()"))
+        let modifierRange = try #require(bridge.range(of: ".preferredColorScheme(.dark)"))
         #expect(
             fallbackRange.upperBound < modifierRange.lowerBound,
             "Modifier must be applied to the __PreviewBridge.wrap { ... } result, not inside its body"
@@ -796,24 +796,24 @@ struct BridgeGeneratorTraitsTests {
     @Test("Full pipeline with if #available body compiles successfully")
     func fullPipelineWithIfAvailable() async throws {
         let availableSource = """
-            import SwiftUI
+        import SwiftUI
 
-            struct NewView: View {
-                var body: some View { Text("new") }
-            }
+        struct NewView: View {
+            var body: some View { Text("new") }
+        }
 
-            struct FallbackView: View {
-                var body: some View { Text("fallback") }
-            }
+        struct FallbackView: View {
+            var body: some View { Text("fallback") }
+        }
 
-            #Preview {
-                if #available(macOS 14.0, iOS 17.0, *) {
-                    NewView()
-                } else {
-                    FallbackView()
-                }
+        #Preview {
+            if #available(macOS 14.0, iOS 17.0, *) {
+                NewView()
+            } else {
+                FallbackView()
             }
-            """
+        }
+        """
 
         let previews = PreviewParser.parse(source: availableSource)
         #expect(previews.count == 1)
@@ -827,7 +827,7 @@ struct BridgeGeneratorTraitsTests {
         let compiler = try await Compiler()
         let objectURL = try await compiler.compileObject(
             source: combined,
-            moduleName: "AvailTest_\(Int.random(in: 0...999999))"
+            moduleName: "AvailTest_\(Int.random(in: 0 ... 999_999))"
         )
 
         #expect(FileManager.default.fileExists(atPath: objectURL.path))
@@ -836,18 +836,18 @@ struct BridgeGeneratorTraitsTests {
     @Test("Full pipeline with multi-statement body compiles successfully")
     func fullPipelineWithMultiStatement() async throws {
         let multiSource = """
-            import SwiftUI
+        import SwiftUI
 
-            struct TestView: View {
-                let label: String
-                var body: some View { Text(label) }
-            }
+        struct TestView: View {
+            let label: String
+            var body: some View { Text(label) }
+        }
 
-            #Preview {
-                let label = "hello"
-                TestView(label: label)
-            }
-            """
+        #Preview {
+            let label = "hello"
+            TestView(label: label)
+        }
+        """
 
         let previews = PreviewParser.parse(source: multiSource)
         #expect(previews.count == 1)
@@ -861,7 +861,7 @@ struct BridgeGeneratorTraitsTests {
         let compiler = try await Compiler()
         let objectURL = try await compiler.compileObject(
             source: combined,
-            moduleName: "MultiStmtTest_\(Int.random(in: 0...999999))"
+            moduleName: "MultiStmtTest_\(Int.random(in: 0 ... 999_999))"
         )
 
         #expect(FileManager.default.fileExists(atPath: objectURL.path))
@@ -872,19 +872,19 @@ struct BridgeGeneratorTraitsTests {
     @Test("Full pipeline with UIView body compiles for iOS")
     func fullPipelineUIViewBody() async throws {
         let uiViewSource = """
-            import SwiftUI
-            import UIKit
+        import SwiftUI
+        import UIKit
 
-            final class ExampleUIView: UIView {
-                init() {
-                    super.init(frame: .zero)
-                    backgroundColor = .systemRed
-                }
-                required init?(coder: NSCoder) { fatalError() }
+        final class ExampleUIView: UIView {
+            init() {
+                super.init(frame: .zero)
+                backgroundColor = .systemRed
             }
+            required init?(coder: NSCoder) { fatalError() }
+        }
 
-            #Preview { ExampleUIView() }
-            """
+        #Preview { ExampleUIView() }
+        """
 
         let previews = PreviewParser.parse(source: uiViewSource)
         #expect(previews.count == 1)
@@ -901,7 +901,7 @@ struct BridgeGeneratorTraitsTests {
         let compiler = try await Compiler(platform: .iOS)
         let objectURL = try await compiler.compileObject(
             source: combined,
-            moduleName: "UIViewTest_\(Int.random(in: 0...999999))"
+            moduleName: "UIViewTest_\(Int.random(in: 0 ... 999_999))"
         )
 
         #expect(FileManager.default.fileExists(atPath: objectURL.path))
@@ -913,22 +913,22 @@ struct BridgeGeneratorTraitsTests {
         // wrapped inside a helper closure (here: a trivial `make(...)` instead of
         // `withDependencies`, which would require pulling in swift-dependencies).
         let uiViewSource = """
-            import SwiftUI
-            import UIKit
+        import SwiftUI
+        import UIKit
 
-            final class ExampleUIView: UIView {
-                init(label: String) {
-                    super.init(frame: .zero)
-                    backgroundColor = .systemGreen
-                    accessibilityLabel = label
-                }
-                required init?(coder: NSCoder) { fatalError() }
+        final class ExampleUIView: UIView {
+            init(label: String) {
+                super.init(frame: .zero)
+                backgroundColor = .systemGreen
+                accessibilityLabel = label
             }
+            required init?(coder: NSCoder) { fatalError() }
+        }
 
-            func make<T>(_ build: () -> T) -> T { build() }
+        func make<T>(_ build: () -> T) -> T { build() }
 
-            #Preview { make { ExampleUIView(label: "hi") } }
-            """
+        #Preview { make { ExampleUIView(label: "hi") } }
+        """
 
         let previews = PreviewParser.parse(source: uiViewSource)
         #expect(previews.count == 1)
@@ -943,7 +943,7 @@ struct BridgeGeneratorTraitsTests {
         let compiler = try await Compiler(platform: .iOS)
         let objectURL = try await compiler.compileObject(
             source: combined,
-            moduleName: "UIViewInitArgsTest_\(Int.random(in: 0...999999))"
+            moduleName: "UIViewInitArgsTest_\(Int.random(in: 0 ... 999_999))"
         )
 
         #expect(FileManager.default.fileExists(atPath: objectURL.path))
@@ -952,18 +952,18 @@ struct BridgeGeneratorTraitsTests {
     @Test("Full pipeline with UIViewController body compiles for iOS")
     func fullPipelineUIViewControllerBody() async throws {
         let vcSource = """
-            import SwiftUI
-            import UIKit
+        import SwiftUI
+        import UIKit
 
-            final class ExampleVC: UIViewController {
-                override func viewDidLoad() {
-                    super.viewDidLoad()
-                    view.backgroundColor = .systemBlue
-                }
+        final class ExampleVC: UIViewController {
+            override func viewDidLoad() {
+                super.viewDidLoad()
+                view.backgroundColor = .systemBlue
             }
+        }
 
-            #Preview { ExampleVC() }
-            """
+        #Preview { ExampleVC() }
+        """
 
         let previews = PreviewParser.parse(source: vcSource)
         #expect(previews.count == 1)
@@ -980,7 +980,7 @@ struct BridgeGeneratorTraitsTests {
         let compiler = try await Compiler(platform: .iOS)
         let objectURL = try await compiler.compileObject(
             source: combined,
-            moduleName: "UIVCTest_\(Int.random(in: 0...999999))"
+            moduleName: "UIVCTest_\(Int.random(in: 0 ... 999_999))"
         )
 
         #expect(FileManager.default.fileExists(atPath: objectURL.path))
@@ -989,14 +989,14 @@ struct BridgeGeneratorTraitsTests {
     @Test("Full pipeline with SwiftUI body on iOS still compiles (regression guard)")
     func fullPipelineSwiftUIBodyIOS() async throws {
         let swiftUISource = """
-            import SwiftUI
+        import SwiftUI
 
-            struct IOSView: View {
-                var body: some View { Text("ios") }
-            }
+        struct IOSView: View {
+            var body: some View { Text("ios") }
+        }
 
-            #Preview { IOSView() }
-            """
+        #Preview { IOSView() }
+        """
 
         let previews = PreviewParser.parse(source: swiftUISource)
         #expect(previews.count == 1)
@@ -1011,7 +1011,7 @@ struct BridgeGeneratorTraitsTests {
         let compiler = try await Compiler(platform: .iOS)
         let objectURL = try await compiler.compileObject(
             source: combined,
-            moduleName: "SwiftUIiOSTest_\(Int.random(in: 0...999999))"
+            moduleName: "SwiftUIiOSTest_\(Int.random(in: 0 ... 999_999))"
         )
 
         #expect(FileManager.default.fileExists(atPath: objectURL.path))

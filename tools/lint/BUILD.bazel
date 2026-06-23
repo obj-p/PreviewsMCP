@@ -3,12 +3,14 @@ load("@rules_shell//shell:sh_binary.bzl", "sh_binary")
 _TOOLS = {
     "BUILDIFIER": "$(rlocationpath @buildifier_darwin_arm64//file)",
     "CLANG_FORMAT": "$(rlocationpath @clang_format_darwin_arm64//file)",
+    "SWIFTFORMAT": "$(rlocationpath @swiftformat_darwin//:swiftformat)",
     "SWIFTLINT": "$(rlocationpath @swiftlint_darwin//:swiftlint)",
 }
 
 _DATA = [
     "@buildifier_darwin_arm64//file",
     "@clang_format_darwin_arm64//file",
+    "@swiftformat_darwin//:swiftformat",
     "@swiftlint_darwin//:swiftlint",
 ]
 

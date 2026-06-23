@@ -40,26 +40,27 @@ public enum BuildSystemDetector {
     ) async throws -> (any BuildSystem)? {
         // An explicit override wins over auto-detection and never falls through
         // to the other systems.
-        if let buildSystem = buildSystem {
+        if let buildSystem {
             return try await forced(
-                buildSystem, for: sourceFile, projectRoot: projectRoot, scheme: scheme)
+                buildSystem, for: sourceFile, projectRoot: projectRoot, scheme: scheme
+            )
         }
         // If an explicit project root is provided, detect which build system applies there
-        if let projectRoot = projectRoot {
+        if let projectRoot {
             let fm = FileManager.default
             var isDir: ObjCBool = false
             if fm.fileExists(
                 atPath: projectRoot.appendingPathComponent("Package.swift").path,
-                isDirectory: &isDir), !isDir.boolValue
-            {
+                isDirectory: &isDir
+            ), !isDir.boolValue {
                 return SPMBuildSystem(projectRoot: projectRoot, sourceFile: sourceFile)
             }
             for marker in BazelBuildSystem.projectMarkers {
                 isDir = false
                 if fm.fileExists(
                     atPath: projectRoot.appendingPathComponent(marker).path,
-                    isDirectory: &isDir), !isDir.boolValue
-                {
+                    isDirectory: &isDir
+                ), !isDir.boolValue {
                     return BazelBuildSystem(projectRoot: projectRoot, sourceFile: sourceFile)
                 }
             }
@@ -69,7 +70,8 @@ public enum BuildSystemDetector {
                     projectRoot: projectRoot,
                     sourceFile: sourceFile,
                     projectFile: projectFile,
-                    requestedScheme: scheme)
+                    requestedScheme: scheme
+                )
             }
             return nil
         }
@@ -100,29 +102,31 @@ public enum BuildSystemDetector {
     ) async throws -> (any BuildSystem)? {
         switch kind {
         case .spm:
-            guard let projectRoot = projectRoot else {
+            guard let projectRoot else {
                 return try await SPMBuildSystem.detect(for: sourceFile)
             }
             return SPMBuildSystem(projectRoot: projectRoot, sourceFile: sourceFile)
         case .bazel:
-            guard let projectRoot = projectRoot else {
+            guard let projectRoot else {
                 return try await BazelBuildSystem.detect(for: sourceFile)
             }
             return BazelBuildSystem(projectRoot: projectRoot, sourceFile: sourceFile)
         case .xcode:
-            guard let projectRoot = projectRoot else {
+            guard let projectRoot else {
                 return try await XcodeBuildSystem.detect(for: sourceFile, scheme: scheme)
             }
             guard let projectFile = XcodeBuildSystem.findXcodeProject(in: projectRoot) else {
                 throw BuildSystemError.buildSystemUnavailable(
                     kind: kind.rawValue,
-                    reason: "no .xcodeproj or .xcworkspace found in \(projectRoot.path)")
+                    reason: "no .xcodeproj or .xcworkspace found in \(projectRoot.path)"
+                )
             }
             return XcodeBuildSystem(
                 projectRoot: projectRoot,
                 sourceFile: sourceFile,
                 projectFile: projectFile,
-                requestedScheme: scheme)
+                requestedScheme: scheme
+            )
         }
     }
 }
@@ -138,20 +142,18 @@ public enum BuildSystemError: Error, LocalizedError {
 
     public var errorDescription: String? {
         switch self {
-        case .buildFailed(let stderr, let exitCode):
-            return "Project build failed (exit code \(exitCode)):\n\(stderr)"
-        case .targetNotFound(let file, let project):
-            return "Could not determine which target contains \(file) in \(project)"
-        case .missingArtifacts(let msg):
-            return "Build artifacts not found: \(msg)"
-        case .ambiguousTarget(let file, let candidates):
-            return
-                "Multiple schemes found for \(file) and none matched the source file's directory. Pass the `scheme` parameter to pick one. Available schemes: \(candidates.joined(separator: ", "))"
-        case .unknownScheme(let requested, let candidates):
-            return
-                "Scheme '\(requested)' not found in project. Available schemes: \(candidates.joined(separator: ", "))"
-        case .buildSystemUnavailable(let kind, let reason):
-            return "Requested build system '\(kind)' is unavailable: \(reason)"
+        case let .buildFailed(stderr, exitCode):
+            "Project build failed (exit code \(exitCode)):\n\(stderr)"
+        case let .targetNotFound(file, project):
+            "Could not determine which target contains \(file) in \(project)"
+        case let .missingArtifacts(msg):
+            "Build artifacts not found: \(msg)"
+        case let .ambiguousTarget(file, candidates):
+            "Multiple schemes found for \(file) and none matched the source file's directory. Pass the `scheme` parameter to pick one. Available schemes: \(candidates.joined(separator: ", "))"
+        case let .unknownScheme(requested, candidates):
+            "Scheme '\(requested)' not found in project. Available schemes: \(candidates.joined(separator: ", "))"
+        case let .buildSystemUnavailable(kind, reason):
+            "Requested build system '\(kind)' is unavailable: \(reason)"
         }
     }
 }

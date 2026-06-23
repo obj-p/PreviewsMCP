@@ -1,15 +1,14 @@
 import AppKit
 import Foundation
 import MCP
+import os
 import System
 import Testing
-import os
 
 /// Manages a `previewsmcp serve` subprocess with an MCP Client connected via stdio pipes.
 /// Thread safety: instances are only used within serialized test suites — never shared across
 /// isolation boundaries.
 final class MCPTestServer: @unchecked Sendable {
-
     // MARK: - Paths
 
     static let repoRoot: URL = {
@@ -17,9 +16,9 @@ final class MCPTestServer: @unchecked Sendable {
             return URL(fileURLWithPath: root, isDirectory: true)
         }
         return URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()  // MCPIntegrationTests/
-            .deletingLastPathComponent()  // Tests/
-            .deletingLastPathComponent()  // repo root
+            .deletingLastPathComponent() // MCPIntegrationTests/
+            .deletingLastPathComponent() // Tests/
+            .deletingLastPathComponent() // repo root
     }()
 
     static let binaryPath: String = {
@@ -228,7 +227,7 @@ final class MCPTestServer: @unchecked Sendable {
             // sometimes ignores SIGTERM, wedging the test for 1200 s. After
             // 5 s, escalate to SIGKILL so cleanup can finish in seconds.
             let deadline = ContinuousClock.now + .seconds(5)
-            while process.isRunning && ContinuousClock.now < deadline {
+            while process.isRunning, ContinuousClock.now < deadline {
                 Thread.sleep(forTimeInterval: 0.05)
             }
             if process.isRunning {
@@ -243,7 +242,7 @@ final class MCPTestServer: @unchecked Sendable {
             trace("process not running")
         }
         let semaphore = DispatchSemaphore(value: 0)
-        let client = self.client
+        let client = client
         trace("client.disconnect (dispatched)")
         Task.detached {
             await client.disconnect()
@@ -327,7 +326,7 @@ final class MCPTestServer: @unchecked Sendable {
     /// Extract all text content from a tool result, joined by newlines.
     static func extractText(from content: [Tool.Content]) -> String {
         content.compactMap { item in
-            if case .text(let text) = item { return text }
+            if case let .text(text) = item { return text }
             return nil
         }.joined(separator: "\n")
     }
@@ -346,7 +345,7 @@ final class MCPTestServer: @unchecked Sendable {
     /// Extract image data from a tool result containing an image content item.
     static func extractImageData(from content: [Tool.Content]) throws -> (data: Data, mimeType: String) {
         for item in content {
-            if case .image(let base64, let mimeType, _) = item {
+            if case let .image(base64, mimeType, _) = item {
                 guard let data = Data(base64Encoded: base64) else {
                     throw MCPTestError.invalidBase64
                 }
@@ -408,8 +407,8 @@ final class MCPTestServer: @unchecked Sendable {
     /// Extract all image content items from a tool result.
     static func extractImages(from content: [Tool.Content]) -> [(data: Data, mimeType: String)] {
         content.compactMap { item in
-            if case .image(let base64, let mimeType, _) = item,
-                let data = Data(base64Encoded: base64)
+            if case let .image(base64, mimeType, _) = item,
+               let data = Data(base64Encoded: base64)
             {
                 return (data, mimeType)
             }
@@ -451,20 +450,20 @@ final class MCPTestServer: @unchecked Sendable {
         // daemon's recent activity, not a recursive nest of previous tails.
         let tailLines =
             log
-            .split(separator: "\n", omittingEmptySubsequences: false)
-            .filter { line in
-                !line.contains("[MCPTestServer watchdog")
-                    && !line.hasPrefix("[/watchdog]")
-            }
-            .suffix(5)
-            .joined(separator: "\n")
+                .split(separator: "\n", omittingEmptySubsequences: false)
+                .filter { line in
+                    !line.contains("[MCPTestServer watchdog")
+                        && !line.hasPrefix("[/watchdog]")
+                }
+                .suffix(5)
+                .joined(separator: "\n")
         let tailDescription = tailLines.isEmpty ? "(server stderr empty)" : String(tailLines)
         let message = """
-            [MCPTestServer watchdog t=\(elapsedSeconds)s] alive — server stderr tail:
-            \(tailDescription)
-            [/watchdog]
+        [MCPTestServer watchdog t=\(elapsedSeconds)s] alive — server stderr tail:
+        \(tailDescription)
+        [/watchdog]
 
-            """
+        """
         // Write to test-process stderr so a live tail in CI sees it.
         fputs(message, stderr)
         fflush(stderr)
@@ -492,7 +491,8 @@ final class MCPTestServer: @unchecked Sendable {
             try await Task.sleep(for: .milliseconds(100))
         }
         Issue.record(
-            "Stderr did not contain \(needle.debugDescription) within \(timeout). Server stderr:\n\(stderrLog())")
+            "Stderr did not contain \(needle.debugDescription) within \(timeout). Server stderr:\n\(stderrLog())"
+        )
         throw MCPTestError.timedOut(operation: "awaitStderrContains(\(needle.debugDescription))", duration: timeout)
     }
 
@@ -566,7 +566,6 @@ final class MCPTestServer: @unchecked Sendable {
         let resumed = OSAllocatedUnfairLock<Bool>(initialState: false)
         return try await withCheckedThrowingContinuation {
             (continuation: CheckedContinuation<T, Error>) in
-
             // Body path.
             Task {
                 do {
@@ -602,7 +601,6 @@ final class MCPTestServer: @unchecked Sendable {
             }
         }
     }
-
 }
 
 /// Internal sentinel thrown by `MCPTestServer.withTimeout`. Callers catch and
@@ -620,12 +618,12 @@ enum MCPTestError: Error, LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .noSessionID(let text): "No session ID found in: \(text)"
+        case let .noSessionID(text): "No session ID found in: \(text)"
         case .invalidBase64: "Invalid base64 image data"
         case .noImageContent: "No image content in tool result"
         case .noStructuredContent: "No structuredContent in tool result"
-        case .cannotCreateStderrLog(let path): "Could not open stderr log for writing at \(path)"
-        case .timedOut(let operation, let duration): "\(operation) timed out after \(duration)"
+        case let .cannotCreateStderrLog(path): "Could not open stderr log for writing at \(path)"
+        case let .timedOut(operation, duration): "\(operation) timed out after \(duration)"
         case .snapshotFailed: "preview_snapshot returned isError=true"
         }
     }

@@ -1,9 +1,9 @@
 import Foundation
-import Testing
 import os
+import Testing
 
 /// Result of running the CLI binary.
-struct CLIResult: Sendable {
+struct CLIResult {
     let stdout: String
     let stderr: String
     let exitCode: Int32
@@ -11,7 +11,6 @@ struct CLIResult: Sendable {
 
 /// Helper for running the `previewsmcp` CLI binary as a subprocess.
 enum CLIRunner {
-
     // MARK: - Paths
 
     static let repoRoot: URL = {
@@ -19,9 +18,9 @@ enum CLIRunner {
             return URL(fileURLWithPath: root, isDirectory: true)
         }
         return URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()  // CLIIntegrationTests/
-            .deletingLastPathComponent()  // Tests/
-            .deletingLastPathComponent()  // repo root
+            .deletingLastPathComponent() // CLIIntegrationTests/
+            .deletingLastPathComponent() // Tests/
+            .deletingLastPathComponent() // repo root
     }()
 
     static let binaryPath: String = {
@@ -46,11 +45,10 @@ enum CLIRunner {
     /// stderr to this file when launched detached. We can't import PreviewsCLI
     /// from this test target, so the resolution logic is duplicated here.
     static var daemonLogFile: URL {
-        let dir: URL
-        if let override = ProcessInfo.processInfo.environment["PREVIEWSMCP_SOCKET_DIR"] {
-            dir = URL(fileURLWithPath: override, isDirectory: true)
+        let dir: URL = if let override = ProcessInfo.processInfo.environment["PREVIEWSMCP_SOCKET_DIR"] {
+            URL(fileURLWithPath: override, isDirectory: true)
         } else {
-            dir = FileManager.default.homeDirectoryForCurrentUser
+            FileManager.default.homeDirectoryForCurrentUser
                 .appendingPathComponent(".previewsmcp", isDirectory: true)
         }
         return dir.appendingPathComponent("serve.log")
@@ -247,7 +245,6 @@ enum CLIRunner {
         return try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation {
                 (continuation: CheckedContinuation<CLIResult, Error>) in
-
                 // Schedule the timeout. Cancelled when the process exits
                 // normally or when run() throws so it can't fire late.
                 let timeoutTask = Task<Void, Never> {
@@ -256,7 +253,7 @@ enum CLIRunner {
 
                     let pid = state.withLock { s -> pid_t? in
                         switch s {
-                        case .running(let p):
+                        case let .running(p):
                             s = .resumed
                             return p
                         case .notStarted, .resumed:
@@ -285,7 +282,9 @@ enum CLIRunner {
                     )
                     continuation.resume(
                         throwing: CLIRunnerError.timedOut(
-                            label: runLabel, duration: runTimeout))
+                            label: runLabel, duration: runTimeout
+                        )
+                    )
                 }
 
                 process.terminationHandler = { proc in
@@ -308,7 +307,9 @@ enum CLIRunner {
                     continuation.resume(
                         returning: CLIResult(
                             stdout: stdout, stderr: stderr,
-                            exitCode: proc.terminationStatus))
+                            exitCode: proc.terminationStatus
+                        )
+                    )
                 }
 
                 do {
@@ -358,7 +359,7 @@ enum CLIRunner {
             // CancellationError on its own.
             let pid = state.withLock { s -> pid_t? in
                 switch s {
-                case .running(let p):
+                case let .running(p):
                     return p
                 case .notStarted:
                     // Race: cancellation before run() completed. Mark
@@ -387,7 +388,7 @@ enum CLIRunner {
 /// Subprocess lifecycle states for `runProcess`. The state machine ensures
 /// the continuation is resumed exactly once across the four terminal paths
 /// (normal exit, timeout, cancellation, run() throw).
-private enum RunState: Sendable {
+private enum RunState {
     case notStarted
     case running(pid_t)
     case resumed
@@ -399,9 +400,9 @@ enum CLIRunnerError: Error, LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .timedOut(let label, let duration):
+        case let .timedOut(label, duration):
             "CLI invocation '\(label)' timed out after \(duration)"
-        case .cannotCreateStderrLog(let path):
+        case let .cannotCreateStderrLog(path):
             "Could not open stderr log for writing at \(path)"
         }
     }

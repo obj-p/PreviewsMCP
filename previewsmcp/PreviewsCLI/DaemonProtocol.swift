@@ -18,10 +18,9 @@ import PreviewsCore
 /// wire contract is allowed to drift from the in-memory representation
 /// (for example, `active: Bool` is wire-only).
 enum DaemonProtocol {
-
     // MARK: - Shared DTOs
 
-    struct PreviewInfoDTO: Codable, Sendable, Equatable {
+    struct PreviewInfoDTO: Codable, Equatable {
         let index: Int
         let name: String?
         let line: Int
@@ -31,7 +30,7 @@ enum DaemonProtocol {
 
     /// Mirror of `PreviewsCore.PreviewTraits`. All-optional strings so
     /// the JSON object omits unset fields.
-    struct TraitsDTO: Codable, Sendable, Equatable {
+    struct TraitsDTO: Codable, Equatable {
         let colorScheme: String?
         let dynamicTypeSize: String?
         let locale: String?
@@ -39,11 +38,11 @@ enum DaemonProtocol {
         let legibilityWeight: String?
 
         init(from traits: PreviewTraits) {
-            self.colorScheme = traits.colorScheme
-            self.dynamicTypeSize = traits.dynamicTypeSize
-            self.locale = traits.locale
-            self.layoutDirection = traits.layoutDirection
-            self.legibilityWeight = traits.legibilityWeight
+            colorScheme = traits.colorScheme
+            dynamicTypeSize = traits.dynamicTypeSize
+            locale = traits.locale
+            layoutDirection = traits.layoutDirection
+            legibilityWeight = traits.legibilityWeight
         }
 
         /// Returns nil when no trait fields are set, so the enclosing
@@ -56,9 +55,9 @@ enum DaemonProtocol {
 
     // MARK: - Per-tool result payloads
 
-    struct PreviewStartResult: Codable, Sendable, Equatable {
+    struct PreviewStartResult: Codable, Equatable {
         let sessionID: String
-        let platform: String  // "macos" | "ios"
+        let platform: String // "macos" | "ios"
         let sourceFilePath: String
         let deviceUDID: String?
         let pid: Int?
@@ -68,7 +67,7 @@ enum DaemonProtocol {
         let setupWarning: String?
     }
 
-    struct VariantOutcomeDTO: Codable, Sendable, Equatable {
+    struct VariantOutcomeDTO: Codable, Equatable {
         /// "ok" on success, "error" on failure.
         let status: String
         let index: Int
@@ -81,43 +80,43 @@ enum DaemonProtocol {
         let error: String?
     }
 
-    struct VariantsResult: Codable, Sendable, Equatable {
+    struct VariantsResult: Codable, Equatable {
         let variants: [VariantOutcomeDTO]
         let successCount: Int
         let failCount: Int
     }
 
-    struct SwitchResult: Codable, Sendable, Equatable {
+    struct SwitchResult: Codable, Equatable {
         let sessionID: String
         let activeIndex: Int
         let traits: TraitsDTO?
         let previews: [PreviewInfoDTO]
     }
 
-    struct PreviewListResult: Codable, Sendable, Equatable {
+    struct PreviewListResult: Codable, Equatable {
         let file: String
         let previews: [PreviewInfoDTO]
     }
 
-    struct SimulatorDTO: Codable, Sendable, Equatable {
+    struct SimulatorDTO: Codable, Equatable {
         let udid: String
         let name: String
         let runtime: String?
-        let state: String  // "Booted" / "Shutdown" / ...
+        let state: String // "Booted" / "Shutdown" / ...
         let isAvailable: Bool
     }
 
-    struct SimulatorListResult: Codable, Sendable, Equatable {
+    struct SimulatorListResult: Codable, Equatable {
         let simulators: [SimulatorDTO]
     }
 
-    struct SessionDTO: Codable, Sendable, Equatable {
+    struct SessionDTO: Codable, Equatable {
         let sessionID: String
-        let platform: String  // "macos" | "ios"
+        let platform: String // "macos" | "ios"
         let sourceFilePath: String
     }
 
-    struct SessionListResult: Codable, Sendable, Equatable {
+    struct SessionListResult: Codable, Equatable {
         let sessions: [SessionDTO]
     }
 
@@ -128,7 +127,7 @@ enum DaemonProtocol {
     ///
     /// Timestamps are ISO 8601 strings so the JSON is human-inspectable
     /// without timezone ambiguity.
-    struct BuildInfoResult: Codable, Sendable, Equatable {
+    struct BuildInfoResult: Codable, Equatable {
         /// Absolute path of the running binary on disk.
         let binaryPath: String
         /// `stat`-reported mtime of `binaryPath` at handler call time.
@@ -155,10 +154,10 @@ extension DaemonProtocol.PreviewInfoDTO {
     /// Build the wire type from a `PreviewsCore.PreviewInfo` plus the
     /// active index of the containing session.
     init(from previewInfo: PreviewInfo, activeIndex: Int) {
-        self.index = previewInfo.index
-        self.name = previewInfo.name
-        self.line = previewInfo.line
-        self.snippet = previewInfo.snippet
-        self.active = previewInfo.index == activeIndex
+        index = previewInfo.index
+        name = previewInfo.name
+        line = previewInfo.line
+        snippet = previewInfo.snippet
+        active = previewInfo.index == activeIndex
     }
 }

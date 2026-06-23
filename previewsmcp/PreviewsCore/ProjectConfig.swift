@@ -61,7 +61,7 @@ public enum ProjectConfigLoader {
         while dir.path != "/" {
             let configFile = dir.appendingPathComponent(fileName)
             if let data = try? Data(contentsOf: configFile),
-                let config = try? JSONDecoder().decode(ProjectConfig.self, from: data)
+               let config = try? JSONDecoder().decode(ProjectConfig.self, from: data)
             {
                 return Result(config: config, directory: dir)
             }

@@ -35,7 +35,7 @@ public final class JITSession {
             // package directory that shares the binary's name.
             var isDir: ObjCBool = false
             if FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir),
-                !isDir.boolValue
+               !isDir.boolValue
             {
                 return url.path
             }
@@ -71,7 +71,7 @@ public final class JITSession {
         }
         guard
             let path = Bundle.module
-                .url(forResource: "liborc_rt_osx", withExtension: "a")?.path
+            .url(forResource: "liborc_rt_osx", withExtension: "a")?.path
         else {
             throw JITLinkError.failed("orc runtime archive missing from bundle")
         }
@@ -202,8 +202,8 @@ public enum JITLinkError: Error, LocalizedError {
 
     public var errorDescription: String? {
         switch self {
-        case .failed(let message):
-            return "JIT link failed: \(message)"
+        case let .failed(message):
+            "JIT link failed: \(message)"
         }
     }
 }

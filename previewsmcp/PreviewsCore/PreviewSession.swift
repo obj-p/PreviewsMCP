@@ -73,7 +73,9 @@ public actor PreviewSession {
     private var lastJITBuild: JITRenderBuild?
     private var cachedStableModule: (key: [String: Date], module: Compiler.StableModule)?
 
-    public var currentTraits: PreviewTraits { traits }
+    public var currentTraits: PreviewTraits {
+        traits
+    }
 
     public init(
         sourceFile: URL,
@@ -88,7 +90,7 @@ public actor PreviewSession {
         setupSDKPath: String? = nil,
         setupDylibPath: URL? = nil
     ) {
-        self.id = UUID().uuidString
+        id = UUID().uuidString
         self.sourceFile = sourceFile
         self.previewIndex = previewIndex
         self.compiler = compiler
@@ -121,8 +123,8 @@ public actor PreviewSession {
     /// The last window frame the agent recorded for this session, or nil when none was written.
     public nonisolated static func storedWindowFrame(for id: String) -> WindowFrame? {
         guard let data = try? Data(contentsOf: frameSidecarPath(for: id)),
-            let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Double],
-            let x = obj["x"], let y = obj["y"], let width = obj["width"], let height = obj["height"]
+              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Double],
+              let x = obj["x"], let y = obj["y"], let width = obj["width"], let height = obj["height"]
         else { return nil }
         return WindowFrame(x: x, y: y, width: width, height: height)
     }
@@ -160,7 +162,7 @@ public actor PreviewSession {
 
         let hasSetup =
             splitContext != nil
-            && BridgeGenerator.isUsableSetup(module: setupModule, type: setupType)
+                && BridgeGenerator.isUsableSetup(module: setupModule, type: setupType)
 
         var stable: Compiler.StableModule?
         if let (ctx, bulk) = splitContext {
@@ -168,7 +170,8 @@ public actor PreviewSession {
             stable = try await stableModuleIfLeaf(for: bulk, context: ctx)
             Log.info(
                 "jit_latency: stable-module \(stable == nil ? "non-leaf" : "leaf") "
-                    + "\(Log.millis(mark, ContinuousClock.now))ms")
+                    + "\(Log.millis(mark, ContinuousClock.now))ms"
+            )
         }
 
         let generated = BridgeGenerator.generateCombinedSource(
@@ -228,7 +231,8 @@ public actor PreviewSession {
                     overrideSDK: setupSDKPath
                 )
                 Log.info(
-                    "jit_latency: incremental-compile \(Log.millis(mark, ContinuousClock.now))ms")
+                    "jit_latency: incremental-compile \(Log.millis(mark, ContinuousClock.now))ms"
+                )
                 supportObjectPaths = built.bulkObjects
                 objectPath = try Self.uniqueObjectCopy(of: built.overlayObject)
                 requiresFreshAgent = true
@@ -275,7 +279,7 @@ public actor PreviewSession {
             if flag == "-L", index + 1 < flags.count {
                 searchDirs.append(URL(fileURLWithPath: flags[index + 1]))
                 index += 2
-            } else if flag.hasPrefix("-l") && flag.count > 2 {
+            } else if flag.hasPrefix("-l"), flag.count > 2 {
                 names.append(String(flag.dropFirst(2)))
                 index += 1
             } else {
@@ -397,7 +401,7 @@ public actor PreviewSession {
         guard let build = lastJITBuild else { return nil }
         var dict =
             (try? JSONSerialization.jsonObject(with: Data(contentsOf: build.valuesPath))
-                as? [String: Any]) ?? [:]
+                    as? [String: Any]) ?? [:]
         for change in changes {
             dict[change.id] = Self.anyValue(change.newValue)
         }
@@ -417,10 +421,10 @@ public actor PreviewSession {
 
     private static func anyValue(_ value: LiteralValue) -> Any {
         switch value {
-        case .string(let s): return s
-        case .integer(let n): return n
-        case .float(let d): return d
-        case .boolean(let b): return b
+        case let .string(s): s
+        case let .integer(n): n
+        case let .float(d): d
+        case let .boolean(b): b
         }
     }
 
@@ -433,7 +437,7 @@ public actor PreviewSession {
         guard let oldSource = lastOriginalSource else { return nil }
 
         switch LiteralDiffer.diff(old: oldSource, new: newSource) {
-        case .literalOnly(let changes):
+        case let .literalOnly(changes):
             lastOriginalSource = newSource
             return changes
         case .structural:
@@ -470,7 +474,7 @@ public actor PreviewSession {
     public func setTraitsForJIT(
         _ newTraits: PreviewTraits, window: JITRenderWindow? = nil
     ) async throws -> JITRenderBuild {
-        self.traits = newTraits
+        traits = newTraits
         return try await compileObjectForJIT(window: window)
     }
 
@@ -489,10 +493,10 @@ public actor PreviewSession {
 
     /// FNV-1a hash producing a stable, deterministic value across processes.
     static func stableHash(_ string: String) -> UInt64 {
-        var hash: UInt64 = 0xcbf2_9ce4_8422_2325  // FNV offset basis
+        var hash: UInt64 = 0xCBF2_9CE4_8422_2325 // FNV offset basis
         for byte in string.utf8 {
             hash ^= UInt64(byte)
-            hash &*= 0x0000_0100_0000_01B3  // FNV prime
+            hash &*= 0x0000_0100_0000_01B3 // FNV prime
         }
         return hash
     }
@@ -503,10 +507,12 @@ public enum PreviewSessionError: Error, LocalizedError, CustomStringConvertible 
 
     public var description: String {
         switch self {
-        case .previewNotFound(let index, let available):
-            return "Preview index \(index) not found. File has \(available) preview(s)."
+        case let .previewNotFound(index, available):
+            "Preview index \(index) not found. File has \(available) preview(s)."
         }
     }
 
-    public var errorDescription: String? { description }
+    public var errorDescription: String? {
+        description
+    }
 }
