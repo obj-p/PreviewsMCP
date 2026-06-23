@@ -481,7 +481,8 @@ previewsmcp_jit_remote_session_create(previewsmcp_jit_session **out_session,
     return strdup(("posix_spawn failed: " + std::string(strerror(rc))).c_str());
   }
 
-  return createRemoteSessionFromFDs(out_session, sv[0], sv[0], orc_rt_path, pid);
+  return createRemoteSessionFromFDs(out_session, sv[0], sv[0], orc_rt_path,
+                                    pid);
 }
 
 const char *previewsmcp_jit_remote_session_create_from_fd(

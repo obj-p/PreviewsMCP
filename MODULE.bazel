@@ -8,8 +8,10 @@ bazel_dep(name = "rules_apple", version = "4.4.0")
 bazel_dep(name = "platforms", version = "0.0.11")
 bazel_dep(name = "rules_swift", version = "3.5.0")
 bazel_dep(name = "rules_cc", version = "0.2.17")
+bazel_dep(name = "rules_shell", version = "0.6.1")
 bazel_dep(name = "rules_foreign_cc", version = "0.15.1")
 bazel_dep(name = "rules_swift_package_manager", version = "1.19.0")
+
 bazel_dep(name = "rules_xcodeproj", version = "4.1.0", dev_dependency = True)
 
 swift_deps = use_extension(
@@ -21,6 +23,34 @@ swift_deps.from_package(
     swift = "//:Package.swift",
 )
 use_repo(swift_deps, "swift_package", "swiftpkg_swift_argument_parser", "swiftpkg_swift_sdk", "swiftpkg_swift_syntax")
+
+# Hermetic lint/format tools (pinned, not host PATH). See //tools/lint.
+http_file = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_file")
+
+http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+
+http_file(
+    name = "buildifier_darwin_arm64",
+    downloaded_file_path = "buildifier",
+    executable = True,
+    sha256 = "62836a9667fa0db309b0d91e840f0a3f2813a9c8ea3e44b9cd58187c90bc88ba",
+    urls = ["https://github.com/bazelbuild/buildtools/releases/download/v8.5.1/buildifier-darwin-arm64"],
+)
+
+http_file(
+    name = "clang_format_darwin_arm64",
+    downloaded_file_path = "clang-format",
+    executable = True,
+    sha256 = "a1ebd27cc688f22848d2affa8ea61b16ddf46141997d4104a65f23d95d658e91",
+    urls = ["https://github.com/muttleyxd/clang-tools-static-binaries/releases/download/master-796e77c/clang-format-19_macos-arm-arm64"],
+)
+
+http_archive(
+    name = "swiftlint_darwin",
+    build_file_content = 'exports_files(["swiftlint"])',
+    sha256 = "fb045e85e7cb3374f42a4840b6b85a0106302afa69035c0c6f29af4a44c810b6",
+    urls = ["https://github.com/realm/SwiftLint/releases/download/0.63.3/portable_swiftlint.zip"],
+)
 
 llvm_repository = use_repo_rule("//bazel:llvm.bzl", "llvm_repository")
 

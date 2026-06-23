@@ -275,13 +275,13 @@ static id _defaultDeviceSet(NSError **error) {
     if (env)
       options[@"environment"] = env;
 
-    int pid = [(id<_SimDevice>)_simDevice spawnWithPath:path
-                                                options:options
-                                       terminationQueue:
-                                           dispatch_get_global_queue(
-                                               QOS_CLASS_USER_INITIATED, 0)
-                                     terminationHandler:handler
-                                                  error:error];
+    int pid = [(id<_SimDevice>)_simDevice
+             spawnWithPath:path
+                   options:options
+          terminationQueue:dispatch_get_global_queue(QOS_CLASS_USER_INITIATED,
+                                                     0)
+        terminationHandler:handler
+                     error:error];
     return (NSInteger)pid;
   } @catch (NSException *exception) {
     if (error) {

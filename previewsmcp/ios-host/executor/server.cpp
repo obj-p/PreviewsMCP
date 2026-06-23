@@ -221,7 +221,8 @@ int previewsmcp_ios_executor_start(int in_fd, int out_fd) {
             std::make_unique<SimpleRemoteEPCServer::ThreadDispatcher>());
         S.bootstrapSymbols() = SimpleRemoteEPCServer::defaultBootstrapSymbols();
         S.bootstrapSymbols()["__previewsmcp_register_conformances"] =
-            llvm::orc::ExecutorAddr::fromPtr(&previewsmcp_register_conformances);
+            llvm::orc::ExecutorAddr::fromPtr(
+                &previewsmcp_register_conformances);
         S.bootstrapSymbols()["__previewsmcp_register_types"] =
             llvm::orc::ExecutorAddr::fromPtr(&previewsmcp_register_types);
         S.bootstrapSymbols()["__previewsmcp_write_pointers"] =
@@ -241,7 +242,8 @@ int previewsmcp_ios_executor_start(int in_fd, int out_fd) {
         S.services().push_back(
             std::make_unique<rt_bootstrap::SimpleExecutorMemoryManager>());
         S.services().push_back(
-            std::make_unique<rt_bootstrap::ExecutorSharedMemoryMapperService>());
+            std::make_unique<
+                rt_bootstrap::ExecutorSharedMemoryMapperService>());
         return Error::success();
       },
       in_fd, out_fd);

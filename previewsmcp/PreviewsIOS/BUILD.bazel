@@ -6,7 +6,10 @@ swift_library(
         "//bazel/embed:ios_host_app_source",
         "//bazel/shims:bundle_module_stub.swift",
     ],
-    copts = ["-swift-version", "6"],
+    copts = [
+        "-swift-version",
+        "6",
+    ],
     data = ["//:iossim_orc_simbuilt"],
     module_name = "PreviewsIOS",
     visibility = ["//visibility:public"],

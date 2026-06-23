@@ -32,7 +32,11 @@ cmake(
     install = False,
     lib_source = "@llvm_src//:all",
     out_shared_libs = ["libLLVM.dylib"],
-    targets = ["LLVM", "llvm-config", "install-distribution"],
+    targets = [
+        "LLVM",
+        "llvm-config",
+        "install-distribution",
+    ],
     visibility = ["//visibility:public"],
     working_directory = "llvm",
 )
@@ -188,6 +192,7 @@ ios_sim_build(
 cc_object(
     name = "ios_server_object",
     srcs = ["previewsmcp/ios-host/executor/server.cpp"],
+    out = "server.o",
     hdrs = ["previewsmcp/ios-host/executor/server.h"],
     copts = [
         "-std=c++17",
@@ -195,7 +200,6 @@ cc_object(
         "-O2",
     ],
     llvm_headers = ["//:llvm"],
-    out = "server.o",
     visibility = ["//visibility:public"],
 )
 
@@ -249,18 +253,17 @@ xcodeproj(
         xcschemes.scheme(
             name = "previewsmcp",
             run = xcschemes.run(
+                env = _RUNFILES_ENV,
                 launch_target = xcschemes.launch_target(
                     "//previewsmcp/cli:previewsmcp",
                     pre_actions = [
                         xcschemes.pre_post_actions.launch_script(
-                            title = "Stage previewsmcp runfiles",
                             script_text = _STAGE_RUNFILES,
+                            title = "Stage previewsmcp runfiles",
                         ),
                     ],
                 ),
-                env = _RUNFILES_ENV,
             ),
         ),
     ],
 )
-

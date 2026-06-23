@@ -9,7 +9,10 @@ swift_test(
         # fixtures are relocated through runfiles.
         exclude = ["ListToolsSnapshotTests.swift"],
     ),
-    copts = ["-swift-version", "6"],
+    copts = [
+        "-swift-version",
+        "6",
+    ],
     tags = ["local"],
     visibility = ["//visibility:public"],
     deps = [

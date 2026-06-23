@@ -11,7 +11,10 @@ swift_test(
             "IOSPreviewE2ETests.swift",
         ],
     ),
-    copts = ["-swift-version", "6"],
+    copts = [
+        "-swift-version",
+        "6",
+    ],
     data = [
         "//:orc_rt_archive",
         "//previewsmcp/PreviewAgent",
@@ -34,7 +37,10 @@ swift_test(
 swift_test(
     name = "IOSPreviewE2ETests",
     srcs = ["IOSPreviewE2ETests.swift"],
-    copts = ["-swift-version", "6"],
+    copts = [
+        "-swift-version",
+        "6",
+    ],
     data = [
         "//:ios_jit_resources",
         "//:orc_rt_archive",
