@@ -67,6 +67,20 @@ struct IOSAppServerTests {
             sample.range(of: Data([0xFF, 0xD8, 0xFF])) != nil,
             "stream should carry a real JPEG frame")
 
+        // H.264: /stream.avcc serves the avcC description (0x01) and an IDR
+        // keyframe (0x02). The encoder produces frames on screen change and
+        // arms a keyframe on connect, so we drive a scroll once connected.
+        let tags = try await readAVCCTags(port: port, need: [0x01, 0x02], timeout: .seconds(20)) {
+            var drag = URLRequest(url: URL(string: "http://127.0.0.1:\(port)/control")!)
+            drag.httpMethod = "POST"
+            drag.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            drag.httpBody = Data(
+                #"{"action":"drag","fromX":0.5,"fromY":0.3,"toX":0.5,"toY":0.7,"steps":12}"#.utf8)
+            _ = try? await URLSession.shared.data(for: drag)
+        }
+        #expect(tags.contains(0x01), "avcc stream should carry an avcC description")
+        #expect(tags.contains(0x02), "avcc stream should carry an H.264 keyframe")
+
         _ = try await server.callToolResult(
             name: "preview_stop", arguments: ["sessionID": .string(sessionID)])
     }
@@ -89,6 +103,43 @@ private func readStreamSample(port: Int, limit: Int) async throws -> Data {
         if buffer.count >= limit || ContinuousClock.now >= deadline { break }
     }
     return buffer
+}
+
+/// Read the length-prefixed `/stream.avcc` envelope stream and collect the chunk
+/// tags seen. `onConnected` runs once the first byte arrives (the subscriber is
+/// registered by then) to drive a screen change so an IDR is produced. Returns
+/// when every tag in `need` has been seen or `timeout` elapses.
+private func readAVCCTags(
+    port: Int, need: Set<UInt8>, timeout: Duration, onConnected: @escaping () async -> Void
+) async throws -> Set<UInt8> {
+    var request = URLRequest(url: URL(string: "http://127.0.0.1:\(port)/stream.avcc")!)
+    request.timeoutInterval = 25
+    let (bytes, response) = try await URLSession.shared.bytes(for: request)
+    let contentType = (response as? HTTPURLResponse)?.value(forHTTPHeaderField: "Content-Type") ?? ""
+    #expect(contentType.contains("application/octet-stream"), "avcc stream should be octet-stream")
+
+    var buffer = [UInt8]()
+    var offset = 0
+    var seen = Set<UInt8>()
+    var triggered = false
+    let deadline = ContinuousClock.now + timeout
+    for try await byte in bytes {
+        if !triggered {
+            triggered = true
+            await onConnected()
+        }
+        buffer.append(byte)
+        while buffer.count - offset >= 4 {
+            let length =
+                Int(buffer[offset]) << 24 | Int(buffer[offset + 1]) << 16
+                | Int(buffer[offset + 2]) << 8 | Int(buffer[offset + 3])
+            guard buffer.count - offset >= 4 + length else { break }
+            seen.insert(buffer[offset + 4])
+            offset += 4 + length
+        }
+        if need.isSubset(of: seen) || ContinuousClock.now >= deadline { break }
+    }
+    return seen
 }
 
 /// Verifies the PreviewAppServer MJPEG plumbing with a stub frame source. No

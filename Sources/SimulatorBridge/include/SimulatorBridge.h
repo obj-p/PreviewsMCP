@@ -1,4 +1,5 @@
 #import <Foundation/Foundation.h>
+#import <IOSurface/IOSurface.h>
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -91,6 +92,13 @@ typedef NS_ENUM(NSInteger, SBDeviceState) {
 /// meant to back a hot stream. Must be created and used from the same process
 /// that owns the device's display (the daemon that launched the apps).
 @interface SBFramebufferStreamer : NSObject
+
+/// Optional sink invoked on the capture queue with each newly captured
+/// (seed-changed) display surface, alongside the cached JPEG. Used to feed an
+/// H.264 encoder. The surface is valid only for the duration of the call, so a
+/// consumer that encodes asynchronously must copy or retain it synchronously.
+@property(nonatomic, copy, nullable) void (^onFrameSurface)
+    (IOSurfaceRef surface);
 
 /// The most recently encoded frame, or nil before the first frame arrives.
 - (nullable NSData *)latestFrame;

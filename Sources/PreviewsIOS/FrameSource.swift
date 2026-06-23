@@ -1,5 +1,4 @@
 import Foundation
-
 @preconcurrency import SimulatorBridge
 
 /// A source of JPEG frames for the app interface stream. The app interface taps

@@ -108,6 +108,7 @@ public actor IOSPreviewSession {
     /// the device, not the agent process).
     private var appServer: PreviewAppServer?
     private var appFrameSource: EventDrivenFrameSource?
+    private var appVideoStream: AVCCVideoStream?
     public private(set) var appServerPort: UInt16?
 
     /// Serializes the mutating render entry points (`reload`, `handleSourceChange`). The file
@@ -305,13 +306,17 @@ public actor IOSPreviewSession {
             let hidClient = try await simulatorManager.makeHIDClient(udid: deviceUDID)
             let streamer = try await simulatorManager.makeFramebufferStreamer(udid: deviceUDID)
             let frameSource = EventDrivenFrameSource(streamer: streamer)
+            let videoStream = AVCCVideoStream()
+            streamer.onFrameSurface = { surface in videoStream.feed(surface: surface) }
             let server = PreviewAppServer(
                 sink: IndigoHIDInputSink(client: hidClient),
-                frameSource: frameSource
+                frameSource: frameSource,
+                videoStream: videoStream
             )
             appServerPort = try await server.start()
             appServer = server
             appFrameSource = frameSource
+            appVideoStream = videoStream
             stage("app interface on 127.0.0.1:\(appServerPort ?? 0)")
         } catch {
             Log.info("iOS preview: app interface unavailable: \(error)")
@@ -356,6 +361,8 @@ public actor IOSPreviewSession {
         appServer = nil
         appFrameSource?.stop()
         appFrameSource = nil
+        appVideoStream?.stop()
+        appVideoStream = nil
         appServerPort = nil
 
         // Take the render lock so stop wins the respawn race (#257). An iOS

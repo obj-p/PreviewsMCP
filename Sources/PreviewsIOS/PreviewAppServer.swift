@@ -14,6 +14,7 @@ import Network
 public final class PreviewAppServer: @unchecked Sendable {
     private let sink: any InputSink
     private let frameSource: (any FrameSource)?
+    private let videoStream: AVCCVideoStream?
     private let streamIntervalMS: UInt64
     private let queue = DispatchQueue(label: "com.previewsmcp.app-server")
     private var listener: NWListener?
@@ -23,10 +24,12 @@ public final class PreviewAppServer: @unchecked Sendable {
     public init(
         sink: any InputSink,
         frameSource: (any FrameSource)? = nil,
+        videoStream: AVCCVideoStream? = nil,
         streamIntervalMS: UInt64 = 80
     ) {
         self.sink = sink
         self.frameSource = frameSource
+        self.videoStream = videoStream
         self.streamIntervalMS = streamIntervalMS
     }
 
@@ -127,6 +130,12 @@ public final class PreviewAppServer: @unchecked Sendable {
                 } else {
                     self.respond(connection, status: "503 Service Unavailable")
                 }
+            case ("GET", "/stream.avcc"):
+                if let video = self.videoStream {
+                    self.streamAVCC(connection, video: video)
+                } else {
+                    self.respond(connection, status: "503 Service Unavailable")
+                }
             case ("POST", "/control"):
                 let contentLength = Self.contentLength(header)
                 let body = buffer[headerRange.upperBound...]
@@ -207,6 +216,39 @@ public final class PreviewAppServer: @unchecked Sendable {
                     try await Task.sleep(for: .milliseconds(intervalMS))
                 }
             } catch {
+                connection.cancel()
+            }
+        }
+        queue.async { self.streamTasks[ObjectIdentifier(connection)] = task }
+    }
+
+    // MARK: - H.264 (avcC) stream
+
+    private func streamAVCC(_ connection: NWConnection, video: AVCCVideoStream) {
+        let task = Task { [weak self] in
+            guard let self else { return }
+            let id = ObjectIdentifier(connection)
+            let head =
+                "HTTP/1.1 200 OK\r\n"
+                + "Content-Type: application/octet-stream\r\n"
+                + "Cache-Control: no-cache, no-store\r\n"
+                + "Connection: close\r\nAccess-Control-Allow-Origin: *\r\n\r\n"
+            do {
+                try await self.send(connection, Data(head.utf8))
+                if let seed = await self.frameSource?.nextFrame() {
+                    try await self.send(connection, AVCCEnvelope.seed(jpeg: seed))
+                }
+                video.addSubscriber(id) { data in
+                    connection.send(content: data, completion: .contentProcessed { _ in })
+                }
+                // Encoded chunks arrive via the subscriber sink; hold the
+                // connection open until it is cancelled on close (or teardown).
+                while true {
+                    try Task.checkCancellation()
+                    try await Task.sleep(for: .seconds(30))
+                }
+            } catch {
+                video.removeSubscriber(id)
                 connection.cancel()
             }
         }

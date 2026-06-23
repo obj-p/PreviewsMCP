@@ -1021,6 +1021,10 @@ static const void *const kFBStreamerQueueKey = &kFBStreamerQueueKey;
   if (w == 0 || h == 0)
     return;
 
+  void (^frameSink)(IOSurfaceRef) = self.onFrameSurface;
+  if (frameSink)
+    frameSink(surface);
+
   IOSurfaceLock(surface, kIOSurfaceLockReadOnly, NULL);
   CIImage *ciImage = [CIImage imageWithIOSurface:surface];
   CGImageRef cgImage = NULL;
