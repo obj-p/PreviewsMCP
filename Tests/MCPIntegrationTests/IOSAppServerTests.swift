@@ -172,4 +172,21 @@ struct PreviewAppServerStreamTests {
         let sample = try await readStreamSample(port: Int(port), limit: 256)
         #expect(sample.range(of: jpeg) != nil, "stream should carry the source JPEG bytes")
     }
+
+    @Test("GET / serves the self-contained viewer page")
+    func servesClientPage() async throws {
+        let appServer = PreviewAppServer(sink: NoopInputSink())
+        let port = try await appServer.start()
+        defer { appServer.stop() }
+
+        let (data, response) = try await URLSession.shared.data(
+            from: URL(string: "http://127.0.0.1:\(port)/")!)
+        let http = response as? HTTPURLResponse
+        #expect(http?.statusCode == 200)
+        #expect(http?.value(forHTTPHeaderField: "Content-Type")?.contains("text/html") == true)
+        let html = String(decoding: data, as: UTF8.self)
+        #expect(html.contains("/stream.avcc"), "page should wire the avcc stream")
+        #expect(html.contains("VideoDecoder"), "page should use WebCodecs")
+        #expect(html.contains("/stream.mjpeg"), "page should keep the MJPEG fallback")
+    }
 }

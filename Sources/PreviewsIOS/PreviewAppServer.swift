@@ -124,6 +124,8 @@ public final class PreviewAppServer: @unchecked Sendable {
             let (method, path) = Self.requestLine(header)
 
             switch (method, path) {
+            case ("GET", "/"), ("GET", "/index.html"):
+                self.respondHTML(connection, Self.clientHTML)
             case ("GET", "/stream.mjpeg"):
                 if let source = self.frameSource {
                     self.stream(connection, source: source)
@@ -185,6 +187,22 @@ public final class PreviewAppServer: @unchecked Sendable {
 
     private func respond(_ connection: NWConnection, status: String) {
         let response = Data("HTTP/1.1 \(status)\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".utf8)
+        connection.send(
+            content: response,
+            completion: .contentProcessed { _ in connection.cancel() })
+    }
+
+    /// The self-contained viewer page served at `GET /`: it decodes
+    /// `/stream.avcc` via WebCodecs (MJPEG fallback) and forwards pointer input
+    /// to `/control`, all same-origin on this loopback port.
+    static let clientHTML = Data(PackageResources.client_html)
+
+    private func respondHTML(_ connection: NWConnection, _ html: Data) {
+        let header =
+            "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\n"
+            + "Content-Length: \(html.count)\r\nConnection: close\r\n\r\n"
+        var response = Data(header.utf8)
+        response.append(html)
         connection.send(
             content: response,
             completion: .contentProcessed { _ in connection.cancel() })
