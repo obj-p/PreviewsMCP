@@ -3,5 +3,6 @@ build --macos_minimum_os=14.0
 build --ios_minimum_os=14.0
 build --verbose_failures
 build --workspace_status_command=bazel/workspace_status.sh
+build --disk_cache=~/.cache/bazel-disk
 
 test --test_env=PREVIEWSMCP_REPO_ROOT
