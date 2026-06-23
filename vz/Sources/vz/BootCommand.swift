@@ -35,7 +35,8 @@ struct BootCommand: AsyncParsableCommand {
 
     @Flag(
         name: .customLong("with-display"),
-        help: "Boot via FirstBootHost (hidden NSWindow + VZVirtualMachineView). Required for Setup-Assistant-pending bundles; implies --skip-ssh-wait."
+        help:
+            "Boot via FirstBootHost (hidden NSWindow + VZVirtualMachineView). Required for Setup-Assistant-pending bundles; implies --skip-ssh-wait."
     )
     var withDisplay: Bool = false
 
@@ -46,6 +47,11 @@ struct BootCommand: AsyncParsableCommand {
 
     @Flag(name: .customLong("dir-read-only"), help: "Mount the --dir share read-only.")
     var dirReadOnly: Bool = false
+
+    @Option(
+        name: .long,
+        help: "Guest path to mount --dir at (default: /Users/<user>/<basename>).")
+    var mountAt: String?
 
     func run() async throws {
         let bundle = try bundle.load()
@@ -78,7 +84,8 @@ struct BootCommand: AsyncParsableCommand {
             try await VMSSH.waitForReady(endpoint: endpoint, timeout: sshTimeout)
             Log.info("SSH ready")
             if let dir {
-                let guestPath = "/Users/\(bundle.config.sshUsername)/\(URL(filePath: dir).lastPathComponent)"
+                let guestPath =
+                    mountAt ?? "/Users/\(bundle.config.sshUsername)/\(URL(filePath: dir).lastPathComponent)"
                 Log.info("mounting \(dir) at \(guestPath)")
                 try await VMSSH.mountShare(
                     endpoint: endpoint, tag: VMConfiguration.directoryShareTag, guestPath: guestPath)
@@ -124,7 +131,9 @@ struct BootCommand: AsyncParsableCommand {
             try await host.waitForStop(timeout: gracefulBudget)
             Log.info("first-boot VM stopped cleanly")
         } catch {
-            Log.info("guest didn't respond to graceful shutdown in \(Int(gracefulBudget))s (expected for Setup-Assistant-pending bundles); force-stopping")
+            Log.info(
+                "guest didn't respond to graceful shutdown in \(Int(gracefulBudget))s (expected for Setup-Assistant-pending bundles); force-stopping"
+            )
             do {
                 try await host.forceStop()
             } catch {
@@ -138,18 +147,18 @@ struct BootCommand: AsyncParsableCommand {
     private func printFirstBootBanner(bundle: VMBundle) {
         let banner = """
 
-        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-          vz — first-boot (hidden display) running
-            \(bundle.url.path)
+            ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+              vz — first-boot (hidden display) running
+                \(bundle.url.path)
 
-          The VM is booting with a VZVirtualMachineView attached to a
-          hidden NSWindow at (-10000, -10000). Setup Assistant is
-          running in the off-screen framebuffer. Phase 11b will drive
-          it via scripted NSEvent.postEvent keystrokes; for now, ^C
-          stops the VM.
-        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+              The VM is booting with a VZVirtualMachineView attached to a
+              hidden NSWindow at (-10000, -10000). Setup Assistant is
+              running in the off-screen framebuffer. Phase 11b will drive
+              it via scripted NSEvent.postEvent keystrokes; for now, ^C
+              stops the VM.
+            ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-        """
+            """
         FileHandle.standardError.write(Data(banner.utf8))
     }
 
@@ -172,20 +181,20 @@ struct BootCommand: AsyncParsableCommand {
         let shareLine = mountedAt.map { "\n  shared dir mounted at \($0)\n" } ?? ""
         let banner = """
 
-        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-          vz — VM up at \(ip)
-        \(shareLine)
-          From another shell:
-            vz ssh \(bundle.url.path) -- <cmd>
-            vz stop \(bundle.url.path)
+            ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+              vz — VM up at \(ip)
+            \(shareLine)
+              From another shell:
+                vz ssh \(bundle.url.path) -- <cmd>
+                vz stop \(bundle.url.path)
 
-          Or directly:
-            ssh -i \(key) -o UserKnownHostsFile=\(known) \(user)@\(ip)
+              Or directly:
+                ssh -i \(key) -o UserKnownHostsFile=\(known) \(user)@\(ip)
 
-          ^C in this shell to stop. PID file: \(bundle.pidFileURL.path)
-        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+              ^C in this shell to stop. PID file: \(bundle.pidFileURL.path)
+            ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-        """
+            """
         FileHandle.standardError.write(Data(banner.utf8))
     }
 }
