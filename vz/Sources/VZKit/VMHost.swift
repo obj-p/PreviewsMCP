@@ -12,9 +12,9 @@ public final class VMHost {
     public let bundle: VMBundle
     public let machine: VZVirtualMachine
 
-    public init(bundle: VMBundle) throws {
+    public init(bundle: VMBundle, share: VMConfiguration.DirectoryShare? = nil) throws {
         self.bundle = bundle
-        let config = try VMConfiguration.build(bundle: bundle)
+        let config = try VMConfiguration.build(bundle: bundle, share: share)
         self.machine = VZVirtualMachine(configuration: config)
     }
 

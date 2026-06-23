@@ -10,8 +10,22 @@ import Virtualization
 /// to the main actor so Swift 6's strict-concurrency checker can see
 /// the boundary.
 public enum VMConfiguration {
+    public struct DirectoryShare: Sendable {
+        public let hostURL: URL
+        public let readOnly: Bool
+
+        public init(hostURL: URL, readOnly: Bool) {
+            self.hostURL = hostURL
+            self.readOnly = readOnly
+        }
+    }
+
+    public static let directoryShareTag = "vzshare"
+
     @MainActor
-    public static func build(bundle: VMBundle) throws -> VZVirtualMachineConfiguration {
+    public static func build(bundle: VMBundle, share: DirectoryShare? = nil) throws
+        -> VZVirtualMachineConfiguration
+    {
         try bundle.requireRunnable()
 
         let config = VZVirtualMachineConfiguration()
@@ -23,6 +37,9 @@ public enum VMConfiguration {
         config.networkDevices = [try makeNetwork(bundle: bundle)]
         config.entropyDevices = [VZVirtioEntropyDeviceConfiguration()]
         config.memoryBalloonDevices = [VZVirtioTraditionalMemoryBalloonDeviceConfiguration()]
+        if let share {
+            config.directorySharingDevices = [makeDirectoryShare(share)]
+        }
 
         // Graphics + keyboard + pointing devices are required even for
         // headless operation. Apple's "Install macOS in a VM" sample
@@ -48,6 +65,15 @@ public enum VMConfiguration {
             throw VMError("VZ configuration failed validation", underlying: error)
         }
         return config
+    }
+
+    private static func makeDirectoryShare(_ share: DirectoryShare)
+        -> VZVirtioFileSystemDeviceConfiguration
+    {
+        let device = VZVirtioFileSystemDeviceConfiguration(tag: directoryShareTag)
+        device.share = VZSingleDirectoryShare(
+            directory: VZSharedDirectory(url: share.hostURL, readOnly: share.readOnly))
+        return device
     }
 
     @MainActor

@@ -81,6 +81,24 @@ public enum VMSSH {
         return p.terminationStatus
     }
 
+    /// Mount a virtiofs share (tag) at `guestPath` in the guest. Uses
+    /// `sudo -n`, so the guest must allow passwordless sudo (devbox does).
+    public static func mountShare(
+        endpoint: Endpoint,
+        tag: String,
+        guestPath: String
+    ) async throws {
+        let result = try await exec(
+            endpoint: endpoint,
+            command: "sudo -n mkdir -p \(guestPath) && sudo -n mount_virtiofs \(tag) \(guestPath)",
+            timeout: 30)
+        guard result.exitCode == 0 else {
+            throw VMError(
+                "mount_virtiofs \(tag) -> \(guestPath) failed (exit \(result.exitCode)): \(result.stderr)"
+            )
+        }
+    }
+
     /// Poll until SSH accepts a connection (`exec true` returns 0).
     public static func waitForReady(
         endpoint: Endpoint,

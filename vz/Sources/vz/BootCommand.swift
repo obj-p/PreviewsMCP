@@ -39,6 +39,14 @@ struct BootCommand: AsyncParsableCommand {
     )
     var withDisplay: Bool = false
 
+    @Option(
+        name: .long,
+        help: "Host directory to share into the guest over virtiofs (mounted after SSH is ready).")
+    var dir: String?
+
+    @Flag(name: .customLong("dir-read-only"), help: "Mount the --dir share read-only.")
+    var dirReadOnly: Bool = false
+
     func run() async throws {
         let bundle = try bundle.load()
         if let existing = VMPidFile.read(bundle), VMPidFile.isAlive(existing) {
@@ -55,21 +63,30 @@ struct BootCommand: AsyncParsableCommand {
     }
 
     private func runHeadless(bundle: VMBundle) async throws {
-        let host = try await MainActor.run { try VMHost(bundle: bundle) }
+        let share = try dirShare()
+        let host = try await MainActor.run { try VMHost(bundle: bundle, share: share) }
         try await host.start()
         try VMPidFile.write(getpid(), to: bundle)
         defer { VMPidFile.clear(bundle) }
 
         let ip = try await host.waitForIP(timeout: ipTimeout)
 
-        if !skipSSHWait {
+        var mountedAt: String?
+        if !skipSSHWait || dir != nil {
             let endpoint = VMSSH.endpoint(bundle: bundle, host: ip)
             Log.info("waiting for SSH (\(endpoint.user)@\(ip):\(endpoint.port))…")
             try await VMSSH.waitForReady(endpoint: endpoint, timeout: sshTimeout)
             Log.info("SSH ready")
+            if let dir {
+                let guestPath = "/Users/\(bundle.config.sshUsername)/\(URL(filePath: dir).lastPathComponent)"
+                Log.info("mounting \(dir) at \(guestPath)")
+                try await VMSSH.mountShare(
+                    endpoint: endpoint, tag: VMConfiguration.directoryShareTag, guestPath: guestPath)
+                mountedAt = guestPath
+            }
         }
 
-        printConnectionBanner(bundle: bundle, ip: ip)
+        printConnectionBanner(bundle: bundle, ip: ip, mountedAt: mountedAt)
 
         let signal = await SignalWaiter.waitForTerminationSignal()
         Log.info("received signal \(signal); shutting down")
@@ -136,15 +153,28 @@ struct BootCommand: AsyncParsableCommand {
         FileHandle.standardError.write(Data(banner.utf8))
     }
 
-    private func printConnectionBanner(bundle: VMBundle, ip: String) {
+    private func dirShare() throws -> VMConfiguration.DirectoryShare? {
+        guard let dir else { return nil }
+        let url = URL(filePath: dir).absoluteURL
+        var isDir: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir),
+            isDir.boolValue
+        else {
+            throw VMError("--dir is not a directory: \(dir)")
+        }
+        return VMConfiguration.DirectoryShare(hostURL: url, readOnly: dirReadOnly)
+    }
+
+    private func printConnectionBanner(bundle: VMBundle, ip: String, mountedAt: String?) {
         let user = bundle.config.sshUsername
         let key = bundle.sshPrivateKeyURL.path
         let known = bundle.knownHostsURL.path
+        let shareLine = mountedAt.map { "\n  shared dir mounted at \($0)\n" } ?? ""
         let banner = """
 
         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
           vz — VM up at \(ip)
-
+        \(shareLine)
           From another shell:
             vz ssh \(bundle.url.path) -- <cmd>
             vz stop \(bundle.url.path)
