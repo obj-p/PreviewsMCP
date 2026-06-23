@@ -107,6 +107,7 @@ public actor IOSPreviewSession {
     /// captures the display in-process and survives agent respawn (it targets
     /// the device, not the agent process).
     private var appServer: PreviewAppServer?
+    private var appFrameSource: EventDrivenFrameSource?
     public private(set) var appServerPort: UInt16?
 
     /// Serializes the mutating render entry points (`reload`, `handleSourceChange`). The file
@@ -302,12 +303,15 @@ public actor IOSPreviewSession {
 
         do {
             let hidClient = try await simulatorManager.makeHIDClient(udid: deviceUDID)
+            let streamer = try await simulatorManager.makeFramebufferStreamer(udid: deviceUDID)
+            let frameSource = EventDrivenFrameSource(streamer: streamer)
             let server = PreviewAppServer(
                 sink: IndigoHIDInputSink(client: hidClient),
-                frameSource: SimulatorFrameSource(manager: simulatorManager, udid: deviceUDID)
+                frameSource: frameSource
             )
             appServerPort = try await server.start()
             appServer = server
+            appFrameSource = frameSource
             stage("app interface on 127.0.0.1:\(appServerPort ?? 0)")
         } catch {
             Log.info("iOS preview: app interface unavailable: \(error)")
@@ -350,6 +354,8 @@ public actor IOSPreviewSession {
 
         appServer?.stop()
         appServer = nil
+        appFrameSource?.stop()
+        appFrameSource = nil
         appServerPort = nil
 
         // Take the render lock so stop wins the respawn race (#257). An iOS

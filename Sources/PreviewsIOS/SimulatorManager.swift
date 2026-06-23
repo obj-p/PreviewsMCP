@@ -113,6 +113,24 @@ public actor SimulatorManager {
         return client
     }
 
+    /// Create a daemon-side event-driven framebuffer streamer bound to a device.
+    /// Registers screen callbacks to keep the display pipeline wired to us and
+    /// caches the latest frame as it changes — the hot-loop counterpart to the
+    /// one-shot `screenshotData`.
+    public func makeFramebufferStreamer(
+        udid: String, jpegQuality: Double = 0.7
+    ) throws -> SBFramebufferStreamer {
+        try ensureLoaded()
+        var error: NSError?
+        guard let sbDevice = SBFindDeviceByUDID(udid, &error) else {
+            throw SimulatorError.deviceNotFound(error?.localizedDescription ?? "device not found: \(udid)")
+        }
+        guard let streamer = SBCreateFramebufferStreamer(sbDevice, jpegQuality, &error) else {
+            throw SimulatorError.screenshotFailed(error?.localizedDescription ?? "unknown")
+        }
+        return streamer
+    }
+
     // MARK: - Device Operations
 
     /// Boot a simulator device and block until it's fully booted (SpringBoard

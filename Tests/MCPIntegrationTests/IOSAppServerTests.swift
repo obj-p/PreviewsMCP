@@ -92,7 +92,7 @@ private func readStreamSample(port: Int, limit: Int) async throws -> Data {
 }
 
 /// Verifies the PreviewAppServer MJPEG plumbing with a stub frame source. No
-/// simulator: in production the real SimulatorFrameSource runs in the daemon,
+/// simulator: in production the real EventDrivenFrameSource runs in the daemon,
 /// in-process with the session that owns the display.
 @Suite("PreviewAppServer stream")
 struct PreviewAppServerStreamTests {

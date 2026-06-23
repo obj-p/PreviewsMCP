@@ -82,6 +82,34 @@ typedef NS_ENUM(NSInteger, SBDeviceState) {
             steps:(NSInteger)steps;
 @end
 
+/// Daemon-side event-driven framebuffer streamer. Registers screen callbacks on
+/// the device's framebuffer display descriptor(s) — which is what wires the
+/// display pipeline to this client and populates a live `framebufferSurface` —
+/// then encodes a fresh frame only when the surface's IOSurface seed changes,
+/// caching the most recent one. Unlike `SBCaptureFramebuffer` (a one-shot pull
+/// that walks the IO ports on every call), this holds the pipeline open and is
+/// meant to back a hot stream. Must be created and used from the same process
+/// that owns the device's display (the daemon that launched the apps).
+@interface SBFramebufferStreamer : NSObject
+
+/// The most recently encoded frame, or nil before the first frame arrives.
+- (nullable NSData *)latestFrame;
+
+/// Stop streaming and unregister callbacks. Idempotent; also called on dealloc.
+- (void)stop;
+
+@end
+
+/// Create an event-driven framebuffer streamer bound to a booted device. Loads
+/// CoreSimulator on first use. The display pipeline wires up lazily, so
+/// `latestFrame` may return nil for a short while (and indefinitely if no app
+/// has launched a display). Returns nil only if the device IO client is
+/// unavailable.
+/// @param device A booted SBDevice.
+/// @param jpegQuality JPEG quality 0.0–1.0 (values >= 1.0 produce PNG).
+SBFramebufferStreamer *_Nullable SBCreateFramebufferStreamer(
+    SBDevice *device, double jpegQuality, NSError *_Nullable *_Nullable error);
+
 /// Load CoreSimulator.framework at runtime. Safe to call multiple times.
 BOOL SBLoadFramework(NSError *_Nullable *_Nullable error);
 
