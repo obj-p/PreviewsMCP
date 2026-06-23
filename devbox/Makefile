@@ -15,9 +15,12 @@ XIP        := $(or $(XCODE_XIP),$(firstword $(wildcard $(XIP_CACHE)/Xcode*.xip))
 SA_RETRIES ?= 3
 SSH_RETRIES ?= 2
 
-.PHONY: bundle post-toolchain snapshots clean xcode-xip
+.PHONY: bundle post-toolchain snapshots clean xcode-xip dev
 bundle: $(STATE)/post-toolchain
 post-toolchain: $(STATE)/post-toolchain
+
+dev: $(STATE)/vz
+	$(VZ_BIN) run $(CURDIR)/scripts/dev.swift $(BUNDLE) $(WORKTREE)$(if $(CLEAN), --clean,)$(if $(CMD), $(CMD),)
 
 xcode-xip:
 	command -v xcodes >/dev/null || { echo "xcodes not found; run bootstrap (Brewfile)" >&2; exit 1; }

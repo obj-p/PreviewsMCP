@@ -91,17 +91,23 @@ public struct Guest: Sendable {
     public static func session(
         bundle: VMBundle,
         adminPass: String,
+        share: VMConfiguration.DirectoryShare? = nil,
+        mountAt: String? = nil,
         bootTimeout: TimeInterval = 120,
         sshTimeout: TimeInterval = 180,
         stopTimeout: TimeInterval = 120,
         _ body: (Guest) async throws -> Void
     ) async throws {
-        let host = try await MainActor.run { try VMHost(bundle: bundle) }
+        let host = try await MainActor.run { try VMHost(bundle: bundle, share: share) }
         try await host.start()
         let ip = try await host.waitForIP(timeout: bootTimeout)
         let endpoint = VMSSH.endpoint(bundle: bundle, host: ip)
         Log.info("waiting for SSH at \(endpoint.user)@\(ip)")
         try await VMSSH.waitForReady(endpoint: endpoint, timeout: sshTimeout)
+        if let mountAt, share != nil {
+            try await VMSSH.mountShare(
+                endpoint: endpoint, tag: VMConfiguration.directoryShareTag, guestPath: mountAt)
+        }
 
         let guest = Guest(endpoint: endpoint, adminPass: adminPass)
         do {

@@ -62,9 +62,10 @@ public enum VMSSH {
     /// the calling process). Used by `vz ssh` with no `--` command.
     public static func execInteractive(
         endpoint: Endpoint,
-        command: String? = nil
+        command: String? = nil,
+        forceTTY: Bool = false
     ) throws -> Int32 {
-        var args = baseArgs(endpoint: endpoint, allocateTTY: command == nil)
+        var args = baseArgs(endpoint: endpoint, allocateTTY: command == nil || forceTTY)
         args.append("\(endpoint.user)@\(endpoint.host)")
         if let command {
             args.append(command)
