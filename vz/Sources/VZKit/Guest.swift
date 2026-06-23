@@ -105,8 +105,7 @@ public struct Guest: Sendable {
         Log.info("waiting for SSH at \(endpoint.user)@\(ip)")
         try await VMSSH.waitForReady(endpoint: endpoint, timeout: sshTimeout)
         if let mountAt, share != nil {
-            try await VMSSH.mountShare(
-                endpoint: endpoint, tag: VMConfiguration.directoryShareTag, guestPath: mountAt)
+            try await VMSSH.mountShare(endpoint: endpoint, guestPath: mountAt)
         }
 
         let guest = Guest(endpoint: endpoint, adminPass: adminPass)

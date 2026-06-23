@@ -20,7 +20,7 @@ public enum VMConfiguration {
         }
     }
 
-    public static let directoryShareTag = "vzshare"
+    public static let directoryShareTag = VZVirtioFileSystemDeviceConfiguration.macOSGuestAutomountTag
 
     @MainActor
     public static func build(bundle: VMBundle, share: DirectoryShare? = nil) throws

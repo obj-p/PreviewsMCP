@@ -82,20 +82,39 @@ public enum VMSSH {
         return p.terminationStatus
     }
 
-    /// Mount a virtiofs share (tag) at `guestPath` in the guest. Uses
-    /// `sudo -n`, so the guest must allow passwordless sudo (devbox does).
+    /// Expose the virtio-fs share at `guestPath`. A macOS guest only serves
+    /// content through the automount tag, and the system auto-mounts that
+    /// share at `/Volumes/My Shared Files`, so we wait for it to appear and
+    /// symlink `guestPath` to it rather than mounting a second time (which
+    /// fails "Resource busy"). Uses `sudo -n` (passwordless sudo, devbox has it).
     public static func mountShare(
         endpoint: Endpoint,
-        tag: String,
         guestPath: String
     ) async throws {
+        let automount = "/Volumes/My Shared Files"
+        var appeared = false
+        for _ in 0..<15 {
+            let probe = try await exec(
+                endpoint: endpoint, command: "test -d \(Guest.shellQuote(automount))", timeout: 10)
+            if probe.exitCode == 0 {
+                appeared = true
+                break
+            }
+            try await Task.sleep(for: .seconds(2))
+        }
+        guard appeared else {
+            throw VMError("virtio-fs share did not auto-mount at \(automount)")
+        }
+        try await Task.sleep(for: .seconds(2))
         let result = try await exec(
             endpoint: endpoint,
-            command: "sudo -n mkdir -p \(guestPath) && sudo -n mount_virtiofs \(tag) \(guestPath)",
-            timeout: 30)
+            command:
+                "sudo -n rm -rf \(Guest.shellQuote(guestPath)) "
+                + "&& sudo -n ln -sfn \(Guest.shellQuote(automount)) \(Guest.shellQuote(guestPath))",
+            timeout: 15)
         guard result.exitCode == 0 else {
             throw VMError(
-                "mount_virtiofs \(tag) -> \(guestPath) failed (exit \(result.exitCode)): \(result.stderr)"
+                "linking \(guestPath) -> \(automount) failed (exit \(result.exitCode)): \(result.stderr)"
             )
         }
     }

@@ -87,8 +87,7 @@ struct BootCommand: AsyncParsableCommand {
                 let guestPath =
                     mountAt ?? "/Users/\(bundle.config.sshUsername)/\(URL(filePath: dir).lastPathComponent)"
                 Log.info("mounting \(dir) at \(guestPath)")
-                try await VMSSH.mountShare(
-                    endpoint: endpoint, tag: VMConfiguration.directoryShareTag, guestPath: guestPath)
+                try await VMSSH.mountShare(endpoint: endpoint, guestPath: guestPath)
                 mountedAt = guestPath
             }
         }
