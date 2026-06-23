@@ -22,6 +22,7 @@ struct ExamplesSplitE2ETests {
         return URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()  // PreviewsJITLinkTests/
             .deletingLastPathComponent()  // Tests/
+            .deletingLastPathComponent()  // previewsmcp/
             .deletingLastPathComponent()  // repo root
     }()
     static let spmRoot = repoRoot.appendingPathComponent("examples/spm")

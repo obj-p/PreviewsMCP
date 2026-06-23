@@ -21,6 +21,7 @@ struct IOSPreviewE2ETests {
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
+            .deletingLastPathComponent()
     }()
 
     /// Stage 0 (shell-owns-agent): the xcrun-free in-session spawn primitive.
