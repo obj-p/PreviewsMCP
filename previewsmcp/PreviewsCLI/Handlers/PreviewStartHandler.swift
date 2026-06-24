@@ -363,10 +363,13 @@ private func handleIOSPreviewStart(
         setupWarning: nil,
         appServerPort: (await session.appServerPort).map(Int.init)
     )
+    let viewerHint = structured.appServerPort.map {
+        "\nInteractive viewer: http://127.0.0.1:\($0)/ — open it in the in-app browser."
+    } ?? ""
     return try CallTool.Result(
         content: [
             .text(
-                "iOS simulator preview started on device \(deviceUDID). Session ID: \(sessionID). PID: \(pid).\(traitInfo) File is being watched for changes.\n\(previewList)\(switchHint)"
+                "iOS simulator preview started on device \(deviceUDID). Session ID: \(sessionID). PID: \(pid).\(traitInfo) File is being watched for changes.\n\(previewList)\(switchHint)\(viewerHint)"
             ),
         ],
         structuredContent: structured

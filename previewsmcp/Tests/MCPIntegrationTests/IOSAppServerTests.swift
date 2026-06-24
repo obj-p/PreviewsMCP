@@ -54,6 +54,11 @@ struct IOSAppServerTests {
             Issue.record("preview_start did not return an app server port")
             return
         }
+        let resultText = MCPTestServer.extractText(from: startResult.content)
+        #expect(
+            resultText.contains("http://127.0.0.1:\(port)/"),
+            "preview_start result should surface the interactive viewer URL"
+        )
         try await Task.sleep(for: .seconds(3))
 
         // Control: a drag over /control scrolls the list, proving the
