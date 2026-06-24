@@ -25,17 +25,16 @@ if clean {
 let guestMount = "/Users/admin/work"
 let share = VMConfiguration.DirectoryShare(hostURL: shareURL, readOnly: false)
 
+var sessionExit: Int32 = 0
 try await Guest.session(bundle: bundle, adminPass: "vzvz", share: share, mountAt: guestMount) {
     guest in
     let remote =
         command.isEmpty
         ? "cd \(guestMount) && exec $SHELL -l"
         : "cd \(guestMount) && \(command)"
-    let rc = try await Task.detached {
+    sessionExit = try await Task.detached {
         try VMSSH.execInteractive(
             endpoint: guest.endpoint, command: remote, forceTTY: command.isEmpty)
     }.value
-    if rc != 0 {
-        step("session command exited \(rc)")
-    }
 }
+exit(sessionExit)

@@ -19,7 +19,7 @@ SSH_RETRIES ?= 2
 bundle: $(STATE)/post-toolchain
 post-toolchain: $(STATE)/post-toolchain
 
-dev: $(STATE)/vz
+dev: $(STATE)/post-toolchain
 	$(VZ_BIN) run $(CURDIR)/scripts/dev.swift $(BUNDLE) $(WORKTREE)$(if $(CLEAN), --clean,)$(if $(CMD), $(CMD),)
 
 xcode-xip:

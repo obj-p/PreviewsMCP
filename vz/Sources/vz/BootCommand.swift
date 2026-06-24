@@ -62,6 +62,9 @@ struct BootCommand: AsyncParsableCommand {
         }
 
         if withDisplay {
+            if dir != nil {
+                throw ValidationError("--dir is not supported with --with-display (no SSH to mount over)")
+            }
             try await runWithDisplay(bundle: bundle)
         } else {
             try await runHeadless(bundle: bundle)

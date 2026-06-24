@@ -113,6 +113,8 @@ public struct Guest: Sendable {
     ) async throws {
         let host = try await MainActor.run { try VMHost(bundle: bundle, share: share) }
         try await host.start()
+        try VMPidFile.write(getpid(), to: bundle)
+        defer { VMPidFile.clear(bundle) }
         let ip = try await host.waitForIP(timeout: bootTimeout)
         let endpoint = VMSSH.endpoint(bundle: bundle, host: ip)
         Log.info("waiting for SSH at \(endpoint.user)@\(ip)")

@@ -82,11 +82,6 @@ public enum VMSSH {
         return p.terminationStatus
     }
 
-    /// Expose the virtio-fs share at `guestPath`. A macOS guest only serves
-    /// content through the automount tag, and the system auto-mounts that
-    /// share at `/Volumes/My Shared Files`, so we wait for it to appear and
-    /// symlink `guestPath` to it rather than mounting a second time (which
-    /// fails "Resource busy"). Uses `sudo -n` (passwordless sudo, devbox has it).
     public static func mountShare(
         endpoint: Endpoint,
         guestPath: String
@@ -106,11 +101,15 @@ public enum VMSSH {
             throw VMError("virtio-fs share did not auto-mount at \(automount)")
         }
         try await Task.sleep(for: .seconds(2))
+        let path = Guest.shellQuote(guestPath)
+        let target = Guest.shellQuote(automount)
         let result = try await exec(
             endpoint: endpoint,
             command:
-                "sudo -n rm -f \(Guest.shellQuote(guestPath)) "
-                + "&& sudo -n ln -sfn \(Guest.shellQuote(automount)) \(Guest.shellQuote(guestPath))",
+                "sudo -n mkdir -p \"$(dirname \(path))\" "
+                + "&& { [ ! -e \(path) ] || [ -L \(path) ] "
+                + "|| { echo 'mountpoint exists and is not a symlink' >&2; exit 1; }; } "
+                + "&& sudo -n rm -f \(path) && sudo -n ln -sfn \(target) \(path)",
             timeout: 15)
         guard result.exitCode == 0 else {
             throw VMError(
