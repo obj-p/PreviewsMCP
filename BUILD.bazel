@@ -215,8 +215,7 @@ ios_jit_resources(
 
 _STAGE_RUNFILES = """\
 cd "$BUILD_WORKSPACE_DIRECTORY"
-if command -v bazelisk >/dev/null 2>&1; then bz=bazelisk; else bz=bazel; fi
-"$bz" build //previewsmcp/cli:previewsmcp
+bazelisk build //previewsmcp/cli:previewsmcp || bazel build //previewsmcp/cli:previewsmcp
 """
 
 _RUNFILES_ENV = {
