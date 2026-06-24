@@ -1,0 +1,25 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+load("@rules_swift//swift:swift.bzl", "swift_interop_hint")
+
+swift_interop_hint(
+    name = "PreviewsJITLinkCxx_swift_hint",
+    module_name = "PreviewsJITLinkCxx",
+)
+
+cc_library(
+    name = "PreviewsJITLinkCxx",
+    srcs = [
+        "PreviewsJITLinkCxx.cpp",
+        "SwiftEntrySectionPlugin.cpp",
+        "SwiftEntrySectionPlugin.hpp",
+    ],
+    hdrs = ["include/PreviewsJITLinkCxx.h"],
+    aspect_hints = [":PreviewsJITLinkCxx_swift_hint"],
+    copts = [
+        "-std=c++17",
+        "-fno-rtti",
+    ],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+    deps = ["//:llvm"],
+)

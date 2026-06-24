@@ -1,0 +1,9 @@
+platform(
+    name = "ios_sim_arm64",
+    constraint_values = [
+        "@platforms//os:ios",
+        "@platforms//cpu:arm64",
+        "@apple_support//constraints:simulator",
+    ],
+    visibility = ["//visibility:public"],
+)

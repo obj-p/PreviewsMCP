@@ -1,0 +1,39 @@
+load("@rules_swift//swift:swift.bzl", "swift_library")
+
+# Mirrors SwiftPM's `.embedInCode("Resources/client.html")`: emit
+# `PackageResources.client_html: [UInt8]` (base64-embedded, matching the
+# embed.bzl style) for PreviewAppServer to serve.
+genrule(
+    name = "package_resources_swift",
+    srcs = ["Resources/client.html"],
+    outs = ["PackageResources.generated.swift"],
+    cmd = """
+b64=$$(base64 < $< | tr -d '\\n')
+{
+  echo 'import Foundation'
+  echo 'enum PackageResources {'
+  printf '    static let client_html = [UInt8](Data(base64Encoded: "%s")!)\\n' "$$b64"
+  echo '}'
+} > $@
+""",
+)
+
+swift_library(
+    name = "PreviewsIOS",
+    srcs = glob(["*.swift"]) + [
+        ":package_resources_swift",
+        "//bazel/embed:ios_host_app_source",
+        "//bazel/shims:bundle_module_stub.swift",
+    ],
+    copts = [
+        "-swift-version",
+        "6",
+    ],
+    data = ["//:iossim_orc_simbuilt"],
+    module_name = "PreviewsIOS",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//previewsmcp/PreviewsCore",
+        "//previewsmcp/SimulatorBridge",
+    ],
+)

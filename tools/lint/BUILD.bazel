@@ -1,0 +1,45 @@
+load("@rules_shell//shell:sh_binary.bzl", "sh_binary")
+
+_TOOLS = {
+    "BUILDIFIER": "$(rlocationpath @buildifier_darwin_arm64//file)",
+    "CLANG_FORMAT": "$(rlocationpath @clang_format_darwin_arm64//file)",
+    "SWIFTFORMAT": "$(rlocationpath @swiftformat_darwin//:swiftformat)",
+    "SWIFTLINT": "$(rlocationpath @swiftlint_darwin//:swiftlint)",
+}
+
+_DATA = [
+    "@buildifier_darwin_arm64//file",
+    "@clang_format_darwin_arm64//file",
+    "@swiftformat_darwin//:swiftformat",
+    "@swiftlint_darwin//:swiftlint",
+]
+
+sh_binary(
+    name = "format",
+    srcs = ["lint.sh"],
+    args = ["fix"],
+    data = _DATA,
+    env = _TOOLS,
+    visibility = ["//visibility:public"],
+    deps = ["@bazel_tools//tools/bash/runfiles"],
+)
+
+sh_binary(
+    name = "check",
+    srcs = ["lint.sh"],
+    args = ["check"],
+    data = _DATA,
+    env = _TOOLS,
+    visibility = ["//visibility:public"],
+    deps = ["@bazel_tools//tools/bash/runfiles"],
+)
+
+sh_binary(
+    name = "staged",
+    srcs = ["lint.sh"],
+    args = ["staged"],
+    data = _DATA,
+    env = _TOOLS,
+    visibility = ["//visibility:public"],
+    deps = ["@bazel_tools//tools/bash/runfiles"],
+)

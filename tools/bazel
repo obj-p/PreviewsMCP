@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+root="$PWD"
+while [[ "$root" != "/" && ! -f "$root/MODULE.bazel" ]]; do
+    root="$(dirname "$root")"
+done
+export PREVIEWSMCP_REPO_ROOT="$root"
+
+exec "${BAZEL_REAL:-bazel}" "$@"

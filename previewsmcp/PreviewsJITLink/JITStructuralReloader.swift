@@ -1,0 +1,108 @@
+import Foundation
+import PreviewsCore
+
+/// `StructuralReloader` backed by the remote JIT agent, capped-persistent: one agent serves
+/// many edits, each linked into a fresh `JITDylib` (`newGeneration`), and the agent respawns
+/// every `generationCap` edits. Respawn bounds the unreclaimable `__swift5_*` metadata that
+/// each generation leaks (it cannot be deregistered). The render entry runs on the agent's
+/// main thread and writes the preview PNG to the path baked into the object at compile time.
+public actor JITStructuralReloader: StructuralReloader {
+    private let generationCap: Int
+    private var session: JITSession?
+    private var generation = 0
+    private var lastObjectPath: URL?
+    private var didRunSetUp = false
+
+    public init(generationCap: Int = 100) {
+        self.generationCap = generationCap
+    }
+
+    public func render(_ build: JITRenderBuild) async throws {
+        // Literal re-render: the same object is already linked in the live generation, so just
+        // re-run its entry. It re-seeds DesignTimeStore from the (rewritten) values JSON, with
+        // no new JITDylib and no re-link (which would re-register the object's classes).
+        if let session, build.objectPath == lastObjectPath {
+            let mark = ContinuousClock.now
+            try Self.run(session, build.entrySymbol)
+            Log.info("jit_latency: render-entry-literal \(Log.millis(mark, ContinuousClock.now))ms")
+            return
+        }
+
+        var mark = ContinuousClock.now
+        let session = try nextSession(forceFresh: build.requiresFreshAgent)
+        Log.info(
+            "jit_latency: agent-session force-fresh=\(build.requiresFreshAgent) "
+                + "\(Log.millis(mark, ContinuousClock.now))ms"
+        )
+        mark = ContinuousClock.now
+        for dylib in build.dylibPaths {
+            try session.addDylib(path: dylib.path)
+        }
+        for archive in build.archivePaths {
+            try session.addArchive(path: archive.path)
+        }
+        Log.info(
+            "jit_latency: add-deps dylibs=\(build.dylibPaths.count) "
+                + "archives=\(build.archivePaths.count) \(Log.millis(mark, ContinuousClock.now))ms"
+        )
+        mark = ContinuousClock.now
+        for support in build.supportObjectPaths {
+            try session.addObject(path: support.path)
+        }
+        try session.addObject(path: build.objectPath.path)
+        Log.info(
+            "jit_latency: add-objects \(build.supportObjectPaths.count + 1) "
+                + "\(Log.millis(mark, ContinuousClock.now))ms"
+        )
+        lastObjectPath = build.objectPath
+        // Setup runs once per agent process (its plugin state lives for the process's
+        // lifetime), so re-run after a respawn but not per generation. The entry is
+        // void; the wrapper's status word is meaningless for it.
+        if let setupEntry = build.setupEntrySymbol, !didRunSetUp {
+            _ = try session.runOnMain(symbol: setupEntry)
+            didRunSetUp = true
+        }
+        mark = ContinuousClock.now
+        try Self.run(session, build.entrySymbol)
+        Log.info("jit_latency: render-entry \(Log.millis(mark, ContinuousClock.now))ms")
+    }
+
+    private static func run(_ session: JITSession, _ entrySymbol: String) throws {
+        let status = try session.runOnMain(symbol: entrySymbol)
+        guard status == 0 else {
+            throw JITReloadError.renderFailed(status: status)
+        }
+    }
+
+    /// The session to link this edit into: a fresh `JITDylib` on the live agent while under
+    /// the cap, otherwise a freshly respawned agent (replacing the old one, whose `deinit`
+    /// kills its process). The first edit, each post-cap edit, and any `forceFresh` edit (the
+    /// non-leaf incremental split, which reuses the target's stable module name) start a new agent.
+    private func nextSession(forceFresh: Bool) throws -> JITSession {
+        if let session, !forceFresh, generation < generationCap {
+            generation += 1
+            try session.newGeneration()
+            return session
+        }
+        let fresh = try JITSession(remoteAgentPath: JITSession.bundledAgentPath())
+        session = fresh
+        generation = 1
+        didRunSetUp = false
+        return fresh
+    }
+}
+
+public enum JITReloadError: Error, LocalizedError, CustomStringConvertible {
+    case renderFailed(status: Int32)
+
+    public var description: String {
+        switch self {
+        case let .renderFailed(status):
+            "JIT render entry returned non-zero status \(status)"
+        }
+    }
+
+    public var errorDescription: String? {
+        description
+    }
+}

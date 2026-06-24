@@ -273,9 +273,6 @@ jobs:
     needs: changes
     if: needs.changes.outputs.src == 'true'
     runs-on: macos-15
-    # 90m absorbs a cache-miss libLLVM build from source (only on a
-    # build-jit-llvm.sh change / first run); the cache-warm.yml warm-jit-cache
-    # job keeps the cache warm so the normal path just restores and tests.
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
@@ -288,18 +285,6 @@ jobs:
         # (kMDConfigSearchLevelTransitioning); it is only a build-speed hint.
         run: sudo mdutil -a -i off || true
 
-      - name: Install cmake and ninja
-        run: brew install cmake ninja
-
-      - name: Cache JIT LLVM build
-        uses: actions/cache@v4
-        with:
-          path: |
-            third_party/llvm-build
-            third_party/llvm-build-rt
-            third_party/llvm-project
-          key: jit-llvm-${{ runner.os }}-${{ hashFiles('scripts/build-jit-llvm.sh') }}
-
       - name: Cache SPM build
         uses: actions/cache@v4
         with:
@@ -310,15 +295,6 @@ jobs:
           restore-keys: |
             spm-${{ runner.os }}-jit-
             spm-${{ runner.os }}-
-
-      - name: Build JIT LLVM if cache missed
-        run: |
-          if [ -f third_party/llvm-build-rt/lib/darwin/liborc_rt_osx.a ]; then
-            echo "JIT LLVM restored from cache."
-          else
-            echo "JIT LLVM cache miss; building from source (slow)."
-            scripts/build-jit-llvm.sh
-          fi
 
       - name: Build
         run: |

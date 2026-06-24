@@ -1,0 +1,268 @@
+load("@rules_foreign_cc//foreign_cc:defs.bzl", "cmake")
+load("@rules_xcodeproj//xcodeproj:defs.bzl", "xcodeproj", "xcschemes")
+load("//bazel:ios_resources.bzl", "ios_jit_resources")
+load("//bazel:object.bzl", "cc_object")
+load("//bazel:stage_dir.bzl", "stage_dir")
+load("//bazel:transitions.bzl", "ios_sim_build")
+load("//bazel:version.bzl", "generated_version")
+
+generated_version(
+    name = "generated_version",
+    out = "GeneratedVersion.swift",
+    visibility = ["//visibility:public"],
+)
+
+cmake(
+    name = "llvm",
+    cache_entries = {
+        "CMAKE_BUILD_TYPE": "Release",
+        "LLVM_ENABLE_ASSERTIONS": "ON",
+        "CMAKE_OSX_ARCHITECTURES": "arm64",
+        "LLVM_TARGETS_TO_BUILD": "AArch64;X86",
+        "LLVM_BUILD_LLVM_DYLIB": "ON",
+        "LLVM_LINK_LLVM_DYLIB": "ON",
+        "LLVM_ENABLE_PROJECTS": "",
+        "LLVM_ENABLE_RUNTIMES": "",
+        "LLVM_INCLUDE_TESTS": "OFF",
+        "LLVM_INCLUDE_BENCHMARKS": "OFF",
+        "LLVM_INCLUDE_EXAMPLES": "OFF",
+        "LLVM_DISTRIBUTION_COMPONENTS": "LLVM;llvm-config;llvm-headers",
+    },
+    generate_args = ["-GNinja"],
+    install = False,
+    lib_source = "@llvm_src//:all",
+    out_shared_libs = ["libLLVM.dylib"],
+    targets = [
+        "LLVM",
+        "llvm-config",
+        "install-distribution",
+    ],
+    visibility = ["//visibility:public"],
+    working_directory = "llvm",
+)
+
+cmake(
+    name = "llvm_tblgen",
+    cache_entries = {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_OSX_ARCHITECTURES": "arm64",
+        "LLVM_TARGETS_TO_BUILD": "AArch64;X86",
+        "LLVM_INCLUDE_TESTS": "OFF",
+        "LLVM_INCLUDE_BENCHMARKS": "OFF",
+        "LLVM_INCLUDE_EXAMPLES": "OFF",
+    },
+    generate_args = ["-GNinja"],
+    install = False,
+    lib_source = "@llvm_src//:all",
+    out_binaries = ["llvm-tblgen"],
+    postfix_script = "mkdir -p $$INSTALLDIR/bin && find $$BUILD_TMPDIR -name llvm-tblgen -type f -perm -u+x -exec cp {} $$INSTALLDIR/bin/ ';'",
+    targets = ["llvm-tblgen"],
+    visibility = ["//visibility:public"],
+    working_directory = "llvm",
+)
+
+filegroup(
+    name = "llvm_tblgen_bin",
+    srcs = [":llvm_tblgen"],
+    output_group = "llvm-tblgen",
+)
+
+cmake(
+    name = "iossim_orc",
+    build_data = ["//:llvm_tblgen_bin"],
+    cache_entries = {
+        "CMAKE_BUILD_TYPE": "Release",
+        "LLVM_ENABLE_ASSERTIONS": "ON",
+        "CMAKE_SYSTEM_NAME": "iOS",
+        "CMAKE_CROSSCOMPILING": "TRUE",
+        "CMAKE_OSX_ARCHITECTURES": "arm64",
+        "CMAKE_OSX_DEPLOYMENT_TARGET": "14.0",
+        "LLVM_TARGETS_TO_BUILD": "AArch64;X86",
+        "LLVM_TABLEGEN": "$(execpath //:llvm_tblgen_bin)",
+        "LLVM_BUILD_LLVM_DYLIB": "OFF",
+        "LLVM_LINK_LLVM_DYLIB": "OFF",
+        "LLVM_BUILD_TOOLS": "OFF",
+        "LLVM_BUILD_UTILS": "OFF",
+        "LLVM_BUILD_RUNTIME": "OFF",
+        "LLVM_INCLUDE_TESTS": "OFF",
+        "LLVM_INCLUDE_BENCHMARKS": "OFF",
+        "LLVM_INCLUDE_EXAMPLES": "OFF",
+        "LLVM_INCLUDE_UTILS": "OFF",
+        "LLVM_INCLUDE_TOOLS": "OFF",
+    },
+    generate_args = ["-GNinja"],
+    install = False,
+    lib_source = "@llvm_src//:all",
+    out_static_libs = [
+        "libLLVMOrcTargetProcess.a",
+        "libLLVMOrcShared.a",
+        "libLLVMSupport.a",
+        "libLLVMTargetParser.a",
+        "libLLVMDemangle.a",
+    ],
+    postfix_script = "mkdir -p $$INSTALLDIR/lib && find $$BUILD_TMPDIR -name 'libLLVM*.a' -exec cp {} $$INSTALLDIR/lib/ ';'",
+    target_compatible_with = ["@platforms//os:ios"],
+    targets = ["LLVMOrcTargetProcess"],
+    visibility = ["//visibility:public"],
+    working_directory = "llvm",
+)
+
+ios_sim_build(
+    name = "iossim_orc_simbuilt",
+    target = ":iossim_orc",
+    visibility = ["//visibility:public"],
+)
+
+stage_dir(
+    name = "llvm_cmake_modules",
+    srcs = ["@llvm_src//:all"],
+    subdir = "llvm/cmake/modules",
+    visibility = ["//visibility:public"],
+)
+
+cmake(
+    name = "orc_rt",
+    build_data = ["//:llvm_cmake_modules"],
+    cache_entries = {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_OSX_ARCHITECTURES": "arm64",
+        "COMPILER_RT_STANDALONE_BUILD": "ON",
+        "LLVM_CMAKE_DIR": "$(execpath //:llvm_cmake_modules)",
+        "COMPILER_RT_BUILD_ORC": "ON",
+        "COMPILER_RT_BUILD_BUILTINS": "OFF",
+        "COMPILER_RT_BUILD_SANITIZERS": "OFF",
+        "COMPILER_RT_BUILD_XRAY": "OFF",
+        "COMPILER_RT_BUILD_LIBFUZZER": "OFF",
+        "COMPILER_RT_BUILD_PROFILE": "OFF",
+        "COMPILER_RT_BUILD_MEMPROF": "OFF",
+        "COMPILER_RT_DEBUG": "ON",
+    },
+    generate_args = ["-GNinja"],
+    install = False,
+    lib_source = "@llvm_src//:all",
+    out_static_libs = ["liborc_rt_osx.a"],
+    postfix_script = "mkdir -p $$INSTALLDIR/lib && find $$BUILD_TMPDIR -name liborc_rt_osx.a -exec cp {} $$INSTALLDIR/lib/ ';'",
+    targets = ["orc"],
+    visibility = ["//visibility:public"],
+    working_directory = "compiler-rt",
+)
+
+filegroup(
+    name = "orc_rt_archive",
+    srcs = [":orc_rt"],
+    output_group = "liborc_rt_osx.a",
+    visibility = ["//visibility:public"],
+)
+
+cmake(
+    name = "orc_rt_iossim",
+    build_data = ["//:llvm_cmake_modules"],
+    cache_entries = {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_OSX_ARCHITECTURES": "arm64",
+        "CMAKE_OSX_DEPLOYMENT_TARGET": "14.0",
+        "COMPILER_RT_STANDALONE_BUILD": "ON",
+        "LLVM_CMAKE_DIR": "$(execpath //:llvm_cmake_modules)",
+        "COMPILER_RT_BUILD_ORC": "ON",
+        "COMPILER_RT_BUILD_BUILTINS": "OFF",
+        "COMPILER_RT_BUILD_SANITIZERS": "OFF",
+        "COMPILER_RT_BUILD_XRAY": "OFF",
+        "COMPILER_RT_BUILD_LIBFUZZER": "OFF",
+        "COMPILER_RT_BUILD_PROFILE": "OFF",
+        "COMPILER_RT_BUILD_MEMPROF": "OFF",
+        "COMPILER_RT_DEBUG": "ON",
+    },
+    generate_args = ["-GNinja"],
+    install = False,
+    lib_source = "@llvm_src//:all",
+    out_static_libs = ["liborc_rt_iossim.a"],
+    postfix_script = "mkdir -p $$INSTALLDIR/lib && find $$BUILD_TMPDIR -name liborc_rt_iossim.a -exec cp {} $$INSTALLDIR/lib/ ';'",
+    target_compatible_with = ["@platforms//os:ios"],
+    targets = ["orc"],
+    visibility = ["//visibility:public"],
+    working_directory = "compiler-rt",
+)
+
+ios_sim_build(
+    name = "orc_rt_iossim_simbuilt",
+    target = ":orc_rt_iossim",
+    visibility = ["//visibility:public"],
+)
+
+cc_object(
+    name = "ios_server_object",
+    srcs = ["previewsmcp/ios-host/executor/server.cpp"],
+    out = "server.o",
+    hdrs = ["previewsmcp/ios-host/executor/server.h"],
+    copts = [
+        "-std=c++17",
+        "-fno-rtti",
+        "-O2",
+    ],
+    llvm_headers = ["//:llvm"],
+    visibility = ["//visibility:public"],
+)
+
+ios_jit_resources(
+    name = "ios_jit_resources",
+    srcs = [
+        ":ios_server_object",
+        ":iossim_orc_simbuilt",
+        ":orc_rt_iossim_simbuilt",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+_STAGE_RUNFILES = """\
+cd "$BUILD_WORKSPACE_DIRECTORY"
+bazelisk build //previewsmcp/cli:previewsmcp || bazel build //previewsmcp/cli:previewsmcp
+"""
+
+_RUNFILES_ENV = {
+    "RUNFILES_DIR": "$(BUILD_WORKSPACE_DIRECTORY)/bazel-bin/previewsmcp/cli/previewsmcp.runfiles",
+}
+
+xcodeproj(
+    name = "xcodeproj",
+    project_name = "PreviewsMCP",
+    scheme_autogeneration_config = xcschemes.autogeneration_config(
+        scheme_name_exclude_patterns = [
+            "^_",
+            ".*\\.rspm_c$",
+            "^C?NIO",
+            "^Swift(Syntax|Parser)",
+            "^ArgumentParser",
+            "^(Atomics|DequeModule|OrderedCollections|InternalCollectionsUtilities|AsyncAlgorithms|SystemPackage|Logging|EventSource|MCP|ContainersPreview)$",
+        ],
+    ),
+    scheme_autogeneration_mode = "all",
+    top_level_targets = [
+        "//previewsmcp/cli:previewsmcp",
+        "//previewsmcp/Tests/CLIIntegrationTests:CLIIntegrationTests",
+        "//previewsmcp/Tests/MCPIntegrationTests:MCPIntegrationTests",
+        "//previewsmcp/Tests/PreviewsCLITests:PreviewsCLITests",
+        "//previewsmcp/Tests/PreviewsCoreTests:PreviewsCoreTests",
+        "//previewsmcp/Tests/PreviewsEngineTests:PreviewsEngineTests",
+        "//previewsmcp/Tests/PreviewsIOSTests:PreviewsIOSTests",
+        "//previewsmcp/Tests/PreviewsJITLinkTests:IOSPreviewE2ETests",
+        "//previewsmcp/Tests/PreviewsJITLinkTests:PreviewsJITLinkTests",
+        "//previewsmcp/Tests/PreviewsMacOSTests:PreviewsMacOSTests",
+    ],
+    xcschemes = [
+        xcschemes.scheme(
+            name = "previewsmcp",
+            run = xcschemes.run(
+                env = _RUNFILES_ENV,
+                launch_target = xcschemes.launch_target(
+                    "//previewsmcp/cli:previewsmcp",
+                    pre_actions = [
+                        xcschemes.pre_post_actions.launch_script(
+                            script_text = _STAGE_RUNFILES,
+                            title = "Stage previewsmcp runfiles",
+                        ),
+                    ],
+                ),
+            ),
+        ),
+    ],
+)
