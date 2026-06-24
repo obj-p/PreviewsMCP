@@ -202,6 +202,7 @@ public actor PreviewSession {
             archivePaths.append(URL(fileURLWithPath: runtimeArchive))
         }
         var dylibPaths = Self.dependencyDylibs(in: linkFlags)
+        dylibPaths += buildContext?.frameworkPaths ?? []
         if let path = setupDylibPath, hasSetup {
             dylibPaths.insert(path, at: 0)
         }

@@ -14,6 +14,13 @@ public struct BuildContext: Sendable {
     /// The target name within the project that contains the source file.
     public let targetName: String
 
+    /// System framework binaries the JIT agent must `dlopen` so a linked dependency
+    /// object's symbols resolve, e.g. DeviceCheck autolinked by an Xcode-managed
+    /// SwiftPM package. These resolve from the dyld shared cache by canonical path,
+    /// so they are pre-resolved here rather than routed through `-framework` flags
+    /// (which would also reach swiftc).
+    public let frameworkPaths: [URL]
+
     // MARK: - Tier 2 (optional): compile all target sources + literal hot-reload
 
     /// All source files in the target EXCEPT the preview file.
@@ -31,12 +38,14 @@ public struct BuildContext: Sendable {
         compilerFlags: [String],
         projectRoot: URL,
         targetName: String,
+        frameworkPaths: [URL] = [],
         sourceFiles: [URL]? = nil
     ) {
         self.moduleName = moduleName
         self.compilerFlags = compilerFlags
         self.projectRoot = projectRoot
         self.targetName = targetName
+        self.frameworkPaths = frameworkPaths
         self.sourceFiles = sourceFiles
     }
 }

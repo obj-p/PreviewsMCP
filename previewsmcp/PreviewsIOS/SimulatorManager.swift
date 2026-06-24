@@ -19,6 +19,33 @@ public actor SimulatorManager {
         public var description: String {
             "\(name) (\(udid)) \(stateString) — \(runtimeName ?? "no runtime")"
         }
+
+        /// Live previews need the iOS 26+ scene-hosting API (#282).
+        public static let minimumSupportedIOSMajorVersion = 26
+
+        /// The major iOS version of this device's runtime, parsed from the runtime
+        /// identifier (`...SimRuntime.iOS-26-2`) or name (`iOS 26.2`). Nil for a
+        /// non-iOS or unparseable runtime.
+        public var iosMajorVersion: Int? {
+            if let id = runtimeIdentifier, let range = id.range(of: "SimRuntime.iOS-"),
+                let value = Int(id[range.upperBound...].prefix { $0 != "-" })
+            {
+                return value
+            }
+            if let name = runtimeName, let range = name.range(of: "iOS "),
+                let value = Int(name[range.upperBound...].prefix { $0.isNumber })
+            {
+                return value
+            }
+            return nil
+        }
+
+        /// Whether this device can host a live preview. A known pre-26 runtime
+        /// cannot (#282); an unparseable runtime is allowed through to the gate.
+        public var isPreviewSupported: Bool {
+            (iosMajorVersion ?? Self.minimumSupportedIOSMajorVersion)
+                >= Self.minimumSupportedIOSMajorVersion
+        }
     }
 
     public enum DeviceState: Int, Sendable {

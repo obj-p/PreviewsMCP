@@ -71,6 +71,9 @@ enum IOSSimulatorPicker {
         // tests across targets get the same device for the same index.
         var iPhoneUDIDs: [String] = []
         for runtime in devicesByRuntime.keys.sorted() where runtime.contains("iOS") {
+            // Live previews need iOS 26+ (#282); skip older installed runtimes
+            // so the gate does not reject the picked device.
+            guard let major = iosMajor(fromRuntimeKey: runtime), major >= 26 else { continue }
             guard let list = devicesByRuntime[runtime] else { continue }
             let udids =
                 list
@@ -81,5 +84,12 @@ enum IOSSimulatorPicker {
         }
         guard index < iPhoneUDIDs.count else { return nil }
         return iPhoneUDIDs[index]
+    }
+
+    /// Parse the iOS major version from a runtime key like
+    /// `com.apple.CoreSimulator.SimRuntime.iOS-26-2`.
+    private static func iosMajor(fromRuntimeKey key: String) -> Int? {
+        guard let range = key.range(of: "SimRuntime.iOS-") else { return nil }
+        return Int(key[range.upperBound...].prefix { $0 != "-" })
     }
 }

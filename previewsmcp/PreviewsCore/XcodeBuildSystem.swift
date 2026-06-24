@@ -139,13 +139,16 @@ public actor XcodeBuildSystem: BuildSystem {
         }
 
         // 6. Build compiler flags
-        let compilerFlags = buildCompilerFlags(settings: settings)
+        var compilerFlags = buildCompilerFlags(settings: settings)
+        let package = await Self.swiftPMPackageProducts(builtProductsDir: builtProductsDir)
+        compilerFlags += package.flags
 
         return BuildContext(
             moduleName: moduleName,
             compilerFlags: compilerFlags,
             projectRoot: projectRoot,
             targetName: targetName,
+            frameworkPaths: package.frameworkPaths,
             sourceFiles: sourceFiles
         )
     }
@@ -432,6 +435,111 @@ public actor XcodeBuildSystem: BuildSystem {
         }
 
         return flags
+    }
+
+    /// Xcode-managed SwiftPM packages land in `BUILT_PRODUCTS_DIR` as a bare
+    /// `<Module>.swiftmodule` plus a loose, universal `<Module>.o` (no `.a`, and no
+    /// `-l`/`-framework` surface in the build settings). Turn each into the inputs the
+    /// JIT pipeline consumes:
+    ///   - `-I <dir>` so the overlay recompile resolves `import <Module>`.
+    ///   - thin each `.o` to the host arch and wrap it in a single-member
+    ///     `lib<Module>.a`, emitted as `-L`/`-l`. One archive per object means the
+    ///     linker pulls only the modules the preview actually imports.
+    ///   - the canonical path of each system framework the object autolinks (e.g.
+    ///     DeviceCheck, read from `LC_LINKER_OPTION`), returned separately so the agent
+    ///     `dlopen`s it from the dyld shared cache without the name reaching swiftc.
+    /// Inert when `BUILT_PRODUCTS_DIR` holds no loose objects (the rules_xcodeproj and
+    /// framework-only cases), so it only affects the native SwiftPM-package path.
+    static func swiftPMPackageProducts(
+        builtProductsDir: String
+    ) async -> (flags: [String], frameworkPaths: [URL]) {
+        let fm = FileManager.default
+        guard let entries = try? fm.contentsOfDirectory(atPath: builtProductsDir) else {
+            return ([], [])
+        }
+        let objects = entries.filter { $0.hasSuffix(".o") }.sorted()
+        guard !objects.isEmpty else { return ([], []) }
+
+        let cacheDir = (builtProductsDir as NSString)
+            .appendingPathComponent("previewsmcp-package-archives")
+        try? fm.createDirectory(atPath: cacheDir, withIntermediateDirectories: true)
+
+        // Each object's archive + autolink work is independent, so process them
+        // concurrently; a large package closure is the case #281 targets.
+        let archived = await withTaskGroup(of: (base: String, frameworks: Set<String>).self) {
+            group in
+            for object in objects {
+                group.addTask {
+                    await Self.archivePackageObject(
+                        object: object, builtProductsDir: builtProductsDir, cacheDir: cacheDir)
+                }
+            }
+            var results: [(base: String, frameworks: Set<String>)] = []
+            for await result in group { results.append(result) }
+            return results.sorted { $0.base < $1.base }
+        }
+
+        var flags = ["-I", builtProductsDir]
+        var frameworks = Set<String>()
+        for entry in archived {
+            flags += ["-L", cacheDir, "-l\(entry.base)"]
+            frameworks.formUnion(entry.frameworks)
+        }
+        let frameworkPaths = frameworks.sorted().map {
+            URL(fileURLWithPath: "/System/Library/Frameworks/\($0).framework/\($0)")
+        }
+        return (flags, frameworkPaths)
+    }
+
+    /// Thin one package object to the host arch, wrap it in a single-member
+    /// `lib<base>.a` under `cacheDir`, and return its autolinked frameworks.
+    private static func archivePackageObject(
+        object: String, builtProductsDir: String, cacheDir: String
+    ) async -> (base: String, frameworks: Set<String>) {
+        let fm = FileManager.default
+        let objectPath = (builtProductsDir as NSString).appendingPathComponent(object)
+        let base = String(object.dropLast(2))
+        async let frameworks = autolinkFrameworks(objectPath: objectPath)
+
+        let thin = (cacheDir as NSString).appendingPathComponent("\(base).o")
+        _ = try? await runAsync(
+            "/usr/bin/lipo", arguments: ["-thin", hostArch, objectPath, "-output", thin],
+            discardStderr: true)
+        let linkObject = fm.fileExists(atPath: thin) ? thin : objectPath
+        let archive = (cacheDir as NSString).appendingPathComponent("lib\(base).a")
+        try? fm.removeItem(atPath: archive)
+        _ = try? await runAsync(
+            "/usr/bin/ar", arguments: ["rcs", archive, linkObject], discardStderr: true)
+        return (base, await frameworks)
+    }
+
+    /// The arch the JIT agent runs as, used to thin universal package objects.
+    static var hostArch: String {
+        #if arch(arm64)
+        return "arm64"
+        #else
+        return "x86_64"
+        #endif
+    }
+
+    /// Read the `-framework <name>` autolink directives Swift bakes into an object's
+    /// `LC_LINKER_OPTION` load commands. These name the system frameworks the object
+    /// depends on (e.g. DeviceCheck) that have no presence in the build settings.
+    static func autolinkFrameworks(objectPath: String) async -> Set<String> {
+        guard let output = try? await runAsync("/usr/bin/otool", arguments: ["-l", objectPath]) else {
+            return []
+        }
+        let lines = output.stdout.split(separator: "\n")
+        var names = Set<String>()
+        for (index, line) in lines.enumerated()
+        where line.contains("string #1 -framework") && index + 1 < lines.count {
+            if let range = lines[index + 1].range(of: "string #2 ") {
+                names.insert(
+                    String(lines[index + 1][range.upperBound...])
+                        .trimmingCharacters(in: .whitespaces))
+            }
+        }
+        return names
     }
 
     /// Split a build-setting flag string into non-empty whitespace-separated tokens.

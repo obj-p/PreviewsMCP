@@ -1011,22 +1011,14 @@ enum IOSPreviewE2ESupport {
     }
 
     static func bootSimulator() throws -> String {
-        if let udid = firstUDID(
-            in: try run(
-                "/usr/bin/xcrun", ["simctl", "list", "devices", "booted"]
-            ).output
-        ) {
-            return udid
+        // Reuse a booted iOS 26+ device if present; otherwise boot a supported
+        // one. Live previews require iOS 26+ (#282), so a booted pre-26 device
+        // (e.g. one left from the repro test) must not be picked here.
+        if let booted = iPhoneUDID(state: "booted", whereMajor: { $0 >= 26 }) {
+            return booted
         }
-        guard
-            let udid = firstUDID(
-                in: try run(
-                    "/usr/bin/xcrun", ["simctl", "list", "devices", "available"]
-                ).output,
-                onLinesMatching: "iPhone"
-            )
-        else {
-            throw SpikeError.message("no available iPhone simulator to boot")
+        guard let udid = iPhoneUDID(state: "available", whereMajor: { $0 >= 26 }) else {
+            throw SpikeError.message("no available iOS 26+ iPhone simulator to boot")
         }
         _ = try run("/usr/bin/xcrun", ["simctl", "boot", udid])
         _ = try run("/usr/bin/xcrun", ["simctl", "bootstatus", udid, "-b"])
@@ -1034,13 +1026,19 @@ enum IOSPreviewE2ESupport {
     }
 
     /// First available iPhone on a runtime older than iOS 26, or nil. Used to gate
-    /// and drive the #282 pre-iOS-26 scene-hosting repro. Runtime keys look like
-    /// `com.apple.CoreSimulator.SimRuntime.iOS-18-3`; the major version is parsed
-    /// from the `iOS-<major>-<minor>` segment.
+    /// and drive the #282 pre-iOS-26 scene-hosting repro.
     static func availableUDIDBelowIOS26() -> String? {
+        iPhoneUDID(state: "available", whereMajor: { $0 < 26 })
+    }
+
+    /// First iPhone in the given simctl device `state` ("available" / "booted")
+    /// whose iOS major version satisfies `predicate`. Runtime keys look like
+    /// `com.apple.CoreSimulator.SimRuntime.iOS-18-3`; the major is the
+    /// `iOS-<major>-<minor>` segment.
+    private static func iPhoneUDID(state: String, whereMajor predicate: (Int) -> Bool) -> String? {
         guard
             let result = try? run(
-                "/usr/bin/xcrun", ["simctl", "list", "devices", "available", "--json"]),
+                "/usr/bin/xcrun", ["simctl", "list", "devices", state, "--json"]),
             let data = result.output.data(using: .utf8),
             let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
             let devices = root["devices"] as? [String: Any]
@@ -1048,14 +1046,12 @@ enum IOSPreviewE2ESupport {
             return nil
         }
         for (runtime, list) in devices {
-            guard let major = iOSMajorVersion(fromRuntimeKey: runtime), major < 26 else { continue }
+            guard let major = iOSMajorVersion(fromRuntimeKey: runtime), predicate(major) else {
+                continue
+            }
             guard let entries = list as? [[String: Any]] else { continue }
-            for entry in entries {
-                let name = entry["name"] as? String ?? ""
-                let available = entry["isAvailable"] as? Bool ?? false
-                if available, name.contains("iPhone"), let udid = entry["udid"] as? String {
-                    return udid
-                }
+            for entry in entries where (entry["name"] as? String ?? "").contains("iPhone") {
+                if let udid = entry["udid"] as? String { return udid }
             }
         }
         return nil
@@ -1149,21 +1145,6 @@ enum IOSPreviewE2ESupport {
         let conn = accept(listenFD, nil, nil)
         guard conn >= 0 else { throw SpikeError.message("accept failed") }
         return conn
-    }
-
-    private static func firstUDID(in text: String, onLinesMatching needle: String? = nil)
-        -> String?
-    {
-        for line in text.split(separator: "\n") {
-            if let needle, !line.contains(needle) { continue }
-            guard let open = line.firstIndex(of: "("), line[open...].count >= 38 else { continue }
-            let start = line.index(after: open)
-            let candidate = line[start...].prefix(36)
-            if candidate.count == 36, candidate.allSatisfy({ $0.isHexDigit || $0 == "-" }) {
-                return String(candidate)
-            }
-        }
-        return nil
     }
 
     private static func run(_ executable: String, _ arguments: [String]) throws

@@ -49,6 +49,7 @@ enum IOSSimulatorPicker {
                     let runtime = d.runtimeName ?? ""
                     let name = d.name
                     return d.isAvailable && runtime.contains("iOS") && name.contains("iPhone")
+                        && d.isPreviewSupported
                 }
                 .sorted { a, b in
                     let aRuntime = a.runtimeName ?? ""
