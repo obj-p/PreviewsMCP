@@ -4,6 +4,7 @@ build --ios_minimum_os=14.0
 build --verbose_failures
 build --workspace_status_command=bazel/workspace_status.sh
 build --disk_cache=~/.cache/bazel-disk
+build --experimental_disk_cache_gc_max_size=50G
 
 test --test_env=PREVIEWSMCP_REPO_ROOT
 
