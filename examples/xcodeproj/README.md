@@ -7,12 +7,28 @@ A minimal SwiftUI framework built with Xcode (via XcodeGen), with a cross-file t
 ```
 Sources/ToDo/
 ├── Item.swift                — defines Item model (used by views)
-├── ToDoView.swift            — view + #Preview that references Item
+├── ToDoView.swift            — view + #Preview that references Item; renders DeviceFlag.badgeText()
 └── ToDoProviderPreview.swift — PreviewProvider-based preview for integration testing
+Packages/DeviceFlag/          — local SwiftPM package the target integrates (touches the DeviceCheck system framework)
 project.yml                   — XcodeGen spec (generates ToDo.xcodeproj)
 ```
 
 The `#Preview` blocks in `ToDoView.swift` use `Item.samples` which is defined in `Item.swift`. This requires PreviewsMCP to detect the Xcode project, build it, and compile the preview against the target's build artifacts. The file has two previews: the default (with sample data) and "Empty State" (no items).
+
+## SwiftPM-package integration (issue #281)
+
+`project.yml` declares a `packages:` entry for the local `Packages/DeviceFlag` package, and the `ToDo` target depends on it. `DeviceFlag` imports the `DeviceCheck` system framework. This is the regression fixture for [#281](https://github.com/obj-p/PreviewsMCP/issues/281): a native `.xcodeproj` that integrates Xcode-managed SwiftPM packages.
+
+Such packages do **not** arrive as frameworks or `-l` static archives. After a build, `BUILT_PRODUCTS_DIR` holds a bare `DeviceFlag.swiftmodule` plus a loose `DeviceFlag.o` (no `.a`). This exercises all four layers from the issue:
+
+| Layer | What the fixture triggers |
+|---|---|
+| 1. Compile | the `.swiftmodule` needs `-I`, not just `-F BUILT_PRODUCTS_DIR` |
+| 2. Link | the dep is a loose `.o` with no `.a` archive to collect |
+| 3. JIT-link | on an iOS-simulator build the `.o` is universal (arm64 + x86_64) and must be thinned (the macOS build is already thin arm64) |
+| 4. JIT-materialize | linking the `.o` resolves DeviceCheck symbols, a system framework the agent never links — the open layer |
+
+To reproduce end to end, run `preview_start` on `Sources/ToDo/ToDoView.swift` with `projectPath` set to `examples/xcodeproj/`. Before the #281 fix the preview fails to compile (`no such module 'DeviceFlag'`) or link.
 
 The UI includes tappable item rows (toggle completion), a toggle switch, and a horizontally paged summary card section — suitable for testing tap, toggle, and swipe interactions.
 

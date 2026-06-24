@@ -8,10 +8,15 @@ settings:
   base:
     SWIFT_VERSION: "6.0"
     SWIFT_STRICT_CONCURRENCY: complete
+packages:
+  DeviceFlag:
+    path: Packages/DeviceFlag
 targets:
   ToDo:
     type: framework
     supportedDestinations: [macOS, iOS]
+    dependencies:
+      - package: DeviceFlag
     sources:
       - path: Sources/ToDo
     settings:

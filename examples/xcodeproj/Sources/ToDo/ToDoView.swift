@@ -1,3 +1,4 @@
+import DeviceFlag
 import SwiftUI
 
 /// A view that references `Item` from Item.swift.
@@ -58,6 +59,10 @@ struct ToDoView: View {
                             }
                         })
                 }
+
+                Text(DeviceFlag.badgeText())
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
             .navigationTitle("My Items")
         }
