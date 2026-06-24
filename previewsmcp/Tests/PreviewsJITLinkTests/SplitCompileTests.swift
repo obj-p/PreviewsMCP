@@ -17,6 +17,7 @@ struct SplitCompileTests {
         var sources = [
             """
             import SwiftUI
+            import AppKit
 
             func bulkSquare(red: Double, green: Double, blue: Double) -> some View {
                 Color(red: red, green: green, blue: blue).frame(width: 8, height: 8)
@@ -27,6 +28,7 @@ struct SplitCompileTests {
             sources.append(
                 """
                 import SwiftUI
+                import AppKit
 
                 struct BulkView\(i): View {
                     let n = \(i)
@@ -50,6 +52,7 @@ struct SplitCompileTests {
         """
         import AppKit
         import SwiftUI
+        import AppKit
 
         @testable import SplitBulk
 

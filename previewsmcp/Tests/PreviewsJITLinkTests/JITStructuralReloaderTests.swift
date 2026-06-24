@@ -14,6 +14,7 @@ struct JITStructuralReloaderTests {
         let sourceFile = dir.appendingPathComponent("ColorView.swift")
         try """
         import SwiftUI
+        import AppKit
 
         struct ColorView: View {
             var body: some View {
@@ -54,6 +55,7 @@ struct JITStructuralReloaderTests {
         let sourceFile = dir.appendingPathComponent("GrayView.swift")
         try """
         import SwiftUI
+        import AppKit
 
         struct GrayView: View {
             var body: some View {

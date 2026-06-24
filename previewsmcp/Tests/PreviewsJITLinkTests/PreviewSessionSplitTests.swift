@@ -22,6 +22,7 @@ struct PreviewSessionSplitTests {
         let paletteFile = dir.appendingPathComponent("Palette.swift")
         try """
         import SwiftUI
+        import AppKit
 
         struct Palette {
             static func square(red: Double, green: Double, blue: Double) -> some View {
@@ -33,6 +34,7 @@ struct PreviewSessionSplitTests {
         let hotFile = dir.appendingPathComponent("PreviewView.swift")
         try """
         import SwiftUI
+        import AppKit
 
         #Preview {
             \(previewBody)
@@ -100,6 +102,7 @@ struct PreviewSessionSplitTests {
 
         try """
         import SwiftUI
+        import AppKit
 
         #Preview {
             Palette.square(red: 0, green: 1, blue: 0)
@@ -113,6 +116,7 @@ struct PreviewSessionSplitTests {
         let bulkFile = project.dir.appendingPathComponent("Palette.swift")
         try """
         import SwiftUI
+        import AppKit
 
         struct Palette {
             static let tag = 7
@@ -171,6 +175,7 @@ struct PreviewSessionSplitTests {
 
         try """
         import SwiftUI
+        import AppKit
 
         #Preview {
             Palette.square(red: 0, green: 0, blue: 1)

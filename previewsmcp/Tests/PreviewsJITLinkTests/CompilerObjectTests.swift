@@ -58,6 +58,7 @@ struct CompilerObjectTests {
         func renderSource(red: Int, green: Int, blue: Int) -> String {
             """
             import SwiftUI
+            import AppKit
 
             @_cdecl("compiler_render_value")
             public func compiler_render_value() -> Int32 {
@@ -122,6 +123,7 @@ struct CompilerObjectTests {
         let object = try await compiler.compileObject(
             source: """
             import SwiftUI
+            import AppKit
 
             @_cdecl("render_to_file")
             public func render_to_file() -> Int32 {
@@ -170,6 +172,7 @@ struct CompilerObjectTests {
 
         let originalSource = """
         import SwiftUI
+        import AppKit
 
         struct ColorView: View {
             var body: some View {

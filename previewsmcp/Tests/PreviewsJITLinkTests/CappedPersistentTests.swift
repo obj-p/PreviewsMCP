@@ -8,6 +8,7 @@ struct CappedPersistentTests {
     private static func renderSource(red: Int, green: Int, blue: Int) -> String {
         """
         import SwiftUI
+        import AppKit
 
         @_cdecl("persistent_render_value")
         public func persistent_render_value() -> Int32 {
@@ -56,6 +57,7 @@ struct CappedPersistentTests {
         let sourceFile = dir.appendingPathComponent("ColorView.swift")
         try """
         import SwiftUI
+        import AppKit
 
         #Preview {
             Color(red: 0, green: 1, blue: 0).frame(width: 8, height: 8)
@@ -83,6 +85,7 @@ struct CappedPersistentTests {
         let sourceFile = dir.appendingPathComponent("ColorView.swift")
         try """
         import SwiftUI
+        import AppKit
 
         #Preview {
             Color(red: 0, green: 1, blue: 0).frame(width: 8, height: 8)
@@ -115,6 +118,7 @@ struct CappedPersistentTests {
         for body in ["Color.red", "Color.blue"] {
             try """
             import SwiftUI
+            import AppKit
 
             #Preview {
                 \(body).frame(width: 8, height: 8)
@@ -169,6 +173,7 @@ struct CappedPersistentTests {
         let sourceFile = dir.appendingPathComponent("ColorView.swift")
         try """
         import SwiftUI
+        import AppKit
 
         #Preview {
             Color.green.frame(width: 8, height: 8)
@@ -230,6 +235,7 @@ struct CappedPersistentTests {
         let sourceFile = dir.appendingPathComponent("ColorView.swift")
         try """
         import SwiftUI
+        import AppKit
 
         #Preview {
             Color.green.frame(width: 8, height: 8)
