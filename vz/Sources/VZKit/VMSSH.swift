@@ -91,7 +91,7 @@ public enum VMSSH {
         endpoint: Endpoint,
         guestPath: String
     ) async throws {
-        let automount = "/Volumes/My Shared Files"
+        let automount = VMConfiguration.macOSAutomountPath
         var appeared = false
         for _ in 0..<15 {
             let probe = try await exec(
@@ -109,7 +109,7 @@ public enum VMSSH {
         let result = try await exec(
             endpoint: endpoint,
             command:
-                "sudo -n rm -rf \(Guest.shellQuote(guestPath)) "
+                "sudo -n rm -f \(Guest.shellQuote(guestPath)) "
                 + "&& sudo -n ln -sfn \(Guest.shellQuote(automount)) \(Guest.shellQuote(guestPath))",
             timeout: 15)
         guard result.exitCode == 0 else {
@@ -143,16 +143,19 @@ public enum VMSSH {
         )
     }
 
+    static let connectionFlags = [
+        "-o", "UserKnownHostsFile=/dev/null",
+        "-o", "StrictHostKeyChecking=no",
+        "-o", "IdentitiesOnly=yes",
+        "-o", "LogLevel=ERROR",
+    ]
+
     private static func baseArgs(endpoint: Endpoint, allocateTTY: Bool = false) -> [String] {
-        var args = [
-            "-i", endpoint.privateKeyPath,
-            "-p", "\(endpoint.port)",
-            "-o", "UserKnownHostsFile=/dev/null",
-            "-o", "StrictHostKeyChecking=no",
-            "-o", "IdentitiesOnly=yes",
+        var args = ["-i", endpoint.privateKeyPath, "-p", "\(endpoint.port)"]
+        args += connectionFlags
+        args += [
             "-o", "PasswordAuthentication=no",
             "-o", "PreferredAuthentications=publickey",
-            "-o", "LogLevel=ERROR",
             "-o", "ServerAliveInterval=15",
             "-o", "ConnectTimeout=5",
         ]

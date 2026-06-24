@@ -5,8 +5,8 @@ let script = Script(usage: "vz run dev.swift <bundle> <worktree> [--clean] [comm
 let bundle = try script.bundle()
 let worktree = script[arg: 2]
 var rest = Array(script.args.dropFirst(3))
-let clean = rest.contains("--clean")
-rest.removeAll { $0 == "--clean" }
+let clean = rest.first == "--clean"
+if clean { rest.removeFirst() }
 let command = rest.joined(separator: " ")
 
 let shareURL = URL(filePath: worktree).resolvingSymlinksInPath()
@@ -31,9 +31,9 @@ try await Guest.session(bundle: bundle, adminPass: "vzvz", share: share, mountAt
         command.isEmpty
         ? "cd \(guestMount) && exec $SHELL -l"
         : "cd \(guestMount) && \(command)"
-    let rc = await Task.detached {
-        (try? VMSSH.execInteractive(
-            endpoint: guest.endpoint, command: remote, forceTTY: command.isEmpty)) ?? 1
+    let rc = try await Task.detached {
+        try VMSSH.execInteractive(
+            endpoint: guest.endpoint, command: remote, forceTTY: command.isEmpty)
     }.value
     if rc != 0 {
         step("session command exited \(rc)")

@@ -22,6 +22,8 @@ public enum VMConfiguration {
 
     public static let directoryShareTag = VZVirtioFileSystemDeviceConfiguration.macOSGuestAutomountTag
 
+    public static let macOSAutomountPath = "/Volumes/My Shared Files"
+
     @MainActor
     public static func build(bundle: VMBundle, share: DirectoryShare? = nil) throws
         -> VZVirtualMachineConfiguration

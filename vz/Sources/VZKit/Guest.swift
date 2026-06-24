@@ -45,35 +45,31 @@ public struct Guest: Sendable {
             timeout: timeout)
     }
 
-    public func upload(localPath: String, to remotePath: String) throws {
+    private func runLocal(_ executable: String, _ arguments: [String]) throws {
         let process = Process()
-        process.executableURL = URL(filePath: "/usr/bin/scp")
-        process.arguments = [
-            "-i", endpoint.privateKeyPath,
-            "-o", "UserKnownHostsFile=/dev/null",
-            "-o", "StrictHostKeyChecking=no",
-            "-P", String(endpoint.port),
-            localPath, "\(endpoint.user)@\(endpoint.host):\(remotePath)",
-        ]
+        process.executableURL = URL(filePath: executable)
+        process.arguments = arguments
         try process.run()
         process.waitUntilExit()
         guard process.terminationStatus == 0 else {
-            throw VMError("scp exited \(process.terminationStatus)")
+            throw VMError("\(executable) exited \(process.terminationStatus)")
         }
+    }
+
+    private var remoteSpec: String { "\(endpoint.user)@\(endpoint.host)" }
+
+    public func upload(localPath: String, to remotePath: String) throws {
+        try runLocal(
+            "/usr/bin/scp",
+            ["-i", endpoint.privateKeyPath] + VMSSH.connectionFlags
+                + ["-P", String(endpoint.port), localPath, "\(remoteSpec):\(remotePath)"])
     }
 
     public func uploadTree(localDir: String, to remoteDir: String) async throws {
         let name = (localDir as NSString).lastPathComponent
         let hostTar = NSTemporaryDirectory() + "vzkit-tree-\(name).tar"
         let remoteTar = "/tmp/vzkit-tree-\(name).tar"
-        let tar = Process()
-        tar.executableURL = URL(filePath: "/usr/bin/tar")
-        tar.arguments = ["-cf", hostTar, "-C", localDir, "."]
-        try tar.run()
-        tar.waitUntilExit()
-        guard tar.terminationStatus == 0 else {
-            throw VMError("tar of \(localDir) exited \(tar.terminationStatus)")
-        }
+        try runLocal("/usr/bin/tar", ["-cf", hostTar, "-C", localDir, "."])
         defer { try? FileManager.default.removeItem(atPath: hostTar) }
         try upload(localPath: hostTar, to: remoteTar)
         try await sh(
@@ -88,23 +84,14 @@ public struct Guest: Sendable {
     ) throws {
         let sshTransport =
             "/usr/bin/ssh -i \(endpoint.privateKeyPath) -p \(endpoint.port) "
-            + "-o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no "
-            + "-o IdentitiesOnly=yes -o LogLevel=ERROR"
+            + VMSSH.connectionFlags.joined(separator: " ")
         var args = ["-az", "--delete", "-e", sshTransport]
         for pattern in exclude {
             args += ["--exclude", pattern]
         }
         let source = localDir.hasSuffix("/") ? localDir : localDir + "/"
-        args += [source, "\(endpoint.user)@\(endpoint.host):\(remoteDir)/"]
-
-        let process = Process()
-        process.executableURL = URL(filePath: "/usr/bin/rsync")
-        process.arguments = args
-        try process.run()
-        process.waitUntilExit()
-        guard process.terminationStatus == 0 else {
-            throw VMError("rsync \(localDir) -> \(remoteDir) exited \(process.terminationStatus)")
-        }
+        args += [source, "\(remoteSpec):\(remoteDir)/"]
+        try runLocal("/usr/bin/rsync", args)
     }
 
     public static func shellQuote(_ value: String) -> String {
