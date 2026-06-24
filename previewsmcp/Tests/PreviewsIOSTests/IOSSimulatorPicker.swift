@@ -29,6 +29,7 @@ enum IOSSimulatorPicker {
     /// - index 2: `IOSMCPTests.fullIOSWorkflow` (in MCP target; uses UDID
     ///   via preview_start's `deviceUDID` arg)
     /// - index 3: `IOSPreviewSessionTests.endToEndUIViewBodyKindProbe`
+    /// - index 4: `SimulatorManagerTests.makeHIDClient`
     ///
     /// Sort order matches the MCP-target sibling's
     /// `IOSSimulatorPicker.pickUDID(index:)` for consistency: iOS runtime

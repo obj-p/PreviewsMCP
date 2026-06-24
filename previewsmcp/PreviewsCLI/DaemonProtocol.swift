@@ -65,6 +65,7 @@ enum DaemonProtocol {
         let previews: [PreviewInfoDTO]
         let activeIndex: Int
         let setupWarning: String?
+        let appServerPort: Int?
     }
 
     struct VariantOutcomeDTO: Codable, Equatable {

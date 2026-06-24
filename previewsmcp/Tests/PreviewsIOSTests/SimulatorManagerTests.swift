@@ -1,5 +1,6 @@
 import Foundation
 @testable import PreviewsIOS
+@preconcurrency import SimulatorBridge
 import Testing
 
 @Suite("SimulatorManager", .serialized)
@@ -109,6 +110,77 @@ struct SimulatorManagerTests {
                 || afterShutdown.state == SimulatorManager.DeviceState.shuttingDown
         )
         print("State after shutdown: \(afterShutdown.stateString)")
+
+        if let testError { throw testError }
+    }
+
+    @Test("Create a daemon-side HID client against a booted device")
+    func makeHIDClient() async throws {
+        guard let target = try await IOSSimulatorPicker.pick(index: 4) else {
+            print("No iOS simulator at picker index 4 — skipping")
+            return
+        }
+        let manager = SimulatorManager()
+
+        // Boot only if needed, and shut down only what we booted, so the test
+        // leaves the device in the state it found it.
+        let initial = try await manager.findDevice(udid: target.udid)
+        let weBootedIt = initial.state != SimulatorManager.DeviceState.booted
+        if weBootedIt {
+            print("Booting \(target.name) (\(target.udid)) for HID client test...")
+            try await manager.bootDevice(udid: target.udid)
+        }
+
+        var testError: (any Error)?
+        do {
+            let c1 = try await manager.makeHIDClient(udid: target.udid)
+            let c2 = try await manager.makeHIDClient(udid: target.udid)
+            #expect(c1 !== c2)
+        } catch {
+            testError = error
+        }
+
+        if weBootedIt {
+            print("Shutting down...")
+            try await manager.shutdownDevice(udid: target.udid)
+        }
+
+        if let testError { throw testError }
+    }
+
+    @Test("Create a daemon-side framebuffer streamer against a booted device")
+    func makeFramebufferStreamer() async throws {
+        guard let target = try await IOSSimulatorPicker.pick(index: 1) else {
+            print("No iOS simulator at picker index 1 — skipping")
+            return
+        }
+        let manager = SimulatorManager()
+
+        let initial = try await manager.findDevice(udid: target.udid)
+        let weBootedIt = initial.state != SimulatorManager.DeviceState.booted
+        if weBootedIt {
+            print("Booting \(target.name) (\(target.udid)) for streamer test...")
+            try await manager.bootDevice(udid: target.udid)
+        }
+
+        var testError: (any Error)?
+        do {
+            // Creation only asserts the bridge symbol resolves and the device
+            // IO client is reachable; with no app launched the display may not
+            // wire up, so `latestFrame` returning nil here is expected and must
+            // not crash. End-to-end frame capture is covered by
+            // IOSAppServerTests.appServerEndToEnd (which launches a preview).
+            let streamer = try await manager.makeFramebufferStreamer(udid: target.udid)
+            _ = streamer.latestFrame()
+            streamer.stop()
+        } catch {
+            testError = error
+        }
+
+        if weBootedIt {
+            print("Shutting down...")
+            try await manager.shutdownDevice(udid: target.udid)
+        }
 
         if let testError { throw testError }
     }

@@ -28,7 +28,9 @@ enum IOSSimulatorPicker {
     ///
     /// - index 0: `SimulatorManagerTests.bootAndShutdown`
     /// - index 1: `IOSPreviewSessionTests.endToEnd`
-    /// - index 2: `IOSMCPTests.fullIOSWorkflow`
+    /// - index 1: `IOSMCPTests.fullIOSWorkflow`
+    /// - index 2: `IOSHIDInputTests.tapAndDrag`
+    /// - index 3: `IOSAppServerTests.appServerEndToEnd`
     static func pickUDID(index: Int) async throws -> String? {
         // Must drain stdout concurrently: `simctl list devices --json` on a
         // CI runner with 100+ simulators produces >64KB of JSON, filling

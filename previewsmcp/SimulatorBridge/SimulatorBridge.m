@@ -3,7 +3,9 @@
 #import <IOSurface/IOSurface.h>
 #import <ImageIO/ImageIO.h>
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
+#import <dlfcn.h>
 #import <objc/runtime.h>
+#import <unistd.h>
 
 #pragma mark - Private API Protocols
 
@@ -53,11 +55,22 @@
 - (NSString *)identifier;
 @end
 
+@protocol _SimDeviceLegacyHIDClient
+- (instancetype)initWithDevice:(id)device error:(NSError **)error;
+- (void)sendWithMessage:(void *)message
+           freeWhenDone:(BOOL)freeWhenDone
+        completionQueue:(dispatch_queue_t)queue
+             completion:(void (^)(void))completion;
+@end
+
 #pragma mark - Framework State
 
 static BOOL _frameworkLoaded = NO;
 static Class _SimServiceContextClass = Nil;
 static dispatch_once_t _loadOnce;
+
+static Class _SimDeviceLegacyHIDClientClass = Nil;
+static dispatch_once_t _hidLoadOnce;
 
 static NSString *_developerDir(void) {
   static NSString *cached = nil;
@@ -126,6 +139,37 @@ static id _defaultDeviceSet(NSError **error) {
   if (!context)
     return nil;
   return [(id<_SimServiceContext>)context defaultDeviceSetWithError:error];
+}
+
+// SimDeviceLegacyHIDClient lives in SimulatorKit, which ships inside Xcode and
+// moved from PrivateFrameworks (Xcode 26 and older) to SharedFrameworks (Xcode
+// 27+). Loaded lazily and separately from CoreSimulator so non-HID callers
+// never pay for it or fail if SimulatorKit moved.
+static Class _loadSimulatorKitHIDClass(NSError **error) {
+  dispatch_once(&_hidLoadOnce, ^{
+    NSString *dev = _developerDir();
+    if (!dev)
+      return;
+    NSArray<NSString *> *candidates = @[
+      [dev stringByAppendingPathComponent:
+               @"Library/PrivateFrameworks/SimulatorKit.framework"],
+      [dev stringByAppendingPathComponent:
+               @"../SharedFrameworks/SimulatorKit.framework"],
+    ];
+    for (NSString *path in candidates) {
+      NSBundle *bundle = [NSBundle bundleWithPath:path];
+      if (bundle && [bundle loadAndReturnError:NULL])
+        break;
+    }
+    _SimDeviceLegacyHIDClientClass =
+        objc_lookUpClass("_TtC12SimulatorKit24SimDeviceLegacyHIDClient");
+  });
+
+  if (!_SimDeviceLegacyHIDClientClass && error) {
+    *error = _makeError(30, @"SimDeviceLegacyHIDClient unavailable (could not "
+                            @"load SimulatorKit from this Xcode)");
+  }
+  return _SimDeviceLegacyHIDClientClass;
 }
 
 #pragma mark - SBDevice
@@ -467,10 +511,131 @@ SBDevice *SBFindBootedDevice(NSError **error) {
   return nil;
 }
 
-// Touch injection is handled in-app by the iOS host app using the Hammer
+// In-app touch injection is handled by the iOS agent app using the Hammer
 // approach: IOHIDEvent + BKSHIDEventSetDigitizerInfo +
 // UIApplication._enqueueHIDEvent: See IOSAgentAppSource.swift for the
-// implementation. No SimulatorBridge involvement needed for touch.
+// implementation. That path is independent of the daemon-side HID client below,
+// which injects at the simulator digitizer for streamed/agent sessions.
+
+#pragma mark - HID Input Client
+
+// IndigoHIDMessageForMouseNSEvent(const CGPoint *, const CGPoint *,
+//   IndigoHIDTarget, NSEventType, NSSize, IndigoHIDEdge) -> IndigoMessage *.
+// Apple's Simulator.app always passes NSSize(1,1), so the Indigo ratio reduces
+// to the point itself, i.e. our normalized 0..1 coordinate. Resolved once from
+// the simulator frameworks loaded for the HID client.
+typedef void *(*SBIndigoMouseFunc)(const CGPoint *, const CGPoint *, uint32_t,
+                                   int32_t, CGFloat, CGFloat, uint32_t);
+static SBIndigoMouseFunc _mouseFunc = NULL;
+static dispatch_once_t _mouseFuncOnce;
+
+static SBIndigoMouseFunc _loadMouseFunc(void) {
+  dispatch_once(&_mouseFuncOnce, ^{
+    _mouseFunc = (SBIndigoMouseFunc)dlsym(RTLD_DEFAULT,
+                                          "IndigoHIDMessageForMouseNSEvent");
+  });
+  return _mouseFunc;
+}
+
+@interface SBHIDClient ()
+@property(nonatomic, strong) id hidClient;
+@property(nonatomic, strong) dispatch_queue_t inputQueue;
+- (instancetype)initWithHIDClient:(id)client;
+@end
+
+@implementation SBHIDClient
+
+- (instancetype)initWithHIDClient:(id)client {
+  self = [super init];
+  if (self) {
+    _hidClient = client;
+    _inputQueue = dispatch_queue_create("com.previewsmcp.hid-input",
+                                        DISPATCH_QUEUE_SERIAL);
+  }
+  return self;
+}
+
+// 0x32 = digitizer target. eventType 1 = down (begin and move), 2 = up. Must
+// run on `inputQueue` so concurrent gestures never interleave on the shared
+// client.
+- (void)_sendEventType:(int32_t)eventType x:(double)x y:(double)y {
+  SBIndigoMouseFunc mouse = _loadMouseFunc();
+  if (!mouse)
+    return;
+  CGPoint pt = CGPointMake(x, y);
+  void *msg = mouse(&pt, NULL, 0x32, eventType, 1.0, 1.0, 0);
+  if (!msg)
+    return;
+  [(id<_SimDeviceLegacyHIDClient>)self.hidClient sendWithMessage:msg
+                                                    freeWhenDone:YES
+                                                 completionQueue:NULL
+                                                      completion:nil];
+}
+
+- (BOOL)tapAtX:(double)x y:(double)y {
+  if (!_loadMouseFunc())
+    return NO;
+  dispatch_async(self.inputQueue, ^{
+    [self _sendEventType:1 x:x y:y];
+    usleep(60000);
+    [self _sendEventType:2 x:x y:y];
+  });
+  return YES;
+}
+
+- (BOOL)dragFromX:(double)fromX
+            fromY:(double)fromY
+              toX:(double)toX
+              toY:(double)toY
+            steps:(NSInteger)steps {
+  if (!_loadMouseFunc())
+    return NO;
+  NSInteger n = steps < 1 ? 10 : steps;
+  dispatch_async(self.inputQueue, ^{
+    [self _sendEventType:1 x:fromX y:fromY];
+    usleep(8000);
+    for (NSInteger i = 1; i <= n; i++) {
+      double t = (double)i / (double)n;
+      [self _sendEventType:1
+                         x:fromX + (toX - fromX) * t
+                         y:fromY + (toY - fromY) * t];
+      usleep(16000);
+    }
+    [self _sendEventType:2 x:toX y:toY];
+  });
+  return YES;
+}
+
+@end
+
+SBHIDClient *SBCreateHIDClient(SBDevice *device, NSError **error) {
+  if (!_frameworkLoaded && !SBLoadFramework(error))
+    return nil;
+
+  Class hidClass = _loadSimulatorKitHIDClass(error);
+  if (!hidClass)
+    return nil;
+
+  id simDevice = device.simDevice;
+  if (!simDevice) {
+    if (error)
+      *error = _makeError(31, @"SBDevice has no underlying SimDevice");
+    return nil;
+  }
+
+  NSError *initError = nil;
+  id<_SimDeviceLegacyHIDClient> raw = [hidClass alloc];
+  id client = [raw initWithDevice:simDevice error:&initError];
+  if (!client) {
+    if (error)
+      *error =
+          initError
+              ?: _makeError(32, @"Failed to create SimDeviceLegacyHIDClient");
+    return nil;
+  }
+
+  return [[SBHIDClient alloc] initWithHIDClient:client];
+}
 
 #pragma mark - Framebuffer Capture
 
@@ -485,6 +650,15 @@ SBDevice *SBFindBootedDevice(NSError **error) {
 @protocol _SimDisplayIOSurfaceRenderable
 - (IOSurfaceRef)ioSurface;
 @end
+
+static CIContext *_sharedCIContext(void) {
+  static CIContext *ctx = nil;
+  static dispatch_once_t once;
+  dispatch_once(&once, ^{
+    ctx = [CIContext contextWithOptions:@{kCIContextUseSoftwareRenderer : @NO}];
+  });
+  return ctx;
+}
 
 static NSData *_encodeImage(CGImageRef cgImage, double jpegQuality) {
   BOOL usePNG = (jpegQuality >= 1.0);
@@ -584,14 +758,8 @@ NSData *SBCaptureFramebuffer(SBDevice *device, double jpegQuality,
   CGImageRef cgImage = NULL;
 
   if (ciImage) {
-    static CIContext *ctx = nil;
-    static dispatch_once_t ciOnce;
-    dispatch_once(&ciOnce, ^{
-      ctx = [CIContext contextWithOptions:@{
-        kCIContextUseSoftwareRenderer : @NO
-      }];
-    });
-    cgImage = [ctx createCGImage:ciImage fromRect:ciImage.extent];
+    cgImage = [_sharedCIContext() createCGImage:ciImage
+                                       fromRect:ciImage.extent];
   }
 
   IOSurfaceUnlock(surface, kIOSurfaceLockReadOnly, NULL);
@@ -618,4 +786,372 @@ NSData *SBCaptureFramebuffer(SBDevice *device, double jpegQuality,
   }
 
   return result;
+}
+
+#pragma mark - Framebuffer Streamer
+
+@protocol _SBStreamIOClient
+- (void)updateIOPorts;
+- (NSArray *)ioPorts;
+@end
+
+@protocol _SBStreamPort
+- (NSString *)portIdentifier;
+- (id)descriptor;
+- (id)ioPortDescriptor;
+@end
+
+@protocol _SBStreamDescriptor
+- (IOSurfaceRef)framebufferSurface;
+- (void)registerScreenCallbacksWithUUID:(NSUUID *)uuid
+                          callbackQueue:(dispatch_queue_t)queue
+                          frameCallback:(void (^)(void))frameCallback
+                surfacesChangedCallback:(void (^)(void))surfacesChangedCallback
+              propertiesChangedCallback:
+                  (void (^)(void))propertiesChangedCallback;
+- (void)unregisterScreenCallbacksWithUUID:(NSUUID *)uuid;
+@end
+
+// Marks our capture queue so `stop` can detect a re-entrant call (dealloc fired
+// from a capture-queue block) and avoid a dispatch_sync self-deadlock.
+static const void *const kFBStreamerQueueKey = &kFBStreamerQueueKey;
+
+@implementation SBFramebufferStreamer {
+  id _ioClient;
+  double _jpegQuality;
+  dispatch_queue_t _captureQueue;
+  NSMutableArray *_descriptors;
+  NSMutableDictionary<NSNumber *, NSUUID *> *_callbackUUIDs;
+  NSMutableDictionary<NSNumber *, NSNumber *> *_lastSeeds;
+  NSData *_latestFrame;
+  BOOL _hasFrame;
+  dispatch_source_t _healTimer;
+  BOOL _stopRequested;
+  BOOL _stopped;
+}
+
+- (instancetype)initWithIOClient:(id)ioClient jpegQuality:(double)jpegQuality {
+  if ((self = [super init])) {
+    _ioClient = ioClient;
+    _jpegQuality = jpegQuality;
+    _captureQueue = dispatch_queue_create("com.previewsmcp.fb-streamer",
+                                          DISPATCH_QUEUE_SERIAL);
+    dispatch_queue_set_specific(_captureQueue, kFBStreamerQueueKey,
+                                (__bridge void *)_captureQueue, NULL);
+    _descriptors = [NSMutableArray array];
+    _callbackUUIDs = [NSMutableDictionary dictionary];
+    _lastSeeds = [NSMutableDictionary dictionary];
+    dispatch_async(_captureQueue, ^{
+      [self wireUpFramebuffer];
+    });
+    [self startHealTimer];
+  }
+  return self;
+}
+
+- (void)dealloc {
+  [self stop];
+}
+
+// Find every framebuffer display descriptor that supports the screen-callback
+// SPI. The simulator exposes more than one `com.apple.framebuffer.display`
+// port (main screen plus secondary planes/overlays); we listen on all and let
+// `captureFrame` pick whichever currently has the largest live surface.
+- (NSArray *)findFramebufferDescriptors {
+  id io = _ioClient;
+  if ([io respondsToSelector:@selector(updateIOPorts)]) {
+    @try {
+      [(id<_SBStreamIOClient>)io updateIOPorts];
+    } @catch (NSException *e) {
+    }
+  }
+
+  NSArray *ports = nil;
+  @try {
+    ports = [io valueForKey:@"deviceIOPorts"];
+  } @catch (NSException *e) {
+  }
+  if (![ports isKindOfClass:[NSArray class]] &&
+      [io respondsToSelector:@selector(ioPorts)]) {
+    @try {
+      ports = [(id<_SBStreamIOClient>)io ioPorts];
+    } @catch (NSException *e) {
+    }
+  }
+  if (![ports isKindOfClass:[NSArray class]])
+    return @[];
+
+  NSMutableArray *result = [NSMutableArray array];
+  for (id port in ports) {
+    if ([port respondsToSelector:@selector(portIdentifier)]) {
+      NSString *pid = nil;
+      @try {
+        pid = [(id<_SBStreamPort>)port portIdentifier];
+      } @catch (NSException *e) {
+      }
+      if (pid && ![[NSString stringWithFormat:@"%@", pid]
+                     isEqualToString:@"com.apple.framebuffer.display"])
+        continue;
+    }
+
+    id desc = nil;
+    @try {
+      if ([port respondsToSelector:@selector(descriptor)])
+        desc = [(id<_SBStreamPort>)port descriptor];
+      else if ([port respondsToSelector:@selector(ioPortDescriptor)])
+        desc = [(id<_SBStreamPort>)port ioPortDescriptor];
+    } @catch (NSException *e) {
+    }
+    if (!desc)
+      continue;
+
+    if ([desc respondsToSelector:@selector(framebufferSurface)] &&
+        [desc respondsToSelector:@selector
+              (registerScreenCallbacksWithUUID:
+                                 callbackQueue:frameCallback
+                                              :surfacesChangedCallback
+                                              :propertiesChangedCallback:)]) {
+      [result addObject:desc];
+    }
+  }
+  return result;
+}
+
+// Register callbacks on the current descriptors. Registering is what causes
+// SimulatorKit to wire the display pipeline to us and populate
+// `framebufferSurface`. Runs on the capture queue; safe to re-call to recover
+// from a stale descriptor set.
+- (void)wireUpFramebuffer {
+  if (_stopped)
+    return;
+
+  for (id old in _descriptors) {
+    NSUUID *uuid = _callbackUUIDs[@((uintptr_t)old)];
+    if (uuid && [old respondsToSelector:@selector
+                     (unregisterScreenCallbacksWithUUID:)]) {
+      @try {
+        [(id<_SBStreamDescriptor>)old unregisterScreenCallbacksWithUUID:uuid];
+      } @catch (NSException *e) {
+      }
+    }
+  }
+  [_callbackUUIDs removeAllObjects];
+  [_lastSeeds removeAllObjects];
+
+  NSArray *candidates = [self findFramebufferDescriptors];
+  [_descriptors setArray:candidates];
+
+  for (id desc in candidates) {
+    NSUUID *uuid = [NSUUID UUID];
+    _callbackUUIDs[@((uintptr_t)desc)] = uuid;
+    __weak SBFramebufferStreamer *weakSelf = self;
+    void (^onChange)(void) = ^{
+      SBFramebufferStreamer *strongSelf = weakSelf;
+      if (!strongSelf)
+        return;
+      dispatch_async(strongSelf->_captureQueue, ^{
+        [strongSelf captureFrame];
+      });
+    };
+    @try {
+      [(id<_SBStreamDescriptor>)desc
+          registerScreenCallbacksWithUUID:uuid
+                            callbackQueue:_captureQueue
+                            frameCallback:onChange
+                  surfacesChangedCallback:onChange
+                propertiesChangedCallback:^{
+                }];
+    } @catch (NSException *e) {
+    }
+  }
+
+  [self captureFrame];
+}
+
+// Pick the descriptor whose live surface has the largest area, returning that
+// surface in `outSurface` so the caller need not re-fetch it. Secondary
+// planes/overlays are typically smaller than the main screen.
+- (id<_SBStreamDescriptor>)pickBestDescriptor:(IOSurfaceRef *)outSurface {
+  id<_SBStreamDescriptor> best = nil;
+  IOSurfaceRef bestSurface = NULL;
+  size_t bestArea = 0;
+  for (id<_SBStreamDescriptor> desc in _descriptors) {
+    IOSurfaceRef surface = NULL;
+    @try {
+      surface = [desc framebufferSurface];
+    } @catch (NSException *e) {
+      continue;
+    }
+    if (!surface)
+      continue;
+    size_t area = IOSurfaceGetWidth(surface) * IOSurfaceGetHeight(surface);
+    if (area > bestArea) {
+      best = desc;
+      bestSurface = surface;
+      bestArea = area;
+    }
+  }
+  if (outSurface)
+    *outSurface = bestSurface;
+  return best;
+}
+
+// Runs on the capture queue. Re-encodes only when the surface seed changed
+// since the last encode (seed-skip), so duplicate or vsync-rate callbacks on
+// static content cost nothing.
+- (void)captureFrame {
+  if (_stopped)
+    return;
+
+  IOSurfaceRef surface = NULL;
+  id<_SBStreamDescriptor> desc = [self pickBestDescriptor:&surface];
+  if (!desc || !surface)
+    return;
+
+  NSNumber *key = @((uintptr_t)desc);
+  uint32_t seed = IOSurfaceGetSeed(surface);
+  NSNumber *last = _lastSeeds[key];
+  if (_hasFrame && last && last.unsignedIntValue == seed)
+    return;
+  _lastSeeds[key] = @(seed);
+
+  size_t w = IOSurfaceGetWidth(surface);
+  size_t h = IOSurfaceGetHeight(surface);
+  if (w == 0 || h == 0)
+    return;
+
+  void (^frameSink)(IOSurfaceRef) = self.onFrameSurface;
+  if (frameSink)
+    frameSink(surface);
+
+  IOSurfaceLock(surface, kIOSurfaceLockReadOnly, NULL);
+  CIImage *ciImage = [CIImage imageWithIOSurface:surface];
+  CGImageRef cgImage = NULL;
+  if (ciImage)
+    cgImage = [_sharedCIContext() createCGImage:ciImage
+                                       fromRect:ciImage.extent];
+  IOSurfaceUnlock(surface, kIOSurfaceLockReadOnly, NULL);
+  if (!cgImage)
+    return;
+
+  NSData *jpeg = _encodeImage(cgImage, _jpegQuality);
+  CGImageRelease(cgImage);
+  if (!jpeg)
+    return;
+
+  @synchronized(self) {
+    _latestFrame = jpeg;
+  }
+
+  // Frames are flowing: the heal timer's only job (re-wire while we have none)
+  // is done, so stop its 1 Hz wakeups for the life of the streamer.
+  if (!_hasFrame) {
+    _hasFrame = YES;
+    if (_healTimer)
+      dispatch_source_cancel(_healTimer);
+  }
+}
+
+// Re-wire periodically until frames start flowing. A freshly created streamer
+// often races display attach; an app may also not have a display yet. The tick
+// is a no-op once any frame has been captured.
+- (void)startHealTimer {
+  _healTimer =
+      dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, _captureQueue);
+  dispatch_source_set_timer(_healTimer,
+                            dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC),
+                            NSEC_PER_SEC, 100 * NSEC_PER_MSEC);
+  __weak SBFramebufferStreamer *weakSelf = self;
+  dispatch_source_set_event_handler(_healTimer, ^{
+    SBFramebufferStreamer *self = weakSelf;
+    if (!self || self->_stopped)
+      return;
+    if (!self->_hasFrame)
+      [self wireUpFramebuffer];
+  });
+  dispatch_resume(_healTimer);
+}
+
+- (NSData *)latestFrame {
+  @synchronized(self) {
+    return _latestFrame;
+  }
+}
+
+- (void)stop {
+  @synchronized(self) {
+    if (_stopRequested)
+      return;
+    _stopRequested = YES;
+  }
+
+  dispatch_source_t timer = _healTimer;
+  _healTimer = nil;
+  if (timer)
+    dispatch_source_cancel(timer);
+
+  void (^teardown)(void) = ^{
+    if (_stopped)
+      return;
+    _stopped = YES;
+    for (id desc in _descriptors) {
+      NSUUID *uuid = _callbackUUIDs[@((uintptr_t)desc)];
+      if (uuid && [desc respondsToSelector:@selector
+                        (unregisterScreenCallbacksWithUUID:)]) {
+        @try {
+          [(id<_SBStreamDescriptor>)desc
+              unregisterScreenCallbacksWithUUID:uuid];
+        } @catch (NSException *e) {
+        }
+      }
+    }
+    [_descriptors removeAllObjects];
+    [_callbackUUIDs removeAllObjects];
+    [_lastSeeds removeAllObjects];
+  };
+
+  // If stop is re-entered on the capture queue (dealloc fired from one of its
+  // blocks), run teardown inline; dispatch_sync onto the current queue would
+  // deadlock.
+  if (dispatch_get_specific(kFBStreamerQueueKey))
+    teardown();
+  else
+    dispatch_sync(_captureQueue, teardown);
+}
+
+@end
+
+SBFramebufferStreamer *SBCreateFramebufferStreamer(SBDevice *device,
+                                                   double jpegQuality,
+                                                   NSError **error) {
+  if (!_frameworkLoaded && !SBLoadFramework(error))
+    return nil;
+
+  id simDevice = device.simDevice;
+  if (![simDevice respondsToSelector:@selector(io)]) {
+    if (error)
+      *error = _makeError(40, @"SimDevice does not respond to -io (Xcode "
+                              @"version may be unsupported)");
+    return nil;
+  }
+
+  id ioClient = nil;
+  @try {
+    ioClient = [simDevice valueForKey:@"io"];
+  } @catch (NSException *e) {
+    if (error)
+      *error = _makeError(
+          41, [NSString stringWithFormat:@"Failed to access SimDevice.io: %@",
+                                         e.reason]);
+    return nil;
+  }
+  if (!ioClient) {
+    if (error)
+      *error =
+          _makeError(42, @"SimDevice.io is nil (device may not be booted)");
+    return nil;
+  }
+
+  return [[SBFramebufferStreamer alloc] initWithIOClient:ioClient
+                                             jpegQuality:jpegQuality];
 }
