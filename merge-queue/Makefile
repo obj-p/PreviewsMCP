@@ -5,8 +5,6 @@ STATE      := .state
 BUNDLE     ?= $(DEVBOX)/vm/devbox.bundle
 ADMIN_USER ?= admin
 ADMIN_PASS ?= vzvz
-REPO_ROOT  ?= $(CURDIR)/..
-JIT_CACHE  ?= /Users/$(ADMIN_USER)/jit-cache
 
 .PHONY: bundle snapshots clean devbox-base
 bundle: $(STATE)/post-ios
@@ -17,18 +15,8 @@ devbox-base:
 $(STATE):
 	mkdir -p $(STATE)
 
-$(STATE)/jit: | devbox-base $(STATE)
+$(STATE)/ios: | devbox-base $(STATE)
 	$(VZ_BIN) snapshot restore $(BUNDLE) post-toolchain
-	$(VZ_BIN) run $(CURDIR)/scripts/jit.swift $(BUNDLE) $(REPO_ROOT) $(JIT_CACHE)
-	touch $@
-
-$(STATE)/post-jit: $(STATE)/jit | $(STATE)
-	$(VZ_BIN) snapshot delete $(BUNDLE) post-jit 2>/dev/null || true
-	$(VZ_BIN) snapshot take $(BUNDLE) post-jit
-	touch $@
-
-$(STATE)/ios: $(STATE)/post-jit | $(STATE)
-	$(VZ_BIN) snapshot restore $(BUNDLE) post-jit
 	$(VZ_BIN) run $(CURDIR)/scripts/ios.swift $(BUNDLE)
 	touch $@
 

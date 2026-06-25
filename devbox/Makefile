@@ -7,11 +7,11 @@ ADMIN_PASS ?= vzvz
 CPUS       ?= 4
 MEM_MIB    ?= 8192
 DISK_GIB   ?= 120
-XCODE_VER  ?= 26.3
+XCODE_VER  ?= 26.2
 IPSW       ?= https://updates.cdn-apple.com/2026SpringFCS/fullrestores/122-88870/E47EBB85-45F2-4E3C-B9E7-6FF7868C2FBA/UniversalMac_26.5.1_25F80_Restore.ipsw
 XCODE_XIP  ?=
 XIP_CACHE  ?= $(HOME)/.cache/merge-queue/xcode
-XIP        := $(or $(XCODE_XIP),$(firstword $(wildcard $(XIP_CACHE)/Xcode*.xip)))
+XIP        := $(or $(XCODE_XIP),$(firstword $(wildcard $(XIP_CACHE)/Xcode-$(XCODE_VER)*.xip)))
 SA_RETRIES ?= 3
 SSH_RETRIES ?= 2
 
@@ -59,8 +59,6 @@ $(STATE)/toolchain: $(STATE)/ssh | $(STATE)
 $(STATE)/post-toolchain: $(STATE)/toolchain | $(STATE)
 	$(VZ_BIN) snapshot delete $(BUNDLE) post-toolchain 2>/dev/null || true
 	$(VZ_BIN) snapshot take $(BUNDLE) post-toolchain
-	$(VZ_BIN) snapshot delete $(BUNDLE) post-sa 2>/dev/null || true
-	$(VZ_BIN) snapshot delete $(BUNDLE) post-ssh 2>/dev/null || true
 	touch $@
 
 snapshots:

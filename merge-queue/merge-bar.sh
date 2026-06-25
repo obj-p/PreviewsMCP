@@ -3,7 +3,6 @@ set -euo pipefail
 
 BUNDLE="${1:?usage: merge-bar.sh <bundle>}"
 
-XCODE_APP="${XCODE_APP:-/Applications/Xcode.app}"
 WORK="${WORK:-$HOME/mq-work}"
 ADMIN_PASS="${ADMIN_PASS:-vzvz}"
 CANDIDATE_REF="${CANDIDATE_REF:-mq-candidate}"
@@ -15,8 +14,7 @@ rsudo() { printf '%s\n' "$ADMIN_PASS" | sudo -S -p '' "$@"; }
 
 eval "$(/opt/homebrew/bin/brew shellenv)"
 
-log "selecting Xcode at $XCODE_APP"
-rsudo xcode-select -s "$XCODE_APP"
+log "swift toolchain"
 xcrun swift --version
 
 log "preparing worktree from $BUNDLE ($CANDIDATE_REF rebased onto $BASE_REF)"

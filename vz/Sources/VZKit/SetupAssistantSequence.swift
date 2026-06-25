@@ -57,6 +57,11 @@ public enum SetupAssistantSequence {
         /// substring. Use this to interleave SSH-driven actions on the
         /// guest with host-side keystroke delivery in a single preset.
         case hostShell(command: String, label: String, expectContains: String? = nil)
+        /// Run the screen-dispatch loop over `rules` until a terminal
+        /// screen is reached. Clears a variable run of screens (e.g. the
+        /// per-user first-login Setup Assistant) whose order isn't known
+        /// ahead of time. VNC transport only.
+        case dispatch(rules: [ScreenRule], maxIterations: Int)
     }
 
     public enum Modifier: Sendable {
@@ -77,7 +82,8 @@ public enum SetupAssistantSequence {
     ) async throws {
         if let screenshotDir {
             try FileManager.default.createDirectory(
-                at: screenshotDir, withIntermediateDirectories: true)
+                at: screenshotDir, withIntermediateDirectories: true
+            )
         }
 
         let scripter = await MainActor.run { host.keyboardScripter() }
@@ -85,21 +91,21 @@ public enum SetupAssistantSequence {
 
         for (stepIndex, step) in steps.enumerated() {
             switch step {
-            case .wait(let seconds):
+            case let .wait(seconds):
                 Log.debug("[SA step \(stepIndex)] wait \(seconds)s")
                 try await Task.sleep(for: .seconds(seconds))
 
-            case .key(let key):
+            case let .key(key):
                 Log.debug("[SA step \(stepIndex)] key \(key)")
                 await MainActor.run { scripter.send(key) }
                 try await Task.sleep(for: .milliseconds(80))
 
-            case .type(let string):
+            case let .type(string):
                 Log.debug("[SA step \(stepIndex)] type \"\(string)\"")
                 await MainActor.run { scripter.type(string) }
                 try await Task.sleep(for: .milliseconds(120))
 
-            case .click(let x, let y):
+            case let .click(x, y):
                 Log.debug("[SA step \(stepIndex)] click (\(x), \(y))")
                 await MainActor.run { scripter.click(at: NSPoint(x: x, y: y)) }
                 try await Task.sleep(for: .milliseconds(120))
@@ -108,39 +114,59 @@ public enum SetupAssistantSequence {
                 // Modifier keys via NSEvent need the undocumented
                 // 0x108/0x100 flagsChanged trick. Not implementing
                 // since the VNC runner is our production path.
-                Log.info("[SA step \(stepIndex)] modifiedKey: NSEvent runner doesn't support modifiers; use the VNC transport.")
+                Log
+                    .info(
+                        "[SA step \(stepIndex)] modifiedKey: NSEvent runner doesn't support modifiers; use the VNC transport."
+                    )
 
             case .clickByText:
                 // OCR-by-text is only on the VNC runner since it's the
                 // production path for SA navigation.
-                Log.info("[SA step \(stepIndex)] clickByText: NSEvent runner doesn't support OCR; use the VNC transport.")
+                Log
+                    .info(
+                        "[SA step \(stepIndex)] clickByText: NSEvent runner doesn't support OCR; use the VNC transport."
+                    )
+
+            case .dispatch:
+                Log
+                    .info(
+                        "[SA step \(stepIndex)] dispatch: NSEvent runner doesn't support OCR; use the VNC transport."
+                    )
 
             case .verifyText:
-                Log.info("[SA step \(stepIndex)] verifyText: NSEvent runner doesn't support OCR; use the VNC transport.")
+                Log
+                    .info(
+                        "[SA step \(stepIndex)] verifyText: NSEvent runner doesn't support OCR; use the VNC transport."
+                    )
 
-            case .screenshot(let label):
+            case let .screenshot(label):
                 screenshotIndex += 1
                 guard let screenshotDir else {
                     Log.debug("[SA step \(stepIndex)] screenshot \(label) (no dir; skipping)")
                     continue
                 }
                 let url = screenshotDir.appending(
-                    path: String(format: "%02d-%@.png", screenshotIndex, label))
+                    path: String(format: "%02d-%@.png", screenshotIndex, label)
+                )
                 try await MainActor.run {
                     try Screenshot.captureWindow(host.window, to: url)
                 }
                 Log.info("[SA step \(stepIndex)] screenshot → \(url.lastPathComponent)")
 
-            case .log(let message):
+            case let .log(message):
                 Log.info("[SA step \(stepIndex)] \(message)")
 
             case .dualModifiedKey:
-                Log.info("[SA step \(stepIndex)] dualModifiedKey: NSEvent runner doesn't support modifiers; use the VNC transport.")
+                Log
+                    .info(
+                        "[SA step \(stepIndex)] dualModifiedKey: NSEvent runner doesn't support modifiers; use the VNC transport."
+                    )
 
-            case .hostShell(let command, let label, let expectContains):
+            case let .hostShell(command, label, expectContains):
                 try await SetupAssistantSequence.runHostShell(
                     stepIndex: stepIndex, command: command, label: label,
-                    expectContains: expectContains, runner: "SA")
+                    expectContains: expectContains, runner: "SA"
+                )
             }
         }
     }
@@ -159,22 +185,23 @@ extension SetupAssistantSequence {
     ) async throws {
         if let screenshotDir {
             try FileManager.default.createDirectory(
-                at: screenshotDir, withIntermediateDirectories: true)
+                at: screenshotDir, withIntermediateDirectories: true
+            )
         }
         var screenshotIndex = 0
 
         for (stepIndex, step) in steps.enumerated() {
             switch step {
-            case .wait(let seconds):
+            case let .wait(seconds):
                 Log.debug("[SA/VNC step \(stepIndex)] wait \(seconds)s")
                 try await Task.sleep(for: .seconds(seconds))
 
-            case .key(let key):
+            case let .key(key):
                 Log.debug("[SA/VNC step \(stepIndex)] key \(key)")
                 try client.tapKey(keysym: keysym(for: key))
                 try await Task.sleep(for: .milliseconds(80))
 
-            case .type(let string):
+            case let .type(string):
                 Log.debug("[SA/VNC step \(stepIndex)] type \"\(string)\"")
                 for character in string {
                     // `_VZVNCServer` strips the Shift modifier from
@@ -195,14 +222,15 @@ extension SetupAssistantSequence {
                     try await Task.sleep(for: .milliseconds(40))
                 }
 
-            case .click(let x, let y):
+            case let .click(x, y):
                 Log.debug("[SA/VNC step \(stepIndex)] click (\(x), \(y))")
                 try await leftClickWithHold(
                     client: client,
                     x: UInt16(clamping: Int(x)),
-                    y: UInt16(clamping: Int(y)))
+                    y: UInt16(clamping: Int(y))
+                )
 
-            case .verifyText(let target):
+            case let .verifyText(target):
                 Log.info("[SA/VNC step \(stepIndex)] verifyText \"\(target)\"")
                 let tempImage = FileManager.default.temporaryDirectory
                     .appending(path: "vz-verify-\(UUID().uuidString).png")
@@ -212,17 +240,18 @@ extension SetupAssistantSequence {
                 }
                 let observations = try FramebufferOCR.recognize(
                     imageURL: tempImage,
-                    framebufferSize: CGSize(width: 1280, height: 720))
+                    framebufferSize: CGSize(width: 1280, height: 720)
+                )
                 if FramebufferOCR.find(target, in: observations) == nil {
                     let seen = observations.prefix(20).map { $0.text }
                     throw VMError(
                         "verifyText failed: expected \"\(target)\" on the framebuffer. " +
-                        "Saw: \(seen.joined(separator: " | "))"
+                            "Saw: \(seen.joined(separator: " | "))"
                     )
                 }
                 Log.info("[SA/VNC step \(stepIndex)] verifyText OK")
 
-            case .clickByText(let target):
+            case let .clickByText(target):
                 Log.info("[SA/VNC step \(stepIndex)] clickByText \"\(target)\"")
                 let tempImage = FileManager.default.temporaryDirectory
                     .appending(path: "vz-ocr-\(UUID().uuidString).png")
@@ -232,23 +261,28 @@ extension SetupAssistantSequence {
                 }
                 let framebuffer = CGSize(width: 1280, height: 720)
                 let observations = try FramebufferOCR.recognize(
-                    imageURL: tempImage, framebufferSize: framebuffer)
+                    imageURL: tempImage, framebufferSize: framebuffer
+                )
                 guard let match = FramebufferOCR.find(
                     target, in: observations, framebufferSize: framebuffer
                 ) else {
                     let nearby = observations.prefix(20).map { $0.text }
                     throw VMError(
                         "OCR could not find \"\(target)\" on the framebuffer. " +
-                        "Saw: \(nearby.joined(separator: " | "))"
+                            "Saw: \(nearby.joined(separator: " | "))"
                     )
                 }
-                Log.info("[SA/VNC step \(stepIndex)] OCR match \"\(match.text)\" → click (\(Int(match.center.x)), \(Int(match.center.y)))")
+                Log
+                    .info(
+                        "[SA/VNC step \(stepIndex)] OCR match \"\(match.text)\" → click (\(Int(match.center.x)), \(Int(match.center.y)))"
+                    )
                 try await leftClickWithHold(
                     client: client,
                     x: UInt16(clamping: Int(match.center.x)),
-                    y: UInt16(clamping: Int(match.center.y)))
+                    y: UInt16(clamping: Int(match.center.y))
+                )
 
-            case .modifiedKey(let modifier, let key):
+            case let .modifiedKey(modifier, key):
                 Log.debug("[SA/VNC step \(stepIndex)] modifiedKey \(modifier)+\(key)")
                 let modKeysym = vncModifierKeysym(modifier)
                 let target = keysym(for: key)
@@ -258,14 +292,15 @@ extension SetupAssistantSequence {
                 try client.sendKeyEvent(keysym: modKeysym, down: false)
                 try await Task.sleep(for: .milliseconds(120))
 
-            case .screenshot(let label):
+            case let .screenshot(label):
                 screenshotIndex += 1
                 guard let screenshotDir else {
                     Log.debug("[SA/VNC step \(stepIndex)] screenshot \(label) (no dir; skipping)")
                     continue
                 }
                 let url = screenshotDir.appending(
-                    path: String(format: "%02d-%@.png", screenshotIndex, label))
+                    path: String(format: "%02d-%@.png", screenshotIndex, label)
+                )
                 do {
                     try await MainActor.run {
                         try Screenshot.captureWindow(host.window, to: url)
@@ -275,10 +310,10 @@ extension SetupAssistantSequence {
                     Log.info("[SA/VNC step \(stepIndex)] screenshot \(label) skipped (non-fatal): \(error)")
                 }
 
-            case .log(let message):
+            case let .log(message):
                 Log.info("[SA/VNC step \(stepIndex)] \(message)")
 
-            case .dualModifiedKey(let mod1, let mod2, let key):
+            case let .dualModifiedKey(mod1, mod2, key):
                 Log.debug("[SA/VNC step \(stepIndex)] dualModifiedKey \(mod1)+\(mod2)+\(key)")
                 let mod1Keysym = vncModifierKeysym(mod1)
                 let mod2Keysym = vncModifierKeysym(mod2)
@@ -291,10 +326,18 @@ extension SetupAssistantSequence {
                 try client.sendKeyEvent(keysym: mod1Keysym, down: false)
                 try await Task.sleep(for: .milliseconds(150))
 
-            case .hostShell(let command, let label, let expectContains):
+            case let .hostShell(command, label, expectContains):
                 try await SetupAssistantSequence.runHostShell(
                     stepIndex: stepIndex, command: command, label: label,
-                    expectContains: expectContains, runner: "SA/VNC")
+                    expectContains: expectContains, runner: "SA/VNC"
+                )
+
+            case let .dispatch(rules, maxIterations):
+                Log.info("[SA/VNC step \(stepIndex)] dispatch over \(rules.count) rules")
+                try await SetupAssistantSequence.runDispatchVNC(
+                    rules: rules, host: host, client: client,
+                    screenshotDir: screenshotDir, maxIterations: maxIterations
+                )
             }
         }
     }
@@ -356,11 +399,11 @@ extension SetupAssistantSequence {
         x: UInt16,
         y: UInt16
     ) async throws {
-        try client.sendPointerEvent(buttonMask: 0, x: x, y: y)  // move
+        try client.sendPointerEvent(buttonMask: 0, x: x, y: y) // move
         try await Task.sleep(for: .milliseconds(150))
-        try client.sendPointerEvent(buttonMask: 1, x: x, y: y)  // down
+        try client.sendPointerEvent(buttonMask: 1, x: x, y: y) // down
         try await Task.sleep(for: .milliseconds(300))
-        try client.sendPointerEvent(buttonMask: 0, x: x, y: y)  // up
+        try client.sendPointerEvent(buttonMask: 0, x: x, y: y) // up
         try await Task.sleep(for: .milliseconds(200))
     }
 
@@ -371,31 +414,31 @@ extension SetupAssistantSequence {
     /// guest as `7`).
     private static func shiftedAsciiBase(for c: Character) -> UInt32? {
         switch c {
-        case "~": return 0x60  // `
-        case "!": return 0x31  // 1
-        case "@": return 0x32  // 2
-        case "#": return 0x33  // 3
-        case "$": return 0x34  // 4
-        case "%": return 0x35  // 5
-        case "^": return 0x36  // 6
-        case "&": return 0x37  // 7
-        case "*": return 0x38  // 8
-        case "(": return 0x39  // 9
-        case ")": return 0x30  // 0
-        case "_": return 0x2D  // -
-        case "+": return 0x3D  // =
-        case "{": return 0x5B  // [
-        case "}": return 0x5D  // ]
-        case "|": return 0x5C  // \
-        case ":": return 0x3B  // ;
+        case "~": return 0x60 // `
+        case "!": return 0x31 // 1
+        case "@": return 0x32 // 2
+        case "#": return 0x33 // 3
+        case "$": return 0x34 // 4
+        case "%": return 0x35 // 5
+        case "^": return 0x36 // 6
+        case "&": return 0x37 // 7
+        case "*": return 0x38 // 8
+        case "(": return 0x39 // 9
+        case ")": return 0x30 // 0
+        case "_": return 0x2D // -
+        case "+": return 0x3D // =
+        case "{": return 0x5B // [
+        case "}": return 0x5D // ]
+        case "|": return 0x5C // \
+        case ":": return 0x3B // ;
         case "\"": return 0x27 // '
-        case "<": return 0x2C  // ,
-        case ">": return 0x2E  // .
-        case "?": return 0x2F  // /
+        case "<": return 0x2C // ,
+        case ">": return 0x2E // .
+        case "?": return 0x2F // /
         default:
             guard let scalar = c.unicodeScalars.first else { return nil }
             let v = scalar.value
-            if v >= 0x41 && v <= 0x5A {  // A-Z → Shift + a-z
+            if v >= 0x41, v <= 0x5A { // A-Z → Shift + a-z
                 return v + 0x20
             }
             return nil
@@ -404,39 +447,39 @@ extension SetupAssistantSequence {
 
     private static func vncModifierKeysym(_ modifier: Modifier) -> UInt32 {
         switch modifier {
-        case .shift: return RFBClient.KeySym.shiftLeft
-        case .command: return RFBClient.KeySym.commandLeft
-        case .option: return RFBClient.KeySym.optionLeft
-        case .control: return RFBClient.KeySym.controlLeft
+        case .shift: RFBClient.KeySym.shiftLeft
+        case .command: RFBClient.KeySym.commandLeft
+        case .option: RFBClient.KeySym.optionLeft
+        case .control: RFBClient.KeySym.controlLeft
         }
     }
 
     /// Map `KeyboardScripter.Key` → X11 keysym for the VNC path.
     private static func keysym(for key: KeyboardScripter.Key) -> UInt32 {
         switch key {
-        case .tab: return RFBClient.KeySym.tab
-        case .returnKey: return RFBClient.KeySym.returnKey
-        case .space: return RFBClient.KeySym.space
-        case .escape: return RFBClient.KeySym.escape
-        case .delete: return RFBClient.KeySym.backspace
-        case .leftArrow: return RFBClient.KeySym.leftArrow
-        case .rightArrow: return RFBClient.KeySym.rightArrow
-        case .upArrow: return RFBClient.KeySym.upArrow
-        case .downArrow: return RFBClient.KeySym.downArrow
-        case .f1:  return RFBClient.KeySym.f1
-        case .f2:  return RFBClient.KeySym.f2
-        case .f3:  return RFBClient.KeySym.f3
-        case .f4:  return RFBClient.KeySym.f4
-        case .f5:  return RFBClient.KeySym.f5
-        case .f6:  return RFBClient.KeySym.f6
-        case .f7:  return RFBClient.KeySym.f7
-        case .f8:  return RFBClient.KeySym.f8
-        case .f9:  return RFBClient.KeySym.f9
-        case .f10: return RFBClient.KeySym.f10
-        case .f11: return RFBClient.KeySym.f11
-        case .f12: return RFBClient.KeySym.f12
-        case .character(let scalar, _):
-            return scalar  // ASCII keysyms are passthrough
+        case .tab: RFBClient.KeySym.tab
+        case .returnKey: RFBClient.KeySym.returnKey
+        case .space: RFBClient.KeySym.space
+        case .escape: RFBClient.KeySym.escape
+        case .delete: RFBClient.KeySym.backspace
+        case .leftArrow: RFBClient.KeySym.leftArrow
+        case .rightArrow: RFBClient.KeySym.rightArrow
+        case .upArrow: RFBClient.KeySym.upArrow
+        case .downArrow: RFBClient.KeySym.downArrow
+        case .f1: RFBClient.KeySym.f1
+        case .f2: RFBClient.KeySym.f2
+        case .f3: RFBClient.KeySym.f3
+        case .f4: RFBClient.KeySym.f4
+        case .f5: RFBClient.KeySym.f5
+        case .f6: RFBClient.KeySym.f6
+        case .f7: RFBClient.KeySym.f7
+        case .f8: RFBClient.KeySym.f8
+        case .f9: RFBClient.KeySym.f9
+        case .f10: RFBClient.KeySym.f10
+        case .f11: RFBClient.KeySym.f11
+        case .f12: RFBClient.KeySym.f12
+        case let .character(scalar, _):
+            scalar // ASCII keysyms are passthrough
         }
     }
 }
