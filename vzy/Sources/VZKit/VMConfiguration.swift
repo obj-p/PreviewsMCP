@@ -54,7 +54,7 @@ public enum VMConfiguration {
         // `VZVirtualMachineView`), so this keeps the CLI window-free
         // for normal boot.
         let display = VZMacGraphicsDisplayConfiguration(
-            widthInPixels: 1920, heightInPixels: 1080, pixelsPerInch: 220
+            widthInPixels: 1920, heightInPixels: 1080, pixelsPerInch: 110
         )
         let graphics = VZMacGraphicsDeviceConfiguration()
         graphics.displays = [display]
