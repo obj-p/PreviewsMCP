@@ -123,7 +123,7 @@ public extension KeyboardScripter {
     /// US-ANSI keyboard mapping. Covers the keys Setup Assistant
     /// navigation needs (Tab/Return/Space/Esc/arrows) and the unshifted
     /// printable ASCII subset for username/password typing.
-    enum Key: Equatable, Sendable {
+    enum Key: Hashable, Sendable {
         case tab
         case returnKey
         case space

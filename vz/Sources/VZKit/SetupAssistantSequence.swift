@@ -202,25 +202,7 @@ extension SetupAssistantSequence {
                 try await Task.sleep(for: .milliseconds(80))
 
             case let .type(string):
-                Log.debug("[SA/VNC step \(stepIndex)] type \"\(string)\"")
-                for character in string {
-                    // `_VZVNCServer` strips the Shift modifier from
-                    // shifted-ASCII keysyms (`&` arrives as `7`, `>` as
-                    // `.`, uppercase as lowercase). Synthesize Shift
-                    // explicitly around the *unshifted base* key.
-                    if let baseKeysym = shiftedAsciiBase(for: character) {
-                        try client.sendKeyEvent(keysym: RFBClient.KeySym.shiftLeft, down: true)
-                        try client.sendKeyEvent(keysym: baseKeysym, down: true)
-                        try client.sendKeyEvent(keysym: baseKeysym, down: false)
-                        try client.sendKeyEvent(keysym: RFBClient.KeySym.shiftLeft, down: false)
-                    } else if let ks = RFBClient.KeySym.character(character) {
-                        try client.tapKey(keysym: ks)
-                    } else {
-                        Log.info("VNC: skipping non-ASCII character \(character)")
-                        continue
-                    }
-                    try await Task.sleep(for: .milliseconds(40))
-                }
+                try await typeStringVNC(string, client: client, stepIndex: stepIndex)
 
             case let .click(x, y):
                 Log.debug("[SA/VNC step \(stepIndex)] click (\(x), \(y))")
@@ -231,56 +213,10 @@ extension SetupAssistantSequence {
                 )
 
             case let .verifyText(target):
-                Log.info("[SA/VNC step \(stepIndex)] verifyText \"\(target)\"")
-                let tempImage = FileManager.default.temporaryDirectory
-                    .appending(path: "vz-verify-\(UUID().uuidString).png")
-                defer { try? FileManager.default.removeItem(at: tempImage) }
-                try await MainActor.run {
-                    try Screenshot.captureContentView(host.view, to: tempImage)
-                }
-                let observations = try FramebufferOCR.recognize(
-                    imageURL: tempImage,
-                    framebufferSize: CGSize(width: 1280, height: 720)
-                )
-                if FramebufferOCR.find(target, in: observations) == nil {
-                    let seen = observations.prefix(20).map { $0.text }
-                    throw VMError(
-                        "verifyText failed: expected \"\(target)\" on the framebuffer. " +
-                            "Saw: \(seen.joined(separator: " | "))"
-                    )
-                }
-                Log.info("[SA/VNC step \(stepIndex)] verifyText OK")
+                try await verifyTextVNC(target, host: host, stepIndex: stepIndex)
 
             case let .clickByText(target):
-                Log.info("[SA/VNC step \(stepIndex)] clickByText \"\(target)\"")
-                let tempImage = FileManager.default.temporaryDirectory
-                    .appending(path: "vz-ocr-\(UUID().uuidString).png")
-                defer { try? FileManager.default.removeItem(at: tempImage) }
-                try await MainActor.run {
-                    try Screenshot.captureContentView(host.view, to: tempImage)
-                }
-                let framebuffer = CGSize(width: 1280, height: 720)
-                let observations = try FramebufferOCR.recognize(
-                    imageURL: tempImage, framebufferSize: framebuffer
-                )
-                guard let match = FramebufferOCR.find(
-                    target, in: observations, framebufferSize: framebuffer
-                ) else {
-                    let nearby = observations.prefix(20).map { $0.text }
-                    throw VMError(
-                        "OCR could not find \"\(target)\" on the framebuffer. " +
-                            "Saw: \(nearby.joined(separator: " | "))"
-                    )
-                }
-                Log
-                    .info(
-                        "[SA/VNC step \(stepIndex)] OCR match \"\(match.text)\" → click (\(Int(match.center.x)), \(Int(match.center.y)))"
-                    )
-                try await leftClickWithHold(
-                    client: client,
-                    x: UInt16(clamping: Int(match.center.x)),
-                    y: UInt16(clamping: Int(match.center.y))
-                )
+                try await clickByTextVNC(target, host: host, client: client, stepIndex: stepIndex)
 
             case let .modifiedKey(modifier, key):
                 Log.debug("[SA/VNC step \(stepIndex)] modifiedKey \(modifier)+\(key)")
@@ -294,21 +230,10 @@ extension SetupAssistantSequence {
 
             case let .screenshot(label):
                 screenshotIndex += 1
-                guard let screenshotDir else {
-                    Log.debug("[SA/VNC step \(stepIndex)] screenshot \(label) (no dir; skipping)")
-                    continue
-                }
-                let url = screenshotDir.appending(
-                    path: String(format: "%02d-%@.png", screenshotIndex, label)
+                await screenshotVNC(
+                    label, host: host, screenshotDir: screenshotDir,
+                    index: screenshotIndex, stepIndex: stepIndex
                 )
-                do {
-                    try await MainActor.run {
-                        try Screenshot.captureWindow(host.window, to: url)
-                    }
-                    Log.info("[SA/VNC step \(stepIndex)] screenshot → \(url.lastPathComponent)")
-                } catch {
-                    Log.info("[SA/VNC step \(stepIndex)] screenshot \(label) skipped (non-fatal): \(error)")
-                }
 
             case let .log(message):
                 Log.info("[SA/VNC step \(stepIndex)] \(message)")
@@ -339,6 +264,108 @@ extension SetupAssistantSequence {
                     screenshotDir: screenshotDir, maxIterations: maxIterations
                 )
             }
+        }
+    }
+
+    private static func typeStringVNC(
+        _ string: String, client: RFBClient, stepIndex: Int
+    ) async throws {
+        Log.debug("[SA/VNC step \(stepIndex)] type \"\(string)\"")
+        for character in string {
+            // `_VZVNCServer` strips the Shift modifier from shifted-ASCII
+            // keysyms (`&` arrives as `7`, uppercase as lowercase), so
+            // synthesize Shift explicitly around the unshifted base key.
+            if let baseKeysym = shiftedAsciiBase(for: character) {
+                try client.sendKeyEvent(keysym: RFBClient.KeySym.shiftLeft, down: true)
+                try client.sendKeyEvent(keysym: baseKeysym, down: true)
+                try client.sendKeyEvent(keysym: baseKeysym, down: false)
+                try client.sendKeyEvent(keysym: RFBClient.KeySym.shiftLeft, down: false)
+            } else if let ks = RFBClient.KeySym.character(character) {
+                try client.tapKey(keysym: ks)
+            } else {
+                Log.info("VNC: skipping non-ASCII character \(character)")
+                continue
+            }
+            try await Task.sleep(for: .milliseconds(40))
+        }
+    }
+
+    private static func verifyTextVNC(
+        _ target: String, host: FirstBootHost, stepIndex: Int
+    ) async throws {
+        Log.info("[SA/VNC step \(stepIndex)] verifyText \"\(target)\"")
+        let tempImage = FileManager.default.temporaryDirectory
+            .appending(path: "vz-verify-\(UUID().uuidString).png")
+        defer { try? FileManager.default.removeItem(at: tempImage) }
+        try await MainActor.run {
+            try Screenshot.captureContentView(host.view, to: tempImage)
+        }
+        let observations = try FramebufferOCR.recognize(
+            imageURL: tempImage,
+            framebufferSize: CGSize(width: 1280, height: 720)
+        )
+        if FramebufferOCR.find(target, in: observations) == nil {
+            let seen = observations.prefix(20).map { $0.text }
+            throw VMError(
+                "verifyText failed: expected \"\(target)\" on the framebuffer. " +
+                    "Saw: \(seen.joined(separator: " | "))"
+            )
+        }
+        Log.info("[SA/VNC step \(stepIndex)] verifyText OK")
+    }
+
+    private static func clickByTextVNC(
+        _ target: String, host: FirstBootHost, client: RFBClient, stepIndex: Int
+    ) async throws {
+        Log.info("[SA/VNC step \(stepIndex)] clickByText \"\(target)\"")
+        let tempImage = FileManager.default.temporaryDirectory
+            .appending(path: "vz-ocr-\(UUID().uuidString).png")
+        defer { try? FileManager.default.removeItem(at: tempImage) }
+        try await MainActor.run {
+            try Screenshot.captureContentView(host.view, to: tempImage)
+        }
+        let framebuffer = CGSize(width: 1280, height: 720)
+        let observations = try FramebufferOCR.recognize(
+            imageURL: tempImage, framebufferSize: framebuffer
+        )
+        guard let match = FramebufferOCR.find(
+            target, in: observations, framebufferSize: framebuffer
+        ) else {
+            let nearby = observations.prefix(20).map { $0.text }
+            throw VMError(
+                "OCR could not find \"\(target)\" on the framebuffer. " +
+                    "Saw: \(nearby.joined(separator: " | "))"
+            )
+        }
+        Log.info(
+            "[SA/VNC step \(stepIndex)] OCR match \"\(match.text)\" → " +
+                "click (\(Int(match.center.x)), \(Int(match.center.y)))"
+        )
+        try await leftClickWithHold(
+            client: client,
+            x: UInt16(clamping: Int(match.center.x)),
+            y: UInt16(clamping: Int(match.center.y))
+        )
+    }
+
+    private static func screenshotVNC(
+        _ label: String, host: FirstBootHost, screenshotDir: URL?,
+        index: Int, stepIndex: Int
+    ) async {
+        guard let screenshotDir else {
+            Log.debug("[SA/VNC step \(stepIndex)] screenshot \(label) (no dir; skipping)")
+            return
+        }
+        let url = screenshotDir.appending(
+            path: String(format: "%02d-%@.png", index, label)
+        )
+        do {
+            try await MainActor.run {
+                try Screenshot.captureWindow(host.window, to: url)
+            }
+            Log.info("[SA/VNC step \(stepIndex)] screenshot → \(url.lastPathComponent)")
+        } catch {
+            Log.info("[SA/VNC step \(stepIndex)] screenshot \(label) skipped (non-fatal): \(error)")
         }
     }
 
@@ -412,37 +439,19 @@ extension SetupAssistantSequence {
     /// since `_VZVNCServer` silently drops the Shift modifier when it's
     /// implicit in the keysym (e.g., sending 0x26 / `&` arrives in the
     /// guest as `7`).
+    private static let shiftedAsciiBases: [Character: UInt32] = [
+        "~": 0x60, "!": 0x31, "@": 0x32, "#": 0x33, "$": 0x34, "%": 0x35,
+        "^": 0x36, "&": 0x37, "*": 0x38, "(": 0x39, ")": 0x30, "_": 0x2D,
+        "+": 0x3D, "{": 0x5B, "}": 0x5D, "|": 0x5C, ":": 0x3B, "\"": 0x27,
+        "<": 0x2C, ">": 0x2E, "?": 0x2F,
+    ]
+
     private static func shiftedAsciiBase(for c: Character) -> UInt32? {
-        switch c {
-        case "~": return 0x60 // `
-        case "!": return 0x31 // 1
-        case "@": return 0x32 // 2
-        case "#": return 0x33 // 3
-        case "$": return 0x34 // 4
-        case "%": return 0x35 // 5
-        case "^": return 0x36 // 6
-        case "&": return 0x37 // 7
-        case "*": return 0x38 // 8
-        case "(": return 0x39 // 9
-        case ")": return 0x30 // 0
-        case "_": return 0x2D // -
-        case "+": return 0x3D // =
-        case "{": return 0x5B // [
-        case "}": return 0x5D // ]
-        case "|": return 0x5C // \
-        case ":": return 0x3B // ;
-        case "\"": return 0x27 // '
-        case "<": return 0x2C // ,
-        case ">": return 0x2E // .
-        case "?": return 0x2F // /
-        default:
-            guard let scalar = c.unicodeScalars.first else { return nil }
-            let v = scalar.value
-            if v >= 0x41, v <= 0x5A { // A-Z → Shift + a-z
-                return v + 0x20
-            }
-            return nil
-        }
+        if let base = shiftedAsciiBases[c] { return base }
+        guard let scalar = c.unicodeScalars.first else { return nil }
+        let v = scalar.value
+        if v >= 0x41, v <= 0x5A { return v + 0x20 }
+        return nil
     }
 
     private static func vncModifierKeysym(_ modifier: Modifier) -> UInt32 {
@@ -455,32 +464,25 @@ extension SetupAssistantSequence {
     }
 
     /// Map `KeyboardScripter.Key` → X11 keysym for the VNC path.
+    private static let plainKeysyms: [KeyboardScripter.Key: UInt32] = [
+        .tab: RFBClient.KeySym.tab,
+        .returnKey: RFBClient.KeySym.returnKey,
+        .space: RFBClient.KeySym.space,
+        .escape: RFBClient.KeySym.escape,
+        .delete: RFBClient.KeySym.backspace,
+        .leftArrow: RFBClient.KeySym.leftArrow,
+        .rightArrow: RFBClient.KeySym.rightArrow,
+        .upArrow: RFBClient.KeySym.upArrow,
+        .downArrow: RFBClient.KeySym.downArrow,
+        .f1: RFBClient.KeySym.f1, .f2: RFBClient.KeySym.f2, .f3: RFBClient.KeySym.f3,
+        .f4: RFBClient.KeySym.f4, .f5: RFBClient.KeySym.f5, .f6: RFBClient.KeySym.f6,
+        .f7: RFBClient.KeySym.f7, .f8: RFBClient.KeySym.f8, .f9: RFBClient.KeySym.f9,
+        .f10: RFBClient.KeySym.f10, .f11: RFBClient.KeySym.f11, .f12: RFBClient.KeySym.f12,
+    ]
+
     private static func keysym(for key: KeyboardScripter.Key) -> UInt32 {
-        switch key {
-        case .tab: RFBClient.KeySym.tab
-        case .returnKey: RFBClient.KeySym.returnKey
-        case .space: RFBClient.KeySym.space
-        case .escape: RFBClient.KeySym.escape
-        case .delete: RFBClient.KeySym.backspace
-        case .leftArrow: RFBClient.KeySym.leftArrow
-        case .rightArrow: RFBClient.KeySym.rightArrow
-        case .upArrow: RFBClient.KeySym.upArrow
-        case .downArrow: RFBClient.KeySym.downArrow
-        case .f1: RFBClient.KeySym.f1
-        case .f2: RFBClient.KeySym.f2
-        case .f3: RFBClient.KeySym.f3
-        case .f4: RFBClient.KeySym.f4
-        case .f5: RFBClient.KeySym.f5
-        case .f6: RFBClient.KeySym.f6
-        case .f7: RFBClient.KeySym.f7
-        case .f8: RFBClient.KeySym.f8
-        case .f9: RFBClient.KeySym.f9
-        case .f10: RFBClient.KeySym.f10
-        case .f11: RFBClient.KeySym.f11
-        case .f12: RFBClient.KeySym.f12
-        case let .character(scalar, _):
-            scalar // ASCII keysyms are passthrough
-        }
+        if case let .character(scalar, _) = key { return scalar }
+        return plainKeysyms[key] ?? 0
     }
 }
 
