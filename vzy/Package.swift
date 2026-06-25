@@ -2,10 +2,10 @@
 import PackageDescription
 
 let package = Package(
-    name: "vz",
+    name: "vzy",
     platforms: [.macOS(.v14)],
     products: [
-        .executable(name: "vz", targets: ["vz"]),
+        .executable(name: "vzy", targets: ["vzy"]),
         .library(name: "VZKit", targets: ["VZKit"]),
     ],
     dependencies: [
@@ -24,7 +24,7 @@ let package = Package(
             dependencies: ["VZKitObjC"]
         ),
         .executableTarget(
-            name: "vz",
+            name: "vzy",
             dependencies: [
                 "VZKit",
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),

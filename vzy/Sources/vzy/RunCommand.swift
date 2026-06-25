@@ -21,7 +21,7 @@ struct RunCommand: ParsableCommand {
 
     func run() throws {
         guard let scriptPath = items.first else {
-            throw ValidationError("usage: vz run <script.swift> [args…]")
+            throw ValidationError("usage: vzy run <script.swift> [args…]")
         }
         let scriptArgs = Array(items.dropFirst())
 
@@ -29,7 +29,7 @@ struct RunCommand: ParsableCommand {
         let source = try String(contentsOf: scriptURL, encoding: .utf8)
 
         let packageRoot = Self.packageRoot
-        let entitlements = packageRoot.appending(path: "Resources/vz.entitlements")
+        let entitlements = packageRoot.appending(path: "Resources/vzy.entitlements")
 
         let digest = SHA256.hash(data: Data((source + packageRoot.path).utf8))
         let hash = digest.map { String(format: "%02x", $0) }.joined().prefix(16)
@@ -77,7 +77,7 @@ struct RunCommand: ParsableCommand {
             targets: [
                 .executableTarget(
                     name: "vzscript",
-                    dependencies: [.product(name: "VZKit", package: "vz")]
+                    dependencies: [.product(name: "VZKit", package: "vzy")]
                 )
             ]
         )

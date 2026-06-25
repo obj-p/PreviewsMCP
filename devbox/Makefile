@@ -1,5 +1,5 @@
-VZ_DIR     := $(CURDIR)/../vz
-VZ_BIN     := $(VZ_DIR)/.build/release/vz
+VZ_DIR     := $(CURDIR)/../vzy
+VZ_BIN     := $(VZ_DIR)/.build/release/vzy
 STATE      := .state
 BUNDLE     ?= $(CURDIR)/vm/devbox.bundle
 ADMIN_USER ?= admin
@@ -30,11 +30,11 @@ xcode-xip:
 $(STATE):
 	mkdir -p $(STATE)
 
-$(STATE)/vz: | $(STATE)
+$(STATE)/vzy: | $(STATE)
 	cd $(VZ_DIR) && ./build.sh release
 	touch $@
 
-$(STATE)/install: $(STATE)/vz | $(STATE)
+$(STATE)/install: $(STATE)/vzy | $(STATE)
 	$(VZ_BIN) install $(BUNDLE) $(if $(IPSW),--ipsw $(IPSW) ,)--cpu-count $(CPUS) --memory-mib $(MEM_MIB) --disk-gib $(DISK_GIB) --ssh-username $(ADMIN_USER)
 	$(VZ_BIN) snapshot take $(BUNDLE) base
 	touch $@

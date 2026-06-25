@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Build vz and codesign with the entitlements required to use
+# Build vzy and codesign with the entitlements required to use
 # Virtualization.framework. SPM doesn't run codesign for us, so the raw
 # `swift build` output won't have com.apple.security.virtualization on it
 # and VZVirtualMachine init will fail at runtime.
 #
-# Usage: vz/build.sh [debug|release]
+# Usage: vzy/build.sh [debug|release]
 #   debug   — default; faster iteration
 #   release — optimized; what we'd use for measurements
 set -euo pipefail
@@ -18,7 +18,7 @@ esac
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd "$SCRIPT_DIR"
 
-ENTITLEMENTS="$SCRIPT_DIR/Resources/vz.entitlements"
+ENTITLEMENTS="$SCRIPT_DIR/Resources/vzy.entitlements"
 if [[ ! -f "$ENTITLEMENTS" ]]; then
     echo "missing entitlements at $ENTITLEMENTS" >&2
     exit 1
@@ -27,7 +27,7 @@ fi
 echo "==> swift build -c $CONFIGURATION"
 swift build -c "$CONFIGURATION"
 
-BIN="$(swift build -c "$CONFIGURATION" --show-bin-path)/vz"
+BIN="$(swift build -c "$CONFIGURATION" --show-bin-path)/vzy"
 if [[ ! -x "$BIN" ]]; then
     echo "build did not produce expected binary at $BIN" >&2
     exit 1

@@ -47,7 +47,7 @@ struct VZApp {
 
 struct VZCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
-        commandName: "vz",
+        commandName: "vzy",
         abstract: "Spin up a SIP/AMFI-off macOS VM and connect to it for JIT-spike research.",
         discussion: """
         Wraps Virtualization.framework so the JIT executor research

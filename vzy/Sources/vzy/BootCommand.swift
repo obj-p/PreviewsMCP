@@ -152,7 +152,7 @@ struct BootCommand: AsyncParsableCommand {
         let banner = """
 
         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-          vz — first-boot (hidden display) running
+          vzy — first-boot (hidden display) running
             \(bundle.url.path)
 
           The VM is booting with a VZVirtualMachineView attached to a
@@ -186,11 +186,11 @@ struct BootCommand: AsyncParsableCommand {
         let banner = """
 
         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-          vz — VM up at \(ip)
+          vzy — VM up at \(ip)
         \(shareLine)
           From another shell:
-            vz ssh \(bundle.url.path) -- <cmd>
-            vz stop \(bundle.url.path)
+            vzy ssh \(bundle.url.path) -- <cmd>
+            vzy stop \(bundle.url.path)
 
           Or directly:
             ssh -i \(key) -o UserKnownHostsFile=\(known) \(user)@\(ip)

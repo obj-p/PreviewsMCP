@@ -6,7 +6,7 @@ import VZKit
 ///
 /// State of this command: prep + headless install are implemented. The
 /// resulting bundle holds a freshly-installed macOS that hasn't run
-/// Setup Assistant yet — `vz boot` works, but you'd see Setup
+/// Setup Assistant yet — `vzy boot` works, but you'd see Setup
 /// Assistant in the (unattached) framebuffer. First-boot Setup Assistant
 /// scripting + SSH provisioning land in follow-ups (#11, #12).
 struct InstallCommand: AsyncParsableCommand {
@@ -95,9 +95,9 @@ struct InstallCommand: AsyncParsableCommand {
           macOS installed into \(bundle.url.path)
 
           The bundle holds a freshly-installed but UNPROVISIONED macOS.
-          Setup Assistant has not yet run. `vz boot` will work,
+          Setup Assistant has not yet run. `vzy boot` will work,
           but the framebuffer (unattached) will be sitting at Setup
-          Assistant, and SSH is not yet enabled — so `vz ssh`
+          Assistant, and SSH is not yet enabled — so `vzy ssh`
           can't reach the guest yet.
 
           Next steps (not yet implemented):

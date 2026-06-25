@@ -1,5 +1,5 @@
-VZ_DIR     := $(CURDIR)/../vz
-VZ_BIN     := $(VZ_DIR)/.build/release/vz
+VZ_DIR     := $(CURDIR)/../vzy
+VZ_BIN     := $(VZ_DIR)/.build/release/vzy
 DEVBOX     := $(CURDIR)/../devbox
 STATE      := .state
 BUNDLE     ?= $(DEVBOX)/vm/devbox.bundle
