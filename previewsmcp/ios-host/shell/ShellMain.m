@@ -135,7 +135,8 @@ static NSString *argval(NSString *key, NSString *def) {
   // it aborts with an unrecognized-selector exception (#282), so bail cleanly;
   // the daemon gates pre-26 simulators out before launch.
   if (![AdvCfg instancesRespondToSelector:@selector(initWithClientIdentity:)]) {
-    NSLog(@"[SHELL] scene hosting unsupported on this OS (no initWithClientIdentity:)");
+    NSLog(@"[SHELL] scene hosting unsupported on this OS (no "
+          @"initWithClientIdentity:)");
     return;
   }
   id adv = [[AdvCfg alloc] performSelector:@selector(initWithClientIdentity:)

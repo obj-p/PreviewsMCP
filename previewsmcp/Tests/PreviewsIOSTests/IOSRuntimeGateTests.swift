@@ -1,6 +1,5 @@
-import Testing
-
 @testable import PreviewsIOS
+import Testing
 
 /// The pre-iOS-26 gate (#282) keys off `SimulatorManager.Device.iosMajorVersion`
 /// and `isPreviewSupported`, parsed from the runtime identifier or name.
@@ -15,7 +14,8 @@ struct IOSRuntimeGateTests {
             runtimeName: name,
             runtimeIdentifier: identifier,
             deviceTypeName: "iPhone 16",
-            isAvailable: true)
+            isAvailable: true
+        )
     }
 
     @Test("parses major from the runtime identifier")

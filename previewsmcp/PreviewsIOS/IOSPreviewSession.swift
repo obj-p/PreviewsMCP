@@ -151,7 +151,8 @@ public actor IOSPreviewSession {
         let device = try await simulatorManager.findDevice(udid: deviceUDID)
         if !device.isPreviewSupported {
             throw IOSPreviewSessionError.unsupportedRuntime(
-                device.runtimeName ?? device.iosMajorVersion.map { "iOS \($0)" } ?? "this simulator")
+                device.runtimeName ?? device.iosMajorVersion.map { "iOS \($0)" } ?? "this simulator"
+            )
         }
 
         /// Mirror stage transitions to the diagnostic log so operators
@@ -790,7 +791,7 @@ public enum IOSPreviewSessionError: Error, LocalizedError, CustomStringConvertib
         case let .jitExecutorFailed(stage, code):
             let suffix = code.map { " (code \($0))" } ?? ""
             return "In-app JIT executor failed during \(stage)\(suffix)"
-        case .unsupportedRuntime(let detail):
+        case let .unsupportedRuntime(detail):
             return "iOS simulator unsupported for live preview: \(detail). Use an iOS 26+ simulator."
         }
     }

@@ -682,15 +682,19 @@ struct IOSPreviewE2ETests {
     func sceneHostingInitIsUnrecognizedSelectorOnPreIOS26() throws {
         let udid = try IOSPreviewE2ESupport.bootLegacySimulator()
         let probe = try IOSPreviewE2ESupport.compileObjCExecutableForIOSSim(
-            source: Self.sceneHostingProbeSource, name: "scene_host_sel_probe")
+            source: Self.sceneHostingProbeSource, name: "scene_host_sel_probe"
+        )
         let output = try IOSPreviewE2ESupport.spawnAndCapture(udid: udid, program: probe.path)
         #expect(
             output.contains(
-                "-[_UISceneHostingControllerAdvancedConfiguration initWithClientIdentity:]"),
-            "probe output did not name the scene-hosting init:\n\(output)")
+                "-[_UISceneHostingControllerAdvancedConfiguration initWithClientIdentity:]"
+            ),
+            "probe output did not name the scene-hosting init:\n\(output)"
+        )
         #expect(
             output.contains("unrecognized selector"),
-            "scene-hosting init did not abort with an unrecognized-selector on a pre-26 runtime:\n\(output)")
+            "scene-hosting init did not abort with an unrecognized-selector on a pre-26 runtime:\n\(output)"
+        )
     }
 
     static var jitOrcRuntimePresent: Bool {
@@ -707,23 +711,23 @@ struct IOSPreviewE2ETests {
     /// `unrecognized selector` (#282). The argument is a throwaway object — pre-26
     /// the selector is missing, so the call throws before the argument is used.
     static let sceneHostingProbeSource = """
-        #import <Foundation/Foundation.h>
-        #import <objc/runtime.h>
-        #include <dlfcn.h>
-        #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
-        int main(void) {
-            dlopen("/System/Library/PrivateFrameworks/UIKitCore.framework/UIKitCore", RTLD_NOW);
-            Class AdvCfg = NSClassFromString(@"_UISceneHostingControllerAdvancedConfiguration");
-            @try {
-                id adv = [[AdvCfg alloc] performSelector:@selector(initWithClientIdentity:)
-                                              withObject:[NSObject new]];
-                printf("RESULT: no crash, adv=%s\\n", adv ? "non-nil" : "nil");
-            } @catch (NSException *e) {
-                printf("RESULT: %s\\n", e.reason.UTF8String);
-            }
-            return 0;
+    #import <Foundation/Foundation.h>
+    #import <objc/runtime.h>
+    #include <dlfcn.h>
+    #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+    int main(void) {
+        dlopen("/System/Library/PrivateFrameworks/UIKitCore.framework/UIKitCore", RTLD_NOW);
+        Class AdvCfg = NSClassFromString(@"_UISceneHostingControllerAdvancedConfiguration");
+        @try {
+            id adv = [[AdvCfg alloc] performSelector:@selector(initWithClientIdentity:)
+                                          withObject:[NSObject new]];
+            printf("RESULT: no crash, adv=%s\\n", adv ? "non-nil" : "nil");
+        } @catch (NSException *e) {
+            printf("RESULT: %s\\n", e.reason.UTF8String);
         }
-        """
+        return 0;
+    }
+    """
 
     static let helloViewSource = """
     import SwiftUI
@@ -997,7 +1001,8 @@ enum IOSPreviewE2ESupport {
             [
                 "clang", "-target", target, "-isysroot", sdk, "-fobjc-arc",
                 "-framework", "Foundation", src.path, "-o", exe.path,
-            ])
+            ]
+        )
         guard result.status == 0 else {
             throw SpikeError.message("compiling ObjC executable \(name) for iossim failed:\n\(result.output)")
         }
@@ -1038,7 +1043,8 @@ enum IOSPreviewE2ESupport {
     private static func iPhoneUDID(state: String, whereMajor predicate: (Int) -> Bool) -> String? {
         guard
             let result = try? run(
-                "/usr/bin/xcrun", ["simctl", "list", "devices", state, "--json"]),
+                "/usr/bin/xcrun", ["simctl", "list", "devices", state, "--json"]
+            ),
             let data = result.output.data(using: .utf8),
             let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
             let devices = root["devices"] as? [String: Any]
