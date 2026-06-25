@@ -54,7 +54,8 @@ public enum VMConfiguration {
         // `VZVirtualMachineView`), so this keeps the CLI window-free
         // for normal boot.
         let display = VZMacGraphicsDisplayConfiguration(
-            widthInPixels: 1920, heightInPixels: 1080, pixelsPerInch: 220)
+            widthInPixels: 1920, heightInPixels: 1080, pixelsPerInch: 220
+        )
         let graphics = VZMacGraphicsDeviceConfiguration()
         graphics.displays = [display]
         config.graphicsDevices = [graphics]
@@ -74,7 +75,8 @@ public enum VMConfiguration {
     {
         let device = VZVirtioFileSystemDeviceConfiguration(tag: directoryShareTag)
         device.share = VZSingleDirectoryShare(
-            directory: VZSharedDirectory(url: share.hostURL, readOnly: share.readOnly))
+            directory: VZSharedDirectory(url: share.hostURL, readOnly: share.readOnly)
+        )
         return device
     }
 
@@ -112,7 +114,8 @@ public enum VMConfiguration {
         let attachment: VZDiskImageStorageDeviceAttachment
         do {
             attachment = try VZDiskImageStorageDeviceAttachment(
-                url: bundle.diskImageURL, readOnly: false)
+                url: bundle.diskImageURL, readOnly: false
+            )
         } catch {
             throw VMError("could not attach disk image", underlying: error)
         }

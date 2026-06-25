@@ -21,21 +21,25 @@ func provisionJIT(_ guest: Guest, repoRoot: String, jitCache: String) async thro
 
         step("building macOS LLVM (build-jit-llvm.sh) — this is the long step")
         try await guest.sh(
-            "cd ~/jit-build-repo && bash scripts/build-jit-llvm.sh", env: .brew, timeout: 5400)
+            "cd ~/jit-build-repo && bash scripts/build-jit-llvm.sh", env: .brew, timeout: 5400
+        )
 
         step("building iossim LLVM (build-jit-llvm-iossim.sh)")
         try await guest.sh(
-            "cd ~/jit-build-repo && bash scripts/build-jit-llvm-iossim.sh", env: .brew, timeout: 5400)
+            "cd ~/jit-build-repo && bash scripts/build-jit-llvm-iossim.sh", env: .brew, timeout: 5400
+        )
 
         step("staging artifacts into \(jitCache)")
         try await guest.sh(
-            "rm -rf \(jitCache) && mv ~/jit-build-repo/third_party \(jitCache) && rm -rf ~/jit-build-repo")
+            "rm -rf \(jitCache) && mv ~/jit-build-repo/third_party \(jitCache) && rm -rf ~/jit-build-repo"
+        )
     }
 
     step("verifying baked artifacts")
     try await guest.sh(
         "test -d \(jitCache)/llvm-build && test -f \(osxOrc) && test -f \(iossimOrc) "
-            + "&& test -f \(iossimLib) && test -d \(jitCache)/llvm-project/llvm/include")
+            + "&& test -f \(iossimLib) && test -d \(jitCache)/llvm-project/llvm/include"
+    )
     step("jit bake complete")
 }
 

@@ -66,7 +66,7 @@ struct TestVNCCommand: AsyncParsableCommand {
         Log.info("before screenshot → \(before.path)")
 
         Log.info("sending \(tabCount) Tab keysym(s) via RFB…")
-        for i in 1...tabCount {
+        for i in 1 ... tabCount {
             try client.tapKey(keysym: RFBClient.KeySym.tab)
             Log.debug("RFB tap Tab \(i)/\(tabCount)")
             try await Task.sleep(for: .seconds(tabGap))

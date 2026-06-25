@@ -73,31 +73,38 @@ public enum BundleProvisioner {
 
         Log.info("provisioning bundle at \(bundleURL.path)")
         Log.info("  macOS \(image.operatingSystemVersion) (\(image.buildVersion))")
-        Log.info("  cpu=\(options.cpuCount) memory=\(options.memorySizeBytes / 1024 / 1024)MiB disk=\(options.diskSizeBytes / 1024 / 1024 / 1024)GiB")
+        Log
+            .info(
+                "  cpu=\(options.cpuCount) memory=\(options.memorySizeBytes / 1024 / 1024)MiB disk=\(options.diskSizeBytes / 1024 / 1024 / 1024)GiB"
+            )
 
         let hardwareModelData = configRequirements.hardwareModel.dataRepresentation
         try hardwareModelData.write(to: bundleURL.appending(path: "hardware-model.bin"))
 
         let machineIdentifier = VZMacMachineIdentifier()
         try machineIdentifier.dataRepresentation.write(
-            to: bundleURL.appending(path: "machine-identifier.bin"))
+            to: bundleURL.appending(path: "machine-identifier.bin")
+        )
 
         try createDiskImage(
             at: bundleURL.appending(path: "disk.img"),
-            sizeBytes: options.diskSizeBytes)
+            sizeBytes: options.diskSizeBytes
+        )
 
         let auxURL = bundleURL.appending(path: "aux.img")
         do {
             _ = try VZMacAuxiliaryStorage(
                 creatingStorageAt: auxURL,
                 hardwareModel: configRequirements.hardwareModel,
-                options: [])
+                options: []
+            )
         } catch {
             throw VMError("could not create aux.img", underlying: error)
         }
 
         try generateSSHKeyPair(
-            at: bundleURL.appending(path: options.sshKeyName))
+            at: bundleURL.appending(path: options.sshKeyName)
+        )
 
         let macAddress = VZMACAddress.randomLocallyAdministered().string
         let config = VMBundle.BundleConfig(
@@ -105,7 +112,8 @@ public enum BundleProvisioner {
             memorySizeBytes: options.memorySizeBytes,
             macAddress: macAddress,
             sshUsername: options.sshUsername,
-            sshKeyName: options.sshKeyName)
+            sshKeyName: options.sshKeyName
+        )
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         let configData = try encoder.encode(config)
@@ -200,9 +208,9 @@ public enum BundleProvisioner {
         process.arguments = [
             "-t", "ed25519",
             "-f", path,
-            "-N", "",                       // no passphrase
+            "-N", "", // no passphrase
             "-C", "vz@\(url.lastPathComponent)",
-            "-q",                           // quiet
+            "-q", // quiet
         ]
         let errPipe = Pipe()
         process.standardError = errPipe

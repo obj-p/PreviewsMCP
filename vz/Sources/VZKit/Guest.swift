@@ -16,7 +16,9 @@ public struct Guest: Sendable {
 
     public struct Env: Sendable, ExpressibleByStringLiteral {
         public let preamble: String
-        public init(stringLiteral preamble: String) { self.preamble = preamble }
+        public init(stringLiteral preamble: String) {
+            self.preamble = preamble
+        }
 
         public static let sh: Self = ""
         public static let brew: Self = "eval \"$(/opt/homebrew/bin/brew shellenv)\" && "
@@ -29,7 +31,8 @@ public struct Guest: Sendable {
         let result = try await run(env.preamble + command, timeout: timeout)
         guard result.exitCode == 0 else {
             throw VMError(
-                "remote command failed (exit \(result.exitCode)): \(command)\n\(result.stderr)")
+                "remote command failed (exit \(result.exitCode)): \(command)\n\(result.stderr)"
+            )
         }
         return result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
     }
@@ -42,7 +45,8 @@ public struct Guest: Sendable {
     public func sudo(_ command: String, timeout: TimeInterval = 600) async throws -> String {
         try await sh(
             "printf '%s\\n' \(Self.shellQuote(adminPass)) | sudo -S -p '' \(command)",
-            timeout: timeout)
+            timeout: timeout
+        )
     }
 
     private func runLocal(_ executable: String, _ arguments: [String]) throws {
@@ -56,13 +60,16 @@ public struct Guest: Sendable {
         }
     }
 
-    private var remoteSpec: String { "\(endpoint.user)@\(endpoint.host)" }
+    private var remoteSpec: String {
+        "\(endpoint.user)@\(endpoint.host)"
+    }
 
     public func upload(localPath: String, to remotePath: String) throws {
         try runLocal(
             "/usr/bin/scp",
             ["-i", endpoint.privateKeyPath] + VMSSH.connectionFlags
-                + ["-P", String(endpoint.port), localPath, "\(remoteSpec):\(remotePath)"])
+                + ["-P", String(endpoint.port), localPath, "\(remoteSpec):\(remotePath)"]
+        )
     }
 
     public func uploadTree(localDir: String, to remoteDir: String) async throws {
@@ -74,7 +81,8 @@ public struct Guest: Sendable {
         try upload(localPath: hostTar, to: remoteTar)
         try await sh(
             "rm -rf \(remoteDir) && mkdir -p \(remoteDir) "
-                + "&& tar -xf \(remoteTar) -C \(remoteDir) && rm -f \(remoteTar)")
+                + "&& tar -xf \(remoteTar) -C \(remoteDir) && rm -f \(remoteTar)"
+        )
     }
 
     public func rsync(
@@ -84,7 +92,7 @@ public struct Guest: Sendable {
     ) throws {
         let sshTransport =
             "/usr/bin/ssh -i \(endpoint.privateKeyPath) -p \(endpoint.port) "
-            + VMSSH.connectionFlags.joined(separator: " ")
+                + VMSSH.connectionFlags.joined(separator: " ")
         var args = ["-az", "--delete", "-e", sshTransport]
         for pattern in exclude {
             args += ["--exclude", pattern]

@@ -55,7 +55,7 @@ struct TestKeysCommand: AsyncParsableCommand {
 
         Log.info("sending \(tabCount) Tab keystrokes (\(tabGap)s gap)…")
         let scripter = await MainActor.run { host.keyboardScripter() }
-        for i in 1...tabCount {
+        for i in 1 ... tabCount {
             await MainActor.run { scripter.send(.tab) }
             Log.debug("sent Tab \(i)/\(tabCount)")
             try await Task.sleep(for: .seconds(tabGap))

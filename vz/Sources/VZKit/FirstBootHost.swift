@@ -28,7 +28,7 @@ public final class FirstBootHost {
         self.bundle = bundle
         let config = try VMConfiguration.build(bundle: bundle)
         let vm = VZVirtualMachine(configuration: config)
-        self.machine = vm
+        machine = vm
 
         // `debugVisible` puts the window on the real screen (top-left,
         // 1280x720) so `screencapture` can take before/after screenshots
@@ -39,12 +39,13 @@ public final class FirstBootHost {
         // active in the window list and routes events normally.
         let frame: NSRect = debugVisible
             ? NSRect(x: 80, y: 80, width: 1280, height: 720)
-            : NSRect(x: -10_000, y: -10_000, width: 1920, height: 1080)
+            : NSRect(x: -10000, y: -10000, width: 1920, height: 1080)
         let window = NSWindow(
             contentRect: frame,
             styleMask: [.titled, .closable, .resizable],
             backing: .buffered,
-            defer: false)
+            defer: false
+        )
         window.title = "vz-firstboot"
         window.isReleasedWhenClosed = false
         window.canHide = false
@@ -77,7 +78,10 @@ public final class FirstBootHost {
     }
 
     public func start(recovery: Bool = false) async throws {
-        Log.info("starting first-boot host (\(bundle.url.lastPathComponent), hidden window attached\(recovery ? ", into recoveryOS" : ""))")
+        Log
+            .info(
+                "starting first-boot host (\(bundle.url.lastPathComponent), hidden window attached\(recovery ? ", into recoveryOS" : ""))"
+            )
         attachToAppKit()
         do {
             if recovery {
@@ -113,7 +117,7 @@ public final class FirstBootHost {
 
     public func waitForStop(timeout: TimeInterval = 60) async throws {
         let deadline = Date().addingTimeInterval(timeout)
-        while machine.state != .stopped && Date() < deadline {
+        while machine.state != .stopped, Date() < deadline {
             try await Task.sleep(for: .milliseconds(500))
         }
         if machine.state != .stopped {

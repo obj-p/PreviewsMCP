@@ -1,6 +1,6 @@
 import Foundation
-import VZKitObjC
 import Virtualization
+import VZKitObjC
 
 /// In-process VNC server wrapping the private `_VZVNCServer` SPI via a
 /// tiny Obj-C bridge (`VZVNCBridge`). We go through Obj-C rather than
@@ -37,7 +37,8 @@ public final class VNCSPI: @unchecked Sendable {
                 try VZVNCBridge.startServer(
                     with: virtualMachine,
                     port: UInt(port),
-                    outPort: outPortPtr)
+                    outPort: outPortPtr
+                )
             }
         } catch {
             throw VMError("VNC server failed to start", underlying: error)

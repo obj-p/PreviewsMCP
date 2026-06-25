@@ -22,7 +22,7 @@ public func step(_ message: String) {
 }
 
 public enum Log {
-    nonisolated(unsafe) public static var prefix = "vz"
+    public nonisolated(unsafe) static var prefix = "vz"
 
     public static func info(_ message: @autoclosure () -> String) {
         write("[\(prefix)] \(message())")

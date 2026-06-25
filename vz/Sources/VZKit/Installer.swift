@@ -44,7 +44,8 @@ public enum Installer {
         do {
             try await driveInstall(installer)
         } catch let nsError as NSError where nsError.domain == VZErrorDomain
-            && nsError.code == VZError.installationRequiresUpdate.rawValue {
+            && nsError.code == VZError.installationRequiresUpdate.rawValue
+        {
             // VZ refuses to install a guest macOS newer than the host. Give a
             // pointed message — the default NSLocalizedFailure leaves the
             // version-mismatch root cause implicit.
@@ -55,7 +56,8 @@ public enum Installer {
                 Host is \(hostVersion). Either update the host to match-or-exceed the guest \
                 IPSW's macOS version, or pass --ipsw with an older IPSW (≤ host version)
                 """,
-                underlying: nsError)
+                underlying: nsError
+            )
         } catch {
             throw VMError("VZMacOSInstaller.install failed", underlying: error)
         }
@@ -72,7 +74,7 @@ public enum Installer {
             installer.install { result in
                 switch result {
                 case .success: cont.resume()
-                case .failure(let error): cont.resume(throwing: error)
+                case let .failure(error): cont.resume(throwing: error)
                 }
             }
         }

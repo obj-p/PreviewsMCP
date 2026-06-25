@@ -15,7 +15,8 @@ enum SignalWaiter {
     static func waitForTerminationSignal() async -> Int32 {
         await withCheckedContinuation { continuation in
             SignalDispatcher.shared.arm(
-                signals: [SIGINT, SIGTERM], continuation: continuation)
+                signals: [SIGINT, SIGTERM], continuation: continuation
+            )
         }
     }
 }
@@ -55,7 +56,9 @@ private final class SignalDispatcher: @unchecked Sendable {
         let toCancel = sources
         sources = []
         lock.unlock()
-        for s in toCancel { s.cancel() }
+        for s in toCancel {
+            s.cancel()
+        }
         cont?.resume(returning: sig)
     }
 }

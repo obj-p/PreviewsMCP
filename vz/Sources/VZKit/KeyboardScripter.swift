@@ -32,7 +32,8 @@ public struct KeyboardScripter {
     /// default for Setup Assistant-grade UIs.
     public func send(_ key: Key) {
         guard let down = makeEvent(.keyDown, key: key),
-              let up = makeEvent(.keyUp, key: key) else {
+              let up = makeEvent(.keyUp, key: key)
+        else {
             Log.info("could not synthesize NSEvent for \(key)")
             return
         }
@@ -46,7 +47,10 @@ public struct KeyboardScripter {
     public func type(_ string: String) {
         for character in string {
             guard let key = Key.character(character) else {
-                Log.info("KeyboardScripter: skipping unsupported character \(character.unicodeScalars.first?.value.description ?? "?")")
+                Log
+                    .info(
+                        "KeyboardScripter: skipping unsupported character \(character.unicodeScalars.first?.value.description ?? "?")"
+                    )
                 continue
             }
             send(key)
@@ -78,7 +82,8 @@ public struct KeyboardScripter {
             context: nil,
             eventNumber: 0,
             clickCount: 1,
-            pressure: 1.0)
+            pressure: 1.0
+        )
         let up = NSEvent.mouseEvent(
             with: .leftMouseUp,
             location: point,
@@ -88,7 +93,8 @@ public struct KeyboardScripter {
             context: nil,
             eventNumber: 0,
             clickCount: 1,
-            pressure: 0.0)
+            pressure: 0.0
+        )
         guard let down, let up else {
             Log.info("could not synthesize NSEvent for mouse click at \(point)")
             return
@@ -108,15 +114,16 @@ public struct KeyboardScripter {
             characters: key.characters,
             charactersIgnoringModifiers: key.characters,
             isARepeat: false,
-            keyCode: key.code)
+            keyCode: key.code
+        )
     }
 }
 
-extension KeyboardScripter {
+public extension KeyboardScripter {
     /// US-ANSI keyboard mapping. Covers the keys Setup Assistant
     /// navigation needs (Tab/Return/Space/Esc/arrows) and the unshifted
     /// printable ASCII subset for username/password typing.
-    public enum Key: Equatable, Sendable {
+    enum Key: Equatable, Sendable {
         case tab
         case returnKey
         case space
@@ -137,29 +144,29 @@ extension KeyboardScripter {
 
         public var code: UInt16 {
             switch self {
-            case .tab: return 48
-            case .returnKey: return 36
-            case .space: return 49
-            case .escape: return 53
-            case .delete: return 51
-            case .leftArrow: return 123
-            case .rightArrow: return 124
-            case .downArrow: return 125
-            case .upArrow: return 126
+            case .tab: 48
+            case .returnKey: 36
+            case .space: 49
+            case .escape: 53
+            case .delete: 51
+            case .leftArrow: 123
+            case .rightArrow: 124
+            case .downArrow: 125
+            case .upArrow: 126
             // macOS virtual keycodes for F-keys (Carbon HIToolbox).
-            case .f1:  return 122
-            case .f2:  return 120
-            case .f3:  return 99
-            case .f4:  return 118
-            case .f5:  return 96
-            case .f6:  return 97
-            case .f7:  return 98
-            case .f8:  return 100
-            case .f9:  return 101
-            case .f10: return 109
-            case .f11: return 103
-            case .f12: return 111
-            case .character(_, let code): return code
+            case .f1: 122
+            case .f2: 120
+            case .f3: 99
+            case .f4: 118
+            case .f5: 96
+            case .f6: 97
+            case .f7: 98
+            case .f8: 100
+            case .f9: 101
+            case .f10: 109
+            case .f11: 103
+            case .f12: 111
+            case let .character(_, code): code
             }
         }
 
@@ -175,80 +182,39 @@ extension KeyboardScripter {
             case .upArrow: return "\u{F700}"
             case .downArrow: return "\u{F701}"
             // NSEvent unicode for F-keys.
-            case .f1:  return "\u{F704}"
-            case .f2:  return "\u{F705}"
-            case .f3:  return "\u{F706}"
-            case .f4:  return "\u{F707}"
-            case .f5:  return "\u{F708}"
-            case .f6:  return "\u{F709}"
-            case .f7:  return "\u{F70A}"
-            case .f8:  return "\u{F70B}"
-            case .f9:  return "\u{F70C}"
+            case .f1: return "\u{F704}"
+            case .f2: return "\u{F705}"
+            case .f3: return "\u{F706}"
+            case .f4: return "\u{F707}"
+            case .f5: return "\u{F708}"
+            case .f6: return "\u{F709}"
+            case .f7: return "\u{F70A}"
+            case .f8: return "\u{F70B}"
+            case .f9: return "\u{F70C}"
             case .f10: return "\u{F70D}"
             case .f11: return "\u{F70E}"
             case .f12: return "\u{F70F}"
-            case .character(let value, _):
+            case let .character(value, _):
                 guard let scalar = Unicode.Scalar(value) else { return "" }
                 return String(Character(scalar))
             }
         }
 
-        /// US ANSI virtual keycodes for unshifted printable ASCII. Returns
-        /// nil for characters that need shift (uppercase + most symbols)
-        /// — those need the flagsChanged modifier path (not yet
-        /// implemented).
+        /// US ANSI virtual keycodes for unshifted printable ASCII. Absent
+        /// for characters that need shift (uppercase + most symbols) —
+        /// those need the flagsChanged modifier path (not yet implemented).
+        private static let unshiftedASCIIKeyCodes: [Character: UInt16] = [
+            "a": 0, "s": 1, "d": 2, "f": 3, "h": 4, "g": 5, "z": 6, "x": 7,
+            "c": 8, "v": 9, "b": 11, "q": 12, "w": 13, "e": 14, "r": 15,
+            "y": 16, "t": 17, "1": 18, "2": 19, "3": 20, "4": 21, "6": 22,
+            "5": 23, "=": 24, "9": 25, "7": 26, "-": 27, "8": 28, "0": 29,
+            "]": 30, "o": 31, "u": 32, "[": 33, "i": 34, "p": 35, "l": 37,
+            "j": 38, "'": 39, "k": 40, ";": 41, "\\": 42, ",": 43, "/": 44,
+            "n": 45, "m": 46, ".": 47, "`": 50, " ": 49,
+        ]
+
         private static func keyCodeForUnshiftedASCII(_ c: Character) -> UInt16? {
-            switch c {
-            case "a": return 0
-            case "s": return 1
-            case "d": return 2
-            case "f": return 3
-            case "h": return 4
-            case "g": return 5
-            case "z": return 6
-            case "x": return 7
-            case "c": return 8
-            case "v": return 9
-            case "b": return 11
-            case "q": return 12
-            case "w": return 13
-            case "e": return 14
-            case "r": return 15
-            case "y": return 16
-            case "t": return 17
-            case "1": return 18
-            case "2": return 19
-            case "3": return 20
-            case "4": return 21
-            case "6": return 22
-            case "5": return 23
-            case "=": return 24
-            case "9": return 25
-            case "7": return 26
-            case "-": return 27
-            case "8": return 28
-            case "0": return 29
-            case "]": return 30
-            case "o": return 31
-            case "u": return 32
-            case "[": return 33
-            case "i": return 34
-            case "p": return 35
-            case "l": return 37
-            case "j": return 38
-            case "'": return 39
-            case "k": return 40
-            case ";": return 41
-            case "\\": return 42
-            case ",": return 43
-            case "/": return 44
-            case "n": return 45
-            case "m": return 46
-            case ".": return 47
-            case "`": return 50
-            case " ": return 49
-            default: return nil
-            }
+            unshiftedASCIIKeyCodes[c]
         }
     }
 }

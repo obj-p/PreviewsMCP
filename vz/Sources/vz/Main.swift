@@ -50,16 +50,16 @@ struct VZCommand: ParsableCommand {
         commandName: "vz",
         abstract: "Spin up a SIP/AMFI-off macOS VM and connect to it for JIT-spike research.",
         discussion: """
-            Wraps Virtualization.framework so the JIT executor research
-            (prompts/jit-executor-research.md, W1) has a reproducible,
-            disposable macOS VM where dtrace and lldb can attach to
-            entitlement-restricted Apple binaries (XCPreviewAgent,
-            previewsd, PreviewShellMac).
+        Wraps Virtualization.framework so the JIT executor research
+        (prompts/jit-executor-research.md, W1) has a reproducible,
+        disposable macOS VM where dtrace and lldb can attach to
+        entitlement-restricted Apple binaries (XCPreviewAgent,
+        previewsd, PreviewShellMac).
 
-            Today this CLI operates on an already-installed bundle. The
-            `install` subcommand is stubbed; install-from-IPSW lands in
-            a follow-up.
-            """,
+        Today this CLI operates on an already-installed bundle. The
+        `install` subcommand is stubbed; install-from-IPSW lands in
+        a follow-up.
+        """,
         subcommands: [
             BootCommand.self,
             SSHCommand.self,

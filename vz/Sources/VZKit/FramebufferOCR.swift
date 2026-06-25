@@ -41,7 +41,7 @@ public enum FramebufferOCR {
 
         let request = VNRecognizeTextRequest()
         request.recognitionLevel = .accurate
-        request.usesLanguageCorrection = false  // SA strings are formal, no benefit from autocorrect
+        request.usesLanguageCorrection = false // SA strings are formal, no benefit from autocorrect
         // English is the language we target SA in, but Welcome cycles
         // through languages — accept whatever Vision finds and let
         // `find(target:)` match on text. Empty array = all supported.
@@ -57,7 +57,7 @@ public enum FramebufferOCR {
         let results = request.results ?? []
         return results.compactMap { obs -> Observation? in
             guard let candidate = obs.topCandidates(1).first else { return nil }
-            let box = obs.boundingBox  // normalized, bottom-left origin
+            let box = obs.boundingBox // normalized, bottom-left origin
 
             // Translate to top-left origin in framebuffer pixels.
             let fbX = box.minX * framebufferSize.width
@@ -67,7 +67,8 @@ public enum FramebufferOCR {
             let fbY = (1.0 - box.minY - box.height) * framebufferSize.height
             return Observation(
                 text: candidate.string,
-                boundingBox: CGRect(x: fbX, y: fbY, width: fbWidth, height: fbHeight))
+                boundingBox: CGRect(x: fbX, y: fbY, width: fbWidth, height: fbHeight)
+            )
         }
     }
 

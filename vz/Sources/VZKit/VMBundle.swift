@@ -53,10 +53,11 @@ public struct VMBundle: Sendable {
         let normalized = directory.standardizedFileURL
         var isDir: ObjCBool = false
         guard FileManager.default.fileExists(atPath: normalized.path, isDirectory: &isDir),
-              isDir.boolValue else {
+              isDir.boolValue
+        else {
             throw VMError("bundle does not exist or is not a directory: \(normalized.path)")
         }
-        self.url = normalized
+        url = normalized
         let configURL = normalized.appending(component: "config.json")
         let data: Data
         do {
@@ -65,21 +66,47 @@ public struct VMBundle: Sendable {
             throw VMError("could not read \(configURL.lastPathComponent)", underlying: error)
         }
         do {
-            self.config = try JSONDecoder().decode(BundleConfig.self, from: data)
+            config = try JSONDecoder().decode(BundleConfig.self, from: data)
         } catch {
             throw VMError("\(configURL.lastPathComponent) is malformed", underlying: error)
         }
     }
 
-    public var configURL: URL { url.appending(component: "config.json") }
-    public var diskImageURL: URL { url.appending(component: "disk.img") }
-    public var auxStorageURL: URL { url.appending(component: "aux.img") }
-    public var machineIdentifierURL: URL { url.appending(component: "machine-identifier.bin") }
-    public var hardwareModelURL: URL { url.appending(component: "hardware-model.bin") }
-    public var sshPrivateKeyURL: URL { url.appending(component: config.sshKeyName) }
-    public var sshPublicKeyURL: URL { url.appending(component: "\(config.sshKeyName).pub") }
-    public var knownHostsURL: URL { url.appending(component: "known_hosts") }
-    public var pidFileURL: URL { url.appending(component: "running.pid") }
+    public var configURL: URL {
+        url.appending(component: "config.json")
+    }
+
+    public var diskImageURL: URL {
+        url.appending(component: "disk.img")
+    }
+
+    public var auxStorageURL: URL {
+        url.appending(component: "aux.img")
+    }
+
+    public var machineIdentifierURL: URL {
+        url.appending(component: "machine-identifier.bin")
+    }
+
+    public var hardwareModelURL: URL {
+        url.appending(component: "hardware-model.bin")
+    }
+
+    public var sshPrivateKeyURL: URL {
+        url.appending(component: config.sshKeyName)
+    }
+
+    public var sshPublicKeyURL: URL {
+        url.appending(component: "\(config.sshKeyName).pub")
+    }
+
+    public var knownHostsURL: URL {
+        url.appending(component: "known_hosts")
+    }
+
+    public var pidFileURL: URL {
+        url.appending(component: "running.pid")
+    }
 
     /// Throws unless every file required to boot an installed bundle is present.
     public func requireRunnable() throws {

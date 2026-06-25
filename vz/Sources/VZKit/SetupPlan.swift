@@ -43,7 +43,8 @@ public struct SetupPlan: Codable, Sendable {
             ScreenRule(
                 match: rule.match,
                 actions: try rule.actions.map { try $0.step() },
-                terminal: rule.terminal ?? false)
+                terminal: rule.terminal ?? false
+            )
         }
     }
 }
@@ -66,7 +67,8 @@ extension SetupPlan.Action {
         case "modifiedKey":
             return .modifiedKey(
                 modifier: try Self.parseModifier(require(modifier, "modifier")),
-                key: try Self.parseKey(require(key, "key")))
+                key: try Self.parseKey(require(key, "key"))
+            )
         default:
             throw VMError("unknown plan action op: \(op)")
         }
@@ -114,7 +116,8 @@ extension SetupAssistantSequence {
     ) async throws {
         if let screenshotDir {
             try FileManager.default.createDirectory(
-                at: screenshotDir, withIntermediateDirectories: true)
+                at: screenshotDir, withIntermediateDirectories: true
+            )
         }
         let framebuffer = CGSize(width: 1280, height: 720)
         let persistLimit = 20
@@ -124,11 +127,12 @@ extension SetupAssistantSequence {
         var noMatchCount = 0
         var blankCount = 0
 
-        for iteration in 0..<maxIterations {
+        for iteration in 0 ..< maxIterations {
             let observations = try await ocrScreen(host: host, framebufferSize: framebuffer)
             if let screenshotDir {
                 let url = screenshotDir.appending(
-                    path: String(format: "iter-%02d.png", iteration))
+                    path: String(format: "iter-%02d.png", iteration)
+                )
                 try? await MainActor.run {
                     try Screenshot.captureWindow(host.window, to: url)
                 }
@@ -141,7 +145,8 @@ extension SetupAssistantSequence {
                     blankCount += 1
                     if blankCount >= blankLimit {
                         throw VMError(
-                            "dispatch: framebuffer stayed blank for \(blankCount) iterations")
+                            "dispatch: framebuffer stayed blank for \(blankCount) iterations"
+                        )
                     }
                 } else {
                     noMatchCount += 1
@@ -149,7 +154,8 @@ extension SetupAssistantSequence {
                         let seen = observations.prefix(20).map { $0.text }
                         throw VMError(
                             "dispatch: no rule matched the current screen. " +
-                            "Saw: \(seen.joined(separator: " | "))")
+                                "Saw: \(seen.joined(separator: " | "))"
+                        )
                     }
                 }
                 try await Task.sleep(for: .seconds(settleSeconds))
@@ -162,7 +168,8 @@ extension SetupAssistantSequence {
                 persistCount += 1
                 if persistCount >= persistLimit {
                     throw VMError(
-                        "dispatch: screen \"\(rule.match)\" did not advance")
+                        "dispatch: screen \"\(rule.match)\" did not advance"
+                    )
                 }
                 try await Task.sleep(for: .seconds(settleSeconds))
                 continue
@@ -172,7 +179,8 @@ extension SetupAssistantSequence {
             persistCount = 0
             Log.info("[dispatch iter \(iteration)] matched \"\(rule.match)\"")
             try await runVNC(
-                rule.actions, host: host, client: client, screenshotDir: nil)
+                rule.actions, host: host, client: client, screenshotDir: nil
+            )
 
             if rule.terminal {
                 Log.info("[dispatch] terminal screen reached")
@@ -181,7 +189,8 @@ extension SetupAssistantSequence {
             try await Task.sleep(for: .seconds(settleSeconds))
         }
         throw VMError(
-            "dispatch: exceeded \(maxIterations) iterations without a terminal screen")
+            "dispatch: exceeded \(maxIterations) iterations without a terminal screen"
+        )
     }
 
     private static func ocrScreen(
@@ -195,6 +204,7 @@ extension SetupAssistantSequence {
             try Screenshot.captureContentView(host.view, to: tempImage)
         }
         return try FramebufferOCR.recognize(
-            imageURL: tempImage, framebufferSize: framebufferSize)
+            imageURL: tempImage, framebufferSize: framebufferSize
+        )
     }
 }

@@ -15,11 +15,10 @@ struct BundleArgument: ParsableArguments {
 
     func load() throws -> VMBundle {
         let expanded = (path as NSString).expandingTildeInPath
-        let url: URL
-        if expanded.hasPrefix("/") {
-            url = URL(filePath: expanded)
+        let url = if expanded.hasPrefix("/") {
+            URL(filePath: expanded)
         } else {
-            url = URL(filePath: FileManager.default.currentDirectoryPath)
+            URL(filePath: FileManager.default.currentDirectoryPath)
                 .appending(path: expanded)
         }
         return try VMBundle(directory: url)

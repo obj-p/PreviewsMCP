@@ -30,11 +30,13 @@ try await Guest.session(bundle: bundle, adminPass: "vzvz", share: share, mountAt
     guest in
     let remote =
         command.isEmpty
-        ? "cd \(guestMount) && exec $SHELL -l"
-        : "cd \(guestMount) && \(command)"
+            ? "cd \(guestMount) && exec $SHELL -l"
+            : "cd \(guestMount) && \(command)"
     sessionExit = try await Task.detached {
         try VMSSH.execInteractive(
-            endpoint: guest.endpoint, command: remote, forceTTY: command.isEmpty)
+            endpoint: guest.endpoint, command: remote, forceTTY: command.isEmpty
+        )
     }.value
 }
+
 exit(sessionExit)

@@ -57,7 +57,8 @@ public enum VMNetwork {
 
     public static func readLeases(at path: String) -> [Lease]? {
         guard let data = FileManager.default.contents(atPath: path),
-              let text = String(data: data, encoding: .utf8) else {
+              let text = String(data: data, encoding: .utf8)
+        else {
             return nil
         }
         return parseLeases(text)

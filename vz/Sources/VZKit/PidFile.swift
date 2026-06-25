@@ -18,7 +18,8 @@ public enum VMPidFile {
     public static func read(_ bundle: VMBundle) -> Int32? {
         guard let data = try? Data(contentsOf: bundle.pidFileURL),
               let text = String(data: data, encoding: .utf8),
-              let pid = Int32(text.trimmingCharacters(in: .whitespacesAndNewlines)) else {
+              let pid = Int32(text.trimmingCharacters(in: .whitespacesAndNewlines))
+        else {
             return nil
         }
         return pid

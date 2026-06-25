@@ -15,13 +15,18 @@ public final class VMHost {
     public init(bundle: VMBundle, share: VMConfiguration.DirectoryShare? = nil) throws {
         self.bundle = bundle
         let config = try VMConfiguration.build(bundle: bundle, share: share)
-        self.machine = VZVirtualMachine(configuration: config)
+        machine = VZVirtualMachine(configuration: config)
     }
 
-    public var state: VZVirtualMachine.State { machine.state }
+    public var state: VZVirtualMachine.State {
+        machine.state
+    }
 
     public func start() async throws {
-        Log.info("starting VM (bundle=\(bundle.url.lastPathComponent), cpu=\(bundle.config.cpuCount), mem=\(bundle.config.memorySizeBytes / 1024 / 1024)MiB)")
+        Log
+            .info(
+                "starting VM (bundle=\(bundle.url.lastPathComponent), cpu=\(bundle.config.cpuCount), mem=\(bundle.config.memorySizeBytes / 1024 / 1024)MiB)"
+            )
         do {
             try await machine.start()
         } catch {
@@ -33,7 +38,8 @@ public final class VMHost {
     public func waitForIP(timeout: TimeInterval = 120) async throws -> String {
         Log.info("waiting for DHCP lease on MAC \(bundle.config.macAddress) (timeout=\(Int(timeout))s)")
         let ip = try await VMNetwork.waitForIP(
-            mac: bundle.config.macAddress, timeout: timeout)
+            mac: bundle.config.macAddress, timeout: timeout
+        )
         Log.info("guest IP = \(ip)")
         return ip
     }
@@ -66,7 +72,7 @@ public final class VMHost {
     /// poll cadence is fine.
     public func waitForStop(timeout: TimeInterval = 60) async throws {
         let deadline = Date().addingTimeInterval(timeout)
-        while machine.state != .stopped && Date() < deadline {
+        while machine.state != .stopped, Date() < deadline {
             Log.debug("waiting for stop, state=\(machine.state.description)")
             try await Task.sleep(for: .milliseconds(500))
         }
@@ -78,8 +84,8 @@ public final class VMHost {
     }
 }
 
-extension VZVirtualMachine.State {
-    public var description: String {
+public extension VZVirtualMachine.State {
+    var description: String {
         switch self {
         case .stopped: return "stopped"
         case .running: return "running"

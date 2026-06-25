@@ -50,7 +50,8 @@ public enum SnapshotStore {
             throw VMError("snapshot '\(name)' already exists at \(target.path)")
         }
         try FileManager.default.createDirectory(
-            at: target, withIntermediateDirectories: true)
+            at: target, withIntermediateDirectories: true
+        )
 
         do {
             try clone(from: bundle.diskImageURL, to: target.appending(path: "disk.img"))
@@ -77,7 +78,8 @@ public enum SnapshotStore {
         let snapshotDisk = snapshot.appending(path: "disk.img")
         let snapshotAux = snapshot.appending(path: "aux.img")
         guard FileManager.default.fileExists(atPath: snapshotDisk.path),
-              FileManager.default.fileExists(atPath: snapshotAux.path) else {
+              FileManager.default.fileExists(atPath: snapshotAux.path)
+        else {
             throw VMError("snapshot '\(name)' missing or incomplete at \(snapshot.path)")
         }
 
@@ -94,8 +96,9 @@ public enum SnapshotStore {
             // The caller can re-restore; we make sure they know.
             throw VMError(
                 "RESTORE FAILED mid-way — bundle's disk.img/aux.img may be missing. " +
-                "Re-run `vz snapshot restore \(name)`.",
-                underlying: error)
+                    "Re-run `vz snapshot restore \(name)`.",
+                underlying: error
+            )
         }
 
         Log.info("snapshot '\(name)' restored to \(bundle.url.path)")

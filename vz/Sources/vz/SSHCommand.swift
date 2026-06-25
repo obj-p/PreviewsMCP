@@ -16,9 +16,9 @@ struct SSHCommand: AsyncParsableCommand {
         commandName: "ssh",
         abstract: "Open a shell or exec a command in the booted bundle.",
         discussion: """
-            Anything after `--` is forwarded as the remote command. Without
-            `--`, an interactive TTY shell is opened.
-            """
+        Anything after `--` is forwarded as the remote command. Without
+        `--`, an interactive TTY shell is opened.
+        """
     )
 
     @OptionGroup var bundle: BundleArgument

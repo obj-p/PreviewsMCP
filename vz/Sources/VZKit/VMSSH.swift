@@ -55,7 +55,8 @@ public enum VMSSH {
             "\(endpoint.user)@\(endpoint.host)", command,
         ]
         return try await runCapturing(
-            executablePath: "/usr/bin/ssh", arguments: args, timeout: timeout)
+            executablePath: "/usr/bin/ssh", arguments: args, timeout: timeout
+        )
     }
 
     /// Run an interactive SSH session (stdin/stdout/stderr inherited from
@@ -88,9 +89,10 @@ public enum VMSSH {
     ) async throws {
         let automount = VMConfiguration.macOSAutomountPath
         var appeared = false
-        for _ in 0..<15 {
+        for _ in 0 ..< 15 {
             let probe = try await exec(
-                endpoint: endpoint, command: "test -d \(Guest.shellQuote(automount))", timeout: 10)
+                endpoint: endpoint, command: "test -d \(Guest.shellQuote(automount))", timeout: 10
+            )
             if probe.exitCode == 0 {
                 appeared = true
                 break
@@ -106,11 +108,12 @@ public enum VMSSH {
         let result = try await exec(
             endpoint: endpoint,
             command:
-                "sudo -n mkdir -p \"$(dirname \(path))\" "
+            "sudo -n mkdir -p \"$(dirname \(path))\" "
                 + "&& { [ ! -e \(path) ] || [ -L \(path) ] "
                 + "|| { echo 'mountpoint exists and is not a symlink' >&2; exit 1; }; } "
                 + "&& sudo -n rm -f \(path) && sudo -n ln -sfn \(target) \(path)",
-            timeout: 15)
+            timeout: 15
+        )
         guard result.exitCode == 0 else {
             throw VMError(
                 "linking \(guestPath) -> \(automount) failed (exit \(result.exitCode)): \(result.stderr)"
@@ -170,7 +173,9 @@ public enum VMSSH {
     /// closure. The `@unchecked Sendable` is the cost of that locality.
     private final class Box<T>: @unchecked Sendable {
         var value: T
-        init(_ value: T) { self.value = value }
+        init(_ value: T) {
+            self.value = value
+        }
     }
 
     private static func runCapturing(
@@ -217,7 +222,7 @@ public enum VMSSH {
             }
 
             let deadline = Date().addingTimeInterval(timeout)
-            while process.isRunning && Date() < deadline {
+            while process.isRunning, Date() < deadline {
                 try await Task.sleep(for: .milliseconds(50))
             }
             if process.isRunning {

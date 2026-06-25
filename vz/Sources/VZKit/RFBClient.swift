@@ -13,7 +13,9 @@ public final class RFBClient {
     public struct Endpoint: Sendable {
         public let host: String
         public let port: UInt16
-        public init(host: String, port: UInt16) { self.host = host; self.port = port }
+        public init(host: String, port: UInt16) {
+            self.host = host; self.port = port
+        }
     }
 
     private var fd: Int32 = -1
@@ -50,7 +52,7 @@ public final class RFBClient {
             if result == 0 { break }
             lastError = errno
             if lastError == EINTR || lastError == ECONNREFUSED {
-                usleep(100_000)  // 100ms, then retry
+                usleep(100_000) // 100ms, then retry
                 continue
             }
             Darwin.close(socketFd)
@@ -59,10 +61,12 @@ public final class RFBClient {
 
         if Date() >= deadline {
             Darwin.close(socketFd)
-            throw VMError("connect() to localhost:\(endpoint.port) timed out after \(Int(timeout))s (last errno: \(lastError))")
+            throw VMError(
+                "connect() to localhost:\(endpoint.port) timed out after \(Int(timeout))s (last errno: \(lastError))"
+            )
         }
 
-        self.fd = socketFd
+        fd = socketFd
         Log.debug("RFB connected to \(endpoint.host):\(endpoint.port) on fd \(socketFd)")
     }
 
@@ -111,21 +115,21 @@ public final class RFBClient {
 
         // ServerInit: width(2) + height(2) + pixelFormat(16) + nameLen(4) + name(nameLen).
         let header = try readExactly(24)
-        let nameLen = beUInt32(header.subdata(in: 20..<24))
+        let nameLen = beUInt32(header.subdata(in: 20 ..< 24))
         if nameLen > 0 {
             _ = try readExactly(Int(nameLen))
         }
-        let width = beUInt16(header.subdata(in: 0..<2))
-        let height = beUInt16(header.subdata(in: 2..<4))
+        let width = beUInt16(header.subdata(in: 0 ..< 2))
+        let height = beUInt16(header.subdata(in: 2 ..< 4))
         Log.info("RFB handshake complete — framebuffer \(width)×\(height)")
     }
 
     /// Send a key event. `keysym` is an X11 keysym (see RFBClient.KeySym).
     public func sendKeyEvent(keysym: UInt32, down: Bool) throws {
         var buf = Data(capacity: 8)
-        buf.append(4)  // message type: KeyEvent
+        buf.append(4) // message type: KeyEvent
         buf.append(down ? 1 : 0)
-        buf.append(contentsOf: [0, 0])  // padding
+        buf.append(contentsOf: [0, 0]) // padding
         appendUInt32BE(keysym, to: &buf)
         try writeAll(buf)
     }
@@ -141,7 +145,7 @@ public final class RFBClient {
     /// coords, which is the win over the NSEvent route).
     public func sendPointerEvent(buttonMask: UInt8, x: UInt16, y: UInt16) throws {
         var buf = Data(capacity: 6)
-        buf.append(5)  // message type: PointerEvent
+        buf.append(5) // message type: PointerEvent
         buf.append(buttonMask)
         appendUInt16BE(x, to: &buf)
         appendUInt16BE(y, to: &buf)
@@ -202,8 +206,8 @@ public final class RFBClient {
 
 // MARK: - X11 keysyms
 
-extension RFBClient {
-    public enum KeySym {
+public extension RFBClient {
+    enum KeySym {
         public static let backspace: UInt32 = 0xFF08
         public static let tab: UInt32 = 0xFF09
         public static let returnKey: UInt32 = 0xFF0D

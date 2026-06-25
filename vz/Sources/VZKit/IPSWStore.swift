@@ -21,7 +21,7 @@ public enum IPSWStore {
         let base = (ProcessInfo.processInfo.environment["XDG_CACHE_HOME"]
             .map { URL(filePath: $0) })
             ?? FileManager.default.homeDirectoryForCurrentUser
-                .appending(path: ".cache")
+            .appending(path: ".cache")
         return base.appending(path: "vz/ipsw")
     }
 
@@ -35,13 +35,13 @@ public enum IPSWStore {
     /// necessary. Prints periodic progress to stderr.
     public static func resolve(_ source: Source) async throws -> URL {
         switch source {
-        case .localFile(let url):
+        case let .localFile(url):
             guard FileManager.default.fileExists(atPath: url.path) else {
                 throw VMError("IPSW does not exist at \(url.path)")
             }
             return url
 
-        case .remoteURL(let url):
+        case let .remoteURL(url):
             return try await downloadIfNeeded(remote: url)
 
         case .latestSupported:
@@ -70,8 +70,8 @@ public enum IPSWStore {
         let box: RestoreImageBox = try await withCheckedThrowingContinuation { cont in
             VZMacOSRestoreImage.fetchLatestSupported { result in
                 switch result {
-                case .success(let image): cont.resume(returning: RestoreImageBox(image))
-                case .failure(let error): cont.resume(throwing: error)
+                case let .success(image): cont.resume(returning: RestoreImageBox(image))
+                case let .failure(error): cont.resume(throwing: error)
                 }
             }
         }
@@ -85,8 +85,8 @@ public enum IPSWStore {
         let box: RestoreImageBox = try await withCheckedThrowingContinuation { cont in
             VZMacOSRestoreImage.load(from: url) { result in
                 switch result {
-                case .success(let image): cont.resume(returning: RestoreImageBox(image))
-                case .failure(let error): cont.resume(throwing: error)
+                case let .success(image): cont.resume(returning: RestoreImageBox(image))
+                case let .failure(error): cont.resume(throwing: error)
                 }
             }
         }
@@ -106,11 +106,10 @@ public enum IPSWStore {
             return try await resolve(.remoteURL(url))
         }
         let expanded = (raw as NSString).expandingTildeInPath
-        let url: URL
-        if expanded.hasPrefix("/") {
-            url = URL(filePath: expanded)
+        let url = if expanded.hasPrefix("/") {
+            URL(filePath: expanded)
         } else {
-            url = URL(filePath: FileManager.default.currentDirectoryPath)
+            URL(filePath: FileManager.default.currentDirectoryPath)
                 .appending(path: expanded)
         }
         return try await resolve(.localFile(url))
@@ -118,7 +117,8 @@ public enum IPSWStore {
 
     private static func downloadIfNeeded(remote: URL) async throws -> URL {
         try FileManager.default.createDirectory(
-            at: cacheDirectory, withIntermediateDirectories: true)
+            at: cacheDirectory, withIntermediateDirectories: true
+        )
         let destination = cacheDirectory.appending(path: remote.lastPathComponent)
         if FileManager.default.fileExists(atPath: destination.path) {
             Log.info("using cached IPSW at \(destination.path)")
@@ -133,7 +133,8 @@ public enum IPSWStore {
         let session = URLSession(
             configuration: .default,
             delegate: reporter,
-            delegateQueue: nil)
+            delegateQueue: nil
+        )
         defer { session.invalidateAndCancel() }
 
         let progressTask = Task {
@@ -176,7 +177,9 @@ public enum IPSWStore {
 /// `CheckedContinuation` under Swift 6 strict concurrency.
 private final class RestoreImageBox: @unchecked Sendable {
     let image: VZMacOSRestoreImage
-    init(_ image: VZMacOSRestoreImage) { self.image = image }
+    init(_ image: VZMacOSRestoreImage) {
+        self.image = image
+    }
 }
 
 /// `URLSessionDownloadDelegate` that records cumulative byte counts.
@@ -189,22 +192,22 @@ private final class DownloadProgressReporter: NSObject, URLSessionDownloadDelega
     private var lastLoggedPercent: Int = -1
 
     func urlSession(
-        _ session: URLSession,
-        downloadTask: URLSessionDownloadTask,
-        didWriteData bytesWritten: Int64,
+        _: URLSession,
+        downloadTask _: URLSessionDownloadTask,
+        didWriteData _: Int64,
         totalBytesWritten: Int64,
         totalBytesExpectedToWrite: Int64
     ) {
         lock.lock()
         defer { lock.unlock() }
-        self.bytesWritten = totalBytesWritten
-        self.totalBytesExpected = totalBytesExpectedToWrite
+        bytesWritten = totalBytesWritten
+        totalBytesExpected = totalBytesExpectedToWrite
     }
 
     func urlSession(
-        _ session: URLSession,
-        downloadTask: URLSessionDownloadTask,
-        didFinishDownloadingTo location: URL
+        _: URLSession,
+        downloadTask _: URLSessionDownloadTask,
+        didFinishDownloadingTo _: URL
     ) {
         // No-op — URLSession.download(from:) handles the temp file for us.
     }

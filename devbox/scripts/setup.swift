@@ -68,7 +68,8 @@ func driveSetup(bundle: VMBundle, outputDir: URL) async throws {
         try client.handshake()
         try await SetupAssistantSequence.runDispatchVNC(
             rules: saPlan, host: host, client: client,
-            screenshotDir: outputDir, maxIterations: 80)
+            screenshotDir: outputDir, maxIterations: 80
+        )
     } catch {
         try? await host.forceStop()
         await MainActor.run { host.close() }
@@ -91,7 +92,7 @@ app.setActivationPolicy(.accessory)
 
 Task {
     let maxAttempts = retries + 1
-    for attempt in 1...maxAttempts {
+    for attempt in 1 ... maxAttempts {
         do {
             step("setup attempt \(attempt)/\(maxAttempts): restoring \(restoreFrom)")
             try SnapshotStore.restore(name: restoreFrom, in: bundle)
@@ -105,4 +106,5 @@ Task {
     FileHandle.standardError.write(Data("setup failed after \(maxAttempts) attempts\n".utf8))
     Darwin.exit(1)
 }
+
 app.run()

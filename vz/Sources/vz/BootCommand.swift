@@ -36,13 +36,14 @@ struct BootCommand: AsyncParsableCommand {
     @Flag(
         name: .customLong("with-display"),
         help:
-            "Boot via FirstBootHost (hidden NSWindow + VZVirtualMachineView). Required for Setup-Assistant-pending bundles; implies --skip-ssh-wait."
+        "Boot via FirstBootHost (hidden NSWindow + VZVirtualMachineView). Required for Setup-Assistant-pending bundles; implies --skip-ssh-wait."
     )
     var withDisplay: Bool = false
 
     @Option(
         name: .long,
-        help: "Host directory to share into the guest over virtiofs (mounted after SSH is ready).")
+        help: "Host directory to share into the guest over virtiofs (mounted after SSH is ready)."
+    )
     var dir: String?
 
     @Flag(name: .customLong("dir-read-only"), help: "Mount the --dir share read-only.")
@@ -50,7 +51,8 @@ struct BootCommand: AsyncParsableCommand {
 
     @Option(
         name: .long,
-        help: "Guest path to mount --dir at (default: /Users/<user>/<basename>).")
+        help: "Guest path to mount --dir at (default: /Users/<user>/<basename>)."
+    )
     var mountAt: String?
 
     func run() async throws {
@@ -149,18 +151,18 @@ struct BootCommand: AsyncParsableCommand {
     private func printFirstBootBanner(bundle: VMBundle) {
         let banner = """
 
-            ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-              vz — first-boot (hidden display) running
-                \(bundle.url.path)
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+          vz — first-boot (hidden display) running
+            \(bundle.url.path)
 
-              The VM is booting with a VZVirtualMachineView attached to a
-              hidden NSWindow at (-10000, -10000). Setup Assistant is
-              running in the off-screen framebuffer. Phase 11b will drive
-              it via scripted NSEvent.postEvent keystrokes; for now, ^C
-              stops the VM.
-            ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+          The VM is booting with a VZVirtualMachineView attached to a
+          hidden NSWindow at (-10000, -10000). Setup Assistant is
+          running in the off-screen framebuffer. Phase 11b will drive
+          it via scripted NSEvent.postEvent keystrokes; for now, ^C
+          stops the VM.
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-            """
+        """
         FileHandle.standardError.write(Data(banner.utf8))
     }
 
@@ -169,7 +171,7 @@ struct BootCommand: AsyncParsableCommand {
         let url = URL(filePath: dir).absoluteURL
         var isDir: ObjCBool = false
         guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir),
-            isDir.boolValue
+              isDir.boolValue
         else {
             throw VMError("--dir is not a directory: \(dir)")
         }
@@ -183,20 +185,20 @@ struct BootCommand: AsyncParsableCommand {
         let shareLine = mountedAt.map { "\n  shared dir mounted at \($0)\n" } ?? ""
         let banner = """
 
-            ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-              vz — VM up at \(ip)
-            \(shareLine)
-              From another shell:
-                vz ssh \(bundle.url.path) -- <cmd>
-                vz stop \(bundle.url.path)
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+          vz — VM up at \(ip)
+        \(shareLine)
+          From another shell:
+            vz ssh \(bundle.url.path) -- <cmd>
+            vz stop \(bundle.url.path)
 
-              Or directly:
-                ssh -i \(key) -o UserKnownHostsFile=\(known) \(user)@\(ip)
+          Or directly:
+            ssh -i \(key) -o UserKnownHostsFile=\(known) \(user)@\(ip)
 
-              ^C in this shell to stop. PID file: \(bundle.pidFileURL.path)
-            ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+          ^C in this shell to stop. PID file: \(bundle.pidFileURL.path)
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-            """
+        """
         FileHandle.standardError.write(Data(banner.utf8))
     }
 }

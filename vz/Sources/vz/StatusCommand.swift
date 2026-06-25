@@ -25,15 +25,15 @@ struct StatusCommand: AsyncParsableCommand {
         print("config.mac:       \(bundle.config.macAddress)")
         print("config.user:      \(bundle.config.sshUsername)")
         switch pid {
-        case .some(let p) where pidAlive:
+        case let .some(p) where pidAlive:
             print("boot PID:         \(p) (alive)")
-        case .some(let p):
+        case let .some(p):
             print("boot PID:         \(p) (stale — process not running)")
         case .none:
             print("boot PID:         <no pid file>")
         }
         switch ip {
-        case .some(let value):
+        case let .some(value):
             print("DHCP lease:       \(value)")
         case .none:
             print("DHCP lease:       <none>")

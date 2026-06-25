@@ -14,7 +14,9 @@ struct RunCommand: ParsableCommand {
 
     struct RunError: Error, CustomStringConvertible {
         let message: String
-        var description: String { message }
+        var description: String {
+            message
+        }
     }
 
     func run() throws {
@@ -38,11 +40,13 @@ struct RunCommand: ParsableCommand {
         try Self.sh("/usr/bin/swift", ["build", "-c", "release", "--package-path", cacheDir.path])
         let binDir = try Self.capture(
             "/usr/bin/swift",
-            ["build", "-c", "release", "--package-path", cacheDir.path, "--show-bin-path"])
+            ["build", "-c", "release", "--package-path", cacheDir.path, "--show-bin-path"]
+        )
         let binary = URL(filePath: binDir).appending(path: "vzscript")
         try Self.sh(
             "/usr/bin/codesign",
-            ["--force", "--sign", "-", "--entitlements", entitlements.path, binary.path])
+            ["--force", "--sign", "-", "--entitlements", entitlements.path, binary.path]
+        )
 
         let process = Process()
         process.executableURL = binary
@@ -63,24 +67,25 @@ struct RunCommand: ParsableCommand {
         let sourcesDir = dir.appending(path: "Sources/vzscript")
         try FileManager.default.createDirectory(at: sourcesDir, withIntermediateDirectories: true)
         let manifest = """
-            // swift-tools-version: 6.0
-            import PackageDescription
+        // swift-tools-version: 6.0
+        import PackageDescription
 
-            let package = Package(
-                name: "vzscript",
-                platforms: [.macOS(.v14)],
-                dependencies: [.package(path: \"\(packageRoot.path)\")],
-                targets: [
-                    .executableTarget(
-                        name: "vzscript",
-                        dependencies: [.product(name: "VZKit", package: "vz")]
-                    )
-                ]
-            )
-            """
+        let package = Package(
+            name: "vzscript",
+            platforms: [.macOS(.v14)],
+            dependencies: [.package(path: \"\(packageRoot.path)\")],
+            targets: [
+                .executableTarget(
+                    name: "vzscript",
+                    dependencies: [.product(name: "VZKit", package: "vz")]
+                )
+            ]
+        )
+        """
         try manifest.write(to: dir.appending(path: "Package.swift"), atomically: true, encoding: .utf8)
         try source.write(
-            to: sourcesDir.appending(path: "main.swift"), atomically: true, encoding: .utf8)
+            to: sourcesDir.appending(path: "main.swift"), atomically: true, encoding: .utf8
+        )
     }
 
     static func sh(_ path: String, _ args: [String]) throws {

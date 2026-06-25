@@ -16,7 +16,8 @@ struct InstallCommand: AsyncParsableCommand {
     )
 
     @Argument(help: ArgumentHelp(
-        "Path to the bundle directory to create. Must be empty or non-existent."))
+        "Path to the bundle directory to create. Must be empty or non-existent."
+    ))
     var path: String
 
     @Option(
@@ -60,12 +61,14 @@ struct InstallCommand: AsyncParsableCommand {
             cpuCount: cpuCount,
             memorySizeBytes: memoryMiB * 1024 * 1024,
             diskSizeBytes: diskSizeGiB * 1024 * 1024 * 1024,
-            sshUsername: sshUsername)
+            sshUsername: sshUsername
+        )
 
         let bundle = try await BundleProvisioner.provision(
             bundleURL: bundleURL,
             ipswURL: ipswURL,
-            options: options)
+            options: options
+        )
 
         if skipInstall {
             printSkippedBanner(bundle: bundle, ipswURL: ipswURL)
@@ -85,7 +88,7 @@ struct InstallCommand: AsyncParsableCommand {
             .appending(path: expanded)
     }
 
-    private func printNextStepBanner(bundle: VMBundle, ipswURL: URL) {
+    private func printNextStepBanner(bundle: VMBundle, ipswURL _: URL) {
         let banner = """
 
         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
