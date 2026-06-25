@@ -2,30 +2,28 @@
   <img src="assets/hero-icon.svg" width="128" height="128" alt="PreviewsMCP icon">
 </p>
 
-<h1 align="center">PreviewsMCP</h1>
+# PreviewsMCP
 
-<p align="center">
+<p>
   A standalone SwiftUI preview host for humans and AI agents.<br>
   Run, snapshot, and interact with <code>#Preview</code> blocks from the command line or over <a href="https://modelcontextprotocol.io/">MCP</a> — no Xcode process required.
-</p>
-
-<p align="center">
-  <img src="assets/demo.gif" alt="PreviewsMCP iOS hot-reload demo" width="900">
 </p>
 
 ## Quickstart
 
 ```bash
-git clone https://github.com/obj-p/PreviewsMCP.git
-cd PreviewsMCP
-swift run previewsmcp examples/spm/Sources/ToDo/ToDoView.swift
+brew tap obj-p/tap
+brew install previewsmcp
+previewsmcp MyView.swift
 ```
 
 A live macOS preview window opens. Edit the source file and the window hot-reloads.
 
+> Want to build from source instead? See [From source](#from-source).
+
 ## Why PreviewsMCP?
 
-PreviewsMCP compiles your `#Preview` closure into a dylib and loads it into a real app process (macOS `NSApplication` or iOS simulator `UIApplication`) with hot-reload — driven entirely from the command line or over MCP. No Xcode process required.
+PreviewsMCP JIT-compiles your `#Preview` closure and links it into a real app process (macOS `NSApplication` or iOS simulator `UIApplication`) with hot-reload — driven entirely from the command line or over MCP. No Xcode process required.
 
 That makes it a standalone, extensible preview workflow:
 
@@ -37,9 +35,9 @@ That makes it a standalone, extensible preview workflow:
 
 ### Solving the Xcode preview sandbox problem
 
-Xcode previews run your code inside Apple's preview agent — a real app process, but an opaque one. You can't hook into its lifecycle, run your own initialization, or extend it. `FirebaseApp.configure()`, custom font registration, auth setup, and DI containers have nowhere to run. The ecosystem answer is "mock everything," and at scale teams maintain **micro apps** — standalone app targets that render a single feature with controlled dependencies. Airbnb's dev apps drive over 50% of local iOS builds. Point-Free's isowords has 9 preview apps. Every team pays the maintenance tax: separate targets, schemes, and mock setups that drift.
+Xcode previews run your code inside Apple's opaque preview agent, so you can't run your own initialization. `FirebaseApp.configure()`, font registration, auth, and DI containers have nowhere to go. Teams work around this with **micro apps** — standalone targets that render one feature with controlled dependencies — and pay a steady maintenance tax in extra targets, schemes, and mocks. (Airbnb's dev apps drive over half of local iOS builds; Point-Free's isowords ships 9 preview apps.)
 
-Because PreviewsMCP hosts your preview in its own app process, you can extend that process. The [setup plugin](Sources/PreviewsSetupKit/PreviewSetup.swift) provides the hook: a `PreviewSetup` protocol where `setUp()` runs once per session (SDK init, auth, font registration, DI container) and `wrap()` surrounds every preview render (themes, environment values). It's the micro app's dependency layer extracted into a reusable framework — without maintaining a separate app target.
+PreviewsMCP hosts your preview in its own app process, so you can extend it. The [setup plugin](Sources/PreviewsSetupKit/PreviewSetup.swift) is the hook: `setUp()` runs once per session (SDK init, auth, fonts, DI) and `wrap()` surrounds every render (themes, environment values). It's the micro app's dependency layer as a reusable framework, with no separate target to maintain.
 
 ## Installation
 
@@ -55,16 +53,19 @@ brew install previewsmcp
 ```bash
 git clone https://github.com/obj-p/PreviewsMCP.git
 cd PreviewsMCP
-swift build -c release
+brew install bazelisk
+bazel build //previewsmcp/cli:previewsmcp   # first build compiles the LLVM JIT artifacts from source (~3-4 min)
 ```
 
-The binary is at `.build/release/previewsmcp`.
+The binary is at `bazel-bin/previewsmcp/cli/previewsmcp`, or run it through the `scripts/previewsmcp` wrapper. Bazel builds the LLVM JIT artifacts hermetically, so there are no helper scripts or host toolchain to install.
 
 ### Requirements
 
 - macOS 14+
-- Xcode 16+ (for iOS simulator support)
 - Apple Silicon
+- Xcode 26.2 to build from source (the Bazel build pins `--xcode_version=26.2`)
+- An iOS 26 simulator for iOS support (the iOS preview host requires the iOS 26 scene-hosting runtime)
+- [bazelisk](https://github.com/bazelbuild/bazelisk) to build from source (`brew install bazelisk`)
 
 ## Capabilities
 
@@ -79,7 +80,7 @@ The binary is at `.build/release/previewsmcp`.
 
 ### CLI
 
-Every CLI subcommand talks to a daemon process over a Unix socket. The daemon auto-starts on first use (ADB-style) and stays alive across invocations — no manual lifecycle management needed.
+Every CLI subcommand talks to a background daemon that auto-starts on first use, so there is no lifecycle to manage (see [Daemon model](#daemon-model)).
 
 ```bash
 previewsmcp help                   # top-level overview
@@ -135,16 +136,11 @@ previewsmcp kill-daemon                             # stop the daemon process
 
 #### Structured output
 
-Read-oriented commands support `--json` for scripts and agent consumption:
+Read-oriented commands (`run --detach`, `snapshot`, `variants`, `list`, `status`, `simulators`, `elements`) support `--json` for scripts and agent consumption:
 
 ```bash
 previewsmcp run MyView.swift --detach --json | jq .sessionID
 previewsmcp simulators --json | jq '.simulators[] | select(.state == "Booted")'
-previewsmcp list MyView.swift --json
-previewsmcp snapshot MyView.swift -o out.png --json
-previewsmcp variants MyView.swift --variant light --variant dark -o ./shots --json
-previewsmcp status --json
-previewsmcp elements --json
 ```
 
 ### Project config
@@ -191,8 +187,8 @@ The CLI uses an auto-started background daemon that manages preview sessions. On
 
 When a command appears stuck — most commonly `run` during an iOS host build — there are two places to look:
 
-1. **The CLI's own stderr.** The daemon streams progress messages for each build phase (`detecting project`, `building agent app`, `booting simulator`, …) back to the CLI as MCP log notifications, which the CLI forwards to stderr. Whichever phase was printed last is where it's stuck.
-2. **The daemon log.** Daemon stderr is redirected to `~/.previewsmcp/serve.log` on spawn, so startup failures and anything the daemon logs outside an active RPC land in this file. Stream it in a second terminal:
+1. **The CLI's own stderr.** The daemon forwards a progress message for each build phase (`detecting project`, `building agent app`, `booting simulator`, …). The last phase printed is where it's stuck.
+2. **The daemon log.** Daemon stderr goes to `~/.previewsmcp/serve.log`, which captures startup failures and anything logged outside an active command. Stream it in a second terminal:
 
    ```bash
    previewsmcp logs -f                       # follow new lines
@@ -204,8 +200,8 @@ When a command appears stuck — most commonly `run` during an iOS host build �
 Other levers:
 
 - `previewsmcp status --json` — confirm the daemon is still alive (`running` / `transitional` / `stopped`) while a command is blocked.
-- `previewsmcp kill-daemon` followed by re-running the command — gives a clean daemon and a fresh `serve.log` worth of context.
-- `PREVIEWSMCP_SOCKET_DIR=/tmp/previewsmcp-debug previewsmcp …` — relocates the socket, PID, and log files so you can isolate a debug run from an existing daemon. Export the variable (or prefix both invocations) so `previewsmcp logs` targets the same isolated dir rather than falling back to the default `~/.previewsmcp/serve.log`.
-- Subprocess failures (`xcodebuild`, `swiftc`, `codesign`) surface their captured stderr in the error returned to the CLI; a hang, however, won't — so if the last phase logged is a build phase and the command isn't progressing, check for a live `xcodebuild` or `swiftc` process with `ps -ef | grep -E 'xcodebuild|swiftc'`.
+- `previewsmcp kill-daemon`, then re-run — gives a clean daemon and a fresh `serve.log`.
+- `PREVIEWSMCP_SOCKET_DIR=/tmp/dbg previewsmcp …` — relocates the socket, PID, and log files to isolate a debug run from your main daemon. Set it on every invocation (including `logs`) so they share the dir.
+- Subprocess failures (`xcodebuild`, `swiftc`, `codesign`) include their stderr in the error. A hang won't, so if a build phase is stuck check for a live process: `ps -ef | grep -E 'xcodebuild|swiftc'`.
 
 
