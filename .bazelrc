@@ -1,4 +1,5 @@
 build --apple_platform_type=macos
+build --xcode_version=26.2
 build --macos_minimum_os=14.0
 build --ios_minimum_os=14.0
 build --verbose_failures
