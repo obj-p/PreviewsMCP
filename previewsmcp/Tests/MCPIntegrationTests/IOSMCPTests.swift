@@ -96,8 +96,6 @@ struct IOSMCPTests {
         #expect(startError != true, "iOS preview_start should succeed")
         let sessionID = try MCPTestServer.extractSessionID(from: startContent)
 
-        try await Task.sleep(for: .seconds(3))
-
         // --- Snapshot ---
         let (snapshotContent, snapshotError) = try await server.callTool(
             name: "preview_snapshot",
@@ -107,17 +105,11 @@ struct IOSMCPTests {
         try MCPTestServer.assertValidImage(snapshotContent)
 
         // --- Elements with accessibility assertions ---
-        let (elementsContent, elementsError) = try await server.callTool(
-            name: "preview_elements",
-            arguments: [
-                "sessionID": .string(sessionID),
-                "filter": .string("all"),
-            ]
+        let elementsText = try await server.awaitElementsText(
+            sessionID: sessionID,
+            contains: "My Items",
+            timeout: .seconds(30)
         )
-        #expect(elementsError != true, "preview_elements should succeed")
-        let elementsText = MCPTestServer.extractText(from: elementsContent)
-        #expect(!elementsText.isEmpty, "Should return accessibility data")
-        #expect(elementsText.contains("My Items"), "Should contain navigation title")
         #expect(elementsText.contains("Show Completed"), "Should contain toggle")
         #expect(elementsText.contains("Design UI"), "Should contain first item")
         #expect(elementsText.contains("Write code"), "Should contain second item")

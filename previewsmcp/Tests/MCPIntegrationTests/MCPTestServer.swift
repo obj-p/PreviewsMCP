@@ -496,6 +496,36 @@ final class MCPTestServer: @unchecked Sendable {
         throw MCPTestError.timedOut(operation: "awaitStderrContains(\(needle.debugDescription))", duration: timeout)
     }
 
+    /// Poll `preview_elements` until the accessibility text contains `needle`,
+    /// up to `timeout`, then return that text. The lightweight PreviewBanner
+    /// registers in the a11y tree before the wrapped content, so a fixed sleep
+    /// races the agent's render (#292).
+    func awaitElementsText(
+        sessionID: String,
+        contains needle: String,
+        timeout: Duration
+    ) async throws -> String {
+        let deadline = ContinuousClock.now + timeout
+        while ContinuousClock.now < deadline {
+            let (content, isError) = try await callTool(
+                name: "preview_elements",
+                arguments: ["sessionID": .string(sessionID), "filter": .string("all")]
+            )
+            let text = Self.extractText(from: content)
+            if isError == true {
+                throw MCPTestError.toolError(tool: "preview_elements", content: text)
+            }
+            if text.contains(needle) { return text }
+            try await Task.sleep(for: .milliseconds(500))
+        }
+        Issue.record(
+            "preview_elements did not contain \(needle.debugDescription) within \(timeout). Server stderr:\n\(stderrLog())"
+        )
+        throw MCPTestError.timedOut(
+            operation: "awaitElementsText(contains: \(needle.debugDescription))", duration: timeout
+        )
+    }
+
     // MARK: - Snapshot helpers
 
     /// Capture a snapshot and return its raw image bytes. Decodes via the existing
@@ -615,6 +645,7 @@ enum MCPTestError: Error, LocalizedError {
     case cannotCreateStderrLog(String)
     case timedOut(operation: String, duration: Duration)
     case snapshotFailed
+    case toolError(tool: String, content: String)
 
     var errorDescription: String? {
         switch self {
@@ -625,6 +656,7 @@ enum MCPTestError: Error, LocalizedError {
         case let .cannotCreateStderrLog(path): "Could not open stderr log for writing at \(path)"
         case let .timedOut(operation, duration): "\(operation) timed out after \(duration)"
         case .snapshotFailed: "preview_snapshot returned isError=true"
+        case let .toolError(tool, content): "\(tool) returned isError=true. Content: \(content)"
         }
     }
 }
