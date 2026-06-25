@@ -5,9 +5,15 @@ STATE      := .state
 BUNDLE     ?= $(DEVBOX)/vm/devbox.bundle
 ADMIN_USER ?= admin
 ADMIN_PASS ?= vzvz
+CANDIDATE  ?= HEAD
+BASE       ?= origin/main
 
-.PHONY: bundle snapshots clean devbox-base
+.PHONY: bundle bar snapshots clean devbox-base
 bundle: $(STATE)/post-ios
+
+bar: $(STATE)/post-ios
+	$(VZ_BIN) snapshot restore $(BUNDLE) post-ios
+	$(VZ_BIN) run $(CURDIR)/scripts/bar.swift $(BUNDLE) $(CANDIDATE) $(BASE)
 
 devbox-base:
 	$(MAKE) -C $(DEVBOX) post-toolchain
