@@ -12,7 +12,7 @@ func kcpassword(_ password: String) -> Data {
     return Data(bytes)
 }
 
-func provisionToolchain(_ guest: Guest, xip: String) async throws {
+func provisionToolchain(_ guest: Guest, xip: String, brewfile: String) async throws {
     let adminUser = "admin"
     let xcodeApp = "/Applications/Xcode-26.2.0.app"
     if try await guest.test("test -d \(xcodeApp)") {
@@ -72,13 +72,15 @@ func provisionToolchain(_ guest: Guest, xip: String) async throws {
             + "sudo launchctl bootstrap system /Library/LaunchDaemons/com.devbox.xcode-select.plist"
     )
 
-    step("installing Homebrew, bazelisk, mise")
+    step("installing Homebrew")
     try await guest.sh(
         "NONINTERACTIVE=1 /bin/bash -c \"$(curl -fsSL "
             + "https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\"",
         timeout: 1800
     )
-    try await guest.sh("brew install bazelisk mise zstd", env: .brew, timeout: 1800)
+    step("installing tools from Brewfile via brew bundle")
+    try guest.upload(localPath: brewfile, to: "/tmp/Brewfile")
+    try await guest.sh("brew bundle --file=/tmp/Brewfile", env: .brew, timeout: 1800)
 
     step("enabling autologin for \(adminUser)")
     let encoded = kcpassword(guest.adminPass).base64EncodedString()
@@ -92,10 +94,11 @@ func provisionToolchain(_ guest: Guest, xip: String) async throws {
     step("toolchain provisioning complete")
 }
 
-let script = Script(usage: "vz run toolchain.swift <bundle> <xip>", min: 3)
+let script = Script(usage: "vz run toolchain.swift <bundle> <xip> <brewfile>", min: 4)
 let bundle = try script.bundle()
 let xipPath = script[arg: 2]
+let brewfilePath = script[arg: 3]
 
 try await Guest.session(bundle: bundle, adminPass: "vzvz") { guest in
-    try await provisionToolchain(guest, xip: xipPath)
+    try await provisionToolchain(guest, xip: xipPath, brewfile: brewfilePath)
 }

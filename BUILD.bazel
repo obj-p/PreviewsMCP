@@ -17,6 +17,7 @@ cmake(
     cache_entries = {
         "CMAKE_BUILD_TYPE": "Release",
         "LLVM_ENABLE_ASSERTIONS": "ON",
+        "LLVM_ENABLE_ZSTD": "OFF",
         "CMAKE_OSX_ARCHITECTURES": "arm64",
         "LLVM_TARGETS_TO_BUILD": "AArch64;X86",
         "LLVM_BUILD_LLVM_DYLIB": "ON",
@@ -45,6 +46,7 @@ cmake(
     name = "llvm_tblgen",
     cache_entries = {
         "CMAKE_BUILD_TYPE": "Release",
+        "LLVM_ENABLE_ZSTD": "OFF",
         "CMAKE_OSX_ARCHITECTURES": "arm64",
         "LLVM_TARGETS_TO_BUILD": "AArch64;X86",
         "LLVM_INCLUDE_TESTS": "OFF",
@@ -73,6 +75,7 @@ cmake(
     cache_entries = {
         "CMAKE_BUILD_TYPE": "Release",
         "LLVM_ENABLE_ASSERTIONS": "ON",
+        "LLVM_ENABLE_ZSTD": "OFF",
         "CMAKE_SYSTEM_NAME": "iOS",
         "CMAKE_CROSSCOMPILING": "TRUE",
         "CMAKE_OSX_ARCHITECTURES": "arm64",

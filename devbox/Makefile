@@ -53,7 +53,7 @@ $(STATE)/ssh: $(STATE)/setup | $(STATE)
 
 $(STATE)/toolchain: $(STATE)/ssh | $(STATE)
 	$(VZ_BIN) snapshot restore $(BUNDLE) post-ssh
-	$(VZ_BIN) run $(CURDIR)/scripts/toolchain.swift $(BUNDLE) $(XIP)
+	$(VZ_BIN) run $(CURDIR)/scripts/toolchain.swift $(BUNDLE) $(XIP) $(CURDIR)/../Brewfile
 	touch $@
 
 $(STATE)/post-toolchain: $(STATE)/toolchain | $(STATE)
