@@ -151,7 +151,8 @@ public actor IOSPreviewSession {
         let device = try await simulatorManager.findDevice(udid: deviceUDID)
         if !device.isPreviewSupported {
             throw IOSPreviewSessionError.unsupportedRuntime(
-                device.runtimeName ?? device.iosMajorVersion.map { "iOS \($0)" } ?? "this simulator")
+                device.runtimeName ?? device.iosMajorVersion.map { "iOS \($0)" } ?? "this simulator"
+            )
         }
 
         /// Mirror stage transitions to the diagnostic log so operators
@@ -322,6 +323,10 @@ public actor IOSPreviewSession {
             let frameSource = EventDrivenFrameSource(streamer: streamer)
             let videoStream = AVCCVideoStream()
             streamer.onFrameSurface = { surface in videoStream.feed(surface: surface) }
+            stage("waiting for first framebuffer frame")
+            let ready = await frameSource.waitForFirstFrame(timeout: .seconds(20))
+            try Task.checkCancellation()
+            stage(ready ? "display pipeline wired" : "display pipeline not wired (degraded)")
             let server = PreviewAppServer(
                 sink: IndigoHIDInputSink(client: hidClient),
                 frameSource: frameSource,
@@ -332,6 +337,8 @@ public actor IOSPreviewSession {
             appFrameSource = frameSource
             appVideoStream = videoStream
             stage("app interface on 127.0.0.1:\(appServerPort ?? 0)")
+        } catch is CancellationError {
+            throw CancellationError()
         } catch {
             Log.info("iOS preview: app interface unavailable: \(error)")
         }
@@ -713,8 +720,26 @@ public actor IOSPreviewSession {
     }
 
     /// Capture a screenshot of the simulator.
+    ///
+    /// Capture through the live framebuffer streamer: it holds the SimulatorKit
+    /// display pipeline wired open, so it succeeds at the requested quality even
+    /// when the one-shot `SBCaptureFramebuffer` path cannot find an IOSurface
+    /// (its cold port enumeration races display attach under load). Falls back
+    /// to the one-shot capture when no streamer surface is wired yet.
     public func screenshot(jpegQuality: Double = 0.85) async throws -> Data {
-        try await simulatorManager.screenshotData(udid: deviceUDID, jpegQuality: jpegQuality)
+        if let source = appFrameSource {
+            // Ride over brief surface gaps (e.g. the agent respawn the OS forces
+            // periodically) before conceding to the load-racing one-shot path.
+            for attempt in 0 ..< 3 {
+                if let frame = await source.captureFresh(jpegQuality: jpegQuality) {
+                    return frame
+                }
+                if attempt < 2 {
+                    try? await Task.sleep(for: .milliseconds(100))
+                }
+            }
+        }
+        return try await simulatorManager.screenshotData(udid: deviceUDID, jpegQuality: jpegQuality)
     }
 
     // MARK: - Accessibility tree filtering
@@ -790,7 +815,7 @@ public enum IOSPreviewSessionError: Error, LocalizedError, CustomStringConvertib
         case let .jitExecutorFailed(stage, code):
             let suffix = code.map { " (code \($0))" } ?? ""
             return "In-app JIT executor failed during \(stage)\(suffix)"
-        case .unsupportedRuntime(let detail):
+        case let .unsupportedRuntime(detail):
             return "iOS simulator unsupported for live preview: \(detail). Use an iOS 26+ simulator."
         }
     }

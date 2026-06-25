@@ -15,6 +15,7 @@ public protocol FrameSource: Sendable {
 /// never blocks the pull loop the way the retrying `screenshotData` did.
 public final class EventDrivenFrameSource: FrameSource, @unchecked Sendable {
     private let streamer: SBFramebufferStreamer
+    private let captureQueue = DispatchQueue(label: "com.previewsmcp.frame-capture", qos: .userInitiated)
 
     public init(streamer: SBFramebufferStreamer) {
         self.streamer = streamer
@@ -22,6 +23,44 @@ public final class EventDrivenFrameSource: FrameSource, @unchecked Sendable {
 
     public func nextFrame() async -> Data? {
         streamer.latestFrame()
+    }
+
+    /// Capture the live display surface on demand at `jpegQuality` (PNG when
+    /// `jpegQuality >= 1.0`), reusing the streamer's wired pipeline. Unlike
+    /// `nextFrame`, this re-encodes current content at the requested quality
+    /// rather than returning the cached stream JPEG. Nil if no surface is wired.
+    ///
+    /// `captureFrame(atQuality:)` blocks on the streamer's capture queue, so run
+    /// it off the caller's executor: a caller on an actor must not have its
+    /// executor thread parked while the private framebuffer framework works.
+    public func captureFresh(jpegQuality: Double) async -> Data? {
+        await withCheckedContinuation { continuation in
+            captureQueue.async {
+                continuation.resume(returning: self.streamer.captureFrame(atQuality: jpegQuality))
+            }
+        }
+    }
+
+    /// Block until the streamer has captured at least one frame, proving the
+    /// SimulatorKit display pipeline is wired. Creating the streamer registers
+    /// the screen callbacks that wire the pipeline, and its heal timer re-wires
+    /// once per second until the first frame lands — so a freshly started
+    /// streamer that races display attach under load recovers here instead of
+    /// the caller's first one-shot capture failing with "No IOSurface."
+    /// Returns true once a frame is available, false if none arrives in `timeout`.
+    public func waitForFirstFrame(timeout: Duration) async -> Bool {
+        let deadline = ContinuousClock.now + timeout
+        while ContinuousClock.now < deadline {
+            if streamer.latestFrame() != nil {
+                return true
+            }
+            do {
+                try await Task.sleep(for: .milliseconds(200))
+            } catch {
+                return false
+            }
+        }
+        return false
     }
 
     public func stop() {
