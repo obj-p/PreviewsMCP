@@ -78,7 +78,7 @@ func provisionToolchain(_ guest: Guest, xip: String) async throws {
             + "https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\"",
         timeout: 1800
     )
-    try await guest.sh("brew install bazelisk mise", env: .brew, timeout: 1800)
+    try await guest.sh("brew install bazelisk mise zstd", env: .brew, timeout: 1800)
 
     step("enabling autologin for \(adminUser)")
     let encoded = kcpassword(guest.adminPass).base64EncodedString()
