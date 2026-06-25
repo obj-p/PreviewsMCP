@@ -621,11 +621,14 @@ extension XcodeBuildSystem {
             for object in objects {
                 group.addTask {
                     await Self.archivePackageObject(
-                        object: object, builtProductsDir: builtProductsDir, cacheDir: cacheDir)
+                        object: object, builtProductsDir: builtProductsDir, cacheDir: cacheDir
+                    )
                 }
             }
             var results: [(base: String, frameworks: Set<String>)] = []
-            for await result in group { results.append(result) }
+            for await result in group {
+                results.append(result)
+            }
             return results.sorted { $0.base < $1.base }
         }
 
@@ -654,21 +657,23 @@ extension XcodeBuildSystem {
         let thin = (cacheDir as NSString).appendingPathComponent("\(base).o")
         _ = try? await runAsync(
             "/usr/bin/lipo", arguments: ["-thin", hostArch, objectPath, "-output", thin],
-            discardStderr: true)
+            discardStderr: true
+        )
         let linkObject = fm.fileExists(atPath: thin) ? thin : objectPath
         let archive = (cacheDir as NSString).appendingPathComponent("lib\(base).a")
         try? fm.removeItem(atPath: archive)
         _ = try? await runAsync(
-            "/usr/bin/ar", arguments: ["rcs", archive, linkObject], discardStderr: true)
+            "/usr/bin/ar", arguments: ["rcs", archive, linkObject], discardStderr: true
+        )
         return (base, await frameworks)
     }
 
     /// The arch the JIT agent runs as, used to thin universal package objects.
     static var hostArch: String {
         #if arch(arm64)
-        return "arm64"
+            return "arm64"
         #else
-        return "x86_64"
+            return "x86_64"
         #endif
     }
 
@@ -682,11 +687,13 @@ extension XcodeBuildSystem {
         let lines = output.stdout.split(separator: "\n")
         var names = Set<String>()
         for (index, line) in lines.enumerated()
-        where line.contains("string #1 -framework") && index + 1 < lines.count {
+            where line.contains("string #1 -framework") && index + 1 < lines.count
+        {
             if let range = lines[index + 1].range(of: "string #2 ") {
                 names.insert(
                     String(lines[index + 1][range.upperBound...])
-                        .trimmingCharacters(in: .whitespaces))
+                        .trimmingCharacters(in: .whitespaces)
+                )
             }
         }
         return names

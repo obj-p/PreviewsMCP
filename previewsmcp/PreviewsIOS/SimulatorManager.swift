@@ -28,12 +28,12 @@ public actor SimulatorManager {
         /// non-iOS or unparseable runtime.
         public var iosMajorVersion: Int? {
             if let id = runtimeIdentifier, let range = id.range(of: "SimRuntime.iOS-"),
-                let value = Int(id[range.upperBound...].prefix { $0 != "-" })
+               let value = Int(id[range.upperBound...].prefix { $0 != "-" })
             {
                 return value
             }
             if let name = runtimeName, let range = name.range(of: "iOS "),
-                let value = Int(name[range.upperBound...].prefix { $0.isNumber })
+               let value = Int(name[range.upperBound...].prefix { $0.isNumber })
             {
                 return value
             }
