@@ -131,6 +131,13 @@ static NSString *argval(NSString *key, NSString *def) {
       NSClassFromString(@"_UISceneHostingControllerAdvancedConfiguration");
   Class HostC = NSClassFromString(@"_UISceneHostingController");
   Class SpecC = NSClassFromString(@"UIApplicationSceneSpecification");
+  // `initWithClientIdentity:` only exists on iOS 26+. On older runtimes calling
+  // it aborts with an unrecognized-selector exception (#282), so bail cleanly;
+  // the daemon gates pre-26 simulators out before launch.
+  if (![AdvCfg instancesRespondToSelector:@selector(initWithClientIdentity:)]) {
+    NSLog(@"[SHELL] scene hosting unsupported on this OS (no initWithClientIdentity:)");
+    return;
+  }
   id adv = [[AdvCfg alloc] performSelector:@selector(initWithClientIdentity:)
                                 withObject:clientId];
   id spec = [[SpecC alloc] init];

@@ -88,16 +88,17 @@ public func resolveDeviceUDID(
     if let provided {
         return provided
     }
-    do {
-        let booted = try await simulatorManager.findBootedDevice()
+    // Prefer a supported (iOS 26+) simulator. A booted pre-26 device or older
+    // installed runtimes must not be auto-picked, or the session would fail the
+    // pre-26 gate (#282) even when a usable simulator is available.
+    if let booted = try? await simulatorManager.findBootedDevice(), booted.isPreviewSupported {
         return booted.udid
-    } catch {
-        let devices = try await simulatorManager.listDevices()
-        guard let first = devices.first(where: { $0.isAvailable }) else {
-            throw NoSimulatorError()
-        }
-        return first.udid
     }
+    let devices = try await simulatorManager.listDevices()
+    guard let device = devices.first(where: { $0.isAvailable && $0.isPreviewSupported }) else {
+        throw NoSimulatorError()
+    }
+    return device.udid
 }
 
 public struct NoSimulatorError: LocalizedError {

@@ -665,9 +665,65 @@ struct IOSPreviewE2ETests {
         await session.stop()
     }
 
+    /// Repro for #282: the scene-hosting init the shell uses
+    /// (`-[_UISceneHostingControllerAdvancedConfiguration initWithClientIdentity:]`,
+    /// ShellMain.m) only exists on iOS 26. This spawns a probe inside a sub-26
+    /// simulator that fires the SAME unguarded `performSelector:` and asserts it
+    /// aborts with the issue's `unrecognized selector` signature. Self-skips where
+    /// no pre-26 runtime is installed.
+    ///
+    /// Why a probe and not the production session: on this machine's pre-26 runtime
+    /// (18.6) the real shell returns early in `clientIdentityForToken:` (FrontBoard
+    /// hands back no client identity) before reaching the crash line, and the agent
+    /// renders to its own window regardless — so an end-to-end render check cannot
+    /// see the bug. The probe reproduces the crash deterministically on any sub-26
+    /// runtime by calling the exact selector ShellMain calls.
+    @Test(.enabled(if: preIOS26RuntimePresent), .timeLimit(.minutes(5)))
+    func sceneHostingInitIsUnrecognizedSelectorOnPreIOS26() throws {
+        let udid = try IOSPreviewE2ESupport.bootLegacySimulator()
+        let probe = try IOSPreviewE2ESupport.compileObjCExecutableForIOSSim(
+            source: Self.sceneHostingProbeSource, name: "scene_host_sel_probe")
+        let output = try IOSPreviewE2ESupport.spawnAndCapture(udid: udid, program: probe.path)
+        #expect(
+            output.contains(
+                "-[_UISceneHostingControllerAdvancedConfiguration initWithClientIdentity:]"),
+            "probe output did not name the scene-hosting init:\n\(output)")
+        #expect(
+            output.contains("unrecognized selector"),
+            "scene-hosting init did not abort with an unrecognized-selector on a pre-26 runtime:\n\(output)")
+    }
+
     static var jitOrcRuntimePresent: Bool {
         IOSAgentBuilder.jitOrcRuntimePath != nil
     }
+
+    static var preIOS26RuntimePresent: Bool {
+        IOSPreviewE2ESupport.availableUDIDBelowIOS26() != nil
+    }
+
+    /// Mirrors ShellMain.m's `hostWithToken:` crash site: resolve the private
+    /// scene-hosting config class and fire `initWithClientIdentity:` via
+    /// `performSelector`. On iOS 26 the selector exists; on pre-26 it aborts with
+    /// `unrecognized selector` (#282). The argument is a throwaway object — pre-26
+    /// the selector is missing, so the call throws before the argument is used.
+    static let sceneHostingProbeSource = """
+        #import <Foundation/Foundation.h>
+        #import <objc/runtime.h>
+        #include <dlfcn.h>
+        #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+        int main(void) {
+            dlopen("/System/Library/PrivateFrameworks/UIKitCore.framework/UIKitCore", RTLD_NOW);
+            Class AdvCfg = NSClassFromString(@"_UISceneHostingControllerAdvancedConfiguration");
+            @try {
+                id adv = [[AdvCfg alloc] performSelector:@selector(initWithClientIdentity:)
+                                              withObject:[NSObject new]];
+                printf("RESULT: no crash, adv=%s\\n", adv ? "non-nil" : "nil");
+            } @catch (NSException *e) {
+                printf("RESULT: %s\\n", e.reason.UTF8String);
+            }
+            return 0;
+        }
+        """
 
     static let helloViewSource = """
     import SwiftUI
@@ -923,23 +979,94 @@ enum IOSPreviewE2ESupport {
         return exe
     }
 
-    static func bootSimulator() throws -> String {
-        if let udid = firstUDID(
-            in: try run(
-                "/usr/bin/xcrun", ["simctl", "list", "devices", "booted"]
-            ).output
-        ) {
-            return udid
+    /// Compile + link a trivial Objective-C executable for the iphonesimulator
+    /// (links Foundation, ARC on). Returns the host path to the binary.
+    static func compileObjCExecutableForIOSSim(source: String, name: String) throws -> URL {
+        let outDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("PreviewsJITLinkIOSSimObjCExe", isDirectory: true)
+        try FileManager.default.createDirectory(at: outDir, withIntermediateDirectories: true)
+        let src = outDir.appendingPathComponent("\(name).m")
+        try source.write(to: src, atomically: true, encoding: .utf8)
+        let exe = outDir.appendingPathComponent(name)
+
+        let sdk = try run("/usr/bin/xcrun", ["--sdk", "iphonesimulator", "--show-sdk-path"])
+            .output.trimmingCharacters(in: .whitespacesAndNewlines)
+        let target = "arm64-apple-ios16.0-simulator"
+        let result = try run(
+            "/usr/bin/xcrun",
+            [
+                "clang", "-target", target, "-isysroot", sdk, "-fobjc-arc",
+                "-framework", "Foundation", src.path, "-o", exe.path,
+            ])
+        guard result.status == 0 else {
+            throw SpikeError.message("compiling ObjC executable \(name) for iossim failed:\n\(result.output)")
         }
+        return exe
+    }
+
+    /// Run a program inside a booted simulator via `simctl spawn` and return its
+    /// combined stdout/stderr.
+    static func spawnAndCapture(udid: String, program: String) throws -> String {
+        try run("/usr/bin/xcrun", ["simctl", "spawn", udid, program]).output
+    }
+
+    static func bootSimulator() throws -> String {
+        // Reuse a booted iOS 26+ device if present; otherwise boot a supported
+        // one. Live previews require iOS 26+ (#282), so a booted pre-26 device
+        // (e.g. one left from the repro test) must not be picked here.
+        if let booted = iPhoneUDID(state: "booted", whereMajor: { $0 >= 26 }) {
+            return booted
+        }
+        guard let udid = iPhoneUDID(state: "available", whereMajor: { $0 >= 26 }) else {
+            throw SpikeError.message("no available iOS 26+ iPhone simulator to boot")
+        }
+        _ = try run("/usr/bin/xcrun", ["simctl", "boot", udid])
+        _ = try run("/usr/bin/xcrun", ["simctl", "bootstatus", udid, "-b"])
+        return udid
+    }
+
+    /// First available iPhone on a runtime older than iOS 26, or nil. Used to gate
+    /// and drive the #282 pre-iOS-26 scene-hosting repro.
+    static func availableUDIDBelowIOS26() -> String? {
+        iPhoneUDID(state: "available", whereMajor: { $0 < 26 })
+    }
+
+    /// First iPhone in the given simctl device `state` ("available" / "booted")
+    /// whose iOS major version satisfies `predicate`. Runtime keys look like
+    /// `com.apple.CoreSimulator.SimRuntime.iOS-18-3`; the major is the
+    /// `iOS-<major>-<minor>` segment.
+    private static func iPhoneUDID(state: String, whereMajor predicate: (Int) -> Bool) -> String? {
         guard
-            let udid = firstUDID(
-                in: try run(
-                    "/usr/bin/xcrun", ["simctl", "list", "devices", "available"]
-                ).output,
-                onLinesMatching: "iPhone"
-            )
+            let result = try? run(
+                "/usr/bin/xcrun", ["simctl", "list", "devices", state, "--json"]),
+            let data = result.output.data(using: .utf8),
+            let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let devices = root["devices"] as? [String: Any]
         else {
-            throw SpikeError.message("no available iPhone simulator to boot")
+            return nil
+        }
+        for (runtime, list) in devices {
+            guard let major = iOSMajorVersion(fromRuntimeKey: runtime), predicate(major) else {
+                continue
+            }
+            guard let entries = list as? [[String: Any]] else { continue }
+            for entry in entries where (entry["name"] as? String ?? "").contains("iPhone") {
+                if let udid = entry["udid"] as? String { return udid }
+            }
+        }
+        return nil
+    }
+
+    private static func iOSMajorVersion(fromRuntimeKey key: String) -> Int? {
+        guard let range = key.range(of: "SimRuntime.iOS-") else { return nil }
+        let suffix = key[range.upperBound...]
+        let major = suffix.prefix { $0 != "-" }
+        return Int(major)
+    }
+
+    static func bootLegacySimulator() throws -> String {
+        guard let udid = availableUDIDBelowIOS26() else {
+            throw SpikeError.message("no available pre-iOS-26 iPhone simulator to boot")
         }
         _ = try run("/usr/bin/xcrun", ["simctl", "boot", udid])
         _ = try run("/usr/bin/xcrun", ["simctl", "bootstatus", udid, "-b"])
@@ -1018,21 +1145,6 @@ enum IOSPreviewE2ESupport {
         let conn = accept(listenFD, nil, nil)
         guard conn >= 0 else { throw SpikeError.message("accept failed") }
         return conn
-    }
-
-    private static func firstUDID(in text: String, onLinesMatching needle: String? = nil)
-        -> String?
-    {
-        for line in text.split(separator: "\n") {
-            if let needle, !line.contains(needle) { continue }
-            guard let open = line.firstIndex(of: "("), line[open...].count >= 38 else { continue }
-            let start = line.index(after: open)
-            let candidate = line[start...].prefix(36)
-            if candidate.count == 36, candidate.allSatisfy({ $0.isHexDigit || $0 == "-" }) {
-                return String(candidate)
-            }
-        }
-        return nil
     }
 
     private static func run(_ executable: String, _ arguments: [String]) throws

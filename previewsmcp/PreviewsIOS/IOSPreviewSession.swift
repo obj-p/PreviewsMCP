@@ -144,6 +144,16 @@ public actor IOSPreviewSession {
             throw IOSPreviewSessionError.jitRuntimeMissing
         }
 
+        // Fail fast on pre-iOS-26 runtimes: the shell hosts the agent's scene via
+        // a private initializer that only exists on iOS 26, so on older runtimes
+        // hosting is impossible and every captured frame is the springboard, not
+        // the preview (#282). Refuse with a clear diagnostic instead.
+        let device = try await simulatorManager.findDevice(udid: deviceUDID)
+        if !device.isPreviewSupported {
+            throw IOSPreviewSessionError.unsupportedRuntime(
+                device.runtimeName ?? device.iosMajorVersion.map { "iOS \($0)" } ?? "this simulator")
+        }
+
         /// Mirror stage transitions to the diagnostic log so operators
         /// running `previewsmcp logs` (or scraping CI capture files) can
         /// see where a stall occurred. MCP LogMessageNotifications go
@@ -762,6 +772,9 @@ public enum IOSPreviewSessionError: Error, LocalizedError, CustomStringConvertib
     /// to start). Replaces the generic accept timeout / downstream link error
     /// with the host-side cause. See issue #217.
     case jitExecutorFailed(stage: String, code: Int?)
+    /// The target simulator runs iOS older than 26, whose private scene-hosting
+    /// API the shell needs is absent (#282). Live previews require iOS 26+.
+    case unsupportedRuntime(String)
 
     public var description: String {
         switch self {
@@ -777,6 +790,8 @@ public enum IOSPreviewSessionError: Error, LocalizedError, CustomStringConvertib
         case let .jitExecutorFailed(stage, code):
             let suffix = code.map { " (code \($0))" } ?? ""
             return "In-app JIT executor failed during \(stage)\(suffix)"
+        case .unsupportedRuntime(let detail):
+            return "iOS simulator unsupported for live preview: \(detail). Use an iOS 26+ simulator."
         }
     }
 
