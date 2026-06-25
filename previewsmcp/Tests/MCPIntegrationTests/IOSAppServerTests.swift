@@ -22,6 +22,13 @@ struct IOSAppServerTests {
         )
     )
     func appServerEndToEnd() async throws {
+        // Serialize the heavy iOS e2e suites against each other: locally (these
+        // are .disabled on CI) three sims booting and driving their displays at
+        // once starve the single host GPU/window-server, so whichever loses the
+        // race flakes. One sim at a time keeps each render/capture healthy.
+        let lock = try await DaemonTestLock.acquire()
+        defer { lock.release() }
+
         guard let deviceUDID = try await IOSSimulatorPicker.pickUDID(index: 3) else {
             print("No iOS simulator at picker index 3 — skipping")
             return
@@ -83,6 +90,14 @@ struct IOSAppServerTests {
         }
         #expect(tags.contains(0x01), "avcc stream should carry an avcC description")
         #expect(tags.contains(0x02), "avcc stream should carry an H.264 keyframe")
+
+        // A lossless PNG snapshot (quality 1.0) must come back as a real PNG
+        // from the wired streamer pipeline, not the load-racing one-shot path.
+        let pngResult = try await server.callToolResult(
+            name: "preview_snapshot",
+            arguments: ["sessionID": .string(sessionID), "quality": .double(1.0)]
+        )
+        try MCPTestServer.assertValidImage(pngResult.content, expectedMimeType: "image/png")
 
         _ = try await server.callToolResult(
             name: "preview_stop", arguments: ["sessionID": .string(sessionID)]

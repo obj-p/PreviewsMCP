@@ -686,6 +686,26 @@ static NSData *_encodeImage(CGImageRef cgImage, double jpegQuality) {
   return ok ? [data copy] : nil;
 }
 
+// Lock a display IOSurface, render it to a CGImage via the shared CIContext,
+// and encode at `jpegQuality` (PNG when >= 1.0). Returns nil if the surface
+// cannot be rendered. Shared by the streamer's cached-frame and on-demand
+// capture paths.
+static NSData *_encodeSurface(IOSurfaceRef surface, double jpegQuality) {
+  IOSurfaceLock(surface, kIOSurfaceLockReadOnly, NULL);
+  CIImage *ciImage = [CIImage imageWithIOSurface:surface];
+  CGImageRef cgImage = NULL;
+  if (ciImage)
+    cgImage = [_sharedCIContext() createCGImage:ciImage
+                                       fromRect:ciImage.extent];
+  IOSurfaceUnlock(surface, kIOSurfaceLockReadOnly, NULL);
+  if (!cgImage)
+    return nil;
+
+  NSData *data = _encodeImage(cgImage, jpegQuality);
+  CGImageRelease(cgImage);
+  return data;
+}
+
 NSData *SBCaptureFramebuffer(SBDevice *device, double jpegQuality,
                              NSError **error) {
   if (!_frameworkLoaded && !SBLoadFramework(error))
@@ -1024,18 +1044,7 @@ static const void *const kFBStreamerQueueKey = &kFBStreamerQueueKey;
   if (frameSink)
     frameSink(surface);
 
-  IOSurfaceLock(surface, kIOSurfaceLockReadOnly, NULL);
-  CIImage *ciImage = [CIImage imageWithIOSurface:surface];
-  CGImageRef cgImage = NULL;
-  if (ciImage)
-    cgImage = [_sharedCIContext() createCGImage:ciImage
-                                       fromRect:ciImage.extent];
-  IOSurfaceUnlock(surface, kIOSurfaceLockReadOnly, NULL);
-  if (!cgImage)
-    return;
-
-  NSData *jpeg = _encodeImage(cgImage, _jpegQuality);
-  CGImageRelease(cgImage);
+  NSData *jpeg = _encodeSurface(surface, _jpegQuality);
   if (!jpeg)
     return;
 
@@ -1076,6 +1085,31 @@ static const void *const kFBStreamerQueueKey = &kFBStreamerQueueKey;
   @synchronized(self) {
     return _latestFrame;
   }
+}
+
+- (NSData *)captureFrameAtQuality:(double)jpegQuality {
+  NSData * (^capture)(void) = ^NSData * {
+    if (_stopped)
+      return nil;
+    IOSurfaceRef surface = NULL;
+    id<_SBStreamDescriptor> desc = [self pickBestDescriptor:&surface];
+    if (!desc || !surface)
+      return nil;
+    if (IOSurfaceGetWidth(surface) == 0 || IOSurfaceGetHeight(surface) == 0)
+      return nil;
+    return _encodeSurface(surface, jpegQuality);
+  };
+
+  // pickBestDescriptor reads `_descriptors`, which is mutated only on the
+  // capture queue, so the encode must run there too. Guard against a
+  // re-entrant call from a capture-queue block (matching `stop`).
+  if (dispatch_get_specific(kFBStreamerQueueKey))
+    return capture();
+  __block NSData *result = nil;
+  dispatch_sync(_captureQueue, ^{
+    result = capture();
+  });
+  return result;
 }
 
 - (void)stop {

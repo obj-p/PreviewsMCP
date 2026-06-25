@@ -103,6 +103,14 @@ typedef NS_ENUM(NSInteger, SBDeviceState) {
 /// The most recently encoded frame, or nil before the first frame arrives.
 - (nullable NSData *)latestFrame;
 
+/// Encode the live display surface on demand at `jpegQuality` (PNG when
+/// `jpegQuality >= 1.0`), bypassing the cached stream frame. Reuses the wired
+/// display pipeline this streamer holds open, so it succeeds under the same
+/// load where the one-shot `SBCaptureFramebuffer` cannot find an IOSurface,
+/// while still honoring the caller's quality and capturing current content.
+/// Returns nil if the pipeline has no surface yet.
+- (nullable NSData *)captureFrameAtQuality:(double)jpegQuality;
+
 /// Stop streaming and unregister callbacks. Idempotent; also called on dealloc.
 - (void)stop;
 

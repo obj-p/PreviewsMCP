@@ -56,6 +56,11 @@ struct IOSMCPTests {
         )
     )
     func fullIOSWorkflow() async throws {
+        // Serialized against the other heavy iOS e2e suites — see the note in
+        // IOSAppServerTests.appServerEndToEnd.
+        let lock = try await DaemonTestLock.acquire()
+        defer { lock.release() }
+
         // Use picker index 1, the same device IOSPreviewSessionTests.endToEnd
         // uses in the PreviewsIOSTests target. That test runs in an earlier
         // CI step (different `swift test --filter` invocation) so there's no

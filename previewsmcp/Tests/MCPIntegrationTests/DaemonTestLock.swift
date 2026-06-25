@@ -12,7 +12,23 @@ enum DaemonTestLock {
         return (dir as NSString).appendingPathComponent("previewsmcp-daemon-test.lock")
     }
 
-    static func run<T: Sendable>(body: @Sendable () async throws -> T) async throws -> T {
+    /// A held exclusive lock. Call `release()` to let the next waiter proceed;
+    /// pair it with `defer` at the acquisition site.
+    final class Guard: Sendable {
+        private let fd: Int32
+        fileprivate init(fd: Int32) {
+            self.fd = fd
+        }
+
+        func release() {
+            _ = flock(fd, LOCK_UN)
+            close(fd)
+        }
+    }
+
+    /// Block until the cross-suite lock is held, then return a `Guard` the
+    /// caller releases (via `defer`) when its critical section ends.
+    static func acquire() async throws -> Guard {
         let path = lockPath
         let fd = try await withCheckedThrowingContinuation {
             (cont: CheckedContinuation<Int32, Error>) in
@@ -48,16 +64,12 @@ enum DaemonTestLock {
                 cont.resume(returning: fd)
             }
         }
+        return Guard(fd: fd)
+    }
 
-        let result: Swift.Result<T, Error>
-        do {
-            result = .success(try await body())
-        } catch {
-            result = .failure(error)
-        }
-
-        _ = flock(fd, LOCK_UN)
-        close(fd)
-        return try result.get()
+    static func run<T: Sendable>(body: @Sendable () async throws -> T) async throws -> T {
+        let lock = try await acquire()
+        defer { lock.release() }
+        return try await body()
     }
 }
