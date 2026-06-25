@@ -13,10 +13,9 @@ import Virtualization
 /// `setActivationPolicy(.accessory)` (or `.regular`) for AppKit input
 /// machinery to route events.
 ///
-/// Phase 11a delivers only the lifecycle wiring: bring the VM up with
-/// the hidden window attached, expose the window/view to a future
-/// `KeyboardScripter`, and tear down cleanly. Phase 11b adds the
-/// scripted keystroke sequence.
+/// Brings the VM up with the hidden window attached and exposes the
+/// window/view so the VNC setup sequence can screenshot and drive it,
+/// then tears down cleanly.
 @MainActor
 public final class FirstBootHost {
     public let bundle: VMBundle
@@ -69,12 +68,6 @@ public final class FirstBootHost {
     public func attachToAppKit() {
         window.makeKeyAndOrderFront(nil)
         window.makeFirstResponder(view)
-    }
-
-    /// Convenience for KeyboardScripter consumers — same window + view
-    /// the host has, ready for `NSApp.postEvent`.
-    public func keyboardScripter() -> KeyboardScripter {
-        KeyboardScripter(window: window, view: view)
     }
 
     public func start(recovery: Bool = false) async throws {

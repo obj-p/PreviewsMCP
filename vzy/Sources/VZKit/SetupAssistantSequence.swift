@@ -70,113 +70,13 @@ public enum SetupAssistantSequence {
         case option
         case control
     }
-
-    /// Execute `steps` against the running `host`. Screenshots are
-    /// written into `screenshotDir` named `<index>-<label>.png`; the
-    /// index lets a human scrub through them in order regardless of how
-    /// the script branches.
-    public static func run(
-        _ steps: [Step],
-        host: FirstBootHost,
-        screenshotDir: URL?
-    ) async throws {
-        if let screenshotDir {
-            try FileManager.default.createDirectory(
-                at: screenshotDir, withIntermediateDirectories: true
-            )
-        }
-
-        let scripter = await MainActor.run { host.keyboardScripter() }
-        var screenshotIndex = 0
-
-        for (stepIndex, step) in steps.enumerated() {
-            switch step {
-            case let .wait(seconds):
-                Log.debug("[SA step \(stepIndex)] wait \(seconds)s")
-                try await Task.sleep(for: .seconds(seconds))
-
-            case let .key(key):
-                Log.debug("[SA step \(stepIndex)] key \(key)")
-                await MainActor.run { scripter.send(key) }
-                try await Task.sleep(for: .milliseconds(80))
-
-            case let .type(string):
-                Log.debug("[SA step \(stepIndex)] type \"\(string)\"")
-                await MainActor.run { scripter.type(string) }
-                try await Task.sleep(for: .milliseconds(120))
-
-            case let .click(x, y):
-                Log.debug("[SA step \(stepIndex)] click (\(x), \(y))")
-                await MainActor.run { scripter.click(at: NSPoint(x: x, y: y)) }
-                try await Task.sleep(for: .milliseconds(120))
-
-            case .modifiedKey:
-                // Modifier keys via NSEvent need the undocumented
-                // 0x108/0x100 flagsChanged trick. Not implementing
-                // since the VNC runner is our production path.
-                Log
-                    .info(
-                        "[SA step \(stepIndex)] modifiedKey: NSEvent runner doesn't support modifiers; use the VNC transport."
-                    )
-
-            case .clickByText:
-                // OCR-by-text is only on the VNC runner since it's the
-                // production path for SA navigation.
-                Log
-                    .info(
-                        "[SA step \(stepIndex)] clickByText: NSEvent runner doesn't support OCR; use the VNC transport."
-                    )
-
-            case .dispatch:
-                Log
-                    .info(
-                        "[SA step \(stepIndex)] dispatch: NSEvent runner doesn't support OCR; use the VNC transport."
-                    )
-
-            case .verifyText:
-                Log
-                    .info(
-                        "[SA step \(stepIndex)] verifyText: NSEvent runner doesn't support OCR; use the VNC transport."
-                    )
-
-            case let .screenshot(label):
-                screenshotIndex += 1
-                guard let screenshotDir else {
-                    Log.debug("[SA step \(stepIndex)] screenshot \(label) (no dir; skipping)")
-                    continue
-                }
-                let url = screenshotDir.appending(
-                    path: String(format: "%02d-%@.png", screenshotIndex, label)
-                )
-                try await MainActor.run {
-                    try Screenshot.captureWindow(host.window, to: url)
-                }
-                Log.info("[SA step \(stepIndex)] screenshot → \(url.lastPathComponent)")
-
-            case let .log(message):
-                Log.info("[SA step \(stepIndex)] \(message)")
-
-            case .dualModifiedKey:
-                Log
-                    .info(
-                        "[SA step \(stepIndex)] dualModifiedKey: NSEvent runner doesn't support modifiers; use the VNC transport."
-                    )
-
-            case let .hostShell(command, label, expectContains):
-                try await SetupAssistantSequence.runHostShell(
-                    stepIndex: stepIndex, command: command, label: label,
-                    expectContains: expectContains, runner: "SA"
-                )
-            }
-        }
-    }
 }
 
 extension SetupAssistantSequence {
-    /// Sibling of `run` that uses an `RFBClient` (VNC transport) for
-    /// input instead of `NSApp.postEvent`. Same `Step` enum, but
-    /// `click` coordinates are interpreted as framebuffer pixels
-    /// (top-left origin) rather than window coords (bottom-left).
+    /// Execute `steps` against the running `host` over an `RFBClient`
+    /// (VNC transport). Screenshots are written into `screenshotDir`
+    /// named `<index>-<label>.png`. `click` coordinates are framebuffer
+    /// pixels (top-left origin).
     public static func runVNC(
         _ steps: [Step],
         host: FirstBootHost,
@@ -481,8 +381,7 @@ extension SetupAssistantSequence {
     ]
 
     private static func keysym(for key: KeyboardScripter.Key) -> UInt32 {
-        if case let .character(scalar, _) = key { return scalar }
-        return plainKeysyms[key] ?? 0
+        plainKeysyms[key] ?? 0
     }
 }
 

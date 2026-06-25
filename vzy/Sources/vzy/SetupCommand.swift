@@ -4,19 +4,15 @@ import Darwin
 import Foundation
 import VZKit
 
-/// Phase 11c: drive Setup Assistant via a scripted keystroke sequence.
-///
-/// Today this command runs an **exploratory** sequence that screenshots
-/// each SA screen in turn. The output directory ends up with a numbered
-/// PNG sequence that lets us nail down the wait-and-tab script
-/// empirically; once we've confirmed each screen and the keys that
-/// advance it, we replace the exploration with the real script and the
-/// command becomes the end-to-end "boot + Setup Assistant + ready for
-/// SSH provisioning (#12)" driver.
+/// Drive Setup Assistant over the VNC transport (`_VZVNCServer` SPI +
+/// in-process RFB client), then provision SSH. Restores from a `post-sa`
+/// snapshot, clears the per-user first-login screens via OCR-driven
+/// dispatch, installs the bundle's SSH public key, and halts so the
+/// guest is ready for `vzy ssh`.
 struct SetupCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "setup",
-        abstract: "Run Setup Assistant via scripted keystrokes (phase 11c — exploratory)."
+        abstract: "Run Setup Assistant via VNC and provision SSH."
     )
 
     @OptionGroup var bundle: BundleArgument
@@ -37,12 +33,6 @@ struct SetupCommand: AsyncParsableCommand {
     var preset: Preset = .provisionSSH
 
     @Option(
-        name: .customLong("transport"),
-        help: "Input transport. nsevent = NSApp.postEvent (fragile, public). vnc = _VZVNCServer SPI + in-process RFB client (production)."
-    )
-    var transport: Transport = .nsevent
-
-    @Option(
         name: .customLong("retry"),
         help: "How many times to retry the full sequence on failure. Each retry restores --restore-from before booting."
     )
@@ -54,30 +44,13 @@ struct SetupCommand: AsyncParsableCommand {
     )
     var restoreFrom: String?
 
-    @Option(
-        name: .customLong("plan"),
-        help: "Path to a JSON screen-dispatch plan. When set, drives Setup Assistant via the plan's screen rules instead of a built-in preset. Requires --transport vnc."
-    )
-    var plan: String?
-
-    @Flag(
-        name: .customLong("recovery"),
-        help: "Boot into macOS recoveryOS via VZMacOSVirtualMachineStartOptions.startUpFromMacOSRecovery=true. Required by the recoveryOS-bound presets (explore-recovery, disable-sip)."
-    )
-    var recovery: Bool = false
-
     enum Preset: String, ExpressibleByArgument, CaseIterable {
         /// Restore from a `post-sa` snapshot, log in as admin, clear the
         /// per-user first-login Setup Assistant screens, open Terminal via
         /// Spotlight, install the bundle's SSH public key, then
-        /// `shutdown -h now`. After this runs, `vz ssh <bundle> -- uname -a`
+        /// `shutdown -h now`. After this runs, `vzy ssh <bundle> -- uname -a`
         /// succeeds and no further OCR is needed downstream.
         case provisionSSH = "provision-ssh"
-    }
-
-    enum Transport: String, ExpressibleByArgument, CaseIterable {
-        case nsevent
-        case vnc
     }
 
     func run() async throws {
@@ -88,9 +61,6 @@ struct SetupCommand: AsyncParsableCommand {
         }
         try FileManager.default.createDirectory(at: outDir, withIntermediateDirectories: true)
 
-        if transport != .vnc {
-            throw VMError("--preset provision-ssh requires --transport vnc (needs OCR + modifier keys)")
-        }
         let pubkey: String
         do {
             pubkey = try String(contentsOf: bundle.sshPublicKeyURL, encoding: .utf8)
@@ -105,22 +75,6 @@ struct SetupCommand: AsyncParsableCommand {
 
         if retry > 0, restoreFrom == nil {
             throw VMError("--retry > 0 requires --restore-from <snapshot-name>")
-        }
-
-        let dispatchRules: [ScreenRule]?
-        let dispatchMaxIterations: Int
-        if let planPath = plan {
-            if transport != .vnc {
-                throw VMError("--plan requires --transport vnc")
-            }
-            let loaded = try SetupPlan.load(
-                from: URL(fileURLWithPath: (planPath as NSString).expandingTildeInPath)
-            )
-            dispatchRules = try loaded.screenRules()
-            dispatchMaxIterations = loaded.maxIterations ?? 60
-        } else {
-            dispatchRules = nil
-            dispatchMaxIterations = 60
         }
 
         let maxAttempts = retry + 1
@@ -143,8 +97,7 @@ struct SetupCommand: AsyncParsableCommand {
 
             do {
                 try await runOneAttempt(
-                    bundle: bundle, steps: steps, dispatchRules: dispatchRules,
-                    dispatchMaxIterations: dispatchMaxIterations, screenshotDir: attemptDir
+                    bundle: bundle, steps: steps, screenshotDir: attemptDir
                 )
                 Log.info("sequence succeeded on attempt \(attempt)")
                 print(attemptDir.path)
@@ -163,44 +116,27 @@ struct SetupCommand: AsyncParsableCommand {
     private func runOneAttempt(
         bundle: VMBundle,
         steps: [SetupAssistantSequence.Step],
-        dispatchRules: [ScreenRule]?,
-        dispatchMaxIterations: Int,
         screenshotDir: URL
     ) async throws {
         let host = try await MainActor.run {
             try FirstBootHost(bundle: bundle, debugVisible: !invisible)
         }
-        try await host.start(recovery: recovery)
+        try await host.start()
 
         do {
-            switch transport {
-            case .nsevent:
-                try await SetupAssistantSequence.run(
-                    steps, host: host, screenshotDir: screenshotDir
-                )
-            case .vnc:
-                let vnc = try await MainActor.run {
-                    try VNCSPI.start(virtualMachine: host.machine, port: 0)
-                }
-                defer { Task { @MainActor in vnc.stop() } }
-
-                let client = RFBClient()
-                try client.connect(to: .init(host: "127.0.0.1", port: vnc.port), timeout: 10)
-                try client.handshake()
-                Log.info("RFB client ready; running sequence via VNC transport")
-
-                if let dispatchRules {
-                    try await SetupAssistantSequence.runDispatchVNC(
-                        rules: dispatchRules, host: host, client: client,
-                        screenshotDir: screenshotDir,
-                        maxIterations: dispatchMaxIterations
-                    )
-                } else {
-                    try await SetupAssistantSequence.runVNC(
-                        steps, host: host, client: client, screenshotDir: screenshotDir
-                    )
-                }
+            let vnc = try await MainActor.run {
+                try VNCSPI.start(virtualMachine: host.machine, port: 0)
             }
+            defer { Task { @MainActor in vnc.stop() } }
+
+            let client = RFBClient()
+            try client.connect(to: .init(host: "127.0.0.1", port: vnc.port), timeout: 10)
+            try client.handshake()
+            Log.info("RFB client ready; running sequence via VNC transport")
+
+            try await SetupAssistantSequence.runVNC(
+                steps, host: host, client: client, screenshotDir: screenshotDir
+            )
         } catch {
             Log.info("sequence threw: \(error.localizedDescription); force-stopping VM")
             try? await host.forceStop()

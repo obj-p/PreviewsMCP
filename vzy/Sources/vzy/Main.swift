@@ -48,17 +48,11 @@ struct VZApp {
 struct VZCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "vzy",
-        abstract: "Spin up a SIP/AMFI-off macOS VM and connect to it for JIT-spike research.",
+        abstract: "Provision and drive disposable macOS VMs via Virtualization.framework.",
         discussion: """
-        Wraps Virtualization.framework so the JIT executor research
-        (prompts/jit-executor-research.md, W1) has a reproducible,
-        disposable macOS VM where dtrace and lldb can attach to
-        entitlement-restricted Apple binaries (XCPreviewAgent,
-        previewsd, PreviewShellMac).
-
-        Today this CLI operates on an already-installed bundle. The
-        `install` subcommand is stubbed; install-from-IPSW lands in
-        a follow-up.
+        Wraps Virtualization.framework to install, snapshot, provision,
+        and run scripts against reproducible macOS guests. Used by the
+        devbox and merge-queue toolchains to build self-contained VMs.
         """,
         subcommands: [
             BootCommand.self,
@@ -67,9 +61,7 @@ struct VZCommand: ParsableCommand {
             StatusCommand.self,
             InstallCommand.self,
             SnapshotCommand.self,
-            TestKeysCommand.self,
             SetupCommand.self,
-            TestVNCCommand.self,
             RunCommand.self,
         ],
         defaultSubcommand: StatusCommand.self

@@ -46,7 +46,7 @@ $(STATE)/setup: $(STATE)/install | $(STATE)
 	touch $@
 
 $(STATE)/ssh: $(STATE)/setup | $(STATE)
-	$(VZ_BIN) setup $(BUNDLE) --transport vnc --preset provision-ssh --retry $(SSH_RETRIES) --restore-from post-sa --output-dir $(CURDIR)/$(STATE)/ssh-logs
+	$(VZ_BIN) setup $(BUNDLE) --preset provision-ssh --retry $(SSH_RETRIES) --restore-from post-sa --output-dir $(CURDIR)/$(STATE)/ssh-logs
 	$(VZ_BIN) snapshot delete $(BUNDLE) post-ssh 2>/dev/null || true
 	$(VZ_BIN) snapshot take $(BUNDLE) post-ssh
 	touch $@
