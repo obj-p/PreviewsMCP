@@ -15,10 +15,15 @@ public actor IOSAgentBuilder {
     private var cachedShellAppPath: URL?
 
     public init(workDir: URL? = nil) async throws {
+        // Default to a per-instance directory so concurrent builders never share
+        // the agent/shell source on disk. Production keeps one builder per daemon
+        // (IOSSessionManager), so this still builds once and caches in the actor;
+        // tests create many builders, and a shared path raced ("input file ...
+        // PreviewsMCPAgent.swift was modified during the build").
         let dir =
             workDir
                 ?? FileManager.default.temporaryDirectory
-                .appendingPathComponent("previewsmcp-agent", isDirectory: true)
+                .appendingPathComponent("previewsmcp-agent-\(UUID().uuidString)", isDirectory: true)
 
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         self.workDir = dir
