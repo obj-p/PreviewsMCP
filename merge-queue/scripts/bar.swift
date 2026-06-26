@@ -39,10 +39,15 @@ func host(_ args: [String], cwd: String? = nil) throws -> String {
         .trimmingCharacters(in: .whitespacesAndNewlines)
 }
 
-let script = Script(usage: "vz run bar.swift <bundle> [candidate-ref] [base-ref]", min: 2)
+let script = Script(
+    usage: "vz run bar.swift <bundle> [candidate-ref] [base-ref] [signing-key] [principal]",
+    min: 2
+)
 let bundle = try script.bundle()
 let candidateRef = script[arg: 2, default: "HEAD"]
 let baseRef = script[arg: 3, default: "origin/main"]
+let signingKey: String? = script.args.count > 4 ? script.args[4] : nil
+let principal = script[arg: 5, default: "merge-queue@local"]
 
 let cache = "grpc://100.121.199.61:9092"
 let bazelFlags = "--remote_cache=\(cache) --remote_upload_local_results=false"
@@ -87,6 +92,33 @@ try await Guest.session(bundle: bundle, adminPass: "vzvz") { guest in
         "cd \(remoteWork) && bazelisk run //tools/lint:check",
         env: .brew, timeout: 1800
     )
+
+    guard let signingKey else { return }
+    step("signing landed range on green (squash, principal \(principal))")
+    try await guest.sh("mkdir -p ~/mqkeys && chmod 700 ~/mqkeys")
+    try guest.upload(localPath: signingKey, to: "mqkeys/signing_key")
+    try guest.upload(localPath: signingKey + ".pub", to: "mqkeys/signing_key.pub")
+    let signedSHA = try await guest.sh(
+        """
+        set -e
+        printf '%s %s\\n' "\(principal)" "$(cat ~/mqkeys/signing_key.pub)" \
+            > ~/mqkeys/allowed_signers
+        chmod 600 ~/mqkeys/signing_key
+        cd \(remoteWork)
+        git config gpg.format ssh
+        git config user.signingkey ~/mqkeys/signing_key
+        git config gpg.ssh.allowedSignersFile ~/mqkeys/allowed_signers
+        git config user.name merge-queue
+        git config user.email "\(principal)"
+        MSG=$(git log -1 --format=%s)
+        git reset --soft \(baseSHA)
+        GIT_COMMITTER_NAME=merge-queue GIT_COMMITTER_EMAIL="\(principal)" \
+            git commit -q -S -m "$MSG"
+        git verify-commit HEAD >&2
+        git rev-parse HEAD
+        """
+    )
+    step("signed + verified landed commit \(signedSHA.prefix(12))")
 }
 
 step("merge bar PASSED for candidate \(candidateSHA.prefix(8))")
