@@ -18,8 +18,10 @@ REPO       ?=
 # call for plain test/sign runs).
 NOREPLY     = $(shell gh api user --jq '(.id|tostring) + "+" + .login + "@users.noreply.github.com"')
 LAND_PRINCIPAL = $(if $(REPO),$(NOREPLY),$(PRINCIPAL))
+QUEUE_DIR  ?= $(CURDIR)/.queue
+QUEUE_GIT  := $(QUEUE_DIR)/queue.git
 
-.PHONY: bundle bar warm snapshots clean vm-base
+.PHONY: bundle bar warm queue-init snapshots clean vm-base
 bundle: $(STATE)/post-ios
 
 # Modes by argument: no KEY_BUNDLE = pure pass/fail test gate; KEY_BUNDLE alone =
@@ -38,6 +40,21 @@ warm: $(STATE)/post-ios
 	$(VZ_BIN) run $(CURDIR)/scripts/warm.swift $(BUNDLE) $(WARM_REF)
 	$(VZ_BIN) snapshot delete $(BUNDLE) post-ios
 	$(VZ_BIN) snapshot take $(BUNDLE) post-ios
+
+# Create the bare queue remote + pre-receive hook. Pushing a candidate to it
+# lands the change through the bar (REPO + KEY_BUNDLE baked into the hook).
+#   make queue-init KEY_BUNDLE=~/.config/merge-queue/bundle.age REPO=obj-p/PreviewsMCP
+#   git remote add queue $(QUEUE_GIT) && git push queue <branch>
+queue-init:
+	@test -n "$(REPO)" || { echo "set REPO=<owner/repo> (and KEY_BUNDLE) to land" >&2; exit 1; }
+	git init -q --bare $(QUEUE_GIT)
+	sed -e 's|__WORKTREE__|$(abspath $(CURDIR)/..)|' \
+	    -e 's|__KEY_BUNDLE__|$(KEY_BUNDLE)|' \
+	    -e 's|__TARGET_REPO__|$(REPO)|' \
+	    $(CURDIR)/scripts/queue-hook.sh > $(QUEUE_GIT)/hooks/pre-receive
+	chmod +x $(QUEUE_GIT)/hooks/pre-receive
+	@echo "queue ready at $(QUEUE_GIT)"
+	@echo "  git remote add queue $(QUEUE_GIT) && git push queue <branch>"
 
 vm-base:
 	$(MAKE) -C $(VM_DIR) post-toolchain
