@@ -7,13 +7,23 @@ ADMIN_USER ?= admin
 ADMIN_PASS ?= vzvz
 CANDIDATE  ?= HEAD
 BASE       ?= origin/main
+WARM_REF   ?= origin/main
 
-.PHONY: bundle bar snapshots clean devbox-base
+.PHONY: bundle bar warm snapshots clean devbox-base
 bundle: $(STATE)/post-ios
 
 bar: $(STATE)/post-ios
 	$(VZ_BIN) snapshot restore $(BUNDLE) post-ios
 	$(VZ_BIN) run $(CURDIR)/scripts/bar.swift $(BUNDLE) $(CANDIDATE) $(BASE)
+
+# Bake a warm bazel state (fetched @llvm_src + built externals) into post-ios so
+# the bar never re-fetches LLVM source per run. warm.swift stops the VM cleanly,
+# leaving the warmed disk to re-snapshot.
+warm: $(STATE)/post-ios
+	$(VZ_BIN) snapshot restore $(BUNDLE) post-ios
+	$(VZ_BIN) run $(CURDIR)/scripts/warm.swift $(BUNDLE) $(WARM_REF)
+	$(VZ_BIN) snapshot delete $(BUNDLE) post-ios
+	$(VZ_BIN) snapshot take $(BUNDLE) post-ios
 
 devbox-base:
 	$(MAKE) -C $(DEVBOX) post-toolchain
