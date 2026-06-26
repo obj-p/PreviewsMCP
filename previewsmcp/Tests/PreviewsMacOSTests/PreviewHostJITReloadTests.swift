@@ -71,11 +71,14 @@ struct PreviewHostJITReloadTests {
             made.append(reloader)
             return reloader
         })
-        host.watchFile(sessionID: "a", session: session, filePath: sourceFile.path, compiler: compiler)
-        host.watchFile(sessionID: "b", session: session, filePath: sourceFile.path, compiler: compiler)
-
-        _ = try await host.jitStructuralReload(sessionID: "a", session: session)
-        _ = try await host.jitStructuralReload(sessionID: "b", session: session)
+        try await host.jitStart(
+            sessionID: "a", session: session,
+            title: "a", size: NSSize(width: 8, height: 8), headless: true
+        )
+        try await host.jitStart(
+            sessionID: "b", session: session,
+            title: "b", size: NSSize(width: 8, height: 8), headless: true
+        )
         #expect(made.count == 2)
         #expect(made.first !== made.last)
         #expect(made.first?.calls.count == 1)
