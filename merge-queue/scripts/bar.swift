@@ -40,14 +40,19 @@ func host(_ args: [String], cwd: String? = nil) throws -> String {
 }
 
 let script = Script(
-    usage: "vz run bar.swift <bundle> [candidate-ref] [base-ref] [signing-key] [principal]",
+    usage: "vz run bar.swift <bundle> [candidate-ref] [base-ref] [key-bundle.age] "
+        + "[age-identity] [principal]",
     min: 2
 )
 let bundle = try script.bundle()
 let candidateRef = script[arg: 2, default: "HEAD"]
 let baseRef = script[arg: 3, default: "origin/main"]
-let signingKey: String? = script.args.count > 4 ? script.args[4] : nil
-let principal = script[arg: 5, default: "merge-queue@local"]
+let keyBundle: String? = script.args.count > 4 ? script.args[4] : nil
+let ageIdentity: String? = script.args.count > 5 ? script.args[5] : nil
+let principal = script[arg: 6, default: "merge-queue@local"]
+if keyBundle != nil, ageIdentity == nil {
+    throw VMError("signing requires both a key bundle and an age identity file")
+}
 
 let cache = "grpc://100.121.199.61:9092"
 let bazelFlags = "--remote_cache=\(cache) --remote_upload_local_results=false"
@@ -93,21 +98,38 @@ try await Guest.session(bundle: bundle, adminPass: "vzvz") { guest in
         env: .brew, timeout: 1800
     )
 
-    guard let signingKey else { return }
-    step("signing landed range on green (squash, principal \(principal))")
-    try await guest.sh("mkdir -p ~/mqkeys && chmod 700 ~/mqkeys")
-    try guest.upload(localPath: signingKey, to: "mqkeys/signing_key")
-    try guest.upload(localPath: signingKey + ".pub", to: "mqkeys/signing_key.pub")
+    guard let keyBundle, let ageIdentity else { return }
+    step("decrypting key bundle + signing landed range on green (principal \(principal))")
+    let stage = NSTemporaryDirectory() + "mq-bar-keys"
+    try? FileManager.default.removeItem(atPath: stage)
+    try FileManager.default.createDirectory(
+        atPath: stage, withIntermediateDirectories: true,
+        attributes: [.posixPermissions: 0o700]
+    )
+    defer { try? FileManager.default.removeItem(atPath: stage) }
+    try host([
+        "sh", "-c",
+        "age -d -i \(ageIdentity) \(keyBundle) | "
+            + "tar -C \(stage) -xf - signing_key signing_key.pub",
+    ])
+    try await guest.sh(
+        """
+        DEV=$(hdiutil attach -nomount ram://$((16 * 2048)) | awk '{print $1}')
+        diskutil erasevolume HFS+ mqkeys "$DEV" >/dev/null
+        """
+    )
+    try guest.upload(localPath: stage + "/signing_key", to: "/Volumes/mqkeys/signing_key")
+    try guest.upload(localPath: stage + "/signing_key.pub", to: "/Volumes/mqkeys/signing_key.pub")
     let signedSHA = try await guest.sh(
         """
         set -e
-        printf '%s %s\\n' "\(principal)" "$(cat ~/mqkeys/signing_key.pub)" \
-            > ~/mqkeys/allowed_signers
-        chmod 600 ~/mqkeys/signing_key
+        printf '%s %s\\n' "\(principal)" "$(cat /Volumes/mqkeys/signing_key.pub)" \
+            > /Volumes/mqkeys/allowed_signers
+        chmod 600 /Volumes/mqkeys/signing_key
         cd \(remoteWork)
         git config gpg.format ssh
-        git config user.signingkey ~/mqkeys/signing_key
-        git config gpg.ssh.allowedSignersFile ~/mqkeys/allowed_signers
+        git config user.signingkey /Volumes/mqkeys/signing_key
+        git config gpg.ssh.allowedSignersFile /Volumes/mqkeys/allowed_signers
         git config user.name merge-queue
         git config user.email "\(principal)"
         MSG=$(git log -1 --format=%s)
@@ -118,7 +140,8 @@ try await Guest.session(bundle: bundle, adminPass: "vzvz") { guest in
         git rev-parse HEAD
         """
     )
-    step("signed + verified landed commit \(signedSHA.prefix(12))")
+    try await guest.sh("diskutil eject /Volumes/mqkeys >/dev/null")
+    step("signed + verified landed commit \(signedSHA.prefix(12)) (keys on tmpfs, ejected)")
 }
 
 step("merge bar PASSED for candidate \(candidateSHA.prefix(8))")
