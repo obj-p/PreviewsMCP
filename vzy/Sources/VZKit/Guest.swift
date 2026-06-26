@@ -72,19 +72,6 @@ public struct Guest: Sendable {
         )
     }
 
-    public func uploadTree(localDir: String, to remoteDir: String) async throws {
-        let name = (localDir as NSString).lastPathComponent
-        let hostTar = NSTemporaryDirectory() + "vzkit-tree-\(name).tar"
-        let remoteTar = "/tmp/vzkit-tree-\(name).tar"
-        try runLocal("/usr/bin/tar", ["-cf", hostTar, "-C", localDir, "."])
-        defer { try? FileManager.default.removeItem(atPath: hostTar) }
-        try upload(localPath: hostTar, to: remoteTar)
-        try await sh(
-            "rm -rf \(remoteDir) && mkdir -p \(remoteDir) "
-                + "&& tar -xf \(remoteTar) -C \(remoteDir) && rm -f \(remoteTar)"
-        )
-    }
-
     public func rsync(
         localDir: String,
         to remoteDir: String,

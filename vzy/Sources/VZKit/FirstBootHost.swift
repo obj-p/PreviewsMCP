@@ -65,7 +65,7 @@ public final class FirstBootHost {
     /// Also makes the view the first responder so synthesized
     /// `keyDown`/`keyUp` events route into `VZVirtualMachineView` rather
     /// than getting eaten by `NSWindow`'s default handlers.
-    public func attachToAppKit() {
+    private func attachToAppKit() {
         window.makeKeyAndOrderFront(nil)
         window.makeFirstResponder(view)
     }
