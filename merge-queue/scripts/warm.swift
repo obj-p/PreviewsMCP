@@ -43,8 +43,6 @@ let script = Script(usage: "vz run warm.swift <bundle> [ref]", min: 2)
 let bundle = try script.bundle()
 let ref = script[arg: 2, default: "HEAD"]
 
-let cache = "grpc://100.121.199.61:9092"
-let bazelFlags = "--remote_cache=\(cache) --remote_upload_local_results=false"
 let remoteWork = "/Users/admin/work"
 
 let repoRoot = try host(["git", "rev-parse", "--show-toplevel"])
@@ -68,7 +66,7 @@ try await Guest.session(bundle: bundle, adminPass: "vzvz") { guest in
         cd \(remoteWork)
         n=0
         until [ $n -ge 6 ]; do
-          bazelisk build //... \(bazelFlags) && break
+          bazelisk build //... && break
           n=$((n+1)); echo "warm build attempt $n failed; retrying in 60s"; sleep 60
         done
         [ $n -lt 6 ]
