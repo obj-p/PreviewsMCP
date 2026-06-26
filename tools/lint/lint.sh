@@ -40,10 +40,20 @@ select_files() {
   echo "$out"
 }
 
+# read_files <select_files-args...> -> populates the `files` array, skipping
+# blanks. A bash-3.2-compatible stand-in for `mapfile` (macOS ships bash 3.2).
+read_files() {
+  files=()
+  local line
+  while IFS= read -r line; do
+    [[ -n "$line" ]] && files+=("$line")
+  done < <(select_files "$@")
+}
+
 note() { echo "==> $1"; }
 
 if [[ -n "${BUILDIFIER:-}" ]]; then
-  mapfile -t files < <(select_files '(/BUILD\.bazel|\.bzl|/MODULE\.bazel|^MODULE\.bazel)$')
+  read_files '(/BUILD\.bazel|\.bzl|/MODULE\.bazel|^MODULE\.bazel)$'
   if ((${#files[@]})); then
     note "buildifier ($mode)"
     bf="$(rlocation "$BUILDIFIER")"
@@ -52,7 +62,7 @@ if [[ -n "${BUILDIFIER:-}" ]]; then
 fi
 
 if [[ -n "${CLANG_FORMAT:-}" ]]; then
-  mapfile -t files < <(select_files '\.(c|cc|cpp|h|hpp|m|mm)$' '/Fixtures/')
+  read_files '\.(c|cc|cpp|h|hpp|m|mm)$' '/Fixtures/'
   if ((${#files[@]})); then
     note "clang-format ($mode)"
     cf="$(rlocation "$CLANG_FORMAT")"
@@ -61,7 +71,7 @@ if [[ -n "${CLANG_FORMAT:-}" ]]; then
 fi
 
 if [[ -n "${SWIFTFORMAT:-}" ]]; then
-  mapfile -t files < <(select_files '\.swift$' '^bazel/')
+  read_files '\.swift$' '^bazel/'
   if ((${#files[@]})); then
     note "swiftformat ($mode)"
     sf="$(rlocation "$SWIFTFORMAT")"
@@ -71,7 +81,7 @@ fi
 
 # SwiftLint is a semantic linter, not a formatter, so it never runs in fix mode.
 if [[ -n "${SWIFTLINT:-}" && "$mode" != fix ]]; then
-  mapfile -t files < <(select_files '\.swift$' '^bazel/')
+  read_files '\.swift$' '^bazel/'
   if ((${#files[@]})); then
     note "swiftlint ($mode)"
     sl="$(rlocation "$SWIFTLINT")"
