@@ -90,64 +90,70 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
     ) {
         sessions[sessionID] = session
         notifySessionsChanged()
-        let fileURL = URL(fileURLWithPath: filePath)
         let allPaths = [filePath] + additionalPaths
+        let canonicalPrimary = FileWatcher.canonicalPath(filePath) ?? filePath
         fileWatchers[sessionID]?.stop()
-        fileWatchers[sessionID] = try? FileWatcher(paths: allPaths) { [weak self] _ in
+        fileWatchers[sessionID] = try? FileWatcher(paths: allPaths) { [weak self] firedPaths in
             Task {
-                guard let self else { return }
-                Log.info("jit_latency: watch-fire")
-
-                let newSource: String
-                do {
-                    newSource = try String(contentsOf: fileURL, encoding: .utf8)
-                } catch {
-                    fputs("Failed to read file: \(error)\n", stderr)
-                    return
-                }
-
-                // Fast path: try literal-only update. The agent re-renders in place
-                // (rewrite the design-time values JSON, re-run the same object — no
-                // recompile).
-                if let currentSession = await MainActor.run(body: { self.sessions[sessionID] }),
-                   let changes = await currentSession.tryLiteralUpdate(newSource: newSource),
-                   !changes.isEmpty
-                {
-                    fputs("Literal-only change: \(changes.count) value(s)\n", stderr)
-                    do {
-                        try await self.jitLiteralReload(
-                            sessionID: sessionID, session: currentSession, changes: changes
-                        )
-                        fputs("Literal re-rendered in agent (no recompile)\n", stderr)
-                    } catch {
-                        fputs("JIT literal reload failed: \(error)\n", stderr)
-                    }
-                    return
-                }
-
-                // Slow path: structural change, full recompile.
-                // Reuse the existing session so traits set via preview_configure are
-                // preserved without a race — the reload re-reads the source file and
-                // uses the session's stored traits, which live inside the actor.
-                fputs("Structural change, recompiling...\n", stderr)
-                do {
-                    guard
-                        let existingSession = await MainActor.run(body: {
-                            self.sessions[sessionID]
-                        })
-                    else {
-                        fputs("Session \(sessionID) no longer exists\n", stderr)
-                        return
-                    }
-
-                    _ = try await self.jitStructuralReload(
-                        sessionID: sessionID, session: existingSession
-                    )
-                    fputs("Reloaded (JIT agent)!\n", stderr); fflush(stderr)
-                } catch {
-                    fputs("Recompilation failed: \(error)\n", stderr)
-                }
+                await self?.handleWatchedChange(
+                    sessionID: sessionID, canonicalPrimary: canonicalPrimary, firedPaths: firedPaths
+                )
             }
+        }
+    }
+
+    /// Apply a watcher burst to a session. An UNCHANGED primary file (no-op save, mtime touch,
+    /// atomic-rename replay) does nothing so live `@State` is preserved. A literal-only edit
+    /// re-renders in place. A structural edit, or any burst that touched a SECONDARY watched
+    /// file (a cross-file dependency), recompiles. The slow path reuses the existing session so
+    /// traits set via `preview_configure` survive.
+    func handleWatchedChange(
+        sessionID: String, canonicalPrimary: String, firedPaths: Set<String>
+    ) async {
+        guard let session = sessions[sessionID] else {
+            fputs("Session \(sessionID) no longer exists\n", stderr)
+            return
+        }
+        Log.info("jit_latency: watch-fire")
+
+        let newSource = try? String(contentsOf: session.sourceFile, encoding: .utf8)
+        let kind: PreviewSession.SourceChangeKind = if let newSource {
+            await session.classifyWatchedChange(
+                firedPaths: firedPaths, canonicalPrimary: canonicalPrimary, newPrimarySource: newSource
+            )
+        } else {
+            .structural
+        }
+
+        switch kind {
+        case .unchanged:
+            fputs("Unchanged source, preserving state (no reload)\n", stderr)
+            return
+        case let .literal(changes):
+            fputs("Literal-only change: \(changes.count) value(s)\n", stderr)
+            do {
+                if try await jitLiteralReload(
+                    sessionID: sessionID, session: session, changes: changes
+                ) != nil {
+                    if let newSource { await session.commitSourceBaseline(newSource) }
+                    fputs("Literal re-rendered in agent (no recompile)\n", stderr)
+                    return
+                }
+            } catch {
+                fputs("JIT literal reload failed: \(error)\n", stderr)
+                return
+            }
+        // No prior JIT build to patch: fall through to a structural reload.
+        case .structural:
+            break
+        }
+
+        fputs("Structural change, recompiling...\n", stderr)
+        do {
+            _ = try await jitStructuralReload(sessionID: sessionID, session: session)
+            fputs("Reloaded (JIT agent)!\n", stderr); fflush(stderr)
+        } catch {
+            fputs("Recompilation failed: \(error)\n", stderr)
         }
     }
 

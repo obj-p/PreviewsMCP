@@ -187,6 +187,117 @@ struct PreviewHostJITReloadTests {
         #expect(host.agentWindowSpec(for: "visible") == nil)
     }
 
+    @Test func unchangedSourceFireDoesNotReload() async throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("p297u-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let sourceFile = dir.appendingPathComponent("ColorView.swift")
+        try """
+        import SwiftUI
+
+        #Preview {
+            Color.red.frame(width: 8, height: 8)
+        }
+        """.write(to: sourceFile, atomically: true, encoding: .utf8)
+        let primary = FileWatcher.canonicalPath(sourceFile.path) ?? sourceFile.path
+
+        let compiler = try await Compiler()
+        let session = PreviewSession(sourceFile: sourceFile, compiler: compiler)
+
+        let reloader = RecordingReloader()
+        let host = PreviewHost(makeStructuralReloader: { reloader })
+        try await host.jitStart(
+            sessionID: "s1", session: session,
+            title: "t", size: NSSize(width: 8, height: 8), headless: true
+        )
+        #expect(reloader.calls.count == 1)
+
+        // The watcher fires for the primary file but its content did not change
+        // (a no-op save, mtime touch, or atomic-rename replay). No reload, so @State survives.
+        await host.handleWatchedChange(
+            sessionID: "s1", canonicalPrimary: primary, firedPaths: [primary]
+        )
+        #expect(reloader.calls.count == 1, "unchanged source must not trigger a reload")
+    }
+
+    @Test func secondaryFileFireForcesStructuralReload() async throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("p297x-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let sourceFile = dir.appendingPathComponent("ColorView.swift")
+        try """
+        import SwiftUI
+
+        #Preview {
+            Color.red.frame(width: 8, height: 8)
+        }
+        """.write(to: sourceFile, atomically: true, encoding: .utf8)
+        let secondaryFile = dir.appendingPathComponent("Helper.swift")
+        try "import SwiftUI\n".write(to: secondaryFile, atomically: true, encoding: .utf8)
+        let primary = FileWatcher.canonicalPath(sourceFile.path) ?? sourceFile.path
+        let secondary = FileWatcher.canonicalPath(secondaryFile.path) ?? secondaryFile.path
+
+        let compiler = try await Compiler()
+        let session = PreviewSession(sourceFile: sourceFile, compiler: compiler)
+
+        let reloader = RecordingReloader()
+        let host = PreviewHost(makeStructuralReloader: { reloader })
+        try await host.jitStart(
+            sessionID: "s1", session: session,
+            title: "t", size: NSSize(width: 8, height: 8), headless: true
+        )
+        #expect(reloader.calls.count == 1)
+
+        // A cross-file dependency changed while the primary stayed byte-identical. Only a
+        // structural recompile picks the edit up, so the unchanged shortcut must not skip it.
+        await host.handleWatchedChange(
+            sessionID: "s1", canonicalPrimary: primary, firedPaths: [secondary]
+        )
+        #expect(reloader.calls.count == 2, "a secondary-file change must force a structural reload")
+    }
+
+    @Test func coalescedBurstWithUnchangedPrimaryStillStructural() async throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("p297b-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let sourceFile = dir.appendingPathComponent("ColorView.swift")
+        try """
+        import SwiftUI
+
+        #Preview {
+            Color.red.frame(width: 8, height: 8)
+        }
+        """.write(to: sourceFile, atomically: true, encoding: .utf8)
+        let secondaryFile = dir.appendingPathComponent("Helper.swift")
+        try "import SwiftUI\n".write(to: secondaryFile, atomically: true, encoding: .utf8)
+        let primary = FileWatcher.canonicalPath(sourceFile.path) ?? sourceFile.path
+        let secondary = FileWatcher.canonicalPath(secondaryFile.path) ?? secondaryFile.path
+
+        let compiler = try await Compiler()
+        let session = PreviewSession(sourceFile: sourceFile, compiler: compiler)
+
+        let reloader = RecordingReloader()
+        let host = PreviewHost(makeStructuralReloader: { reloader })
+        try await host.jitStart(
+            sessionID: "s1", session: session,
+            title: "t", size: NSSize(width: 8, height: 8), headless: true
+        )
+        #expect(reloader.calls.count == 1)
+
+        // One coalesced burst reports both the unchanged primary and a changed secondary.
+        // The secondary in the set must force structural so the cross-file edit is not dropped.
+        await host.handleWatchedChange(
+            sessionID: "s1", canonicalPrimary: primary, firedPaths: [primary, secondary]
+        )
+        #expect(reloader.calls.count == 2, "a co-changed secondary in the burst must force structural")
+    }
+
     @Test func closedSessionNeverGetsANewAgent() async throws {
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent("p34ci3f-\(UUID().uuidString)", isDirectory: true)

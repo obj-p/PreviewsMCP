@@ -197,6 +197,140 @@ struct PreviewSessionBuildContextTests {
         )
     }
 
+    @Test("classifySourceChange is three-way: unchanged / literal / structural")
+    func classifySourceChangeThreeWay() async throws {
+        let ctx = try await Self.buildSPMExample()
+
+        let compiler = try await Compiler()
+        let session = PreviewSession(
+            sourceFile: Self.toDoViewFile,
+            previewIndex: 0,
+            compiler: compiler,
+            buildContext: ctx
+        )
+
+        _ = try await session.compileObjectForJIT()
+        let original = try String(contentsOf: Self.toDoViewFile, encoding: .utf8)
+
+        // Byte-identical content (a no-op save) must NOT reload — preserves live @State (#297).
+        guard case .unchanged = await session.classifySourceChange(newSource: original) else {
+            Issue.record("identical source should classify as .unchanged")
+            return
+        }
+
+        // A literal-only edit re-renders in place.
+        let literalEdited = original.replacingOccurrences(of: "\"My Items\"", with: "\"My Tasks\"")
+        guard case let .literal(changes) =
+            await session.classifySourceChange(newSource: literalEdited)
+        else {
+            Issue.record("literal-only edit should classify as .literal")
+            return
+        }
+        #expect(changes.contains(where: { $0.newValue == .string("My Tasks") }))
+
+        // A structural edit (adding a type) recompiles.
+        let structuralEdited = literalEdited
+            + "\nstruct Extra_p297: View { var body: some View { Color.red } }\n"
+        guard case .structural =
+            await session.classifySourceChange(newSource: structuralEdited)
+        else {
+            Issue.record("adding a type should classify as .structural")
+            return
+        }
+    }
+
+    @Test("classifySourceChange goes structural for a Tier 1 edit with no baseline")
+    func classifySourceChangeTier1Structural() async throws {
+        let fullCtx = try await Self.buildSPMExample()
+        let ctx = Self.tier1Context(from: fullCtx)
+
+        let compiler = try await Compiler()
+        let session = PreviewSession(
+            sourceFile: Self.toDoViewFile,
+            previewIndex: 0,
+            compiler: compiler,
+            buildContext: ctx
+        )
+
+        let original = try String(contentsOf: Self.toDoViewFile, encoding: .utf8)
+        let modified = original.replacingOccurrences(of: "\"My Items\"", with: "\"My Tasks\"")
+
+        guard case .structural = await session.classifySourceChange(newSource: modified) else {
+            Issue.record("Tier 1 with no literal thunks should classify a real edit as .structural")
+            return
+        }
+    }
+
+    @Test("classifySourceChange does not advance the baseline until committed")
+    func classifySourceChangeNonMutatingUntilCommit() async throws {
+        let ctx = try await Self.buildSPMExample()
+
+        let compiler = try await Compiler()
+        let session = PreviewSession(
+            sourceFile: Self.toDoViewFile,
+            previewIndex: 0,
+            compiler: compiler,
+            buildContext: ctx
+        )
+
+        _ = try await session.compileObjectForJIT()
+        let original = try String(contentsOf: Self.toDoViewFile, encoding: .utf8)
+        let edited = original.replacingOccurrences(of: "\"My Items\"", with: "\"My Tasks\"")
+
+        // A failed reload would not commit. Classifying the same edit twice must keep returning
+        // .literal so it can be retried, not collapse to .unchanged and strand the old value (#297).
+        guard case .literal = await session.classifySourceChange(newSource: edited) else {
+            Issue.record("first classify should be .literal")
+            return
+        }
+        guard case .literal = await session.classifySourceChange(newSource: edited) else {
+            Issue.record("repeat classify must still be .literal before commit")
+            return
+        }
+
+        // After a successful reload commits the baseline, the same content reads as unchanged.
+        await session.commitSourceBaseline(edited)
+        guard case .unchanged = await session.classifySourceChange(newSource: edited) else {
+            Issue.record("after commit the same content should be .unchanged")
+            return
+        }
+    }
+
+    @Test("classifyWatchedChange forces structural when a secondary file fired")
+    func classifyWatchedChangeSecondaryStructural() async throws {
+        let ctx = try await Self.buildSPMExample()
+
+        let compiler = try await Compiler()
+        let session = PreviewSession(
+            sourceFile: Self.toDoViewFile,
+            previewIndex: 0,
+            compiler: compiler,
+            buildContext: ctx
+        )
+
+        _ = try await session.compileObjectForJIT()
+        let original = try String(contentsOf: Self.toDoViewFile, encoding: .utf8)
+        let primary = Self.toDoViewFile.path
+
+        // A primary-only burst with unchanged content stays a no-op.
+        guard case .unchanged = await session.classifyWatchedChange(
+            firedPaths: [primary], canonicalPrimary: primary, newPrimarySource: original
+        ) else {
+            Issue.record("primary-only unchanged burst should be .unchanged")
+            return
+        }
+
+        // A secondary path in the burst forces structural even though the primary is unchanged.
+        guard case .structural = await session.classifyWatchedChange(
+            firedPaths: [primary, "/some/other/Helper.swift"],
+            canonicalPrimary: primary,
+            newPrimarySource: original
+        ) else {
+            Issue.record("a secondary fire must be .structural")
+            return
+        }
+    }
+
     // MARK: - Dynamic library product exclusion
 
     /// Regression guard for the swift-issue-reporting / `Testing.framework`
