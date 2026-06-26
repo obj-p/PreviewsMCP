@@ -8,13 +8,18 @@ ADMIN_PASS ?= vzvz
 CANDIDATE  ?= HEAD
 BASE       ?= origin/main
 WARM_REF   ?= origin/main
+SIGN_KEY   ?=
+PRINCIPAL  ?= merge-queue@local
 
 .PHONY: bundle bar warm snapshots clean devbox-base
 bundle: $(STATE)/post-ios
 
+# With SIGN_KEY set, the bar signs the squashed range on green (sign-on-green);
+# without it, the bar is a pure pass/fail test gate.
 bar: $(STATE)/post-ios
 	$(VZ_BIN) snapshot restore $(BUNDLE) post-ios
-	$(VZ_BIN) run $(CURDIR)/scripts/bar.swift $(BUNDLE) $(CANDIDATE) $(BASE)
+	$(VZ_BIN) run $(CURDIR)/scripts/bar.swift $(BUNDLE) $(CANDIDATE) $(BASE) \
+		$(SIGN_KEY) $(if $(SIGN_KEY),$(PRINCIPAL),)
 
 # Bake a warm bazel state (fetched @llvm_src + built externals) into post-ios so
 # the bar never re-fetches LLVM source per run. warm.swift stops the VM cleanly,
