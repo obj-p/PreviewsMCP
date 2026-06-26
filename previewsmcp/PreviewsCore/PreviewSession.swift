@@ -429,21 +429,68 @@ public actor PreviewSession {
         }
     }
 
+    /// How a watcher-fired source change should be applied to a live preview session.
+    public enum SourceChangeKind: Sendable {
+        /// Content is byte-identical (or only reformats to identical literal values). The
+        /// preview should be left untouched so live `@State` is preserved.
+        case unchanged
+        /// Only literal values changed. Re-render in place without recompiling.
+        case literal([(id: String, newValue: LiteralValue)])
+        /// The structure changed. Requires a full recompile / agent respawn.
+        case structural
+    }
+
+    /// Decide how a watcher burst should be applied. A burst that touched any SECONDARY
+    /// watched file (a cross-file dependency) forces a structural reload, so a real cross-file
+    /// edit is never dropped even when the primary file is in the same burst. Only a
+    /// primary-only burst takes the unchanged or literal fast path. `firedPaths` and
+    /// `canonicalPrimary` are canonical, resolved when the watch was installed.
+    public func classifyWatchedChange(
+        firedPaths: Set<String>, canonicalPrimary: String, newPrimarySource: String
+    ) -> SourceChangeKind {
+        if firedPaths.contains(where: { $0 != canonicalPrimary }) { return .structural }
+        return classifySourceChange(newSource: newPrimarySource)
+    }
+
+    /// Three-way classification of the PRIMARY file's content, so an UNCHANGED file (a no-op
+    /// editor save, an mtime touch, or an atomic-rename replay) is a no-op that preserves live
+    /// `@State` instead of a structural reload that recompiles and respawns the agent. This does
+    /// NOT advance the baseline, so a caller whose reload fails can retry on the next identical
+    /// fire. Structural and literal reloads commit the baseline only on success. Content-equality
+    /// is checked first so the unchanged case is caught even in Tier 1 (bridge-only, no thunks).
+    public func classifySourceChange(newSource: String) -> SourceChangeKind {
+        if lastOriginalSource == newSource { return .unchanged }
+        guard let kind = literalDiff(newSource: newSource) else { return .structural }
+        switch kind {
+        case let .literalOnly(changes):
+            return changes.isEmpty ? .unchanged : .literal(changes)
+        case .structural:
+            return .structural
+        }
+    }
+
+    /// Record `source` as the live baseline after a reload applied it, so a later identical fire
+    /// classifies as unchanged. Structural reloads set this via `compileObjectForJIT`. The literal
+    /// fast path has no recompile, so its caller commits here once the re-render succeeds.
+    public func commitSourceBaseline(_ source: String) {
+        lastOriginalSource = source
+    }
+
+    /// Literal-vs-structural diff against the current baseline, without mutating it. Returns nil
+    /// for Tier 1 (bridge-only, no thunks) and before the first compile sets a baseline.
+    private func literalDiff(newSource: String) -> ChangeKind? {
+        if let ctx = buildContext, !ctx.supportsTier2 { return nil }
+        guard let oldSource = lastOriginalSource else { return nil }
+        return LiteralDiffer.diff(old: oldSource, new: newSource)
+    }
+
     /// Attempt a fast literal-only update. Returns changed literal IDs and new values,
     /// or nil if a structural recompile is needed.
     /// Returns nil for Tier 1 project mode (bridge-only, no thunks).
     public func tryLiteralUpdate(newSource: String) -> [(id: String, newValue: LiteralValue)]? {
-        // Tier 1 bridge-only has no DesignTimeStore thunks
-        if let ctx = buildContext, !ctx.supportsTier2 { return nil }
-        guard let oldSource = lastOriginalSource else { return nil }
-
-        switch LiteralDiffer.diff(old: oldSource, new: newSource) {
-        case let .literalOnly(changes):
-            lastOriginalSource = newSource
-            return changes
-        case .structural:
-            return nil
-        }
+        guard case let .literalOnly(changes) = literalDiff(newSource: newSource) else { return nil }
+        lastOriginalSource = newSource
+        return changes
     }
 
     /// Switch to a different preview index and recompile. Traits are preserved. @State is lost.

@@ -17,14 +17,14 @@ public final class FileWatcher: @unchecked Sendable {
 
     public convenience init(
         path: String,
-        callback: @escaping @Sendable (String) -> Void
+        callback: @escaping @Sendable (Set<String>) -> Void
     ) throws {
         try self.init(paths: [path], callback: callback)
     }
 
     public init(
         paths: [String],
-        callback: @escaping @Sendable (String) -> Void
+        callback: @escaping @Sendable (Set<String>) -> Void
     ) throws {
         guard !paths.isEmpty else {
             throw FileWatcherError.cannotOpen(path: "<empty>")
@@ -76,13 +76,15 @@ public final class FileWatcher: @unchecked Sendable {
             let box = Unmanaged<CallbackBox>.fromOpaque(info).takeUnretainedValue()
             let cfPaths = Unmanaged<CFArray>.fromOpaque(eventPaths).takeUnretainedValue()
             let nsPaths = cfPaths as NSArray
-            // First match wins: a single change-event burst yields one
-            // callback regardless of how many watched paths it touched,
-            // matching the "one reload per change burst" intent.
+            // One callback per change-event burst, carrying every watched path the burst
+            // touched. A coalesced multi-file save (atomic rename of several files within
+            // the latency window) delivers them together so the caller can tell a
+            // cross-file edit apart from a primary-only one.
+            var fired = Set<String>()
             for case let path as String in nsPaths where box.canonicalPaths.contains(path) {
-                box.callback(path)
-                return
+                fired.insert(path)
             }
+            if !fired.isEmpty { box.callback(fired) }
         }
 
         guard
@@ -127,6 +129,13 @@ public final class FileWatcher: @unchecked Sendable {
         stop()
     }
 
+    /// Resolve a path to the canonical form the FSEvents callback reports. A caller
+    /// canonicalizes its watched paths once at setup, then compares the fired paths
+    /// (already canonical) against them by string equality with no per-fire syscall.
+    public static func canonicalPath(_ path: String) -> String? {
+        canonicalize(path)
+    }
+
     private static func canonicalize(_ path: String) -> String? {
         guard let resolved = realpath(path, nil) else { return nil }
         defer { free(resolved) }
@@ -142,9 +151,9 @@ public final class FileWatcher: @unchecked Sendable {
 /// deinit without racing in-flight callbacks against partial destruction.
 private final class CallbackBox: @unchecked Sendable {
     let canonicalPaths: Set<String>
-    let callback: @Sendable (String) -> Void
+    let callback: @Sendable (Set<String>) -> Void
 
-    init(canonicalPaths: Set<String>, callback: @escaping @Sendable (String) -> Void) {
+    init(canonicalPaths: Set<String>, callback: @escaping @Sendable (Set<String>) -> Void) {
         self.canonicalPaths = canonicalPaths
         self.callback = callback
     }

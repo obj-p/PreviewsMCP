@@ -539,11 +539,16 @@ public actor IOSPreviewSession {
         try await jitReloader.render(build)
     }
 
-    /// Handle a source file change. Fast path: a literal-only edit rewrites the design-time
-    /// values JSON and re-runs the same linked object over EPC (no recompile, no relink),
-    /// mirroring the macOS path. Otherwise fall back to a structural reload that reuses the
-    /// persistent session so its stable-module cache and literal baseline carry forward.
-    public func handleSourceChange() async throws {
+    /// Handle a watcher burst, mirroring macOS. An UNCHANGED primary file (no-op save, mtime
+    /// touch, atomic-rename replay) is a no-op so the agent keeps its live `@State`. A literal-only
+    /// edit rewrites the design-time values JSON and re-runs the same linked object over EPC (no
+    /// recompile, no relink). A structural edit, or any burst that touched a SECONDARY watched
+    /// file (a cross-file dependency), reuses the persistent session so its stable-module cache and
+    /// literal baseline carry forward. `firedPaths` and `canonicalPrimary` are canonical, resolved
+    /// when the watch was installed. An empty `firedPaths` treats the change as a primary edit.
+    public func handleSourceChange(
+        firedPaths: Set<String> = [], canonicalPrimary: String? = nil
+    ) async throws {
         await acquireRenderLock()
         defer { releaseRenderLock() }
 
@@ -552,11 +557,22 @@ public actor IOSPreviewSession {
         }
 
         let newSource = try String(contentsOf: sourceFile, encoding: .utf8)
-        if let changes = await session.tryLiteralUpdate(newSource: newSource), !changes.isEmpty,
-           let build = try await session.applyLiteralValuesForJIT(changes)
-        {
-            try await jitReloader.render(build)
+        switch await session.classifyWatchedChange(
+            firedPaths: firedPaths,
+            canonicalPrimary: canonicalPrimary ?? sourceFile.path,
+            newPrimarySource: newSource
+        ) {
+        case .unchanged:
             return
+        case let .literal(changes):
+            if let build = try await session.applyLiteralValuesForJIT(changes) {
+                try await jitReloader.render(build)
+                await session.commitSourceBaseline(newSource)
+                return
+            }
+        // No prior JIT build to patch: fall through to a structural reload.
+        case .structural:
+            break
         }
 
         let build = try await session.compileObjectForJIT()

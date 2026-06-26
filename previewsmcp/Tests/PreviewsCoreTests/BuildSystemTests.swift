@@ -489,9 +489,9 @@ struct BuildSystemTests {
         try "initial 1".write(to: file1, atomically: true, encoding: .utf8)
         try "initial 2".write(to: file2, atomically: true, encoding: .utf8)
 
-        let changedPath = Mutex<String?>(nil)
-        let watcher = try FileWatcher(paths: [file1.path, file2.path]) { path in
-            changedPath.withLock { $0 = path }
+        let changedPaths = Mutex<Set<String>>([])
+        let watcher = try FileWatcher(paths: [file1.path, file2.path]) { paths in
+            changedPaths.withLock { $0.formUnion(paths) }
         }
         defer { watcher.stop() }
 
@@ -499,8 +499,8 @@ struct BuildSystemTests {
         try "modified 2".write(to: file2, atomically: true, encoding: .utf8)
         try await Task.sleep(for: .milliseconds(200))
 
-        let captured = changedPath.withLock { $0 }
-        #expect(captured?.hasSuffix("second.swift") == true)
+        let captured = changedPaths.withLock { $0 }
+        #expect(captured.contains { $0.hasSuffix("second.swift") })
     }
 
     // MARK: - BuildContext

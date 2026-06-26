@@ -327,11 +327,14 @@ private func handleIOSPreviewStart(
     let sessionID = session.id
     let allPaths = [fileURL.path] + (buildContext?.sourceFiles?.map(\.path) ?? [])
     let iosState = ctx.iosState
-    let watcher = try? FileWatcher(paths: allPaths) { _ in
+    let canonicalPrimary = FileWatcher.canonicalPath(fileURL.path) ?? fileURL.path
+    let watcher = try? FileWatcher(paths: allPaths) { firedPaths in
         Task {
             Log.info("MCP: iOS file change detected, reloading session \(sessionID)...")
             do {
-                try await session.handleSourceChange()
+                try await session.handleSourceChange(
+                    firedPaths: firedPaths, canonicalPrimary: canonicalPrimary
+                )
                 Log.info("MCP: iOS source change — recompiled and re-linked over JIT")
             } catch {
                 Log.error("MCP: iOS reload failed for session \(sessionID): \(error)")
