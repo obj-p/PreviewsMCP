@@ -12,17 +12,23 @@ KEY_HOME   ?= $(HOME)/.config/merge-queue
 KEY_BUNDLE ?=
 AGE_ID     ?= $(KEY_HOME)/identity.txt
 PRINCIPAL  ?= merge-queue@local
+REPO       ?=
+# Landing must commit under an account-linked email or GitHub won't verify the
+# signature, so derive the account noreply only when REPO is set (lazy: no gh
+# call for plain test/sign runs).
+NOREPLY     = $(shell gh api user --jq '(.id|tostring) + "+" + .login + "@users.noreply.github.com"')
+LAND_PRINCIPAL = $(if $(REPO),$(NOREPLY),$(PRINCIPAL))
 
 .PHONY: bundle bar warm snapshots clean vm-base
 bundle: $(STATE)/post-ios
 
-# With KEY_BUNDLE set (an age-encrypted bundle), the bar decrypts it on the host,
-# injects the signing key onto a guest RAM disk, and signs the squashed range on
-# green. Without it, the bar is a pure pass/fail test gate.
+# Modes by argument: no KEY_BUNDLE = pure pass/fail test gate; KEY_BUNDLE alone =
+# sign the squashed range on green (dry-run, no push); KEY_BUNDLE + REPO = land,
+# i.e. sign then push to REPO main from the VM via the deploy key.
 bar: $(STATE)/post-ios
 	$(VZ_BIN) snapshot restore $(BUNDLE) post-ios
 	$(VZ_BIN) run $(CURDIR)/scripts/bar.swift $(BUNDLE) $(CANDIDATE) $(BASE) \
-		$(if $(KEY_BUNDLE),$(KEY_BUNDLE) $(AGE_ID) $(PRINCIPAL),)
+		$(if $(KEY_BUNDLE),$(KEY_BUNDLE) $(AGE_ID) $(LAND_PRINCIPAL) $(REPO),)
 
 # Bake a warm bazel state (fetched @llvm_src + built externals) into post-ios so
 # the bar never re-fetches LLVM source per run. warm.swift stops the VM cleanly,

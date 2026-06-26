@@ -41,7 +41,7 @@ func host(_ args: [String], cwd: String? = nil) throws -> String {
 
 let script = Script(
     usage: "vz run bar.swift <bundle> [candidate-ref] [base-ref] [key-bundle.age] "
-        + "[age-identity] [principal]",
+        + "[age-identity] [principal] [target-repo]",
     min: 2
 )
 let bundle = try script.bundle()
@@ -50,8 +50,13 @@ let baseRef = script[arg: 3, default: "origin/main"]
 let keyBundle: String? = script.args.count > 4 ? script.args[4] : nil
 let ageIdentity: String? = script.args.count > 5 ? script.args[5] : nil
 let principal = script[arg: 6, default: "merge-queue@local"]
+let targetRepo: String? = script.args.count > 7 ? script.args[7] : nil
 if keyBundle != nil, ageIdentity == nil {
     throw VMError("signing requires both a key bundle and an age identity file")
+}
+
+if targetRepo != nil, keyBundle == nil {
+    throw VMError("landing to a target repo requires a key bundle to sign with")
 }
 
 let remoteWork = "/Users/admin/work"
@@ -105,10 +110,12 @@ try await Guest.session(bundle: bundle, adminPass: "vzvz") { guest in
         attributes: [.posixPermissions: 0o700]
     )
     defer { try? FileManager.default.removeItem(atPath: stage) }
+    let members = targetRepo == nil
+        ? "signing_key signing_key.pub"
+        : "signing_key signing_key.pub deploy_key"
     try host([
         "sh", "-c",
-        "age -d -i \(ageIdentity) \(keyBundle) | "
-            + "tar -C \(stage) -xf - signing_key signing_key.pub",
+        "age -d -i \(ageIdentity) \(keyBundle) | tar -C \(stage) -xf - \(members)",
     ])
     try await guest.sh(
         """
@@ -118,6 +125,9 @@ try await Guest.session(bundle: bundle, adminPass: "vzvz") { guest in
     )
     try guest.upload(localPath: stage + "/signing_key", to: "/Volumes/mqkeys/signing_key")
     try guest.upload(localPath: stage + "/signing_key.pub", to: "/Volumes/mqkeys/signing_key.pub")
+    if targetRepo != nil {
+        try guest.upload(localPath: stage + "/deploy_key", to: "/Volumes/mqkeys/deploy_key")
+    }
     let signedSHA = try await guest.sh(
         """
         set -e
@@ -138,8 +148,23 @@ try await Guest.session(bundle: bundle, adminPass: "vzvz") { guest in
         git rev-parse HEAD
         """
     )
+    step("signed + verified commit \(signedSHA.prefix(12))")
+    if let targetRepo {
+        step("pushing \(signedSHA.prefix(12)) to \(targetRepo) main via deploy key")
+        try await guest.sh(
+            """
+            set -e
+            chmod 600 /Volumes/mqkeys/deploy_key
+            cd \(remoteWork)
+            GIT_SSH_COMMAND="ssh -i /Volumes/mqkeys/deploy_key -o IdentitiesOnly=yes \
+                -o IdentityAgent=none -o StrictHostKeyChecking=accept-new" \
+                git push git@github.com:\(targetRepo).git HEAD:main
+            """
+        )
+        step("landed \(signedSHA.prefix(12)) on \(targetRepo) main")
+    }
     try await guest.sh("diskutil eject /Volumes/mqkeys >/dev/null")
-    step("signed + verified landed commit \(signedSHA.prefix(12)) (keys on tmpfs, ejected)")
+    step("keys on tmpfs ejected")
 }
 
 step("merge bar PASSED for candidate \(candidateSHA.prefix(8))")
