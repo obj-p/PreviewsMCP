@@ -1,8 +1,8 @@
 VZ_DIR     := $(CURDIR)/../vzy
 VZ_BIN     := $(VZ_DIR)/.build/release/vzy
-DEVBOX     := $(CURDIR)/../devbox
+VM_DIR     := $(CURDIR)/../vm
 STATE      := .state
-BUNDLE     ?= $(DEVBOX)/vm/devbox.bundle
+BUNDLE     ?= $(VM_DIR)/macos.bundle
 ADMIN_USER ?= admin
 ADMIN_PASS ?= vzvz
 CANDIDATE  ?= HEAD
@@ -13,7 +13,7 @@ KEY_BUNDLE ?=
 AGE_ID     ?= $(KEY_HOME)/identity.txt
 PRINCIPAL  ?= merge-queue@local
 
-.PHONY: bundle bar warm snapshots clean devbox-base
+.PHONY: bundle bar warm snapshots clean vm-base
 bundle: $(STATE)/post-ios
 
 # With KEY_BUNDLE set (an age-encrypted bundle), the bar decrypts it on the host,
@@ -33,13 +33,13 @@ warm: $(STATE)/post-ios
 	$(VZ_BIN) snapshot delete $(BUNDLE) post-ios
 	$(VZ_BIN) snapshot take $(BUNDLE) post-ios
 
-devbox-base:
-	$(MAKE) -C $(DEVBOX) post-toolchain
+vm-base:
+	$(MAKE) -C $(VM_DIR) post-toolchain
 
 $(STATE):
 	mkdir -p $(STATE)
 
-$(STATE)/ios: | devbox-base $(STATE)
+$(STATE)/ios: | vm-base $(STATE)
 	$(VZ_BIN) snapshot restore $(BUNDLE) post-toolchain
 	$(VZ_BIN) run $(CURDIR)/scripts/ios.swift $(BUNDLE)
 	touch $@
