@@ -27,47 +27,43 @@ public final class RFBClient {
     }
 
     public func connect(to endpoint: Endpoint, timeout: TimeInterval = 10) throws {
-        let socketFd = socket(AF_INET, SOCK_STREAM, 0)
-        guard socketFd >= 0 else { throw posix("socket()") }
-
         var addr = sockaddr_in()
         addr.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
         addr.sin_family = sa_family_t(AF_INET)
         addr.sin_port = endpoint.port.bigEndian
         guard endpoint.host.withCString({ inet_pton(AF_INET, $0, &addr.sin_addr) }) == 1 else {
-            Darwin.close(socketFd)
             throw VMError("inet_pton: not a valid IPv4 host '\(endpoint.host)'")
         }
 
-        // Spin-wait connect with a deadline. NWConnection's async path
-        // would be cleaner but we're trying to keep dependencies thin.
+        // Spin-wait connect with a deadline. A failed connect(2) leaves the
+        // stream socket unusable on BSD, so each attempt needs a fresh fd.
         let deadline = Date().addingTimeInterval(timeout)
         var lastError: Int32 = 0
         repeat {
+            let socketFd = socket(AF_INET, SOCK_STREAM, 0)
+            guard socketFd >= 0 else { throw posix("socket()") }
             let result = withUnsafePointer(to: &addr) {
                 $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
                     Darwin.connect(socketFd, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
                 }
             }
-            if result == 0 { break }
+            if result == 0 {
+                fd = socketFd
+                Log.debug("RFB connected to \(endpoint.host):\(endpoint.port) on fd \(socketFd)")
+                return
+            }
             lastError = errno
+            Darwin.close(socketFd)
             if lastError == EINTR || lastError == ECONNREFUSED {
-                usleep(100_000) // 100ms, then retry
+                usleep(100_000) // 100ms, then retry on a fresh fd
                 continue
             }
-            Darwin.close(socketFd)
             throw posix("connect()", code: lastError)
         } while Date() < deadline
 
-        if Date() >= deadline {
-            Darwin.close(socketFd)
-            throw VMError(
-                "connect() to localhost:\(endpoint.port) timed out after \(Int(timeout))s (last errno: \(lastError))"
-            )
-        }
-
-        fd = socketFd
-        Log.debug("RFB connected to \(endpoint.host):\(endpoint.port) on fd \(socketFd)")
+        throw VMError(
+            "connect() to localhost:\(endpoint.port) timed out after \(Int(timeout))s (last errno: \(lastError))"
+        )
     }
 
     public func handshake() throws {

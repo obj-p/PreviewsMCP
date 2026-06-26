@@ -1,6 +1,10 @@
 import Foundation
 import VZKit
 
+final class DataBox: @unchecked Sendable {
+    var value = Data()
+}
+
 @discardableResult
 func host(_ args: [String], cwd: String? = nil) throws -> String {
     let process = Process()
@@ -11,17 +15,28 @@ func host(_ args: [String], cwd: String? = nil) throws -> String {
     let err = Pipe()
     process.standardOutput = out
     process.standardError = err
+    let outBox = DataBox()
+    let errBox = DataBox()
+    let group = DispatchGroup()
+    let queue = DispatchQueue(label: "mq-bar-host", attributes: .concurrent)
     try process.run()
+    queue.async(group: group) {
+        outBox.value = (try? out.fileHandleForReading.readToEnd()) ?? Data()
+    }
+    queue.async(group: group) {
+        errBox.value = (try? err.fileHandleForReading.readToEnd()) ?? Data()
+    }
     process.waitUntilExit()
-    let stdout = String(decoding: out.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+    group.wait()
     guard process.terminationStatus == 0 else {
-        let stderr = String(decoding: err.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+        let stderr = String(decoding: errBox.value, as: UTF8.self)
         throw VMError(
             "host command failed (exit \(process.terminationStatus)): "
                 + "\(args.joined(separator: " "))\n\(stderr)"
         )
     }
-    return stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+    return String(decoding: outBox.value, as: UTF8.self)
+        .trimmingCharacters(in: .whitespacesAndNewlines)
 }
 
 let script = Script(usage: "vz run bar.swift <bundle> [candidate-ref] [base-ref]", min: 2)
@@ -43,11 +58,19 @@ step("preparing candidate worktree at \(work)")
 try? FileManager.default.removeItem(atPath: work)
 try host(["git", "clone", "--local", "--quiet", "--no-checkout", repoRoot, work])
 try host(["git", "checkout", "--detach", "--quiet", candidateSHA], cwd: work)
-try host(
-    ["git", "-c", "user.name=merge-queue", "-c", "user.email=merge-queue@local",
-     "rebase", baseSHA],
-    cwd: work
-)
+do {
+    try host(
+        ["git", "-c", "user.name=merge-queue", "-c", "user.email=merge-queue@local",
+         "rebase", baseSHA],
+        cwd: work
+    )
+} catch {
+    try? host(["git", "rebase", "--abort"], cwd: work)
+    throw VMError(
+        "candidate \(candidateSHA.prefix(8)) does not rebase cleanly onto "
+            + "base \(baseSHA.prefix(8)) — rejecting: \(error)"
+    )
+}
 
 try await Guest.session(bundle: bundle, adminPass: "vzvz") { guest in
     step("delivering candidate to guest \(remoteWork)")

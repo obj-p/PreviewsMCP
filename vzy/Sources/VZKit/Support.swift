@@ -22,14 +22,14 @@ public func step(_ message: String) {
 }
 
 public enum Log {
-    public nonisolated(unsafe) static var prefix = "vz"
+    public nonisolated(unsafe) static var prefix = "vzy"
 
     public static func info(_ message: @autoclosure () -> String) {
         write("[\(prefix)] \(message())")
     }
 
     public static func debug(_ message: @autoclosure () -> String) {
-        guard ProcessInfo.processInfo.environment["PREVIEWSVM_DEBUG"] != nil else { return }
+        guard ProcessInfo.processInfo.environment["VZY_DEBUG"] != nil else { return }
         write("[\(prefix):debug] \(message())")
     }
 
