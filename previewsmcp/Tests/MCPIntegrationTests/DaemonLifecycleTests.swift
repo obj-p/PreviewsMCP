@@ -14,14 +14,21 @@ struct DaemonLifecycleTests {
 
     static let binaryPath: String = MCPTestServer.binaryPath
 
-    /// Socket path for the current test's daemon.
+    /// Socket path for the current test's daemon. Uses the same per-run socket
+    /// dir the daemon is spawned with (#283), so it points at the
+    /// $TEST_TMPDIR-derived isolated dir under Bazel.
     static var socketPath: String {
-        let dir =
-            DaemonTestLock.socketDir
-                ?? ProcessInfo.processInfo.environment["PREVIEWSMCP_SOCKET_DIR"]
-                ?? FileManager.default.homeDirectoryForCurrentUser
-                .appendingPathComponent(".previewsmcp").path
+        let dir = DaemonTestLock.socketDir ?? DaemonTestLock.effectiveSocketDir
         return (dir as NSString).appendingPathComponent("serve.sock")
+    }
+
+    /// Environment for a spawned daemon/CLI: the current env with
+    /// `PREVIEWSMCP_SOCKET_DIR` forced to this test's per-run socket dir (#283)
+    /// so the daemon's production `DaemonPaths` resolves there.
+    private static func childEnv() -> [String: String] {
+        var env = ProcessInfo.processInfo.environment
+        env["PREVIEWSMCP_SOCKET_DIR"] = DaemonTestLock.socketDir ?? DaemonTestLock.effectiveSocketDir
+        return env
     }
 
     // MARK: - Test helpers
@@ -39,11 +46,7 @@ struct DaemonLifecycleTests {
         proc.arguments = ["serve", "--daemon"]
         proc.standardOutput = FileHandle.nullDevice
         proc.standardError = FileHandle.nullDevice
-        if let dir = DaemonTestLock.socketDir {
-            var env = ProcessInfo.processInfo.environment
-            env["PREVIEWSMCP_SOCKET_DIR"] = dir
-            proc.environment = env
-        }
+        proc.environment = Self.childEnv()
         try proc.run()
 
         let currentSocketPath = socketPath
@@ -66,11 +69,7 @@ struct DaemonLifecycleTests {
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: binaryPath)
         proc.arguments = args
-        if let dir = DaemonTestLock.socketDir {
-            var env = ProcessInfo.processInfo.environment
-            env["PREVIEWSMCP_SOCKET_DIR"] = dir
-            proc.environment = env
-        }
+        proc.environment = Self.childEnv()
         let out = Pipe()
         proc.standardOutput = out
         proc.standardError = FileHandle.nullDevice
@@ -167,11 +166,7 @@ struct DaemonLifecycleTests {
             let secondProc = Process()
             secondProc.executableURL = URL(fileURLWithPath: Self.binaryPath)
             secondProc.arguments = ["serve", "--daemon"]
-            if let dir = DaemonTestLock.socketDir {
-                var env = ProcessInfo.processInfo.environment
-                env["PREVIEWSMCP_SOCKET_DIR"] = dir
-                secondProc.environment = env
-            }
+            secondProc.environment = Self.childEnv()
             let errPipe = Pipe()
             secondProc.standardError = errPipe
             secondProc.standardOutput = FileHandle.nullDevice
@@ -212,11 +207,7 @@ struct DaemonLifecycleTests {
             let secondProc = Process()
             secondProc.executableURL = URL(fileURLWithPath: Self.binaryPath)
             secondProc.arguments = ["serve", "--daemon"]
-            if let dir = DaemonTestLock.socketDir {
-                var env = ProcessInfo.processInfo.environment
-                env["PREVIEWSMCP_SOCKET_DIR"] = dir
-                secondProc.environment = env
-            }
+            secondProc.environment = Self.childEnv()
             let errPipe = Pipe()
             secondProc.standardError = errPipe
             secondProc.standardOutput = FileHandle.nullDevice

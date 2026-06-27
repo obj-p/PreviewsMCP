@@ -92,6 +92,13 @@ final class MCPTestServer: @unchecked Sendable {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: binaryPath)
         process.arguments = ["serve"]
+        // Export the per-run socket dir so the spawned daemon's production
+        // DaemonPaths resolves to it (#283). DaemonTestLock derives this from
+        // $TEST_TMPDIR when no explicit PREVIEWSMCP_SOCKET_DIR is set, giving
+        // each Bazel test target an isolated, auto-cleaned daemon socket.
+        var childEnv = ProcessInfo.processInfo.environment
+        childEnv["PREVIEWSMCP_SOCKET_DIR"] = DaemonTestLock.effectiveSocketDir
+        process.environment = childEnv
 
         let stdinPipe = Pipe()
         let stdoutPipe = Pipe()
