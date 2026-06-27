@@ -1,44 +1,6 @@
 import Foundation
 import VZKit
 
-final class DataBox: @unchecked Sendable {
-    var value = Data()
-}
-
-@discardableResult
-func host(_ args: [String], cwd: String? = nil) throws -> String {
-    let process = Process()
-    process.executableURL = URL(filePath: "/usr/bin/env")
-    process.arguments = args
-    if let cwd { process.currentDirectoryURL = URL(filePath: cwd) }
-    let out = Pipe()
-    let err = Pipe()
-    process.standardOutput = out
-    process.standardError = err
-    let outBox = DataBox()
-    let errBox = DataBox()
-    let group = DispatchGroup()
-    let queue = DispatchQueue(label: "mq-bar-host", attributes: .concurrent)
-    try process.run()
-    queue.async(group: group) {
-        outBox.value = (try? out.fileHandleForReading.readToEnd()) ?? Data()
-    }
-    queue.async(group: group) {
-        errBox.value = (try? err.fileHandleForReading.readToEnd()) ?? Data()
-    }
-    process.waitUntilExit()
-    group.wait()
-    guard process.terminationStatus == 0 else {
-        let stderr = String(decoding: errBox.value, as: UTF8.self)
-        throw VMError(
-            "host command failed (exit \(process.terminationStatus)): "
-                + "\(args.joined(separator: " "))\n\(stderr)"
-        )
-    }
-    return String(decoding: outBox.value, as: UTF8.self)
-        .trimmingCharacters(in: .whitespacesAndNewlines)
-}
-
 let script = Script(
     usage: "vz run bar.swift <bundle> [candidate-ref] [base-ref] [key-bundle.age] "
         + "[age-identity] [principal] [target-repo]",
@@ -47,10 +9,10 @@ let script = Script(
 let bundle = try script.bundle()
 let candidateRef = script[arg: 2, default: "HEAD"]
 let baseRef = script[arg: 3, default: "origin/main"]
-let keyBundle: String? = script.args.count > 4 ? script.args[4] : nil
-let ageIdentity: String? = script.args.count > 5 ? script.args[5] : nil
+let keyBundle = script[optional: 4]
+let ageIdentity = script[optional: 5]
 let principal = script[arg: 6, default: "merge-queue@local"]
-let targetRepo: String? = script.args.count > 7 ? script.args[7] : nil
+let targetRepo = script[optional: 7]
 if keyBundle != nil, ageIdentity == nil {
     throw VMError("signing requires both a key bundle and an age identity file")
 }
@@ -142,8 +104,7 @@ try await Guest.session(bundle: bundle, adminPass: "vzvz") { guest in
         git config user.email "\(principal)"
         MSG=$(git log -1 --format=%s)
         git reset --soft \(baseSHA)
-        GIT_COMMITTER_NAME=merge-queue GIT_COMMITTER_EMAIL="\(principal)" \
-            git commit -q -S -m "$MSG"
+        git commit -q -S -m "$MSG"
         git verify-commit HEAD >&2
         git rev-parse HEAD
         """

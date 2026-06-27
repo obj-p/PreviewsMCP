@@ -19,6 +19,11 @@ public struct Script {
         args[index]
     }
 
+    /// The argument at `index`, or `nil` if not supplied.
+    public subscript(optional index: Int) -> String? {
+        args.count > index ? args[index] : nil
+    }
+
     public subscript<T: LosslessStringConvertible>(arg index: Int, default fallback: T) -> T {
         args.count > index ? (T(args[index]) ?? fallback) : fallback
     }
