@@ -92,7 +92,7 @@ try await Guest.session(bundle: bundle, adminPass: "vzvz") { guest in
 
     step("bazel test //... (first run fetches all external deps; slow)")
     try await guest.sh(
-        "cd \(remoteWork) && bazelisk test //... --flaky_test_attempts=3",
+        "cd \(remoteWork) && bazelisk test //...",
         env: .brew, timeout: 10800
     )
     step("bazel run //tools/lint:check")
