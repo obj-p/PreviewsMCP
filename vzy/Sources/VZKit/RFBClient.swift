@@ -35,35 +35,78 @@ public final class RFBClient {
             throw VMError("inet_pton: not a valid IPv4 host '\(endpoint.host)'")
         }
 
-        // Spin-wait connect with a deadline. A failed connect(2) leaves the
+        // Reconnecting on the same client must not leak the previous socket.
+        if fd >= 0 {
+            Darwin.close(fd)
+            fd = -1
+        }
+
+        // Non-blocking connect with a deadline. A blocking connect(2) can hang
+        // on the kernel SYN timeout (~75s) far past `timeout`, so we poll for
+        // completion within the remaining budget. A failed connect(2) leaves the
         // stream socket unusable on BSD, so each attempt needs a fresh fd.
         let deadline = Date().addingTimeInterval(timeout)
         var lastError: Int32 = 0
         repeat {
             let socketFd = socket(AF_INET, SOCK_STREAM, 0)
             guard socketFd >= 0 else { throw posix("socket()") }
+            let flags = fcntl(socketFd, F_GETFL, 0)
+            guard flags >= 0 else {
+                let err = posix("fcntl(F_GETFL)")
+                Darwin.close(socketFd)
+                throw err
+            }
+            _ = fcntl(socketFd, F_SETFL, flags | O_NONBLOCK)
             let result = withUnsafePointer(to: &addr) {
                 $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
                     Darwin.connect(socketFd, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
                 }
             }
-            if result == 0 {
+            var connectError = result == 0 ? 0 : errno
+            if connectError == EINPROGRESS {
+                connectError = waitConnected(socketFd, deadline: deadline)
+            }
+            if connectError == 0 {
+                _ = fcntl(socketFd, F_SETFL, flags) // restore blocking for read/write
                 fd = socketFd
                 Log.debug("RFB connected to \(endpoint.host):\(endpoint.port) on fd \(socketFd)")
                 return
             }
-            lastError = errno
+            lastError = connectError
             Darwin.close(socketFd)
             if lastError == EINTR || lastError == ECONNREFUSED {
                 usleep(100_000) // 100ms, then retry on a fresh fd
                 continue
             }
+            // A deadline-exceeded poll falls through to the host:port timeout
+            // message below; any other errno is a hard failure worth surfacing now.
+            if lastError == ETIMEDOUT { break }
             throw posix("connect()", code: lastError)
         } while Date() < deadline
 
         throw VMError(
-            "connect() to localhost:\(endpoint.port) timed out after \(Int(timeout))s (last errno: \(lastError))"
+            "connect() to \(endpoint.host):\(endpoint.port) timed out after \(Int(timeout))s "
+                + "(last errno: \(lastError))"
         )
+    }
+
+    /// Wait for a non-blocking connect to complete before `deadline`. Returns 0
+    /// on success, the connect errno on failure (via `SO_ERROR`), or `ETIMEDOUT`
+    /// if the deadline passes first.
+    private func waitConnected(_ socketFd: Int32, deadline: Date) -> Int32 {
+        let remaining = deadline.timeIntervalSinceNow
+        guard remaining > 0 else { return ETIMEDOUT }
+        let millis = Int32(min(remaining * 1000, Double(Int32.max)))
+        var pfd = pollfd(fd: socketFd, events: Int16(POLLOUT), revents: 0)
+        let ready = poll(&pfd, 1, millis)
+        if ready == 0 { return ETIMEDOUT }
+        if ready < 0 { return errno }
+        var soError: Int32 = 0
+        var len = socklen_t(MemoryLayout<Int32>.size)
+        if getsockopt(socketFd, SOL_SOCKET, SO_ERROR, &soError, &len) != 0 {
+            return errno
+        }
+        return soError
     }
 
     public func handshake() throws {

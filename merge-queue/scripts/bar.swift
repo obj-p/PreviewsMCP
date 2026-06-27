@@ -43,7 +43,7 @@ do {
     try? host(["git", "rebase", "--abort"], cwd: work)
     throw VMError(
         "candidate \(candidateSHA.prefix(8)) does not rebase cleanly onto "
-            + "base \(baseSHA.prefix(8)) — rejecting: \(error)"
+            + "base \(baseSHA.prefix(8)) — rejecting: \(error.localizedDescription)"
     )
 }
 

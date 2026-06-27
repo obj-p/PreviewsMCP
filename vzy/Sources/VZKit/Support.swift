@@ -21,8 +21,14 @@ public func step(_ message: String) {
     FileHandle.standardError.write(Data("==> \(message)\n".utf8))
 }
 
-private final class DataBox: @unchecked Sendable {
-    var value = Data()
+/// Sendable holder for a value mutated inside a detached/concurrent closure
+/// that we never actually share concurrently — it lives and dies within one
+/// task. The `@unchecked Sendable` is the cost of that locality.
+final class Box<T>: @unchecked Sendable {
+    var value: T
+    init(_ value: T) {
+        self.value = value
+    }
 }
 
 /// Run a host-side command via `/usr/bin/env`, draining stdout and stderr
@@ -38,28 +44,49 @@ public func host(_ args: [String], cwd: String? = nil) throws -> String {
     let err = Pipe()
     process.standardOutput = out
     process.standardError = err
-    let outBox = DataBox()
-    let errBox = DataBox()
     let group = DispatchGroup()
     let queue = DispatchQueue(label: "vzkit-host", attributes: .concurrent)
     try process.run()
-    queue.async(group: group) {
-        outBox.value = (try? out.fileHandleForReading.readToEnd()) ?? Data()
-    }
-    queue.async(group: group) {
-        errBox.value = (try? err.fileHandleForReading.readToEnd()) ?? Data()
-    }
+    let outDrain = drain(out, on: queue, group: group)
+    let errDrain = drain(err, on: queue, group: group)
     process.waitUntilExit()
     group.wait()
     guard process.terminationStatus == 0 else {
-        let stderr = String(decoding: errBox.value, as: UTF8.self)
+        var stderr = String(decoding: errDrain.data.value, as: UTF8.self)
+        if stderr.isEmpty, let readError = errDrain.error.value {
+            stderr = "<stderr unavailable: \(readError.localizedDescription)>"
+        }
         throw VMError(
             "host command failed (exit \(process.terminationStatus)): "
                 + "\(args.joined(separator: " "))\n\(stderr)"
         )
     }
-    return String(decoding: outBox.value, as: UTF8.self)
+    if let readError = outDrain.error.value {
+        throw VMError(
+            "host command stdout read failed: \(args.joined(separator: " "))",
+            underlying: readError
+        )
+    }
+    return String(decoding: outDrain.data.value, as: UTF8.self)
         .trimmingCharacters(in: .whitespacesAndNewlines)
+}
+
+/// Drain a pipe to EOF on `queue`, capturing any read error rather than
+/// discarding it — so a failed read surfaces instead of silently yielding
+/// empty output. Both the stdout and stderr drains share this.
+private func drain(
+    _ pipe: Pipe, on queue: DispatchQueue, group: DispatchGroup
+) -> (data: Box<Data>, error: Box<Error?>) {
+    let dataBox = Box(Data())
+    let errorBox = Box<Error?>(nil)
+    queue.async(group: group) {
+        do {
+            dataBox.value = try pipe.fileHandleForReading.readToEnd() ?? Data()
+        } catch {
+            errorBox.value = error
+        }
+    }
+    return (dataBox, errorBox)
 }
 
 public enum Log {
