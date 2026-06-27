@@ -90,9 +90,11 @@ struct LogsCommandTests {
             let proc = Process()
             proc.executableURL = URL(fileURLWithPath: CLIRunner.binaryPath)
             proc.arguments = ["logs", "--follow", "-n", "0"]
-            // Inherit PREVIEWSMCP_SOCKET_DIR so the child targets the same
-            // isolated log as the test.
-            proc.environment = ProcessInfo.processInfo.environment
+            // Pin PREVIEWSMCP_SOCKET_DIR to the per-run socket dir (#283) so the
+            // child targets the same isolated serve.log as CLIRunner.daemonLogFile.
+            var childEnv = ProcessInfo.processInfo.environment
+            childEnv["PREVIEWSMCP_SOCKET_DIR"] = DaemonTestLock.effectiveSocketDir
+            proc.environment = childEnv
             let stdoutPipe = Pipe()
             proc.standardOutput = stdoutPipe
             proc.standardError = FileHandle.nullDevice

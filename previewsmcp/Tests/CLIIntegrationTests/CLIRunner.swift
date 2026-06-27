@@ -43,15 +43,11 @@ enum CLIRunner {
 
     /// Mirrors `Sources/PreviewsCLI/DaemonPaths.swift`. The daemon writes its
     /// stderr to this file when launched detached. We can't import PreviewsCLI
-    /// from this test target, so the resolution logic is duplicated here.
+    /// from this test target, so the resolution logic is duplicated here. Uses
+    /// the same per-run socket dir the CLI is spawned with (#283).
     static var daemonLogFile: URL {
-        let dir: URL = if let override = ProcessInfo.processInfo.environment["PREVIEWSMCP_SOCKET_DIR"] {
-            URL(fileURLWithPath: override, isDirectory: true)
-        } else {
-            FileManager.default.homeDirectoryForCurrentUser
-                .appendingPathComponent(".previewsmcp", isDirectory: true)
-        }
-        return dir.appendingPathComponent("serve.log")
+        URL(fileURLWithPath: DaemonTestLock.effectiveSocketDir, isDirectory: true)
+            .appendingPathComponent("serve.log")
     }
 
     // MARK: - Process runner
@@ -223,6 +219,13 @@ enum CLIRunner {
         if let wd = workingDirectory {
             process.currentDirectoryURL = wd
         }
+        // Export the per-run socket dir so the CLI (and the daemon it spawns
+        // detached) resolves its production DaemonPaths to the isolated,
+        // auto-cleaned $TEST_TMPDIR-derived dir (#283). External tools
+        // (xcrun, which, …) ignore the unknown var.
+        var childEnv = ProcessInfo.processInfo.environment
+        childEnv["PREVIEWSMCP_SOCKET_DIR"] = DaemonTestLock.effectiveSocketDir
+        process.environment = childEnv
         process.standardError = stderrHandle
 
         let stdoutPipe = Pipe()

@@ -13,15 +13,20 @@ import Testing
 @Suite(.serialized)
 struct RunCommandTests {
     static var daemonDir: URL {
-        if let dir = ProcessInfo.processInfo.environment["PREVIEWSMCP_SOCKET_DIR"] {
-            return URL(fileURLWithPath: dir, isDirectory: true)
-        }
-        return FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".previewsmcp")
+        URL(fileURLWithPath: DaemonTestLock.effectiveSocketDir, isDirectory: true)
     }
 
     static var socketPath: String {
         daemonDir.appendingPathComponent("serve.sock").path
+    }
+
+    /// Environment for a directly-spawned CLI/daemon: the current env with
+    /// `PREVIEWSMCP_SOCKET_DIR` forced to this run's per-run socket dir (#283)
+    /// so it resolves the same socket as CLIRunner-spawned probes.
+    static func childEnv() -> [String: String] {
+        var env = ProcessInfo.processInfo.environment
+        env["PREVIEWSMCP_SOCKET_DIR"] = DaemonTestLock.effectiveSocketDir
+        return env
     }
 
     /// Kill any running daemon between tests so we start from a known state.
@@ -92,6 +97,7 @@ struct RunCommandTests {
             let proc = Process()
             proc.executableURL = URL(fileURLWithPath: CLIRunner.binaryPath)
             proc.arguments = ["run", file, "--platform", "macos", "--config", configPath]
+            proc.environment = Self.childEnv()
             proc.standardOutput = FileHandle.nullDevice
             let stderrPipe = Pipe()
             proc.standardError = stderrPipe
@@ -142,6 +148,7 @@ struct RunCommandTests {
             let proc = Process()
             proc.executableURL = URL(fileURLWithPath: CLIRunner.binaryPath)
             proc.arguments = ["run", file, "--platform", "macos", "--config", configPath]
+            proc.environment = Self.childEnv()
             proc.standardOutput = FileHandle.nullDevice
             let stderrPipe = Pipe()
             proc.standardError = stderrPipe
@@ -184,6 +191,7 @@ struct RunCommandTests {
             let daemonStarter = Process()
             daemonStarter.executableURL = URL(fileURLWithPath: CLIRunner.binaryPath)
             daemonStarter.arguments = ["serve", "--daemon"]
+            daemonStarter.environment = Self.childEnv()
             daemonStarter.standardOutput = FileHandle.nullDevice
             daemonStarter.standardError = FileHandle.nullDevice
             try daemonStarter.run()
