@@ -28,9 +28,7 @@ DEPLOY_BODY="$(printf '%s' "$DEPLOY_PUB" | key_body)"
 
 # A commit verifies only when its committer email is linked to the account that
 # owns the signing key, so the principal is the account's noreply address.
-GH_ID="$(gh api user --jq .id)"
-GH_LOGIN="$(gh api user --jq .login)"
-PRINCIPAL="${GH_ID}+${GH_LOGIN}@users.noreply.github.com"
+PRINCIPAL="$(gh api user --jq '(.id|tostring) + "+" + .login + "@users.noreply.github.com"')"
 
 # 1. Deploy key (read-write). The ruleset bypass covers the whole deploy-key
 #    category, so this must stay the only read-write deploy key on the repo.
