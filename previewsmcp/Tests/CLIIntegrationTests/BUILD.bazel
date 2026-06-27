@@ -18,7 +18,12 @@ swift_test(
         "PREVIEWSMCP_BINARY": "$(rlocationpath //previewsmcp/cli:previewsmcp)",
         "PREVIEWSMCP_IOS_JIT_DIR": "$(rlocationpath //:ios_jit_resources)",
         "PREVIEWSMCP_ORC_RT": "$(rlocationpath //:orc_rt_archive)",
-        "PREVIEWSMCP_SOCKET_DIR": "/tmp/previewsmcp-bazel-cli",
+        # No PREVIEWSMCP_SOCKET_DIR literal: the harness derives a short per-run
+        # daemon socket dir (/tmp/pmcp-<hash>) keyed off $TEST_TMPDIR via
+        # DaemonTestLock.effectiveSocketDir and exports it into spawned
+        # daemons/CLIs (#283). $TEST_TMPDIR is unique per target, so no manual
+        # non-colliding literal is needed. (Hashed to /tmp, not nested under
+        # $TEST_TMPDIR, because the UDS path is capped at 104 bytes — sun_path.)
     },
     tags = [
         "exclusive",
