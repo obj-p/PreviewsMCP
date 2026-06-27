@@ -33,7 +33,8 @@ struct MacOSMCPTests {
         #expect(startText.contains("Empty State"), "Should show Empty State preview")
         #expect(startText.contains("<- active"), "Should mark active preview")
 
-        try await Task.sleep(for: .milliseconds(500))
+        // Wait for the first render to land instead of a fixed settle (#296).
+        _ = try await server.awaitNonBlankSnapshot(sessionID: sessionID, timeout: .seconds(30))
 
         // --- preview_snapshot returns JPEG ---
         let (jpegContent, jpegError) = try await server.callTool(
@@ -72,14 +73,12 @@ struct MacOSMCPTests {
         let switchText = MCPTestServer.extractText(from: switchContent)
         #expect(switchText.contains("Switched to preview 1"), "Should confirm switch")
 
-        try await Task.sleep(for: .milliseconds(500))
-
         // --- Snapshot after switch should differ ---
-        let (content1, _) = try await server.callTool(
-            name: "preview_snapshot",
-            arguments: ["sessionID": .string(sessionID)]
+        // Poll until the switched preview's render lands instead of a fixed
+        // settle (#296); awaitSnapshotChange also guards a silent no-op switch.
+        let data1 = try await server.awaitSnapshotChange(
+            sessionID: sessionID, baseline: data0, timeout: .seconds(30)
         )
-        let (data1, _) = try MCPTestServer.extractImageData(from: content1)
         #expect(data0 != data1, "Snapshots of different previews should differ")
 
         // --- preview_switch to invalid index rolls back ---

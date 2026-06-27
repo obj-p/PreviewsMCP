@@ -153,16 +153,17 @@ struct IOSMCPTests {
                 "previewIndex": .int(1),
             ]
         )
-        try await Task.sleep(for: .seconds(2))
 
-        let (emptyElements, _) = try await server.callTool(
-            name: "preview_elements",
-            arguments: [
-                "sessionID": .string(sessionID),
-                "filter": .string("all"),
-            ]
+        // Poll the re-render instead of a fixed sleep (#296): the empty-state
+        // preview keeps the same "My Items" chrome but drops the seeded item
+        // rows. Wait until the chrome is present AND a seeded row has cleared,
+        // so we never read a half-rendered tree under VM load.
+        let emptyText = try await server.awaitElements(
+            sessionID: sessionID,
+            description: "empty-state render (My Items present, item rows cleared)",
+            timeout: .seconds(30),
+            where: { $0.contains("My Items") && !$0.contains("Design UI") }
         )
-        let emptyText = MCPTestServer.extractText(from: emptyElements)
         #expect(!emptyText.contains("Design UI"), "Empty state should not contain item rows")
         #expect(!emptyText.contains("Write code"), "Empty state should not contain item rows")
 
