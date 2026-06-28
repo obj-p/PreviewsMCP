@@ -24,6 +24,11 @@ struct IOSHIDInputTests {
         let lock = try await DaemonTestLock.acquire()
         defer { lock.release() }
 
+        // Reset host-global CoreSimulator state once before the first iOS
+        // preview boots — earlier Bazel targets leave it degraded (see
+        // CoreSimulatorHygiene).
+        await CoreSimulatorHygiene.resetOnce()
+
         guard let deviceUDID = try await IOSSimulatorPicker.pickUDID(index: 2) else {
             print("No iOS simulator at picker index 2 — skipping")
             return
