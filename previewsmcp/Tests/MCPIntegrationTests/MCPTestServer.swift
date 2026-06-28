@@ -566,7 +566,16 @@ final class MCPTestServer: @unchecked Sendable {
     /// Capture a snapshot and return its raw image bytes. Decodes via the existing
     /// `extractImageData` helper; ignores mimeType (JPEG/PNG differ naturally across
     /// quality settings, but byte equality is sufficient for change-detection).
-    func snapshotBytes(sessionID: String, timeout: Duration = .seconds(30)) async throws -> Data {
+    ///
+    /// The default budget must exceed the iOS product's worst-case snapshot
+    /// fallback. When the live streamer surface briefly drops (e.g. the OS
+    /// evicts and respawns the backgrounded iOS agent), `screenshot()` concedes
+    /// to the one-shot `SBCaptureFramebuffer` path, whose IOSurface retry budget
+    /// is ~33s (5×5s + 4×2s) before it even tries `simctl`. A 30s test timeout
+    /// fired mid-fallback and killed the server; 60s lets the fallback complete.
+    /// macOS snapshots return in well under a second, so the wider ceiling is
+    /// free for them.
+    func snapshotBytes(sessionID: String, timeout: Duration = .seconds(60)) async throws -> Data {
         let (content, isError) = try await callToolWithTimeout(
             name: "preview_snapshot",
             arguments: ["sessionID": .string(sessionID)],
