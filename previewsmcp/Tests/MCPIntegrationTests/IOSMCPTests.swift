@@ -10,6 +10,11 @@ struct IOSMCPTests {
 
     @Test("simulator_list returns available devices", .timeLimit(.minutes(10)))
     func simulatorListReturnsDevices() async throws {
+        // Serialize against the other suites — this spawns a daemon in the
+        // shared socket dir (see fullIOSWorkflow / MacOSMCPTests.fullMacOSWorkflow).
+        let lock = try await DaemonTestLock.acquire()
+        defer { lock.release() }
+
         let server = try await MCPTestServer.start()
         defer { server.stop() }
 
@@ -60,6 +65,11 @@ struct IOSMCPTests {
         // IOSAppServerTests.appServerEndToEnd.
         let lock = try await DaemonTestLock.acquire()
         defer { lock.release() }
+
+        // Reset host-global CoreSimulator state once before the first iOS
+        // preview boots — earlier Bazel targets leave it degraded (see
+        // CoreSimulatorHygiene).
+        await CoreSimulatorHygiene.resetOnce()
 
         // Use picker index 1, the same device IOSPreviewSessionTests.endToEnd
         // uses in the PreviewsIOSTests target. That test runs in an earlier
