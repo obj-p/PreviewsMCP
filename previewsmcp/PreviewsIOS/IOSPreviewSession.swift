@@ -745,13 +745,10 @@ public actor IOSPreviewSession {
     public func screenshot(jpegQuality: Double = 0.85) async throws -> Data {
         if let source = appFrameSource {
             // Default-quality snapshots read the streamer's last cached frame
-            // directly. It is encoded by the event-driven stream (software-
-            // rendered under virtualization; see SimulatorBridge's CIContext),
-            // so it is non-blank, current within one display change, and — the
-            // point here — non-blocking. Both the on-demand re-encode and the
-            // one-shot SBCaptureFramebuffer / simctl fallback drive the
-            // paravirtual GPU, which wedges in an uninterruptible kernel wait
-            // inside the merge-queue VM; reading the cache sidesteps that. A
+            // directly. The event-driven stream already encoded it, so it is
+            // non-blank, current within one display change, and — the point
+            // here — non-blocking: it never contends on the serial capture queue
+            // or the one-shot SBCaptureFramebuffer / simctl fallback. A
             // PNG/lossless request (quality >= 1.0) can't reuse the JPEG cache,
             // so it falls through to a fresh re-encode.
             if jpegQuality < 1.0, let cached = await source.nextFrame() {
