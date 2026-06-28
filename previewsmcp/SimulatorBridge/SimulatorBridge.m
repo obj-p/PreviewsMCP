@@ -5,7 +5,6 @@
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #import <dlfcn.h>
 #import <objc/runtime.h>
-#import <sys/sysctl.h>
 #import <unistd.h>
 
 #pragma mark - Private API Protocols
@@ -652,29 +651,11 @@ SBHIDClient *SBCreateHIDClient(SBDevice *device, NSError **error) {
 - (IOSurfaceRef)ioSurface;
 @end
 
-// True when running under a hypervisor (e.g. the merge-queue Virtualization.app
-// VM). There the GPU is paravirtual and lacks the hardware scaler
-// (`IOServiceMatching failed for: AppleM2ScalerParavirtDriver`), so a
-// GPU-backed CIContext render of the simulator framebuffer wedges in an
-// uninterruptible kernel wait — unkillable by SIGKILL, cleared only by a fresh
-// VM boot. That was the residual iOS e2e snapshot hang.
-static BOOL _isVirtualized(void) {
-  int present = 0;
-  size_t size = sizeof(present);
-  if (sysctlbyname("kern.hv_vmm_present", &present, &size, NULL, 0) != 0)
-    return NO;
-  return present != 0;
-}
-
 static CIContext *_sharedCIContext(void) {
   static CIContext *ctx = nil;
   static dispatch_once_t once;
   dispatch_once(&once, ^{
-    // Use the CPU renderer under virtualization to avoid the paravirtual-GPU
-    // wedge; keep the GPU path on real hardware where it is faster and healthy.
-    BOOL software = _isVirtualized();
-    ctx = [CIContext
-        contextWithOptions:@{kCIContextUseSoftwareRenderer : @(software)}];
+    ctx = [CIContext contextWithOptions:@{kCIContextUseSoftwareRenderer : @NO}];
   });
   return ctx;
 }
