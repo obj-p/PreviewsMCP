@@ -595,7 +595,17 @@ struct IOSPreviewE2ETests {
         try edited.write(to: sourceFile, atomically: true, encoding: .utf8)
         try await session.handleSourceChange()
 
-        let after = try await session.fetchElements()
+        // Poll for the reload to land rather than reading once. handleSourceChange
+        // kicks off the literal re-seed/re-render asynchronously; under load (the
+        // full suite on a busy/thermally-throttled host) the new text appears a
+        // beat after the call returns, and a single fetchElements raced it.
+        var after = ""
+        let deadline = ContinuousClock.now + .seconds(30)
+        while ContinuousClock.now < deadline {
+            after = try await session.fetchElements()
+            if after.contains("Hello from literal edit!") { break }
+            try await Task.sleep(for: .milliseconds(200))
+        }
         #expect(after.contains("Hello from literal edit!"))
 
         let paths = recorderBox.get()?.objectPaths ?? []
