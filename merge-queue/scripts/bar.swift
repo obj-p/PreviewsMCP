@@ -53,12 +53,12 @@ try await Guest.session(bundle: bundle, adminPass: "vzvz") { guest in
     try await guest.sh("git config --global --add safe.directory \(remoteWork)")
 
     step("bazel test //... (first run fetches all external deps; slow)")
-    // Cap concurrent compile subprocesses: swift-testing runs the build-heavy
-    // suites in parallel, and the unbounded swiftc fan-out exhausts the guest's
-    // RAM and wedges the 300s test timeout. See CompileGate in AsyncProcess.swift.
+    // The concurrent-compile cap is scoped per-target (env= on the build-heavy
+    // PreviewsCoreTests suite), not set globally here, so the exclusive suites
+    // (JITLink, MCPIntegration) compile at full speed. See CompileGate in
+    // AsyncProcess.swift.
     try await guest.sh(
-        "cd \(remoteWork) && bazelisk test //... "
-            + "--test_env=PREVIEWSMCP_MAX_CONCURRENT_COMPILES=2",
+        "cd \(remoteWork) && bazelisk test //...",
         env: .brew, timeout: 10800
     )
     step("bazel run //tools/lint:check")

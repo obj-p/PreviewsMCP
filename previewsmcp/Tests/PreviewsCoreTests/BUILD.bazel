@@ -7,6 +7,12 @@ swift_test(
         "-swift-version",
         "6",
     ],
+    # This is the only non-exclusive (parallel) suite that fans out concurrent
+    # swiftc/swift-build (each 1-3 GB) across its tests; on the resource-limited
+    # merge-queue VM that exhausts RAM and wedges the 300s timeout. Cap it here
+    # (CompileGate reads the env) rather than globally, so the exclusive suites
+    # that run alone — JITLink, MCPIntegration — keep compiling at full speed.
+    env = {"PREVIEWSMCP_MAX_CONCURRENT_COMPILES": "2"},
     tags = ["local"],
     visibility = ["//visibility:public"],
     deps = ["//previewsmcp/PreviewsCore"],
