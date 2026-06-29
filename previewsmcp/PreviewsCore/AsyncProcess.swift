@@ -43,7 +43,7 @@ public struct ProcessOutput: Sendable {
 /// is untouched.
 private actor CompileGate {
     static let shared = CompileGate()
-    private let limit: Int
+    fileprivate let limit: Int
     private var active = 0
     private var waiters: [CheckedContinuation<Void, Never>] = []
 
@@ -56,14 +56,22 @@ private actor CompileGate {
         }
     }
 
-    /// True when the invocation is a Swift compile worth gating.
+    /// True when the invocation is a Swift compile worth gating. Matching on the
+    /// basename first lets the common light tools (git, simctl, codesign, ar)
+    /// bail out before scanning arguments — no allocation on that hot path.
+    /// `swift build`/`swift package` may arrive directly or via `/usr/bin/env`.
     nonisolated static func gates(executable: String, arguments: [String]) -> Bool {
-        let exe = (executable as NSString).lastPathComponent
-        if exe == "swiftc" || exe == "swift-frontend" { return true }
-        // `swift build` / `swift package` (possibly via `/usr/bin/env swift …`).
-        let tokens = ([exe] + arguments)
-        guard tokens.contains("swift") else { return false }
-        return tokens.contains("build") || tokens.contains("package")
+        switch (executable as NSString).lastPathComponent {
+        case "swiftc", "swift-frontend":
+            return true
+        case "swift":
+            return arguments.contains("build") || arguments.contains("package")
+        case "env":
+            return arguments.contains("swift")
+                && (arguments.contains("build") || arguments.contains("package"))
+        default:
+            return false
+        }
     }
 
     func acquire() async {
@@ -114,7 +122,10 @@ public func runAsync(
     discardStderr: Bool = false,
     timeout: Duration? = nil
 ) async throws -> ProcessOutput {
-    let gated = CompileGate.gates(executable: executable, arguments: arguments)
+    // `limit` is an immutable Sendable `let`, readable without an actor hop, so
+    // the default (gate off) pays nothing beyond the cheap basename check.
+    let gated = CompileGate.shared.limit > 0
+        && CompileGate.gates(executable: executable, arguments: arguments)
     if gated { await CompileGate.shared.acquire() }
     do {
         let output = try await runProcess(
