@@ -110,16 +110,15 @@ public struct Guest: Sendable {
         try await host.start()
         try VMPidFile.write(getpid(), to: bundle)
         defer { VMPidFile.clear(bundle) }
-        let ip = try await host.waitForIP(timeout: bootTimeout)
-        let endpoint = VMSSH.endpoint(bundle: bundle, host: ip)
-        Log.info("waiting for SSH at \(endpoint.user)@\(ip)")
-        try await VMSSH.waitForReady(endpoint: endpoint, timeout: sshTimeout)
-        if let mountAt, share != nil {
-            try await VMSSH.mountShare(endpoint: endpoint, guestPath: mountAt)
-        }
-
-        let guest = Guest(endpoint: endpoint, adminPass: adminPass)
         do {
+            let ip = try await host.waitForIP(timeout: bootTimeout)
+            let endpoint = VMSSH.endpoint(bundle: bundle, host: ip)
+            Log.info("waiting for SSH at \(endpoint.user)@\(ip)")
+            try await VMSSH.waitForReady(endpoint: endpoint, timeout: sshTimeout)
+            if let mountAt, share != nil {
+                try await VMSSH.mountShare(endpoint: endpoint, guestPath: mountAt)
+            }
+            let guest = Guest(endpoint: endpoint, adminPass: adminPass)
             try await body(guest)
         } catch {
             try? await host.forceStop()
