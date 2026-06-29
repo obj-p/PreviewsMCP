@@ -31,6 +31,64 @@ public struct ProcessOutput: Sendable {
     public let exitCode: Int32
 }
 
+/// Optional global cap on concurrent Swift *compile* subprocesses.
+///
+/// Off unless `PREVIEWSMCP_MAX_CONCURRENT_COMPILES` is set to a positive
+/// integer, so production behaviour is unchanged. The merge-queue VM bar sets
+/// it: swift-testing runs the build-heavy suites in parallel, and on the
+/// resource-limited guest the resulting fan-out of concurrent `swiftc` /
+/// `swift build` processes (each 1-3 GB) exhausts RAM, thrashes, and wedges the
+/// 300 s test timeout. Only compiles are gated; light tools (simctl, git, ar,
+/// codesign, `swift --version`) pass straight through so the iOS suites' timing
+/// is untouched.
+private actor CompileGate {
+    static let shared = CompileGate()
+    private let limit: Int
+    private var active = 0
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    init() {
+        if let raw = ProcessInfo.processInfo.environment["PREVIEWSMCP_MAX_CONCURRENT_COMPILES"],
+           let n = Int(raw), n > 0 {
+            limit = n
+        } else {
+            limit = 0
+        }
+    }
+
+    /// True when the invocation is a Swift compile worth gating.
+    nonisolated static func gates(executable: String, arguments: [String]) -> Bool {
+        let exe = (executable as NSString).lastPathComponent
+        if exe == "swiftc" || exe == "swift-frontend" { return true }
+        // `swift build` / `swift package` (possibly via `/usr/bin/env swift …`).
+        let tokens = ([exe] + arguments)
+        guard tokens.contains("swift") else { return false }
+        return tokens.contains("build") || tokens.contains("package")
+    }
+
+    func acquire() async {
+        guard limit > 0 else { return }
+        if active < limit {
+            active += 1
+            return
+        }
+        await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in
+            waiters.append(c)
+        }
+        // Resumed by release(), which hands its slot directly to us; the slot
+        // is already counted in `active`, so do not increment here.
+    }
+
+    func release() {
+        guard limit > 0 else { return }
+        if waiters.isEmpty {
+            active -= 1
+        } else {
+            waiters.removeFirst().resume()
+        }
+    }
+}
+
 /// Run an external process without blocking the caller's cooperative thread.
 ///
 /// Uses `terminationHandler` + `withCheckedThrowingContinuation` so actor-isolated
@@ -55,6 +113,29 @@ public func runAsync(
     workingDirectory: URL? = nil,
     discardStderr: Bool = false,
     timeout: Duration? = nil
+) async throws -> ProcessOutput {
+    let gated = CompileGate.gates(executable: executable, arguments: arguments)
+    if gated { await CompileGate.shared.acquire() }
+    do {
+        let output = try await runProcess(
+            executable, arguments: arguments,
+            workingDirectory: workingDirectory,
+            discardStderr: discardStderr, timeout: timeout
+        )
+        if gated { await CompileGate.shared.release() }
+        return output
+    } catch {
+        if gated { await CompileGate.shared.release() }
+        throw error
+    }
+}
+
+private func runProcess(
+    _ executable: String,
+    arguments: [String],
+    workingDirectory: URL?,
+    discardStderr: Bool,
+    timeout: Duration?
 ) async throws -> ProcessOutput {
     try await withCheckedThrowingContinuation { continuation in
         let process = Process()
