@@ -31,16 +31,20 @@ public struct ProcessOutput: Sendable {
     public let exitCode: Int32
 }
 
-/// Optional global cap on concurrent Swift *compile* subprocesses.
+/// Optional per-process cap on concurrent Swift *compile* subprocesses.
 ///
 /// Off unless `PREVIEWSMCP_MAX_CONCURRENT_COMPILES` is set to a positive
 /// integer, so production behaviour is unchanged. The merge-queue VM bar sets
-/// it: swift-testing runs the build-heavy suites in parallel, and on the
+/// it: swift-testing runs a build-heavy suite's tests in parallel, and on the
 /// resource-limited guest the resulting fan-out of concurrent `swiftc` /
 /// `swift build` processes (each 1-3 GB) exhausts RAM, thrashes, and wedges the
-/// 300 s test timeout. Only compiles are gated; light tools (simctl, git, ar,
-/// codesign, `swift --version`) pass straight through so the iOS suites' timing
-/// is untouched.
+/// 300 s test timeout. The cap is per OS process, not VM-global — each Bazel
+/// test target is its own process with its own gate — but the dominant storm is
+/// intra-target (`PreviewsCoreTests` alone wedges the bar), so a small per-
+/// process cap is empirically enough (verified green where the ungated bar
+/// failed). Only compiles are gated; metadata and light tools (`swift package
+/// describe`, simctl, git, ar, codesign, `swift --version`) pass straight
+/// through, so the iOS suites' simulator timing is untouched.
 private actor CompileGate {
     static let shared = CompileGate()
     fileprivate let limit: Int
@@ -49,7 +53,8 @@ private actor CompileGate {
 
     init() {
         if let raw = ProcessInfo.processInfo.environment["PREVIEWSMCP_MAX_CONCURRENT_COMPILES"],
-           let n = Int(raw), n > 0 {
+           let n = Int(raw), n > 0
+        {
             limit = n
         } else {
             limit = 0
@@ -59,18 +64,20 @@ private actor CompileGate {
     /// True when the invocation is a Swift compile worth gating. Matching on the
     /// basename first lets the common light tools (git, simctl, codesign, ar)
     /// bail out before scanning arguments — no allocation on that hot path.
-    /// `swift build`/`swift package` may arrive directly or via `/usr/bin/env`.
+    /// Only the memory-heavy compilers count: `swiftc`/`swift-frontend` and
+    /// `swift build` (directly or via `/usr/bin/env`). `swift package describe`
+    /// and friends are cheap metadata queries, so they are deliberately not
+    /// gated — they must not queue behind multi-GB builds.
     nonisolated static func gates(executable: String, arguments: [String]) -> Bool {
         switch (executable as NSString).lastPathComponent {
         case "swiftc", "swift-frontend":
-            return true
+            true
         case "swift":
-            return arguments.contains("build") || arguments.contains("package")
+            arguments.contains("build")
         case "env":
-            return arguments.contains("swift")
-                && (arguments.contains("build") || arguments.contains("package"))
+            arguments.contains("swift") && arguments.contains("build")
         default:
-            return false
+            false
         }
     }
 
