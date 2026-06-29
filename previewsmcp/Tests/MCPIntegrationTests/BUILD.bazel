@@ -14,6 +14,13 @@ swift_test(
         "//previewsmcp/cli:previewsmcp",
     ],
     env = {
+        # Cap the daemon's concurrent compiles (it inherits this env): without
+        # it, the spawned daemon's parallel swift builds run slow enough on the
+        # VM to trip a preview_start/snapshot deadline (Exit 1, flaky ~1/2).
+        # The cap stabilized it 3/3 in the merge-queue bar. Not a JITLink-style
+        # over-cap: this suite tolerates the cap (verified green), JITLink does
+        # not — so JITLink stays ungated.
+        "PREVIEWSMCP_MAX_CONCURRENT_COMPILES": "2",
         "PREVIEWSMCP_AGENT": "$(rlocationpath //previewsmcp/PreviewAgent)",
         "PREVIEWSMCP_BINARY": "$(rlocationpath //previewsmcp/cli:previewsmcp)",
         "PREVIEWSMCP_IOS_JIT_DIR": "$(rlocationpath //:ios_jit_resources)",
