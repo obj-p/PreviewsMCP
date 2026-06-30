@@ -50,7 +50,7 @@ func provisionToolchain(_ guest: Guest, xip: String, brewfile: String) async thr
     <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
     <plist version="1.0">
     <dict>
-    <key>Label</key><string>com.devbox.xcode-select</string>
+    <key>Label</key><string>com.previewsmcp.xcode-select</string>
     <key>ProgramArguments</key>
     <array>
     <string>/usr/bin/xcode-select</string>
@@ -66,10 +66,10 @@ func provisionToolchain(_ guest: Guest, xip: String, brewfile: String) async thr
         .joined()
     try await guest.sh(
         "printf '\(xcodeSelectPlistHex)' | xxd -r -p | "
-            + "sudo tee /Library/LaunchDaemons/com.devbox.xcode-select.plist > /dev/null && "
-            + "sudo chmod 644 /Library/LaunchDaemons/com.devbox.xcode-select.plist && "
-            + "sudo chown root:wheel /Library/LaunchDaemons/com.devbox.xcode-select.plist && "
-            + "sudo launchctl bootstrap system /Library/LaunchDaemons/com.devbox.xcode-select.plist"
+            + "sudo tee /Library/LaunchDaemons/com.previewsmcp.xcode-select.plist > /dev/null && "
+            + "sudo chmod 644 /Library/LaunchDaemons/com.previewsmcp.xcode-select.plist && "
+            + "sudo chown root:wheel /Library/LaunchDaemons/com.previewsmcp.xcode-select.plist && "
+            + "sudo launchctl bootstrap system /Library/LaunchDaemons/com.previewsmcp.xcode-select.plist"
     )
 
     step("installing Homebrew")

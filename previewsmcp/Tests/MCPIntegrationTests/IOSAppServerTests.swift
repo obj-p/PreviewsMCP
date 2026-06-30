@@ -29,6 +29,11 @@ struct IOSAppServerTests {
         let lock = try await DaemonTestLock.acquire()
         defer { lock.release() }
 
+        // Reset host-global CoreSimulator state once before the first iOS
+        // preview boots — earlier Bazel targets leave it degraded (see
+        // CoreSimulatorHygiene).
+        await CoreSimulatorHygiene.resetOnce()
+
         guard let deviceUDID = try await IOSSimulatorPicker.pickUDID(index: 3) else {
             print("No iOS simulator at picker index 3 — skipping")
             return
@@ -59,11 +64,14 @@ struct IOSAppServerTests {
             resultText.contains("http://127.0.0.1:\(port)/"),
             "preview_start result should surface the interactive viewer URL"
         )
-        try await Task.sleep(for: .seconds(3))
 
         // Control: a drag over /control scrolls the list, proving the
-        // daemon-hosted server forwards input to IndigoHID.
-        let beforeDrag = try await server.snapshotBytes(sessionID: sessionID)
+        // daemon-hosted server forwards input to IndigoHID. Wait for a rendered
+        // (non-blank) frame instead of a fixed settle (#296) so the drag has real
+        // content to scroll and the baseline is a true rendered frame.
+        let beforeDrag = try await server.awaitNonBlankSnapshot(
+            sessionID: sessionID, timeout: .seconds(30)
+        )
         var request = URLRequest(url: try #require(URL(string: "http://127.0.0.1:\(port)/control")))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")

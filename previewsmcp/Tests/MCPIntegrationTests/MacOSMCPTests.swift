@@ -12,6 +12,16 @@ struct MacOSMCPTests {
 
     @Test("Full macOS MCP workflow", .timeLimit(.minutes(20)))
     func fullMacOSWorkflow() async throws {
+        // Serialize against the iOS e2e suites. Every suite in this target shares
+        // one daemon socket dir (serve.sock is removed-and-rebound on each spawn)
+        // and the single examples/spm build tree, so a macOS preview_start must
+        // not run concurrently with an iOS suite's SwiftPM build of the same
+        // sources. The iOS suites already take this lock; the macOS suite must
+        // too, or its builds/writes race theirs ("input file ... modified during
+        // the build").
+        let lock = try await DaemonTestLock.acquire()
+        defer { lock.release() }
+
         let server = try await MCPTestServer.start()
         defer { server.stop() }
 
@@ -33,7 +43,8 @@ struct MacOSMCPTests {
         #expect(startText.contains("Empty State"), "Should show Empty State preview")
         #expect(startText.contains("<- active"), "Should mark active preview")
 
-        try await Task.sleep(for: .milliseconds(500))
+        // Wait for the first render to land instead of a fixed settle (#296).
+        _ = try await server.awaitNonBlankSnapshot(sessionID: sessionID, timeout: .seconds(30))
 
         // --- preview_snapshot returns JPEG ---
         let (jpegContent, jpegError) = try await server.callTool(
@@ -72,14 +83,12 @@ struct MacOSMCPTests {
         let switchText = MCPTestServer.extractText(from: switchContent)
         #expect(switchText.contains("Switched to preview 1"), "Should confirm switch")
 
-        try await Task.sleep(for: .milliseconds(500))
-
         // --- Snapshot after switch should differ ---
-        let (content1, _) = try await server.callTool(
-            name: "preview_snapshot",
-            arguments: ["sessionID": .string(sessionID)]
+        // Poll until the switched preview's render lands instead of a fixed
+        // settle (#296); awaitSnapshotChange also guards a silent no-op switch.
+        let data1 = try await server.awaitSnapshotChange(
+            sessionID: sessionID, baseline: data0, timeout: .seconds(30)
         )
-        let (data1, _) = try MCPTestServer.extractImageData(from: content1)
         #expect(data0 != data1, "Snapshots of different previews should differ")
 
         // --- preview_switch to invalid index rolls back ---
@@ -226,6 +235,11 @@ struct MacOSMCPTests {
     /// shapes shows up here.
     @Test("structuredContent payloads decode for each migrated tool", .timeLimit(.minutes(20)))
     func structuredContentPayloadsDecode() async throws {
+        // Serialize against the iOS e2e suites (shared daemon + examples/spm
+        // build tree — see fullMacOSWorkflow).
+        let lock = try await DaemonTestLock.acquire()
+        defer { lock.release() }
+
         let server = try await MCPTestServer.start()
         defer { server.stop() }
 
@@ -325,6 +339,11 @@ struct MacOSMCPTests {
 
     @Test("preview_variants captures multiple configurations", .timeLimit(.minutes(20)))
     func previewVariants() async throws {
+        // Serialize against the iOS e2e suites (shared daemon + examples/spm
+        // build tree — see fullMacOSWorkflow).
+        let lock = try await DaemonTestLock.acquire()
+        defer { lock.release() }
+
         let server = try await MCPTestServer.start()
         defer { server.stop() }
 
@@ -455,6 +474,12 @@ struct MacOSMCPTests {
     /// Sync target: "Literal-only change:" log line from HostApp.swift.
     @Test("File edit triggers hot reload (literal-only fast path)", .timeLimit(.minutes(20)))
     func hotReloadLiteralOnly() async throws {
+        // This test WRITES examples/spm/.../ToDoView.swift. Without the lock it
+        // races an iOS suite's concurrent SwiftPM build of the same file —
+        // "input file 'ToDoView.swift' was modified during the build" (Mode 2).
+        let lock = try await DaemonTestLock.acquire()
+        defer { lock.release() }
+
         let server = try await MCPTestServer.start()
         defer { server.stop() }
 
@@ -499,6 +524,12 @@ struct MacOSMCPTests {
     /// Sync target: "Compiled:" log line from HostApp.swift after swiftc finishes.
     @Test("File edit triggers hot reload (structural recompile path)", .timeLimit(.minutes(20)))
     func hotReloadStructural() async throws {
+        // This test WRITES examples/spm/.../ToDoView.swift. Without the lock it
+        // races an iOS suite's concurrent SwiftPM build of the same file —
+        // "input file 'ToDoView.swift' was modified during the build" (Mode 2).
+        let lock = try await DaemonTestLock.acquire()
+        defer { lock.release() }
+
         let server = try await MCPTestServer.start()
         defer { server.stop() }
 
@@ -561,6 +592,11 @@ struct MacOSMCPTests {
         .timeLimit(.minutes(3))
     )
     func daemonEmitsHeartbeat() async throws {
+        // Serialize against the iOS e2e suites — this spawns a daemon in the
+        // shared socket dir (see fullMacOSWorkflow).
+        let lock = try await DaemonTestLock.acquire()
+        defer { lock.release() }
+
         let server = try await MCPTestServer.start()
         defer { server.stop() }
 
@@ -646,6 +682,11 @@ struct MacOSMCPTests {
 
     @Test("headless snapshot renders at the requested size", .timeLimit(.minutes(20)))
     func headlessSnapshotUsesRequestedSize() async throws {
+        // Serialize against the iOS e2e suites (shared daemon + examples/spm
+        // build tree — see fullMacOSWorkflow).
+        let lock = try await DaemonTestLock.acquire()
+        defer { lock.release() }
+
         let server = try await MCPTestServer.start()
         defer { server.stop() }
 

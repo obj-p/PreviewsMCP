@@ -1105,10 +1105,26 @@ static const void *const kFBStreamerQueueKey = &kFBStreamerQueueKey;
   // re-entrant call from a capture-queue block (matching `stop`).
   if (dispatch_get_specific(kFBStreamerQueueKey))
     return capture();
+
+  // Bound the cross-queue hop. `_captureQueue` is serial and is also driven by
+  // the vsync-rate screen callbacks, so a single encode stuck inside
+  // SimulatorKit / `IOSurfaceLock` / CoreImage against a degraded display port
+  // blocks the queue. An unbounded `dispatch_sync` here would then wedge the
+  // snapshot — and the whole daemon — indefinitely (observed as a 60s+ silent
+  // hang on `preview_snapshot` under full-suite simulator load). Abandon after
+  // a short deadline and return nil so the Swift caller falls through to the
+  // independent, already-bounded one-shot capture (`SBCaptureFramebuffer`) and
+  // simctl paths. A late-running block is harmless: `result` is heap-promoted
+  // `__block` storage, so its write lands safely and is simply ignored.
   __block NSData *result = nil;
-  dispatch_sync(_captureQueue, ^{
+  dispatch_semaphore_t done = dispatch_semaphore_create(0);
+  dispatch_async(_captureQueue, ^{
     result = capture();
+    dispatch_semaphore_signal(done);
   });
+  if (dispatch_semaphore_wait(
+          done, dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC)) != 0)
+    return nil;
   return result;
 }
 

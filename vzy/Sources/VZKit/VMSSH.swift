@@ -167,17 +167,6 @@ public enum VMSSH {
         return args
     }
 
-    /// Sendable holder for the mutable accumulators inside `runCapturing`.
-    /// `Process` and `Pipe` are not Sendable in Swift 6, but we never
-    /// share them across this task — they live and die inside the detached
-    /// closure. The `@unchecked Sendable` is the cost of that locality.
-    private final class Box<T>: @unchecked Sendable {
-        var value: T
-        init(_ value: T) {
-            self.value = value
-        }
-    }
-
     private static func runCapturing(
         executablePath: String,
         arguments: [String],

@@ -1,7 +1,7 @@
 VZ_DIR     := $(CURDIR)/../vzy
 VZ_BIN     := $(VZ_DIR)/.build/release/vzy
 STATE      := .state
-BUNDLE     ?= $(CURDIR)/vm/devbox.bundle
+BUNDLE     ?= $(CURDIR)/macos.bundle
 ADMIN_USER ?= admin
 ADMIN_PASS ?= vzvz
 CPUS       ?= 12
@@ -15,12 +15,9 @@ XIP        := $(or $(XCODE_XIP),$(firstword $(wildcard $(XIP_CACHE)/Xcode-$(XCOD
 SA_RETRIES ?= 3
 SSH_RETRIES ?= 2
 
-.PHONY: bundle post-toolchain snapshots clean xcode-xip dev
+.PHONY: bundle post-toolchain snapshots clean xcode-xip
 bundle: $(STATE)/post-toolchain
 post-toolchain: $(STATE)/post-toolchain
-
-dev: $(STATE)/post-toolchain
-	$(VZ_BIN) run $(CURDIR)/scripts/dev.swift $(BUNDLE) $(WORKTREE)$(if $(CLEAN), --clean,)$(if $(CMD), $(CMD),)
 
 xcode-xip:
 	command -v xcodes >/dev/null || { echo "xcodes not found; run bootstrap (Brewfile)" >&2; exit 1; }

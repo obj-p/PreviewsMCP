@@ -52,7 +52,7 @@ struct VZCommand: ParsableCommand {
         discussion: """
         Wraps Virtualization.framework to install, snapshot, provision,
         and run scripts against reproducible macOS guests. Used by the
-        devbox and merge-queue toolchains to build self-contained VMs.
+        vm and merge-queue toolchains to build self-contained VMs.
         """,
         subcommands: [
             BootCommand.self,

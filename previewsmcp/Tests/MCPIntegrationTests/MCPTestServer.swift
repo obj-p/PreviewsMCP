@@ -92,6 +92,13 @@ final class MCPTestServer: @unchecked Sendable {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: binaryPath)
         process.arguments = ["serve"]
+        // Export the per-run socket dir so the spawned daemon's production
+        // DaemonPaths resolves to it (#283). DaemonTestLock derives this from
+        // $TEST_TMPDIR when no explicit PREVIEWSMCP_SOCKET_DIR is set, giving
+        // each Bazel test target an isolated, auto-cleaned daemon socket.
+        var childEnv = ProcessInfo.processInfo.environment
+        childEnv["PREVIEWSMCP_SOCKET_DIR"] = DaemonTestLock.effectiveSocketDir
+        process.environment = childEnv
 
         let stdinPipe = Pipe()
         let stdoutPipe = Pipe()
@@ -382,10 +389,17 @@ final class MCPTestServer: @unchecked Sendable {
 
     static func assertNotBlank(_ content: [Tool.Content]) throws {
         let (data, _) = try extractImageData(from: content)
-        guard let rep = NSBitmapImageRep(data: data) else {
-            Issue.record("Snapshot did not decode as an image")
-            return
+        if isBlank(data) {
+            Issue.record("Snapshot appears blank (uniform color) — nothing rendered")
         }
+    }
+
+    /// Whether the image is a uniform color (nothing rendered). Samples a 20x20
+    /// grid and reports blank if every sample is within a small tolerance of the
+    /// first. Shared by `assertNotBlank` and the non-blank readiness poller. A
+    /// non-decodable image is treated as blank (not ready).
+    static func isBlank(_ data: Data) -> Bool {
+        guard let rep = NSBitmapImageRep(data: data) else { return true }
         let stepX = max(1, rep.pixelsWide / 20)
         let stepY = max(1, rep.pixelsHigh / 20)
         var reference: NSColor?
@@ -397,11 +411,11 @@ final class MCPTestServer: @unchecked Sendable {
                     || abs(c.greenComponent - ref.greenComponent) > 0.05
                     || abs(c.blueComponent - ref.blueComponent) > 0.05
                 {
-                    return
+                    return false
                 }
             }
         }
-        Issue.record("Snapshot appears blank (uniform color) — nothing rendered")
+        return true
     }
 
     /// Extract all image content items from a tool result.
@@ -505,6 +519,27 @@ final class MCPTestServer: @unchecked Sendable {
         contains needle: String,
         timeout: Duration
     ) async throws -> String {
+        try await awaitElements(
+            sessionID: sessionID,
+            description: "contains \(needle.debugDescription)",
+            timeout: timeout,
+            where: { $0.contains(needle) }
+        )
+    }
+
+    /// Poll `preview_elements` until the accessibility text satisfies `predicate`,
+    /// up to `timeout`, then return that text. Generalizes `awaitElementsText`
+    /// so a test can wait on a positive marker AND a negative one at once — e.g.
+    /// after a `preview_switch`, wait until the new state's stable chrome is
+    /// present while the prior state's rows have cleared, instead of a fixed
+    /// sleep that races the re-render (#292/#296). `description` names the
+    /// condition for the timeout diagnostic.
+    func awaitElements(
+        sessionID: String,
+        description: String,
+        timeout: Duration,
+        where predicate: (String) -> Bool
+    ) async throws -> String {
         let deadline = ContinuousClock.now + timeout
         while ContinuousClock.now < deadline {
             let (content, isError) = try await callTool(
@@ -515,14 +550,14 @@ final class MCPTestServer: @unchecked Sendable {
             if isError == true {
                 throw MCPTestError.toolError(tool: "preview_elements", content: text)
             }
-            if text.contains(needle) { return text }
+            if predicate(text) { return text }
             try await Task.sleep(for: .milliseconds(500))
         }
         Issue.record(
-            "preview_elements did not contain \(needle.debugDescription) within \(timeout). Server stderr:\n\(stderrLog())"
+            "preview_elements did not satisfy \(description) within \(timeout). Server stderr:\n\(stderrLog())"
         )
         throw MCPTestError.timedOut(
-            operation: "awaitElementsText(contains: \(needle.debugDescription))", duration: timeout
+            operation: "awaitElements(\(description))", duration: timeout
         )
     }
 
@@ -531,7 +566,16 @@ final class MCPTestServer: @unchecked Sendable {
     /// Capture a snapshot and return its raw image bytes. Decodes via the existing
     /// `extractImageData` helper; ignores mimeType (JPEG/PNG differ naturally across
     /// quality settings, but byte equality is sufficient for change-detection).
-    func snapshotBytes(sessionID: String, timeout: Duration = .seconds(30)) async throws -> Data {
+    ///
+    /// The default budget must exceed the iOS product's worst-case snapshot
+    /// fallback. When the live streamer surface briefly drops (e.g. the OS
+    /// evicts and respawns the backgrounded iOS agent), `screenshot()` concedes
+    /// to the one-shot `SBCaptureFramebuffer` path, whose IOSurface retry budget
+    /// is ~33s (5×5s + 4×2s) before it even tries `simctl`. A 30s test timeout
+    /// fired mid-fallback and killed the server; 60s lets the fallback complete.
+    /// macOS snapshots return in well under a second, so the wider ceiling is
+    /// free for them.
+    func snapshotBytes(sessionID: String, timeout: Duration = .seconds(60)) async throws -> Data {
         let (content, isError) = try await callToolWithTimeout(
             name: "preview_snapshot",
             arguments: ["sessionID": .string(sessionID)],
@@ -542,6 +586,21 @@ final class MCPTestServer: @unchecked Sendable {
             throw MCPTestError.snapshotFailed
         }
         return try Self.extractImageData(from: content).data
+    }
+
+    /// Poll `preview_snapshot` until it returns a non-blank (rendered) frame, up
+    /// to `timeout`, then return those bytes. Replaces fixed post-start settle
+    /// sleeps (#296): instead of guessing how long the first render takes, wait
+    /// for the rendered content to actually be on screen before driving input.
+    func awaitNonBlankSnapshot(sessionID: String, timeout: Duration) async throws -> Data {
+        let deadline = ContinuousClock.now + timeout
+        while ContinuousClock.now < deadline {
+            let bytes = try await snapshotBytes(sessionID: sessionID)
+            if !Self.isBlank(bytes) { return bytes }
+            try await Task.sleep(for: .milliseconds(200))
+        }
+        Issue.record("preview_snapshot stayed blank within \(timeout). Server stderr:\n\(stderrLog())")
+        throw MCPTestError.timedOut(operation: "awaitNonBlankSnapshot(sessionID: \(sessionID))", duration: timeout)
     }
 
     /// Poll `preview_snapshot` until the returned bytes differ from `baseline`, up to `timeout`.
