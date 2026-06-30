@@ -11,6 +11,17 @@ struct AsyncProcessTests {
         #expect(output.exitCode == 0)
     }
 
+    @Test("captures large stdout without truncation")
+    func capturesLargeStdout() async throws {
+        // 200000 lines is well over the ~64KB pipe buffer, so this only passes
+        // if the drain reads to EOF instead of stopping at one buffer.
+        let output = try await runAsync("/bin/sh", arguments: ["-c", "seq 1 200000"])
+        #expect(output.exitCode == 0)
+        let lines = output.stdout.split(separator: "\n")
+        #expect(lines.count == 200000, "got \(lines.count) lines")
+        #expect(lines.last == "200000")
+    }
+
     @Test("captures stderr and non-zero exit code")
     func captureStderrAndExit() async throws {
         let output = try await runAsync("/bin/sh", arguments: ["-c", "echo err >&2; exit 42"])
