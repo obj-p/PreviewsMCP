@@ -55,6 +55,26 @@ public struct JITRenderBuild: Sendable {
 }
 
 /// Orchestrates the full preview pipeline: parse → generate bridge → compile → return a JIT build.
+/// Runs synchronous CPU-bound work (swift-syntax parsing / bridge codegen) off
+/// the Swift cooperative pool, on a dedicated queue. A JIT parse can take tens to
+/// hundreds of ms; left on the cooperative pool it pins a pool thread for that
+/// whole burst and — together with subprocess load — starves the daemon's MCP
+/// request handlers, which is the preview_snapshot wedge observed under
+/// concurrent stream load. Hopping it off the pool keeps a thread free to service
+/// the snapshot handler.
+private let jitCompileQueue = DispatchQueue(
+    label: "previewsmcp.jit-compile",
+    attributes: .concurrent
+)
+
+private func offCooperativePool<T: Sendable>(
+    _ work: @escaping @Sendable () -> T
+) async -> T {
+    await withCheckedContinuation { continuation in
+        jitCompileQueue.async { continuation.resume(returning: work()) }
+    }
+}
+
 public actor PreviewSession {
     public nonisolated let id: String
     public nonisolated let sourceFile: URL
@@ -139,7 +159,7 @@ public actor PreviewSession {
     /// compiles the self-contained combined source as one object.
     public func compileObjectForJIT(window: JITRenderWindow? = nil) async throws -> JITRenderBuild {
         let source = try String(contentsOf: sourceFile, encoding: .utf8)
-        let previews = PreviewParser.parse(source: source)
+        let previews = await offCooperativePool { PreviewParser.parse(source: source) }
 
         guard previewIndex >= 0, previewIndex < previews.count else {
             throw PreviewSessionError.previewNotFound(
@@ -174,20 +194,34 @@ public actor PreviewSession {
             )
         }
 
-        let generated = BridgeGenerator.generateCombinedSource(
-            originalSource: source,
-            closureBody: preview.closureBody,
-            previewIndex: previewIndex,
-            platform: platform,
-            traits: traits,
-            setupModule: hasSetup ? setupModule : nil,
-            setupType: hasSetup ? setupType : nil,
-            renderOutputPath: imagePath.path,
-            designTimeValuesPath: valuesPath.path,
-            stableModuleImport: stable != nil ? splitContext?.0.moduleName : nil,
-            renderWindow: window,
-            frameSidecarPath: Self.frameSidecarPath(for: id).path
-        )
+        // Snapshot the actor-isolated inputs into Sendable locals so the codegen
+        // can run off the cooperative pool without touching actor state.
+        let snapshotClosureBody = preview.closureBody
+        let snapshotPreviewIndex = previewIndex
+        let snapshotPlatform = platform
+        let snapshotTraits = traits
+        let snapshotSetupModule = hasSetup ? setupModule : nil
+        let snapshotSetupType = hasSetup ? setupType : nil
+        let snapshotRenderPath = imagePath.path
+        let snapshotValuesPath = valuesPath.path
+        let snapshotStableImport = stable != nil ? splitContext?.0.moduleName : nil
+        let snapshotSidecarPath = Self.frameSidecarPath(for: id).path
+        let generated = await offCooperativePool {
+            BridgeGenerator.generateCombinedSource(
+                originalSource: source,
+                closureBody: snapshotClosureBody,
+                previewIndex: snapshotPreviewIndex,
+                platform: snapshotPlatform,
+                traits: snapshotTraits,
+                setupModule: snapshotSetupModule,
+                setupType: snapshotSetupType,
+                renderOutputPath: snapshotRenderPath,
+                designTimeValuesPath: snapshotValuesPath,
+                stableModuleImport: snapshotStableImport,
+                renderWindow: window,
+                frameSidecarPath: snapshotSidecarPath
+            )
+        }
 
         let objectPath: URL
         var supportObjectPaths: [URL] = []
