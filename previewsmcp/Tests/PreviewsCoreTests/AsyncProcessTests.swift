@@ -18,7 +18,7 @@ struct AsyncProcessTests {
         let output = try await runAsync("/bin/sh", arguments: ["-c", "seq 1 200000"])
         #expect(output.exitCode == 0)
         let lines = output.stdout.split(separator: "\n")
-        #expect(lines.count == 200000, "got \(lines.count) lines")
+        #expect(lines.count == 200_000, "got \(lines.count) lines")
         #expect(lines.last == "200000")
     }
 
