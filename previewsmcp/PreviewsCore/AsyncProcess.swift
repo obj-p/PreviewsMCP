@@ -148,6 +148,35 @@ public func runAsync(
     }
 }
 
+/// Drain `pipe` to EOF without pinning a thread, accumulating into `box`, and
+/// leave `group` exactly once at EOF.
+///
+/// `readabilityHandler` fires on a shared dispatch source only when bytes are
+/// available, so it holds no thread between chunks — unlike a blocking
+/// `readDataToEndOfFile()`, which pins a worker for the subprocess's whole life.
+/// `availableData` returns the buffered bytes, or an empty `Data` at EOF (the
+/// write end closed — on exit, or when the SIGKILL escalation closes a stuck
+/// fd). The handler MUST nil itself at EOF: a live handler keeps its source
+/// registered, which leaks and, in a CFRunLoop host, can block exit (see
+/// MCPTestServer's note). Nil-ing it inside the serially-invoked handler also
+/// makes `leave()` run exactly once.
+private func drainPipe(
+    _ pipe: Pipe,
+    into box: UnsafeSendableBox<Data>,
+    group: DispatchGroup
+) {
+    let handle = pipe.fileHandleForReading
+    handle.readabilityHandler = { fileHandle in
+        let chunk = fileHandle.availableData
+        if chunk.isEmpty {
+            fileHandle.readabilityHandler = nil
+            group.leave()
+        } else {
+            box.append(chunk)
+        }
+    }
+}
+
 private func runProcess(
     _ executable: String,
     arguments: [String],
@@ -177,29 +206,27 @@ private func runProcess(
             stderrPipe = pipe
         }
 
-        // Read pipes on background threads to avoid deadlock.
-        // If the child writes more than the pipe buffer (~64KB), it blocks
-        // until the parent reads. Using readDataToEndOfFile() on background
-        // threads drains the pipes concurrently while the process runs.
-        // The DispatchGroup ensures all data is collected before
-        // terminationHandler reads it — avoiding a race where the
-        // continuation resumes before pipe data has been captured.
+        // Drain the pipes event-driven (drainPipe → readabilityHandler), not with
+        // a blocking readDataToEndOfFile() on DispatchQueue.global(). The blocking
+        // read pins a GCD worker thread for the subprocess's entire lifetime; under
+        // concurrent subprocess load that pins many threads which, together with
+        // CPU-bound work on the Swift cooperative pool, starves the daemon's MCP
+        // handler (the preview_snapshot wedge). The handler holds no thread between
+        // chunks. The DispatchGroup still guarantees all data is collected before
+        // the terminationHandler / timeout path reads it: each pipe leaves the
+        // group exactly once, at EOF. A stuck fd still needs the SIGKILL escalation
+        // below, which closes the fd and delivers EOF. The child draining as it
+        // writes means it can't deadlock on a full pipe buffer.
         let stdoutData = UnsafeSendableBox<Data>()
         let stderrData = UnsafeSendableBox<Data>()
         let pipeGroup = DispatchGroup()
 
         pipeGroup.enter()
-        DispatchQueue.global().async {
-            stdoutData.append(stdoutPipe.fileHandleForReading.readDataToEndOfFile())
-            pipeGroup.leave()
-        }
+        drainPipe(stdoutPipe, into: stdoutData, group: pipeGroup)
 
         if let stderrPipe {
             pipeGroup.enter()
-            DispatchQueue.global().async {
-                stderrData.append(stderrPipe.fileHandleForReading.readDataToEndOfFile())
-                pipeGroup.leave()
-            }
+            drainPipe(stderrPipe, into: stderrData, group: pipeGroup)
         }
 
         // Exactly-once guard shared between termination and timeout paths.
