@@ -15,23 +15,10 @@ struct TouchCommandTests {
     // PreviewsCLITests/CLIValidationTests.swift, which invokes TouchCommand
     // in-process instead of spawning a subprocess + daemon.
 
-    // MARK: - No-session error path
-
-    @Test("touch errors when no session is running")
-    func touchNoSession() async throws {
-        try await DaemonTestLock.run {
-            try await Self.cleanSlate()
-
-            let result = try await CLIRunner.run(
-                "touch", arguments: ["100", "200"]
-            )
-            #expect(result.exitCode != 0)
-            #expect(
-                result.stderr.contains("No session found"),
-                "stderr: \(result.stderr)"
-            )
-        }
-    }
+    // "touch errors when no session is running" moved to
+    // PreviewsCLITests/TouchCommandLogicTests.swift, which invokes
+    // TouchCommand.execute(on:) against a FakeDaemonClient instead of
+    // spawning a subprocess + daemon.
 
     /// The daemon's `preview_touch` tool is iOS-only. Against a running
     /// macOS session it should surface the iOS-only error.

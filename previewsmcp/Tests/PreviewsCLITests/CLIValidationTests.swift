@@ -184,7 +184,7 @@ struct CLIValidationTests {
 /// Records an `Issue` (rather than letting the caller's own `throws` bubble
 /// up) so a wrong-error-type failure reports the mismatch instead of
 /// crashing out of the test with an unrelated stack trace.
-private func expectValidationError(
+func expectValidationError(
     predicate: (String) -> Bool = { _ in true },
     run: () async throws -> Void
 ) async {
@@ -198,7 +198,7 @@ private func expectValidationError(
     }
 }
 
-private func expectValidationError(
+func expectValidationError(
     contains substring: String,
     run: () async throws -> Void
 ) async {

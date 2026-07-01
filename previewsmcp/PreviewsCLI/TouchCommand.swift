@@ -65,42 +65,49 @@ struct TouchCommand: AsyncParsableCommand {
         }
 
         try await DaemonClient.withDaemonClient(name: "previewsmcp-touch") { client in
-            let resolution = try await SessionResolver.resolve(
-                session: target.session,
-                file: target.file,
-                client: client
-            )
-
-            guard case let .found(sessionID) = resolution else {
-                throw ValidationError(
-                    "No session found. Start an iOS session with "
-                        + "`previewsmcp run <file> --platform ios --detach` or "
-                        + "pass an explicit --session <uuid>."
-                )
-            }
-
-            var arguments: [String: Value] = [
-                "sessionID": .string(sessionID),
-                "x": .double(x),
-                "y": .double(y),
-            ]
-            if isSwipe, let toX, let toY {
-                arguments["action"] = .string("swipe")
-                arguments["toX"] = .double(toX)
-                arguments["toY"] = .double(toY)
-                if let duration { arguments["duration"] = .double(duration) }
-            }
-
-            let response = try await client.callToolStructured(
-                name: "preview_touch",
-                arguments: arguments
-            )
-            if response.isError == true {
-                throw DaemonToolError.daemonError(response.content.joinedText())
-            }
-
-            let text = response.content.joinedText()
-            if !text.isEmpty { fputs("\(text)\n", stderr) }
+            try await execute(on: client)
         }
+    }
+
+    /// The daemon-relay body of `run()`, factored out so tests can call it
+    /// directly against a fake `DaemonToolCalling` without a real daemon
+    /// connection. Callers must have already validated swipe/duration flags.
+    func execute(on client: any DaemonToolCalling) async throws {
+        let resolution = try await SessionResolver.resolve(
+            session: target.session,
+            file: target.file,
+            client: client
+        )
+
+        guard case let .found(sessionID) = resolution else {
+            throw ValidationError(
+                "No session found. Start an iOS session with "
+                    + "`previewsmcp run <file> --platform ios --detach` or "
+                    + "pass an explicit --session <uuid>."
+            )
+        }
+
+        var arguments: [String: Value] = [
+            "sessionID": .string(sessionID),
+            "x": .double(x),
+            "y": .double(y),
+        ]
+        if let toX, let toY {
+            arguments["action"] = .string("swipe")
+            arguments["toX"] = .double(toX)
+            arguments["toY"] = .double(toY)
+            if let duration { arguments["duration"] = .double(duration) }
+        }
+
+        let response = try await client.callToolStructured(
+            name: "preview_touch",
+            arguments: arguments
+        )
+        if response.isError == true {
+            throw DaemonToolError.daemonError(response.content.joinedText())
+        }
+
+        let text = response.content.joinedText()
+        if !text.isEmpty { fputs("\(text)\n", stderr) }
     }
 }
