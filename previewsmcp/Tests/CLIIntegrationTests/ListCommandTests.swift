@@ -42,6 +42,14 @@ struct ListCommandTests {
         #expect(result.stdout.contains("No #Preview blocks found"))
     }
 
+    // Local (pre-daemon) path-validation message content moved to
+    // PreviewsCLITests/ListCommandLogicTests.swift, which invokes
+    // ListCommand in-process instead of spawning a subprocess.
+    // This one stays too, as a black-box smoke test: it's the only
+    // remaining coverage of the real binary's validate()-throws-to-exit-code
+    // dispatch (PreviewsMCPApp.swift) for `list`, matching how
+    // VariantsCommandTests kept its own nonexistent-file case.
+
     @Test("Returns non-zero exit code for nonexistent file")
     func listNonexistentFile() async throws {
         let result = try await CLIRunner.run("list", arguments: ["/nonexistent/file.swift"])

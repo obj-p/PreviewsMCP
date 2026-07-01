@@ -32,7 +32,7 @@ struct ListCommand: ParsableCommand {
     func run() throws {
         var isDirectory: ObjCBool = false
         FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory)
-        let files = isDirectory.boolValue ? swiftFiles(in: path) : [path]
+        let files = isDirectory.boolValue ? Self.swiftFiles(in: path) : [path]
 
         var total = 0
         var failures = 0
@@ -54,13 +54,13 @@ struct ListCommand: ParsableCommand {
                 guard !previews.isEmpty else { continue }
                 print(file)
                 for preview in previews {
-                    print("  " + humanLine(preview))
+                    print("  " + Self.humanLine(preview))
                 }
             } else if previews.isEmpty {
                 print("No #Preview blocks found in \(URL(fileURLWithPath: file).lastPathComponent)")
             } else {
                 for preview in previews {
-                    print(humanLine(preview))
+                    print(Self.humanLine(preview))
                 }
             }
             total += previews.count
@@ -75,7 +75,7 @@ struct ListCommand: ParsableCommand {
     }
 }
 
-private struct PreviewLine: Encodable {
+struct PreviewLine: Encodable {
     let file: String
     let index: Int
     let name: String?
@@ -91,8 +91,8 @@ private struct PreviewLine: Encodable {
     }
 }
 
-private extension ListCommand {
-    func swiftFiles(in path: String) -> [String] {
+extension ListCommand {
+    static func swiftFiles(in path: String) -> [String] {
         let url = URL(fileURLWithPath: path)
         guard
             let enumerator = FileManager.default.enumerator(
@@ -109,11 +109,13 @@ private extension ListCommand {
                 .sorted()
     }
 
-    func humanLine(_ preview: PreviewInfo) -> String {
+    static func humanLine(_ preview: PreviewInfo) -> String {
         let name = preview.name ?? "Preview"
         return "[\(preview.index)] \(name) (line \(preview.line)): \(preview.snippet)"
     }
+}
 
+private extension ListCommand {
     func emitJSONLine(_ record: PreviewLine) throws {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
