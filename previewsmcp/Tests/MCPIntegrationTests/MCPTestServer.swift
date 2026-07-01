@@ -554,12 +554,23 @@ final class MCPTestServer: @unchecked Sendable {
     ) async throws -> Data {
         let deadline = ContinuousClock.now + timeout
         while ContinuousClock.now < deadline {
-            let current = try await snapshotBytes(sessionID: sessionID)
+            let current = try await snapshotBytes(
+                sessionID: sessionID,
+                timeout: Self.remainingBudget(until: deadline)
+            )
             if current != baseline { return current }
             try await Task.sleep(for: .milliseconds(200))
         }
         Issue.record("Snapshot bytes did not change within \(timeout). Server stderr:\n\(stderrLog())")
         throw MCPTestError.timedOut(operation: "awaitSnapshotChange(sessionID: \(sessionID))", duration: timeout)
+    }
+
+    private static func remainingBudget(
+        until deadline: ContinuousClock.Instant
+    ) -> Duration {
+        let now = ContinuousClock.now
+        guard now < deadline else { return .milliseconds(1) }
+        return now.duration(to: deadline)
     }
 
     // MARK: - Timeout primitive

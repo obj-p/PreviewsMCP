@@ -942,7 +942,7 @@ static const void *const kFBStreamerQueueKey = &kFBStreamerQueueKey;
 // `framebufferSurface`. Runs on the capture queue; safe to re-call to recover
 // from a stale descriptor set.
 - (void)wireUpFramebuffer {
-  if (_stopped)
+  if (_stopped || _stopRequested)
     return;
 
   for (id old in _descriptors) {
@@ -1020,7 +1020,7 @@ static const void *const kFBStreamerQueueKey = &kFBStreamerQueueKey;
 // since the last encode (seed-skip), so duplicate or vsync-rate callbacks on
 // static content cost nothing.
 - (void)captureFrame {
-  if (_stopped)
+  if (_stopped || _stopRequested)
     return;
 
   IOSurfaceRef surface = NULL;
@@ -1073,7 +1073,7 @@ static const void *const kFBStreamerQueueKey = &kFBStreamerQueueKey;
   __weak SBFramebufferStreamer *weakSelf = self;
   dispatch_source_set_event_handler(_healTimer, ^{
     SBFramebufferStreamer *self = weakSelf;
-    if (!self || self->_stopped)
+    if (!self || self->_stopped || self->_stopRequested)
       return;
     if (!self->_hasFrame)
       [self wireUpFramebuffer];
@@ -1089,7 +1089,7 @@ static const void *const kFBStreamerQueueKey = &kFBStreamerQueueKey;
 
 - (NSData *)captureFrameAtQuality:(double)jpegQuality {
   NSData * (^capture)(void) = ^NSData * {
-    if (_stopped)
+    if (_stopped || _stopRequested)
       return nil;
     IOSurfaceRef surface = NULL;
     id<_SBStreamDescriptor> desc = [self pickBestDescriptor:&surface];
@@ -1165,8 +1165,20 @@ static const void *const kFBStreamerQueueKey = &kFBStreamerQueueKey;
   // deadlock.
   if (dispatch_get_specific(kFBStreamerQueueKey))
     teardown();
-  else
-    dispatch_sync(_captureQueue, teardown);
+  else {
+    // Match captureFrameAtQuality's bounded cross-queue hop. If a prior capture
+    // block is wedged inside SimulatorKit / IOSurface, an unbounded
+    // dispatch_sync here just moves the hang from snapshot to cleanup. Queue
+    // teardown so it still runs if the capture queue recovers, but let stop
+    // return promptly.
+    dispatch_semaphore_t done = dispatch_semaphore_create(0);
+    dispatch_async(_captureQueue, ^{
+      teardown();
+      dispatch_semaphore_signal(done);
+    });
+    (void)dispatch_semaphore_wait(
+        done, dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC));
+  }
 }
 
 @end
