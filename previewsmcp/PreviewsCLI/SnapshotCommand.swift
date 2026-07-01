@@ -162,7 +162,7 @@ struct SnapshotCommand: AsyncParsableCommand {
 
     /// Snapshot a session that's already running. Trait flags are ignored;
     /// we use whatever traits the session was configured with.
-    private func snapshotExisting(sessionID: String, client: Client) async throws {
+    private func snapshotExisting(sessionID: String, client: any DaemonToolCalling) async throws {
         if hasTraitFlags {
             fputs(
                 "note: trait flags (--color-scheme / --dynamic-type-size / "
@@ -176,7 +176,7 @@ struct SnapshotCommand: AsyncParsableCommand {
         var args: [String: Value] = ["sessionID": .string(sessionID)]
         args["quality"] = .double(resolvedQuality())
 
-        let response = try await client.callTool(name: "preview_snapshot", arguments: args)
+        let response = try await client.callToolStructured(name: "preview_snapshot", arguments: args)
         try handleSnapshotResponse(response, sessionID: sessionID)
     }
 
@@ -199,7 +199,7 @@ struct SnapshotCommand: AsyncParsableCommand {
 
     /// Create an ephemeral session for the target file, capture, tear down.
     /// Trait flags are applied at start.
-    private func snapshotEphemeral(file: String, client: Client) async throws {
+    private func snapshotEphemeral(file: String, client: any DaemonToolCalling) async throws {
         // `file` is canonicalized at the argument boundary. The absolute
         // path is sent to the daemon, which runs in its own process and
         // does not share our CWD; the daemon re-normalizes on receipt for
@@ -262,7 +262,7 @@ struct SnapshotCommand: AsyncParsableCommand {
         // complete in time, leaving an orphan session in the daemon that
         // future snapshots of the same file would ambiguously match.
         do {
-            let snapResponse = try await client.callTool(
+            let snapResponse = try await client.callToolStructured(
                 name: "preview_snapshot", arguments: snapshotArgs
             )
             await stopEphemeralSession(sessionID: sessionID, client: client)
@@ -279,9 +279,9 @@ struct SnapshotCommand: AsyncParsableCommand {
     /// The session would still be cleaned up when the daemon exits, but a
     /// long-lived daemon with many leaked sessions could confuse future
     /// snapshot reuse.
-    private func stopEphemeralSession(sessionID: String, client: Client) async {
+    private func stopEphemeralSession(sessionID: String, client: any DaemonToolCalling) async {
         do {
-            _ = try await client.callTool(
+            _ = try await client.callToolStructured(
                 name: "preview_stop",
                 arguments: ["sessionID": .string(sessionID)]
             )
@@ -333,7 +333,7 @@ struct SnapshotCommand: AsyncParsableCommand {
     /// Prints either a bare path or a JSON document (when `--json` is set) to
     /// stdout on success.
     private func handleSnapshotResponse(
-        _ response: (content: [Tool.Content], isError: Bool?),
+        _ response: CallTool.Result,
         sessionID: String
     ) throws {
         if response.isError == true {

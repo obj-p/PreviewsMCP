@@ -87,7 +87,7 @@ struct ConfigureCommand: AsyncParsableCommand {
             if let layoutDirection { args["layoutDirection"] = .string(layoutDirection) }
             if let legibilityWeight { args["legibilityWeight"] = .string(legibilityWeight) }
 
-            let response = try await client.callTool(
+            let response = try await client.callToolStructured(
                 name: "preview_configure", arguments: args
             )
             if response.isError == true {

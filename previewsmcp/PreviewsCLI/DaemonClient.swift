@@ -159,7 +159,7 @@ enum DaemonClient {
         name: String,
         stallThreshold: Duration = .seconds(30),
         configure: ((Client) async -> Void)? = nil,
-        body: (Client) async throws -> T
+        body: (any DaemonToolCalling) async throws -> T
     ) async throws -> T {
         let timer = StallTimer()
 

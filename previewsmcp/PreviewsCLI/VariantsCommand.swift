@@ -206,7 +206,7 @@ struct VariantsCommand: AsyncParsableCommand {
         file: String,
         labels: [String],
         outputDir: URL,
-        client: Client
+        client: any DaemonToolCalling
     ) async throws -> Int32 {
         // `file` is canonicalized at the argument boundary. The absolute
         // path is sent to the daemon, which runs in its own process and
@@ -275,7 +275,7 @@ struct VariantsCommand: AsyncParsableCommand {
         sessionID: String,
         labels: [String],
         outputDir: URL,
-        client: Client
+        client: any DaemonToolCalling
     ) async throws -> Int32 {
         let requestedQuality = resolvedQuality()
 
@@ -428,9 +428,9 @@ struct VariantsCommand: AsyncParsableCommand {
         return Self.exitCode(successCount: successCount, failCount: failCount)
     }
 
-    private func stopEphemeralSession(sessionID: String, client: Client) async {
+    private func stopEphemeralSession(sessionID: String, client: any DaemonToolCalling) async {
         do {
-            _ = try await client.callTool(
+            _ = try await client.callToolStructured(
                 name: "preview_stop",
                 arguments: ["sessionID": .string(sessionID)]
             )

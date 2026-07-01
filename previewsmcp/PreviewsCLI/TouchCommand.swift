@@ -91,7 +91,7 @@ struct TouchCommand: AsyncParsableCommand {
                 if let duration { arguments["duration"] = .double(duration) }
             }
 
-            let response = try await client.callTool(
+            let response = try await client.callToolStructured(
                 name: "preview_touch",
                 arguments: arguments
             )

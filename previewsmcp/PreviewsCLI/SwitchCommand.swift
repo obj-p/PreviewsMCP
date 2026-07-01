@@ -55,7 +55,7 @@ struct SwitchCommand: AsyncParsableCommand {
                 )
             }
 
-            let response = try await client.callTool(
+            let response = try await client.callToolStructured(
                 name: "preview_switch",
                 arguments: [
                     "sessionID": .string(sessionID),

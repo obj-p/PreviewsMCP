@@ -13,11 +13,6 @@ extension [Tool.Content] {
     }
 }
 
-/// Result shape the `client.callTool(...)` tuple overload returns. The MCP
-/// SDK drops `structuredContent` from that overload; CLI commands that need
-/// the structured payload go through `callToolStructured` on `DaemonClient`.
-typealias CallToolTuple = (content: [Tool.Content], isError: Bool?)
-
 enum DecodeStructuredError: Error, CustomStringConvertible {
     case missingStructuredContent
     case decodeFailed(underlying: Error)
@@ -32,7 +27,21 @@ enum DecodeStructuredError: Error, CustomStringConvertible {
     }
 }
 
-extension Client {
+/// The tool-calling surface CLI commands actually depend on: send a named
+/// tool call to the daemon and get back its full result, including
+/// `structuredContent`. Everything else `DaemonClient.withDaemonClient` does
+/// (connect, spawn, version-mismatch restart, stall detection, log
+/// forwarding) is connection lifecycle, not something command bodies touch —
+/// so it stays on the concrete `Client`/`DaemonClient` and isn't part of this
+/// protocol. A future test double can conform without any real socket.
+protocol DaemonToolCalling: Sendable {
+    func callToolStructured(
+        name: String,
+        arguments: [String: Value]?
+    ) async throws -> CallTool.Result
+}
+
+extension Client: DaemonToolCalling {
     /// Call an MCP tool and return the full `CallTool.Result` including
     /// `structuredContent`. The SDK's primary `callTool(name:arguments:)`
     /// overload drops that field; CLI commands that need the structured
