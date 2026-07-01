@@ -56,3 +56,10 @@ public protocol PreviewSessionHandle: Sendable {
     /// registry. After this returns, the handle should not be reused.
     func stop() async
 }
+
+/// Resolves a session ID to a platform-agnostic handle. Kept as a
+/// protocol so MCP tool handler tests can supply deterministic in-memory
+/// sessions without booting AppKit/CoreSimulator or compiling previews.
+public protocol SessionRouting: Sendable {
+    func handle(for sessionID: String) async -> (any PreviewSessionHandle)?
+}

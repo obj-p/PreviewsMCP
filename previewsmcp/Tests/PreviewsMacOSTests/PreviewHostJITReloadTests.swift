@@ -222,6 +222,99 @@ struct PreviewHostJITReloadTests {
         #expect(reloader.calls.count == 1, "unchanged source must not trigger a reload")
     }
 
+    @Test func primaryLiteralOnlyFireRerendersWithoutStructuralReload() async throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("p297l-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let sourceFile = dir.appendingPathComponent("HelloView.swift")
+        let original = """
+        import SwiftUI
+
+        struct HelloView: View {
+            var body: some View { Text("hello") }
+        }
+
+        #Preview {
+            HelloView()
+        }
+        """
+        try original.write(to: sourceFile, atomically: true, encoding: .utf8)
+        let primary = FileWatcher.canonicalPath(sourceFile.path) ?? sourceFile.path
+
+        let compiler = try await Compiler()
+        let session = PreviewSession(sourceFile: sourceFile, compiler: compiler)
+
+        let reloader = RecordingReloader()
+        let host = PreviewHost(makeStructuralReloader: { reloader })
+        try await host.jitStart(
+            sessionID: "s1", session: session,
+            title: "t", size: NSSize(width: 8, height: 8), headless: true
+        )
+        #expect(reloader.calls.count == 1)
+        let originalSnapshot = host.agentSnapshotPath(for: "s1")
+
+        let edited = original.replacingOccurrences(of: "hello", with: "world")
+        try edited.write(to: sourceFile, atomically: true, encoding: .utf8)
+
+        await host.handleWatchedChange(
+            sessionID: "s1", canonicalPrimary: primary, firedPaths: [primary]
+        )
+
+        #expect(reloader.calls.count == 2, "literal-only edit should re-render the existing object")
+        #expect(
+            reloader.calls.first?.objectPath == reloader.calls.last?.objectPath,
+            "literal-only edit must not compile a new object"
+        )
+        #expect(host.agentSnapshotPath(for: "s1") == originalSnapshot)
+        guard case .unchanged = await session.classifySourceChange(newSource: edited) else {
+            Issue.record("successful literal reload should commit the edited source baseline")
+            return
+        }
+    }
+
+    @Test func primaryStructuralFireRunsStructuralReload() async throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("p297s-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let sourceFile = dir.appendingPathComponent("ColorView.swift")
+        let original = """
+        import SwiftUI
+
+        #Preview {
+            Color.red.frame(width: 8, height: 8)
+        }
+        """
+        try original.write(to: sourceFile, atomically: true, encoding: .utf8)
+        let primary = FileWatcher.canonicalPath(sourceFile.path) ?? sourceFile.path
+
+        let compiler = try await Compiler()
+        let session = PreviewSession(sourceFile: sourceFile, compiler: compiler)
+
+        let reloader = RecordingReloader()
+        let host = PreviewHost(makeStructuralReloader: { reloader })
+        try await host.jitStart(
+            sessionID: "s1", session: session,
+            title: "t", size: NSSize(width: 8, height: 8), headless: true
+        )
+        #expect(reloader.calls.count == 1)
+
+        let edited = original.replacingOccurrences(
+            of: ".frame(width: 8, height: 8)",
+            with: ".frame(width: 8, height: 8).padding(1)"
+        )
+        try edited.write(to: sourceFile, atomically: true, encoding: .utf8)
+
+        await host.handleWatchedChange(
+            sessionID: "s1", canonicalPrimary: primary, firedPaths: [primary]
+        )
+
+        #expect(reloader.calls.count == 2, "structural primary edit must structurally reload")
+    }
+
     @Test func secondaryFileFireForcesStructuralReload() async throws {
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent("p297x-\(UUID().uuidString)", isDirectory: true)
