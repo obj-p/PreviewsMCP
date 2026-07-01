@@ -3,8 +3,15 @@ import os
 import PreviewsCore
 @preconcurrency import SimulatorBridge
 
+/// Resolves the available iOS simulator devices. Kept as a protocol so
+/// `simulator_list`'s formatting/DTO-mapping logic can be tested against a
+/// deterministic in-memory device list without loading CoreSimulator.
+public protocol SimulatorLister: Sendable {
+    func listDevices() async throws -> [SimulatorManager.Device]
+}
+
 /// Manages iOS simulator devices via CoreSimulator.framework (loaded at runtime).
-public actor SimulatorManager {
+public actor SimulatorManager: SimulatorLister {
     /// Sendable snapshot of a simulator device.
     public struct Device: Sendable, CustomStringConvertible {
         public let name: String
@@ -15,6 +22,26 @@ public actor SimulatorManager {
         public let runtimeIdentifier: String?
         public let deviceTypeName: String?
         public let isAvailable: Bool
+
+        public init(
+            name: String,
+            udid: String,
+            state: DeviceState,
+            stateString: String,
+            runtimeName: String?,
+            runtimeIdentifier: String?,
+            deviceTypeName: String?,
+            isAvailable: Bool
+        ) {
+            self.name = name
+            self.udid = udid
+            self.state = state
+            self.stateString = stateString
+            self.runtimeName = runtimeName
+            self.runtimeIdentifier = runtimeIdentifier
+            self.deviceTypeName = deviceTypeName
+            self.isAvailable = isAvailable
+        }
 
         public var description: String {
             "\(name) (\(udid)) \(stateString) — \(runtimeName ?? "no runtime")"

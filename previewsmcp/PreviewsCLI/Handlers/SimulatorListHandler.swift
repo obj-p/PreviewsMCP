@@ -16,8 +16,7 @@ enum SimulatorListHandler: ToolHandler {
         _: CallTool.Parameters,
         ctx: HandlerContext
     ) async throws -> CallTool.Result {
-        let manager = await ctx.iosState.simulatorManager
-        let devices = try await manager.listDevices()
+        let devices = try await ctx.simulatorLister.listDevices()
         let available = devices.filter { $0.isAvailable }
 
         let structured = DaemonProtocol.SimulatorListResult(
