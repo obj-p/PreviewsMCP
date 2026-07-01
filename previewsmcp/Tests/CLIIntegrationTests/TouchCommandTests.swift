@@ -10,58 +10,10 @@ struct TouchCommandTests {
         _ = try? await CLIRunner.run("kill-daemon", arguments: ["--timeout", "2"])
     }
 
-    // MARK: - Local validation (no daemon required)
-
-    @Test("touch rejects partial swipe endpoints")
-    func touchRejectsPartialSwipe() async throws {
-        try await DaemonTestLock.run {
-            try await Self.cleanSlate()
-
-            let result = try await CLIRunner.run(
-                "touch", arguments: ["100", "200", "--to-x", "300"]
-            )
-            #expect(result.exitCode != 0)
-            #expect(
-                result.stderr.contains("must be provided together"),
-                "stderr: \(result.stderr)"
-            )
-        }
-    }
-
-    @Test("touch rejects non-positive --duration")
-    func touchRejectsNonPositiveDuration() async throws {
-        try await DaemonTestLock.run {
-            try await Self.cleanSlate()
-
-            let result = try await CLIRunner.run(
-                "touch",
-                arguments: [
-                    "100", "200", "--to-x", "300", "--to-y", "400", "--duration", "0",
-                ]
-            )
-            #expect(result.exitCode != 0)
-            #expect(
-                result.stderr.contains("--duration must be positive"),
-                "stderr: \(result.stderr)"
-            )
-        }
-    }
-
-    @Test("touch rejects --duration without swipe endpoints")
-    func touchRejectsDurationWithoutSwipe() async throws {
-        try await DaemonTestLock.run {
-            try await Self.cleanSlate()
-
-            let result = try await CLIRunner.run(
-                "touch", arguments: ["100", "200", "--duration", "0.5"]
-            )
-            #expect(result.exitCode != 0)
-            #expect(
-                result.stderr.contains("--duration only applies to swipes"),
-                "stderr: \(result.stderr)"
-            )
-        }
-    }
+    // Local (pre-daemon) argument validation — partial swipe endpoints,
+    // non-positive --duration, --duration without swipe — moved to
+    // PreviewsCLITests/CLIValidationTests.swift, which invokes TouchCommand
+    // in-process instead of spawning a subprocess + daemon.
 
     // MARK: - No-session error path
 

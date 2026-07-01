@@ -11,35 +11,9 @@ struct ConfigureCommandTests {
         _ = try? await CLIRunner.run("kill-daemon", arguments: ["--timeout", "2"])
     }
 
-    // MARK: - Validation (no daemon required)
-
-    @Test("configure without any trait flag fails with a useful message")
-    func configureRequiresAtLeastOneTrait() async throws {
-        try await DaemonTestLock.run {
-            try await Self.cleanSlate()
-
-            let result = try await CLIRunner.run("configure")
-            #expect(result.exitCode != 0)
-            #expect(
-                result.stderr.contains("No traits specified"),
-                "stderr: \(result.stderr)"
-            )
-        }
-    }
-
-    @Test("configure with invalid color scheme fails locally")
-    func configureRejectsInvalidTrait() async throws {
-        try await DaemonTestLock.run {
-            try await Self.cleanSlate()
-
-            let result = try await CLIRunner.run(
-                "configure",
-                arguments: ["--color-scheme", "plaid"]
-            )
-            #expect(result.exitCode != 0)
-            #expect(result.stderr.lowercased().contains("color scheme"))
-        }
-    }
+    // Local (pre-daemon) validation — no trait flag, invalid color scheme —
+    // moved to PreviewsCLITests/CLIValidationTests.swift, which invokes
+    // ConfigureCommand in-process instead of spawning a subprocess + daemon.
 
     // MARK: - No-session error path
 
