@@ -3,6 +3,7 @@ import MCP
 @testable import PreviewsCLI
 import PreviewsCore
 import PreviewsEngine
+import PreviewsIOS
 import PreviewsMacOS
 import Testing
 
@@ -272,6 +273,63 @@ struct MCPHandlerContractTests {
         #expect(await handle.stopCallCount == 1)
         #expect(text(in: result).contains("Preview session \(handle.id) closed"))
     }
+
+    @Test("simulator_list reports the no-devices sentinel when none are available")
+    func simulatorListEmpty() async throws {
+        let ctx = try await HandlerContractSupport.context()
+
+        let result = try await SimulatorListHandler.handle(params(.simulatorList), ctx: ctx)
+
+        #expect(result.isError != true)
+        #expect(text(in: result) == "No available simulator devices found.")
+        let payload = try decodeStructured(DaemonProtocol.SimulatorListResult.self, from: result)
+        #expect(payload.simulators.isEmpty)
+    }
+
+    @Test("simulator_list filters unavailable devices and formats booted state")
+    func simulatorListFiltersAndFormats() async throws {
+        let booted = HandlerContractSupport.device(
+            name: "iPhone 16 Pro", udid: "AAAA", state: .booted, stateString: "Booted",
+            runtimeName: "iOS 18.5"
+        )
+        let shutdown = HandlerContractSupport.device(
+            name: "iPhone 15", udid: "BBBB", state: .shutdown, stateString: "Shutdown",
+            runtimeName: "iOS 17.5"
+        )
+        // Only `.booted` earns the `[BOOTED]` marker — a device mid-transition
+        // (booting/shutting down) reads identically to a shut-down one in the
+        // human-readable line, which is today's intended behavior: the marker
+        // means "usable right now," not "not fully shut down." structuredContent
+        // still carries the precise stateString regardless.
+        let booting = HandlerContractSupport.device(
+            name: "iPhone 14", udid: "DDDD", state: .booting, stateString: "Booting",
+            runtimeName: "iOS 16.4"
+        )
+        let unavailable = HandlerContractSupport.device(
+            name: "iPhone 12", udid: "CCCC", runtimeName: nil, isAvailable: false
+        )
+        let ctx = try await HandlerContractSupport.context(
+            simulators: [booted, shutdown, booting, unavailable]
+        )
+
+        let result = try await SimulatorListHandler.handle(params(.simulatorList), ctx: ctx)
+
+        #expect(result.isError != true)
+        let lines = text(in: result).split(separator: "\n").map(String.init)
+        #expect(lines == [
+            "iPhone 16 Pro — AAAA [BOOTED] (iOS 18.5)",
+            "iPhone 15 — BBBB (iOS 17.5)",
+            "iPhone 14 — DDDD (iOS 16.4)",
+        ])
+
+        let payload = try decodeStructured(DaemonProtocol.SimulatorListResult.self, from: result)
+        #expect(
+            payload.simulators.map(\.udid) == ["AAAA", "BBBB", "DDDD"],
+            "unavailable device excluded"
+        )
+        #expect(payload.simulators[2].state == "Booting", "structuredContent keeps the precise state")
+        #expect(payload.simulators[0].state == "Booted")
+    }
 }
 
 private enum HandlerContractSupport {
@@ -286,7 +344,10 @@ private enum HandlerContractSupport {
     /// instance across the suite avoids paying that resolution cost per test.
     private static let sharedCompiler = Task { try await Compiler() }
 
-    static func context(handles: [FakePreviewSessionHandle] = []) async throws -> HandlerContext {
+    static func context(
+        handles: [FakePreviewSessionHandle] = [],
+        simulators: [SimulatorManager.Device] = []
+    ) async throws -> HandlerContext {
         let host = await MainActor.run {
             PreviewHost(makeStructuralReloader: { StubReloader() })
         }
@@ -308,9 +369,30 @@ private enum HandlerContractSupport {
             iosState: iosManager,
             configCache: configCache,
             router: router,
+            simulatorLister: FakeSimulatorLister(devices: simulators),
             registry: registry,
             macCompiler: compiler,
             server: server
+        )
+    }
+
+    static func device(
+        name: String,
+        udid: String,
+        state: SimulatorManager.DeviceState = .shutdown,
+        stateString: String = "Shutdown",
+        runtimeName: String?,
+        isAvailable: Bool = true
+    ) -> SimulatorManager.Device {
+        SimulatorManager.Device(
+            name: name,
+            udid: udid,
+            state: state,
+            stateString: stateString,
+            runtimeName: runtimeName,
+            runtimeIdentifier: nil,
+            deviceTypeName: nil,
+            isAvailable: isAvailable
         )
     }
 
@@ -335,6 +417,14 @@ private enum HandlerContractSupport {
         }
         """.write(to: file, atomically: true, encoding: .utf8)
         return file
+    }
+}
+
+private struct FakeSimulatorLister: SimulatorLister {
+    let devices: [SimulatorManager.Device]
+
+    func listDevices() async throws -> [SimulatorManager.Device] {
+        devices
     }
 }
 

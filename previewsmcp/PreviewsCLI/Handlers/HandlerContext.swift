@@ -1,6 +1,7 @@
 import MCP
 import PreviewsCore
 import PreviewsEngine
+import PreviewsIOS
 import PreviewsMacOS
 
 /// Engine-layer dependencies bundled for a single MCP tool invocation.
@@ -15,6 +16,7 @@ struct HandlerContext {
     let iosState: IOSSessionManager
     let configCache: ConfigCache
     let router: any SessionRouting
+    let simulatorLister: any SimulatorLister
     let registry: SessionRegistry
     let macCompiler: Compiler
     let server: Server

@@ -74,6 +74,7 @@ func configureMCPServer(
         iosState: iosManager,
         configCache: cache,
         router: router,
+        simulatorLister: await iosManager.simulatorManager,
         registry: registry,
         macCompiler: compiler,
         server: server
