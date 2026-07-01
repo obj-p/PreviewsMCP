@@ -41,33 +41,40 @@ struct SwitchCommand: AsyncParsableCommand {
         }
 
         try await DaemonClient.withDaemonClient(name: "previewsmcp-switch") { client in
-            let resolution = try await SessionResolver.resolve(
-                session: target.session,
-                file: target.file,
-                client: client
-            )
-
-            guard case let .found(sessionID) = resolution else {
-                throw ValidationError(
-                    "No session found to switch. Start one with "
-                        + "`previewsmcp run <file> --detach` or pass an "
-                        + "explicit --session <uuid>."
-                )
-            }
-
-            let response = try await client.callToolStructured(
-                name: "preview_switch",
-                arguments: [
-                    "sessionID": .string(sessionID),
-                    "previewIndex": .int(previewIndex),
-                ]
-            )
-            if response.isError == true {
-                throw DaemonToolError.daemonError(response.content.joinedText())
-            }
-
-            let text = response.content.joinedText()
-            if !text.isEmpty { fputs("\(text)\n", stderr) }
+            try await execute(on: client)
         }
+    }
+
+    /// The daemon-relay body of `run()`, factored out so tests can call it
+    /// directly against a fake `DaemonToolCalling` without a real daemon
+    /// connection. Callers must have already validated `previewIndex`.
+    func execute(on client: any DaemonToolCalling) async throws {
+        let resolution = try await SessionResolver.resolve(
+            session: target.session,
+            file: target.file,
+            client: client
+        )
+
+        guard case let .found(sessionID) = resolution else {
+            throw ValidationError(
+                "No session found to switch. Start one with "
+                    + "`previewsmcp run <file> --detach` or pass an "
+                    + "explicit --session <uuid>."
+            )
+        }
+
+        let response = try await client.callToolStructured(
+            name: "preview_switch",
+            arguments: [
+                "sessionID": .string(sessionID),
+                "previewIndex": .int(previewIndex),
+            ]
+        )
+        if response.isError == true {
+            throw DaemonToolError.daemonError(response.content.joinedText())
+        }
+
+        let text = response.content.joinedText()
+        if !text.isEmpty { fputs("\(text)\n", stderr) }
     }
 }

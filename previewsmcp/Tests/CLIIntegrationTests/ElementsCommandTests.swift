@@ -11,19 +11,10 @@ struct ElementsCommandTests {
         _ = try? await CLIRunner.run("kill-daemon", arguments: ["--timeout", "2"])
     }
 
-    @Test("elements errors when no session is running")
-    func elementsNoSession() async throws {
-        try await DaemonTestLock.run {
-            try await Self.cleanSlate()
-
-            let result = try await CLIRunner.run("elements")
-            #expect(result.exitCode != 0)
-            #expect(
-                result.stderr.contains("No session found"),
-                "stderr: \(result.stderr)"
-            )
-        }
-    }
+    // "elements errors when no session is running" moved to
+    // PreviewsCLITests/ElementsCommandLogicTests.swift, which invokes
+    // ElementsCommand.execute(on:) against a FakeDaemonClient instead of
+    // spawning a subprocess + daemon.
 
     /// The daemon's `preview_elements` tool is iOS-only. Exercising it
     /// against a running macOS session should surface the daemon's error
