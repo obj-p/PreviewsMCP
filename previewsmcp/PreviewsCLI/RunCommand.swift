@@ -163,7 +163,7 @@ struct RunCommand: AsyncParsableCommand {
             await blockUntilSignal()
 
             do {
-                _ = try await client.callTool(
+                _ = try await client.callToolStructured(
                     name: "preview_stop",
                     arguments: ["sessionID": .string(sessionID)]
                 )

@@ -16,7 +16,7 @@ enum SessionResolver {
     static func resolve(
         session: String?,
         file: String?,
-        client: Client
+        client: any DaemonToolCalling
     ) async throws -> Resolution {
         // Explicit --session wins over everything else. We don't verify
         // existence here — the subsequent MCP call will fail with a useful
@@ -70,8 +70,8 @@ enum SessionResolver {
     }
 
     /// Query the daemon for the list of active sessions.
-    private static func listSessions(client: Client) async throws -> [SessionInfo] {
-        let response = try await client.callTool(name: "session_list", arguments: [:])
+    private static func listSessions(client: any DaemonToolCalling) async throws -> [SessionInfo] {
+        let response = try await client.callToolStructured(name: "session_list", arguments: [:])
         if response.isError == true {
             throw SessionResolverError.daemonError(
                 response.content.joinedText()

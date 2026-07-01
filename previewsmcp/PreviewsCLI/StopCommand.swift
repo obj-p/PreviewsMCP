@@ -46,7 +46,7 @@ struct StopCommand: AsyncParsableCommand {
         }
     }
 
-    private func stopOne(client: Client) async throws {
+    private func stopOne(client: any DaemonToolCalling) async throws {
         let resolution = try await SessionResolver.resolve(
             session: target.session,
             file: target.file,
@@ -64,8 +64,8 @@ struct StopCommand: AsyncParsableCommand {
         try await sendStop(sessionID: sessionID, client: client)
     }
 
-    private func stopAll(client: Client) async throws {
-        let response = try await client.callTool(name: "session_list", arguments: [:])
+    private func stopAll(client: any DaemonToolCalling) async throws {
+        let response = try await client.callToolStructured(name: "session_list", arguments: [:])
         if response.isError == true {
             throw DaemonToolError.daemonError(response.content.joinedText())
         }
@@ -95,8 +95,8 @@ struct StopCommand: AsyncParsableCommand {
         if let firstFailure { throw firstFailure }
     }
 
-    private func sendStop(sessionID: String, client: Client) async throws {
-        let response = try await client.callTool(
+    private func sendStop(sessionID: String, client: any DaemonToolCalling) async throws {
+        let response = try await client.callToolStructured(
             name: "preview_stop",
             arguments: ["sessionID": .string(sessionID)]
         )
