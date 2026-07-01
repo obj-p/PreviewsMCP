@@ -12,15 +12,10 @@ struct SwitchCommandTests {
     // PreviewsCLITests/CLIValidationTests.swift, which invokes SwitchCommand
     // in-process instead of spawning a subprocess + daemon.
 
-    @Test("switch errors when no session is running")
-    func switchNoSession() async throws {
-        try await DaemonTestLock.run {
-            try await Self.cleanSlate()
-            let result = try await CLIRunner.run("switch", arguments: ["0"])
-            #expect(result.exitCode != 0)
-            #expect(result.stderr.contains("No session found to switch"))
-        }
-    }
+    // "switch errors when no session is running" moved to
+    // PreviewsCLITests/SwitchCommandLogicTests.swift, which invokes
+    // SwitchCommand.execute(on:) against a FakeDaemonClient instead of
+    // spawning a subprocess + daemon.
 
     /// Full round-trip: start a session showing preview 0, switch to preview
     /// 1, snapshot both, and confirm the rendered output differs. Preview 0

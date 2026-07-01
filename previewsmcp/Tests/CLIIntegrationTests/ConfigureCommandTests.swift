@@ -15,21 +15,10 @@ struct ConfigureCommandTests {
     // moved to PreviewsCLITests/CLIValidationTests.swift, which invokes
     // ConfigureCommand in-process instead of spawning a subprocess + daemon.
 
-    // MARK: - No-session error path
-
-    @Test("configure errors when no session is running")
-    func configureNoSession() async throws {
-        try await DaemonTestLock.run {
-            try await Self.cleanSlate()
-
-            let result = try await CLIRunner.run(
-                "configure",
-                arguments: ["--color-scheme", "dark"]
-            )
-            #expect(result.exitCode != 0)
-            #expect(result.stderr.contains("No session found to configure"))
-        }
-    }
+    // "configure errors when no session is running" moved to
+    // PreviewsCLITests/ConfigureCommandLogicTests.swift, which invokes
+    // ConfigureCommand.execute(on:) against a FakeDaemonClient instead of
+    // spawning a subprocess + daemon.
 
     // MARK: - Happy path
 

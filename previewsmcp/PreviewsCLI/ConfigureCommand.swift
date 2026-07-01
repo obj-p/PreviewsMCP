@@ -66,40 +66,47 @@ struct ConfigureCommand: AsyncParsableCommand {
         try validateTraitValues()
 
         try await DaemonClient.withDaemonClient(name: "previewsmcp-configure") { client in
-            let resolution = try await SessionResolver.resolve(
-                session: target.session,
-                file: target.file,
-                client: client
-            )
-
-            guard case let .found(sessionID) = resolution else {
-                throw ValidationError(
-                    "No session found to configure. Start one with "
-                        + "`previewsmcp run <file> --detach` or pass an explicit "
-                        + "--session <uuid>."
-                )
-            }
-
-            var args: [String: Value] = ["sessionID": .string(sessionID)]
-            if let colorScheme { args["colorScheme"] = .string(colorScheme) }
-            if let dynamicTypeSize { args["dynamicTypeSize"] = .string(dynamicTypeSize) }
-            if let locale { args["locale"] = .string(locale) }
-            if let layoutDirection { args["layoutDirection"] = .string(layoutDirection) }
-            if let legibilityWeight { args["legibilityWeight"] = .string(legibilityWeight) }
-
-            let response = try await client.callToolStructured(
-                name: "preview_configure", arguments: args
-            )
-            if response.isError == true {
-                let text = response.content.joinedText()
-                throw DaemonToolError.daemonError(text)
-            }
-
-            // Surface the daemon's response (typically a summary of what
-            // changed) to the user.
-            let text = response.content.joinedText()
-            if !text.isEmpty { fputs("\(text)\n", stderr) }
+            try await execute(on: client)
         }
+    }
+
+    /// The daemon-relay body of `run()`, factored out so tests can call it
+    /// directly against a fake `DaemonToolCalling` without a real daemon
+    /// connection. Callers must have already validated the trait flags.
+    func execute(on client: any DaemonToolCalling) async throws {
+        let resolution = try await SessionResolver.resolve(
+            session: target.session,
+            file: target.file,
+            client: client
+        )
+
+        guard case let .found(sessionID) = resolution else {
+            throw ValidationError(
+                "No session found to configure. Start one with "
+                    + "`previewsmcp run <file> --detach` or pass an explicit "
+                    + "--session <uuid>."
+            )
+        }
+
+        var args: [String: Value] = ["sessionID": .string(sessionID)]
+        if let colorScheme { args["colorScheme"] = .string(colorScheme) }
+        if let dynamicTypeSize { args["dynamicTypeSize"] = .string(dynamicTypeSize) }
+        if let locale { args["locale"] = .string(locale) }
+        if let layoutDirection { args["layoutDirection"] = .string(layoutDirection) }
+        if let legibilityWeight { args["legibilityWeight"] = .string(legibilityWeight) }
+
+        let response = try await client.callToolStructured(
+            name: "preview_configure", arguments: args
+        )
+        if response.isError == true {
+            let text = response.content.joinedText()
+            throw DaemonToolError.daemonError(text)
+        }
+
+        // Surface the daemon's response (typically a summary of what
+        // changed) to the user.
+        let text = response.content.joinedText()
+        if !text.isEmpty { fputs("\(text)\n", stderr) }
     }
 
     // MARK: - Helpers

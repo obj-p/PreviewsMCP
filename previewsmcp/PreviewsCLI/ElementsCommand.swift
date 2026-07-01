@@ -49,45 +49,52 @@ struct ElementsCommand: AsyncParsableCommand {
 
     mutating func run() async throws {
         try await DaemonClient.withDaemonClient(name: "previewsmcp-elements") { client in
-            let resolution = try await SessionResolver.resolve(
-                session: target.session,
-                file: target.file,
-                client: client
-            )
+            try await execute(on: client)
+        }
+    }
 
-            guard case let .found(sessionID) = resolution else {
-                throw ValidationError(
-                    "No session found. Start an iOS session with "
-                        + "`previewsmcp run <file> --platform ios --detach` or "
-                        + "pass an explicit --session <uuid>."
+    /// The daemon-relay body of `run()`, factored out so tests can call it
+    /// directly against a fake `DaemonToolCalling` without a real daemon
+    /// connection.
+    func execute(on client: any DaemonToolCalling) async throws {
+        let resolution = try await SessionResolver.resolve(
+            session: target.session,
+            file: target.file,
+            client: client
+        )
+
+        guard case let .found(sessionID) = resolution else {
+            throw ValidationError(
+                "No session found. Start an iOS session with "
+                    + "`previewsmcp run <file> --platform ios --detach` or "
+                    + "pass an explicit --session <uuid>."
+            )
+        }
+
+        let response = try await client.callToolStructured(
+            name: "preview_elements",
+            arguments: [
+                "sessionID": .string(sessionID),
+                "filter": .string(filter.rawValue),
+            ]
+        )
+        if response.isError == true {
+            throw DaemonToolError.daemonError(response.content.joinedText())
+        }
+
+        if json {
+            guard let structured = response.structuredContent else {
+                throw DaemonToolError.daemonError(
+                    "preview_elements response missing structuredContent"
                 )
             }
-
-            let response = try await client.callToolStructured(
-                name: "preview_elements",
-                arguments: [
-                    "sessionID": .string(sessionID),
-                    "filter": .string(filter.rawValue),
-                ]
-            )
-            if response.isError == true {
-                throw DaemonToolError.daemonError(response.content.joinedText())
-            }
-
-            if json {
-                guard let structured = response.structuredContent else {
-                    throw DaemonToolError.daemonError(
-                        "preview_elements response missing structuredContent"
-                    )
-                }
-                try emitJSON(structured)
-                return
-            }
-
-            // Default: write the bare accessibility tree JSON to stdout
-            // so existing scripts piping into `jq` keep working.
-            let text = response.content.joinedText()
-            if !text.isEmpty { print(text) }
+            try emitJSON(structured)
+            return
         }
+
+        // Default: write the bare accessibility tree JSON to stdout
+        // so existing scripts piping into `jq` keep working.
+        let text = response.content.joinedText()
+        if !text.isEmpty { print(text) }
     }
 }
