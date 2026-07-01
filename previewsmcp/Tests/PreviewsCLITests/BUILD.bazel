@@ -17,6 +17,9 @@ swift_test(
     visibility = ["//visibility:public"],
     deps = [
         "//previewsmcp/PreviewsCLI",
+        "//previewsmcp/PreviewsCore",
+        "//previewsmcp/PreviewsEngine",
+        "//previewsmcp/PreviewsMacOS",
         "@swiftpkg_swift_sdk//:MCP",
     ],
 )

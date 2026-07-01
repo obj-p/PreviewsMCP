@@ -20,7 +20,7 @@ import PreviewsMacOS
 /// knowledge and lets the iOS adapter own the manager-de-register hook
 /// in `stop()`, symmetric with the way macOS's `host.closePreview` does
 /// teardown and bookkeeping in one call.
-public actor SessionRouter {
+public actor SessionRouter: SessionRouting {
     private let host: PreviewHost
     private let iosManager: IOSSessionManager
 

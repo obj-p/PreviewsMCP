@@ -14,7 +14,7 @@ struct HandlerContext {
     let host: PreviewHost
     let iosState: IOSSessionManager
     let configCache: ConfigCache
-    let router: SessionRouter
+    let router: any SessionRouting
     let registry: SessionRegistry
     let macCompiler: Compiler
     let server: Server
