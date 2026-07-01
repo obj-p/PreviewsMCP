@@ -187,7 +187,7 @@ struct SnapshotCommand: AsyncParsableCommand {
     ///   `.jpg`/`.jpeg` → 0.85 default (JPEG). The daemon uses `quality >= 1.0`
     ///   as its PNG trigger.
     /// - Unknown extensions fall through to 0.85 (JPEG).
-    private func resolvedQuality() -> Double {
+    func resolvedQuality() -> Double {
         if let quality { return quality }
         let ext = (output as NSString).pathExtension.lowercased()
         switch ext {
@@ -199,7 +199,7 @@ struct SnapshotCommand: AsyncParsableCommand {
 
     /// Create an ephemeral session for the target file, capture, tear down.
     /// Trait flags are applied at start.
-    private func snapshotEphemeral(file: String, client: any DaemonToolCalling) async throws {
+    func snapshotEphemeral(file: String, client: any DaemonToolCalling) async throws {
         // `file` is canonicalized at the argument boundary. The absolute
         // path is sent to the daemon, which runs in its own process and
         // does not share our CWD; the daemon re-normalizes on receipt for
