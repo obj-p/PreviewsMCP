@@ -223,48 +223,11 @@ struct SnapshotCommandTests {
         }
     }
 
-    @Test("Snapshot with invalid --dynamic-type-size returns non-zero exit")
-    func snapshotInvalidDynamicTypeSize() async throws {
-        try await DaemonTestLock.run {
-            try await Self.cleanSlate()
-            let tempDir = try CLIRunner.makeTempDir()
-            defer { try? FileManager.default.removeItem(at: tempDir) }
-
-            let outputPath = tempDir.appendingPathComponent("bad.png").path
-            let file = CLIRunner.spmExampleRoot
-                .appendingPathComponent("Sources/ToDo/ToDoView.swift").path
-
-            let result = try await CLIRunner.run(
-                "snapshot",
-                arguments: [
-                    file, "-o", outputPath, "--dynamic-type-size", "bananas",
-                    "--project", CLIRunner.spmExampleRoot.path,
-                ]
-            )
-
-            #expect(result.exitCode != 0, "Should fail with invalid dynamic type size")
-        }
-    }
-
-    @Test("Snapshot of nonexistent file returns non-zero exit")
-    func snapshotNonexistentFile() async throws {
-        try await DaemonTestLock.run {
-            try await Self.cleanSlate()
-            let tempDir = try CLIRunner.makeTempDir()
-            defer { try? FileManager.default.removeItem(at: tempDir) }
-
-            let outputPath = tempDir.appendingPathComponent("bad.png").path
-
-            let result = try await CLIRunner.run(
-                "snapshot",
-                arguments: [
-                    "/nonexistent/file.swift", "-o", outputPath,
-                ]
-            )
-
-            #expect(result.exitCode != 0, "Should fail with nonexistent file")
-        }
-    }
+    // Local (pre-daemon) validation — invalid --dynamic-type-size, nonexistent
+    // file — moved to PreviewsCLITests/CLIValidationTests.swift, which invokes
+    // SnapshotCommand in-process instead of spawning a subprocess + daemon.
+    // snapshotInvalidPreviewIndex stays here: --preview's range isn't checked
+    // locally, only after the daemon compiles the session.
 
     // MARK: - Build system tests (gated)
 

@@ -8,15 +8,9 @@ struct SwitchCommandTests {
         _ = try? await CLIRunner.run("kill-daemon", arguments: ["--timeout", "2"])
     }
 
-    @Test("switch with negative index fails locally")
-    func switchRejectsNegativeIndex() async throws {
-        try await DaemonTestLock.run {
-            try await Self.cleanSlate()
-            let result = try await CLIRunner.run("switch", arguments: ["--", "-1"])
-            #expect(result.exitCode != 0)
-            #expect(result.stderr.contains("non-negative"))
-        }
-    }
+    // Local (pre-daemon) negative-index validation moved to
+    // PreviewsCLITests/CLIValidationTests.swift, which invokes SwitchCommand
+    // in-process instead of spawning a subprocess + daemon.
 
     @Test("switch errors when no session is running")
     func switchNoSession() async throws {
