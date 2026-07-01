@@ -35,28 +35,35 @@ struct SimulatorsCommand: AsyncParsableCommand {
 
     mutating func run() async throws {
         try await DaemonClient.withDaemonClient(name: "previewsmcp-simulators") { client in
-            let response = try await client.callToolStructured(
-                name: "simulator_list", arguments: [:]
-            )
-            if response.isError == true {
-                throw DaemonToolError.daemonError(response.content.joinedText())
-            }
-
-            if json {
-                guard let structured = response.structuredContent else {
-                    throw DaemonToolError.daemonError(
-                        "simulator_list response missing structuredContent"
-                    )
-                }
-                try emitJSON(structured)
-                return
-            }
-
-            // Unlike elements (where empty stdout is plausible),
-            // `simulator_list` always returns either device lines or the
-            // sentinel "No available simulator devices found." — so
-            // always surface the daemon's reply verbatim.
-            print(response.content.joinedText())
+            try await execute(on: client)
         }
+    }
+
+    /// The daemon-relay body of `run()`, factored out so tests can call it
+    /// directly against a fake `DaemonToolCalling` without a real daemon
+    /// connection.
+    func execute(on client: any DaemonToolCalling) async throws {
+        let response = try await client.callToolStructured(
+            name: "simulator_list", arguments: [:]
+        )
+        if response.isError == true {
+            throw DaemonToolError.daemonError(response.content.joinedText())
+        }
+
+        if json {
+            guard let structured = response.structuredContent else {
+                throw DaemonToolError.daemonError(
+                    "simulator_list response missing structuredContent"
+                )
+            }
+            try emitJSON(structured)
+            return
+        }
+
+        // Unlike elements (where empty stdout is plausible),
+        // `simulator_list` always returns either device lines or the
+        // sentinel "No available simulator devices found." — so
+        // always surface the daemon's reply verbatim.
+        print(response.content.joinedText())
     }
 }
