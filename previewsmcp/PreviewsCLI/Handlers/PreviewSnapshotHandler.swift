@@ -1,5 +1,6 @@
 import Foundation
 import MCP
+import PreviewsCore
 
 enum PreviewSnapshotHandler: ToolHandler {
     static let name: ToolName = .previewSnapshot
@@ -47,6 +48,7 @@ enum PreviewSnapshotHandler: ToolHandler {
         }
 
         let imageData = try await handle.snapshot(quality: quality)
+        Log.info("snap: captured \(imageData.count) bytes")
         let base64 = imageData.base64EncodedString()
 
         return CallTool.Result(content: [

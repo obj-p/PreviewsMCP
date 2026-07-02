@@ -757,6 +757,7 @@ public actor IOSPreviewSession {
             // Ride over brief surface gaps (e.g. the agent respawn the OS forces
             // periodically) before conceding to the load-racing one-shot path.
             for attempt in 0 ..< 3 {
+                Log.info("iosSnap: cache miss — captureFresh attempt \(attempt + 1)/3")
                 if let frame = await source.captureFresh(jpegQuality: jpegQuality) {
                     return frame
                 }
@@ -765,6 +766,7 @@ public actor IOSPreviewSession {
                 }
             }
         }
+        Log.info("iosSnap: falling back to one-shot capture")
         return try await simulatorManager.screenshotData(udid: deviceUDID, jpegQuality: jpegQuality)
     }
 

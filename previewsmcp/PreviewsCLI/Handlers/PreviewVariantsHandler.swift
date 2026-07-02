@@ -102,6 +102,7 @@ enum PreviewVariantsHandler: ToolHandler {
                     message: "Capturing variant \(index + 1)/\(resolved.count) \"\(variant.label)\"..."
                 )
                 let imageData = try await handle.snapshot(quality: quality)
+                Log.info("variants: [\(index)] captured \(imageData.count) bytes")
                 let base64 = imageData.base64EncodedString()
                 contentBlocks.append(.text("[\(index)] \(variant.label):"))
                 contentBlocks.append(.image(data: base64, mimeType: mimeType, metadata: nil))

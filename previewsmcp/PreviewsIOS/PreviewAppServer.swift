@@ -1,5 +1,6 @@
 import Foundation
 import Network
+import PreviewsCore
 
 /// Per-session app interface bound to loopback. This is the surface the streamed
 /// MCP app (and a browser) connect to, separate from the agent MCP tools and the
@@ -72,6 +73,9 @@ public final class PreviewAppServer: @unchecked Sendable {
 
     public func stop() {
         queue.sync {
+            if !streamTasks.isEmpty {
+                Log.info("appserver: stop() cancelling \(streamTasks.count) live stream task(s)")
+            }
             streamTasks.values.forEach { $0.cancel() }
             streamTasks.removeAll()
             connections.forEach { $0.cancel() }
@@ -91,7 +95,15 @@ public final class PreviewAppServer: @unchecked Sendable {
             case .cancelled, .failed:
                 queue.async {
                     let key = ObjectIdentifier(connection)
-                    self.streamTasks[key]?.cancel()
+                    if let task = self.streamTasks[key] {
+                        // A dropped STREAM connection is the #320 flake
+                        // trigger, so it must be visible in serve.log;
+                        // one-shot request closes are routine and stay quiet.
+                        Log.warn(
+                            "appserver: stream connection \(Self.shortID(connection)) reached \(state) — cancelling its stream task"
+                        )
+                        task.cancel()
+                    }
                     self.streamTasks[key] = nil
                     self.connections.removeAll { $0 === connection }
                 }
@@ -101,6 +113,10 @@ public final class PreviewAppServer: @unchecked Sendable {
         }
         connection.start(queue: queue)
         receive(connection, buffer: Data())
+    }
+
+    private static func shortID(_ connection: NWConnection) -> String {
+        String(UInt(bitPattern: ObjectIdentifier(connection).hashValue) & 0xFFFF, radix: 16)
     }
 
     private func receive(_ connection: NWConnection, buffer: Data) {
@@ -214,12 +230,14 @@ public final class PreviewAppServer: @unchecked Sendable {
 
     private func stream(_ connection: NWConnection, source: any FrameSource) {
         let intervalMS = streamIntervalMS
+        let cid = Self.shortID(connection)
         let task = Task { [weak self] in
             guard let self else { return }
             let head =
                 "HTTP/1.1 200 OK\r\n"
                     + "Content-Type: multipart/x-mixed-replace; boundary=frame\r\n"
                     + "Cache-Control: no-cache\r\nConnection: close\r\n\r\n"
+            var frames = 0
             do {
                 try await send(connection, Data(head.utf8))
                 while true {
@@ -234,13 +252,27 @@ public final class PreviewAppServer: @unchecked Sendable {
                     part.append(jpeg)
                     part.append(contentsOf: [0x0D, 0x0A])
                     try await send(connection, part)
+                    frames += 1
+                    if frames == 1 {
+                        Log.info("appserver: mjpeg \(cid) first frame sent (\(jpeg.count) bytes)")
+                    }
                     try await Task.sleep(for: .milliseconds(intervalMS))
                 }
             } catch {
+                // The visible face of the #320 flake: whatever lands here kills
+                // the stream a client may still be awaiting.
+                Log.warn(
+                    "appserver: mjpeg \(cid) stream ended after \(frames) frame(s) — \(Self.describe(error))"
+                )
                 connection.cancel()
             }
         }
         queue.async { self.streamTasks[ObjectIdentifier(connection)] = task }
+    }
+
+    private static func describe(_ error: Error) -> String {
+        if error is CancellationError { return "cancelled (task)" }
+        return String(describing: error)
     }
 
     // MARK: - H.264 (avcC) stream
@@ -269,6 +301,9 @@ public final class PreviewAppServer: @unchecked Sendable {
                     try await Task.sleep(for: .seconds(30))
                 }
             } catch {
+                Log.warn(
+                    "appserver: avcc \(Self.shortID(connection)) stream ended — \(Self.describe(error))"
+                )
                 video.removeSubscriber(id)
                 connection.cancel()
             }
