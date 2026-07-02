@@ -1,5 +1,6 @@
 import Foundation
 import MCP
+import PreviewsCore
 
 enum PreviewSnapshotHandler: ToolHandler {
     static let name: ToolName = .previewSnapshot
@@ -35,10 +36,16 @@ enum PreviewSnapshotHandler: ToolHandler {
             return CallTool.Result(content: [.text(error.localizedDescription)], isError: true)
         }
 
+        // Hop-level markers for the #320 callTool-stall face: the SDK logs
+        // "mcp: callTool preview_snapshot" and then a stalled call produces
+        // no response and no further output — the last marker present in
+        // serve.log names the hop that never returned.
+        Log.info("snap: enter session=\(sessionID.prefix(8))")
         let configQuality = await configQualityForSession(sessionID, ctx: ctx)
         let quality = max(0.0, min(1.0, extractOptionalDouble("quality", from: params) ?? configQuality ?? 0.85))
         let mimeType = quality >= 1.0 ? "image/png" : "image/jpeg"
 
+        Log.info("snap: routing")
         guard let handle = await ctx.router.handle(for: sessionID) else {
             return CallTool.Result(
                 content: [.text("No session found for \(sessionID).")],
@@ -46,7 +53,9 @@ enum PreviewSnapshotHandler: ToolHandler {
             )
         }
 
+        Log.info("snap: capturing")
         let imageData = try await handle.snapshot(quality: quality)
+        Log.info("snap: captured \(imageData.count) bytes")
         let base64 = imageData.base64EncodedString()
 
         return CallTool.Result(content: [

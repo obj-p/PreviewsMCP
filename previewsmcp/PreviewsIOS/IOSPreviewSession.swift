@@ -743,6 +743,9 @@ public actor IOSPreviewSession {
     /// (its cold port enumeration races display attach under load). Falls back
     /// to the one-shot capture when no streamer surface is wired yet.
     public func screenshot(jpegQuality: Double = 0.85) async throws -> Data {
+        // #320 hop marker: this line printing proves the call reached the
+        // session actor (i.e. was not queued behind another actor method).
+        Log.info("iosSnap: enter")
         if let source = appFrameSource {
             // Default-quality snapshots read the streamer's last cached frame
             // directly. The event-driven stream already encoded it, so it is
@@ -757,6 +760,7 @@ public actor IOSPreviewSession {
             // Ride over brief surface gaps (e.g. the agent respawn the OS forces
             // periodically) before conceding to the load-racing one-shot path.
             for attempt in 0 ..< 3 {
+                Log.info("iosSnap: cache miss — captureFresh attempt \(attempt + 1)/3")
                 if let frame = await source.captureFresh(jpegQuality: jpegQuality) {
                     return frame
                 }
@@ -765,6 +769,7 @@ public actor IOSPreviewSession {
                 }
             }
         }
+        Log.info("iosSnap: falling back to one-shot capture")
         return try await simulatorManager.screenshotData(udid: deviceUDID, jpegQuality: jpegQuality)
     }
 

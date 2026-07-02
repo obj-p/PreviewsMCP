@@ -92,16 +92,24 @@ enum PreviewVariantsHandler: ToolHandler {
 
         for (index, variant) in resolved.enumerated() {
             do {
+                // Same hop markers as PreviewSnapshotHandler (#320): the last
+                // marker in serve.log names the hop a stalled call died in.
+                Log.info("variants: [\(index)] report(compiling)")
                 await progress.report(
                     .compilingBridge, message: "Recompiling for variant \"\(variant.label)\"..."
                 )
+                Log.info("variants: [\(index)] setTraits")
                 try await handle.setTraits(variant.traits)
+                Log.info("variants: [\(index)] settle")
                 await handle.awaitLayoutSettle()
+                Log.info("variants: [\(index)] report(capturing)")
                 await progress.report(
                     .capturingSnapshot,
                     message: "Capturing variant \(index + 1)/\(resolved.count) \"\(variant.label)\"..."
                 )
+                Log.info("variants: [\(index)] snapshot")
                 let imageData = try await handle.snapshot(quality: quality)
+                Log.info("variants: [\(index)] captured \(imageData.count) bytes")
                 let base64 = imageData.base64EncodedString()
                 contentBlocks.append(.text("[\(index)] \(variant.label):"))
                 contentBlocks.append(.image(data: base64, mimeType: mimeType, metadata: nil))
