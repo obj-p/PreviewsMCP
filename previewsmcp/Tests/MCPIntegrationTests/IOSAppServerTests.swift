@@ -1,5 +1,6 @@
 import Foundation
 import MCP
+import os
 import PreviewsIOS
 import Testing
 
@@ -125,13 +126,15 @@ private func readStreamSample(port: Int, limit: Int) async throws -> Data {
     let contentType = (response as? HTTPURLResponse)?.value(forHTTPHeaderField: "Content-Type") ?? ""
     #expect(contentType.contains("multipart/x-mixed-replace"), "stream should be MJPEG multipart")
 
-    var buffer = Data()
-    let deadline = ContinuousClock.now + .seconds(10)
-    for try await byte in bytes {
-        buffer.append(byte)
-        if buffer.count >= limit || ContinuousClock.now >= deadline { break }
+    let buffer = OSAllocatedUnfairLock(initialState: Data())
+    try await boundedRead(bytes, deadline: .seconds(10)) { byte in
+        let count = buffer.withLock {
+            $0.append(byte)
+            return $0.count
+        }
+        return count < limit
     }
-    return buffer
+    return buffer.withLock { $0 }
 }
 
 /// Read the length-prefixed `/stream.avcc` envelope stream and collect the chunk
@@ -139,7 +142,8 @@ private func readStreamSample(port: Int, limit: Int) async throws -> Data {
 /// registered by then) to drive a screen change so an IDR is produced. Returns
 /// when every tag in `need` has been seen or `timeout` elapses.
 private func readAVCCTags(
-    port: Int, need: Set<UInt8>, timeout: Duration, onConnected: @escaping () async -> Void
+    port: Int, need: Set<UInt8>, timeout: Duration,
+    onConnected: @escaping @Sendable () async -> Void
 ) async throws -> Set<UInt8> {
     var request = URLRequest(url: URL(string: "http://127.0.0.1:\(port)/stream.avcc")!)
     request.timeoutInterval = 25
@@ -147,26 +151,99 @@ private func readAVCCTags(
     let contentType = (response as? HTTPURLResponse)?.value(forHTTPHeaderField: "Content-Type") ?? ""
     #expect(contentType.contains("application/octet-stream"), "avcc stream should be octet-stream")
 
-    var buffer = [UInt8]()
-    var offset = 0
-    var seen = Set<UInt8>()
-    var triggered = false
-    let deadline = ContinuousClock.now + timeout
-    for try await byte in bytes {
-        if !triggered {
-            triggered = true
+    struct Parse {
+        var buffer = [UInt8]()
+        var offset = 0
+        var seen = Set<UInt8>()
+        var connected = false
+    }
+    let state = OSAllocatedUnfairLock(initialState: Parse())
+    try await boundedRead(bytes, deadline: timeout) { byte in
+        let fireConnect = state.withLock { parse -> Bool in
+            if parse.connected { return false }
+            parse.connected = true
+            return true
+        }
+        if fireConnect {
             await onConnected()
         }
-        buffer.append(byte)
-        while buffer.count - offset >= 4 {
-            let length =
-                Int(buffer[offset]) << 24 | Int(buffer[offset + 1]) << 16
-                    | Int(buffer[offset + 2]) << 8 | Int(buffer[offset + 3])
-            guard buffer.count - offset >= 4 + length else { break }
-            seen.insert(buffer[offset + 4])
-            offset += 4 + length
+        return state.withLock { parse in
+            parse.buffer.append(byte)
+            while parse.buffer.count - parse.offset >= 4 {
+                let length =
+                    Int(parse.buffer[parse.offset]) << 24 | Int(parse.buffer[parse.offset + 1]) << 16
+                        | Int(parse.buffer[parse.offset + 2]) << 8 | Int(parse.buffer[parse.offset + 3])
+                guard parse.buffer.count - parse.offset >= 4 + length else { break }
+                parse.seen.insert(parse.buffer[parse.offset + 4])
+                parse.offset += 4 + length
+            }
+            return !need.isSubset(of: parse.seen)
         }
-        if need.isSubset(of: seen) || ContinuousClock.now >= deadline { break }
     }
-    return seen
+    return state.withLock { $0.seen }
+}
+
+/// Feed `bytes` to `consume` until it returns false or `deadline` elapses,
+/// then return; rethrows genuine stream errors. The deadline must bound the
+/// await itself, not just the loop body: when the app server drops the
+/// connection without URLSession surfacing it (observed: server-side drop
+/// right after headers → zero body bytes → socket gone, iterator never
+/// resumes), an in-body deadline check is unreachable and the test hangs
+/// holding DaemonTestLock until its `.timeLimit` — queued suites then blow
+/// their own limits as collateral.
+///
+/// The outer await must never structurally depend on the reader resuming.
+/// Two weaker designs were disproven by thread-sampling recurred wedges:
+/// cooperative `Task.cancel()` does not resume an iterator parked inside
+/// `AsyncBytes.Iterator.next()`, and even `bytes.task.cancel()` leaves the
+/// continuation unresumed when the transfer is already dead underneath
+/// (`reloadBufferAndNext()` parked with no completion left to deliver). So
+/// the deadline path races the reader via a once-guarded continuation and,
+/// after a short grace for the cancels to land, abandons it — leaking one
+/// suspended task and its dead connection for the remaining test-process
+/// lifetime, which is bounded and harmless. The caller's assertions on
+/// whatever partial data arrived produce the attributable failure.
+private func boundedRead(
+    _ bytes: URLSession.AsyncBytes,
+    deadline: Duration,
+    consume: @escaping @Sendable (UInt8) async -> Bool
+) async throws {
+    let reader = Task {
+        for try await byte in bytes {
+            guard await consume(byte) else { break }
+        }
+    }
+    let resumed = OSAllocatedUnfairLock(initialState: false)
+    func claimResume() -> Bool {
+        resumed.withLock { done in
+            if done { return false }
+            done = true
+            return true
+        }
+    }
+    do {
+        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
+            Task {
+                let result: Result<Void, Error>
+                do {
+                    try await reader.value
+                    result = .success(())
+                } catch {
+                    result = .failure(error)
+                }
+                if claimResume() { cont.resume(with: result) }
+            }
+            Task {
+                try? await Task.sleep(for: deadline)
+                bytes.task.cancel()
+                reader.cancel()
+                try? await Task.sleep(for: .seconds(2))
+                if claimResume() { cont.resume(returning: ()) }
+            }
+        }
+    } catch is CancellationError {
+        // Deadline: the caller inspects what arrived.
+    } catch let error as URLError where error.code == .cancelled {
+        // Same, surfaced through URLSession instead.
+    }
 }
