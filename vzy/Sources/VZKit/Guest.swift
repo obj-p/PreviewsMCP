@@ -93,9 +93,11 @@ public struct Guest: Sendable {
         "'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'"
     }
 
-    /// Boot `bundle`, wait for SSH, hand a connected `Guest` to `body`, then
-    /// shut the VM down. On a thrown body the VM is force-stopped; on success
-    /// it is asked to stop gracefully and force-stopped if that times out.
+    /// Boot `bundle`, wait for SSH, hand a connected `Guest` to `body`, then stop
+    /// the VM. Any failure after the VM starts — a setup-phase timeout, a pid-file
+    /// write error, or a thrown `body` — stops it too. The pid file is cleared only
+    /// once the VM is confirmed `.stopped`, so a stop that never confirms leaves a
+    /// record for the caller's stale-VM reaper instead of a silently orphaned VM.
     public static func session(
         bundle: VMBundle,
         adminPass: String,
@@ -108,31 +110,42 @@ public struct Guest: Sendable {
     ) async throws {
         let host = try await MainActor.run { try VMHost(bundle: bundle, share: share) }
         try await host.start()
-        try VMPidFile.write(getpid(), to: bundle)
-        defer { VMPidFile.clear(bundle) }
-        let ip = try await host.waitForIP(timeout: bootTimeout)
-        let endpoint = VMSSH.endpoint(bundle: bundle, host: ip)
-        Log.info("waiting for SSH at \(endpoint.user)@\(ip)")
-        try await VMSSH.waitForReady(endpoint: endpoint, timeout: sshTimeout)
-        if let mountAt, share != nil {
-            try await VMSSH.mountShare(endpoint: endpoint, guestPath: mountAt)
+
+        func stopVM() async {
+            var stopped = false
+            do {
+                try await host.requestStop()
+                try await host.waitForStop(timeout: stopTimeout)
+                stopped = true
+            } catch {
+                Log.info("graceful shutdown failed; force-stopping")
+                try? await host.forceStop()
+                stopped = (try? await host.waitForStop(timeout: stopTimeout)) != nil
+            }
+            if stopped {
+                VMPidFile.clear(bundle)
+            } else {
+                Log.info("VM not confirmed stopped; leaving pid file for the stale-VM reaper")
+            }
         }
 
-        let guest = Guest(endpoint: endpoint, adminPass: adminPass)
         do {
+            try VMPidFile.write(getpid(), to: bundle)
+            let ip = try await host.waitForIP(timeout: bootTimeout)
+            let endpoint = VMSSH.endpoint(bundle: bundle, host: ip)
+            Log.info("waiting for SSH at \(endpoint.user)@\(ip)")
+            try await VMSSH.waitForReady(endpoint: endpoint, timeout: sshTimeout)
+            if let mountAt, share != nil {
+                try await VMSSH.mountShare(endpoint: endpoint, guestPath: mountAt)
+            }
+            let guest = Guest(endpoint: endpoint, adminPass: adminPass)
             try await body(guest)
         } catch {
-            try? await host.forceStop()
+            await stopVM()
             throw error
         }
 
         Log.info("stopping guest")
-        do {
-            try await host.requestStop()
-            try await host.waitForStop(timeout: stopTimeout)
-        } catch {
-            Log.info("graceful shutdown timed out; force-stopping")
-            try? await host.forceStop()
-        }
+        await stopVM()
     }
 }

@@ -26,12 +26,12 @@ struct VZApp {
                 }
             }
             if command is SSHCommand {
-                runAsync()
+                _ = runAsync()
                 dispatchMain()
             } else {
                 let app = NSApplication.shared
                 app.setActivationPolicy(.accessory)
-                runAsync()
+                _ = runAsync()
                 app.run()
             }
         }

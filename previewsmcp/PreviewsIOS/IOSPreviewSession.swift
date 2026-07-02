@@ -744,6 +744,16 @@ public actor IOSPreviewSession {
     /// to the one-shot capture when no streamer surface is wired yet.
     public func screenshot(jpegQuality: Double = 0.85) async throws -> Data {
         if let source = appFrameSource {
+            // Default-quality snapshots read the streamer's last cached frame
+            // directly. The event-driven stream already encoded it, so it is
+            // non-blank, current within one display change, and — the point
+            // here — non-blocking: it never contends on the serial capture queue
+            // or the one-shot SBCaptureFramebuffer / simctl fallback. A
+            // PNG/lossless request (quality >= 1.0) can't reuse the JPEG cache,
+            // so it falls through to a fresh re-encode.
+            if jpegQuality < 1.0, let cached = await source.nextFrame() {
+                return cached
+            }
             // Ride over brief surface gaps (e.g. the agent respawn the OS forces
             // periodically) before conceding to the load-racing one-shot path.
             for attempt in 0 ..< 3 {

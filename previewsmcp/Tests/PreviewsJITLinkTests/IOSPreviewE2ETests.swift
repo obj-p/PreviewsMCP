@@ -595,7 +595,17 @@ struct IOSPreviewE2ETests {
         try edited.write(to: sourceFile, atomically: true, encoding: .utf8)
         try await session.handleSourceChange()
 
-        let after = try await session.fetchElements()
+        // Poll for the reload to land rather than reading once. handleSourceChange
+        // kicks off the literal re-seed/re-render asynchronously; under load (the
+        // full suite on a busy/thermally-throttled host) the new text appears a
+        // beat after the call returns, and a single fetchElements raced it.
+        var after = ""
+        let deadline = ContinuousClock.now + .seconds(30)
+        while ContinuousClock.now < deadline {
+            after = try await session.fetchElements()
+            if after.contains("Hello from literal edit!") { break }
+            try await Task.sleep(for: .milliseconds(200))
+        }
         #expect(after.contains("Hello from literal edit!"))
 
         let paths = recorderBox.get()?.objectPaths ?? []
@@ -1020,6 +1030,10 @@ enum IOSPreviewE2ESupport {
         // one. Live previews require iOS 26+ (#282), so a booted pre-26 device
         // (e.g. one left from the repro test) must not be picked here.
         if let booted = iPhoneUDID(state: "booted", whereMajor: { $0 >= 26 }) {
+            // Even an already-"booted" device can have its display port down
+            // (the #269 "device may not be booted or have no display" window),
+            // so settle before returning it for render/capture.
+            try waitForDisplayReady(udid: booted)
             return booted
         }
         guard let udid = iPhoneUDID(state: "available", whereMajor: { $0 >= 26 }) else {
@@ -1027,7 +1041,36 @@ enum IOSPreviewE2ESupport {
         }
         _ = try run("/usr/bin/xcrun", ["simctl", "boot", udid])
         _ = try run("/usr/bin/xcrun", ["simctl", "bootstatus", udid, "-b"])
+        try waitForDisplayReady(udid: udid)
         return udid
+    }
+
+    /// Wait until the simulator's display is up by polling `simctl io screenshot`
+    /// until it produces a non-empty PNG. `bootstatus -b` returns when SpringBoard
+    /// is up, but the display/IOSurface port can still be unattached for a moment
+    /// — rendering/capturing in that window yields the "device may not be booted
+    /// or have no display" IOSurface failures that rotated the e2e flake (#269).
+    /// Best-effort: on timeout we return rather than fail, so the test still runs
+    /// and surfaces a real render error if the display truly never came up.
+    static func waitForDisplayReady(udid: String, timeoutSeconds: Int = 30) throws {
+        let shot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-display-ready-\(udid).png")
+        defer { try? FileManager.default.removeItem(at: shot) }
+        let deadline = Date().addingTimeInterval(TimeInterval(timeoutSeconds))
+        while Date() < deadline {
+            try? FileManager.default.removeItem(at: shot)
+            let result = try? run(
+                "/usr/bin/xcrun", ["simctl", "io", udid, "screenshot", shot.path]
+            )
+            if result?.status == 0,
+               let size = try? FileManager.default
+               .attributesOfItem(atPath: shot.path)[.size] as? Int,
+               size > 0
+            {
+                return
+            }
+            Thread.sleep(forTimeInterval: 0.5)
+        }
     }
 
     /// First available iPhone on a runtime older than iOS 26, or nil. Used to gate

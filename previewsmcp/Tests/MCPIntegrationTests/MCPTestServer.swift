@@ -92,6 +92,13 @@ final class MCPTestServer: @unchecked Sendable {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: binaryPath)
         process.arguments = ["serve"]
+        // Export the per-run socket dir so the spawned daemon's production
+        // DaemonPaths resolves to it (#283). DaemonTestLock derives this from
+        // $TEST_TMPDIR when no explicit PREVIEWSMCP_SOCKET_DIR is set, giving
+        // each Bazel test target an isolated, auto-cleaned daemon socket.
+        var childEnv = ProcessInfo.processInfo.environment
+        childEnv["PREVIEWSMCP_SOCKET_DIR"] = DaemonTestLock.effectiveSocketDir
+        process.environment = childEnv
 
         let stdinPipe = Pipe()
         let stdoutPipe = Pipe()
@@ -531,7 +538,16 @@ final class MCPTestServer: @unchecked Sendable {
     /// Capture a snapshot and return its raw image bytes. Decodes via the existing
     /// `extractImageData` helper; ignores mimeType (JPEG/PNG differ naturally across
     /// quality settings, but byte equality is sufficient for change-detection).
-    func snapshotBytes(sessionID: String, timeout: Duration = .seconds(30)) async throws -> Data {
+    ///
+    /// The default budget must exceed the iOS product's worst-case snapshot
+    /// fallback. When the live streamer surface briefly drops (e.g. the OS
+    /// evicts and respawns the backgrounded iOS agent), `screenshot()` concedes
+    /// to the one-shot `SBCaptureFramebuffer` path, whose IOSurface retry budget
+    /// is ~33s (5×5s + 4×2s) before it even tries `simctl`. A 30s test timeout
+    /// fired mid-fallback and killed the server; 60s lets the fallback complete.
+    /// macOS snapshots return in well under a second, so the wider ceiling is
+    /// free for them.
+    func snapshotBytes(sessionID: String, timeout: Duration = .seconds(60)) async throws -> Data {
         let (content, isError) = try await callToolWithTimeout(
             name: "preview_snapshot",
             arguments: ["sessionID": .string(sessionID)],
@@ -554,12 +570,23 @@ final class MCPTestServer: @unchecked Sendable {
     ) async throws -> Data {
         let deadline = ContinuousClock.now + timeout
         while ContinuousClock.now < deadline {
-            let current = try await snapshotBytes(sessionID: sessionID)
+            let current = try await snapshotBytes(
+                sessionID: sessionID,
+                timeout: Self.remainingBudget(until: deadline)
+            )
             if current != baseline { return current }
             try await Task.sleep(for: .milliseconds(200))
         }
         Issue.record("Snapshot bytes did not change within \(timeout). Server stderr:\n\(stderrLog())")
         throw MCPTestError.timedOut(operation: "awaitSnapshotChange(sessionID: \(sessionID))", duration: timeout)
+    }
+
+    private static func remainingBudget(
+        until deadline: ContinuousClock.Instant
+    ) -> Duration {
+        let now = ContinuousClock.now
+        guard now < deadline else { return .milliseconds(1) }
+        return now.duration(to: deadline)
     }
 
     // MARK: - Timeout primitive

@@ -16,6 +16,11 @@ struct BuildInfoTests {
     /// strictly less than (or equal to) processStartTime.
     @Test("returns structured payload with stale=false on a fresh server")
     func freshServerNotStale() async throws {
+        // Serialize against the other suites — this spawns a daemon in the
+        // shared socket dir (see MacOSMCPTests.fullMacOSWorkflow).
+        let lock = try await DaemonTestLock.acquire()
+        defer { lock.release() }
+
         let server = try await MCPTestServer.start()
         defer { server.stop() }
 
@@ -49,6 +54,11 @@ struct BuildInfoTests {
     /// silently lying.
     @Test("reports stale=true after binary mtime is advanced post-spawn")
     func mtimeAdvanceMakesServerStale() async throws {
+        // Serialize against the other suites — this spawns a daemon in the
+        // shared socket dir (see MacOSMCPTests.fullMacOSWorkflow).
+        let lock = try await DaemonTestLock.acquire()
+        defer { lock.release() }
+
         let server = try await MCPTestServer.start()
         defer { server.stop() }
 

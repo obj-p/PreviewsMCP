@@ -35,6 +35,9 @@ struct VersionHandshakeTests {
 
         var env = ProcessInfo.processInfo.environment
         env["_PREVIEWSMCP_TEST_DAEMON_VERSION"] = version
+        // Pin the per-run socket dir so this manually-spawned daemon and the
+        // CLIRunner-spawned probes/clients resolve the same socket (#283).
+        env["PREVIEWSMCP_SOCKET_DIR"] = DaemonTestLock.effectiveSocketDir
         proc.environment = env
 
         try proc.run()
@@ -86,11 +89,7 @@ struct VersionHandshakeTests {
     }
 
     private static var daemonDirectory: URL {
-        if let override = ProcessInfo.processInfo.environment["PREVIEWSMCP_SOCKET_DIR"] {
-            return URL(fileURLWithPath: override, isDirectory: true)
-        }
-        return FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".previewsmcp", isDirectory: true)
+        URL(fileURLWithPath: DaemonTestLock.effectiveSocketDir, isDirectory: true)
     }
 
     // MARK: - Tests
