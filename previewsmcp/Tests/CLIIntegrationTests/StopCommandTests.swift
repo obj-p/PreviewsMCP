@@ -43,35 +43,11 @@ struct StopCommandTests {
         }
     }
 
-    // MARK: - No-session paths
-
-    @Test("stop errors when no session is running")
-    func stopNoSession() async throws {
-        try await DaemonTestLock.run {
-            try await Self.cleanSlate()
-
-            let result = try await CLIRunner.run("stop")
-            #expect(result.exitCode != 0)
-            #expect(
-                result.stderr.contains("No session found to stop"),
-                "stderr: \(result.stderr)"
-            )
-        }
-    }
-
-    @Test("stop --all on an empty daemon is a no-op success")
-    func stopAllWithNoSessions() async throws {
-        try await DaemonTestLock.run {
-            try await Self.cleanSlate()
-
-            let result = try await CLIRunner.run("stop", arguments: ["--all"])
-            #expect(result.exitCode == 0, "stderr: \(result.stderr)")
-            #expect(
-                result.stderr.contains("No active sessions to stop"),
-                "stderr: \(result.stderr)"
-            )
-        }
-    }
+    // "stop errors when no session is running" and "stop --all on an empty
+    // daemon is a no-op success" moved to PreviewsCLITests/
+    // StopCommandLogicTests.swift, which invokes StopCommand.stopOne(client:)
+    // / .stopAll(client:) against a FakeDaemonClient instead of spawning a
+    // subprocess + daemon.
 
     // MARK: - Happy paths
 

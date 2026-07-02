@@ -46,7 +46,10 @@ struct StopCommand: AsyncParsableCommand {
         }
     }
 
-    private func stopOne(client: any DaemonToolCalling) async throws {
+    /// The daemon-relay body for stopping a single session, factored out so
+    /// tests can call it directly against a fake `DaemonToolCalling`
+    /// without a real daemon connection.
+    func stopOne(client: any DaemonToolCalling) async throws {
         let resolution = try await SessionResolver.resolve(
             session: target.session,
             file: target.file,
@@ -64,7 +67,12 @@ struct StopCommand: AsyncParsableCommand {
         try await sendStop(sessionID: sessionID, client: client)
     }
 
-    private func stopAll(client: any DaemonToolCalling) async throws {
+    /// The daemon-relay body for `--all`, factored out so tests can call it
+    /// directly against a fake `DaemonToolCalling` without a real daemon
+    /// connection. Sweeps every active session, stopping each in turn; one
+    /// session's failure doesn't stop the sweep, but the first failure is
+    /// still thrown once the sweep completes.
+    func stopAll(client: any DaemonToolCalling) async throws {
         let response = try await client.callToolStructured(name: "session_list", arguments: [:])
         if response.isError == true {
             throw DaemonToolError.daemonError(response.content.joinedText())

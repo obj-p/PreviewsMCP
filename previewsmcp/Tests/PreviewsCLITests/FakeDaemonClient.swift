@@ -3,20 +3,28 @@ import MCP
 @testable import PreviewsCLI
 import Testing
 
-/// Test double for `DaemonToolCalling`. Scripted with one canned
-/// `CallTool.Result` per tool name — no socket, no spawned daemon. Records
+/// Test double for `DaemonToolCalling`. Scripted with canned
+/// `CallTool.Result`s per tool name — no socket, no spawned daemon. Records
 /// every call so tests can assert on what a command actually sent.
 ///
-/// One response per tool name only: a command that calls the same tool name
-/// more than once per `execute` (e.g. `StopCommand.stopAll`'s per-session
-/// `preview_stop` loop) can't yet script distinct results per call. Extend
-/// `responses` to a per-name queue if a future conversion needs that.
+/// Two ways to script a tool name: `responses` for a single repeatable
+/// result (the common case), and `sequences` for a command that calls the
+/// same tool name more than once per `execute` and needs a distinct result
+/// per call (e.g. `StopCommand.stopAll`'s per-session `preview_stop` loop —
+/// one session fails, the rest still get stopped). A tool name present in
+/// `sequences` is popped FIFO on each call; once exhausted, falls back to
+/// `responses`.
 final class FakeDaemonClient: DaemonToolCalling, @unchecked Sendable {
     private let responses: [String: CallTool.Result]
+    private var sequences: [String: [CallTool.Result]]
     private(set) var calls: [(name: String, arguments: [String: Value]?)] = []
 
-    init(responses: [String: CallTool.Result] = [:]) {
+    init(
+        responses: [String: CallTool.Result] = [:],
+        sequences: [String: [CallTool.Result]] = [:]
+    ) {
         self.responses = responses
+        self.sequences = sequences
     }
 
     func callToolStructured(
@@ -24,6 +32,11 @@ final class FakeDaemonClient: DaemonToolCalling, @unchecked Sendable {
         arguments: [String: Value]?
     ) async throws -> CallTool.Result {
         calls.append((name, arguments))
+        if var queue = sequences[name], !queue.isEmpty {
+            let result = queue.removeFirst()
+            sequences[name] = queue
+            return result
+        }
         guard let result = responses[name] else {
             throw FakeDaemonClientError.noCannedResponse(name)
         }
@@ -51,6 +64,13 @@ extension CallTool.Result {
     /// tab-delimited format (`<sessionID>\t<platform>\t<sourceFilePath>`).
     static let foundSession = CallTool.Result(
         content: [.text("test-session\tmacos\t/tmp/previewsmcp-logic-test.swift")]
+    )
+
+    /// A `session_list` response with two active sessions ("session-a",
+    /// "session-b"), for commands that sweep every session (e.g.
+    /// `StopCommand.stopAll`).
+    static let twoSessions = CallTool.Result(
+        content: [.text("session-a\tmacos\t/tmp/a.swift\nsession-b\tios\t/tmp/b.swift")]
     )
 
     /// A daemon-reported tool error — `isError == true` with a message.
