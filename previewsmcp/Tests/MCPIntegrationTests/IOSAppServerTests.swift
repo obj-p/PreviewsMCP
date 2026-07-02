@@ -119,10 +119,22 @@ struct IOSAppServerTests {
 /// Read a bounded sample of an MJPEG stream, asserting the multipart content
 /// type. URLSession unwraps multipart/x-mixed-replace and delivers the JPEG
 /// part bodies without the boundary.
+///
+/// Uses a fresh single-use session, NOT `URLSession.shared`: these helpers
+/// abandon their response mid-body (the server is still streaming when the
+/// sample completes), and a shared session's connection pool can hand the
+/// dying connection to the next request against the same host:port — caught
+/// live as `NSURLErrorDomain Code=-1` on the follow-up `/stream.avcc` request
+/// ~50ms after a successful mjpeg sample (#320: daemon log showed the stream
+/// healthy, first frame sent, no server-side error). A fresh session has an
+/// empty pool, so nothing poisoned can be reused; `invalidateAndCancel()`
+/// tears the abandoned connection down with the session.
 private func readStreamSample(port: Int, limit: Int) async throws -> Data {
+    let session = URLSession(configuration: .ephemeral)
+    defer { session.invalidateAndCancel() }
     var request = URLRequest(url: URL(string: "http://127.0.0.1:\(port)/stream.mjpeg")!)
     request.timeoutInterval = 15
-    let (bytes, response) = try await URLSession.shared.bytes(for: request)
+    let (bytes, response) = try await session.bytes(for: request)
     let contentType = (response as? HTTPURLResponse)?.value(forHTTPHeaderField: "Content-Type") ?? ""
     #expect(contentType.contains("multipart/x-mixed-replace"), "stream should be MJPEG multipart")
 
@@ -141,13 +153,17 @@ private func readStreamSample(port: Int, limit: Int) async throws -> Data {
 /// tags seen. `onConnected` runs once the first byte arrives (the subscriber is
 /// registered by then) to drive a screen change so an IDR is produced. Returns
 /// when every tag in `need` has been seen or `timeout` elapses.
+///
+/// Fresh single-use session for the same reason as `readStreamSample`.
 private func readAVCCTags(
     port: Int, need: Set<UInt8>, timeout: Duration,
     onConnected: @escaping @Sendable () async -> Void
 ) async throws -> Set<UInt8> {
+    let session = URLSession(configuration: .ephemeral)
+    defer { session.invalidateAndCancel() }
     var request = URLRequest(url: URL(string: "http://127.0.0.1:\(port)/stream.avcc")!)
     request.timeoutInterval = 25
-    let (bytes, response) = try await URLSession.shared.bytes(for: request)
+    let (bytes, response) = try await session.bytes(for: request)
     let contentType = (response as? HTTPURLResponse)?.value(forHTTPHeaderField: "Content-Type") ?? ""
     #expect(contentType.contains("application/octet-stream"), "avcc stream should be octet-stream")
 
