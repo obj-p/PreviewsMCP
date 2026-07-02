@@ -21,4 +21,17 @@ struct SwitchCommandLogicTests {
 
         #expect(client.calls.map(\.name) == ["session_list"])
     }
+
+    @Test("switch surfaces a daemon-reported tool error")
+    func switchDaemonError() async throws {
+        let command = try SwitchCommand.parse(["0"])
+        let client = FakeDaemonClient(responses: [
+            "session_list": .foundSession,
+            "preview_switch": .daemonError("preview index out of range"),
+        ])
+
+        await expectDaemonToolError(contains: "preview index out of range") {
+            try await command.execute(on: client)
+        }
+    }
 }

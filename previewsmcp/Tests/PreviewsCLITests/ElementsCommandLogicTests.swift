@@ -20,4 +20,30 @@ struct ElementsCommandLogicTests {
 
         #expect(client.calls.map(\.name) == ["session_list"])
     }
+
+    @Test("elements surfaces a daemon-reported tool error")
+    func elementsDaemonError() async throws {
+        let command = try ElementsCommand.parse([])
+        let client = FakeDaemonClient(responses: [
+            "session_list": .foundSession,
+            "preview_elements": .daemonError("only available for iOS simulator previews"),
+        ])
+
+        await expectDaemonToolError(contains: "only available for iOS simulator previews") {
+            try await command.execute(on: client)
+        }
+    }
+
+    @Test("elements --json errors when the response has no structuredContent")
+    func elementsJSONMissingStructuredContent() async throws {
+        let command = try ElementsCommand.parse(["--json"])
+        let client = FakeDaemonClient(responses: [
+            "session_list": .foundSession,
+            "preview_elements": CallTool.Result(content: [.text("[]")]),
+        ])
+
+        await expectDaemonToolError(contains: "missing structuredContent") {
+            try await command.execute(on: client)
+        }
+    }
 }

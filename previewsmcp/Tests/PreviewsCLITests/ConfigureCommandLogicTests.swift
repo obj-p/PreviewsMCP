@@ -21,4 +21,17 @@ struct ConfigureCommandLogicTests {
 
         #expect(client.calls.map(\.name) == ["session_list"])
     }
+
+    @Test("configure surfaces a daemon-reported tool error")
+    func configureDaemonError() async throws {
+        let command = try ConfigureCommand.parse(["--color-scheme", "dark"])
+        let client = FakeDaemonClient(responses: [
+            "session_list": .foundSession,
+            "preview_configure": .daemonError("invalid trait combination"),
+        ])
+
+        await expectDaemonToolError(contains: "invalid trait combination") {
+            try await command.execute(on: client)
+        }
+    }
 }

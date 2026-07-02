@@ -20,4 +20,17 @@ struct TouchCommandLogicTests {
 
         #expect(client.calls.map(\.name) == ["session_list"])
     }
+
+    @Test("touch surfaces a daemon-reported tool error")
+    func touchDaemonError() async throws {
+        let command = try TouchCommand.parse(["100", "200"])
+        let client = FakeDaemonClient(responses: [
+            "session_list": .foundSession,
+            "preview_touch": .daemonError("simulator not booted"),
+        ])
+
+        await expectDaemonToolError(contains: "simulator not booted") {
+            try await command.execute(on: client)
+        }
+    }
 }
