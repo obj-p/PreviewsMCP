@@ -34,7 +34,15 @@ actor SerializedStdioTransport: Transport {
     ) {
         self.input = input
         self.output = output
-        logger = Logger(label: "previewsmcp.serialized-stdio-transport")
+        // No-op handler, as in the SDK original: the SDK Server logs through
+        // the transport's logger, and swift-log's default factory writes to
+        // STDOUT — plain text spliced into the JSON-RPC stream on any SDK
+        // error path, the exact corruption class this transport exists to
+        // prevent.
+        logger = Logger(
+            label: "previewsmcp.serialized-stdio-transport",
+            factory: { _ in SwiftLogNoOpLogHandler() }
+        )
 
         var continuation: AsyncThrowingStream<Data, Swift.Error>.Continuation!
         messageStream = AsyncThrowingStream { continuation = $0 }

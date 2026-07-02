@@ -40,12 +40,11 @@ enum PreviewSnapshotHandler: ToolHandler {
         // "mcp: callTool preview_snapshot" and then a stalled call produces
         // no response and no further output — the last marker present in
         // serve.log names the hop that never returned.
-        Log.info("snap: enter session=\(sessionID.prefix(8))")
         let configQuality = await configQualityForSession(sessionID, ctx: ctx)
         let quality = max(0.0, min(1.0, extractOptionalDouble("quality", from: params) ?? configQuality ?? 0.85))
         let mimeType = quality >= 1.0 ? "image/png" : "image/jpeg"
 
-        Log.info("snap: routing")
+        Log.info("snap: routing session=\(sessionID.prefix(8))")
         guard let handle = await ctx.router.handle(for: sessionID) else {
             return CallTool.Result(
                 content: [.text("No session found for \(sessionID).")],

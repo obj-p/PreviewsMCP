@@ -93,15 +93,12 @@ public final class PreviewAppServer: @unchecked Sendable {
             guard let self else { return }
             switch state {
             case .cancelled, .failed:
-                // A dropped STREAM connection is the #320 flake trigger, so it
-                // must be visible in serve.log; one-shot request closes are
-                // routine and stay quiet.
-                if case let .failed(error) = state {
-                    Log.warn("appserver: connection \(Self.shortID(connection)) failed: \(error)")
-                }
                 queue.async {
                     let key = ObjectIdentifier(connection)
                     if let task = self.streamTasks[key] {
+                        // A dropped STREAM connection is the #320 flake
+                        // trigger, so it must be visible in serve.log;
+                        // one-shot request closes are routine and stay quiet.
                         Log.warn(
                             "appserver: stream connection \(Self.shortID(connection)) reached \(state) — cancelling its stream task"
                         )
