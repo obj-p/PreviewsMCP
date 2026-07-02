@@ -1,6 +1,7 @@
 import Foundation
 import MCP
 @testable import PreviewsCLI
+import Testing
 
 /// Test double for `DaemonToolCalling`. Scripted with one canned
 /// `CallTool.Result` per tool name — no socket, no spawned daemon. Records
@@ -44,4 +45,32 @@ enum FakeDaemonClientError: Error, CustomStringConvertible {
 extension CallTool.Result {
     /// An empty `session_list` response — no active sessions.
     static let noSessions = CallTool.Result(content: [.text("")])
+
+    /// A `session_list` response with exactly one active session (id
+    /// "test-session"), matching `SessionResolver.parseSessionList`'s
+    /// tab-delimited format (`<sessionID>\t<platform>\t<sourceFilePath>`).
+    static let foundSession = CallTool.Result(
+        content: [.text("test-session\tmacos\t/tmp/previewsmcp-logic-test.swift")]
+    )
+
+    /// A daemon-reported tool error — `isError == true` with a message.
+    static func daemonError(_ message: String) -> CallTool.Result {
+        CallTool.Result(content: [.text(message)], isError: true)
+    }
+}
+
+/// Runs `run`, expecting it to throw a `DaemonToolError` whose description
+/// contains `substring`.
+func expectDaemonToolError(
+    contains substring: String,
+    run: () async throws -> Void
+) async {
+    do {
+        try await run()
+        Issue.record("expected a DaemonToolError, but run() succeeded")
+    } catch let error as DaemonToolError {
+        #expect(error.description.contains(substring), "unexpected message: \(error.description)")
+    } catch {
+        Issue.record("expected a DaemonToolError, got \(error)")
+    }
 }
