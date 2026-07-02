@@ -31,6 +31,79 @@ public struct ProcessOutput: Sendable {
     public let exitCode: Int32
 }
 
+/// Optional per-process cap on concurrent Swift *compile* subprocesses.
+///
+/// Off unless `PREVIEWSMCP_MAX_CONCURRENT_COMPILES` is set to a positive
+/// integer, so production behaviour is unchanged. The merge-queue VM bar sets
+/// it: swift-testing runs a build-heavy suite's tests in parallel, and on the
+/// resource-limited guest the resulting fan-out of concurrent `swiftc` /
+/// `swift build` processes (each 1-3 GB) exhausts RAM, thrashes, and wedges the
+/// 300 s test timeout. The cap is per OS process, not VM-global — each Bazel
+/// test target is its own process with its own gate — but the dominant storm is
+/// intra-target (`PreviewsCoreTests` alone wedges the bar), so a small per-
+/// process cap is empirically enough (verified green where the ungated bar
+/// failed). Only compiles are gated; metadata and light tools (`swift package
+/// describe`, simctl, git, ar, codesign, `swift --version`) pass straight
+/// through, so the iOS suites' simulator timing is untouched.
+private actor CompileGate {
+    static let shared = CompileGate()
+    fileprivate let limit: Int
+    private var active = 0
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    init() {
+        if let raw = ProcessInfo.processInfo.environment["PREVIEWSMCP_MAX_CONCURRENT_COMPILES"],
+           let n = Int(raw), n > 0
+        {
+            limit = n
+        } else {
+            limit = 0
+        }
+    }
+
+    /// True when the invocation is a Swift compile worth gating. Matching on the
+    /// basename first lets the common light tools (git, simctl, codesign, ar)
+    /// bail out before scanning arguments — no allocation on that hot path.
+    /// Only the memory-heavy compilers count: `swiftc`/`swift-frontend` and
+    /// `swift build` (directly or via `/usr/bin/env`). `swift package describe`
+    /// and friends are cheap metadata queries, so they are deliberately not
+    /// gated — they must not queue behind multi-GB builds.
+    nonisolated static func gates(executable: String, arguments: [String]) -> Bool {
+        switch (executable as NSString).lastPathComponent {
+        case "swiftc", "swift-frontend":
+            true
+        case "swift":
+            arguments.contains("build")
+        case "env":
+            arguments.contains("swift") && arguments.contains("build")
+        default:
+            false
+        }
+    }
+
+    func acquire() async {
+        guard limit > 0 else { return }
+        if active < limit {
+            active += 1
+            return
+        }
+        await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in
+            waiters.append(c)
+        }
+        // Resumed by release(), which hands its slot directly to us; the slot
+        // is already counted in `active`, so do not increment here.
+    }
+
+    func release() {
+        guard limit > 0 else { return }
+        if waiters.isEmpty {
+            active -= 1
+        } else {
+            waiters.removeFirst().resume()
+        }
+    }
+}
+
 /// Run an external process without blocking the caller's cooperative thread.
 ///
 /// Uses `terminationHandler` + `withCheckedThrowingContinuation` so actor-isolated
@@ -56,6 +129,61 @@ public func runAsync(
     discardStderr: Bool = false,
     timeout: Duration? = nil
 ) async throws -> ProcessOutput {
+    // `limit` is an immutable Sendable `let`, readable without an actor hop, so
+    // the default (gate off) pays nothing beyond the cheap basename check.
+    let gated = CompileGate.shared.limit > 0
+        && CompileGate.gates(executable: executable, arguments: arguments)
+    if gated { await CompileGate.shared.acquire() }
+    do {
+        let output = try await runProcess(
+            executable, arguments: arguments,
+            workingDirectory: workingDirectory,
+            discardStderr: discardStderr, timeout: timeout
+        )
+        if gated { await CompileGate.shared.release() }
+        return output
+    } catch {
+        if gated { await CompileGate.shared.release() }
+        throw error
+    }
+}
+
+/// Drain `pipe` to EOF without pinning a thread, accumulating into `box`, and
+/// leave `group` exactly once at EOF.
+///
+/// `readabilityHandler` fires on a shared dispatch source only when bytes are
+/// available, so it holds no thread between chunks — unlike a blocking
+/// `readDataToEndOfFile()`, which pins a worker for the subprocess's whole life.
+/// `availableData` returns the buffered bytes, or an empty `Data` at EOF (the
+/// write end closed — on exit, or when the SIGKILL escalation closes a stuck
+/// fd). The handler MUST nil itself at EOF: a live handler keeps its source
+/// registered, which leaks and, in a CFRunLoop host, can block exit (see
+/// MCPTestServer's note). Nil-ing it inside the serially-invoked handler also
+/// makes `leave()` run exactly once.
+private func drainPipe(
+    _ pipe: Pipe,
+    into box: UnsafeSendableBox<Data>,
+    group: DispatchGroup
+) {
+    let handle = pipe.fileHandleForReading
+    handle.readabilityHandler = { fileHandle in
+        let chunk = fileHandle.availableData
+        if chunk.isEmpty {
+            fileHandle.readabilityHandler = nil
+            group.leave()
+        } else {
+            box.append(chunk)
+        }
+    }
+}
+
+private func runProcess(
+    _ executable: String,
+    arguments: [String],
+    workingDirectory: URL?,
+    discardStderr: Bool,
+    timeout: Duration?
+) async throws -> ProcessOutput {
     try await withCheckedThrowingContinuation { continuation in
         let process = Process()
         process.executableURL = URL(fileURLWithPath: executable)
@@ -78,29 +206,27 @@ public func runAsync(
             stderrPipe = pipe
         }
 
-        // Read pipes on background threads to avoid deadlock.
-        // If the child writes more than the pipe buffer (~64KB), it blocks
-        // until the parent reads. Using readDataToEndOfFile() on background
-        // threads drains the pipes concurrently while the process runs.
-        // The DispatchGroup ensures all data is collected before
-        // terminationHandler reads it — avoiding a race where the
-        // continuation resumes before pipe data has been captured.
+        // Drain the pipes event-driven (drainPipe → readabilityHandler), not with
+        // a blocking readDataToEndOfFile() on DispatchQueue.global(). The blocking
+        // read pins a GCD worker thread for the subprocess's entire lifetime; under
+        // concurrent subprocess load that pins many threads which, together with
+        // CPU-bound work on the Swift cooperative pool, starves the daemon's MCP
+        // handler (the preview_snapshot wedge). The handler holds no thread between
+        // chunks. The DispatchGroup still guarantees all data is collected before
+        // the terminationHandler / timeout path reads it: each pipe leaves the
+        // group exactly once, at EOF. A stuck fd still needs the SIGKILL escalation
+        // below, which closes the fd and delivers EOF. The child draining as it
+        // writes means it can't deadlock on a full pipe buffer.
         let stdoutData = UnsafeSendableBox<Data>()
         let stderrData = UnsafeSendableBox<Data>()
         let pipeGroup = DispatchGroup()
 
         pipeGroup.enter()
-        DispatchQueue.global().async {
-            stdoutData.append(stdoutPipe.fileHandleForReading.readDataToEndOfFile())
-            pipeGroup.leave()
-        }
+        drainPipe(stdoutPipe, into: stdoutData, group: pipeGroup)
 
         if let stderrPipe {
             pipeGroup.enter()
-            DispatchQueue.global().async {
-                stderrData.append(stderrPipe.fileHandleForReading.readDataToEndOfFile())
-                pipeGroup.leave()
-            }
+            drainPipe(stderrPipe, into: stderrData, group: pipeGroup)
         }
 
         // Exactly-once guard shared between termination and timeout paths.

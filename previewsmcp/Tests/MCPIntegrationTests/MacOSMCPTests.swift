@@ -12,6 +12,16 @@ struct MacOSMCPTests {
 
     @Test("Full macOS MCP workflow", .timeLimit(.minutes(20)))
     func fullMacOSWorkflow() async throws {
+        // Serialize against the iOS e2e suites. Every suite in this target shares
+        // one daemon socket dir (serve.sock is removed-and-rebound on each spawn)
+        // and the single examples/spm build tree, so a macOS preview_start must
+        // not run concurrently with an iOS suite's SwiftPM build of the same
+        // sources. The iOS suites already take this lock; the macOS suite must
+        // too, or its builds/writes race theirs ("input file ... modified during
+        // the build").
+        let lock = try await DaemonTestLock.acquire()
+        defer { lock.release() }
+
         let server = try await MCPTestServer.start()
         defer { server.stop() }
 
@@ -226,6 +236,11 @@ struct MacOSMCPTests {
     /// shapes shows up here.
     @Test("structuredContent payloads decode for each migrated tool", .timeLimit(.minutes(20)))
     func structuredContentPayloadsDecode() async throws {
+        // Serialize against the iOS e2e suites (shared daemon + examples/spm
+        // build tree — see fullMacOSWorkflow).
+        let lock = try await DaemonTestLock.acquire()
+        defer { lock.release() }
+
         let server = try await MCPTestServer.start()
         defer { server.stop() }
 
@@ -325,6 +340,11 @@ struct MacOSMCPTests {
 
     @Test("preview_variants captures multiple configurations", .timeLimit(.minutes(20)))
     func previewVariants() async throws {
+        // Serialize against the iOS e2e suites (shared daemon + examples/spm
+        // build tree — see fullMacOSWorkflow).
+        let lock = try await DaemonTestLock.acquire()
+        defer { lock.release() }
+
         let server = try await MCPTestServer.start()
         defer { server.stop() }
 
@@ -455,6 +475,12 @@ struct MacOSMCPTests {
     /// Sync target: "Literal-only change:" log line from HostApp.swift.
     @Test("File edit triggers hot reload (literal-only fast path)", .timeLimit(.minutes(20)))
     func hotReloadLiteralOnly() async throws {
+        // This test WRITES examples/spm/.../ToDoView.swift. Without the lock it
+        // races an iOS suite's concurrent SwiftPM build of the same file —
+        // "input file 'ToDoView.swift' was modified during the build" (Mode 2).
+        let lock = try await DaemonTestLock.acquire()
+        defer { lock.release() }
+
         let server = try await MCPTestServer.start()
         defer { server.stop() }
 
@@ -499,6 +525,12 @@ struct MacOSMCPTests {
     /// Sync target: "Compiled:" log line from HostApp.swift after swiftc finishes.
     @Test("File edit triggers hot reload (structural recompile path)", .timeLimit(.minutes(20)))
     func hotReloadStructural() async throws {
+        // This test WRITES examples/spm/.../ToDoView.swift. Without the lock it
+        // races an iOS suite's concurrent SwiftPM build of the same file —
+        // "input file 'ToDoView.swift' was modified during the build" (Mode 2).
+        let lock = try await DaemonTestLock.acquire()
+        defer { lock.release() }
+
         let server = try await MCPTestServer.start()
         defer { server.stop() }
 
@@ -561,6 +593,11 @@ struct MacOSMCPTests {
         .timeLimit(.minutes(3))
     )
     func daemonEmitsHeartbeat() async throws {
+        // Serialize against the iOS e2e suites — this spawns a daemon in the
+        // shared socket dir (see fullMacOSWorkflow).
+        let lock = try await DaemonTestLock.acquire()
+        defer { lock.release() }
+
         let server = try await MCPTestServer.start()
         defer { server.stop() }
 
@@ -577,6 +614,11 @@ struct MacOSMCPTests {
 
     @Test("headless snapshot renders at the requested size", .timeLimit(.minutes(20)))
     func headlessSnapshotUsesRequestedSize() async throws {
+        // Serialize against the iOS e2e suites (shared daemon + examples/spm
+        // build tree — see fullMacOSWorkflow).
+        let lock = try await DaemonTestLock.acquire()
+        defer { lock.release() }
+
         let server = try await MCPTestServer.start()
         defer { server.stop() }
 
