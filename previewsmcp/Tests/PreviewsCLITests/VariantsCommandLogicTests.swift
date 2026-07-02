@@ -9,12 +9,16 @@ import Testing
 /// real rendering or real build-system behavior — none of that is
 /// convertible here. `VariantsCommand.exitCode(successCount:failCount:)` is
 /// already unit-tested directly in `VariantsExitCodeTests.swift`. What's
-/// covered here: the previously-untested `resolvedQuality()`, and
+/// covered here: the previously-untested `resolvedQuality()`,
 /// `captureEphemeral`'s cleanup-on-throw path (mirrors
 /// `SnapshotCommand.snapshotEphemeral`'s equivalent test) — genuine
 /// daemon-relay logic no integration test reaches, since forcing a
 /// mid-flow `preview_variants` failure after a real session already
-/// started would require injecting a daemon-side fault.
+/// started would require injecting a daemon-side fault — and
+/// `captureVariants`' missing-`structuredContent` guard. Unlike
+/// `SnapshotCommand`, `captureVariants` has no top-level daemon-`isError`
+/// check at all: per-variant failures are reported via each outcome's
+/// `status` field inside `structuredContent`, not a response-level flag.
 @Suite("variants CLI-glue logic")
 struct VariantsCommandLogicTests {
     // MARK: - resolvedQuality
@@ -65,5 +69,24 @@ struct VariantsCommandLogicTests {
 
         #expect(client.calls.map(\.name) == ["preview_start", "preview_variants", "preview_stop"])
         #expect(client.calls.last?.arguments?["sessionID"] == .string("test-session"))
+    }
+
+    // MARK: - captureVariants
+
+    @Test("captureVariants errors when the response has no structuredContent")
+    func captureVariantsMissingStructuredContent() async throws {
+        let command = try VariantsCommand.parse(["a.swift", "--variant", "light"])
+        let client = FakeDaemonClient(responses: [
+            "preview_variants": CallTool.Result(content: [.text("no structured payload")]),
+        ])
+
+        await expectDaemonToolError(contains: "missing structuredContent") {
+            _ = try await command.captureVariants(
+                sessionID: "test-session",
+                labels: ["light"],
+                outputDir: URL(fileURLWithPath: "/tmp"),
+                client: client
+            )
+        }
     }
 }

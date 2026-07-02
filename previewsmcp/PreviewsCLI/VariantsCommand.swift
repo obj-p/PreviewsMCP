@@ -271,7 +271,7 @@ struct VariantsCommand: AsyncParsableCommand {
     /// Call `preview_variants`, decode each variant's outcome from the
     /// daemon's `structuredContent`, write successful images to disk, and
     /// surface per-variant errors to stderr.
-    private func captureVariants(
+    func captureVariants(
         sessionID: String,
         labels: [String],
         outputDir: URL,
