@@ -77,6 +77,22 @@ extension CallTool.Result {
     static func daemonError(_ message: String) -> CallTool.Result {
         CallTool.Result(content: [.text(message)], isError: true)
     }
+
+    /// A successful `preview_start` response for an ephemeral session,
+    /// decodable via `structuredContent.decode(DaemonProtocol.PreviewStartResult.self)`
+    /// the same way production code does. Used by cleanup-on-throw tests for
+    /// the ephemeral-session commands (`SnapshotCommand.snapshotEphemeral`,
+    /// `VariantsCommand.captureEphemeral`).
+    static func ephemeralStartResult(sessionID: String = "test-session") throws -> CallTool.Result {
+        try CallTool.Result(
+            structuredContent: DaemonProtocol.PreviewStartResult(
+                sessionID: sessionID, platform: "macos",
+                sourceFilePath: "/nonexistent/previewsmcp-logic-test/File.swift",
+                deviceUDID: nil, pid: nil, traits: nil, previews: [],
+                activeIndex: 0, setupWarning: nil, appServerPort: nil
+            )
+        )
+    }
 }
 
 /// Runs `run`, expecting it to throw a `DaemonToolError` whose description

@@ -107,14 +107,7 @@ struct SnapshotCommandLogicTests {
         let command = try SnapshotCommand.parse([
             "/nonexistent/previewsmcp-logic-test/File.swift", "--platform", "macos",
         ])
-        let startResult = try CallTool.Result(
-            structuredContent: DaemonProtocol.PreviewStartResult(
-                sessionID: "test-session", platform: "macos",
-                sourceFilePath: "/nonexistent/previewsmcp-logic-test/File.swift",
-                deviceUDID: nil, pid: nil, traits: nil, previews: [],
-                activeIndex: 0, setupWarning: nil, appServerPort: nil
-            )
-        )
+        let startResult = try CallTool.Result.ephemeralStartResult()
         // preview_snapshot is deliberately unscripted — FakeDaemonClient
         // throws for it, simulating a mid-flow daemon failure after the
         // session already started. preview_stop IS scripted so the

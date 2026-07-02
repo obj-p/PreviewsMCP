@@ -202,7 +202,7 @@ struct VariantsCommand: AsyncParsableCommand {
 
     // MARK: - Execution paths
 
-    private func captureEphemeral(
+    func captureEphemeral(
         file: String,
         labels: [String],
         outputDir: URL,
@@ -397,7 +397,7 @@ struct VariantsCommand: AsyncParsableCommand {
 
     // MARK: - Helpers
 
-    private func resolvedQuality() -> Double {
+    func resolvedQuality() -> Double {
         // Explicit --format png overrides quality → ask daemon for PNG
         // (quality >= 1.0 is its PNG trigger).
         if format == .png { return 1.0 }
