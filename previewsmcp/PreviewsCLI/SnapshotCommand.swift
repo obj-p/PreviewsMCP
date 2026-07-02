@@ -332,7 +332,7 @@ struct SnapshotCommand: AsyncParsableCommand {
     /// Write the image returned in the snapshot response to the output path.
     /// Prints either a bare path or a JSON document (when `--json` is set) to
     /// stdout on success.
-    private func handleSnapshotResponse(
+    func handleSnapshotResponse(
         _ response: CallTool.Result,
         sessionID: String
     ) throws {

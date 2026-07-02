@@ -10,10 +10,13 @@ import Testing
 /// real rendering or real build-system behavior (PNG/JPEG validity,
 /// generated-source handling, live-session reuse) — none of that is
 /// convertible here. What *is* covered: the two previously-untested pure
-/// helpers (`resolvedQuality`, `resolvePlatform`), and `snapshotEphemeral`'s
-/// cleanup-on-throw path, which no integration test reaches (the only
-/// error case there, an out-of-range `--preview` index, is rejected by
-/// `preview_start` itself, never by the mid-flow `preview_snapshot` call).
+/// helpers (`resolvedQuality`, `resolvePlatform`), `snapshotEphemeral`'s
+/// cleanup-on-throw path (no integration test reaches it — the only error
+/// case there, an out-of-range `--preview` index, is rejected by
+/// `preview_start` itself, never by the mid-flow `preview_snapshot` call),
+/// and `handleSnapshotResponse`'s three response-handling branches
+/// (daemon-reported error, no image content, invalid image data) — a pure
+/// function needing no daemon/fake at all.
 @Suite("snapshot CLI-glue logic")
 struct SnapshotCommandLogicTests {
     // MARK: - resolvedQuality
@@ -126,5 +129,39 @@ struct SnapshotCommandLogicTests {
 
         #expect(client.calls.map(\.name) == ["preview_start", "preview_snapshot", "preview_stop"])
         #expect(client.calls.last?.arguments?["sessionID"] == .string("test-session"))
+    }
+
+    // MARK: - handleSnapshotResponse
+
+    @Test("handleSnapshotResponse: surfaces a daemon-reported tool error")
+    func handleSnapshotResponseDaemonError() async throws {
+        let command = try SnapshotCommand.parse(["a.swift"])
+        let response = CallTool.Result(content: [.text("simulator not booted")], isError: true)
+
+        await expectDaemonToolError(contains: "simulator not booted") {
+            try command.handleSnapshotResponse(response, sessionID: "test-session")
+        }
+    }
+
+    @Test("handleSnapshotResponse: throws when the response has no image content")
+    func handleSnapshotResponseNoImageContent() throws {
+        let command = try SnapshotCommand.parse(["a.swift"])
+        let response = CallTool.Result(content: [.text("no image here")])
+
+        #expect(throws: SnapshotCommandError.self) {
+            try command.handleSnapshotResponse(response, sessionID: "test-session")
+        }
+    }
+
+    @Test("handleSnapshotResponse: throws when the image data is not valid base64")
+    func handleSnapshotResponseInvalidBase64() throws {
+        let command = try SnapshotCommand.parse(["a.swift"])
+        let response = CallTool.Result(
+            content: [.image(data: "not valid base64!!", mimeType: "image/png", metadata: nil)]
+        )
+
+        #expect(throws: SnapshotCommandError.self) {
+            try command.handleSnapshotResponse(response, sessionID: "test-session")
+        }
     }
 }
