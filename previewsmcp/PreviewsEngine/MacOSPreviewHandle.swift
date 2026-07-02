@@ -66,11 +66,7 @@ public actor MacOSPreviewHandle: PreviewSessionHandle {
     public func snapshot(quality: Double) async throws -> Data {
         let format: Snapshot.ImageFormat = quality >= 1.0 ? .png : .jpeg(quality: quality)
         let sessionID = id
-        // #320 hop markers: a stalled snapshot's last marker names the actor
-        // it is queued behind (the PreviewSession actor vs the main actor).
-        Log.info("macSnap: currentTraits")
         let colorScheme = await session.currentTraits.colorScheme
-        Log.info("macSnap: main-actor encode")
         return try await MainActor.run {
             guard let imagePath = host.agentSnapshotPath(for: sessionID) else {
                 throw SnapshotError.captureFailed
