@@ -14,6 +14,9 @@ func pollUntil<T>(
         if let found = value() { return found }
         try await Task.sleep(for: .milliseconds(25))
     }
+    // One post-deadline check: the condition may have become true during
+    // the final sleep, and that must not read as a failure.
+    if let found = value() { return found }
     Issue.record(failure)
     throw CancellationError()
 }

@@ -110,7 +110,7 @@ struct SDKServerCharacterizationTests {
             try await wire.handshake()
             try await wire.send(#"{"id":"req-abc","jsonrpc":"2.0","method":"ping"}"#)
             let reply = try await pollUntil(
-                { wire.collector.frame(forStringID: "req-abc") },
+                { wire.collector.frame(forID: "req-abc") },
                 failure: "no response for string id"
             )
             #expect(reply["id"] as? String == "req-abc")
@@ -160,7 +160,7 @@ struct SDKServerCharacterizationTests {
             // on the real daemon, so the pinned contract is the disjunction:
             // anything but a successful result.
             try await Task.sleep(for: .milliseconds(200))
-            if let reply = wire.collector.frame(forStringID: "call-7") {
+            if let reply = wire.collector.frame(forID: "call-7") {
                 #expect(reply["result"] == nil, "cancelled request produced a result: \(reply)")
             }
 
@@ -234,25 +234,19 @@ struct SDKServerCharacterizationTests {
         // runMCPServer's entire per-connection teardown: start returns once
         // the receive loop is spawned, and waitUntilCompleted returns when
         // the peer goes away.
-        let (testSide, serverSide) = await InMemoryTransport.createConnectedPair()
-        let server = Server(
-            name: "characterization", version: Self.serverVersion,
-            capabilities: .init(logging: .init())
-        )
-        try await server.start(transport: serverSide)
-        try await testSide.connect()
-
-        let completed = OSAllocatedUnfairLock(initialState: false)
-        let waiter = Task {
-            await server.waitUntilCompleted()
-            completed.withLock { $0 = true }
+        try await Wire.with { wire in
+            let completed = OSAllocatedUnfairLock(initialState: false)
+            let waiter = Task {
+                await wire.server.waitUntilCompleted()
+                completed.withLock { $0 = true }
+            }
+            await wire.disconnectPeer()
+            try await pollUntil(
+                { completed.withLock { $0 } },
+                failure: "waitUntilCompleted never returned after transport close"
+            )
+            waiter.cancel()
         }
-        await testSide.disconnect()
-        try await pollUntil(
-            { completed.withLock { $0 } },
-            failure: "waitUntilCompleted never returned after transport close"
-        )
-        waiter.cancel()
     }
 
     // MARK: - Harness
@@ -298,6 +292,11 @@ struct SDKServerCharacterizationTests {
 
         func send(_ raw: String) async throws {
             try await testSide.send(Data(raw.utf8))
+        }
+
+        /// Close the client side, as a departing peer would.
+        func disconnectPeer() async {
+            await testSide.disconnect()
         }
 
         /// Send a request frame and poll for the matching response.

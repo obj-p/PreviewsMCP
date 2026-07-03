@@ -5,38 +5,35 @@ import os
 /// Drains a transport's `receive()` stream into a queryable JSON-RPC frame
 /// store. Shared by the server- and client-side characterization harnesses;
 /// `onFrame` lets a harness react to frames as they arrive (the raw
-/// responder's auto-answer).
+/// responder's auto-answer). Queries re-parse the small frame store on each
+/// call; caching parses would force @unchecked Sendable for microseconds.
 final class FrameCollector: Sendable {
-    private let frames = OSAllocatedUnfairLock(initialState: [Data]())
-    private let reader: OSAllocatedUnfairLock<Task<Void, Never>?> = .init(initialState: nil)
+    private let frames: OSAllocatedUnfairLock<[Data]>
+    private let reader: Task<Void, Never>
 
     init(reading transport: InMemoryTransport, onFrame: (@Sendable (Data) async -> Void)? = nil) {
-        let frames = frames
-        let task = Task {
+        let store = OSAllocatedUnfairLock(initialState: [Data]())
+        frames = store
+        reader = Task {
             do {
                 for try await frame in await transport.receive() {
-                    frames.withLock { $0.append(frame) }
+                    store.withLock { $0.append(frame) }
                     await onFrame?(frame)
                 }
             } catch {}
         }
-        reader.withLock { $0 = task }
     }
 
     func stop() {
-        reader.withLock { $0 }?.cancel()
+        reader.cancel()
     }
 
     func rawFrame(forID id: Int) -> Data? {
         frames.withLock { $0 }.first { Self.object($0)?["id"] as? Int == id }
     }
 
-    func frame(forID id: Int) -> [String: Any]? {
-        rawFrame(forID: id).flatMap(Self.object)
-    }
-
-    func frame(forStringID id: String) -> [String: Any]? {
-        frames.withLock { $0 }.compactMap(Self.object).first { $0["id"] as? String == id }
+    func frame<ID: Equatable>(forID id: ID) -> [String: Any]? {
+        frames.withLock { $0 }.compactMap(Self.object).first { $0["id"] as? ID == id }
     }
 
     func notification(method: String) -> [String: Any]? {

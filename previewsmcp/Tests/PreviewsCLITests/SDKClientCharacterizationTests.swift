@@ -11,63 +11,89 @@ import Testing
 struct SDKClientCharacterizationTests {
     @Test("a handler registered before connect receives a notification sent right after initialize")
     func preHandshakeRegistrationReceivesEarlyNotification() async throws {
-        let (clientSide, serverSide) = await InMemoryTransport.createConnectedPair()
-        let responder = try await RawResponder.start(
-            on: serverSide, notifyImmediatelyAfterInitialize: true
-        )
-        defer { responder.stop() }
-
-        let client = Client(name: "probe", version: "1")
         let received = OSAllocatedUnfairLock(initialState: false)
-        // Mirrors DaemonClient's contract: configure registers handlers
-        // BEFORE connect so early notifications are never dropped.
-        await client.onNotification(LogMessageNotification.self) { _ in
-            received.withLock { $0 = true }
-        }
-        _ = try await client.connect(transport: clientSide)
-
-        do {
+        try await Self.withConnectedClient(
+            notifyImmediatelyAfterInitialize: true,
+            configure: { client in
+                // Mirrors DaemonClient's contract: configure registers
+                // handlers BEFORE connect so early notifications are never
+                // dropped.
+                await client.onNotification(LogMessageNotification.self) { _ in
+                    received.withLock { $0 = true }
+                }
+            }
+        ) { _, _ in
             try await pollUntil(
                 { received.withLock { $0 } },
                 failure: "early notification was dropped despite pre-connect registration"
             )
-        } catch {
-            await client.disconnect()
-            throw error
         }
-        await client.disconnect()
     }
 
     @Test("disconnect drains a pending callTool with an error instead of hanging")
     func disconnectDrainsPendingCallTool() async throws {
+        try await Self.withConnectedClient { client, responder in
+            // The responder never answers tools/call, so this call can only
+            // end via disconnect's drain — the StallTimer's entire safety
+            // contract.
+            let pending = Task { try await client.callToolStructured(name: "never-answered") }
+            let outcome = OSAllocatedUnfairLock(
+                initialState: Result<CallTool.Result, Swift.Error>?.none
+            )
+            let observer = Task {
+                let result = await pending.result
+                outcome.withLock { $0 = result }
+            }
+            defer { observer.cancel() }
+
+            do {
+                try await pollUntil(
+                    { responder.collector.sawMethod("tools/call") },
+                    failure: "tools/call never reached the wire"
+                )
+            } catch {
+                pending.cancel()
+                throw error
+            }
+
+            await client.disconnect()
+
+            // Bounded: if the drain contract regresses, this polls out red
+            // instead of wedging the target on an unresumed continuation.
+            let drained = try await pollUntil(
+                { outcome.withLock { $0 } },
+                failure: "disconnect did not drain the pending callTool"
+            )
+            guard case .failure = drained else {
+                Issue.record("pending callTool returned a value after disconnect")
+                return
+            }
+        }
+    }
+
+    /// Scopes a connected client + raw responder so disconnect/stop run on
+    /// every path; `configure` runs before connect, like DaemonClient's.
+    private static func withConnectedClient(
+        notifyImmediatelyAfterInitialize: Bool = false,
+        configure: (Client) async -> Void = { _ in },
+        _ body: (Client, RawResponder) async throws -> Void
+    ) async throws {
         let (clientSide, serverSide) = await InMemoryTransport.createConnectedPair()
-        let responder = try await RawResponder.start(on: serverSide)
+        let responder = try await RawResponder.start(
+            on: serverSide, notifyImmediatelyAfterInitialize: notifyImmediatelyAfterInitialize
+        )
         defer { responder.stop() }
 
         let client = Client(name: "probe", version: "1")
+        await configure(client)
         _ = try await client.connect(transport: clientSide)
-
-        // The responder never answers tools/call, so this call can only end
-        // via disconnect's drain — the StallTimer's entire safety contract.
-        let pending = Task { try await client.callToolStructured(name: "never-answered") }
         do {
-            try await pollUntil(
-                { responder.collector.sawMethod("tools/call") },
-                failure: "tools/call never reached the wire"
-            )
+            try await body(client, responder)
         } catch {
-            pending.cancel()
             await client.disconnect()
             throw error
         }
-
         await client.disconnect()
-
-        let outcome = await pending.result
-        guard case .failure = outcome else {
-            Issue.record("pending callTool returned a value after disconnect")
-            return
-        }
     }
 
     /// Plays the server end of the pair in raw JSON-RPC: answers initialize
