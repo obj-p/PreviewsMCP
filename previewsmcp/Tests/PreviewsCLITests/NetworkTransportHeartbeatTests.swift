@@ -36,8 +36,8 @@ struct NetworkTransportHeartbeatTests {
         try await awaitReady(rawPeer)
         defer { rawPeer.cancel() }
 
-        let serverSide = try await poll(
-            until: { accepted.withLock { $0 } },
+        let serverSide = try await pollUntil(
+            { accepted.withLock { $0 } },
             failure: "listener never accepted the connection"
         )
         let transport = daemonChannelTransport(connection: serverSide)
@@ -59,8 +59,8 @@ struct NetworkTransportHeartbeatTests {
         let newline = Data([UInt8(ascii: "\n")])
 
         try await rawSend(rawPeer, sentinel + newline)
-        _ = try await poll(
-            until: { received.withLock { $0.count >= 1 ? $0 : nil } },
+        _ = try await pollUntil(
+            { received.withLock { $0.count >= 1 ? $0 : nil } },
             failure: "sentinel message never arrived"
         )
 
@@ -73,8 +73,8 @@ struct NetworkTransportHeartbeatTests {
         try await Task.sleep(for: .milliseconds(500))
         try await rawSend(rawPeer, survivor + newline)
 
-        let messages = try await poll(
-            until: { received.withLock { $0.contains(survivor) ? $0 : nil } },
+        let messages = try await pollUntil(
+            { received.withLock { $0.contains(survivor) ? $0 : nil } },
             failure: "survivor message never arrived"
         )
         #expect(messages.first == sentinel)
@@ -137,20 +137,5 @@ struct NetworkTransportHeartbeatTests {
                 }
             )
         }
-    }
-
-    private func poll<T>(
-        until value: () -> T?,
-        failure: Comment,
-        deadline: Duration = .seconds(10)
-    ) async throws -> T {
-        let clock = ContinuousClock()
-        let limit = clock.now + deadline
-        while clock.now < limit {
-            if let found = value() { return found }
-            try await Task.sleep(for: .milliseconds(25))
-        }
-        Issue.record(failure)
-        throw CancellationError()
     }
 }

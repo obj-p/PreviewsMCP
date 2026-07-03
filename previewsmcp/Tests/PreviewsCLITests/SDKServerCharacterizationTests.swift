@@ -1,0 +1,325 @@
+import Foundation
+import MCP
+import os
+import Testing
+
+/// Characterizes the SDK `Server` behaviors the daemon relies on. This suite
+/// is the acceptance bar for the in-house wire-layer rewrite: every test here
+/// must pass unchanged against the replacement server loop. Each test drives
+/// a server configured like `configureMCPServer` through the SDK's
+/// `InMemoryTransport` pair, speaking raw JSON-RPC frames from the client
+/// side.
+///
+/// Deliberately out of scope: JSON-RPC batch requests. No client of the
+/// daemon sends them (Claude Code and the CLI both issue single requests),
+/// so the rewrite is not required to support batching; revisit if a batching
+/// client ever appears.
+@Suite("SDK Server characterization")
+struct SDKServerCharacterizationTests {
+    private static let serverVersion = "0.0.1-characterization"
+
+    // MARK: - Version negotiation
+
+    @Test("initialize echoes every supported protocol version", arguments: Version.supported.sorted())
+    func initializeEchoesSupportedVersion(version: String) async throws {
+        try await Wire.with { wire in
+            let reply = try await wire.roundTrip(id: 1, Self.initialize(version: version))
+            let result = try #require(reply["result"] as? [String: Any])
+            #expect(result["protocolVersion"] as? String == version)
+        }
+    }
+
+    @Test("initialize falls back to the latest version and advertises the server's own version")
+    func initializeFallsBackToLatest() async throws {
+        try await Wire.with { wire in
+            let reply = try await wire.roundTrip(id: 1, Self.initialize(version: "1999-01-01"))
+            let result = try #require(reply["result"] as? [String: Any])
+            #expect(result["protocolVersion"] as? String == Version.latest)
+
+            // DaemonClient's version-mismatch respawn keys off this field.
+            let serverInfo = try #require(result["serverInfo"] as? [String: Any])
+            #expect(serverInfo["version"] as? String == Self.serverVersion)
+        }
+    }
+
+    // MARK: - Wire shape
+
+    @Test("responses encode with sorted keys and unescaped slashes")
+    func responseWireShape() async throws {
+        try await Wire.with { server in
+            await server.withMethodHandler(ListTools.self) { _ in
+                ListTools.Result(tools: [
+                    Tool(
+                        name: "probe",
+                        description: "renders previews/for-tests",
+                        inputSchema: .object(["type": .string("object")])
+                    ),
+                ])
+            }
+        } _: { wire in
+            try await wire.handshake()
+            _ = try await wire.roundTrip(id: 2, #"{"id":2,"jsonrpc":"2.0","method":"tools/list"}"#)
+
+            let raw = try #require(wire.collector.rawFrame(forID: 2))
+            let text = String(decoding: raw, as: UTF8.self)
+            #expect(!text.contains(#"\/"#), "slashes must not be escaped: \(text)")
+            let idIndex = try #require(text.range(of: #""id""#)?.lowerBound)
+            let jsonrpcIndex = try #require(text.range(of: #""jsonrpc""#)?.lowerBound)
+            let resultIndex = try #require(text.range(of: #""result""#)?.lowerBound)
+            #expect(
+                idIndex < jsonrpcIndex && jsonrpcIndex < resultIndex,
+                "keys must be sorted: \(text)"
+            )
+        }
+    }
+
+    // MARK: - Request handling contracts
+
+    @Test("an unknown request method gets a methodNotFound error, not silence")
+    func unknownMethodGetsError() async throws {
+        // withDaemonClient awaits `setLoggingLevel` BEFORE its stall watcher
+        // starts, and the daemon registers no logging/setLevel handler — this
+        // error response is the only thing that unblocks every CLI command.
+        try await Wire.with { wire in
+            try await wire.handshake()
+            let reply = try await wire.roundTrip(
+                id: 9,
+                #"{"id":9,"jsonrpc":"2.0","method":"logging/setLevel","params":{"level":"debug"}}"#
+            )
+            let error = try #require(reply["error"] as? [String: Any])
+            #expect(error["code"] as? Int == -32601, "expected methodNotFound: \(error)")
+        }
+    }
+
+    @Test("ping answers with an empty result")
+    func pingAnswers() async throws {
+        try await Wire.with { wire in
+            try await wire.handshake()
+            let reply = try await wire.roundTrip(id: 4, #"{"id":4,"jsonrpc":"2.0","method":"ping"}"#)
+            #expect(reply["error"] == nil)
+            #expect(reply["result"] != nil)
+        }
+    }
+
+    @Test("string request ids are echoed verbatim")
+    func stringIDRoundTrip() async throws {
+        // The SDK Client (the daemon's actual peer) generates random STRING
+        // ids; the integer ids used elsewhere in this suite are the less
+        // common case.
+        try await Wire.with { wire in
+            try await wire.handshake()
+            try await wire.send(#"{"id":"req-abc","jsonrpc":"2.0","method":"ping"}"#)
+            let reply = try await pollUntil(
+                { wire.collector.frame(forID: "req-abc") },
+                failure: "no response for string id"
+            )
+            #expect(reply["id"] as? String == "req-abc")
+        }
+    }
+
+    // MARK: - Cancellation
+
+    @Test("notifications/cancelled cancels the in-flight CallTool handler")
+    func cancelledNotificationCancelsHandler() async throws {
+        let started = OSAllocatedUnfairLock(initialState: false)
+        let cancelled = OSAllocatedUnfairLock(initialState: false)
+        try await Wire.with { server in
+            await server.withMethodHandler(CallTool.self) { _ in
+                started.withLock { $0 = true }
+                do {
+                    try await Task.sleep(for: .seconds(30))
+                } catch {
+                    cancelled.withLock { $0 = true }
+                    throw error
+                }
+                return CallTool.Result(content: [.text("finished")])
+            }
+        } _: { wire in
+            try await wire.handshake()
+
+            // String id: cancellation from the daemon's real client
+            // (Claude Code / SDK Client) arrives with a string requestId.
+            try await wire.send(
+                #"{"id":"call-7","jsonrpc":"2.0","method":"tools/call","params":{"arguments":{},"name":"probe"}}"#
+            )
+            try await pollUntil(
+                { started.withLock { $0 } },
+                failure: "CallTool handler never started"
+            )
+            try await wire.send(
+                #"{"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":"call-7"}}"#
+            )
+            try await pollUntil(
+                { cancelled.withLock { $0 } },
+                failure: "handler was not cancelled by notifications/cancelled"
+            )
+
+            // The SDK deterministically sends NOTHING when the handler
+            // rethrows CancellationError; an error response appears only if
+            // a handler maps cancellation to another error. Both faces occur
+            // on the real daemon, so the pinned contract is the disjunction:
+            // anything but a successful result.
+            try await Task.sleep(for: .milliseconds(200))
+            if let reply = wire.collector.frame(forID: "call-7") {
+                #expect(reply["result"] == nil, "cancelled request produced a result: \(reply)")
+            }
+
+            // The server must keep serving after a cancellation: the id is
+            // freed and the next request gets answered.
+            let after = try await wire.roundTrip(
+                id: 8, #"{"id":8,"jsonrpc":"2.0","method":"ping"}"#
+            )
+            #expect(after["error"] == nil)
+        }
+    }
+
+    // MARK: - Notifications
+
+    @Test("server.log reaches the wire as notifications/message")
+    func serverLogNotificationReachesWire() async throws {
+        try await Wire.with { wire in
+            try await wire.handshake()
+
+            try await wire.server.log(level: .debug, logger: "heartbeat", data: .string("alive"))
+
+            let frame = try await pollUntil(
+                { wire.collector.notification(method: "notifications/message") },
+                failure: "log notification never reached the wire"
+            )
+            let params = try #require(frame["params"] as? [String: Any])
+            #expect(params["logger"] as? String == "heartbeat")
+        }
+    }
+
+    @Test("progress tokens decode from _meta and notify as notifications/progress")
+    func progressTokenPlumbing() async throws {
+        // MCPProgressReporter depends on both halves: CallTool.Parameters
+        // exposing _meta.progressToken, and server.notify(ProgressNotification)
+        // reaching the wire tagged with that token.
+        let token = OSAllocatedUnfairLock(initialState: String?.none)
+        try await Wire.with { server in
+            await server.withMethodHandler(CallTool.self) { params in
+                if case let .string(value) = params._meta?.progressToken {
+                    token.withLock { $0 = value }
+                }
+                return CallTool.Result(content: [.text("ok")])
+            }
+        } _: { wire in
+            try await wire.handshake()
+            _ = try await wire.roundTrip(
+                id: 3,
+                #"{"id":3,"jsonrpc":"2.0","method":"tools/call","params":{"_meta":{"progressToken":"tok-1"},"arguments":{},"name":"probe"}}"#
+            )
+            #expect(token.withLock { $0 } == "tok-1")
+
+            try await wire.server.notify(
+                ProgressNotification.message(
+                    .init(progressToken: .string("tok-1"), progress: 1, total: 2, message: "step")
+                )
+            )
+            let frame = try await pollUntil(
+                { wire.collector.notification(method: "notifications/progress") },
+                failure: "progress notification never reached the wire"
+            )
+            let params = try #require(frame["params"] as? [String: Any])
+            #expect(params["progressToken"] as? String == "tok-1")
+            #expect(params["progress"] as? Double == 1)
+        }
+    }
+
+    // MARK: - Lifecycle
+
+    @Test("waitUntilCompleted returns when the transport closes")
+    func waitUntilCompletedReturnsOnTransportClose() async throws {
+        // runMCPServer's entire per-connection teardown: start returns once
+        // the receive loop is spawned, and waitUntilCompleted returns when
+        // the peer goes away.
+        try await Wire.with { wire in
+            let completed = OSAllocatedUnfairLock(initialState: false)
+            let waiter = Task {
+                await wire.server.waitUntilCompleted()
+                completed.withLock { $0 = true }
+            }
+            await wire.disconnectPeer()
+            try await pollUntil(
+                { completed.withLock { $0 } },
+                failure: "waitUntilCompleted never returned after transport close"
+            )
+            waiter.cancel()
+        }
+    }
+
+    // MARK: - Harness
+
+    private static func initialize(version: String) -> String {
+        #"{"id":1,"jsonrpc":"2.0","method":"initialize","params":{"capabilities":{},"clientInfo":{"name":"probe","version":"1"},"protocolVersion":"\#(version)"}}"#
+    }
+
+    /// A started SDK server plus the raw client side of its transport.
+    /// `with` scopes the harness so teardown runs on every path, including
+    /// thrown polls.
+    struct Wire {
+        let server: Server
+        let collector: FrameCollector
+        private let testSide: InMemoryTransport
+
+        static func with(
+            _ configure: (Server) async -> Void = { _ in },
+            _ body: (Wire) async throws -> Void
+        ) async throws {
+            let (testSide, serverSide) = await InMemoryTransport.createConnectedPair()
+            let server = Server(
+                name: "characterization",
+                version: serverVersion,
+                capabilities: .init(logging: .init(), tools: .init(listChanged: false))
+            )
+            await configure(server)
+            try await server.start(transport: serverSide)
+            try await testSide.connect()
+            let wire = Wire(
+                server: server,
+                collector: FrameCollector(reading: testSide),
+                testSide: testSide
+            )
+            do {
+                try await body(wire)
+            } catch {
+                await wire.close()
+                throw error
+            }
+            await wire.close()
+        }
+
+        func send(_ raw: String) async throws {
+            try await testSide.send(Data(raw.utf8))
+        }
+
+        /// Close the client side, as a departing peer would.
+        func disconnectPeer() async {
+            await testSide.disconnect()
+        }
+
+        /// Send a request frame and poll for the matching response.
+        func roundTrip(id: Int, _ raw: String) async throws -> [String: Any] {
+            try await send(raw)
+            return try await pollUntil(
+                { collector.frame(forID: id) },
+                failure: "no response for id \(id)"
+            )
+        }
+
+        /// initialize + notifications/initialized, the client handshake every
+        /// request-bearing test needs first.
+        func handshake() async throws {
+            _ = try await roundTrip(
+                id: 1, SDKServerCharacterizationTests.initialize(version: Version.latest)
+            )
+            try await send(#"{"jsonrpc":"2.0","method":"notifications/initialized"}"#)
+        }
+
+        private func close() async {
+            collector.stop()
+            await server.stop()
+        }
+    }
+}
