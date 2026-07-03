@@ -1,4 +1,3 @@
-import Foundation
 import os
 
 /// Host-global CoreSimulator hygiene for the iOS-booting CLI suite.
@@ -21,9 +20,10 @@ enum CoreSimulatorHygiene {
     private static let didReset = OSAllocatedUnfairLock(initialState: false)
 
     /// Reset host-global CoreSimulator state once per process. Subsequent calls
-    /// are no-ops. Best-effort: a failed reset is logged, not thrown — it must
+    /// are no-ops. Best-effort: spawn failures are swallowed — the reset must
     /// not fail an otherwise-healthy test, and the next `simctl` call respawns
-    /// the service regardless.
+    /// the service regardless. Each command is bounded by `runExternal`'s
+    /// timeout so a wedged `simctl` cannot park the suite's time limit.
     static func resetOnce() async {
         let shouldRun = didReset.withLock { done -> Bool in
             if done { return false }
@@ -35,27 +35,13 @@ enum CoreSimulatorHygiene {
         // Shut down every booted simulator, then bounce the service. `killall`
         // is domain-agnostic (CoreSimulatorService runs in the GUI session, not
         // a fixed launchd domain) and the service auto-respawns on the next
-        // simctl invocation — pickUDID, moments later, brings it back clean.
-        await run(["/usr/bin/xcrun", "simctl", "shutdown", "all"])
-        await run(["/usr/bin/killall", "-9", "com.apple.CoreSimulator.CoreSimulatorService"])
-    }
-
-    private static func run(_ args: [String]) async {
-        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-            DispatchQueue.global(qos: .userInitiated).async {
-                let process = Process()
-                process.executableURL = URL(fileURLWithPath: args[0])
-                process.arguments = Array(args.dropFirst())
-                process.standardOutput = FileHandle.nullDevice
-                process.standardError = FileHandle.nullDevice
-                do {
-                    try process.run()
-                    process.waitUntilExit()
-                } catch {
-                    print("CoreSimulatorHygiene: \(args.joined(separator: " ")) failed: \(error)")
-                }
-                continuation.resume()
-            }
-        }
+        // simctl invocation — the daemon's session boot brings it back clean.
+        _ = try? await CLIRunner.runExternal(
+            "/usr/bin/xcrun", arguments: ["simctl", "shutdown", "all"]
+        )
+        _ = try? await CLIRunner.runExternal(
+            "/usr/bin/killall",
+            arguments: ["-9", "com.apple.CoreSimulator.CoreSimulatorService"]
+        )
     }
 }
