@@ -14,22 +14,23 @@ import os
 ///
 /// Reset that state ONCE per test process, before the first iOS preview boots:
 /// shut every simulator down and bounce CoreSimulatorService so the next boot
-/// starts from a clean service. Call while holding `DaemonTestLock` so the reset
-/// never races a concurrent suite's simulator use.
+/// starts from a clean service. Call while holding `DaemonTestLock`, which
+/// serializes the sim-touching suites WITHIN this target (its flock path is
+/// per-target); across targets the only guard is this target's `exclusive`
+/// tag, which holds within a single bazel invocation — concurrent separate
+/// invocations are already forbidden by the repo's test-hygiene rules.
 enum CoreSimulatorHygiene {
     private static let didReset = OSAllocatedUnfairLock(initialState: false)
 
     /// Reset host-global CoreSimulator state once per process. Subsequent calls
     /// are no-ops. Best-effort: a failed reset is logged, not thrown — it must
     /// not fail an otherwise-healthy test, and the next `simctl` call respawns
-    /// the service regardless.
+    /// the service regardless. The done-flag is only set after both commands
+    /// finish, so a reset interrupted mid-flight (time-limit cancellation)
+    /// is retried by the next enrolled test; callers hold `DaemonTestLock`,
+    /// which is what serializes the check-then-run.
     static func resetOnce() async {
-        let shouldRun = didReset.withLock { done -> Bool in
-            if done { return false }
-            done = true
-            return true
-        }
-        guard shouldRun else { return }
+        guard !didReset.withLock({ $0 }) else { return }
 
         // Shut down every booted simulator, then bounce the service. `killall`
         // is domain-agnostic (CoreSimulatorService runs in the GUI session, not
@@ -37,6 +38,7 @@ enum CoreSimulatorHygiene {
         // simctl invocation — pickUDID, moments later, brings it back clean.
         await run(["/usr/bin/xcrun", "simctl", "shutdown", "all"])
         await run(["/usr/bin/killall", "-9", "com.apple.CoreSimulator.CoreSimulatorService"])
+        didReset.withLock { $0 = true }
     }
 
     private static func run(_ args: [String]) async {

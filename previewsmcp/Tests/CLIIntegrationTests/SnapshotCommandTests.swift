@@ -360,6 +360,11 @@ struct SnapshotCommandTests {
                 return
             }
 
+            // Reset host-global CoreSimulator state once before the first iOS
+            // preview boots — earlier Bazel targets leave it degraded (see
+            // CoreSimulatorHygiene).
+            await CoreSimulatorHygiene.resetOnce()
+
             let tempDir = try CLIRunner.makeTempDir()
             defer { try? FileManager.default.removeItem(at: tempDir) }
 

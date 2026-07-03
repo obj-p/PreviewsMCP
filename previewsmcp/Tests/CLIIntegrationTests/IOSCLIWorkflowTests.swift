@@ -32,6 +32,11 @@ struct IOSCLIWorkflowTests {
 
             try await Self.cleanSlate()
 
+            // Reset host-global CoreSimulator state once before the first iOS
+            // preview boots — earlier Bazel targets leave it degraded (see
+            // CoreSimulatorHygiene).
+            await CoreSimulatorHygiene.resetOnce()
+
             let file = CLIRunner.spmExampleRoot
                 .appendingPathComponent("Sources/ToDo/ToDoView.swift").path
             let configPath = CLIRunner.repoRoot
