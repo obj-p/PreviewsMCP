@@ -17,3 +17,13 @@ func pollUntil<T>(
     Issue.record(failure)
     throw CancellationError()
 }
+
+func pollUntil(
+    _ condition: () -> Bool,
+    failure: Comment,
+    deadline: Duration = .seconds(10)
+) async throws {
+    _ = try await pollUntil(
+        { condition() ? true : nil }, failure: failure, deadline: deadline
+    )
+}

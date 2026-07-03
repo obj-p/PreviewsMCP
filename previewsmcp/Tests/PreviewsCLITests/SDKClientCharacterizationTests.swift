@@ -11,10 +11,11 @@ import Testing
 struct SDKClientCharacterizationTests {
     @Test("a handler registered before connect receives a notification sent right after initialize")
     func preHandshakeRegistrationReceivesEarlyNotification() async throws {
-        let (serverSide, clientSide) = await InMemoryTransport.pair()
+        let (clientSide, serverSide) = await InMemoryTransport.createConnectedPair()
         let responder = try await RawResponder.start(
             on: serverSide, notifyImmediatelyAfterInitialize: true
         )
+        defer { responder.stop() }
 
         let client = Client(name: "probe", version: "1")
         let received = OSAllocatedUnfairLock(initialState: false)
@@ -25,18 +26,23 @@ struct SDKClientCharacterizationTests {
         }
         _ = try await client.connect(transport: clientSide)
 
-        _ = try await pollUntil(
-            { received.withLock { $0 } ? true : nil },
-            failure: "early notification was dropped despite pre-connect registration"
-        )
+        do {
+            try await pollUntil(
+                { received.withLock { $0 } },
+                failure: "early notification was dropped despite pre-connect registration"
+            )
+        } catch {
+            await client.disconnect()
+            throw error
+        }
         await client.disconnect()
-        responder.stop()
     }
 
     @Test("disconnect drains a pending callTool with an error instead of hanging")
     func disconnectDrainsPendingCallTool() async throws {
-        let (serverSide, clientSide) = await InMemoryTransport.pair()
+        let (clientSide, serverSide) = await InMemoryTransport.createConnectedPair()
         let responder = try await RawResponder.start(on: serverSide)
+        defer { responder.stop() }
 
         let client = Client(name: "probe", version: "1")
         _ = try await client.connect(transport: clientSide)
@@ -44,76 +50,70 @@ struct SDKClientCharacterizationTests {
         // The responder never answers tools/call, so this call can only end
         // via disconnect's drain — the StallTimer's entire safety contract.
         let pending = Task { try await client.callToolStructured(name: "never-answered") }
-        _ = try await pollUntil(
-            { responder.sawMethod("tools/call") ? true : nil },
-            failure: "tools/call never reached the wire"
-        )
+        do {
+            try await pollUntil(
+                { responder.collector.sawMethod("tools/call") },
+                failure: "tools/call never reached the wire"
+            )
+        } catch {
+            pending.cancel()
+            await client.disconnect()
+            throw error
+        }
 
         await client.disconnect()
 
         let outcome = await pending.result
         guard case .failure = outcome else {
             Issue.record("pending callTool returned a value after disconnect")
-            responder.stop()
             return
         }
-        responder.stop()
     }
 
     /// Plays the server end of the pair in raw JSON-RPC: answers initialize
-    /// (echoing the client's id verbatim), records every method seen, and
-    /// ignores everything else.
+    /// (echoing the client's id verbatim), records every frame via its
+    /// collector, and ignores everything else.
     private struct RawResponder {
-        private let methods: OSAllocatedUnfairLock<[String]>
-        private let reader: Task<Void, Never>
+        let collector: FrameCollector
 
         static func start(
             on transport: InMemoryTransport,
             notifyImmediatelyAfterInitialize: Bool = false
         ) async throws -> RawResponder {
-            let methods = OSAllocatedUnfairLock(initialState: [String]())
-            let reader = Task {
-                do {
-                    for try await frame in await transport.receive() {
-                        let parsed = try? JSONSerialization.jsonObject(with: frame)
-                        guard
-                            let object = parsed as? [String: Any],
-                            let method = object["method"] as? String
-                        else { continue }
-                        methods.withLock { $0.append(method) }
-
-                        if method == "initialize", let id = object["id"] {
-                            let response: [String: Any] = [
-                                "jsonrpc": "2.0",
-                                "id": id,
-                                "result": [
-                                    "capabilities": ["logging": [:]],
-                                    "protocolVersion": Version.latest,
-                                    "serverInfo": ["name": "raw", "version": "1"],
-                                ],
-                            ]
-                            try await transport.send(
-                                JSONSerialization.data(withJSONObject: response, options: [.sortedKeys])
-                            )
-                            if notifyImmediatelyAfterInitialize {
-                                try await transport.send(Data(
-                                    #"{"jsonrpc":"2.0","method":"notifications/message","params":{"data":"early","level":"debug","logger":"probe"}}"#
-                                        .utf8
-                                ))
-                            }
-                        }
-                    }
-                } catch {}
+            try await transport.connect()
+            let collector = FrameCollector(reading: transport) { frame in
+                guard
+                    let object = FrameCollector.object(frame),
+                    object["method"] as? String == "initialize",
+                    let id = object["id"]
+                else { return }
+                let response: [String: Any] = [
+                    "jsonrpc": "2.0",
+                    "id": id,
+                    "result": [
+                        "capabilities": ["logging": [:]],
+                        "protocolVersion": Version.latest,
+                        "serverInfo": ["name": "raw", "version": "1"],
+                    ],
+                ]
+                guard
+                    let data = try? JSONSerialization.data(
+                        withJSONObject: response, options: [.sortedKeys]
+                    )
+                else { return }
+                try? await transport.send(data)
+                if notifyImmediatelyAfterInitialize {
+                    try? await transport.send(Data(
+                        #"{"jsonrpc":"2.0","method":"notifications/message","params":{"data":"early","level":"debug","logger":"probe"}}"#
+                            .utf8
+                    ))
+                }
             }
-            return RawResponder(methods: methods, reader: reader)
-        }
-
-        func sawMethod(_ method: String) -> Bool {
-            methods.withLock { $0 }.contains(method)
+            return RawResponder(collector: collector)
         }
 
         func stop() {
-            reader.cancel()
+            collector.stop()
         }
     }
 }
