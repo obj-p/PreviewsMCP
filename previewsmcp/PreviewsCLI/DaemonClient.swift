@@ -126,7 +126,7 @@ enum DaemonClient {
             to: NWEndpoint.unix(path: DaemonPaths.socket.path),
             using: .tcp
         )
-        let transport = NetworkTransport(connection: connection)
+        let transport = NetworkTransport(connection: connection, heartbeatConfig: .disabled)
         let client = Client(name: clientName, version: PreviewsMCPCommand.version)
         await configure?(client)
         let initResult = try await client.connect(transport: transport)
