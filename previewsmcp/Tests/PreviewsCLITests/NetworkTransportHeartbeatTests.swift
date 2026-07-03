@@ -2,6 +2,7 @@ import Foundation
 import MCP
 import Network
 import os
+import PreviewsCLI
 import Testing
 
 /// Documents why both daemon-channel `NetworkTransport`s are constructed with
@@ -28,21 +29,7 @@ struct NetworkTransportHeartbeatTests {
         listener.newConnectionHandler = { connection in
             accepted.withLock { $0 = connection }
         }
-        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
-            listener.stateUpdateHandler = { state in
-                switch state {
-                case .ready:
-                    cont.resume()
-                    listener.stateUpdateHandler = nil
-                case let .failed(error):
-                    cont.resume(throwing: error)
-                    listener.stateUpdateHandler = nil
-                default:
-                    break
-                }
-            }
-            listener.start(queue: .global(qos: .userInitiated))
-        }
+        try await awaitReady(listener)
         defer { listener.cancel() }
 
         let rawPeer = NWConnection(to: .unix(path: socketPath), using: .tcp)
@@ -53,9 +40,8 @@ struct NetworkTransportHeartbeatTests {
             until: { accepted.withLock { $0 } },
             failure: "listener never accepted the connection"
         )
-        let transport = NetworkTransport(connection: serverSide, heartbeatConfig: .disabled)
+        let transport = daemonChannelTransport(connection: serverSide)
         try await transport.connect()
-        defer { Task { await transport.disconnect() } }
 
         let received = OSAllocatedUnfairLock(initialState: [Data]())
         let collector = Task {
@@ -88,10 +74,12 @@ struct NetworkTransportHeartbeatTests {
         try await rawSend(rawPeer, survivor + newline)
 
         let messages = try await poll(
-            until: { received.withLock { $0.count >= 2 ? $0 : nil } },
+            until: { received.withLock { $0.contains(survivor) ? $0 : nil } },
             failure: "survivor message never arrived"
         )
-        #expect(messages == [sentinel, survivor], "expected the coalesced message to be dropped")
+        #expect(messages.first == sentinel)
+        #expect(!messages.contains(dropped), "expected the coalesced message to be dropped")
+        await transport.disconnect()
     }
 
     private func awaitReady(_ connection: NWConnection) async throws {
@@ -101,14 +89,38 @@ struct NetworkTransportHeartbeatTests {
                 case .ready:
                     cont.resume()
                     connection.stateUpdateHandler = nil
-                case let .failed(error):
+                case let .failed(error), let .waiting(error):
                     cont.resume(throwing: error)
+                    connection.stateUpdateHandler = nil
+                case .cancelled:
+                    cont.resume(throwing: CancellationError())
                     connection.stateUpdateHandler = nil
                 default:
                     break
                 }
             }
             connection.start(queue: .global(qos: .userInitiated))
+        }
+    }
+
+    private func awaitReady(_ listener: NWListener) async throws {
+        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
+            listener.stateUpdateHandler = { state in
+                switch state {
+                case .ready:
+                    cont.resume()
+                    listener.stateUpdateHandler = nil
+                case let .failed(error), let .waiting(error):
+                    cont.resume(throwing: error)
+                    listener.stateUpdateHandler = nil
+                case .cancelled:
+                    cont.resume(throwing: CancellationError())
+                    listener.stateUpdateHandler = nil
+                default:
+                    break
+                }
+            }
+            listener.start(queue: .global(qos: .userInitiated))
         }
     }
 
