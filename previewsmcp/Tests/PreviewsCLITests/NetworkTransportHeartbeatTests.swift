@@ -22,7 +22,6 @@ struct NetworkTransportHeartbeatTests {
 
         let params = NWParameters.tcp
         params.requiredLocalEndpoint = NWEndpoint.unix(path: socketPath)
-        params.allowLocalEndpointReuse = true
         let listener = try NWListener(using: params)
 
         let accepted = OSAllocatedUnfairLock(initialState: NWConnection?.none)
@@ -75,7 +74,7 @@ struct NetworkTransportHeartbeatTests {
 
         try await rawSend(rawPeer, sentinel + newline)
         _ = try await poll(
-            until: { received.withLock { $0.count >= 1 } ? true : nil },
+            until: { received.withLock { $0.count >= 1 ? $0 : nil } },
             failure: "sentinel message never arrived"
         )
 
@@ -88,13 +87,11 @@ struct NetworkTransportHeartbeatTests {
         try await Task.sleep(for: .milliseconds(500))
         try await rawSend(rawPeer, survivor + newline)
 
-        _ = try await poll(
-            until: { received.withLock { $0.count >= 2 } ? true : nil },
+        let messages = try await poll(
+            until: { received.withLock { $0.count >= 2 ? $0 : nil } },
             failure: "survivor message never arrived"
         )
-        let messages = received.withLock { $0 }
         #expect(messages == [sentinel, survivor], "expected the coalesced message to be dropped")
-        #expect(!messages.contains(dropped))
     }
 
     private func awaitReady(_ connection: NWConnection) async throws {
@@ -132,7 +129,7 @@ struct NetworkTransportHeartbeatTests {
 
     private func poll<T>(
         until value: () -> T?,
-        failure: String,
+        failure: Comment,
         deadline: Duration = .seconds(10)
     ) async throws -> T {
         let clock = ContinuousClock()
@@ -141,7 +138,7 @@ struct NetworkTransportHeartbeatTests {
             if let found = value() { return found }
             try await Task.sleep(for: .milliseconds(25))
         }
-        Issue.record(Comment(rawValue: failure))
+        Issue.record(failure)
         throw CancellationError()
     }
 }
