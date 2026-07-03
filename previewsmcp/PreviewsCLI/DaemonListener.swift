@@ -84,7 +84,7 @@ enum DaemonListener {
         registry: SessionRegistry
     ) async {
         do {
-            let transport = NetworkTransport(connection: connection)
+            let transport = daemonChannelTransport(connection: connection)
             let (server, _) = try await configureMCPServer(
                 host: host, iosManager: iosManager,
                 configCache: configCache, registry: registry,

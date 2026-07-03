@@ -1,6 +1,7 @@
 import Foundation
 import MCP
 import Network
+import PreviewsCLI
 import Testing
 
 /// Integration tests for `previewsmcp serve --daemon` / `status` / `kill-daemon`.
@@ -117,7 +118,7 @@ struct DaemonLifecycleTests {
                 to: NWEndpoint.unix(path: Self.socketPath),
                 using: .tcp
             )
-            let transport = NetworkTransport(connection: connection)
+            let transport = daemonChannelTransport(connection: connection)
             let client = Client(name: "daemon-lifecycle-test", version: "1.0")
             _ = try await client.connect(transport: transport)
             defer {
@@ -244,7 +245,7 @@ struct DaemonLifecycleTests {
                 to: NWEndpoint.unix(path: Self.socketPath),
                 using: .tcp
             )
-            let transport = NetworkTransport(connection: connection)
+            let transport = daemonChannelTransport(connection: connection)
             let client = Client(name: "race-test", version: "1.0")
             _ = try await client.connect(transport: transport)
             await client.disconnect()

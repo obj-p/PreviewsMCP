@@ -54,3 +54,11 @@ cyclomatic_complexity:
 nesting:
   type_level: 2
   function_level: 3
+
+custom_rules:
+  daemon_channel_transport_factory:
+    name: "Daemon-channel transport factory"
+    regex: 'NetworkTransport\('
+    excluded: '.*/DaemonChannelTransport\.swift'
+    message: "Construct daemon-channel transports via daemonChannelTransport(connection:) — the SDK's default transport heartbeat corrupts framing (see NetworkTransportHeartbeatTests)."
+    severity: error
