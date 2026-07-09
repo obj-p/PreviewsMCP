@@ -118,12 +118,14 @@ enum DaemonClient {
     /// notification handlers there rather than on the returned client
     /// to avoid dropping early notifications.
     ///
-    /// Liveness defaults (5s interval, 6 missed pongs) bound wedged-daemon
+    /// Liveness policy (5s interval, 6 missed pongs) bounds wedged-daemon
     /// detection at ~30s — the old StallTimer threshold — independent of
-    /// the daemon's own 60s client-liveness cadence. The transport owns
-    /// the socket: whichever path disconnects first (body teardown,
-    /// liveness declaring the daemon dead, a failed send) closes it after
-    /// quiescence.
+    /// the daemon's own client-liveness cadence. The client starts pinging
+    /// at the handshake, inside this call, so daemon spawn or restart time
+    /// before it never eats into the window (issue #142) and even a wedged
+    /// initialize is bounded. The transport owns the socket: whichever
+    /// path disconnects first (body teardown, liveness declaring the
+    /// daemon dead, a failed send) closes it after quiescence.
     static func openClient(
         clientName: String,
         configure: ((any MCPClienting) async -> Void)?
@@ -132,7 +134,7 @@ enum DaemonClient {
         let transport = FramedTransport(owningSocket: socket)
         let client = PreviewsMCPClient(
             name: clientName, version: PreviewsMCPCommand.version,
-            liveness: .init()
+            liveness: .init(interval: .seconds(5), missedPongLimit: 6)
         )
         await configure?(client)
         do {
@@ -159,14 +161,11 @@ enum DaemonClient {
     /// Extra handlers can be registered via `configure`; they run before
     /// the handshake alongside the default log forwarder.
     ///
-    /// Wedged-daemon detection is the client's protocol-layer liveness
-    /// (see `openClient`): the client pings the daemon on an interval,
-    /// any inbound frame counts as life, and after the missed-pong limit
-    /// it disconnects — draining pending `callTool` continuations with a
-    /// transport error instead of hanging forever (`callTool` has no
-    /// built-in timeout; a daemon can wedge after hot-reload, issue #135).
-    /// The liveness window only starts once `connect` returns, so a slow
-    /// spawn or version-mismatch restart never eats into it (issue #142).
+    /// Wedged-daemon detection is the client's protocol-layer liveness —
+    /// policy, timing, and rationale live on `openClient`. Its disconnect
+    /// drains pending `callTool` continuations with a transport error
+    /// instead of hanging forever (`callTool` has no built-in timeout; a
+    /// daemon can wedge after hot-reload, issue #135).
     static func withDaemonClient<T>(
         name: String,
         configure: ((any MCPClienting) async -> Void)? = nil,

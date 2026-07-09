@@ -97,9 +97,10 @@ struct SDKServerCharacterizationTests {
         arguments: ServerKind.allCases
     )
     func unknownMethodGetsError(kind: ServerKind) async throws {
-        // withDaemonClient awaits `setLoggingLevel` BEFORE its stall watcher
-        // starts, and the daemon registers no logging/setLevel handler — this
-        // error response is the only thing that unblocks every CLI command.
+        // The daemon registers no logging/setLevel handler; an unknown
+        // method must error back, never go silent — a client awaiting a
+        // response to an unhandled method would hang until liveness
+        // tears the connection down.
         try await Wire.with(kind) { wire in
             try await wire.handshake()
             let reply = try await wire.roundTrip(
@@ -126,8 +127,8 @@ struct SDKServerCharacterizationTests {
         arguments: ServerKind.allCases
     )
     func pingAnsweredDuringInFlightCall(kind: ServerKind) async throws {
-        // The liveness rewrite keys StallTimer off pong latency, so a pong
-        // must not queue behind a long render.
+        // Client liveness is pong-fed, so a pong must not queue behind a
+        // long render.
         let started = OSAllocatedUnfairLock(initialState: false)
         let release = OSAllocatedUnfairLock(initialState: false)
         try await Wire.with(kind) { server in

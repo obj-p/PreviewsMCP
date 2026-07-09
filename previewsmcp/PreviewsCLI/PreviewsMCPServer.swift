@@ -15,36 +15,28 @@ import PreviewsCore
 /// running handler. A handler that throws CancellationError produces NO
 /// response frame (MCP spec); other errors produce an error response.
 ///
-/// Liveness (the owner's rewrite requirement): with a `ClientLiveness`
+/// Liveness (the owner's rewrite requirement): with a `PingLiveness`
 /// config the server pings its client on an interval and disconnects the
-/// transport after `missedPongLimit` pings with no response of any kind.
-/// Any inbound response counts as proof of life — an SDK client answers
-/// server pings with methodNotFound (characterized), and that is a live
-/// peer.
-actor PreviewsMCPServer: MCPServing {
-    struct ClientLiveness {
-        var interval: Duration = .seconds(15)
-        var missedPongLimit: Int = 2
-    }
-
-    private typealias ErasedMethod = MCPWire.ErasedMethod
-    private typealias ErasedNotification = MCPWire.ErasedNotification
-
+/// transport after `missedPongLimit` pings with no response of any kind
+/// (see `LivenessPinging`). Any inbound response counts as proof of life —
+/// an SDK client answers server pings with methodNotFound (characterized),
+/// and that is a live peer.
+actor PreviewsMCPServer: MCPServing, LivenessPinging {
     private let serverInfo: Server.Info
     private let capabilities: Server.Capabilities
-    private let liveness: ClientLiveness?
+    private let liveness: PingLiveness?
     private var methodHandlers: [String: @Sendable (Data) async throws -> Data] = [:]
     private var transport: (any Transport)?
     private var receiveLoop: Task<Void, Never>?
     private var pinger: Task<Void, Never>?
     private var inFlightRequests: [UUID: (id: ID, task: Task<Data, Swift.Error>)] = [:]
     private var isInitialized = false
-    private var missedPongs = 0
+    var missedPongs = 0
 
     init(
         name: String, version: String,
         capabilities: Server.Capabilities = .init(),
-        liveness: ClientLiveness? = nil
+        liveness: PingLiveness? = nil
     ) {
         serverInfo = Server.Info(name: name, version: version)
         self.capabilities = capabilities
@@ -69,7 +61,7 @@ actor PreviewsMCPServer: MCPServing {
         try await transport.connect()
         receiveLoop = Task { await run(on: transport) }
         if let liveness {
-            pinger = Task { await pingLoop(on: transport, liveness) }
+            pinger = Task { await pingLoop(on: transport, liveness, peer: "client") }
         }
     }
 
@@ -106,18 +98,15 @@ actor PreviewsMCPServer: MCPServing {
                 // The receive loop is the liveness ground truth: ANY inbound
                 // frame proves the peer's process is alive and writing.
                 missedPongs = 0
-                if (try? MCPWire.decoder.decode(Response<ErasedMethod>.self, from: raw)) != nil {
-                    continue
-                } else if let request = try? MCPWire.decoder.decode(
-                    Request<ErasedMethod>.self, from: raw
-                ) {
-                    dispatch(request, raw: raw, on: transport)
-                } else if let note = try? MCPWire.decoder.decode(
-                    Message<ErasedNotification>.self, from: raw
-                ) {
-                    handleNotification(note, raw: raw)
-                } else {
-                    let reply = Self.parseErrorResponse(for: raw)
+                switch MCPWire.classify(raw) {
+                case .response:
+                    break
+                case let .request(id, method):
+                    dispatch(id: id, method: method, raw: raw, on: transport)
+                case let .notification(method):
+                    handleNotification(method: method, raw: raw)
+                case .unparseable:
+                    let reply = Self.parseErrorResponse()
                     Task { await send(reply, on: transport) }
                 }
             }
@@ -135,8 +124,7 @@ actor PreviewsMCPServer: MCPServing {
         inFlightRequests.removeAll()
     }
 
-    private func dispatch(_ request: Request<ErasedMethod>, raw: Data, on transport: any Transport) {
-        let method = request.method
+    private func dispatch(id: ID, method: String, raw: Data, on transport: any Transport) {
         let handler = builtinHandler(for: method)
             ?? methodHandlers[method]
             ?? { _ in throw MCPError.methodNotFound("Unknown method: \(method)") }
@@ -148,8 +136,8 @@ actor PreviewsMCPServer: MCPServing {
         // the first task from cancellation nor deregister the second when
         // the first completes.
         let token = UUID()
-        inFlightRequests[token] = (request.id, work)
-        Task { await complete(token, id: request.id, of: work, on: transport) }
+        inFlightRequests[token] = (id, work)
+        Task { await complete(token, id: id, of: work, on: transport) }
     }
 
     private func complete(
@@ -164,15 +152,15 @@ actor PreviewsMCPServer: MCPServing {
             break
         case let .failure(error):
             let mcpError = error as? MCPError ?? .internalError(error.localizedDescription)
-            if let frame = try? MCPWire.encode(ErasedMethod.response(id: id, error: mcpError)) {
+            if let frame = MCPWire.errorResponse(id: id, mcpError) {
                 await send(frame, on: transport)
             }
         }
     }
 
-    private func handleNotification(_ note: Message<ErasedNotification>, raw: Data) {
+    private func handleNotification(method: String, raw: Data) {
         guard
-            note.method == CancelledNotification.name,
+            method == CancelledNotification.name,
             let cancelled = try? MCPWire.decoder.decode(
                 Message<CancelledNotification>.self, from: raw
             )
@@ -215,45 +203,16 @@ actor PreviewsMCPServer: MCPServing {
         return try MCPWire.encode(Initialize.response(id: request.id, result: result))
     }
 
-    // MARK: - Liveness
-
-    private func pingLoop(on transport: any Transport, _ config: ClientLiveness) async {
-        while true {
-            do {
-                try await Task.sleep(for: config.interval)
-            } catch {
-                return
-            }
-            if missedPongs >= config.missedPongLimit {
-                Log.info("declaring the client dead: \(missedPongs) pings with no traffic")
-                await transport.disconnect()
-                return
-            }
-            missedPongs += 1
-            guard let frame = try? MCPWire.encode(Ping.request()) else { continue }
-            do {
-                try await transport.send(frame)
-            } catch {
-                Log.info("liveness ping send failed (\(error)); closing the connection")
-                await transport.disconnect()
-                return
-            }
-        }
-    }
-
     // MARK: - Wire
 
     private func send(_ frame: Data, on transport: any Transport) async {
         try? await transport.send(frame)
     }
 
-    private struct IDEnvelope: Codable {
-        let id: ID?
-    }
-
-    private static func parseErrorResponse(for raw: Data) -> Data {
-        let id = (try? MCPWire.decoder.decode(IDEnvelope.self, from: raw))?.id ?? .random
-        let reply = ErasedMethod.response(id: id, error: .parseError("Invalid message format"))
-        return (try? MCPWire.encode(reply)) ?? Data()
+    private static func parseErrorResponse() -> Data {
+        // A classified-unparseable frame never carried a usable id (an id
+        // would have classified it as a request or response), so the echo
+        // falls back to a random one.
+        MCPWire.errorResponse(id: .random, .parseError("Invalid message format")) ?? Data()
     }
 }

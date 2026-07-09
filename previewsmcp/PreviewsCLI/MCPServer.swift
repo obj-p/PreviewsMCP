@@ -57,7 +57,7 @@ func configureMCPServer(
     configCache cache: ConfigCache,
     registry: SessionRegistry,
     sharedCompiler: Compiler? = nil,
-    liveness: PreviewsMCPServer.ClientLiveness? = nil
+    liveness: PingLiveness? = nil
 ) async throws -> (any MCPServing, Compiler) {
     cleanupStaleTempDirs()
 

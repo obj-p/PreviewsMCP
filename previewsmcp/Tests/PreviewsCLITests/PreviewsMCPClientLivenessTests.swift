@@ -27,24 +27,9 @@ struct PreviewsMCPClientLivenessTests {
         )
         _ = try await client.connect(transport: clientSide)
 
-        let pending = Task { try await client.callToolStructured(name: "never-answered") }
-        let outcome = OSAllocatedUnfairLock(
-            initialState: Result<CallTool.Result, Swift.Error>?.none
-        )
-        let observer = Task {
-            let result = await pending.result
-            outcome.withLock { $0 = result }
-        }
-        defer { observer.cancel() }
-
-        let drained = try await pollUntil(
-            { outcome.withLock { $0 } },
-            failure: "liveness never declared the silent daemon dead"
-        )
-        guard case .failure = drained else {
-            Issue.record("pending callTool returned a value from a silent daemon")
-            return
-        }
+        let call = PendingToolCall(on: client)
+        defer { call.cancel() }
+        try await call.expectDrained(failure: "liveness never declared the silent daemon dead")
 
         // The connection is spent: later calls fail fast instead of parking
         // a fresh continuation on a dead wire.
@@ -68,15 +53,8 @@ struct PreviewsMCPClientLivenessTests {
 
         // A pending render analog: tools/call is never answered, so only
         // ping traffic keeps the connection alive.
-        let pending = Task { try await client.callToolStructured(name: "never-answered") }
-        let outcome = OSAllocatedUnfairLock(
-            initialState: Result<CallTool.Result, Swift.Error>?.none
-        )
-        let observer = Task {
-            let result = await pending.result
-            outcome.withLock { $0 = result }
-        }
-        defer { observer.cancel() }
+        let call = PendingToolCall(on: client)
+        defer { call.cancel() }
 
         // Event-based, not wall-clock: eight answered pings can only happen
         // if the pong reset keeps working past the missed-pong limit;
@@ -86,19 +64,11 @@ struct PreviewsMCPClientLivenessTests {
             failure: "the client stopped pinging a responsive daemon"
         )
         #expect(
-            outcome.withLock { $0 } == nil,
+            call.currentOutcome() == nil,
             "a responsive daemon's pending call was drained"
         )
         await client.disconnect()
-
-        let drained = try await pollUntil(
-            { outcome.withLock { $0 } },
-            failure: "disconnect did not drain the pending callTool"
-        )
-        guard case .failure = drained else {
-            Issue.record("pending callTool returned a value after disconnect")
-            return
-        }
+        try await call.expectDrained(failure: "disconnect did not drain the pending callTool")
     }
 
     @Test("transport EOF drains the pending callTool (the SDK client busy-spins here)")
@@ -109,16 +79,8 @@ struct PreviewsMCPClientLivenessTests {
         let client = PreviewsMCPClient(name: "probe", version: "1")
         _ = try await client.connect(transport: clientSide)
 
-        let pending = Task { try await client.callToolStructured(name: "never-answered") }
-        let outcome = OSAllocatedUnfairLock(
-            initialState: Result<CallTool.Result, Swift.Error>?.none
-        )
-        let observer = Task {
-            let result = await pending.result
-            outcome.withLock { $0 = result }
-        }
-        defer { observer.cancel() }
-
+        let call = PendingToolCall(on: client)
+        defer { call.cancel() }
         try await pollUntil(
             { responder.collector.sawMethod("tools/call") },
             failure: "tools/call never reached the wire"
@@ -129,14 +91,7 @@ struct PreviewsMCPClientLivenessTests {
         responder.stop()
         await responder.disconnect()
 
-        let drained = try await pollUntil(
-            { outcome.withLock { $0 } },
-            failure: "EOF did not drain the pending callTool"
-        )
-        guard case .failure = drained else {
-            Issue.record("pending callTool returned a value after EOF")
-            return
-        }
+        try await call.expectDrained(failure: "EOF did not drain the pending callTool")
         await client.disconnect()
     }
 }

@@ -77,38 +77,15 @@ struct SDKClientCharacterizationTests {
         try await Self.withConnectedClient(kind: kind) { client, responder in
             // The responder never answers tools/call, so this call can only
             // end via disconnect's drain.
-            let pending = Task { try await client.callToolStructured(name: "never-answered", arguments: nil) }
-            let outcome = OSAllocatedUnfairLock(
-                initialState: Result<CallTool.Result, Swift.Error>?.none
+            let call = PendingToolCall(on: client)
+            defer { call.cancel() }
+            try await pollUntil(
+                { responder.collector.sawMethod("tools/call") },
+                failure: "tools/call never reached the wire"
             )
-            let observer = Task {
-                let result = await pending.result
-                outcome.withLock { $0 = result }
-            }
-            defer { observer.cancel() }
-
-            do {
-                try await pollUntil(
-                    { responder.collector.sawMethod("tools/call") },
-                    failure: "tools/call never reached the wire"
-                )
-            } catch {
-                pending.cancel()
-                throw error
-            }
 
             await client.disconnect()
-
-            // Bounded: if the drain contract regresses, this polls out red
-            // instead of wedging the target on an unresumed continuation.
-            let drained = try await pollUntil(
-                { outcome.withLock { $0 } },
-                failure: "disconnect did not drain the pending callTool"
-            )
-            guard case .failure = drained else {
-                Issue.record("pending callTool returned a value after disconnect")
-                return
-            }
+            try await call.expectDrained(failure: "disconnect did not drain the pending callTool")
         }
     }
 

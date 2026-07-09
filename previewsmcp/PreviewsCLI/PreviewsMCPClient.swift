@@ -7,13 +7,13 @@ import PreviewsCore
 /// suite runs every pinned behavior against both clients differentially.
 ///
 /// Liveness (the pong-fed replacement for the notification-fed StallTimer):
-/// with a `ServerLiveness` config the client pings the daemon on an
+/// with a `PingLiveness` config the client pings the daemon on an
 /// interval, and ANY inbound frame — pong, response, notification — is
-/// proof of life. After `missedPongLimit` pings with no traffic the client
-/// disconnects, which drains every pending request continuation with an
-/// error instead of hanging forever. Detection latency is bounded by the
-/// client's own ping cadence, independent of the daemon's 60s liveness
-/// interval.
+/// proof of life (see `LivenessPinging`). After `missedPongLimit` pings
+/// with no traffic the client disconnects, which drains every pending
+/// request continuation with an error instead of hanging forever.
+/// Detection latency is bounded by the client's own ping cadence,
+/// independent of the daemon's liveness interval.
 ///
 /// Two deliberate improvements over the SDK client, both characterized in
 /// the parity suite as divergences:
@@ -21,23 +21,18 @@ import PreviewsCore
 ///   busy-spins on a dead transport).
 /// - Server-initiated pings get a real empty-result pong, not
 ///   methodNotFound (the daemon accepts either as proof of life).
-actor PreviewsMCPClient: MCPClienting {
-    struct ServerLiveness {
-        var interval: Duration = .seconds(5)
-        var missedPongLimit: Int = 6
-    }
-
+actor PreviewsMCPClient: MCPClienting, LivenessPinging {
     private let clientInfo: Client.Info
-    private let liveness: ServerLiveness?
+    private let liveness: PingLiveness?
     private var transport: (any Transport)?
     private var receiveLoop: Task<Void, Never>?
     private var pinger: Task<Void, Never>?
     private var pending: [ID: CheckedContinuation<Data, Swift.Error>] = [:]
     private var notificationHandlers: [String: [@Sendable (Data) async -> Void]] = [:]
-    private var missedPongs = 0
+    var missedPongs = 0
     private var isFinished = false
 
-    init(name: String, version: String, liveness: ServerLiveness? = nil) {
+    init(name: String, version: String, liveness: PingLiveness? = nil) {
         clientInfo = Client.Info(name: name, version: version)
         self.liveness = liveness
     }
@@ -65,7 +60,7 @@ actor PreviewsMCPClient: MCPClienting {
             // bounded: a full liveness window with no inbound traffic
             // disconnects, draining the pending request, and connect
             // throws instead of hanging forever.
-            pinger = Task { await pingLoop(on: transport, liveness) }
+            pinger = Task { await pingLoop(on: transport, liveness, peer: "daemon") }
         }
         let result = try await request(
             Initialize.request(.init(capabilities: .init(), clientInfo: clientInfo))
@@ -139,18 +134,15 @@ actor PreviewsMCPClient: MCPClienting {
                 // The receive loop is the liveness ground truth: ANY inbound
                 // frame proves the daemon's process is alive and writing.
                 missedPongs = 0
-                if let response = try? MCPWire.decoder.decode(
-                    Response<MCPWire.ErasedMethod>.self, from: raw
-                ) {
-                    pending.removeValue(forKey: response.id)?.resume(returning: raw)
-                } else if let request = try? MCPWire.decoder.decode(
-                    Request<MCPWire.ErasedMethod>.self, from: raw
-                ) {
-                    await answer(request, on: transport)
-                } else if let note = try? MCPWire.decoder.decode(
-                    Message<MCPWire.ErasedNotification>.self, from: raw
-                ) {
-                    await dispatch(note, raw: raw)
+                switch MCPWire.classify(raw) {
+                case let .response(id):
+                    pending.removeValue(forKey: id)?.resume(returning: raw)
+                case let .request(id, method):
+                    await answer(id: id, method: method, on: transport)
+                case let .notification(method):
+                    await dispatch(method: method, raw: raw)
+                case .unparseable:
+                    break
                 }
             }
         } catch {}
@@ -158,20 +150,11 @@ actor PreviewsMCPClient: MCPClienting {
         drainPending(with: MCPError.internalError("Server disconnected"))
     }
 
-    private func answer(
-        _ request: Request<MCPWire.ErasedMethod>, on transport: any Transport
-    ) async {
-        let reply: Data? =
-            if request.method == Ping.name {
-                try? MCPWire.encode(Ping.response(id: request.id))
-            } else {
-                try? MCPWire.encode(
-                    MCPWire.ErasedMethod.response(
-                        id: request.id,
-                        error: MCPError.methodNotFound("Unknown method: \(request.method)")
-                    )
-                )
-            }
+    private func answer(id: ID, method: String, on transport: any Transport) async {
+        let reply =
+            method == Ping.name
+                ? MCPWire.pong(id: id)
+                : MCPWire.errorResponse(id: id, .methodNotFound("Unknown method: \(method)"))
         if let reply {
             try? await transport.send(reply)
         }
@@ -179,35 +162,9 @@ actor PreviewsMCPClient: MCPClienting {
 
     /// Handlers run inline so notification order is preserved (the stderr
     /// log forwarder depends on it); every registered handler is tiny.
-    private func dispatch(_ note: Message<MCPWire.ErasedNotification>, raw: Data) async {
-        for handler in notificationHandlers[note.method] ?? [] {
+    private func dispatch(method: String, raw: Data) async {
+        for handler in notificationHandlers[method] ?? [] {
             await handler(raw)
-        }
-    }
-
-    // MARK: - Liveness
-
-    private func pingLoop(on transport: any Transport, _ config: ServerLiveness) async {
-        while true {
-            do {
-                try await Task.sleep(for: config.interval)
-            } catch {
-                return
-            }
-            if missedPongs >= config.missedPongLimit {
-                Log.info("declaring the daemon dead: \(missedPongs) pings with no traffic")
-                await transport.disconnect()
-                return
-            }
-            missedPongs += 1
-            guard let frame = try? MCPWire.encode(Ping.request()) else { continue }
-            do {
-                try await transport.send(frame)
-            } catch {
-                Log.info("liveness ping send failed (\(error)); closing the connection")
-                await transport.disconnect()
-                return
-            }
         }
     }
 }

@@ -1,5 +1,47 @@
 import Foundation
 import MCP
+import os
+@testable import PreviewsCLI
+import Testing
+
+/// A callTool the responder never answers, with its outcome observed on a
+/// side task: the shared scaffold for every "pending request must drain,
+/// not hang" pin in the client characterization and liveness suites.
+struct PendingToolCall {
+    private let outcome = OSAllocatedUnfairLock(
+        initialState: Result<CallTool.Result, Swift.Error>?.none
+    )
+    private let pending: Task<CallTool.Result, Swift.Error>
+    private let observer: Task<Void, Never>
+
+    init(on client: any DaemonToolCalling) {
+        let outcome = outcome
+        let pending = Task { try await client.callToolStructured(name: "never-answered", arguments: nil) }
+        self.pending = pending
+        observer = Task {
+            let result = await pending.result
+            outcome.withLock { $0 = result }
+        }
+    }
+
+    func currentOutcome() -> Result<CallTool.Result, Swift.Error>? {
+        outcome.withLock { $0 }
+    }
+
+    /// Bounded: if the drain contract regresses, this polls out red
+    /// instead of wedging the target on an unresumed continuation.
+    func expectDrained(failure: Comment) async throws {
+        let drained = try await pollUntil({ currentOutcome() }, failure: failure)
+        if case .success = drained {
+            Issue.record("pending callTool returned a value instead of draining")
+        }
+    }
+
+    func cancel() {
+        pending.cancel()
+        observer.cancel()
+    }
+}
 
 /// Plays the server end of an `InMemoryTransport` pair in raw JSON-RPC:
 /// answers initialize (echoing the client's id verbatim) and — unless
