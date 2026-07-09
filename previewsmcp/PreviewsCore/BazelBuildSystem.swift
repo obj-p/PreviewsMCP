@@ -75,16 +75,19 @@ public actor BazelBuildSystem: BuildSystem {
             // swiftc rejects the duplicate (#279). Building *through* the
             // enclosing Apple bundle applies the rule's 1:1 split transition,
             // which collapses the dep to a single config.
-            guard
-                let bundle = await findEnclosingAppleBundle(
-                    target: target, packagePath: packagePath
-                )
-            else {
-                throw error
+            for bundle in await findEnclosingAppleBundles(
+                target: target, packagePath: packagePath
+            ) {
+                guard
+                    let context = try? await buildViaAppleBundle(
+                        bundle: bundle, target: target, moduleName: moduleName
+                    )
+                else { continue }
+                return context
             }
-            return try await buildViaAppleBundle(
-                bundle: bundle, target: target, moduleName: moduleName
-            )
+            // No candidate worked: surface the actionable original diagnostic,
+            // not whichever candidate bundle happened to fail last.
+            throw error
         }
 
         let platformArgs = platformFlags(for: platform)
@@ -144,32 +147,49 @@ public actor BazelBuildSystem: BuildSystem {
         return stderr.contains("redefinition of module")
     }
 
-    /// Find an Apple bundle rule (application/framework/extension) that depends
-    /// on `target`, to rebuild through on the #279 fallback. Tries the target's
-    /// package subtree first (bundles are usually colocated, and `rdeps` over
-    /// `//...` loads every package in exactly the monorepos this fallback
-    /// targets), then widens to the whole workspace. Query failures (e.g.
-    /// unrelated broken packages under `//...`) resolve to nil so the caller
-    /// rethrows the original build error.
-    private func findEnclosingAppleBundle(
+    /// Apple bundle rules (application/framework/extension) that depend on
+    /// `target`, to rebuild through on the #279 fallback; capped at 3
+    /// candidates since each attempt is a full bundle build. Tries the
+    /// target's package subtree first (bundles are usually colocated, and
+    /// `rdeps` over `//...` loads every package in exactly the monorepos this
+    /// fallback targets), then widens to the whole workspace. The kind regex
+    /// is end-anchored so import rules (`apple_static_framework_import`, ...)
+    /// that merely contain "framework" do not match. Total query failure
+    /// resolves to [] so the caller rethrows the original build error.
+    private func findEnclosingAppleBundles(
         target: String, packagePath: String
-    ) async -> String? {
+    ) async -> [String] {
         var universes = ["//..."]
         if !packagePath.isEmpty {
             universes.insert("//\(packagePath)/...", at: 0)
         }
         for universe in universes {
             let query =
-                #"kind("(ios|apple)_.*(application|framework|extension)", "#
+                #"kind("^(ios|apple)_.*(application|framework|extension) rule$", "#
                     + "rdeps(\(universe), \(target)))"
-            let output = (try? await runBazelQuery(query)) ?? ""
-            if let bundle = output.split(separator: "\n").map(String.init)
-                .first(where: { $0.hasPrefix("//") })
-            {
-                return bundle
+            let bundles = await runPartialBazelQuery(query)
+                .split(separator: "\n").map(String.init)
+                .filter { $0.hasPrefix("//") }
+            if !bundles.isEmpty {
+                return Array(bundles.prefix(3))
             }
         }
-        return nil
+        return []
+    }
+
+    /// `bazel query --keep_going`, tolerating exit code 3 (valid partial
+    /// results after skipping broken packages in the universe) so one broken
+    /// unrelated package cannot hide an existing enclosing bundle.
+    private func runPartialBazelQuery(_ query: String) async -> String {
+        guard
+            let output = try? await runAsync(
+                "/usr/bin/env",
+                arguments: ["bazel", "query", query, "--keep_going"],
+                workingDirectory: projectRoot, discardStderr: true
+            ),
+            output.exitCode == 0 || output.exitCode == 3
+        else { return "" }
+        return output.stdout
     }
 
     /// #279 fallback: build `bundle` with the simulator split transition
@@ -185,9 +205,14 @@ public actor BazelBuildSystem: BuildSystem {
         let platformArgs = ["--ios_multi_cpus=sim_arm64", Self.iosMinimumOSFlag]
         try await runBazel(["bazel", "build", bundle] + platformArgs)
 
+        // filter(), not `intersect <target>`: a bare target pattern in the
+        // expression would be configured at TOP level (no rule transition) —
+        // the very analysis that fails on these graphs. filter() selects the
+        // library from inside the bundle's already-configured closure.
+        let escaped = NSRegularExpression.escapedPattern(for: target)
         return try await makeBuildContext(
             target: target,
-            expr: "deps(\(bundle)) intersect \(target)",
+            expr: "filter(\"^\(escaped)$\", deps(\(bundle)))",
             moduleName: moduleName,
             platformArgs: platformArgs
         )
@@ -305,11 +330,13 @@ public actor BazelBuildSystem: BuildSystem {
 
         let output = try await runBazel(args, discardStderr: true)
 
-        // Find the .swiftmodule file in the output
+        // Find the .swiftmodule file in the output, preferring a target-config
+        // one (the fallback closure can also carry an exec-config copy) but
+        // keeping the pre-#279 any-match behavior as the backstop.
         let files = output.split(separator: "\n").map(String.init)
-        let swiftmoduleFile = files.first {
-            $0.hasSuffix(".swiftmodule") && !Self.isExecConfigPath($0)
-        }
+        let swiftmodules = files.filter { $0.hasSuffix(".swiftmodule") }
+        let swiftmoduleFile =
+            swiftmodules.first { !Self.isExecConfigPath($0) } ?? swiftmodules.first
 
         if let swiftmodulePath = swiftmoduleFile {
             // Resolve to absolute path (cquery may return relative paths from execroot)
@@ -319,6 +346,15 @@ public actor BazelBuildSystem: BuildSystem {
                 projectRoot.appendingPathComponent(swiftmodulePath)
             }
             return ["-I", absolutePath.deletingLastPathComponent().path]
+        }
+
+        // The bazel-bin symlink tracks the default config; on the bundle
+        // fallback the artifacts live under the split-transition output dir,
+        // so a bazel-bin hit could only be a stale module from another config.
+        guard expr == target else {
+            throw BuildSystemError.missingArtifacts(
+                "Expected \(moduleName).swiftmodule in cquery output for \(expr)"
+            )
         }
 
         // Fallback: try bazel-bin symlink + package path
