@@ -27,27 +27,8 @@ actor PreviewsMCPServer: MCPServing {
         var missedPongLimit: Int = 2
     }
 
-    /// Type-erased shapes for the first decode pass (the SDK's own AnyMethod
-    /// and AnyNotification are internal). Payload fields decode as `Ignored`,
-    /// which accepts any shape while reading nothing — classification must
-    /// not build a throwaway tree from a several-hundred-KB params blob the
-    /// typed handler decodes again. The decoder does not validate the method
-    /// name against `name`.
-    private struct Ignored: NotRequired, Hashable, Codable {
-        init() {}
-        init(from _: Decoder) throws {}
-    }
-
-    private struct ErasedMethod: MCP.Method {
-        static let name = ""
-        typealias Parameters = Ignored
-        typealias Result = Ignored
-    }
-
-    private struct ErasedNotification: MCP.Notification {
-        static let name = ""
-        typealias Parameters = Ignored
-    }
+    private typealias ErasedMethod = MCPWire.ErasedMethod
+    private typealias ErasedNotification = MCPWire.ErasedNotification
 
     private let serverInfo: Server.Info
     private let capabilities: Server.Capabilities
@@ -76,9 +57,9 @@ actor PreviewsMCPServer: MCPServing {
         handler: @escaping @Sendable (M.Parameters) async throws -> M.Result
     ) -> Self {
         methodHandlers[M.name] = { raw in
-            let request = try Self.wireDecoder.decode(Request<M>.self, from: raw)
+            let request = try MCPWire.decoder.decode(Request<M>.self, from: raw)
             let result = try await handler(request.params)
-            return try Self.encode(M.response(id: request.id, result: result))
+            return try MCPWire.encode(M.response(id: request.id, result: result))
         }
         return self
     }
@@ -110,7 +91,7 @@ actor PreviewsMCPServer: MCPServing {
         guard let transport else {
             throw MCPError.internalError("Server connection not initialized")
         }
-        try await transport.send(try Self.encode(notification))
+        try await transport.send(try MCPWire.encode(notification))
     }
 
     func log(level: LogLevel, logger: String? = nil, data: Value) async throws {
@@ -125,13 +106,13 @@ actor PreviewsMCPServer: MCPServing {
                 // The receive loop is the liveness ground truth: ANY inbound
                 // frame proves the peer's process is alive and writing.
                 missedPongs = 0
-                if (try? Self.wireDecoder.decode(Response<ErasedMethod>.self, from: raw)) != nil {
+                if (try? MCPWire.decoder.decode(Response<ErasedMethod>.self, from: raw)) != nil {
                     continue
-                } else if let request = try? Self.wireDecoder.decode(
+                } else if let request = try? MCPWire.decoder.decode(
                     Request<ErasedMethod>.self, from: raw
                 ) {
                     dispatch(request, raw: raw, on: transport)
-                } else if let note = try? Self.wireDecoder.decode(
+                } else if let note = try? MCPWire.decoder.decode(
                     Message<ErasedNotification>.self, from: raw
                 ) {
                     handleNotification(note, raw: raw)
@@ -183,7 +164,7 @@ actor PreviewsMCPServer: MCPServing {
             break
         case let .failure(error):
             let mcpError = error as? MCPError ?? .internalError(error.localizedDescription)
-            if let frame = try? Self.encode(ErasedMethod.response(id: id, error: mcpError)) {
+            if let frame = try? MCPWire.encode(ErasedMethod.response(id: id, error: mcpError)) {
                 await send(frame, on: transport)
             }
         }
@@ -192,7 +173,7 @@ actor PreviewsMCPServer: MCPServing {
     private func handleNotification(_ note: Message<ErasedNotification>, raw: Data) {
         guard
             note.method == CancelledNotification.name,
-            let cancelled = try? Self.wireDecoder.decode(
+            let cancelled = try? MCPWire.decoder.decode(
                 Message<CancelledNotification>.self, from: raw
             )
         else { return }
@@ -210,8 +191,8 @@ actor PreviewsMCPServer: MCPServing {
             { raw in try await self.processInitialize(raw) }
         case Ping.name:
             { raw in
-                let request = try Self.wireDecoder.decode(Request<Ping>.self, from: raw)
-                return try Self.encode(Ping.response(id: request.id))
+                let request = try MCPWire.decoder.decode(Request<Ping>.self, from: raw)
+                return try MCPWire.encode(Ping.response(id: request.id))
             }
         default:
             nil
@@ -219,7 +200,7 @@ actor PreviewsMCPServer: MCPServing {
     }
 
     private func processInitialize(_ raw: Data) throws -> Data {
-        let request = try Self.wireDecoder.decode(Request<Initialize>.self, from: raw)
+        let request = try MCPWire.decoder.decode(Request<Initialize>.self, from: raw)
         guard !isInitialized else {
             throw MCPError.invalidRequest("Server is already initialized")
         }
@@ -231,7 +212,7 @@ actor PreviewsMCPServer: MCPServing {
             capabilities: capabilities,
             serverInfo: serverInfo
         )
-        return try Self.encode(Initialize.response(id: request.id, result: result))
+        return try MCPWire.encode(Initialize.response(id: request.id, result: result))
     }
 
     // MARK: - Liveness
@@ -249,7 +230,7 @@ actor PreviewsMCPServer: MCPServing {
                 return
             }
             missedPongs += 1
-            guard let frame = try? Self.encode(Ping.request()) else { continue }
+            guard let frame = try? MCPWire.encode(Ping.request()) else { continue }
             do {
                 try await transport.send(frame)
             } catch {
@@ -266,24 +247,13 @@ actor PreviewsMCPServer: MCPServing {
         try? await transport.send(frame)
     }
 
-    private static let wireDecoder = JSONDecoder()
-    private static let wireEncoder: JSONEncoder = {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
-        return encoder
-    }()
-
-    private static func encode(_ value: some Encodable) throws -> Data {
-        try wireEncoder.encode(value)
-    }
-
     private struct IDEnvelope: Codable {
         let id: ID?
     }
 
     private static func parseErrorResponse(for raw: Data) -> Data {
-        let id = (try? wireDecoder.decode(IDEnvelope.self, from: raw))?.id ?? .random
+        let id = (try? MCPWire.decoder.decode(IDEnvelope.self, from: raw))?.id ?? .random
         let reply = ErasedMethod.response(id: id, error: .parseError("Invalid message format"))
-        return (try? encode(reply)) ?? Data()
+        return (try? MCPWire.encode(reply)) ?? Data()
     }
 }

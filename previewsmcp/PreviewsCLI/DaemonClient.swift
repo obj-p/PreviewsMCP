@@ -1,6 +1,5 @@
 import Foundation
 import MCP
-import Network
 import PreviewsCore
 
 /// Client-side handle to the previewsmcp daemon.
@@ -20,7 +19,7 @@ import PreviewsCore
 ///   • `DaemonRestart.swift` — version-mismatch detection and the
 ///     restart-lock-protected kill+respawn path.
 ///   • `DaemonClientChannel.swift` — notification-handler wiring
-///     (stderr log forwarder, stall-timer bumpers).
+///     (stderr log forwarder).
 ///
 /// All three live as extensions on this `enum DaemonClient` namespace.
 enum DaemonClient {
@@ -48,8 +47,8 @@ enum DaemonClient {
         // CLI UX fast on the common path (<5s) while still failing
         // fast on a genuine wedged child.
         startTimeout: TimeInterval = 60,
-        configure: ((Client) async -> Void)? = nil
-    ) async throws -> Client {
+        configure: ((any MCPClienting) async -> Void)? = nil
+    ) async throws -> any MCPClienting {
         // When no daemon is running we spawn one ourselves. By
         // construction its binary is the one we're currently running
         // (resolved authoritatively via `_NSGetExecutablePath`), so the
@@ -71,7 +70,7 @@ enum DaemonClient {
         // Skip the retry when WE spawned the daemon; in that case a
         // failure is our own startup misbehaving and retrying just
         // hides it.
-        let client: Client
+        let client: any MCPClienting
         let initResult: Initialize.Result
         do {
             (client, initResult) = try await openClient(
@@ -118,19 +117,33 @@ enum DaemonClient {
     /// `configure` runs once per invocation; callers register
     /// notification handlers there rather than on the returned client
     /// to avoid dropping early notifications.
+    ///
+    /// Liveness defaults (5s interval, 6 missed pongs) bound wedged-daemon
+    /// detection at ~30s — the old StallTimer threshold — independent of
+    /// the daemon's own 60s client-liveness cadence. The transport owns
+    /// the socket: whichever path disconnects first (body teardown,
+    /// liveness declaring the daemon dead, a failed send) closes it after
+    /// quiescence.
     static func openClient(
         clientName: String,
-        configure: ((Client) async -> Void)?
-    ) async throws -> (Client, Initialize.Result) {
-        let connection = NWConnection(
-            to: NWEndpoint.unix(path: DaemonPaths.socket.path),
-            using: .tcp
+        configure: ((any MCPClienting) async -> Void)?
+    ) async throws -> (any MCPClienting, Initialize.Result) {
+        let socket = try DaemonSocket.connect(to: DaemonPaths.socket.path)
+        let transport = FramedTransport(owningSocket: socket)
+        let client = PreviewsMCPClient(
+            name: clientName, version: PreviewsMCPCommand.version,
+            liveness: .init()
         )
-        let transport = daemonChannelTransport(connection: connection)
-        let client = Client(name: clientName, version: PreviewsMCPCommand.version)
         await configure?(client)
-        let initResult = try await client.connect(transport: transport)
-        return (client, initResult)
+        do {
+            let initResult = try await client.connect(transport: transport)
+            return (client, initResult)
+        } catch {
+            // A failed handshake must not leak the owned socket; disconnect
+            // closes it after quiescence.
+            await client.disconnect()
+            throw error
+        }
     }
 
     /// Connect, register the default stderr log-forwarder, run `body`, and
@@ -146,67 +159,29 @@ enum DaemonClient {
     /// Extra handlers can be registered via `configure`; they run before
     /// the handshake alongside the default log forwarder.
     ///
-    /// A `StallTimer` watches the transport for inactivity. Any incoming
-    /// notification (log or progress) resets the timer; if `stallThreshold`
-    /// elapses with no activity, the client force-disconnects, which
-    /// drains pending `callTool` continuations with a transport error
-    /// instead of hanging forever. The daemon emits a `logger: "heartbeat"`
-    /// ping every 2s (see `runMCPServer`), so a 30s threshold absorbs ~15
-    /// missed pings before declaring stall. See issue #135 for the full
-    /// context on why this matters (daemon can become non-responsive
-    /// after hot-reload; `Client.callTool` has no built-in timeout).
+    /// Wedged-daemon detection is the client's protocol-layer liveness
+    /// (see `openClient`): the client pings the daemon on an interval,
+    /// any inbound frame counts as life, and after the missed-pong limit
+    /// it disconnects — draining pending `callTool` continuations with a
+    /// transport error instead of hanging forever (`callTool` has no
+    /// built-in timeout; a daemon can wedge after hot-reload, issue #135).
+    /// The liveness window only starts once `connect` returns, so a slow
+    /// spawn or version-mismatch restart never eats into it (issue #142).
     static func withDaemonClient<T>(
         name: String,
-        stallThreshold: Duration = .seconds(30),
-        configure: ((Client) async -> Void)? = nil,
+        configure: ((any MCPClienting) async -> Void)? = nil,
         body: (any DaemonToolCalling) async throws -> T
     ) async throws -> T {
-        let timer = StallTimer()
-
         let client = try await connect(clientName: name) { client in
             await registerStderrLogForwarder(on: client)
-            await registerStallBumpers(on: client, timer: timer)
             await configure?(client)
-        }
-
-        // Subscribe to `.debug`-level logs so the daemon's heartbeat
-        // notifications (emitted at `.debug`) actually reach our bumper.
-        // Without this, many MCP clients default to filtering below
-        // `.info` and the stall timer would immediately trip because
-        // zero heartbeats ever arrive. See the Phase 2 gotchas comment
-        // on issue #135 for the full rationale. `try?` tolerates
-        // servers that don't advertise logging capability.
-        try? await client.setLoggingLevel(.debug)
-
-        // Reset the timer so the window starts now, not at `withDaemonClient`
-        // entry. A long `connect()` (e.g., version-mismatch restart that
-        // waited on a sibling's lock + spawned a fresh daemon with a slow
-        // Compiler init — seen at ~25s on CI) consumes most of the
-        // threshold before the watcher even starts, and the first heartbeat
-        // (T+2s post-connect) can land right on the stall boundary.
-        // Bumping here guarantees the watcher observes a full
-        // `stallThreshold` of grace. See issue #142.
-        await timer.bump()
-
-        let stallWatcher = Task {
-            if await timer.waitForStall(threshold: stallThreshold) {
-                // Disconnect drains `pendingRequests` and resumes each
-                // waiting continuation with `MCPError.internalError`
-                // ("Client disconnected"), per swift-sdk `Client.swift`'s
-                // `disconnect()` implementation. The body's `await
-                // client.callTool(...)` throws; the caller's catch sees
-                // the transport error instead of an infinite wait.
-                await client.disconnect()
-            }
         }
 
         do {
             let result = try await body(client)
-            stallWatcher.cancel()
             await client.disconnect()
             return result
         } catch {
-            stallWatcher.cancel()
             await client.disconnect()
             throw error
         }

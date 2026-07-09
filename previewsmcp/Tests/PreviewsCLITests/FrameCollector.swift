@@ -44,6 +44,11 @@ final class FrameCollector: Sendable {
         notification(method: method) != nil
     }
 
+    func countMethod(_ method: String) -> Int {
+        frames.withLock { $0 }.compactMap(Self.object)
+            .count { $0["method"] as? String == method }
+    }
+
     static func object(_ data: Data) -> [String: Any]? {
         (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
     }

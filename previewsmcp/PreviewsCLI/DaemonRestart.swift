@@ -40,8 +40,8 @@ extension DaemonClient {
         currentVersion: String,
         clientName: String,
         startTimeout: TimeInterval,
-        configure: ((Client) async -> Void)?
-    ) async throws -> Client {
+        configure: ((any MCPClienting) async -> Void)?
+    ) async throws -> any MCPClienting {
         let lockFd = try await acquireRestartLock()
         defer {
             _ = flock(lockFd, LOCK_UN)
