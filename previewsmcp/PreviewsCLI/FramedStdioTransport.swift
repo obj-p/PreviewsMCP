@@ -17,7 +17,8 @@ import System
 /// - The logger is a no-op by construction, so nothing can write prose
 ///   into the JSON stream the daemon serves on stdout.
 ///
-/// The transport does not own its file descriptors and never closes them.
+/// The transport does not own its file descriptors and never closes them,
+/// but `connect()` switches both to non-blocking and leaves them that way.
 actor FramedStdioTransport: Transport {
     nonisolated let logger = Logger(
         label: "previewsmcp.framed-stdio",
@@ -46,7 +47,9 @@ actor FramedStdioTransport: Transport {
     func connect() async throws {
         try Self.setNonBlocking(input)
         try Self.setNonBlocking(output)
-        reader = Task { await readLoop() }
+        reader = Task { [input, messageContinuation] in
+            await Self.readLoop(input: input, continuation: messageContinuation)
+        }
     }
 
     func disconnect() async {
@@ -63,15 +66,16 @@ actor FramedStdioTransport: Transport {
     }
 
     func send(_ message: Data) async throws {
-        var frame = message
-        frame.append(UInt8(ascii: "\n"))
         // No suspension between reading and updating `sendChain` — the
-        // serialization invariant everything above depends on.
+        // serialization invariant everything above depends on. The newline
+        // goes out as its own write rather than appending to `message`,
+        // which would copy every multi-hundred-KB frame just to add a byte.
         let previous = sendChain
         let task = Task { [output] in
             _ = try? await previous?.value
             try Task.checkCancellation()
-            try await Self.write(frame, to: output)
+            try await Self.write(message, to: output)
+            try await Self.write(Self.newlineFrame, to: output)
         }
         sendChain = task
         pendingSends.insert(task)
@@ -91,50 +95,64 @@ actor FramedStdioTransport: Transport {
 
     // MARK: - Read side
 
-    private func readLoop() async {
+    /// Static like `write`: it touches no actor state, so running it
+    /// isolated would only make senders and the reader contend.
+    private static func readLoop(
+        input: FileDescriptor,
+        continuation: AsyncThrowingStream<Data, Swift.Error>.Continuation
+    ) async {
         var buffer = Data()
+        var scanFrom = buffer.startIndex
         var chunk = [UInt8](repeating: 0, count: 64 * 1024)
         while !Task.isCancelled {
             do {
                 let count = try chunk.withUnsafeMutableBytes { try input.read(into: $0) }
                 if count == 0 {
-                    messageContinuation.finish()
+                    continuation.finish()
                     return
                 }
-                buffer.append(contentsOf: chunk[0 ..< count])
-                while let newline = buffer.firstIndex(of: UInt8(ascii: "\n")) {
+                chunk.withUnsafeBytes { raw in
+                    buffer.append(contentsOf: UnsafeRawBufferPointer(rebasing: raw[0 ..< count]))
+                }
+                // `scanFrom` marks how far the newline scan has gotten, so
+                // a large frame arriving in many chunks is scanned once,
+                // not once per chunk; slicing instead of re-wrapping in
+                // Data() keeps frame extraction copy-free.
+                while let newline = buffer[scanFrom...].firstIndex(of: UInt8(ascii: "\n")) {
                     let line = buffer[buffer.startIndex ..< newline]
                     if !line.isEmpty {
-                        messageContinuation.yield(Data(line))
+                        continuation.yield(Data(line))
                     }
-                    buffer = Data(buffer[buffer.index(after: newline)...])
+                    buffer = buffer[buffer.index(after: newline)...]
+                    scanFrom = buffer.startIndex
                 }
-                // Keep the actor fair to senders during sustained input.
-                await Task.yield()
+                scanFrom = buffer.endIndex
+                if buffer.isEmpty {
+                    buffer = Data()
+                    scanFrom = buffer.startIndex
+                }
             } catch let errno as Errno {
                 switch errno {
                 case .wouldBlock, .resourceTemporarilyUnavailable:
-                    do {
-                        try await Task.sleep(for: .milliseconds(10))
-                    } catch {
-                        messageContinuation.finish()
-                        return
-                    }
+                    try? await Task.sleep(for: pollInterval)
                 case .interrupted:
                     continue
                 default:
-                    messageContinuation.finish(throwing: errno)
+                    continuation.finish(throwing: errno)
                     return
                 }
             } catch {
-                messageContinuation.finish(throwing: error)
+                continuation.finish(throwing: error)
                 return
             }
         }
-        messageContinuation.finish()
+        continuation.finish()
     }
 
     // MARK: - Write side
+
+    private static let newlineFrame = Data([UInt8(ascii: "\n")])
+    private static let pollInterval: Duration = .milliseconds(10)
 
     /// Static so the retry suspension never suspends the actor mid-write;
     /// ordering comes from the send chain, not isolation.
@@ -149,7 +167,7 @@ actor FramedStdioTransport: Transport {
             } catch let errno as Errno {
                 switch errno {
                 case .wouldBlock, .resourceTemporarilyUnavailable:
-                    try await Task.sleep(for: .milliseconds(10))
+                    try await Task.sleep(for: pollInterval)
                 case .interrupted:
                     continue
                 default:

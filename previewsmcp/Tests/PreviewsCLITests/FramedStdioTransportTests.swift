@@ -15,55 +15,9 @@ import Testing
 struct FramedStdioTransportTests {
     @Test("concurrent sends under pipe backpressure never interleave frames")
     func concurrentSendsPreserveFraming() async throws {
-        let inPipe = Pipe()
-        let outPipe = Pipe()
-        let transport = FramedStdioTransport(
-            input: .init(rawValue: inPipe.fileHandleForReading.fileDescriptor),
-            output: .init(rawValue: outPipe.fileHandleForWriting.fileDescriptor)
-        )
-        try await transport.connect()
-
-        let big = Data(#"{"big":"\#(String(repeating: "a", count: 300_000))"}"#.utf8)
-        let small = Data(#"{"small":1}"#.utf8)
-        let expectedBytes = big.count + small.count + 2
-
-        // Collect the transport's output on a raw thread: the reader must not
-        // drain the pipe while the big send is still queuing, or the write
-        // never backs up into the EAGAIN retry this test exists to exercise.
-        let collected = OSAllocatedUnfairLock(initialState: Data())
-        let readFD = outPipe.fileHandleForReading
-        Thread.detachNewThread {
-            Thread.sleep(forTimeInterval: 0.4)
-            while true {
-                let chunk = readFD.availableData
-                if chunk.isEmpty { break }
-                let total = collected.withLock { data -> Int in
-                    data.append(chunk)
-                    return data.count
-                }
-                if total >= expectedBytes { break }
-            }
+        try await assertConcurrentSendsPreserveFraming { input, output in
+            FramedStdioTransport(input: input, output: output)
         }
-
-        let bigSend = Task { try await transport.send(big) }
-        try await Task.sleep(for: .milliseconds(150))
-        let smallSend = Task { try await transport.send(small) }
-        try await bigSend.value
-        try await smallSend.value
-
-        _ = try await pollUntil(
-            { collected.withLock { $0.count } >= expectedBytes },
-            failure: "collector never saw both frames"
-        )
-        let lines = collected.withLock { $0 }.split(separator: UInt8(ascii: "\n"))
-        #expect(lines.count == 2, "expected exactly 2 frames, got \(lines.count)")
-        for line in lines {
-            #expect(
-                (try? JSONSerialization.jsonObject(with: Data(line))) != nil,
-                "frame is not valid JSON — sends interleaved (first 80 bytes: \(String(decoding: line.prefix(80), as: UTF8.self)))"
-            )
-        }
-        await transport.disconnect()
     }
 
     @Test("a frame larger than the pipe buffer arrives intact")
@@ -112,19 +66,8 @@ struct FramedStdioTransportTests {
         )
         try await transport.connect()
 
-        let outcome = OSAllocatedUnfairLock(initialState: Result<Void, Swift.Error>?.none)
-        let consumer = Task {
-            do {
-                for try await _ in await transport.receive() {}
-                outcome.withLock { $0 = .success(()) }
-            } catch {
-                outcome.withLock { $0 = .failure(error) }
-            }
-        }
-        defer { consumer.cancel() }
-
-        let result = try await pollUntil(
-            { outcome.withLock { $0 } },
+        let result = try await receiveStreamOutcome(
+            of: transport,
             failure: "stream neither finished nor threw on an unreadable input"
         )
         guard case .failure = result else {
@@ -142,7 +85,24 @@ struct FramedStdioTransportTests {
             output: try FileDescriptor.open("/dev/null", .readWrite)
         )
         try await transport.connect()
+        try pipe.fileHandleForWriting.close()
 
+        let result = try await receiveStreamOutcome(
+            of: transport,
+            failure: "stream never finished after peer EOF"
+        )
+        guard case .success = result else {
+            Issue.record("EOF surfaced as an error: \(result)")
+            return
+        }
+        await transport.disconnect()
+    }
+
+    /// Drains `receive()` on a child task and polls for how it ended.
+    private func receiveStreamOutcome(
+        of transport: FramedStdioTransport,
+        failure: Comment
+    ) async throws -> Result<Void, Swift.Error> {
         let outcome = OSAllocatedUnfairLock(initialState: Result<Void, Swift.Error>?.none)
         let consumer = Task {
             do {
@@ -153,18 +113,7 @@ struct FramedStdioTransportTests {
             }
         }
         defer { consumer.cancel() }
-
-        try pipe.fileHandleForWriting.close()
-
-        let result = try await pollUntil(
-            { outcome.withLock { $0 } },
-            failure: "stream never finished after peer EOF"
-        )
-        guard case .success = result else {
-            Issue.record("EOF surfaced as an error: \(result)")
-            return
-        }
-        await transport.disconnect()
+        return try await pollUntil({ outcome.withLock { $0 } }, failure: failure)
     }
 
     @Test("disconnect cancels a send wedged on a full pipe")
