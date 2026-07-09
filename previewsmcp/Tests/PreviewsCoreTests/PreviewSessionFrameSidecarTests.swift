@@ -43,4 +43,26 @@ struct PreviewSessionFrameSidecarTests {
 
         #expect(PreviewSession.storedWindowFrame(for: id)?.isKey == true)
     }
+
+    @Test("recording key state overwrites key and keeps the recorded frame")
+    func recordKeyStateKeepsFrame() throws {
+        let id = "frame-test-\(UUID().uuidString)"
+        let url = PreviewSession.frameSidecarPath(for: id)
+        let dict: [String: Any] = ["x": 12, "y": 34, "width": 567, "height": 890, "key": false]
+        try JSONSerialization.data(withJSONObject: dict).write(to: url)
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        PreviewSession.recordWindowKeyState(true, for: id)
+        let frame = PreviewSession.storedWindowFrame(for: id)
+        #expect(frame?.isKey == true)
+        #expect(frame?.x == 12)
+        #expect(frame?.height == 890)
+    }
+
+    @Test("recording key state without a sidecar records nothing")
+    func recordKeyStateWithoutSidecarIsNoop() {
+        let id = "frame-test-\(UUID().uuidString)"
+        PreviewSession.recordWindowKeyState(true, for: id)
+        #expect(PreviewSession.storedWindowFrame(for: id) == nil)
+    }
 }

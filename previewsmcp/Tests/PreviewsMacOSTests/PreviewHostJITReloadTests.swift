@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import PreviewsCore
 @testable import PreviewsMacOS
@@ -185,6 +186,55 @@ struct PreviewHostJITReloadTests {
 
         host.closePreview(sessionID: "visible")
         #expect(host.agentWindowSpec(for: "visible") == nil)
+    }
+
+    @Test func restoreConvertsRecordedFrameToContentRectAndCarriesKey() async throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("p254r-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let sourceFile = dir.appendingPathComponent("ColorView.swift")
+        try """
+        import SwiftUI
+
+        #Preview {
+            Color.red.frame(width: 8, height: 8)
+        }
+        """.write(to: sourceFile, atomically: true, encoding: .utf8)
+
+        let compiler = try await Compiler()
+        let session = PreviewSession(sourceFile: sourceFile, compiler: compiler)
+        let sidecar = PreviewSession.frameSidecarPath(for: session.id)
+        try? FileManager.default.removeItem(at: sidecar)
+        defer { try? FileManager.default.removeItem(at: sidecar) }
+
+        let host = PreviewHost(makeStructuralReloader: { RecordingReloader() })
+        try await host.jitStart(
+            sessionID: "s1", session: session,
+            title: "Preview: ColorView.swift",
+            size: NSSize(width: 320, height: 240), headless: false
+        )
+
+        let recorded: [String: Any] = [
+            "x": 100.0, "y": 200.0, "width": 400.0, "height": 632.0, "key": false,
+        ]
+        try JSONSerialization.data(withJSONObject: recorded).write(to: sidecar)
+
+        try await host.jitStructuralReload(sessionID: "s1", session: session)
+
+        let spec = try #require(host.agentWindowSpec(for: "s1"))
+        let content = NSWindow.contentRect(
+            forFrameRect: NSRect(x: 100, y: 200, width: 400, height: 632),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable]
+        )
+        #expect(spec.x == Double(content.origin.x))
+        #expect(spec.y == Double(content.origin.y))
+        #expect(spec.width == Double(content.width))
+        #expect(spec.height == Double(content.height))
+        #expect(content.height < 632)
+        #expect(!spec.activate)
+        #expect(PreviewSession.storedWindowFrame(for: session.id)?.isKey == false)
     }
 
     @Test func unchangedSourceFireDoesNotReload() async throws {

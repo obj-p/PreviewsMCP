@@ -166,10 +166,9 @@ public actor PreviewSession {
     /// Overwrite the recorded key status, keeping the recorded frame. The daemon calls this
     /// after a reload: the outgoing agent's dying window resigns key to the incoming one and
     /// records that loss, so the daemon reasserts the state it baked for the surviving window.
-    public nonisolated static func recordWindowKeyState(
-        _ isKey: Bool, for id: String, fallback: WindowFrame
-    ) {
-        let frame = storedWindowFrame(for: id) ?? fallback
+    /// No-op when the session never recorded a sidecar — there is nothing to correct.
+    public nonisolated static func recordWindowKeyState(_ isKey: Bool, for id: String) {
+        guard let frame = storedWindowFrame(for: id) else { return }
         let dict: [String: Any] = [
             "x": frame.x, "y": frame.y, "width": frame.width, "height": frame.height,
             "key": isKey,

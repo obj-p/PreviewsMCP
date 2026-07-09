@@ -194,12 +194,7 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
         let build = try await session.compileObjectForJIT(window: agentWindowSpec(for: sessionID))
         let image = try await jitRender(sessionID: sessionID, build: build)
         if let spec = agentWindowSpecs[sessionID], !spec.headless {
-            PreviewSession.recordWindowKeyState(
-                spec.activate, for: session.id,
-                fallback: PreviewSession.WindowFrame(
-                    x: spec.x, y: spec.y, width: spec.width, height: spec.height
-                )
-            )
+            PreviewSession.recordWindowKeyState(spec.activate, for: session.id)
         }
         return image
     }
@@ -212,8 +207,16 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
         guard let spec = agentWindowSpecs[sessionID], !spec.headless,
               let frame = PreviewSession.storedWindowFrame(for: session.id)
         else { return }
+        // The sidecar records the window's frame; the bridge bakes a content rect. Convert
+        // (same style mask the bridge creates with) so a handoff reproduces the window
+        // exactly instead of growing by the title-bar height each respawn.
+        let content = NSWindow.contentRect(
+            forFrameRect: NSRect(x: frame.x, y: frame.y, width: frame.width, height: frame.height),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable]
+        )
         agentWindowSpecs[sessionID] = JITRenderWindow(
-            x: frame.x, y: frame.y, width: frame.width, height: frame.height,
+            x: content.origin.x, y: content.origin.y,
+            width: content.width, height: content.height,
             title: spec.title, headless: false, activate: frame.isKey
         )
     }

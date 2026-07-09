@@ -235,6 +235,7 @@ public enum BridgeGenerator {
                                 styleMask: [.titled, .closable, .miniaturizable, .resizable],
                                 backing: .buffered, defer: false)
                             created.title = "\(title)"
+                            created.animationBehavior = .none
             """
             // A visible window takes key status and activates the agent only when the spec
             // asks (a session's first window, or a handoff replacing the key window).
