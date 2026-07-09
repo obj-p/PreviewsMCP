@@ -13,8 +13,9 @@ import System
 /// that window.
 enum DaemonSocket {
     /// Bind and listen on `path`. The listener is non-blocking so
-    /// `accept(on:)` polls cancellably. Stale-socket-file cleanup stays
-    /// with the caller (it must first verify no live daemon is listening).
+    /// `accept(on:)` waits on kernel readiness, cancellably. Stale-socket-
+    /// file cleanup stays with the caller (it must first verify no live
+    /// daemon is listening).
     static func listen(at path: String, backlog: Int32 = 16) throws -> FileDescriptor {
         let listener = try makeSocket()
         try closingOnThrow(listener) {
@@ -31,9 +32,9 @@ enum DaemonSocket {
         return listener
     }
 
-    /// Accept one connection, polling the non-blocking listener so the
-    /// call is cancellable (a blocking accept would park a cooperative
-    /// thread with no way to interrupt it).
+    /// Accept one connection, waiting on kernel readiness between attempts
+    /// so the call is cancellable and never parks a cooperative thread (a
+    /// blocking accept would) nor idle-polls the daemon's lifetime away.
     static func accept(on listener: FileDescriptor) async throws -> FileDescriptor {
         while true {
             try Task.checkCancellation()
@@ -47,7 +48,7 @@ enum DaemonSocket {
             }
             switch Errno(rawValue: errno) {
             case .wouldBlock:
-                try await Task.sleep(for: .milliseconds(10))
+                await FDReadiness.waitUntilReadable(listener)
             case .interrupted, .connectionAbort:
                 continue
             case let failure:
