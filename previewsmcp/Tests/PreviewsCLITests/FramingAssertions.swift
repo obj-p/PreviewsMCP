@@ -50,10 +50,15 @@ func assertConcurrentSendsPreserveFraming(
     try await bigSend.value
     try await smallSend.value
 
-    try await pollUntil(
-        { collected.withLock { $0.count } >= expectedBytes },
-        failure: "collector never saw both frames"
-    )
+    do {
+        try await pollUntil(
+            { collected.withLock { $0.count } >= expectedBytes },
+            failure: "collector never saw both frames"
+        )
+    } catch {
+        await transport.disconnect()
+        throw error
+    }
     let lines = collected.withLock { $0 }.split(separator: UInt8(ascii: "\n"))
     #expect(lines.count == 2, "expected exactly 2 frames, got \(lines.count)")
     for line in lines {
@@ -63,4 +68,7 @@ func assertConcurrentSendsPreserveFraming(
         )
     }
     await transport.disconnect()
+    // The Pipes must outlive the transport traffic: releasing them closes
+    // their fds under the still-running transport (fd-number reuse).
+    withExtendedLifetime((inPipe, outPipe)) {}
 }

@@ -1,7 +1,14 @@
 import Foundation
 import Logging
 import MCP
+import os
 import System
+
+enum FramedStdioTransportError: Swift.Error, Equatable {
+    case disconnected
+    case poisoned
+    case truncatedFinalFrame
+}
 
 /// In-house newline-framed JSON-RPC stdio transport (rewrite stage 2).
 ///
@@ -11,14 +18,23 @@ import System
 /// - Sends are chained, never concurrent: there is no suspension between
 ///   reading and updating `sendChain`, so re-entrant callers each queue
 ///   behind the true predecessor and frames land contiguously (#320).
+/// - A started frame always finishes: caller cancellation is NOT forwarded
+///   into an in-flight write, because aborting mid-frame leaves partial
+///   bytes on the wire that would corrupt every later frame. Only
+///   `disconnect()` aborts writes, and any write that fails or aborts
+///   poisons the transport so later sends fail loudly instead of gluing
+///   onto a torn frame.
 /// - Read errors PROPAGATE: a real errno finishes the receive stream
-///   throwing, EOF finishes it cleanly, and EINTR is retried — the SDK
-///   broke its loop silently on both.
+///   throwing, EOF with a buffered partial frame finishes it throwing
+///   `truncatedFinalFrame`, clean EOF finishes it cleanly, and EINTR is
+///   retried — the SDK broke its loop silently on all of these.
 /// - The logger is a no-op by construction, so nothing can write prose
 ///   into the JSON stream the daemon serves on stdout.
 ///
 /// The transport does not own its file descriptors and never closes them,
-/// but `connect()` switches both to non-blocking and leaves them that way.
+/// but `connect()` switches both to non-blocking, disables SIGPIPE delivery
+/// on the output (a dead peer surfaces as EPIPE, not process death), and
+/// leaves both that way.
 actor FramedStdioTransport: Transport {
     nonisolated let logger = Logger(
         label: "previewsmcp.framed-stdio",
@@ -32,6 +48,8 @@ actor FramedStdioTransport: Transport {
     private var sendChain: Task<Void, Swift.Error>?
     private var pendingSends: Set<Task<Void, Swift.Error>> = []
     private var reader: Task<Void, Never>?
+    private var isDisconnected = false
+    private let poisoned = OSAllocatedUnfairLock(initialState: false)
 
     init(
         input: FileDescriptor = .standardInput,
@@ -47,12 +65,15 @@ actor FramedStdioTransport: Transport {
     func connect() async throws {
         try Self.setNonBlocking(input)
         try Self.setNonBlocking(output)
+        try Self.setNoSigPipe(output)
         reader = Task { [input, messageContinuation] in
             await Self.readLoop(input: input, continuation: messageContinuation)
         }
     }
 
     func disconnect() async {
+        guard !isDisconnected else { return }
+        isDisconnected = true
         // Cancel every queued/in-flight send, not just the chain tail: a
         // peer that stops draining leaves the head send retrying EAGAIN
         // forever, and everything queued behind it retains its message.
@@ -66,27 +87,30 @@ actor FramedStdioTransport: Transport {
     }
 
     func send(_ message: Data) async throws {
+        guard !isDisconnected else { throw FramedStdioTransportError.disconnected }
         // No suspension between reading and updating `sendChain` — the
         // serialization invariant everything above depends on. The newline
         // goes out as its own write rather than appending to `message`,
         // which would copy every multi-hundred-KB frame just to add a byte.
         let previous = sendChain
-        let task = Task { [output] in
+        let task = Task { [output, poisoned] in
             _ = try? await previous?.value
             try Task.checkCancellation()
-            try await Self.write(message, to: output)
-            try await Self.write(Self.newlineFrame, to: output)
+            guard !poisoned.withLock({ $0 }) else {
+                throw FramedStdioTransportError.poisoned
+            }
+            do {
+                try await Self.write(message, to: output)
+                try await Self.write(Self.newlineFrame, to: output)
+            } catch {
+                poisoned.withLock { $0 = true }
+                throw error
+            }
         }
         sendChain = task
         pendingSends.insert(task)
         defer { pendingSends.remove(task) }
-        // Forward the caller's cancellation so a cancelled caller doesn't
-        // leave its write retrying forever.
-        return try await withTaskCancellationHandler {
-            try await task.value
-        } onCancel: {
-            task.cancel()
-        }
+        try await task.value
     }
 
     func receive() -> AsyncThrowingStream<Data, Swift.Error> {
@@ -108,7 +132,13 @@ actor FramedStdioTransport: Transport {
             do {
                 let count = try chunk.withUnsafeMutableBytes { try input.read(into: $0) }
                 if count == 0 {
-                    continuation.finish()
+                    if buffer.isEmpty {
+                        continuation.finish()
+                    } else {
+                        continuation.finish(
+                            throwing: FramedStdioTransportError.truncatedFinalFrame
+                        )
+                    }
                     return
                 }
                 chunk.withUnsafeBytes { raw in
@@ -116,8 +146,10 @@ actor FramedStdioTransport: Transport {
                 }
                 // `scanFrom` marks how far the newline scan has gotten, so
                 // a large frame arriving in many chunks is scanned once,
-                // not once per chunk; slicing instead of re-wrapping in
-                // Data() keeps frame extraction copy-free.
+                // not once per chunk; frame extraction slices (no copy),
+                // then one compaction per iteration that extracted frames
+                // releases the consumed prefix's backing storage.
+                let preExtraction = buffer.startIndex
                 while let newline = buffer[scanFrom...].firstIndex(of: UInt8(ascii: "\n")) {
                     let line = buffer[buffer.startIndex ..< newline]
                     if !line.isEmpty {
@@ -126,11 +158,10 @@ actor FramedStdioTransport: Transport {
                     buffer = buffer[buffer.index(after: newline)...]
                     scanFrom = buffer.startIndex
                 }
-                scanFrom = buffer.endIndex
-                if buffer.isEmpty {
-                    buffer = Data()
-                    scanFrom = buffer.startIndex
+                if buffer.startIndex != preExtraction {
+                    buffer = Data(buffer)
                 }
+                scanFrom = buffer.endIndex
             } catch let errno as Errno {
                 switch errno {
                 case .wouldBlock, .resourceTemporarilyUnavailable:
@@ -159,6 +190,7 @@ actor FramedStdioTransport: Transport {
     private static func write(_ data: Data, to output: FileDescriptor) async throws {
         var offset = 0
         while offset < data.count {
+            try Task.checkCancellation()
             do {
                 let written = try data.withUnsafeBytes { raw in
                     try output.write(UnsafeRawBufferPointer(rebasing: raw[offset...]))
@@ -181,6 +213,12 @@ actor FramedStdioTransport: Transport {
         let flags = fcntl(descriptor.rawValue, F_GETFL)
         guard flags >= 0 else { throw Errno(rawValue: errno) }
         guard fcntl(descriptor.rawValue, F_SETFL, flags | O_NONBLOCK) >= 0 else {
+            throw Errno(rawValue: errno)
+        }
+    }
+
+    private static func setNoSigPipe(_ descriptor: FileDescriptor) throws {
+        guard fcntl(descriptor.rawValue, F_SETNOSIGPIPE, 1) >= 0 else {
             throw Errno(rawValue: errno)
         }
     }
