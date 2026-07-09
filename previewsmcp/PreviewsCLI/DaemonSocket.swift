@@ -48,7 +48,7 @@ enum DaemonSocket {
             }
             switch Errno(rawValue: errno) {
             case .wouldBlock:
-                try await FDReadiness.waitUntilReadable(listener)
+                await FDReadiness.waitUntilReadable(listener)
             case .interrupted, .connectionAbort:
                 continue
             case let failure:

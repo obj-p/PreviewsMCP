@@ -205,15 +205,7 @@ actor FramedTransport: Transport {
             } catch let errno as Errno {
                 switch errno {
                 case .wouldBlock:
-                    do {
-                        try await FDReadiness.waitUntilReadable(input)
-                    } catch is CancellationError {
-                        continuation.finish()
-                        return
-                    } catch {
-                        continuation.finish(throwing: error)
-                        return
-                    }
+                    await FDReadiness.waitUntilReadable(input)
                 case .interrupted:
                     continue
                 default:
@@ -244,7 +236,7 @@ actor FramedTransport: Transport {
             } catch let errno as Errno {
                 switch errno {
                 case .wouldBlock:
-                    try await FDReadiness.waitUntilWritable(output)
+                    await FDReadiness.waitUntilWritable(output)
                 case .interrupted:
                     continue
                 default:
