@@ -73,11 +73,15 @@ example projects' dependencies. Per run the VM only fetches commits, builds,
 and tests. Refreshing the snapshot is an explicit, versioned event — the
 replacement for CI cache, with no silent eviction.
 
-The pipeline matches the documented merge bar:
+The in-VM pipeline runs:
 
-- `swift-format lint --strict --recursive` over Swift sources
-- unit tests
-- example integration tests
+- `bazel test //...`
+- `bazel run //tools/lint:check` (hermetic, Bazel-pinned SwiftFormat,
+  SwiftLint, clang-format, and buildifier)
+
+The documented merge bar also requires the example integration tests;
+those are not yet part of the in-VM pipeline (`examples/` is excluded
+from the Bazel graph).
 
 ### 3. Attestation: SSH commit signing
 
