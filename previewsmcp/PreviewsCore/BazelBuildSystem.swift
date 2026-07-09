@@ -75,7 +75,11 @@ public actor BazelBuildSystem: BuildSystem {
             // swiftc rejects the duplicate (#279). Building *through* the
             // enclosing Apple bundle applies the rule's 1:1 split transition,
             // which collapses the dep to a single config.
-            guard let bundle = await findEnclosingAppleBundle(target: target) else {
+            guard
+                let bundle = await findEnclosingAppleBundle(
+                    target: target, packagePath: packagePath
+                )
+            else {
                 throw error
             }
             return try await buildViaAppleBundle(
@@ -83,13 +87,10 @@ public actor BazelBuildSystem: BuildSystem {
             )
         }
 
+        let platformArgs = platformFlags(for: platform)
+        try await buildDependencyArchives(target: target, platformArgs: platformArgs)
         return try await makeBuildContext(
-            target: target,
-            expr: target,
-            depsExpr: "deps(\(target))",
-            moduleName: moduleName,
-            platformArgs: platformFlags(for: platform),
-            buildDepArchives: true
+            target: target, expr: target, moduleName: moduleName, platformArgs: platformArgs
         )
     }
 
@@ -98,12 +99,9 @@ public actor BazelBuildSystem: BuildSystem {
     /// `expr` is the cquery/aquery expression that selects the target in the
     /// configuration it was built under: the target itself on the default
     /// (bare-library) path, or `deps(<bundle>) intersect <target>` on the
-    /// enclosing-bundle fallback. `depsExpr` selects its dependency closure the
-    /// same way. `buildDepArchives` is false on the fallback path because the
-    /// bundle's link step already materialized every dependency archive.
+    /// enclosing-bundle fallback.
     private func makeBuildContext(
-        target: String, expr: String, depsExpr: String, moduleName: String,
-        platformArgs: [String], buildDepArchives: Bool
+        target: String, expr: String, moduleName: String, platformArgs: [String]
     ) async throws -> BuildContext {
         // Locate the .swiftmodule
         var compilerFlags = try await findCompilerFlags(
@@ -122,8 +120,7 @@ public actor BazelBuildSystem: BuildSystem {
         // cross-target symbols (`findDependencyModuleFlags` only covers the
         // compile-time module search).
         compilerFlags += try await findDependencyArchiveFlags(
-            target: target, depsExpr: depsExpr, platformArgs: platformArgs,
-            buildDepArchives: buildDepArchives
+            target: target, expr: expr, platformArgs: platformArgs
         )
 
         // Collect source files for Tier 2
@@ -148,16 +145,31 @@ public actor BazelBuildSystem: BuildSystem {
     }
 
     /// Find an Apple bundle rule (application/framework/extension) that depends
-    /// on `target`, to rebuild through on the #279 fallback. Query failures
-    /// (e.g. unrelated broken packages under `//...`) resolve to nil so the
-    /// caller rethrows the original build error.
-    func findEnclosingAppleBundle(target: String) async -> String? {
-        let query = """
-        kind("(ios|apple)_.*(application|framework|extension)", rdeps(//..., \(target)))
-        """
-        let output = (try? await runBazelQuery(query)) ?? ""
-        return output.split(separator: "\n").map(String.init)
-            .first { $0.hasPrefix("//") }
+    /// on `target`, to rebuild through on the #279 fallback. Tries the target's
+    /// package subtree first (bundles are usually colocated, and `rdeps` over
+    /// `//...` loads every package in exactly the monorepos this fallback
+    /// targets), then widens to the whole workspace. Query failures (e.g.
+    /// unrelated broken packages under `//...`) resolve to nil so the caller
+    /// rethrows the original build error.
+    private func findEnclosingAppleBundle(
+        target: String, packagePath: String
+    ) async -> String? {
+        var universes = ["//..."]
+        if !packagePath.isEmpty {
+            universes.insert("//\(packagePath)/...", at: 0)
+        }
+        for universe in universes {
+            let query =
+                #"kind("(ios|apple)_.*(application|framework|extension)", "#
+                    + "rdeps(\(universe), \(target)))"
+            let output = (try? await runBazelQuery(query)) ?? ""
+            if let bundle = output.split(separator: "\n").map(String.init)
+                .first(where: { $0.hasPrefix("//") })
+            {
+                return bundle
+            }
+        }
+        return nil
     }
 
     /// #279 fallback: build `bundle` with the simulator split transition
@@ -165,21 +177,19 @@ public actor BazelBuildSystem: BuildSystem {
     /// exactly one config, then derive all flags from that closure. The bare
     /// library cannot take `--ios_multi_cpus` at top level itself (Apple rules
     /// like `apple_dynamic_xcframework_import` need the platform from a rule
-    /// transition, not a CLI flag).
+    /// transition, not a CLI flag). No `buildDependencyArchives` here: the
+    /// bundle's link step already materialized every dependency archive.
     private func buildViaAppleBundle(
         bundle: String, target: String, moduleName: String
     ) async throws -> BuildContext {
-        let platformArgs = ["--ios_multi_cpus=sim_arm64"]
+        let platformArgs = ["--ios_multi_cpus=sim_arm64", Self.iosMinimumOSFlag]
         try await runBazel(["bazel", "build", bundle] + platformArgs)
 
-        let expr = "deps(\(bundle)) intersect \(target)"
         return try await makeBuildContext(
             target: target,
-            expr: expr,
-            depsExpr: "deps(\(expr))",
+            expr: "deps(\(bundle)) intersect \(target)",
             moduleName: moduleName,
-            platformArgs: platformArgs,
-            buildDepArchives: false
+            platformArgs: platformArgs
         )
     }
 
@@ -393,15 +403,29 @@ public actor BazelBuildSystem: BuildSystem {
         return flags
     }
 
+    /// Build the target's dependency libraries so their static archives are on
+    /// disk before `findDependencyArchiveFlags` scans for them: building
+    /// `target` alone materializes its dependency swiftmodules but not their
+    /// archives (a `swift_library` build has no link step).
+    private func buildDependencyArchives(
+        target: String, platformArgs: [String]
+    ) async throws {
+        let depLibs =
+            (try? await runBazelQuery(
+                "kind(\"(swift|objc)_library\", deps(\(target)))"
+            )) ?? ""
+        let labels = depLibs.split(separator: "\n").map(String.init)
+            .filter { $0.hasPrefix("//") }
+        if !labels.isEmpty {
+            try await runBazel(["bazel", "build"] + labels + platformArgs)
+        }
+    }
+
     /// Extract `-L <dir>` / `-l<name>` link flags for the target's dependency
     /// static archives (`libSwiftLib.a`, `libObjCLib.a`), so the preview JIT
     /// link resolves their cross-target symbols.
     ///
-    /// Building `target` alone materializes its dependency swiftmodules but not
-    /// their static archives (a `swift_library` build has no link step), so this
-    /// first builds the dependency library targets to put their `.a` on disk.
-    ///
-    /// `deps(<target>)` also returns two kinds of archives that must NOT be
+    /// `deps(<expr>)` also returns two kinds of archives that must NOT be
     /// linked, filtered here:
     ///   * Build tooling in the exec configuration (see `isExecConfigPath`,
     ///     e.g. the rules_swift worker).
@@ -409,24 +433,11 @@ public actor BazelBuildSystem: BuildSystem {
     ///     file plus any `@main` object, both of which the JIT compiles fresh /
     ///     must not link.
     private func findDependencyArchiveFlags(
-        target: String, depsExpr: String, platformArgs: [String],
-        buildDepArchives: Bool
+        target: String, expr: String, platformArgs: [String]
     ) async throws -> [String] {
-        if buildDepArchives {
-            let depLibs =
-                (try? await runBazelQuery(
-                    "kind(\"(swift|objc)_library\", deps(\(target)))"
-                )) ?? ""
-            let labels = depLibs.split(separator: "\n").map(String.init)
-                .filter { $0.hasPrefix("//") }
-            if !labels.isEmpty {
-                try await runBazel(["bazel", "build"] + labels + platformArgs)
-            }
-        }
-
         let output =
             (try? await runBazel(
-                ["bazel", "cquery", depsExpr, "--output=files"]
+                ["bazel", "cquery", "deps(\(expr))", "--output=files"]
                     + platformArgs, discardStderr: true
             )) ?? ""
 
@@ -535,6 +546,14 @@ public actor BazelBuildSystem: BuildSystem {
 
     // MARK: - Private: Platform Flags
 
+    /// Deployment-target pin shared by both iOS build paths, matching the
+    /// bridge compile triple (`Platform.iOS` -> ios17.0): dependency modules
+    /// otherwise come out at the SDK-default min (e.g. 26.2) and fail to load
+    /// against the 17.0 bridge ("module has a minimum deployment target of
+    /// iOS 26.2"). On the bundle fallback, a bundle's own `minimum_os_version`
+    /// attribute still takes precedence over this flag.
+    private static let iosMinimumOSFlag = "--ios_minimum_os=17.0"
+
     private func platformFlags(for platform: PreviewPlatform) -> [String] {
         switch platform {
         case .macOS:
@@ -551,13 +570,9 @@ public actor BazelBuildSystem: BuildSystem {
             // the apple_support repo, whose name varies per project (default
             // `apple_support`, but e.g. the study uses `repo_name =
             // "build_bazel_apple_support"`), so resolve it from MODULE.bazel.
-            // Pin the deployment target to match the bridge compile triple
-            // (`Platform.iOS` -> ios17.0): a bare swift_library otherwise gets
-            // the SDK-default min (e.g. 26.2), which fails to load against the
-            // 17.0 bridge ("module has a minimum deployment target of iOS 26.2").
             [
                 "--platforms=@\(appleSupportRepoName())//platforms:ios_sim_arm64",
-                "--ios_minimum_os=17.0",
+                Self.iosMinimumOSFlag,
             ]
         }
     }
