@@ -151,6 +151,10 @@ actor PreviewsMCPServer: MCPServing, LivenessPinging {
         case .failure(is CancellationError):
             break
         case let .failure(error):
+            // Attribution for error responses: without this line a failed
+            // handler is invisible in serve.log and the client-side error
+            // text is the only trace (see the #320 attribution ask).
+            Log.error("handler for request \(id) failed: \(error)")
             let mcpError = error as? MCPError ?? .internalError(error.localizedDescription)
             if let frame = MCPWire.errorResponse(id: id, mcpError) {
                 await send(frame, on: transport)
