@@ -46,12 +46,18 @@ func mcpToolSchemas() -> [Tool] {
 ///   connection gets its own `Server` but they all share one compiler). When
 ///   nil, a fresh compiler is built — appropriate for single-connection modes
 ///   like stdio.
+/// - Parameter liveness: Dead-client detection policy for the returned
+///   server; the channel owns this choice. The daemon channel passes one
+///   (a vanished UDS peer must be detected and its connection torn down);
+///   stdio leaves it nil because a dead parent closes the pipe and EOF
+///   already ends the loop.
 func configureMCPServer(
     host previewHost: PreviewHost,
     iosManager: IOSSessionManager,
     configCache cache: ConfigCache,
     registry: SessionRegistry,
-    sharedCompiler: Compiler? = nil
+    sharedCompiler: Compiler? = nil,
+    liveness: PreviewsMCPServer.ClientLiveness? = nil
 ) async throws -> (any MCPServing, Compiler) {
     cleanupStaleTempDirs()
 
@@ -61,17 +67,11 @@ func configureMCPServer(
         try await Compiler()
     }
 
-    // Stage-5 cutover: the in-house server replaces the SDK `Server`.
-    // Liveness defaults (15s interval, 2 missed pongs) declare a silent
-    // client dead in ~30-45s; the client-side StallTimer's 30s threshold
-    // absorbs the ping cadence. Any MCP client answers server pings (the
-    // SDK client with methodNotFound — still proof of life), so an idle
-    // but healthy client is never disconnected.
     let server = PreviewsMCPServer(
         name: "previewsmcp",
         version: advertisedServerVersion(),
         capabilities: .init(logging: .init(), tools: .init(listChanged: false)),
-        liveness: .init()
+        liveness: liveness
     )
 
     let router = SessionRouter(host: previewHost, iosManager: iosManager)

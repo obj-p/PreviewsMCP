@@ -74,9 +74,6 @@ struct ServeCommand: ParsableCommand {
                 Log.info(
                     "MCP server starting on stdio (pid \(ProcessInfo.processInfo.processIdentifier), started \(startISO))..."
                 )
-                // FramedTransport, not the SDK's StdioTransport: chained
-                // sends keep a big response from interleaving with a racing
-                // heartbeat/progress notification mid-message (#320).
                 let transport = FramedTransport()
                 try await runMCPServer(server, transport: transport)
             } catch {

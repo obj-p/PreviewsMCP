@@ -30,7 +30,7 @@ enum DaemonListener {
         // own server but reuses these instances, avoiding per-connection
         // xcrun / SDK resolution cost and ensuring sessions persist across
         // CLI invocations.
-        let sharedCompiler = try await Compiler()
+        let compiler = try await Compiler()
         let iosManager = IOSSessionManager()
         let configCache = ConfigCache()
         // Cross-process session registry. Constructed once and attached
@@ -43,53 +43,40 @@ enum DaemonListener {
         let listener = try DaemonSocket.listen(at: DaemonPaths.socket.path)
         Log.info("previewsmcp daemon listening on \(DaemonPaths.socket.path)")
 
+        // Accept for the life of the process, one handler task per
+        // connection. A non-retryable accept failure is fail-stop: the loop
+        // exits and closes the listener, existing connections keep serving,
+        // and new probes get ECONNREFUSED so the client-side auto-restart
+        // path takes over.
         Task {
-            await acceptLoop(
-                on: listener, compiler: sharedCompiler,
-                host: host, iosManager: iosManager, configCache: configCache,
-                registry: registry
-            )
-        }
-    }
-
-    /// Accept connections for the life of the process, spawning one handler
-    /// task per connection. Owns the listener descriptor: closes it on exit.
-    /// A non-retryable accept failure is fail-stop — the loop exits, so
-    /// existing connections keep serving but new probes get ECONNREFUSED and
-    /// the client-side auto-restart path takes over.
-    private static func acceptLoop(
-        on listener: FileDescriptor, compiler: Compiler,
-        host: PreviewHost, iosManager: IOSSessionManager, configCache: ConfigCache,
-        registry: SessionRegistry
-    ) async {
-        defer { try? listener.close() }
-        while true {
-            let connection: FileDescriptor
-            do {
-                connection = try await DaemonSocket.accept(on: listener)
-            } catch {
-                Log.error("daemon accept failed: \(error)")
-                return
-            }
-            Task {
-                await handleConnection(
-                    connection, compiler: compiler,
-                    host: host, iosManager: iosManager, configCache: configCache,
-                    registry: registry
-                )
+            defer { try? listener.close() }
+            while true {
+                let connection: FileDescriptor
+                do {
+                    connection = try await DaemonSocket.accept(on: listener)
+                } catch {
+                    Log.error("daemon accept failed: \(error)")
+                    return
+                }
+                Task {
+                    await handleConnection(
+                        connection, compiler: compiler, host: host,
+                        iosManager: iosManager, configCache: configCache,
+                        registry: registry
+                    )
+                }
             }
         }
     }
 
     /// Handle one client connection: serve MCP until the peer disconnects,
-    /// then close the descriptor. `FramedTransport.disconnect` returns only
-    /// after the read loop and every send task have quiesced, so the close
-    /// cannot race a write. In-flight handlers run to completion after the
-    /// close (their responses drop); sessions persist across connections,
-    /// so a finishing render warms the next one.
+    /// then disconnect the transport and close the descriptor, in that
+    /// order. In-flight handlers run to completion after the close (their
+    /// responses drop); sessions persist across connections, so a finishing
+    /// render warms the next one.
     private static func handleConnection(
-        _ connection: FileDescriptor, compiler: Compiler,
-        host: PreviewHost, iosManager: IOSSessionManager, configCache: ConfigCache,
+        _ connection: FileDescriptor, compiler: Compiler, host: PreviewHost,
+        iosManager: IOSSessionManager, configCache: ConfigCache,
         registry: SessionRegistry
     ) async {
         let transport = FramedTransport(socket: connection)
@@ -97,7 +84,7 @@ enum DaemonListener {
             let (server, _) = try await configureMCPServer(
                 host: host, iosManager: iosManager,
                 configCache: configCache, registry: registry,
-                sharedCompiler: compiler
+                sharedCompiler: compiler, liveness: .init()
             )
             try await runMCPServer(server, transport: transport)
             // `runMCPServer` returns when the transport closes (client disconnected).
