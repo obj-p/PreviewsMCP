@@ -4,10 +4,24 @@ import MCP
 import os
 import System
 
-enum FramedTransportError: Swift.Error, Equatable {
+enum FramedTransportError: Swift.Error, Equatable, LocalizedError {
+    case notConnected
     case disconnected
     case poisoned
     case truncatedFinalFrame
+
+    var errorDescription: String? {
+        switch self {
+        case .notConnected:
+            "the transport was used before connect()"
+        case .disconnected:
+            "the transport is disconnected"
+        case .poisoned:
+            "an earlier send failed mid-frame; the stream is unrecoverable"
+        case .truncatedFinalFrame:
+            "the peer closed the stream in the middle of a frame"
+        }
+    }
 }
 
 /// In-house newline-framed JSON-RPC transport over plain file descriptors
@@ -53,7 +67,9 @@ actor FramedTransport: Transport {
     private var sendChain: Task<Void, Swift.Error>?
     private var pendingSends: Set<Task<Void, Swift.Error>> = []
     private var reader: Task<Void, Never>?
+    private var isConnected = false
     private var isDisconnected = false
+    private var disconnectRendezvous: Task<Void, Never>?
     private let poisoned = OSAllocatedUnfairLock(initialState: false)
 
     init(
@@ -80,31 +96,40 @@ actor FramedTransport: Transport {
         reader = Task { [input, messageContinuation] in
             await Self.readLoop(input: input, continuation: messageContinuation)
         }
+        isConnected = true
     }
 
     func disconnect() async {
-        guard !isDisconnected else { return }
-        isDisconnected = true
-        // Cancel every queued/in-flight send, not just the chain tail: a
-        // peer that stops draining leaves the head send retrying EAGAIN
-        // forever, and everything queued behind it retains its message.
-        let sends = pendingSends
-        for task in sends {
-            task.cancel()
+        if disconnectRendezvous == nil {
+            isDisconnected = true
+            // Cancel every queued/in-flight send, not just the chain tail:
+            // a peer that stops draining leaves the head send retrying
+            // EAGAIN forever, and everything queued behind it retains its
+            // message.
+            let sends = pendingSends
+            for task in sends {
+                task.cancel()
+            }
+            pendingSends.removeAll()
+            sendChain = nil
+            reader?.cancel()
+            // Rendezvous with everything that touches the descriptors: the
+            // owner may close them the moment disconnect returns. Shared by
+            // every disconnect caller, so a re-entrant call cannot return
+            // before the descriptors are quiescent.
+            disconnectRendezvous = Task { [reader] in
+                for task in sends {
+                    _ = try? await task.value
+                }
+                await reader?.value
+            }
         }
-        pendingSends.removeAll()
-        sendChain = nil
-        reader?.cancel()
-        // Rendezvous with everything that touches the descriptors before
-        // returning: the owner may close them the moment we're done.
-        for task in sends {
-            _ = try? await task.value
-        }
-        await reader?.value
+        await disconnectRendezvous?.value
         messageContinuation.finish()
     }
 
     func send(_ message: Data) async throws {
+        guard isConnected else { throw FramedTransportError.notConnected }
         guard !isDisconnected else { throw FramedTransportError.disconnected }
         // No suspension between reading and updating `sendChain` — the
         // serialization invariant everything above depends on.
@@ -229,19 +254,23 @@ actor FramedTransport: Transport {
         var newline = UInt8(ascii: "\n")
         return try payload.withUnsafeBytes { raw in
             try withUnsafeMutableBytes(of: &newline) { newlineRaw in
-                var vectors = [iovec]()
-                if offset < payload.count {
-                    vectors.append(iovec(
-                        iov_base: UnsafeMutableRawPointer(
-                            mutating: raw.baseAddress!.advanced(by: offset)
-                        ),
-                        iov_len: payload.count - offset
-                    ))
+                try withUnsafeTemporaryAllocation(of: iovec.self, capacity: 2) { vectors in
+                    var count = 0
+                    if offset < payload.count {
+                        vectors[count] = iovec(
+                            iov_base: UnsafeMutableRawPointer(
+                                mutating: raw.baseAddress!.advanced(by: offset)
+                            ),
+                            iov_len: payload.count - offset
+                        )
+                        count += 1
+                    }
+                    vectors[count] = iovec(iov_base: newlineRaw.baseAddress, iov_len: 1)
+                    count += 1
+                    let written = writev(output.rawValue, vectors.baseAddress, Int32(count))
+                    guard written >= 0 else { throw Errno(rawValue: errno) }
+                    return written
                 }
-                vectors.append(iovec(iov_base: newlineRaw.baseAddress, iov_len: 1))
-                let written = writev(output.rawValue, &vectors, Int32(vectors.count))
-                guard written >= 0 else { throw Errno(rawValue: errno) }
-                return written
             }
         }
     }

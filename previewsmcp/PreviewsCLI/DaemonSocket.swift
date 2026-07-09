@@ -7,8 +7,10 @@ import System
 /// at cutover.
 ///
 /// Callers own every returned descriptor and must close it. All descriptors
-/// are close-on-exec so daemon children (compilers, simulators) never
-/// inherit the channel.
+/// are marked close-on-exec so daemon children (compilers, simulators) do
+/// not inherit the channel — best effort: Darwin has no atomic SOCK_CLOEXEC
+/// or accept4, so a spawn racing the fcntl can inherit the descriptor for
+/// that window.
 enum DaemonSocket {
     /// Bind and listen on `path`. The listener is non-blocking so
     /// `accept(on:)` polls cancellably. Stale-socket-file cleanup stays
@@ -46,7 +48,7 @@ enum DaemonSocket {
             switch Errno(rawValue: errno) {
             case .wouldBlock:
                 try await Task.sleep(for: .milliseconds(10))
-            case .interrupted:
+            case .interrupted, .connectionAbort:
                 continue
             case let failure:
                 throw failure
@@ -89,10 +91,10 @@ enum DaemonSocket {
         }
     }
 
-    private static func withSockaddrUn<T>(
+    private static func withSockaddrUn(
         _ path: String,
-        _ body: (UnsafePointer<sockaddr>, socklen_t) throws -> T
-    ) throws -> T {
+        _ body: (UnsafePointer<sockaddr>, socklen_t) throws -> Void
+    ) throws {
         var address = sockaddr_un()
         let capacity = MemoryLayout.size(ofValue: address.sun_path) - 1
         let bytes = Array(path.utf8)

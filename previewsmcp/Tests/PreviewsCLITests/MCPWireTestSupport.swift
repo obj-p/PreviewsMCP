@@ -27,6 +27,21 @@ func expectEchoProbe(_ client: Client) async throws {
     #expect(text == "echo:probe")
 }
 
+/// A unique short directory under /tmp: sun_path caps UDS paths at 104
+/// bytes, so bazel's deep TEST_TMPDIR is unusable for socket files.
+func makeSocketPath() throws -> String {
+    let directory = "/tmp/pmcp-\(UUID().uuidString.prefix(8))"
+    try FileManager.default.createDirectory(
+        atPath: directory, withIntermediateDirectories: true
+    )
+    return directory + "/daemon.sock"
+}
+
+func removeSocketDirectory(_ socketPath: String) {
+    let directory = (socketPath as NSString).deletingLastPathComponent
+    try? FileManager.default.removeItem(atPath: directory)
+}
+
 func awaitListenerReady(_ listener: NWListener) async throws {
     try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
         listener.stateUpdateHandler = { state in

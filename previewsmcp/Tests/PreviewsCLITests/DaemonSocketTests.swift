@@ -191,17 +191,4 @@ struct DaemonSocketTests {
             _ = try DaemonSocket.listen(at: path)
         }
     }
-
-    private func makeSocketPath() throws -> String {
-        let directory = "/tmp/pmcp-\(UUID().uuidString.prefix(8))"
-        try FileManager.default.createDirectory(
-            atPath: directory, withIntermediateDirectories: true
-        )
-        return directory + "/daemon.sock"
-    }
-
-    private func removeSocketDirectory(_ socketPath: String) {
-        let directory = (socketPath as NSString).deletingLastPathComponent
-        try? FileManager.default.removeItem(atPath: directory)
-    }
 }

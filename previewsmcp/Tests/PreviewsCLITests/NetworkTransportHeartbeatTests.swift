@@ -17,9 +17,8 @@ import Testing
 struct NetworkTransportHeartbeatTests {
     @Test("a message coalesced behind a heartbeat is silently dropped")
     func coalescedHeartbeatDropsTheMessageBehindIt() async throws {
-        let socketPath = "/tmp/pmcp-hb-\(getpid()).sock"
-        try? FileManager.default.removeItem(atPath: socketPath)
-        defer { try? FileManager.default.removeItem(atPath: socketPath) }
+        let socketPath = try makeSocketPath()
+        defer { removeSocketDirectory(socketPath) }
 
         let params = NWParameters.tcp
         params.requiredLocalEndpoint = NWEndpoint.unix(path: socketPath)

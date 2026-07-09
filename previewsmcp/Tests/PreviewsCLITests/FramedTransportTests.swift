@@ -169,6 +169,55 @@ struct FramedTransportTests {
         }
     }
 
+    @Test("send before connect throws instead of blocking a raw fd")
+    func sendBeforeConnectThrows() async throws {
+        let devNull = try FileDescriptor.open("/dev/null", .readWrite)
+        defer { try? devNull.close() }
+        let transport = FramedTransport(input: devNull, output: devNull)
+
+        await #expect(throws: FramedTransportError.notConnected) {
+            try await transport.send(Data(#"{"early":1}"#.utf8))
+        }
+    }
+
+    @Test("re-entrant disconnects share the quiescence rendezvous")
+    func reentrantDisconnectWaits() async throws {
+        let pipe = Pipe()
+        let input = try FileDescriptor.open("/dev/null", .readWrite)
+        defer { try? input.close() }
+        let transport = FramedTransport(
+            input: input,
+            output: .init(rawValue: pipe.fileHandleForWriting.fileDescriptor)
+        )
+        try await transport.connect()
+
+        let outcome = OSAllocatedUnfairLock(initialState: Result<Void, Swift.Error>?.none)
+        let wedged = Task {
+            do {
+                try await transport.send(Data(repeating: UInt8(ascii: "z"), count: 300_000))
+                outcome.withLock { $0 = .success(()) }
+            } catch {
+                outcome.withLock { $0 = .failure(error) }
+            }
+        }
+        defer { wedged.cancel() }
+        try await Task.sleep(for: .milliseconds(200))
+
+        async let first: Void = transport.disconnect()
+        async let second: Void = transport.disconnect()
+        _ = await (first, second)
+
+        let result = try await pollUntil(
+            { outcome.withLock { $0 } },
+            failure: "wedged send survived concurrent disconnects"
+        )
+        guard case .failure = result else {
+            Issue.record("send of an undrained frame reported success")
+            return
+        }
+        withExtendedLifetime(pipe) {}
+    }
+
     @Test("disconnect cancels a send wedged on a full pipe")
     func disconnectCancelsWedgedSend() async throws {
         // Nobody drains the pipe, so a frame larger than its buffer parks
