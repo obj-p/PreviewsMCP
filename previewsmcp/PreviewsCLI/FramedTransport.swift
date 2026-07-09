@@ -4,16 +4,19 @@ import MCP
 import os
 import System
 
-enum FramedStdioTransportError: Swift.Error, Equatable {
+enum FramedTransportError: Swift.Error, Equatable {
     case disconnected
     case poisoned
     case truncatedFinalFrame
 }
 
-/// In-house newline-framed JSON-RPC stdio transport (rewrite stage 2).
+/// In-house newline-framed JSON-RPC transport over plain file descriptors
+/// (rewrite stages 2-3): stdio for the MCP channel, a Unix domain socket
+/// for the daemon channel (see `DaemonSocket`).
 ///
-/// Replaces the SDK's `StdioTransport` and the `SerializedStdioTransport`
-/// wrapper at cutover, fixing their defect class by construction:
+/// Replaces the SDK's `StdioTransport`, the `SerializedStdioTransport`
+/// wrapper, and `NetworkTransport` at cutover, fixing their defect classes
+/// by construction:
 ///
 /// - Sends are chained, never concurrent: there is no suspension between
 ///   reading and updating `sendChain`, so re-entrant callers each queue
@@ -34,10 +37,12 @@ enum FramedStdioTransportError: Swift.Error, Equatable {
 /// The transport does not own its file descriptors and never closes them,
 /// but `connect()` switches both to non-blocking, disables SIGPIPE delivery
 /// on the output (a dead peer surfaces as EPIPE, not process death), and
-/// leaves both that way.
-actor FramedStdioTransport: Transport {
+/// leaves both that way. `disconnect()` returns only after the read loop
+/// and every send task have finished, so an owner may close the
+/// descriptors immediately afterwards without racing them.
+actor FramedTransport: Transport {
     nonisolated let logger = Logger(
-        label: "previewsmcp.framed-stdio",
+        label: "previewsmcp.framed-transport",
         factory: { _ in SwiftLogNoOpLogHandler() }
     )
 
@@ -62,10 +67,14 @@ actor FramedStdioTransport: Transport {
         messageContinuation = continuation
     }
 
+    init(socket: FileDescriptor) {
+        self.init(input: socket, output: socket)
+    }
+
     func connect() async throws {
-        try Self.setNonBlocking(input)
-        try Self.setNonBlocking(output)
-        try Self.setNoSigPipe(output)
+        try input.setNonBlocking()
+        try output.setNonBlocking()
+        try output.setNoSigPipe()
         reader = Task { [input, messageContinuation] in
             await Self.readLoop(input: input, continuation: messageContinuation)
         }
@@ -77,17 +86,24 @@ actor FramedStdioTransport: Transport {
         // Cancel every queued/in-flight send, not just the chain tail: a
         // peer that stops draining leaves the head send retrying EAGAIN
         // forever, and everything queued behind it retains its message.
-        for task in pendingSends {
+        let sends = pendingSends
+        for task in sends {
             task.cancel()
         }
         pendingSends.removeAll()
         sendChain = nil
         reader?.cancel()
+        // Rendezvous with everything that touches the descriptors before
+        // returning: the owner may close them the moment we're done.
+        for task in sends {
+            _ = try? await task.value
+        }
+        await reader?.value
         messageContinuation.finish()
     }
 
     func send(_ message: Data) async throws {
-        guard !isDisconnected else { throw FramedStdioTransportError.disconnected }
+        guard !isDisconnected else { throw FramedTransportError.disconnected }
         // No suspension between reading and updating `sendChain` — the
         // serialization invariant everything above depends on. The newline
         // goes out as its own write rather than appending to `message`,
@@ -97,7 +113,7 @@ actor FramedStdioTransport: Transport {
             _ = try? await previous?.value
             try Task.checkCancellation()
             guard !poisoned.withLock({ $0 }) else {
-                throw FramedStdioTransportError.poisoned
+                throw FramedTransportError.poisoned
             }
             do {
                 try await Self.write(message, to: output)
@@ -136,7 +152,7 @@ actor FramedStdioTransport: Transport {
                         continuation.finish()
                     } else {
                         continuation.finish(
-                            throwing: FramedStdioTransportError.truncatedFinalFrame
+                            throwing: FramedTransportError.truncatedFinalFrame
                         )
                     }
                     return
@@ -206,20 +222,6 @@ actor FramedStdioTransport: Transport {
                     throw errno
                 }
             }
-        }
-    }
-
-    private static func setNonBlocking(_ descriptor: FileDescriptor) throws {
-        let flags = fcntl(descriptor.rawValue, F_GETFL)
-        guard flags >= 0 else { throw Errno(rawValue: errno) }
-        guard fcntl(descriptor.rawValue, F_SETFL, flags | O_NONBLOCK) >= 0 else {
-            throw Errno(rawValue: errno)
-        }
-    }
-
-    private static func setNoSigPipe(_ descriptor: FileDescriptor) throws {
-        guard fcntl(descriptor.rawValue, F_SETNOSIGPIPE, 1) >= 0 else {
-            throw Errno(rawValue: errno)
         }
     }
 }

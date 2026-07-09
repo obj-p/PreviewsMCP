@@ -12,12 +12,12 @@ import Testing
 /// The differential test runs the real SDK Client and Server over two of
 /// these transports, keeping the SDK as the independent protocol
 /// implementation.
-@Suite("FramedStdioTransport")
-struct FramedStdioTransportTests {
+@Suite("FramedTransport")
+struct FramedTransportTests {
     @Test("concurrent sends under pipe backpressure never interleave frames")
     func concurrentSendsPreserveFraming() async throws {
         try await assertConcurrentSendsPreserveFraming { input, output in
-            FramedStdioTransport(input: input, output: output)
+            FramedTransport(input: input, output: output)
         }
     }
 
@@ -28,11 +28,11 @@ struct FramedStdioTransportTests {
         defer { try? senderNull.close() }
         let receiverNull = try FileDescriptor.open("/dev/null", .readWrite)
         defer { try? receiverNull.close() }
-        let sender = FramedStdioTransport(
+        let sender = FramedTransport(
             input: senderNull,
             output: .init(rawValue: pipe.fileHandleForWriting.fileDescriptor)
         )
-        let receiver = FramedStdioTransport(
+        let receiver = FramedTransport(
             input: .init(rawValue: pipe.fileHandleForReading.fileDescriptor),
             output: receiverNull
         )
@@ -70,7 +70,7 @@ struct FramedStdioTransportTests {
         defer { try? input.close() }
         let output = try FileDescriptor.open("/dev/null", .readWrite)
         defer { try? output.close() }
-        let transport = FramedStdioTransport(input: input, output: output)
+        let transport = FramedTransport(input: input, output: output)
         try await transport.connect()
 
         let result = try await receiveStreamOutcome(
@@ -89,7 +89,7 @@ struct FramedStdioTransportTests {
         let pipe = Pipe()
         let output = try FileDescriptor.open("/dev/null", .readWrite)
         defer { try? output.close() }
-        let transport = FramedStdioTransport(
+        let transport = FramedTransport(
             input: .init(rawValue: pipe.fileHandleForReading.fileDescriptor),
             output: output
         )
@@ -113,7 +113,7 @@ struct FramedStdioTransportTests {
         let pipe = Pipe()
         let output = try FileDescriptor.open("/dev/null", .readWrite)
         defer { try? output.close() }
-        let transport = FramedStdioTransport(
+        let transport = FramedTransport(
             input: .init(rawValue: pipe.fileHandleForReading.fileDescriptor),
             output: output
         )
@@ -129,7 +129,7 @@ struct FramedStdioTransportTests {
             Issue.record("truncated final frame was silently dropped")
             return
         }
-        #expect(error as? FramedStdioTransportError == .truncatedFinalFrame)
+        #expect(error as? FramedTransportError == .truncatedFinalFrame)
         await transport.disconnect()
         withExtendedLifetime(pipe) {}
     }
@@ -139,7 +139,7 @@ struct FramedStdioTransportTests {
         let pipe = Pipe()
         let input = try FileDescriptor.open("/dev/null", .readWrite)
         defer { try? input.close() }
-        let transport = FramedStdioTransport(
+        let transport = FramedTransport(
             input: input,
             output: .init(rawValue: pipe.fileHandleForWriting.fileDescriptor)
         )
@@ -149,7 +149,7 @@ struct FramedStdioTransportTests {
         await #expect(throws: Errno.brokenPipe) {
             try await transport.send(Data(#"{"a":1}"#.utf8))
         }
-        await #expect(throws: FramedStdioTransportError.poisoned) {
+        await #expect(throws: FramedTransportError.poisoned) {
             try await transport.send(Data(#"{"b":2}"#.utf8))
         }
         await transport.disconnect()
@@ -160,11 +160,11 @@ struct FramedStdioTransportTests {
     func sendAfterDisconnectThrows() async throws {
         let devNull = try FileDescriptor.open("/dev/null", .readWrite)
         defer { try? devNull.close() }
-        let transport = FramedStdioTransport(input: devNull, output: devNull)
+        let transport = FramedTransport(input: devNull, output: devNull)
         try await transport.connect()
         await transport.disconnect()
 
-        await #expect(throws: FramedStdioTransportError.disconnected) {
+        await #expect(throws: FramedTransportError.disconnected) {
             try await transport.send(Data(#"{"late":1}"#.utf8))
         }
     }
@@ -176,7 +176,7 @@ struct FramedStdioTransportTests {
         let pipe = Pipe()
         let input = try FileDescriptor.open("/dev/null", .readWrite)
         defer { try? input.close() }
-        let transport = FramedStdioTransport(
+        let transport = FramedTransport(
             input: input,
             output: .init(rawValue: pipe.fileHandleForWriting.fileDescriptor)
         )
@@ -213,11 +213,11 @@ struct FramedStdioTransportTests {
         // the SDK's, only the wire is ours.
         let clientToServer = Pipe()
         let serverToClient = Pipe()
-        let serverTransport = FramedStdioTransport(
+        let serverTransport = FramedTransport(
             input: .init(rawValue: clientToServer.fileHandleForReading.fileDescriptor),
             output: .init(rawValue: serverToClient.fileHandleForWriting.fileDescriptor)
         )
-        let clientTransport = FramedStdioTransport(
+        let clientTransport = FramedTransport(
             input: .init(rawValue: serverToClient.fileHandleForReading.fileDescriptor),
             output: .init(rawValue: clientToServer.fileHandleForWriting.fileDescriptor)
         )
@@ -248,7 +248,7 @@ struct FramedStdioTransportTests {
 
     /// Drains `receive()` on a child task and polls for how it ended.
     private func receiveStreamOutcome(
-        of transport: FramedStdioTransport,
+        of transport: FramedTransport,
         failure: Comment
     ) async throws -> Result<Void, Swift.Error> {
         let outcome = OSAllocatedUnfairLock(initialState: Result<Void, Swift.Error>?.none)
