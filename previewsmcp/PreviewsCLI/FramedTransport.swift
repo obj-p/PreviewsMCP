@@ -205,7 +205,12 @@ actor FramedTransport: Transport {
             } catch let errno as Errno {
                 switch errno {
                 case .wouldBlock:
-                    try? await Task.sleep(for: pollInterval)
+                    do {
+                        try await FDReadiness.waitUntilReadable(input)
+                    } catch {
+                        continuation.finish()
+                        return
+                    }
                 case .interrupted:
                     continue
                 default:
