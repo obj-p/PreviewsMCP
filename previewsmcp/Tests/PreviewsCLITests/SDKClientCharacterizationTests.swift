@@ -32,6 +32,9 @@ struct SDKClientCharacterizationTests {
 
     @Test("disconnect drains a pending callTool with an error instead of hanging")
     func disconnectDrainsPendingCallTool() async throws {
+        // The pinned contract is the METHOD-AGNOSTIC pending-request drain:
+        // the SDK keeps one request table for every method, so this covers
+        // an abandoned ping() (the liveness death path) as much as callTool.
         try await Self.withConnectedClient { client, responder in
             // The responder never answers tools/call, so this call can only
             // end via disconnect's drain — the StallTimer's entire safety
@@ -109,24 +112,88 @@ struct SDKClientCharacterizationTests {
 
     @Test("Client.ping() completes against a server that answers ping")
     func clientPingRoundTrip() async throws {
-        try await Self.withConnectedClient(answerPings: true) { client, _ in
-            try await client.ping()
+        try await Self.withConnectedClient { client, _ in
+            let result = try await Self.boundedPing(client, failure: "ping never completed")
+            guard case .success = result else {
+                Issue.record("ping failed against an answering server: \(result)")
+                return
+            }
         }
+    }
+
+    @Test("a server-initiated ping is answered while the client's own callTool is pending")
+    func serverPingAnsweredDuringClientInFlightCall() async throws {
+        // The daemon only needs dead-client detection while a long render
+        // is in flight — so the pong must not serialize behind the client's
+        // pending request.
+        try await Self.withConnectedClient { client, responder in
+            let pending = Task { try await client.callToolStructured(name: "never-answered") }
+            defer { pending.cancel() }
+            try await pollUntil(
+                { responder.collector.sawMethod("tools/call") },
+                failure: "tools/call never reached the wire"
+            )
+
+            try await responder.send(#"{"id":"srv-ping-3","jsonrpc":"2.0","method":"ping"}"#)
+            let reply = try await pollUntil(
+                { responder.collector.frame(forID: "srv-ping-3") },
+                failure: "no pong while the client's callTool was pending"
+            )
+            #expect(reply["error"] != nil || reply["result"] != nil)
+        }
+    }
+
+    @Test("Client.ping() completes while the client's own callTool is pending")
+    func clientPingCompletesDuringInFlightCall() async throws {
+        // StallTimer's rewrite keys off pong latency measured DURING a
+        // render, so the client must multiplex an outstanding ping
+        // alongside the pending callTool and correlate both responses.
+        try await Self.withConnectedClient { client, responder in
+            let pending = Task { try await client.callToolStructured(name: "never-answered") }
+            defer { pending.cancel() }
+            try await pollUntil(
+                { responder.collector.sawMethod("tools/call") },
+                failure: "tools/call never reached the wire"
+            )
+
+            let result = try await Self.boundedPing(
+                client, failure: "ping never completed while the callTool was pending"
+            )
+            guard case .success = result else {
+                Issue.record("ping failed while the callTool was pending: \(result)")
+                return
+            }
+        }
+    }
+
+    /// Runs `client.ping()` on a child task and polls for the outcome, so a
+    /// regression polls out red instead of wedging the suite.
+    private static func boundedPing(
+        _ client: Client, failure: Comment
+    ) async throws -> Result<Void, Swift.Error> {
+        let outcome = OSAllocatedUnfairLock(initialState: Result<Void, Swift.Error>?.none)
+        let pinging = Task {
+            do {
+                try await client.ping()
+                outcome.withLock { $0 = .success(()) }
+            } catch {
+                outcome.withLock { $0 = .failure(error) }
+            }
+        }
+        defer { pinging.cancel() }
+        return try await pollUntil({ outcome.withLock { $0 } }, failure: failure)
     }
 
     /// Scopes a connected client + raw responder so disconnect/stop run on
     /// every path; `configure` runs before connect, like DaemonClient's.
     private static func withConnectedClient(
         notifyImmediatelyAfterInitialize: Bool = false,
-        answerPings: Bool = false,
         configure: (Client) async -> Void = { _ in },
         _ body: (Client, RawResponder) async throws -> Void
     ) async throws {
         let (clientSide, serverSide) = await InMemoryTransport.createConnectedPair()
         let responder = try await RawResponder.start(
-            on: serverSide,
-            notifyImmediatelyAfterInitialize: notifyImmediatelyAfterInitialize,
-            answerPings: answerPings
+            on: serverSide, notifyImmediatelyAfterInitialize: notifyImmediatelyAfterInitialize
         )
         defer { responder.stop() }
 
@@ -143,16 +210,16 @@ struct SDKClientCharacterizationTests {
     }
 
     /// Plays the server end of the pair in raw JSON-RPC: answers initialize
-    /// (echoing the client's id verbatim) and, optionally, ping; records
-    /// every frame via its collector and ignores everything else.
+    /// (echoing the client's id verbatim) and ping; records every frame via
+    /// its collector and ignores everything else — tools/call deliberately
+    /// never gets an answer, so tests can hold a request pending.
     private struct RawResponder {
         let collector: FrameCollector
         private let transport: InMemoryTransport
 
         static func start(
             on transport: InMemoryTransport,
-            notifyImmediatelyAfterInitialize: Bool = false,
-            answerPings: Bool = false
+            notifyImmediatelyAfterInitialize: Bool = false
         ) async throws -> RawResponder {
             try await transport.connect()
             let collector = FrameCollector(reading: transport) { frame in
@@ -177,7 +244,7 @@ struct SDKClientCharacterizationTests {
                                 .utf8
                         ))
                     }
-                case "ping" where answerPings:
+                case "ping":
                     await respond(on: transport, ["jsonrpc": "2.0", "id": id, "result": [:]])
                 default:
                     break
