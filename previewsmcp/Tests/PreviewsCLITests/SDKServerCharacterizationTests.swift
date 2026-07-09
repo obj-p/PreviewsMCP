@@ -166,6 +166,26 @@ struct SDKServerCharacterizationTests {
         }
     }
 
+    @Test(
+        "a malformed frame gets an error response echoing a recoverable id",
+        arguments: ServerKind.allCases
+    )
+    func malformedFrameEchoesIDInError(kind: ServerKind) async throws {
+        // Neither server may go silent on a frame that fails to decode: a
+        // client awaiting that id would hang forever. The error code is not
+        // pinned (the SDK says internalError, the in-house loop parseError);
+        // the pinned contract is an ERROR response carrying the sender's id.
+        try await Wire.with(kind) { wire in
+            try await wire.handshake()
+            try await wire.send(#"{"id":77,"jsonrpc":"1.0","method":"ping"}"#)
+            let reply = try await pollUntil(
+                { wire.collector.frame(forID: 77) },
+                failure: "no reply for the malformed frame"
+            )
+            #expect(reply["error"] != nil, "expected an error response: \(reply)")
+        }
+    }
+
     @Test("string request ids are echoed verbatim", arguments: ServerKind.allCases)
     func stringIDRoundTrip(kind: ServerKind) async throws {
         // The SDK Client (the daemon's actual peer) generates random STRING

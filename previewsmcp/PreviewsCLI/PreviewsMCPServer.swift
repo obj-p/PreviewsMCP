@@ -1,5 +1,6 @@
 import Foundation
 import MCP
+import PreviewsCore
 
 /// In-house MCP server loop (rewrite stage 4). Replaces the SDK `Server` at
 /// the stage-5 cutover; the SDK's data types (Method/Request/Response/Value)
@@ -27,18 +28,25 @@ actor PreviewsMCPServer: MCPServing {
     }
 
     /// Type-erased shapes for the first decode pass (the SDK's own AnyMethod
-    /// and AnyNotification are internal). `Value` is `NotRequired`, so
-    /// frames without params decode; the decoder does not validate the
-    /// method name against `name`.
+    /// and AnyNotification are internal). Payload fields decode as `Ignored`,
+    /// which accepts any shape while reading nothing — classification must
+    /// not build a throwaway tree from a several-hundred-KB params blob the
+    /// typed handler decodes again. The decoder does not validate the method
+    /// name against `name`.
+    private struct Ignored: NotRequired, Hashable, Codable {
+        init() {}
+        init(from _: Decoder) throws {}
+    }
+
     private struct ErasedMethod: MCP.Method {
         static let name = ""
-        typealias Parameters = Value
-        typealias Result = Value
+        typealias Parameters = Ignored
+        typealias Result = Ignored
     }
 
     private struct ErasedNotification: MCP.Notification {
         static let name = ""
-        typealias Parameters = Value
+        typealias Parameters = Ignored
     }
 
     private let serverInfo: Server.Info
@@ -68,7 +76,7 @@ actor PreviewsMCPServer: MCPServing {
         handler: @escaping @Sendable (M.Parameters) async throws -> M.Result
     ) -> Self {
         methodHandlers[M.name] = { raw in
-            let request = try JSONDecoder().decode(Request<M>.self, from: raw)
+            let request = try Self.wireDecoder.decode(Request<M>.self, from: raw)
             let result = try await handler(request.params)
             return try Self.encode(M.response(id: request.id, result: result))
         }
@@ -85,6 +93,7 @@ actor PreviewsMCPServer: MCPServing {
     }
 
     func stop() async {
+        cancelInFlight()
         pinger?.cancel()
         pinger = nil
         receiveLoop?.cancel()
@@ -113,11 +122,16 @@ actor PreviewsMCPServer: MCPServing {
     private func run(on transport: any Transport) async {
         do {
             for try await raw in await transport.receive() {
-                if let request = try? JSONDecoder().decode(Request<ErasedMethod>.self, from: raw) {
+                // The receive loop is the liveness ground truth: ANY inbound
+                // frame proves the peer's process is alive and writing.
+                missedPongs = 0
+                if let request = try? Self.wireDecoder.decode(Request<ErasedMethod>.self, from: raw) {
                     dispatch(request, raw: raw, on: transport)
-                } else if (try? JSONDecoder().decode(Response<ErasedMethod>.self, from: raw)) != nil {
-                    missedPongs = 0
-                } else if let note = try? JSONDecoder().decode(Message<ErasedNotification>.self, from: raw) {
+                } else if (try? Self.wireDecoder.decode(Response<ErasedMethod>.self, from: raw)) != nil {
+                    // A pong (or a stray response); counted above.
+                } else if let note = try? Self.wireDecoder.decode(
+                    Message<ErasedNotification>.self, from: raw
+                ) {
                     handleNotification(note, raw: raw)
                 } else {
                     await send(Self.parseErrorResponse(for: raw), on: transport)
@@ -126,21 +140,24 @@ actor PreviewsMCPServer: MCPServing {
         } catch {
             // A stream error ends the connection; teardown is the owner's.
         }
+        // The connection is gone: a dead client's in-flight renders must not
+        // keep burning compiler/simulator resources.
+        cancelInFlight()
         pinger?.cancel()
     }
 
-    private func dispatch(_ request: Request<ErasedMethod>, raw: Data, on transport: any Transport) {
-        guard let handler = builtinHandler(for: request.method) ?? methodHandlers[request.method]
-        else {
-            let reply = ErasedMethod.response(
-                id: request.id,
-                error: .methodNotFound("Unknown method: \(request.method)")
-            )
-            if let frame = try? Self.encode(reply) {
-                Task { await send(frame, on: transport) }
-            }
-            return
+    private func cancelInFlight() {
+        for task in inFlightRequests.values {
+            task.cancel()
         }
+        inFlightRequests.removeAll()
+    }
+
+    private func dispatch(_ request: Request<ErasedMethod>, raw: Data, on transport: any Transport) {
+        let method = request.method
+        let handler = builtinHandler(for: method)
+            ?? methodHandlers[method]
+            ?? { _ in throw MCPError.methodNotFound("Unknown method: \(method)") }
         let work = Task<Data, Swift.Error> {
             try Task.checkCancellation()
             return try await handler(raw)
@@ -170,7 +187,7 @@ actor PreviewsMCPServer: MCPServing {
     private func handleNotification(_ note: Message<ErasedNotification>, raw: Data) {
         guard
             note.method == CancelledNotification.name,
-            let cancelled = try? JSONDecoder().decode(
+            let cancelled = try? Self.wireDecoder.decode(
                 Message<CancelledNotification>.self, from: raw
             )
         else { return }
@@ -182,13 +199,10 @@ actor PreviewsMCPServer: MCPServing {
     private func builtinHandler(for method: String) -> (@Sendable (Data) async throws -> Data)? {
         switch method {
         case Initialize.name:
-            { [weak self] raw in
-                guard let self else { throw MCPError.internalError("server gone") }
-                return try await processInitialize(raw)
-            }
+            { raw in try await self.processInitialize(raw) }
         case Ping.name:
             { raw in
-                let request = try JSONDecoder().decode(Request<Ping>.self, from: raw)
+                let request = try Self.wireDecoder.decode(Request<Ping>.self, from: raw)
                 return try Self.encode(Ping.response(id: request.id))
             }
         default:
@@ -197,7 +211,7 @@ actor PreviewsMCPServer: MCPServing {
     }
 
     private func processInitialize(_ raw: Data) throws -> Data {
-        let request = try JSONDecoder().decode(Request<Initialize>.self, from: raw)
+        let request = try Self.wireDecoder.decode(Request<Initialize>.self, from: raw)
         guard !isInitialized else {
             throw MCPError.invalidRequest("Server is already initialized")
         }
@@ -215,13 +229,14 @@ actor PreviewsMCPServer: MCPServing {
     // MARK: - Liveness
 
     private func pingLoop(on transport: any Transport, _ config: ClientLiveness) async {
-        while !Task.isCancelled {
+        while true {
             do {
                 try await Task.sleep(for: config.interval)
             } catch {
                 return
             }
             if missedPongs >= config.missedPongLimit {
+                Log.info("declaring the client dead: \(missedPongs) pings with no traffic")
                 await transport.disconnect()
                 return
             }
@@ -238,10 +253,15 @@ actor PreviewsMCPServer: MCPServing {
         try? await transport.send(frame)
     }
 
-    private static func encode(_ value: some Encodable) throws -> Data {
+    private static let wireDecoder = JSONDecoder()
+    private static let wireEncoder: JSONEncoder = {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
-        return try encoder.encode(value)
+        return encoder
+    }()
+
+    private static func encode(_ value: some Encodable) throws -> Data {
+        try wireEncoder.encode(value)
     }
 
     private static func parseErrorResponse(for raw: Data) -> Data {

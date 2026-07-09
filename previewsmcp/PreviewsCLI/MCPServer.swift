@@ -52,7 +52,7 @@ func configureMCPServer(
     configCache cache: ConfigCache,
     registry: SessionRegistry,
     sharedCompiler: Compiler? = nil
-) async throws -> (Server, Compiler) {
+) async throws -> (any MCPServing, Compiler) {
     cleanupStaleTempDirs()
 
     let compiler: Compiler = if let sharedCompiler {
