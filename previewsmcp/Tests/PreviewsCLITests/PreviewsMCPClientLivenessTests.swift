@@ -180,6 +180,39 @@ struct PreviewsMCPClientLivenessTests {
         await client.disconnect()
     }
 
+    @Test("failed ping sends still tear the connection down within the limit")
+    func failedPingSendsStillDisconnect() async throws {
+        // Fire-and-forget pings surface a dead output only as missed
+        // pongs: stage 4's immediate honest-close on a failed ping send
+        // degrades to <= limit intervals of detection latency. This pins
+        // the disconnect through the send-FAILURE path (EBADF on a
+        // read-only output; the first failure also poisons the
+        // transport, so later pings fail instantly).
+        let input = try FileDescriptor.open("/dev/null", .readWrite)
+        defer { try? input.close() }
+        let output = try FileDescriptor.open("/dev/null", .readOnly)
+        defer { try? output.close() }
+        let transport = FramedTransport(input: input, output: output)
+        try await transport.connect()
+
+        let probe = PingProbe()
+        let loopEnded = OSAllocatedUnfairLock(initialState: false)
+        let pinger = Task {
+            await probe.pingLoop(
+                on: transport,
+                .init(interval: .milliseconds(50), missedPongLimit: 2),
+                peer: "peer"
+            )
+            loopEnded.withLock { $0 = true }
+        }
+        defer { pinger.cancel() }
+
+        try await pollUntil(
+            { loopEnded.withLock { $0 } },
+            failure: "failed ping sends never tore the connection down"
+        )
+    }
+
     private actor PingProbe: LivenessPinging {
         var missedPongs = 0
     }
