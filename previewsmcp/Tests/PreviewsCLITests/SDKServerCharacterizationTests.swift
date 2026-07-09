@@ -1,37 +1,51 @@
 import Foundation
 import MCP
 import os
+@testable import PreviewsCLI
 import Testing
 
-/// Characterizes the SDK `Server` behaviors the daemon relies on. This suite
-/// is the acceptance bar for the in-house wire-layer rewrite: every test here
-/// must pass unchanged against the replacement server loop. Each test drives
-/// a server configured like `configureMCPServer` through the SDK's
-/// `InMemoryTransport` pair, speaking raw JSON-RPC frames from the client
-/// side.
+/// Characterizes the server behaviors the daemon relies on, and runs every
+/// test against BOTH implementations: the SDK `Server` (the original
+/// characterization subject) and the in-house `PreviewsMCPServer` (rewrite
+/// stage 4). The assertions are the acceptance bar for the rewrite — they
+/// were pinned against the SDK first and must hold unchanged for the
+/// replacement. Each test drives a server configured like
+/// `configureMCPServer` through the SDK's `InMemoryTransport` pair,
+/// speaking raw JSON-RPC frames from the client side.
 ///
 /// Deliberately out of scope: JSON-RPC batch requests. No client of the
 /// daemon sends them (Claude Code and the CLI both issue single requests),
 /// so the rewrite is not required to support batching; revisit if a batching
 /// client ever appears.
-@Suite("SDK Server characterization")
+@Suite("MCP server characterization (SDK + in-house)")
 struct SDKServerCharacterizationTests {
     private static let serverVersion = "0.0.1-characterization"
 
+    enum ServerKind: String, CaseIterable {
+        case sdk
+        case inHouse
+    }
+
     // MARK: - Version negotiation
 
-    @Test("initialize echoes every supported protocol version", arguments: Version.supported.sorted())
-    func initializeEchoesSupportedVersion(version: String) async throws {
-        try await Wire.with { wire in
+    @Test(
+        "initialize echoes every supported protocol version",
+        arguments: ServerKind.allCases, Version.supported.sorted()
+    )
+    func initializeEchoesSupportedVersion(kind: ServerKind, version: String) async throws {
+        try await Wire.with(kind) { wire in
             let reply = try await wire.roundTrip(id: 1, Self.initialize(version: version))
             let result = try #require(reply["result"] as? [String: Any])
             #expect(result["protocolVersion"] as? String == version)
         }
     }
 
-    @Test("initialize falls back to the latest version and advertises the server's own version")
-    func initializeFallsBackToLatest() async throws {
-        try await Wire.with { wire in
+    @Test(
+        "initialize falls back to the latest version and advertises the server's own version",
+        arguments: ServerKind.allCases
+    )
+    func initializeFallsBackToLatest(kind: ServerKind) async throws {
+        try await Wire.with(kind) { wire in
             let reply = try await wire.roundTrip(id: 1, Self.initialize(version: "1999-01-01"))
             let result = try #require(reply["result"] as? [String: Any])
             #expect(result["protocolVersion"] as? String == Version.latest)
@@ -44,9 +58,12 @@ struct SDKServerCharacterizationTests {
 
     // MARK: - Wire shape
 
-    @Test("responses encode with sorted keys and unescaped slashes")
-    func responseWireShape() async throws {
-        try await Wire.with { server in
+    @Test(
+        "responses encode with sorted keys and unescaped slashes",
+        arguments: ServerKind.allCases
+    )
+    func responseWireShape(kind: ServerKind) async throws {
+        try await Wire.with(kind) { server in
             await server.withMethodHandler(ListTools.self) { _ in
                 ListTools.Result(tools: [
                     Tool(
@@ -75,12 +92,15 @@ struct SDKServerCharacterizationTests {
 
     // MARK: - Request handling contracts
 
-    @Test("an unknown request method gets a methodNotFound error, not silence")
-    func unknownMethodGetsError() async throws {
+    @Test(
+        "an unknown request method gets a methodNotFound error, not silence",
+        arguments: ServerKind.allCases
+    )
+    func unknownMethodGetsError(kind: ServerKind) async throws {
         // withDaemonClient awaits `setLoggingLevel` BEFORE its stall watcher
         // starts, and the daemon registers no logging/setLevel handler — this
         // error response is the only thing that unblocks every CLI command.
-        try await Wire.with { wire in
+        try await Wire.with(kind) { wire in
             try await wire.handshake()
             let reply = try await wire.roundTrip(
                 id: 9,
@@ -91,9 +111,9 @@ struct SDKServerCharacterizationTests {
         }
     }
 
-    @Test("ping answers with an empty result")
-    func pingAnswers() async throws {
-        try await Wire.with { wire in
+    @Test("ping answers with an empty result", arguments: ServerKind.allCases)
+    func pingAnswers(kind: ServerKind) async throws {
+        try await Wire.with(kind) { wire in
             try await wire.handshake()
             let reply = try await wire.roundTrip(id: 4, #"{"id":4,"jsonrpc":"2.0","method":"ping"}"#)
             #expect(reply["error"] == nil)
@@ -101,13 +121,16 @@ struct SDKServerCharacterizationTests {
         }
     }
 
-    @Test("ping is answered while a CallTool handler is still in flight")
-    func pingAnsweredDuringInFlightCall() async throws {
+    @Test(
+        "ping is answered while a CallTool handler is still in flight",
+        arguments: ServerKind.allCases
+    )
+    func pingAnsweredDuringInFlightCall(kind: ServerKind) async throws {
         // The liveness rewrite keys StallTimer off pong latency, so a pong
         // must not queue behind a long render.
         let started = OSAllocatedUnfairLock(initialState: false)
         let release = OSAllocatedUnfairLock(initialState: false)
-        try await Wire.with { server in
+        try await Wire.with(kind) { server in
             await server.withMethodHandler(CallTool.self) { _ in
                 started.withLock { $0 = true }
                 while !release.withLock({ $0 }) {
@@ -143,12 +166,54 @@ struct SDKServerCharacterizationTests {
         }
     }
 
-    @Test("string request ids are echoed verbatim")
-    func stringIDRoundTrip() async throws {
+    @Test(
+        "a malformed frame gets an error response echoing a recoverable id",
+        arguments: ServerKind.allCases
+    )
+    func malformedFrameEchoesIDInError(kind: ServerKind) async throws {
+        // Neither server may go silent on a frame that fails to decode: a
+        // client awaiting that id would hang forever. The error code is not
+        // pinned (the SDK says internalError, the in-house loop parseError);
+        // the pinned contract is an ERROR response carrying the sender's id.
+        try await Wire.with(kind) { wire in
+            try await wire.handshake()
+            try await wire.send(#"{"id":77,"jsonrpc":"1.0","method":"ping"}"#)
+            let reply = try await pollUntil(
+                { wire.collector.frame(forID: 77) },
+                failure: "no reply for the malformed frame"
+            )
+            #expect(reply["error"] != nil, "expected an error response: \(reply)")
+        }
+    }
+
+    @Test(
+        "a frame with both method and result keys is consumed as a response, not dispatched",
+        arguments: ServerKind.allCases
+    )
+    func methodEchoingResponseIsNotDispatched(kind: ServerKind) async throws {
+        // Some peers echo the method name in response frames. Classifying
+        // request-first would dispatch such a pong as a fresh request and
+        // answer it — a spurious frame in the client's id space. The later
+        // id-992 round trip orders the assertion: the stream is processed
+        // in order, so by the time 992 is answered, 991 was classified.
+        try await Wire.with(kind) { wire in
+            try await wire.handshake()
+            try await wire.send(#"{"id":991,"jsonrpc":"2.0","method":"ping","result":{}}"#)
+            let after = try await wire.roundTrip(id: 992, #"{"id":992,"jsonrpc":"2.0","method":"ping"}"#)
+            #expect(after["error"] == nil)
+            #expect(
+                wire.collector.frame(forID: 991) == nil,
+                "a response-shaped frame must be consumed, not answered"
+            )
+        }
+    }
+
+    @Test("string request ids are echoed verbatim", arguments: ServerKind.allCases)
+    func stringIDRoundTrip(kind: ServerKind) async throws {
         // The SDK Client (the daemon's actual peer) generates random STRING
         // ids; the integer ids used elsewhere in this suite are the less
         // common case.
-        try await Wire.with { wire in
+        try await Wire.with(kind) { wire in
             try await wire.handshake()
             try await wire.send(#"{"id":"req-abc","jsonrpc":"2.0","method":"ping"}"#)
             let reply = try await pollUntil(
@@ -161,11 +226,14 @@ struct SDKServerCharacterizationTests {
 
     // MARK: - Cancellation
 
-    @Test("notifications/cancelled cancels the in-flight CallTool handler")
-    func cancelledNotificationCancelsHandler() async throws {
+    @Test(
+        "notifications/cancelled cancels the in-flight CallTool handler",
+        arguments: ServerKind.allCases
+    )
+    func cancelledNotificationCancelsHandler(kind: ServerKind) async throws {
         let started = OSAllocatedUnfairLock(initialState: false)
         let cancelled = OSAllocatedUnfairLock(initialState: false)
-        try await Wire.with { server in
+        try await Wire.with(kind) { server in
             await server.withMethodHandler(CallTool.self) { _ in
                 started.withLock { $0 = true }
                 do {
@@ -217,9 +285,12 @@ struct SDKServerCharacterizationTests {
 
     // MARK: - Notifications
 
-    @Test("server.log reaches the wire as notifications/message")
-    func serverLogNotificationReachesWire() async throws {
-        try await Wire.with { wire in
+    @Test(
+        "server.log reaches the wire as notifications/message",
+        arguments: ServerKind.allCases
+    )
+    func serverLogNotificationReachesWire(kind: ServerKind) async throws {
+        try await Wire.with(kind) { wire in
             try await wire.handshake()
 
             try await wire.server.log(level: .debug, logger: "heartbeat", data: .string("alive"))
@@ -233,13 +304,16 @@ struct SDKServerCharacterizationTests {
         }
     }
 
-    @Test("progress tokens decode from _meta and notify as notifications/progress")
-    func progressTokenPlumbing() async throws {
+    @Test(
+        "progress tokens decode from _meta and notify as notifications/progress",
+        arguments: ServerKind.allCases
+    )
+    func progressTokenPlumbing(kind: ServerKind) async throws {
         // MCPProgressReporter depends on both halves: CallTool.Parameters
         // exposing _meta.progressToken, and server.notify(ProgressNotification)
         // reaching the wire tagged with that token.
         let token = OSAllocatedUnfairLock(initialState: String?.none)
-        try await Wire.with { server in
+        try await Wire.with(kind) { server in
             await server.withMethodHandler(CallTool.self) { params in
                 if case let .string(value) = params._meta?.progressToken {
                     token.withLock { $0 = value }
@@ -271,12 +345,15 @@ struct SDKServerCharacterizationTests {
 
     // MARK: - Lifecycle
 
-    @Test("waitUntilCompleted returns when the transport closes")
-    func waitUntilCompletedReturnsOnTransportClose() async throws {
+    @Test(
+        "waitUntilCompleted returns when the transport closes",
+        arguments: ServerKind.allCases
+    )
+    func waitUntilCompletedReturnsOnTransportClose(kind: ServerKind) async throws {
         // runMCPServer's entire per-connection teardown: start returns once
         // the receive loop is spawned, and waitUntilCompleted returns when
         // the peer goes away.
-        try await Wire.with { wire in
+        try await Wire.with(kind) { wire in
             let completed = OSAllocatedUnfairLock(initialState: false)
             let waiter = Task {
                 await wire.server.waitUntilCompleted()
@@ -297,24 +374,36 @@ struct SDKServerCharacterizationTests {
         #"{"id":1,"jsonrpc":"2.0","method":"initialize","params":{"capabilities":{},"clientInfo":{"name":"probe","version":"1"},"protocolVersion":"\#(version)"}}"#
     }
 
-    /// A started SDK server plus the raw client side of its transport.
-    /// `with` scopes the harness so teardown runs on every path, including
-    /// thrown polls.
+    /// A started server (SDK or in-house, per `kind`) plus the raw client
+    /// side of its transport. `with` scopes the harness so teardown runs on
+    /// every path, including thrown polls.
     struct Wire {
-        let server: Server
+        let server: any MCPServing
         let collector: FrameCollector
         private let testSide: InMemoryTransport
 
         static func with(
-            _ configure: (Server) async -> Void = { _ in },
+            _ kind: ServerKind,
+            _ configure: (any MCPServing) async -> Void = { _ in },
             _ body: (Wire) async throws -> Void
         ) async throws {
             let (testSide, serverSide) = await InMemoryTransport.createConnectedPair()
-            let server = Server(
-                name: "characterization",
-                version: serverVersion,
-                capabilities: .init(logging: .init(), tools: .init(listChanged: false))
+            let capabilities = Server.Capabilities(
+                logging: .init(), tools: .init(listChanged: false)
             )
+            let server: any MCPServing =
+                switch kind {
+                case .sdk:
+                    Server(
+                        name: "characterization", version: serverVersion,
+                        capabilities: capabilities
+                    )
+                case .inHouse:
+                    PreviewsMCPServer(
+                        name: "characterization", version: serverVersion,
+                        capabilities: capabilities
+                    )
+                }
             await configure(server)
             try await server.start(transport: serverSide)
             try await testSide.connect()

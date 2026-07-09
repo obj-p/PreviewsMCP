@@ -19,5 +19,5 @@ struct HandlerContext {
     let simulatorLister: any SimulatorLister
     let registry: SessionRegistry
     let macCompiler: Compiler
-    let server: Server
+    let server: any MCPServing
 }

@@ -8,12 +8,12 @@ import PreviewsEngine
 
 /// MCP progress reporter that sends progress notifications and log messages to the client.
 final class MCPProgressReporter: ProgressReporter, @unchecked Sendable {
-    private let server: Server
+    private let server: any MCPServing
     private let progressToken: ProgressToken?
     private let totalSteps: Int
     private let stepCounter: OSAllocatedUnfairLock<Int>
 
-    init(server: Server, progressToken: ProgressToken?, totalSteps: Int) {
+    init(server: any MCPServing, progressToken: ProgressToken?, totalSteps: Int) {
         self.server = server
         self.progressToken = progressToken
         self.totalSteps = totalSteps
@@ -46,7 +46,7 @@ final class MCPProgressReporter: ProgressReporter, @unchecked Sendable {
 
 /// Create an MCP progress reporter for the given tool call parameters.
 func mcpReporter(
-    server: Server, params: CallTool.Parameters, totalSteps: Int
+    server: any MCPServing, params: CallTool.Parameters, totalSteps: Int
 ) -> MCPProgressReporter {
     MCPProgressReporter(
         server: server,
@@ -98,7 +98,7 @@ func advertisedServerVersion() -> String {
 /// first ping fires at T+2s relative to `server.start`, not T+0. A
 /// client-side liveness timer should grant at least one full heartbeat
 /// interval of grace on connect before declaring the daemon wedged.
-func runMCPServer(_ server: Server, transport: any Transport) async throws {
+func runMCPServer(_ server: any MCPServing, transport: any Transport) async throws {
     let heartbeat = Task.detached {
         while !Task.isCancelled {
             try? await Task.sleep(for: .seconds(2))
