@@ -1,7 +1,6 @@
 import AppKit
 import ArgumentParser
 import Foundation
-import MCP
 import PreviewsCore
 import PreviewsEngine
 import PreviewsMacOS
@@ -75,10 +74,10 @@ struct ServeCommand: ParsableCommand {
                 Log.info(
                     "MCP server starting on stdio (pid \(ProcessInfo.processInfo.processIdentifier), started \(startISO))..."
                 )
-                // SerializedStdioTransport, not the SDK's StdioTransport: a
-                // big response racing a heartbeat/progress notification on the
-                // SDK transport can interleave bytes mid-message (#320).
-                let transport = SerializedStdioTransport()
+                // FramedTransport, not the SDK's StdioTransport: chained
+                // sends keep a big response from interleaving with a racing
+                // heartbeat/progress notification mid-message (#320).
+                let transport = FramedTransport()
                 try await runMCPServer(server, transport: transport)
             } catch {
                 Log.error("MCP server error: \(error)")
@@ -137,7 +136,7 @@ struct ServeCommand: ParsableCommand {
                 DaemonLifecycle.detachFromTerminal()
 
                 let host = Self.sharedHost!
-                _ = try await DaemonListener.start(host: host)
+                try await DaemonListener.start(host: host)
                 try DaemonLifecycle.register()
                 startLogRotation()
                 let startISO = ISO8601DateFormatter().string(from: ProcessStartup.time)

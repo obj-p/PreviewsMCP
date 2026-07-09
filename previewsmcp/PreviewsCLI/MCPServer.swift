@@ -61,10 +61,17 @@ func configureMCPServer(
         try await Compiler()
     }
 
-    let server = Server(
+    // Stage-5 cutover: the in-house server replaces the SDK `Server`.
+    // Liveness defaults (15s interval, 2 missed pongs) declare a silent
+    // client dead in ~30-45s; the client-side StallTimer's 30s threshold
+    // absorbs the ping cadence. Any MCP client answers server pings (the
+    // SDK client with methodNotFound — still proof of life), so an idle
+    // but healthy client is never disconnected.
+    let server = PreviewsMCPServer(
         name: "previewsmcp",
         version: advertisedServerVersion(),
-        capabilities: .init(logging: .init(), tools: .init(listChanged: false))
+        capabilities: .init(logging: .init(), tools: .init(listChanged: false)),
+        liveness: .init()
     )
 
     let router = SessionRouter(host: previewHost, iosManager: iosManager)
