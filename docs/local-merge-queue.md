@@ -75,9 +75,9 @@ replacement for CI cache, with no silent eviction.
 
 The pipeline matches the documented merge bar:
 
-- `swift-format lint --strict --recursive` over Swift sources
-- unit tests
-- example integration tests
+- `bazel test //...`
+- `bazel run //tools/lint:check` (hermetic, Bazel-pinned SwiftFormat,
+  SwiftLint, clang-format, and buildifier)
 
 ### 3. Attestation: SSH commit signing
 
