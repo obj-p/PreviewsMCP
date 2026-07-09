@@ -1,22 +1,25 @@
+import Darwin
 import Foundation
-import MCP
-import Network
 import PreviewsCore
 import PreviewsEngine
 import PreviewsMacOS
+import System
 
 /// Runs the MCP server daemon on a Unix domain socket.
 ///
-/// Accepts multiple concurrent client connections. Each connection gets its own
-/// `MCP.Server` instance, but all connections share a single
+/// Accepts multiple concurrent client connections. Each connection gets its
+/// own `PreviewsMCPServer` instance, but all connections share a single
 /// `IOSSessionManager`, `ConfigCache`, and `Compiler` created at daemon
 /// startup — so preview sessions persist across CLI invocations and
 /// simultaneous clients see consistent state.
 enum DaemonListener {
-    /// Start the daemon listener. Returns once the listener is ready to accept
-    /// connections. Callers hold the process alive via the existing
-    /// `NSApplication` run loop (see `PreviewsMCPApp.main`).
-    static func start(host: PreviewHost) async throws -> NWListener {
+    /// Start the daemon listener. Readiness is `DaemonSocket.listen`
+    /// returning — the kernel queues connections from that moment — so this
+    /// returns with the socket accepting and the accept loop running in a
+    /// task that lives for the rest of the process. Callers hold the
+    /// process alive via the existing `NSApplication` run loop (see
+    /// `PreviewsMCPApp.main`).
+    static func start(host: PreviewHost) async throws {
         try DaemonPaths.ensureDirectory()
 
         // Clean up any stale socket file from a previous crashed daemon.
@@ -25,10 +28,10 @@ enum DaemonListener {
         try? FileManager.default.removeItem(at: DaemonPaths.socket)
 
         // Build shared resources once. Each accepted connection creates its
-        // own MCP.Server but reuses these instances, avoiding per-connection
+        // own server but reuses these instances, avoiding per-connection
         // xcrun / SDK resolution cost and ensuring sessions persist across
         // CLI invocations.
-        let sharedCompiler = try await Compiler()
+        let compiler = try await Compiler()
         let iosManager = IOSSessionManager()
         let configCache = ConfigCache()
         // Cross-process session registry. Constructed once and attached
@@ -38,63 +41,74 @@ enum DaemonListener {
         let registry = SessionRegistry(registryDir: DaemonPaths.sessionsDirectory)
         await registry.attachTo(iosManager: iosManager, previewHost: host)
 
-        let params = NWParameters.tcp
-        params.requiredLocalEndpoint = NWEndpoint.unix(path: DaemonPaths.socket.path)
-        params.allowLocalEndpointReuse = true
+        // Backlog 128 (the kernel cap): a burst of connects beyond the
+        // backlog gets ECONNREFUSED, which clients read as "daemon dead"
+        // and answer by spawning a duplicate daemon.
+        let listener = try DaemonSocket.listen(at: DaemonPaths.socket.path, backlog: 128)
+        Log.info("previewsmcp daemon listening on \(DaemonPaths.socket.path)")
 
-        let listener = try NWListener(using: params)
-
-        listener.newConnectionHandler = { connection in
-            Task {
-                await handleConnection(
-                    connection, compiler: sharedCompiler,
-                    host: host, iosManager: iosManager, configCache: configCache,
-                    registry: registry
-                )
-            }
-        }
-
-        // Block until the listener reports ready (or fails).
-        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
-            listener.stateUpdateHandler = { state in
-                switch state {
-                case .ready:
-                    Log.info("previewsmcp daemon listening on \(DaemonPaths.socket.path)")
-                    cont.resume()
-                    // Clear after resuming so the closure isn't retained.
-                    listener.stateUpdateHandler = nil
-                case let .failed(error):
-                    cont.resume(throwing: error)
-                    listener.stateUpdateHandler = nil
-                default:
-                    break
+        // Accept for the life of the process, one handler task per
+        // connection. Resource exhaustion retries after a beat — the
+        // pending connection stays queued in the kernel. Any other accept
+        // failure exits: a daemon that cannot accept must release its
+        // socket and PID claim so the client-side auto-restart path spawns
+        // a healthy replacement instead of fighting a zombie for the
+        // sessions directory.
+        Task {
+            while true {
+                let connection: FileDescriptor
+                do {
+                    connection = try await DaemonSocket.accept(on: listener)
+                } catch let errno as Errno
+                    where [.tooManyOpenFiles, .tooManyOpenFilesInSystem, .noMemory].contains(errno)
+                {
+                    Log.error("daemon accept: \(errno); retrying")
+                    try? await Task.sleep(for: .seconds(1))
+                    continue
+                } catch {
+                    Log.error("daemon accept failed (\(error)); exiting")
+                    DaemonLifecycle.unregister()
+                    Darwin.exit(1)
+                }
+                Task {
+                    await handleConnection(
+                        connection, compiler: compiler, host: host,
+                        iosManager: iosManager, configCache: configCache,
+                        registry: registry
+                    )
                 }
             }
-            listener.start(queue: .global(qos: .userInitiated))
         }
-
-        return listener
     }
 
-    /// Handle one client connection. Creates a per-connection MCP Server
-    /// sharing the given compiler and module-level state with other connections.
+    /// Handle one client connection: serve MCP until the peer disconnects,
+    /// then disconnect the transport and close the descriptor, in that
+    /// order. In-flight handlers run to completion after the close (their
+    /// responses drop); sessions persist across connections, so a finishing
+    /// render warms the next one.
     private static func handleConnection(
-        _ connection: NWConnection, compiler: Compiler,
-        host: PreviewHost, iosManager: IOSSessionManager, configCache: ConfigCache,
+        _ connection: FileDescriptor, compiler: Compiler, host: PreviewHost,
+        iosManager: IOSSessionManager, configCache: ConfigCache,
         registry: SessionRegistry
     ) async {
+        let transport = FramedTransport(socket: connection)
         do {
-            let transport = daemonChannelTransport(connection: connection)
             let (server, _) = try await configureMCPServer(
                 host: host, iosManager: iosManager,
                 configCache: configCache, registry: registry,
-                sharedCompiler: compiler
+                sharedCompiler: compiler,
+                // A dead peer's fds close and the read loop sees EOF, so
+                // pings only backstop the wedged-but-alive case. Generous
+                // timing (dead after ~3-4 min of total silence) keeps a
+                // suspended or debugger-paused CLI from being torn down.
+                liveness: .init(interval: .seconds(60), missedPongLimit: 3)
             )
             try await runMCPServer(server, transport: transport)
             // `runMCPServer` returns when the transport closes (client disconnected).
         } catch {
             Log.error("daemon connection error: \(error)")
-            connection.cancel()
         }
+        await transport.disconnect()
+        try? connection.close()
     }
 }

@@ -43,15 +43,21 @@ func mcpToolSchemas() -> [Tool] {
 ///   re-attach on every accept).
 /// - Parameter sharedCompiler: Pass a pre-built `Compiler` to reuse across
 ///   multiple server instances (e.g., daemon mode, where each accepted client
-///   connection gets its own `Server` but they all share one compiler). When
+///   connection gets its own server but they all share one compiler). When
 ///   nil, a fresh compiler is built — appropriate for single-connection modes
 ///   like stdio.
+/// - Parameter liveness: Dead-client detection policy for the returned
+///   server; the channel owns this choice. The daemon channel passes one
+///   (a vanished UDS peer must be detected and its connection torn down);
+///   stdio leaves it nil because a dead parent closes the pipe and EOF
+///   already ends the loop.
 func configureMCPServer(
     host previewHost: PreviewHost,
     iosManager: IOSSessionManager,
     configCache cache: ConfigCache,
     registry: SessionRegistry,
-    sharedCompiler: Compiler? = nil
+    sharedCompiler: Compiler? = nil,
+    liveness: PreviewsMCPServer.ClientLiveness? = nil
 ) async throws -> (any MCPServing, Compiler) {
     cleanupStaleTempDirs()
 
@@ -61,10 +67,11 @@ func configureMCPServer(
         try await Compiler()
     }
 
-    let server = Server(
+    let server = PreviewsMCPServer(
         name: "previewsmcp",
         version: advertisedServerVersion(),
-        capabilities: .init(logging: .init(), tools: .init(listChanged: false))
+        capabilities: .init(logging: .init(), tools: .init(listChanged: false)),
+        liveness: liveness
     )
 
     let router = SessionRouter(host: previewHost, iosManager: iosManager)
