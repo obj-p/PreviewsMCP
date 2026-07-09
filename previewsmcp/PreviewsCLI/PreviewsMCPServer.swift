@@ -56,7 +56,7 @@ actor PreviewsMCPServer: MCPServing {
     private var transport: (any Transport)?
     private var receiveLoop: Task<Void, Never>?
     private var pinger: Task<Void, Never>?
-    private var inFlightRequests: [ID: Task<Data, Swift.Error>] = [:]
+    private var inFlightRequests: [UUID: (id: ID, task: Task<Data, Swift.Error>)] = [:]
     private var isInitialized = false
     private var missedPongs = 0
 
@@ -125,30 +125,31 @@ actor PreviewsMCPServer: MCPServing {
                 // The receive loop is the liveness ground truth: ANY inbound
                 // frame proves the peer's process is alive and writing.
                 missedPongs = 0
-                if let request = try? Self.wireDecoder.decode(Request<ErasedMethod>.self, from: raw) {
+                if (try? Self.wireDecoder.decode(Response<ErasedMethod>.self, from: raw)) != nil {
+                    continue
+                } else if let request = try? Self.wireDecoder.decode(
+                    Request<ErasedMethod>.self, from: raw
+                ) {
                     dispatch(request, raw: raw, on: transport)
-                } else if (try? Self.wireDecoder.decode(Response<ErasedMethod>.self, from: raw)) != nil {
-                    // A pong (or a stray response); counted above.
                 } else if let note = try? Self.wireDecoder.decode(
                     Message<ErasedNotification>.self, from: raw
                 ) {
                     handleNotification(note, raw: raw)
                 } else {
-                    await send(Self.parseErrorResponse(for: raw), on: transport)
+                    let reply = Self.parseErrorResponse(for: raw)
+                    Task { await send(reply, on: transport) }
                 }
             }
-        } catch {
-            // A stream error ends the connection; teardown is the owner's.
-        }
-        // The connection is gone: a dead client's in-flight renders must not
-        // keep burning compiler/simulator resources.
-        cancelInFlight()
+        } catch {}
+        // In-flight handlers run to completion after peer disconnect, like
+        // the SDK: daemon sessions persist across CLI invocations, so a
+        // killed client's finishing render is a warm session, not waste.
         pinger?.cancel()
     }
 
     private func cancelInFlight() {
-        for task in inFlightRequests.values {
-            task.cancel()
+        for entry in inFlightRequests.values {
+            entry.task.cancel()
         }
         inFlightRequests.removeAll()
     }
@@ -162,15 +163,19 @@ actor PreviewsMCPServer: MCPServing {
             try Task.checkCancellation()
             return try await handler(raw)
         }
-        inFlightRequests[request.id] = work
-        Task { await complete(request.id, of: work, on: transport) }
+        // Keyed by token, not request id: a colliding id must neither orphan
+        // the first task from cancellation nor deregister the second when
+        // the first completes.
+        let token = UUID()
+        inFlightRequests[token] = (request.id, work)
+        Task { await complete(token, id: request.id, of: work, on: transport) }
     }
 
     private func complete(
-        _ id: ID, of work: Task<Data, Swift.Error>, on transport: any Transport
+        _ token: UUID, id: ID, of work: Task<Data, Swift.Error>, on transport: any Transport
     ) async {
         let outcome = await work.result
-        inFlightRequests.removeValue(forKey: id)
+        inFlightRequests.removeValue(forKey: token)
         switch outcome {
         case let .success(frame):
             await send(frame, on: transport)
@@ -191,7 +196,10 @@ actor PreviewsMCPServer: MCPServing {
                 Message<CancelledNotification>.self, from: raw
             )
         else { return }
-        inFlightRequests.removeValue(forKey: cancelled.params.requestId)?.cancel()
+        for (token, entry) in inFlightRequests where entry.id == cancelled.params.requestId {
+            entry.task.cancel()
+            inFlightRequests.removeValue(forKey: token)
+        }
     }
 
     // MARK: - Built-in methods
@@ -241,8 +249,13 @@ actor PreviewsMCPServer: MCPServing {
                 return
             }
             missedPongs += 1
-            if let frame = try? Self.encode(Ping.request()) {
-                await send(frame, on: transport)
+            guard let frame = try? Self.encode(Ping.request()) else { continue }
+            do {
+                try await transport.send(frame)
+            } catch {
+                Log.info("liveness ping send failed (\(error)); closing the connection")
+                await transport.disconnect()
+                return
             }
         }
     }
@@ -264,16 +277,12 @@ actor PreviewsMCPServer: MCPServing {
         try wireEncoder.encode(value)
     }
 
+    private struct IDEnvelope: Codable {
+        let id: ID?
+    }
+
     private static func parseErrorResponse(for raw: Data) -> Data {
-        let object = (try? JSONSerialization.jsonObject(with: raw)) as? [String: Any]
-        let id: ID =
-            if let string = object?["id"] as? String {
-                .string(string)
-            } else if let number = object?["id"] as? Int {
-                .number(number)
-            } else {
-                .random
-            }
+        let id = (try? wireDecoder.decode(IDEnvelope.self, from: raw))?.id ?? .random
         let reply = ErasedMethod.response(id: id, error: .parseError("Invalid message format"))
         return (try? encode(reply)) ?? Data()
     }

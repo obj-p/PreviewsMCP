@@ -43,14 +43,13 @@ struct PreviewsMCPServerLivenessTests {
 
         // Mimic the characterized SDK client: no ping handler, so every
         // server ping gets a methodNotFound ERROR response.
-        let sawPing = OSAllocatedUnfairLock(initialState: false)
+        let answeredPings = OSAllocatedUnfairLock(initialState: 0)
         let responder = FrameCollector(reading: clientSide) { frame in
             guard
                 let object = FrameCollector.object(frame),
                 object["method"] as? String == "ping",
                 let id = object["id"]
             else { return }
-            sawPing.withLock { $0 = true }
             let reply: [String: Any] = [
                 "jsonrpc": "2.0",
                 "id": id,
@@ -60,18 +59,20 @@ struct PreviewsMCPServerLivenessTests {
                 let data = try? JSONSerialization.data(withJSONObject: reply, options: [.sortedKeys])
             else { return }
             try? await clientSide.send(data)
+            answeredPings.withLock { $0 += 1 }
         }
         defer { responder.stop() }
 
         let completed = completionFlag(of: server)
         defer { completed.waiter.cancel() }
 
+        // Event-based, not wall-clock: eight answered pings can only happen
+        // if the reset keeps working past the missed-pong limit; machine
+        // load delays the events instead of failing the test.
         try await pollUntil(
-            { sawPing.withLock { $0 } },
-            failure: "the server never pinged its client"
+            { answeredPings.withLock { $0 } >= 8 },
+            failure: "the server stopped pinging a responsive client"
         )
-        // Ten intervals of answered pings: the connection must survive.
-        try await Task.sleep(for: .milliseconds(500))
         #expect(!completed.flag.withLock { $0 }, "a responding client was declared dead")
         await server.stop()
     }

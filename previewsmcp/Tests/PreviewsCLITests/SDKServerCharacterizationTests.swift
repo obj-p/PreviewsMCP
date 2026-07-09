@@ -186,6 +186,28 @@ struct SDKServerCharacterizationTests {
         }
     }
 
+    @Test(
+        "a frame with both method and result keys is consumed as a response, not dispatched",
+        arguments: ServerKind.allCases
+    )
+    func methodEchoingResponseIsNotDispatched(kind: ServerKind) async throws {
+        // Some peers echo the method name in response frames. Classifying
+        // request-first would dispatch such a pong as a fresh request and
+        // answer it — a spurious frame in the client's id space. The later
+        // id-992 round trip orders the assertion: the stream is processed
+        // in order, so by the time 992 is answered, 991 was classified.
+        try await Wire.with(kind) { wire in
+            try await wire.handshake()
+            try await wire.send(#"{"id":991,"jsonrpc":"2.0","method":"ping","result":{}}"#)
+            let after = try await wire.roundTrip(id: 992, #"{"id":992,"jsonrpc":"2.0","method":"ping"}"#)
+            #expect(after["error"] == nil)
+            #expect(
+                wire.collector.frame(forID: 991) == nil,
+                "a response-shaped frame must be consumed, not answered"
+            )
+        }
+    }
+
     @Test("string request ids are echoed verbatim", arguments: ServerKind.allCases)
     func stringIDRoundTrip(kind: ServerKind) async throws {
         // The SDK Client (the daemon's actual peer) generates random STRING
