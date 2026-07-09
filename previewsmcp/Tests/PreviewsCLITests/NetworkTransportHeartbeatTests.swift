@@ -29,7 +29,7 @@ struct NetworkTransportHeartbeatTests {
         listener.newConnectionHandler = { connection in
             accepted.withLock { $0 = connection }
         }
-        try await awaitReady(listener)
+        try await awaitListenerReady(listener)
         defer { listener.cancel() }
 
         let rawPeer = NWConnection(to: .unix(path: socketPath), using: .tcp)
@@ -100,27 +100,6 @@ struct NetworkTransportHeartbeatTests {
                 }
             }
             connection.start(queue: .global(qos: .userInitiated))
-        }
-    }
-
-    private func awaitReady(_ listener: NWListener) async throws {
-        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
-            listener.stateUpdateHandler = { state in
-                switch state {
-                case .ready:
-                    cont.resume()
-                    listener.stateUpdateHandler = nil
-                case let .failed(error), let .waiting(error):
-                    cont.resume(throwing: error)
-                    listener.stateUpdateHandler = nil
-                case .cancelled:
-                    cont.resume(throwing: CancellationError())
-                    listener.stateUpdateHandler = nil
-                default:
-                    break
-                }
-            }
-            listener.start(queue: .global(qos: .userInitiated))
         }
     }
 

@@ -15,7 +15,7 @@ enum DaemonSocket {
     /// with the caller (it must first verify no live daemon is listening).
     static func listen(at path: String, backlog: Int32 = 16) throws -> FileDescriptor {
         let listener = try makeSocket()
-        do {
+        try closingOnThrow(listener) {
             try withSockaddrUn(path) { address, length in
                 guard Darwin.bind(listener.rawValue, address, length) == 0 else {
                     throw Errno(rawValue: errno)
@@ -25,9 +25,6 @@ enum DaemonSocket {
                 throw Errno(rawValue: errno)
             }
             try listener.setNonBlocking()
-        } catch {
-            try? listener.close()
-            throw error
         }
         return listener
     }
@@ -41,16 +38,13 @@ enum DaemonSocket {
             let raw = Darwin.accept(listener.rawValue, nil, nil)
             if raw >= 0 {
                 let connection = FileDescriptor(rawValue: raw)
-                do {
+                try closingOnThrow(connection) {
                     try connection.setCloseOnExec()
-                } catch {
-                    try? connection.close()
-                    throw error
                 }
                 return connection
             }
             switch Errno(rawValue: errno) {
-            case .wouldBlock, .resourceTemporarilyUnavailable:
+            case .wouldBlock:
                 try await Task.sleep(for: .milliseconds(10))
             case .interrupted:
                 continue
@@ -64,15 +58,12 @@ enum DaemonSocket {
     /// immediately: it either succeeds or fails with ENOENT/ECONNREFUSED.
     static func connect(to path: String) throws -> FileDescriptor {
         let socket = try makeSocket()
-        do {
+        try closingOnThrow(socket) {
             try withSockaddrUn(path) { address, length in
                 guard Darwin.connect(socket.rawValue, address, length) == 0 else {
                     throw Errno(rawValue: errno)
                 }
             }
-        } catch {
-            try? socket.close()
-            throw error
         }
         return socket
     }
@@ -81,13 +72,21 @@ enum DaemonSocket {
         let raw = Darwin.socket(AF_UNIX, SOCK_STREAM, 0)
         guard raw >= 0 else { throw Errno(rawValue: errno) }
         let socket = FileDescriptor(rawValue: raw)
-        do {
+        try closingOnThrow(socket) {
             try socket.setCloseOnExec()
-        } catch {
-            try? socket.close()
-            throw error
         }
         return socket
+    }
+
+    private static func closingOnThrow(
+        _ descriptor: FileDescriptor, _ body: () throws -> Void
+    ) throws {
+        do {
+            try body()
+        } catch {
+            try? descriptor.close()
+            throw error
+        }
     }
 
     private static func withSockaddrUn<T>(

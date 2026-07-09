@@ -71,24 +71,12 @@ struct DaemonSocketTests {
         let serverSocket = try await DaemonSocket.accept(on: listener)
         defer { try? serverSocket.close() }
 
-        let server = Server(
-            name: "uds-differential", version: "1",
-            capabilities: .init(tools: .init(listChanged: false))
-        )
-        await server.withMethodHandler(CallTool.self) { params in
-            CallTool.Result(content: [.text("echo:\(params.name)")])
-        }
+        let server = await makeEchoServer(named: "uds-differential")
         try await server.start(transport: FramedTransport(socket: serverSocket))
 
         let client = Client(name: "uds-differential", version: "1")
         _ = try await client.connect(transport: FramedTransport(socket: clientSocket))
-
-        let result = try await client.callToolStructured(name: "probe")
-        guard case let .text(text)? = result.content.first else {
-            Issue.record("unexpected content: \(result.content)")
-            return
-        }
-        #expect(text == "echo:probe")
+        try await expectEchoProbe(client)
 
         await client.disconnect()
         await server.stop()
@@ -101,13 +89,7 @@ struct DaemonSocketTests {
         let listener = try DaemonSocket.listen(at: path)
         defer { try? listener.close() }
 
-        let server = Server(
-            name: "uds-interop", version: "1",
-            capabilities: .init(tools: .init(listChanged: false))
-        )
-        await server.withMethodHandler(CallTool.self) { params in
-            CallTool.Result(content: [.text("echo:\(params.name)")])
-        }
+        let server = await makeEchoServer(named: "uds-interop")
         let accepted = OSAllocatedUnfairLock(initialState: FileDescriptor?.none)
         let serving = Task {
             let serverSocket = try await DaemonSocket.accept(on: listener)
@@ -122,13 +104,42 @@ struct DaemonSocketTests {
         let connection = NWConnection(to: NWEndpoint.unix(path: path), using: .tcp)
         let client = Client(name: "uds-interop", version: "1")
         _ = try await client.connect(transport: daemonChannelTransport(connection: connection))
+        try await expectEchoProbe(client)
 
-        let result = try await client.callToolStructured(name: "probe")
-        guard case let .text(text)? = result.content.first else {
-            Issue.record("unexpected content: \(result.content)")
-            return
+        await client.disconnect()
+        await server.stop()
+    }
+
+    @Test("a framed client interoperates with an SDK NetworkTransport server")
+    func interopWithSDKNetworkTransportServer() async throws {
+        // The other half of the staged cutover: an upgraded CLI dialing a
+        // stale pre-cutover daemon must still complete the handshake, or
+        // the version-mismatch respawn can never run.
+        let path = try makeSocketPath()
+        defer { removeSocketDirectory(path) }
+
+        let params = NWParameters.tcp
+        params.requiredLocalEndpoint = NWEndpoint.unix(path: path)
+        let nwListener = try NWListener(using: params)
+        let acceptedConnection = OSAllocatedUnfairLock(initialState: NWConnection?.none)
+        nwListener.newConnectionHandler = { connection in
+            acceptedConnection.withLock { $0 = connection }
         }
-        #expect(text == "echo:probe")
+        try await awaitListenerReady(nwListener)
+        defer { nwListener.cancel() }
+
+        let clientSocket = try DaemonSocket.connect(to: path)
+        defer { try? clientSocket.close() }
+        let serverSide = try await pollUntil(
+            { acceptedConnection.withLock { $0 } },
+            failure: "NWListener never accepted the framed client"
+        )
+        let server = await makeEchoServer(named: "uds-interop-reverse")
+        try await server.start(transport: daemonChannelTransport(connection: serverSide))
+
+        let client = Client(name: "uds-interop-reverse", version: "1")
+        _ = try await client.connect(transport: FramedTransport(socket: clientSocket))
+        try await expectEchoProbe(client)
 
         await client.disconnect()
         await server.stop()

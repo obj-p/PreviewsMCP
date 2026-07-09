@@ -73,7 +73,9 @@ actor FramedTransport: Transport {
 
     func connect() async throws {
         try input.setNonBlocking()
-        try output.setNonBlocking()
+        if output.rawValue != input.rawValue {
+            try output.setNonBlocking()
+        }
         try output.setNoSigPipe()
         reader = Task { [input, messageContinuation] in
             await Self.readLoop(input: input, continuation: messageContinuation)
@@ -105,9 +107,7 @@ actor FramedTransport: Transport {
     func send(_ message: Data) async throws {
         guard !isDisconnected else { throw FramedTransportError.disconnected }
         // No suspension between reading and updating `sendChain` — the
-        // serialization invariant everything above depends on. The newline
-        // goes out as its own write rather than appending to `message`,
-        // which would copy every multi-hundred-KB frame just to add a byte.
+        // serialization invariant everything above depends on.
         let previous = sendChain
         let task = Task { [output, poisoned] in
             _ = try? await previous?.value
@@ -116,8 +116,7 @@ actor FramedTransport: Transport {
                 throw FramedTransportError.poisoned
             }
             do {
-                try await Self.write(message, to: output)
-                try await Self.write(Self.newlineFrame, to: output)
+                try await Self.writeFrame(message, to: output)
             } catch {
                 poisoned.withLock { $0 = true }
                 throw error
@@ -180,7 +179,7 @@ actor FramedTransport: Transport {
                 scanFrom = buffer.endIndex
             } catch let errno as Errno {
                 switch errno {
-                case .wouldBlock, .resourceTemporarilyUnavailable:
+                case .wouldBlock:
                     try? await Task.sleep(for: pollInterval)
                 case .interrupted:
                     continue
@@ -198,29 +197,51 @@ actor FramedTransport: Transport {
 
     // MARK: - Write side
 
-    private static let newlineFrame = Data([UInt8(ascii: "\n")])
     private static let pollInterval: Duration = .milliseconds(10)
 
     /// Static so the retry suspension never suspends the actor mid-write;
-    /// ordering comes from the send chain, not isolation.
-    private static func write(_ data: Data, to output: FileDescriptor) async throws {
+    /// ordering comes from the send chain, not isolation. One `writev` per
+    /// attempt carries payload + newline: no payload copy, no second
+    /// syscall for the delimiter.
+    private static func writeFrame(_ payload: Data, to output: FileDescriptor) async throws {
         var offset = 0
-        while offset < data.count {
+        let total = payload.count + 1
+        while offset < total {
             try Task.checkCancellation()
             do {
-                let written = try data.withUnsafeBytes { raw in
-                    try output.write(UnsafeRawBufferPointer(rebasing: raw[offset...]))
-                }
-                offset += written
+                offset += try writeFrameChunk(payload, from: offset, to: output)
             } catch let errno as Errno {
                 switch errno {
-                case .wouldBlock, .resourceTemporarilyUnavailable:
+                case .wouldBlock:
                     try await Task.sleep(for: pollInterval)
                 case .interrupted:
                     continue
                 default:
                     throw errno
                 }
+            }
+        }
+    }
+
+    private static func writeFrameChunk(
+        _ payload: Data, from offset: Int, to output: FileDescriptor
+    ) throws -> Int {
+        var newline = UInt8(ascii: "\n")
+        return try payload.withUnsafeBytes { raw in
+            try withUnsafeMutableBytes(of: &newline) { newlineRaw in
+                var vectors = [iovec]()
+                if offset < payload.count {
+                    vectors.append(iovec(
+                        iov_base: UnsafeMutableRawPointer(
+                            mutating: raw.baseAddress!.advanced(by: offset)
+                        ),
+                        iov_len: payload.count - offset
+                    ))
+                }
+                vectors.append(iovec(iov_base: newlineRaw.baseAddress, iov_len: 1))
+                let written = writev(output.rawValue, &vectors, Int32(vectors.count))
+                guard written >= 0 else { throw Errno(rawValue: errno) }
+                return written
             }
         }
     }

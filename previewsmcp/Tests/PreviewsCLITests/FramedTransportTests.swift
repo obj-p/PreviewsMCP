@@ -222,24 +222,12 @@ struct FramedTransportTests {
             output: .init(rawValue: clientToServer.fileHandleForWriting.fileDescriptor)
         )
 
-        let server = Server(
-            name: "framed-differential", version: "1",
-            capabilities: .init(tools: .init(listChanged: false))
-        )
-        await server.withMethodHandler(CallTool.self) { params in
-            CallTool.Result(content: [.text("echo:\(params.name)")])
-        }
+        let server = await makeEchoServer(named: "framed-differential")
         try await server.start(transport: serverTransport)
 
         let client = Client(name: "framed-differential", version: "1")
         _ = try await client.connect(transport: clientTransport)
-
-        let result = try await client.callToolStructured(name: "probe")
-        guard case let .text(text)? = result.content.first else {
-            Issue.record("unexpected content: \(result.content)")
-            return
-        }
-        #expect(text == "echo:probe")
+        try await expectEchoProbe(client)
 
         await client.disconnect()
         await server.stop()
