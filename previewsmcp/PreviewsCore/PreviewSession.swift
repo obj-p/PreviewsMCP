@@ -132,21 +132,51 @@ public actor PreviewSession {
             .appendingPathComponent("previewsmcp-jit-frame-\(id).json")
     }
 
-    /// A window frame recorded by the agent for a session.
+    /// A window frame and key status recorded by the agent for a session. `isKey` carries
+    /// focus across the respawn handoff (#254); absent in the sidecar it defaults to key,
+    /// matching the activate-on-creation behavior of a window that never reported otherwise.
     public struct WindowFrame: Sendable {
         public let x: Double
         public let y: Double
         public let width: Double
         public let height: Double
+        public let isKey: Bool
+
+        public init(x: Double, y: Double, width: Double, height: Double, isKey: Bool = true) {
+            self.x = x
+            self.y = y
+            self.width = width
+            self.height = height
+            self.isKey = isKey
+        }
     }
 
     /// The last window frame the agent recorded for this session, or nil when none was written.
     public nonisolated static func storedWindowFrame(for id: String) -> WindowFrame? {
         guard let data = try? Data(contentsOf: frameSidecarPath(for: id)),
-              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Double],
-              let x = obj["x"], let y = obj["y"], let width = obj["width"], let height = obj["height"]
+              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let x = obj["x"] as? Double, let y = obj["y"] as? Double,
+              let width = obj["width"] as? Double, let height = obj["height"] as? Double
         else { return nil }
-        return WindowFrame(x: x, y: y, width: width, height: height)
+        return WindowFrame(
+            x: x, y: y, width: width, height: height, isKey: obj["key"] as? Bool ?? true
+        )
+    }
+
+    /// Overwrite the recorded key status, keeping the recorded frame. The daemon calls this
+    /// after a reload: the outgoing agent's dying window resigns key to the incoming one and
+    /// records that loss, so the daemon reasserts the state it baked for the surviving window.
+    public nonisolated static func recordWindowKeyState(
+        _ isKey: Bool, for id: String, fallback: WindowFrame
+    ) {
+        let frame = storedWindowFrame(for: id) ?? fallback
+        let dict: [String: Any] = [
+            "x": frame.x, "y": frame.y, "width": frame.width, "height": frame.height,
+            "key": isKey,
+        ]
+        if let data = try? JSONSerialization.data(withJSONObject: dict) {
+            try? data.write(to: frameSidecarPath(for: id), options: .atomic)
+        }
     }
 
     /// Compile the preview for the JIT structural-reload path. Generates a render bridge

@@ -5,6 +5,9 @@ import Foundation
 /// or a borderless off-screen window used only to render at the requested size (snapshots,
 /// headless daemons). Applied only when the agent creates the window, so a user's later drag or
 /// resize survives leaf edits. Nil means no spec at all — a borderless off-screen default size.
+/// `activate` selects whether a visible window takes key status and activates the app on
+/// creation: true for a session's first window, and on a respawn handoff only when the outgoing
+/// window was key — so an edit never steals focus from whatever the user was typing in (#254).
 public struct JITRenderWindow: Sendable {
     public let x: Double
     public let y: Double
@@ -12,9 +15,11 @@ public struct JITRenderWindow: Sendable {
     public let height: Double
     public let title: String
     public let headless: Bool
+    public let activate: Bool
 
     public init(
-        x: Double, y: Double, width: Double, height: Double, title: String, headless: Bool = false
+        x: Double, y: Double, width: Double, height: Double, title: String,
+        headless: Bool = false, activate: Bool = true
     ) {
         self.x = x
         self.y = y
@@ -22,6 +27,7 @@ public struct JITRenderWindow: Sendable {
         self.height = height
         self.title = title
         self.headless = headless
+        self.activate = activate
     }
 }
 
@@ -217,6 +223,7 @@ public enum BridgeGenerator {
         let createWindow: String
         let presentNewWindow: String
         let frameObservers: String
+        let firstFrameFlush: String
         if let window, !window.headless {
             let title = escapedForSwiftStringLiteral(window.title)
             createWindow = """
@@ -229,14 +236,26 @@ public enum BridgeGenerator {
                                 backing: .buffered, defer: false)
                             created.title = "\(title)"
             """
-            // A visible window takes key status and activates the agent once, at
-            // creation, matching what the daemon's dylib window start used to do.
-            // Re-renders use orderFrontRegardless so edits never steal focus.
-            presentNewWindow = """
-            window.makeKeyAndOrderFront(nil)
-                            NSApplication.shared.activate(ignoringOtherApps: true)
-            """
+            // A visible window takes key status and activates the agent only when the spec
+            // asks (a session's first window, or a handoff replacing the key window).
+            // Re-renders and non-key handoffs use orderFrontRegardless so edits never
+            // steal focus.
+            presentNewWindow = window.activate
+                ? """
+                window.makeKeyAndOrderFront(nil)
+                                NSApplication.shared.activate(ignoringOtherApps: true)
+                """
+                : "window.orderFrontRegardless()"
             frameObservers = frameSidecarPath.map(frameObserverCode) ?? ""
+            // The synchronous entry return is the daemon's handoff-ready signal: the old
+            // agent (and its window) dies right after. Push the first frame to the
+            // WindowServer before returning so the overlap never shows a blank window.
+            firstFrameFlush = """
+            if isNewWindow {
+                                window.displayIfNeeded()
+                                CATransaction.flush()
+                            }
+            """
         } else {
             // Headless spec or no spec: a borderless off-screen window used only to render at
             // the requested size, never shown or activated. Falls back to 400x600 with no spec.
@@ -250,6 +269,7 @@ public enum BridgeGenerator {
             """
             presentNewWindow = "window.orderFrontRegardless()"
             frameObservers = ""
+            firstFrameFlush = ""
         }
         return """
         @_cdecl("renderPreviewToFile")
@@ -278,6 +298,7 @@ public enum BridgeGenerator {
                     window.orderFrontRegardless()
                 }
                 hosting.layoutSubtreeIfNeeded()
+                \(firstFrameFlush)
                 let bounds = hosting.bounds
                 guard bounds.width > 0, bounds.height > 0,
                     let rep = NSBitmapImageRep(
@@ -335,9 +356,11 @@ public enum BridgeGenerator {
     }
 
     /// Code (run once when the agent creates its visible window) that records the window's frame
-    /// to `sidecarPath` on every move/resize. A respawned agent reads it back so the user's
-    /// dragged/resized window is restored across non-leaf structural edits (#195). Reads the frame
-    /// off the notification's window so the `@Sendable` observer closure captures only the path.
+    /// and key status to `sidecarPath` on every move/resize/key change. A respawned agent reads
+    /// it back so the user's dragged/resized window is restored across non-leaf structural edits
+    /// (#195) and the handoff replacement only takes key when the outgoing window had it (#254).
+    /// Reads the state off the notification's window so the `@Sendable` observer closure captures
+    /// only the path.
     private static func frameObserverCode(sidecarPath: String) -> String {
         """
         let __frameURL = URL(fileURLWithPath: "\(escapedForSwiftStringLiteral(sidecarPath))")
@@ -345,21 +368,23 @@ public enum BridgeGenerator {
                             MainActor.assumeIsolated {
                                 guard let __win = __note.object as? NSWindow else { return }
                                 let __f = __win.frame
-                                let __dict: [String: Double] = [
+                                let __dict: [String: Any] = [
                                     "x": __f.origin.x, "y": __f.origin.y,
                                     "width": __f.size.width, "height": __f.size.height,
+                                    "key": __win.isKeyWindow,
                                 ]
                                 if let __data = try? JSONSerialization.data(withJSONObject: __dict) {
                                     try? __data.write(to: __frameURL, options: .atomic)
                                 }
                             }
                         }
-                        NotificationCenter.default.addObserver(
-                            forName: NSWindow.didMoveNotification, object: window, queue: nil,
-                            using: __recordFrame)
-                        NotificationCenter.default.addObserver(
-                            forName: NSWindow.didResizeNotification, object: window, queue: nil,
-                            using: __recordFrame)
+                        for __name in [
+                            NSWindow.didMoveNotification, NSWindow.didResizeNotification,
+                            NSWindow.didBecomeKeyNotification, NSWindow.didResignKeyNotification,
+                        ] {
+                            NotificationCenter.default.addObserver(
+                                forName: __name, object: window, queue: nil, using: __recordFrame)
+                        }
         """
     }
 

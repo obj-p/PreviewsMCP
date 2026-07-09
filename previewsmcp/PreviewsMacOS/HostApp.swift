@@ -192,19 +192,29 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
     public func jitStructuralReload(sessionID: String, session: PreviewSession) async throws -> URL {
         restoreAgentWindowFrame(sessionID: sessionID, session: session)
         let build = try await session.compileObjectForJIT(window: agentWindowSpec(for: sessionID))
-        return try await jitRender(sessionID: sessionID, build: build)
+        let image = try await jitRender(sessionID: sessionID, build: build)
+        if let spec = agentWindowSpecs[sessionID], !spec.headless {
+            PreviewSession.recordWindowKeyState(
+                spec.activate, for: session.id,
+                fallback: PreviewSession.WindowFrame(
+                    x: spec.x, y: spec.y, width: spec.width, height: spec.height
+                )
+            )
+        }
+        return image
     }
 
-    /// Before a structural reload, bake the agent's last recorded window frame into the session's
-    /// spec so a respawned agent restores the user's dragged/resized window instead of recentering
-    /// (#195). Only for visible sessions; absent sidecar keeps the stored spec unchanged.
+    /// Before a structural reload, bake the agent's last recorded window frame and key status
+    /// into the session's spec so a respawned agent restores the user's dragged/resized window
+    /// instead of recentering (#195) and only takes key when the outgoing window had it (#254).
+    /// Only for visible sessions; absent sidecar keeps the stored spec unchanged.
     private func restoreAgentWindowFrame(sessionID: String, session: PreviewSession) {
         guard let spec = agentWindowSpecs[sessionID], !spec.headless,
               let frame = PreviewSession.storedWindowFrame(for: session.id)
         else { return }
         agentWindowSpecs[sessionID] = JITRenderWindow(
             x: frame.x, y: frame.y, width: frame.width, height: frame.height,
-            title: spec.title, headless: false
+            title: spec.title, headless: false, activate: frame.isKey
         )
     }
 
