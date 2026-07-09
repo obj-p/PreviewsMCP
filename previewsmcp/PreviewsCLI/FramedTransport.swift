@@ -207,8 +207,11 @@ actor FramedTransport: Transport {
                 case .wouldBlock:
                     do {
                         try await FDReadiness.waitUntilReadable(input)
-                    } catch {
+                    } catch is CancellationError {
                         continuation.finish()
+                        return
+                    } catch {
+                        continuation.finish(throwing: error)
                         return
                     }
                 case .interrupted:
@@ -227,8 +230,6 @@ actor FramedTransport: Transport {
 
     // MARK: - Write side
 
-    private static let pollInterval: Duration = .milliseconds(10)
-
     /// Static so the retry suspension never suspends the actor mid-write;
     /// ordering comes from the send chain, not isolation. One `writev` per
     /// attempt carries payload + newline: no payload copy, no second
@@ -243,7 +244,7 @@ actor FramedTransport: Transport {
             } catch let errno as Errno {
                 switch errno {
                 case .wouldBlock:
-                    try await Task.sleep(for: pollInterval)
+                    try await FDReadiness.waitUntilWritable(output)
                 case .interrupted:
                     continue
                 default:

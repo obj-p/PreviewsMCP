@@ -8,34 +8,40 @@ import System
 /// EAGAIN (regular files, /dev/null) and error paths (EBADF) never reach
 /// the source machinery; kqueue readiness is level-triggered, so bytes
 /// arriving between the EAGAIN and activation still fire the event.
+///
+/// The source's cancellation handler is the ONLY resume point: Dispatch
+/// runs it after the kqueue registration is torn down, so when the wait
+/// returns, nothing kernel-side still references the descriptor — the
+/// transport's owner-may-close-after-disconnect contract depends on that
+/// ordering.
 enum FDReadiness {
     static func waitUntilReadable(_ descriptor: FileDescriptor) async throws {
-        let source = DispatchSource.makeReadSource(
-            fileDescriptor: descriptor.rawValue, queue: .global()
-        )
-        let resumed = OSAllocatedUnfairLock(initialState: false)
+        try await wait(on: DispatchSource.makeReadSource(fileDescriptor: descriptor.rawValue))
+    }
+
+    static func waitUntilWritable(_ descriptor: FileDescriptor) async throws {
+        try await wait(on: DispatchSource.makeWriteSource(fileDescriptor: descriptor.rawValue))
+    }
+
+    private static func wait(on source: some DispatchSourceProtocol) async throws {
+        nonisolated(unsafe) let source = source
+        let taskCancelled = OSAllocatedUnfairLock(initialState: false)
         try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
                 source.setEventHandler {
-                    guard resumed.withLock({ claimed in
-                        if claimed { return false }
-                        claimed = true
-                        return true
-                    }) else { return }
                     source.cancel()
-                    cont.resume()
                 }
                 source.setCancelHandler {
-                    guard resumed.withLock({ claimed in
-                        if claimed { return false }
-                        claimed = true
-                        return true
-                    }) else { return }
-                    cont.resume(throwing: CancellationError())
+                    if taskCancelled.withLock({ $0 }) {
+                        cont.resume(throwing: CancellationError())
+                    } else {
+                        cont.resume()
+                    }
                 }
                 source.activate()
             }
         } onCancel: {
+            taskCancelled.withLock { $0 = true }
             source.cancel()
         }
     }
