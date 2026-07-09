@@ -54,6 +54,17 @@ final class MCPTestServer: @unchecked Sendable {
     /// via the lock; the thread reads it once per iteration.
     private let watchdogShouldStop = OSAllocatedUnfairLock<Bool>(initialState: false)
 
+    /// Compat-shim probe: subscribe exactly like a pre-stage-6 CLI
+    /// (register a log handler, then send logging/setLevel(.debug)) and
+    /// invoke `onHeartbeat` for every heartbeat notification the daemon
+    /// sends back. See the shim in `configureMCPServer`.
+    func requestDebugLogging(onHeartbeat: @escaping @Sendable () -> Void) async throws {
+        await client.onNotification(LogMessageNotification.self) { message in
+            if message.params.logger == "heartbeat" { onHeartbeat() }
+        }
+        try await client.setLoggingLevel(.debug)
+    }
+
     private init(
         process: Process, client: Client,
         stdinPipe: Pipe, stdoutPipe: Pipe,

@@ -1,5 +1,6 @@
 import Foundation
 import MCP
+import os
 @testable import PreviewsCLI
 import Testing
 
@@ -573,6 +574,34 @@ struct MacOSMCPTests {
             name: "preview_stop",
             arguments: ["sessionID": .string(sessionID)]
         )
+    }
+
+    @Test(
+        "logging/setLevel(.debug) starts the pre-stage-6 heartbeat compat shim",
+        .timeLimit(.minutes(3))
+    )
+    func setLevelStartsCompatHeartbeat() async throws {
+        // Serialize against the iOS e2e suites — this spawns a daemon in the
+        // shared socket dir (see fullMacOSWorkflow).
+        let lock = try await DaemonTestLock.acquire()
+        defer { lock.release() }
+
+        let server = try await MCPTestServer.start()
+        defer { server.stop() }
+
+        let beats = OSAllocatedUnfairLock(initialState: 0)
+        try await server.requestDebugLogging {
+            beats.withLock { $0 += 1 }
+        }
+
+        // The shim's first heartbeat fires ~2s after the subscription; two
+        // prove the loop is periodic. Event-based with a generous poll cap
+        // so machine load delays the pass instead of failing it.
+        for _ in 0 ..< 60 {
+            if beats.withLock({ $0 }) >= 2 { break }
+            try await Task.sleep(for: .milliseconds(250))
+        }
+        #expect(beats.withLock { $0 } >= 2, "compat heartbeat never started")
     }
 
     @Test("headless snapshot renders at the requested size", .timeLimit(.minutes(20)))

@@ -99,7 +99,7 @@ enum DaemonListener {
                 sharedCompiler: compiler,
                 // A dead peer's fds close and the read loop sees EOF, so
                 // pings only backstop the wedged-but-alive case. Generous
-                // timing (dead after ~3-4 min of total silence) keeps a
+                // timing (dead after 3 min of total silence) keeps a
                 // suspended or debugger-paused CLI from being torn down.
                 liveness: .init(interval: .seconds(60), missedPongLimit: 3)
             )

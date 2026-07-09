@@ -25,35 +25,51 @@ enum MCPWire {
     /// over method presence — a frame carrying both method and result keys
     /// is a response, the characterized (and pinned) disambiguation order.
     /// Both receive loops branch on this, so the classification rules
-    /// cannot diverge between the two sides.
+    /// cannot diverge between the two sides. An unparseable frame carries
+    /// its id when one was recoverable, so the server's parse-error reply
+    /// can echo it per JSON-RPC.
     enum Classified {
         case request(id: ID, method: String)
         case response(id: ID)
         case notification(method: String)
-        case unparseable
+        case unparseable(id: ID?)
     }
 
     static func classify(_ raw: Data) -> Classified {
         guard let envelope = try? decoder.decode(Envelope.self, from: raw) else {
-            return .unparseable
+            return .unparseable(id: nil)
         }
-        if let id = envelope.id, envelope.result != nil || envelope.error != nil {
+        if let id = envelope.id, envelope.hasResult || envelope.hasError {
             return .response(id: id)
         }
         return switch (envelope.id, envelope.method) {
         case let (id?, method?): .request(id: id, method: method)
         case let (nil, method?): .notification(method: method)
-        default: .unparseable
+        default: .unparseable(id: envelope.id)
         }
     }
 
-    /// `result`/`error` decode as `Ignored` — key presence is the signal,
-    /// their payloads are never materialized here.
+    /// Key PRESENCE of result/error is the response signal — `contains`,
+    /// not `decodeIfPresent`, because a JSON-RPC-legal `"result": null`
+    /// must still classify as a response. Payloads are never materialized
+    /// here.
     private struct Envelope: Decodable {
         let id: ID?
         let method: String?
-        let result: Ignored?
-        let error: Ignored?
+        let hasResult: Bool
+        let hasError: Bool
+
+        private enum CodingKeys: String, CodingKey {
+            case id, method, result, error
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            id = try container.decodeIfPresent(ID.self, forKey: .id)
+            method = try container.decodeIfPresent(String.self, forKey: .method)
+            hasResult = container.contains(.result)
+            hasError = container.contains(.error)
+        }
     }
 
     static func pong(id: ID) -> Data? {

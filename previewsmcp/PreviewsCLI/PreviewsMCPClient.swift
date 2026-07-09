@@ -55,17 +55,18 @@ actor PreviewsMCPClient: MCPClienting, LivenessPinging {
         self.transport = transport
         try await transport.connect()
         receiveLoop = Task { await run(on: transport) }
-        if let liveness {
-            // Started before the handshake so even a wedged initialize is
-            // bounded: a full liveness window with no inbound traffic
-            // disconnects, draining the pending request, and connect
-            // throws instead of hanging forever.
-            pinger = Task { await pingLoop(on: transport, liveness, peer: "daemon") }
-        }
         let result = try await request(
             Initialize.request(.init(capabilities: .init(), clientInfo: clientInfo))
         )
         try await transport.send(MCPWire.encode(InitializedNotification.message(.init())))
+        // Started AFTER the handshake: a healthy-but-slow cold-starting
+        // daemon (saturated CI) may take longer than the liveness window
+        // to answer initialize, and `connect(startTimeout:)` documents a
+        // 60s tolerance for exactly that. The cost is that a wedged
+        // initialize hangs like it always has, bounded only by the caller.
+        if let liveness {
+            pinger = Task { await pingLoop(on: transport, liveness, peer: "daemon") }
+        }
         return result
     }
 
@@ -92,17 +93,25 @@ actor PreviewsMCPClient: MCPClienting, LivenessPinging {
             throw MCPError.internalError("Client connection not initialized")
         }
         let frame = try MCPWire.encode(request)
-        // Register the continuation before the send suspends: the response
-        // can arrive on the receive loop before send() returns.
-        let raw: Data = try await withCheckedThrowingContinuation { continuation in
-            pending[request.id] = continuation
-            Task {
-                do {
-                    try await transport.send(frame)
-                } catch {
-                    await self.fail(id: request.id, with: error)
+        let id = request.id
+        // Register the continuation before the send suspends (the response
+        // can arrive on the receive loop before send() returns), and fail
+        // it on task cancellation — a cancelled caller must resume with
+        // CancellationError, not park until disconnect (the SDK client's
+        // characterized hang).
+        let raw: Data = try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                pending[id] = continuation
+                Task {
+                    do {
+                        try await transport.send(frame)
+                    } catch {
+                        await self.fail(id: id, with: error)
+                    }
                 }
             }
+        } onCancel: {
+            Task { await self.fail(id: id, with: CancellationError()) }
         }
         let response = try MCPWire.decoder.decode(Response<M>.self, from: raw)
         switch response.result {
@@ -162,7 +171,17 @@ actor PreviewsMCPClient: MCPClienting, LivenessPinging {
 
     /// Handlers run inline so notification order is preserved (the stderr
     /// log forwarder depends on it); every registered handler is tiny.
+    /// notifications/cancelled is built in, like the SDK client: a server
+    /// that cancels a request it will never answer must resume the
+    /// pending caller with CancellationError, not leave it to liveness.
     private func dispatch(method: String, raw: Data) async {
+        if method == CancelledNotification.name,
+           let cancelled = try? MCPWire.decoder.decode(
+               Message<CancelledNotification>.self, from: raw
+           )
+        {
+            fail(id: cancelled.params.requestId, with: CancellationError())
+        }
         for handler in notificationHandlers[method] ?? [] {
             await handler(raw)
         }

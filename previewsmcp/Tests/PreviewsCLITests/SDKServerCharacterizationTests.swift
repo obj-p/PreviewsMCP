@@ -209,6 +209,45 @@ struct SDKServerCharacterizationTests {
         }
     }
 
+    @Test(
+        "a response whose result is JSON null is consumed, not answered",
+        arguments: ServerKind.allCases
+    )
+    func nullResultResponseIsConsumed(kind: ServerKind) async throws {
+        // "result": null is legal JSON-RPC 2.0. Key PRESENCE, not value,
+        // is the response signal — treating null as key-absent would
+        // misclassify the frame and answer it with a spurious parse error.
+        try await Wire.with(kind) { wire in
+            try await wire.handshake()
+            try await wire.send(#"{"id":881,"jsonrpc":"2.0","result":null}"#)
+            let after = try await wire.roundTrip(id: 882, #"{"id":882,"jsonrpc":"2.0","method":"ping"}"#)
+            #expect(after["error"] == nil)
+            #expect(
+                wire.collector.frame(forID: 881) == nil,
+                "a null-result response must be consumed, not answered"
+            )
+        }
+    }
+
+    @Test("an id-only malformed frame gets a parse error echoing that id")
+    func idOnlyFrameEchoesIDInParseError() async throws {
+        // {"id":N} with no method/result/error cannot be classified; the
+        // parse-error reply must still echo the recoverable id so the
+        // peer's pending request fails immediately instead of hanging.
+        // Pinned in-house only: the frame reaches production servers via
+        // buggy encoders, and the SDK's behavior here is not part of the
+        // acceptance bar.
+        try await Wire.with(.inHouse) { wire in
+            try await wire.handshake()
+            try await wire.send(#"{"id":55,"jsonrpc":"2.0"}"#)
+            let reply = try await pollUntil(
+                { wire.collector.frame(forID: 55) },
+                failure: "no reply for the id-only malformed frame"
+            )
+            #expect(reply["error"] != nil, "expected an error response: \(reply)")
+        }
+    }
+
     @Test("string request ids are echoed verbatim", arguments: ServerKind.allCases)
     func stringIDRoundTrip(kind: ServerKind) async throws {
         // The SDK Client (the daemon's actual peer) generates random STRING

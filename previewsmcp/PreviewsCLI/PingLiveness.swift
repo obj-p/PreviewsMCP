@@ -14,10 +14,11 @@ struct PingLiveness {
 
 /// The shared ping loop both `PreviewsMCPServer` and `PreviewsMCPClient`
 /// run: ping the peer on an interval, and disconnect the transport after
-/// `missedPongLimit` pings with no inbound traffic of ANY kind. The
-/// conforming actor's receive loop is the ground truth — it resets
-/// `missedPongs` on every inbound frame, so a pong, a response, or a
-/// notification all count as life.
+/// `missedPongLimit` consecutive intervals with no inbound traffic of ANY
+/// kind (limit × interval of continuous silence — the bound the docs
+/// state). The conforming actor's receive loop is the ground truth — it
+/// resets `missedPongs` on every inbound frame, so a pong, a response, or
+/// a notification all count as life.
 protocol LivenessPinging: Actor {
     var missedPongs: Int { get set }
 }
@@ -36,18 +37,22 @@ extension LivenessPinging {
             } catch {
                 return
             }
+            missedPongs += 1
             if missedPongs >= config.missedPongLimit {
-                Log.info("declaring the \(peer) dead: \(missedPongs) pings with no traffic")
+                Log.info(
+                    "declaring the \(peer) dead: no traffic in \(missedPongs) ping intervals"
+                )
                 await transport.disconnect()
                 return
             }
-            missedPongs += 1
-            do {
-                try await transport.send(frame)
-            } catch {
-                Log.info("liveness ping send failed (\(error)); closing the connection")
-                await transport.disconnect()
-                return
+            // Fire-and-forget: a ping that queues behind a frame wedged in
+            // the transport's send chain (a peer that stopped draining)
+            // must not park THIS loop — the missed-pong check is the whole
+            // point in exactly that wedge class. A stuck or failed send
+            // simply never resets the counter, and the limit tears the
+            // connection down; disconnect cancels any queued ping sends.
+            Task {
+                try? await transport.send(frame)
             }
         }
     }

@@ -84,6 +84,11 @@ actor FramedTransport: Transport {
         self.init(input: input, output: output, ownsDescriptors: false)
     }
 
+    /// Non-owning socket variant: for callers whose descriptor lifetime is
+    /// managed elsewhere (tests). Connection OWNERS should use
+    /// `init(owningSocket:)` — hand-rolling disconnect-then-close around
+    /// this variant reintroduces the descriptor-leak class the owning mode
+    /// was built to close.
     init(socket: FileDescriptor) {
         self.init(input: socket, output: socket, ownsDescriptors: false)
     }

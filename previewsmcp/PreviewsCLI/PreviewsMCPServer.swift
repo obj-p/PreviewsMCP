@@ -105,8 +105,8 @@ actor PreviewsMCPServer: MCPServing, LivenessPinging {
                     dispatch(id: id, method: method, raw: raw, on: transport)
                 case let .notification(method):
                     handleNotification(method: method, raw: raw)
-                case .unparseable:
-                    let reply = Self.parseErrorResponse()
+                case let .unparseable(id):
+                    let reply = Self.parseErrorResponse(id: id)
                     Task { await send(reply, on: transport) }
                 }
             }
@@ -209,10 +209,9 @@ actor PreviewsMCPServer: MCPServing, LivenessPinging {
         try? await transport.send(frame)
     }
 
-    private static func parseErrorResponse() -> Data {
-        // A classified-unparseable frame never carried a usable id (an id
-        // would have classified it as a request or response), so the echo
-        // falls back to a random one.
-        MCPWire.errorResponse(id: .random, .parseError("Invalid message format")) ?? Data()
+    private static func parseErrorResponse(id: ID?) -> Data {
+        // Echo the malformed frame's id when one was recoverable, per
+        // JSON-RPC, so the peer can correlate the error to its request.
+        MCPWire.errorResponse(id: id ?? .random, .parseError("Invalid message format")) ?? Data()
     }
 }
