@@ -113,11 +113,7 @@ struct SDKClientCharacterizationTests {
     @Test("Client.ping() completes against a server that answers ping")
     func clientPingRoundTrip() async throws {
         try await Self.withConnectedClient { client, _ in
-            let result = try await Self.boundedPing(client, failure: "ping never completed")
-            guard case .success = result else {
-                Issue.record("ping failed against an answering server: \(result)")
-                return
-            }
+            try await Self.expectPingCompletes(client, failure: "ping never completed")
         }
     }
 
@@ -127,19 +123,14 @@ struct SDKClientCharacterizationTests {
         // is in flight — so the pong must not serialize behind the client's
         // pending request.
         try await Self.withConnectedClient { client, responder in
-            let pending = Task { try await client.callToolStructured(name: "never-answered") }
-            defer { pending.cancel() }
-            try await pollUntil(
-                { responder.collector.sawMethod("tools/call") },
-                failure: "tools/call never reached the wire"
-            )
-
-            try await responder.send(#"{"id":"srv-ping-3","jsonrpc":"2.0","method":"ping"}"#)
-            let reply = try await pollUntil(
-                { responder.collector.frame(forID: "srv-ping-3") },
-                failure: "no pong while the client's callTool was pending"
-            )
-            #expect(reply["error"] != nil || reply["result"] != nil)
+            try await Self.withPendingCallTool(client, responder) {
+                try await responder.send(#"{"id":"srv-ping-3","jsonrpc":"2.0","method":"ping"}"#)
+                let reply = try await pollUntil(
+                    { responder.collector.frame(forID: "srv-ping-3") },
+                    failure: "no pong while the client's callTool was pending"
+                )
+                #expect(reply["method"] == nil, "expected a response frame, got a request: \(reply)")
+            }
         }
     }
 
@@ -149,28 +140,34 @@ struct SDKClientCharacterizationTests {
         // render, so the client must multiplex an outstanding ping
         // alongside the pending callTool and correlate both responses.
         try await Self.withConnectedClient { client, responder in
-            let pending = Task { try await client.callToolStructured(name: "never-answered") }
-            defer { pending.cancel() }
-            try await pollUntil(
-                { responder.collector.sawMethod("tools/call") },
-                failure: "tools/call never reached the wire"
-            )
-
-            let result = try await Self.boundedPing(
-                client, failure: "ping never completed while the callTool was pending"
-            )
-            guard case .success = result else {
-                Issue.record("ping failed while the callTool was pending: \(result)")
-                return
+            try await Self.withPendingCallTool(client, responder) {
+                try await Self.expectPingCompletes(
+                    client, failure: "ping never completed while the callTool was pending"
+                )
             }
         }
     }
 
+    /// Holds a callTool pending (the responder never answers tools/call),
+    /// confirmed on the wire, for the duration of `body`.
+    private static func withPendingCallTool(
+        _ client: Client, _ responder: RawResponder,
+        _ body: () async throws -> Void
+    ) async throws {
+        let pending = Task { try await client.callToolStructured(name: "never-answered") }
+        defer { pending.cancel() }
+        try await pollUntil(
+            { responder.collector.sawMethod("tools/call") },
+            failure: "tools/call never reached the wire"
+        )
+        try await body()
+    }
+
     /// Runs `client.ping()` on a child task and polls for the outcome, so a
     /// regression polls out red instead of wedging the suite.
-    private static func boundedPing(
+    private static func expectPingCompletes(
         _ client: Client, failure: Comment
-    ) async throws -> Result<Void, Swift.Error> {
+    ) async throws {
         let outcome = OSAllocatedUnfairLock(initialState: Result<Void, Swift.Error>?.none)
         let pinging = Task {
             do {
@@ -181,7 +178,10 @@ struct SDKClientCharacterizationTests {
             }
         }
         defer { pinging.cancel() }
-        return try await pollUntil({ outcome.withLock { $0 } }, failure: failure)
+        let result = try await pollUntil({ outcome.withLock { $0 } }, failure: failure)
+        if case let .failure(error) = result {
+            Issue.record("ping failed: \(error)")
+        }
     }
 
     /// Scopes a connected client + raw responder so disconnect/stop run on

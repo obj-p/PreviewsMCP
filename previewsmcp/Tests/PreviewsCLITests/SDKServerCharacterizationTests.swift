@@ -105,9 +105,11 @@ struct SDKServerCharacterizationTests {
     func pingAnsweredDuringInFlightCall() async throws {
         // The liveness rewrite keys StallTimer off pong latency, so a pong
         // must not queue behind a long render.
+        let started = OSAllocatedUnfairLock(initialState: false)
         let release = OSAllocatedUnfairLock(initialState: false)
         try await Wire.with { server in
             await server.withMethodHandler(CallTool.self) { _ in
+                started.withLock { $0 = true }
                 while !release.withLock({ $0 }) {
                     try await Task.sleep(for: .milliseconds(10))
                 }
@@ -118,6 +120,13 @@ struct SDKServerCharacterizationTests {
             try await wire.handshake()
             try await wire.send(
                 #"{"id":21,"jsonrpc":"2.0","method":"tools/call","params":{"arguments":{},"name":"slow"}}"#
+            )
+            // The premise: the handler must be RUNNING when the ping goes
+            // out, or a server that answers pings before dispatching queued
+            // calls would pass vacuously.
+            try await pollUntil(
+                { started.withLock { $0 } },
+                failure: "the CallTool handler never started"
             )
             let pong = try await wire.roundTrip(id: 22, #"{"id":22,"jsonrpc":"2.0","method":"ping"}"#)
             #expect(pong["error"] == nil)
