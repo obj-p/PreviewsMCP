@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 import PreviewsCore
 import PreviewsEngine
@@ -40,23 +41,34 @@ enum DaemonListener {
         let registry = SessionRegistry(registryDir: DaemonPaths.sessionsDirectory)
         await registry.attachTo(iosManager: iosManager, previewHost: host)
 
-        let listener = try DaemonSocket.listen(at: DaemonPaths.socket.path)
+        // Backlog 128 (the kernel cap): a burst of connects beyond the
+        // backlog gets ECONNREFUSED, which clients read as "daemon dead"
+        // and answer by spawning a duplicate daemon.
+        let listener = try DaemonSocket.listen(at: DaemonPaths.socket.path, backlog: 128)
         Log.info("previewsmcp daemon listening on \(DaemonPaths.socket.path)")
 
         // Accept for the life of the process, one handler task per
-        // connection. A non-retryable accept failure is fail-stop: the loop
-        // exits and closes the listener, existing connections keep serving,
-        // and new probes get ECONNREFUSED so the client-side auto-restart
-        // path takes over.
+        // connection. Resource exhaustion retries after a beat — the
+        // pending connection stays queued in the kernel. Any other accept
+        // failure exits: a daemon that cannot accept must release its
+        // socket and PID claim so the client-side auto-restart path spawns
+        // a healthy replacement instead of fighting a zombie for the
+        // sessions directory.
         Task {
-            defer { try? listener.close() }
             while true {
                 let connection: FileDescriptor
                 do {
                     connection = try await DaemonSocket.accept(on: listener)
+                } catch let errno as Errno
+                    where [.tooManyOpenFiles, .tooManyOpenFilesInSystem, .noMemory].contains(errno)
+                {
+                    Log.error("daemon accept: \(errno); retrying")
+                    try? await Task.sleep(for: .seconds(1))
+                    continue
                 } catch {
-                    Log.error("daemon accept failed: \(error)")
-                    return
+                    Log.error("daemon accept failed (\(error)); exiting")
+                    DaemonLifecycle.unregister()
+                    Darwin.exit(1)
                 }
                 Task {
                     await handleConnection(
@@ -84,7 +96,12 @@ enum DaemonListener {
             let (server, _) = try await configureMCPServer(
                 host: host, iosManager: iosManager,
                 configCache: configCache, registry: registry,
-                sharedCompiler: compiler, liveness: .init()
+                sharedCompiler: compiler,
+                // A dead peer's fds close and the read loop sees EOF, so
+                // pings only backstop the wedged-but-alive case. Generous
+                // timing (dead after ~3-4 min of total silence) keeps a
+                // suspended or debugger-paused CLI from being torn down.
+                liveness: .init(interval: .seconds(60), missedPongLimit: 3)
             )
             try await runMCPServer(server, transport: transport)
             // `runMCPServer` returns when the transport closes (client disconnected).

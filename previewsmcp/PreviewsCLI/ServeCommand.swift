@@ -76,10 +76,13 @@ struct ServeCommand: ParsableCommand {
                 )
                 let transport = FramedTransport()
                 try await runMCPServer(server, transport: transport)
+                Log.info("MCP client disconnected; exiting")
             } catch {
                 Log.error("MCP server error: \(error)")
-                await MainActor.run { NSApp.terminate(nil) }
             }
+            // Terminate on clean EOF as well as on error — a stdio serve
+            // has no reason to outlive its client.
+            NSApp.terminate(nil)
         }
     }
 

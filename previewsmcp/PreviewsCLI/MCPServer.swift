@@ -43,7 +43,7 @@ func mcpToolSchemas() -> [Tool] {
 ///   re-attach on every accept).
 /// - Parameter sharedCompiler: Pass a pre-built `Compiler` to reuse across
 ///   multiple server instances (e.g., daemon mode, where each accepted client
-///   connection gets its own `Server` but they all share one compiler). When
+///   connection gets its own server but they all share one compiler). When
 ///   nil, a fresh compiler is built — appropriate for single-connection modes
 ///   like stdio.
 /// - Parameter liveness: Dead-client detection policy for the returned
