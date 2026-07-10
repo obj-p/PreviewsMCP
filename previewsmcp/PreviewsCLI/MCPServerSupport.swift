@@ -73,45 +73,22 @@ func advertisedServerVersion() -> String {
     return PreviewsMCPCommand.version
 }
 
-/// Run the MCP server's event loop on `transport`, emitting a periodic
-/// heartbeat log notification that clients can use as a liveness signal.
-/// Returns when the transport closes (client disconnected or server
-/// shutdown). The heartbeat Task is cancelled on return.
+/// Run the MCP server's event loop on `transport`. Returns when the
+/// transport closes (client disconnected or server shutdown).
 ///
-/// Why the heartbeat: daemon handlers can be legitimately silent for
-/// long stretches (swiftc recompiles, simulator boot), and stall-
-/// detection layers downstream have no way to distinguish that from a
-/// genuinely wedged daemon. A 2s unconditional ping fires regardless of
-/// whether any tool call is in flight, covering both the
-/// request-scoped silence and the between-request silence (e.g., the
-/// FileWatcher reload path — see issue #135).
-///
-/// Why `LogMessageNotification` with `logger: "heartbeat"` rather than
-/// `ProgressNotification`: per the MCP spec, progress notifications
-/// require a `progressToken` from an in-flight request. An unsolicited
-/// heartbeat has no such token. `LogMessageNotification`'s optional
-/// `logger` discriminator lets clients filter these out of human-visible
-/// log surfaces (see `DaemonClient.registerStderrLogForwarder`) while
-/// still receiving them as liveness-timer bumps.
-///
-/// Timing contract for downstream consumers (Phase 2 stall detector): the
-/// first ping fires at T+2s relative to `server.start`, not T+0. A
-/// client-side liveness timer should grant at least one full heartbeat
-/// interval of grace on connect before declaring the daemon wedged.
+/// Liveness is protocol-layer MCP ping in BOTH directions (stage 6),
+/// replacing the retired 2s `logger: "heartbeat"` log-notification hack:
+/// the server pings its client per `configureMCPServer`'s `liveness`
+/// parameter, and the in-house client pings the daemon on its own
+/// cadence to bound wedged-daemon detection (issue #135's silence
+/// problem — swiftc recompiles and simulator boots are legitimately
+/// quiet). Timing contract for clients: an idle connection carries NO
+/// unsolicited server traffic, so a client-side liveness window must be
+/// fed by its own ping round-trips, never by passive listening.
 func runMCPServer(_ server: any MCPServing, transport: any Transport) async throws {
-    let heartbeat = Task.detached {
-        while !Task.isCancelled {
-            try? await Task.sleep(for: .seconds(2))
-            try? await server.log(
-                level: .debug, logger: "heartbeat", data: .string("alive")
-            )
-        }
-    }
-    defer { heartbeat.cancel() }
     try await server.start(transport: transport)
     // `server.start` returns once its internal receive Task is spawned,
-    // NOT when the transport closes. Wait explicitly so the heartbeat's
-    // defer-cancel fires only after the server is actually done serving.
+    // NOT when the transport closes. Wait explicitly.
     await server.waitUntilCompleted()
 }
 

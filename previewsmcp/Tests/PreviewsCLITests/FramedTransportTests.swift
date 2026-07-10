@@ -283,6 +283,43 @@ struct FramedTransportTests {
         withExtendedLifetime((clientToServer, serverToClient)) {}
     }
 
+    @Test("an owning transport closes its socket exactly once, after disconnect quiesces")
+    func owningDisconnectClosesSocket() async throws {
+        var raw = [Int32](repeating: -1, count: 2)
+        try #require(socketpair(AF_UNIX, SOCK_STREAM, 0, &raw) == 0)
+        let owned = FileDescriptor(rawValue: raw[0])
+        let peer = FileDescriptor(rawValue: raw[1])
+        defer { try? peer.close() }
+
+        let transport = FramedTransport(owningSocket: owned)
+        try await transport.connect()
+        try await transport.send(Data("probe".utf8))
+        await transport.disconnect()
+        // Re-entrant disconnect shares the rendezvous: still exactly one
+        // close, no EBADF trap on a recycled descriptor number.
+        await transport.disconnect()
+
+        // EOF on the peer is the observable proof the owned end closed —
+        // no fd-number probing, which parallel tests could race via
+        // descriptor reuse. Drain the sent frame first; EAGAIN means the
+        // owned end is still open.
+        try peer.setNonBlocking()
+        var buffer = [UInt8](repeating: 0, count: 64)
+        try await pollUntil(
+            {
+                while true {
+                    do {
+                        let count = try buffer.withUnsafeMutableBytes { try peer.read(into: $0) }
+                        if count == 0 { return true }
+                    } catch {
+                        return false
+                    }
+                }
+            },
+            failure: "the peer never saw EOF from the owned socket"
+        )
+    }
+
     /// Drains `receive()` on a child task and polls for how it ended.
     private func receiveStreamOutcome(
         of transport: FramedTransport,

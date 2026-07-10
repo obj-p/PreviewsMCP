@@ -1,5 +1,6 @@
 import Foundation
 import MCP
+import os
 import PreviewsCore
 import PreviewsEngine
 import PreviewsMacOS
@@ -57,7 +58,7 @@ func configureMCPServer(
     configCache cache: ConfigCache,
     registry: SessionRegistry,
     sharedCompiler: Compiler? = nil,
-    liveness: PreviewsMCPServer.ClientLiveness? = nil
+    liveness: PingLiveness? = nil
 ) async throws -> (any MCPServing, Compiler) {
     cleanupStaleTempDirs()
 
@@ -107,6 +108,37 @@ func configureMCPServer(
             return CallTool.Result(content: [.text("Unknown tool: \(params.name)")], isError: true)
         }
         return try await handler.handle(params, ctx: ctx)
+    }
+
+    // Compat shim for pre-stage-6 CLIs in the backward version-skew
+    // window: their StallTimer feeds on the retired 2s heartbeat
+    // notification, and they subscribe by sending logging/setLevel(.debug)
+    // right after connect — post-stage-6 clients never send it. The
+    // heartbeat starts on demand for exactly those connections and ends
+    // when the connection's transport closes (log throws). Remove when no
+    // pre-stage-6 CLI can be on the wire.
+    let heartbeatStarted = OSAllocatedUnfairLock(initialState: false)
+    await server.withMethodHandler(SetLoggingLevel.self) { [weak server] params in
+        if params.level == .debug, let server,
+           !heartbeatStarted.withLock({ started in
+               defer { started = true }
+               return started
+           })
+        {
+            Task.detached {
+                while true {
+                    try? await Task.sleep(for: .seconds(2))
+                    do {
+                        try await server.log(
+                            level: .debug, logger: "heartbeat", data: .string("alive")
+                        )
+                    } catch {
+                        return
+                    }
+                }
+            }
+        }
+        return Empty()
     }
 
     return (server, compiler)

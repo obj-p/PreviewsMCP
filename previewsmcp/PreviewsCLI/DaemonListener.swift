@@ -81,17 +81,17 @@ enum DaemonListener {
         }
     }
 
-    /// Handle one client connection: serve MCP until the peer disconnects,
-    /// then disconnect the transport and close the descriptor, in that
-    /// order. In-flight handlers run to completion after the close (their
-    /// responses drop); sessions persist across connections, so a finishing
-    /// render warms the next one.
+    /// Handle one client connection: serve MCP until the peer disconnects.
+    /// The transport owns the accepted descriptor and closes it once
+    /// disconnect quiesces. In-flight handlers run to completion after the
+    /// close (their responses drop); sessions persist across connections,
+    /// so a finishing render warms the next one.
     private static func handleConnection(
         _ connection: FileDescriptor, compiler: Compiler, host: PreviewHost,
         iosManager: IOSSessionManager, configCache: ConfigCache,
         registry: SessionRegistry
     ) async {
-        let transport = FramedTransport(socket: connection)
+        let transport = FramedTransport(owningSocket: connection)
         do {
             let (server, _) = try await configureMCPServer(
                 host: host, iosManager: iosManager,
@@ -99,7 +99,7 @@ enum DaemonListener {
                 sharedCompiler: compiler,
                 // A dead peer's fds close and the read loop sees EOF, so
                 // pings only backstop the wedged-but-alive case. Generous
-                // timing (dead after ~3-4 min of total silence) keeps a
+                // timing (dead after 3 min of total silence) keeps a
                 // suspended or debugger-paused CLI from being torn down.
                 liveness: .init(interval: .seconds(60), missedPongLimit: 3)
             )
@@ -109,6 +109,5 @@ enum DaemonListener {
             Log.error("daemon connection error: \(error)")
         }
         await transport.disconnect()
-        try? connection.close()
     }
 }

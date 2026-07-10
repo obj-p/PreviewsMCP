@@ -68,8 +68,21 @@ struct MCPTestServerHarnessTests {
             elapsed >= 2 && elapsed < 5,
             "expected timeout within 2–5s (got \(elapsed)s)"
         )
+        // SIGTERM delivery and process reaping are asynchronous relative
+        // to the continuation resume — under machine load `isRunning` can
+        // lag the throw by a beat. Bounded poll: the contract is "the
+        // pthread terminates the subprocess promptly," not "before the
+        // timeout error surfaces."
+        var terminated = false
+        for _ in 0 ..< 40 {
+            if !dummy.isRunning {
+                terminated = true
+                break
+            }
+            try await Task.sleep(for: .milliseconds(50))
+        }
         #expect(
-            !dummy.isRunning,
+            terminated,
             "subprocess should be terminated by the pthread on timeout"
         )
     }

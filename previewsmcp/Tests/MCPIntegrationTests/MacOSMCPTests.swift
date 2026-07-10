@@ -1,5 +1,6 @@
 import Foundation
 import MCP
+import os
 @testable import PreviewsCLI
 import Testing
 
@@ -575,24 +576,11 @@ struct MacOSMCPTests {
         )
     }
 
-    // MARK: - Liveness heartbeat
-
-    /// The daemon emits a `LogMessageNotification` with `logger: "heartbeat"`
-    /// every 2s, unconditional of whether any tool call is in flight. This
-    /// gives client-side stall detectors (Phase 2, future PR) a liveness
-    /// signal that distinguishes "busy" from "wedged" — particularly
-    /// important for the FileWatcher hot-reload path where today's silence
-    /// spans the full swiftc recompile with no other MCP traffic.
-    ///
-    /// This test idles for 6s and asserts at least 2 heartbeats arrive.
-    /// The first heartbeat fires at T+2s relative to `server.start` (not
-    /// subprocess spawn), so a 6s idle window guarantees a two-ping
-    /// margin even if subprocess boot eats half a second.
     @Test(
-        "daemon emits unconditional 2s heartbeat notifications",
+        "logging/setLevel(.debug) starts the pre-stage-6 heartbeat compat shim",
         .timeLimit(.minutes(3))
     )
-    func daemonEmitsHeartbeat() async throws {
+    func setLevelStartsCompatHeartbeat() async throws {
         // Serialize against the iOS e2e suites — this spawns a daemon in the
         // shared socket dir (see fullMacOSWorkflow).
         let lock = try await DaemonTestLock.acquire()
@@ -601,15 +589,19 @@ struct MacOSMCPTests {
         let server = try await MCPTestServer.start()
         defer { server.stop() }
 
-        // Idle, without issuing any tool calls. Heartbeats must fire
-        // regardless of request activity.
-        try await Task.sleep(for: .seconds(6))
+        let beats = OSAllocatedUnfairLock(initialState: 0)
+        try await server.requestDebugLogging {
+            beats.withLock { $0 += 1 }
+        }
 
-        let observed = server.observedHeartbeatCount()
-        #expect(
-            observed >= 2,
-            "expected ≥2 heartbeats in a 6s idle window (got \(observed))"
-        )
+        // The shim's first heartbeat fires ~2s after the subscription; two
+        // prove the loop is periodic. Event-based with a generous poll cap
+        // so machine load delays the pass instead of failing it.
+        for _ in 0 ..< 60 {
+            if beats.withLock({ $0 }) >= 2 { break }
+            try await Task.sleep(for: .milliseconds(250))
+        }
+        #expect(beats.withLock { $0 } >= 2, "compat heartbeat never started")
     }
 
     @Test("headless snapshot renders at the requested size", .timeLimit(.minutes(20)))

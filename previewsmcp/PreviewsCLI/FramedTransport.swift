@@ -48,12 +48,16 @@ enum FramedTransportError: Swift.Error, Equatable, LocalizedError {
 /// - The logger is a no-op by construction, so nothing can write prose
 ///   into the JSON stream the daemon serves on stdout.
 ///
-/// The transport does not own its file descriptors and never closes them,
-/// but `connect()` switches both to non-blocking, disables SIGPIPE delivery
-/// on the output (a dead peer surfaces as EPIPE, not process death), and
-/// leaves both that way. `disconnect()` returns only after the read loop
-/// and every send task have finished, so an owner may close the
-/// descriptors immediately afterwards without racing them.
+/// By default the transport does not own its file descriptors and never
+/// closes them, but `connect()` switches both to non-blocking, disables
+/// SIGPIPE delivery on the output (a dead peer surfaces as EPIPE, not
+/// process death), and leaves both that way. `disconnect()` returns only
+/// after the read loop and every send task have finished, so an owner may
+/// close the descriptors immediately afterwards without racing them.
+/// `init(owningSocket:)` moves that close INTO the disconnect rendezvous —
+/// the descriptor closes exactly once, after quiescence, on whichever
+/// path disconnects first (caller teardown, liveness, send failure) — so
+/// connection owners inherit disconnect-then-close structurally.
 actor FramedTransport: Transport {
     nonisolated let logger = Logger(
         label: "previewsmcp.framed-transport",
@@ -62,6 +66,7 @@ actor FramedTransport: Transport {
 
     private let input: FileDescriptor
     private let output: FileDescriptor
+    private let ownsDescriptors: Bool
     private let messageStream: AsyncThrowingStream<Data, Swift.Error>
     private let messageContinuation: AsyncThrowingStream<Data, Swift.Error>.Continuation
     private var sendChain: Task<Void, Swift.Error>?
@@ -76,15 +81,29 @@ actor FramedTransport: Transport {
         input: FileDescriptor = .standardInput,
         output: FileDescriptor = .standardOutput
     ) {
+        self.init(input: input, output: output, ownsDescriptors: false)
+    }
+
+    /// Non-owning socket variant: for callers whose descriptor lifetime is
+    /// managed elsewhere (tests). Connection OWNERS should use
+    /// `init(owningSocket:)` — hand-rolling disconnect-then-close around
+    /// this variant reintroduces the descriptor-leak class the owning mode
+    /// was built to close.
+    init(socket: FileDescriptor) {
+        self.init(input: socket, output: socket, ownsDescriptors: false)
+    }
+
+    init(owningSocket socket: FileDescriptor) {
+        self.init(input: socket, output: socket, ownsDescriptors: true)
+    }
+
+    private init(input: FileDescriptor, output: FileDescriptor, ownsDescriptors: Bool) {
         self.input = input
         self.output = output
+        self.ownsDescriptors = ownsDescriptors
         var continuation: AsyncThrowingStream<Data, Swift.Error>.Continuation!
         messageStream = AsyncThrowingStream { continuation = $0 }
         messageContinuation = continuation
-    }
-
-    init(socket: FileDescriptor) {
-        self.init(input: socket, output: socket)
     }
 
     func connect() async throws {
@@ -117,11 +136,20 @@ actor FramedTransport: Transport {
             // owner may close them the moment disconnect returns. Shared by
             // every disconnect caller, so a re-entrant call cannot return
             // before the descriptors are quiescent.
-            disconnectRendezvous = Task { [reader] in
+            disconnectRendezvous = Task { [reader, input, output, ownsDescriptors] in
                 for task in sends {
                     _ = try? await task.value
                 }
                 await reader?.value
+                // Owned descriptors close here — inside the once-only
+                // rendezvous, after quiescence — never in re-entrant
+                // disconnect callers.
+                if ownsDescriptors {
+                    try? input.close()
+                    if output.rawValue != input.rawValue {
+                        try? output.close()
+                    }
+                }
             }
         }
         await disconnectRendezvous?.value
