@@ -1,9 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="Agent">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2D2E35"/><stop offset="1" stop-color="#1A1B1F"/></linearGradient>
   </defs>
   <rect width="256" height="256" rx="56" fill="url(#bg)"/>
-  <g fill="none" stroke-width="16.0" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M 73.91 142.49 A 56.0 56.0 0 0 1 160.12 82.13" stroke="#FF7AB2"/><path d="M 153.16 58.94 L 161.76 83.27 L 135.95 83.52" stroke="#FF7AB2"/><path d="M 182.09 113.51 A 56.0 56.0 0 0 1 95.88 173.87" stroke="#5DD8FF"/><path d="M 102.84 197.06 L 94.24 172.73 L 120.05 172.48" stroke="#5DD8FF"/>
+  <g stroke-linecap="round" stroke-linejoin="round">
+    <path d="M 73.91 142.49 A 56 56 0 0 1 160.12 82.13" fill="none" stroke="#FF7AB2" stroke-width="16"/>
+    <path d="M 177.22 94.11 L 136.13 98.27 L 167.3 56.14 Z" fill="#FF7AB2" stroke="#FF7AB2" stroke-width="8"/>
+    <path d="M 182.09 113.51 A 56 56 0 0 1 95.88 173.87" fill="none" stroke="#5DD8FF" stroke-width="16"/>
+    <path d="M 79.46 164.55 L 116.79 157.75 L 89.43 198.94 Z" fill="#5DD8FF" stroke="#5DD8FF" stroke-width="8"/>
   </g>
 </svg>
