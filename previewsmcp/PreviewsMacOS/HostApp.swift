@@ -206,7 +206,7 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
         else { return }
         agentWindowSpecs[sessionID] = JITRenderWindow(
             x: frame.x, y: frame.y, width: frame.width, height: frame.height,
-            title: spec.title, headless: false
+            title: spec.title, headless: false, activates: spec.activates
         )
     }
 
