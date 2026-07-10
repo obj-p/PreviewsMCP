@@ -84,11 +84,8 @@ public enum SimulatorTestDevices {
     /// by simctl's implicit default; creation walks the list so a runtime
     /// that rejects the pinned device type falls back to the next.
     private static func supportedRuntimes() async throws -> [String] {
-        let output = try await simctl(["list", "runtimes", "--json"])
-        guard output.exitCode == 0,
-              let data = output.stdout.data(using: .utf8),
-              let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let runtimes = json["runtimes"] as? [[String: Any]]
+        guard let runtimes = try await simctlJSON(["list", "runtimes"])?["runtimes"]
+            as? [[String: Any]]
         else { return [] }
 
         return
@@ -119,11 +116,8 @@ public enum SimulatorTestDevices {
     /// itself failed — distinct from "no such device", so a listing hiccup
     /// never triggers a duplicate create.
     private static func list(name: String) async throws -> [Device]? {
-        let output = try await simctl(["list", "devices", "--json"])
-        guard output.exitCode == 0,
-              let data = output.stdout.data(using: .utf8),
-              let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let devicesByRuntime = json["devices"] as? [String: [[String: Any]]]
+        guard let devicesByRuntime = try await simctlJSON(["list", "devices"])?["devices"]
+            as? [String: [[String: Any]]]
         else { return nil }
 
         var devices: [Device] = []
@@ -141,6 +135,16 @@ public enum SimulatorTestDevices {
             }
         }
         return devices.sorted { $0.udid < $1.udid }
+    }
+
+    /// Run a `--json` simctl listing and decode its top-level dictionary,
+    /// or nil when the invocation or decode failed.
+    private static func simctlJSON(_ arguments: [String]) async throws -> [String: Any]? {
+        let output = try await simctl(arguments + ["--json"])
+        guard output.exitCode == 0,
+              let data = output.stdout.data(using: .utf8)
+        else { return nil }
+        return try JSONSerialization.jsonObject(with: data) as? [String: Any]
     }
 
     /// A 60s timeout bounds a truly hung simctl (observed on PR #141 CI);

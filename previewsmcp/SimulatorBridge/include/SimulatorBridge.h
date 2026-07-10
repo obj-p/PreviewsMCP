@@ -31,10 +31,14 @@ typedef NS_ENUM(NSInteger, SBDeviceState) {
                error:(NSError *_Nullable *_Nullable)error;
 
 /// Launch an app. Returns the PID on success, or -1 on failure.
+/// `suspended` maps to CoreSimulator's `activate_suspended` launch option:
+/// the app process launches and runs its launch sequence but is never
+/// activated (brought to the foreground) by FrontBoard.
 - (NSInteger)launchAppWithBundleID:(NSString *)bundleID
                          arguments:(nullable NSArray<NSString *> *)args
                        environment:
                            (nullable NSDictionary<NSString *, NSString *> *)env
+                         suspended:(BOOL)suspended
                              error:(NSError *_Nullable *_Nullable)error;
 
 /// Spawn a process inside the device's boot session ("in-session"), the way

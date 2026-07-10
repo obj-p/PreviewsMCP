@@ -248,8 +248,22 @@ public actor IOSPreviewSession {
                     udid: deviceUDID, bundleID: Self.agentBundleID
                 )
 
-                stage("attempt \(attempt): launching agent app")
-                launchedPid = try await simulatorManager.launchApp(
+                // Shell first, agent second (#352). The shell's foreground
+                // transition then originates from SpringBoard, not from the
+                // agent, so the status bar never shows a "< Agent" back-
+                // breadcrumb. The shell retries the agent-UDS connect until
+                // the agent binds it, so launching it before the agent is
+                // safe. The agent launches with activate_suspended and never
+                // takes the foreground at all — which also removes the
+                // transient agent-active flash on every launch.
+                stage("attempt \(attempt): launching shell app")
+                _ = try await simulatorManager.launchApp(
+                    udid: deviceUDID,
+                    bundleID: Self.shellBundleID,
+                    arguments: ["--agent-sock", agentSockPath]
+                )
+                stage("attempt \(attempt): launching agent app (background)")
+                launchedPid = try await simulatorManager.launchAppInBackground(
                     udid: deviceUDID,
                     bundleID: Self.agentBundleID,
                     arguments: launchArgs
@@ -275,21 +289,13 @@ public actor IOSPreviewSession {
 
         // 6. Accept connection from agent app (up to 10 seconds). This also
         // confirms the agent's didFinishLaunchingWithOptions has run, so its
-        // handshake socket is bound before the shell connects to it below.
+        // handshake socket is bound; the already-running shell's UDS retry
+        // loop connects to it, reads the agent's audit token, and routes the
+        // cross-process hosted scene back to the agent. The shell is
+        // long-lived and survives agent respawns (no relaunch flash).
         stage("launched pid=\(pid); awaiting socket connection")
         await progress?.report(.connectingToApp, message: "Waiting for agent app connection...")
         try await channel.awaitConnect(timeout: .seconds(10))
-
-        // 6b. Launch the foreground shell that hosts the agent's scene. The
-        // shell reads the agent's audit token off the now-bound handshake socket
-        // and routes a cross-process scene back to the agent. The shell is
-        // long-lived and survives agent respawns (no relaunch flash).
-        stage("launching shell app")
-        _ = try await simulatorManager.launchApp(
-            udid: deviceUDID,
-            bundleID: Self.shellBundleID,
-            arguments: ["--agent-sock", agentSockPath]
-        )
 
         // 8. Accept the executor's EPC connection and stand up the remote session
         // over it. The host connects --port and --jit-port independently, so this
@@ -623,7 +629,10 @@ public actor IOSPreviewSession {
         let port = try await channel.bindAndListen()
         let jitPort = try bindJITListener()
 
-        let pid = try await simulatorManager.launchApp(
+        // Background launch (#352): the long-lived shell stays foreground and
+        // the new agent never takes the screen, so the respawn is invisible
+        // (no transient agent-active flash, no "< Agent" breadcrumb).
+        let pid = try await simulatorManager.launchAppInBackground(
             udid: deviceUDID,
             bundleID: Self.agentBundleID,
             arguments: Self.agentLaunchArgs(port: port, jitPort: jitPort, agentSockPath: agentSockPath)

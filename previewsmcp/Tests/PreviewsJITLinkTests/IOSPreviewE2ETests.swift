@@ -248,9 +248,9 @@ struct IOSPreviewE2ETests {
     /// reports its `applicationState` over the JSON channel; `IOSPreviewSession`
     /// exposes the latest as `agentApplicationState`. After `start()` the daemon
     /// must observe a valid breadcrumb, proving the flash detector is wired end
-    /// to end. The exact state is environment-dependent (a headless simctl launch
-    /// reports `background`, not `active`); later shell-hosted stages assert the
-    /// agent stays non-`active` across respawn, where the value is meaningful.
+    /// to end. Since #352 the agent launches with `activate_suspended` and must
+    /// never be `active` — the shell owns the foreground from the first frame,
+    /// so no launch flash and no "< Agent" status-bar breadcrumb.
     @Test(.enabled(if: jitOrcRuntimePresent), .timeLimit(.minutes(10)))
     func agentReportsForegroundLifecycleState() async throws {
         let simLock = try await SimulatorTestLock.acquire()
@@ -292,7 +292,7 @@ struct IOSPreviewE2ETests {
             if state != nil { break }
             try await Task.sleep(for: .milliseconds(200))
         }
-        #expect(["active", "inactive", "background"].contains(state))
+        #expect(["inactive", "background"].contains(state))
         await session.stop()
     }
 
