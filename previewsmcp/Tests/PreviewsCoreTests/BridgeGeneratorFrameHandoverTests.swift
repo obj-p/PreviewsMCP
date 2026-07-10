@@ -32,24 +32,10 @@ struct BridgeGeneratorFrameHandoverTests {
         #expect(generated.source.contains("didBecomeKeyNotification"))
         #expect(generated.source.contains("didResignKeyNotification"))
         #expect(generated.source.contains("/tmp/frame.json"))
+        #expect(generated.source.contains("recordPreviewWindowState"))
         #expect(generated.source.contains("makeKeyAndOrderFront"))
-        #expect(generated.source.contains("displayIfNeeded"))
-    }
-
-    @Test("non-activating render window orders front without taking key or activating")
-    func nonActivatingOrdersFrontWithoutKey() {
-        let generated = BridgeGenerator.generateCombinedSource(
-            originalSource: Self.source,
-            closureBody: "TestView()",
-            renderOutputPath: "/tmp/out.png",
-            renderWindow: JITRenderWindow(
-                x: 0, y: 0, width: 800, height: 1000, title: "t", headless: false, activate: false
-            ),
-            frameSidecarPath: "/tmp/frame.json"
-        )
-        #expect(!generated.source.contains("makeKeyAndOrderFront"))
-        #expect(!generated.source.contains("activate(ignoringOtherApps:"))
         #expect(generated.source.contains("orderFrontRegardless"))
+        #expect(generated.source.contains("displayIfNeeded"))
     }
 
     @Test("headless render window installs no frame observers")
@@ -65,5 +51,7 @@ struct BridgeGeneratorFrameHandoverTests {
         )
         #expect(!generated.source.contains("didMoveNotification"))
         #expect(!generated.source.contains("didResizeNotification"))
+        #expect(!generated.source.contains("recordPreviewWindowState"))
+        #expect(!generated.source.contains("makeKeyAndOrderFront"))
     }
 }

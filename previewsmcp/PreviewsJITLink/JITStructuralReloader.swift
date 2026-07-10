@@ -10,8 +10,10 @@ import PreviewsCore
 /// A respawn is a seamless handoff (#254): the fresh agent is stood up completely — spawned,
 /// linked, first render, so its window is on screen at the baked frame — before the old
 /// session is replaced, whose `deinit` kills the old agent and closes its window. The reverse
-/// order shows the desktop in the gap. A failure anywhere leaves the old agent, its window,
-/// and this actor's state untouched, so the last good preview stays up.
+/// order shows the desktop in the gap. A failed respawn keeps the old agent (and its window)
+/// as the live session, and a failed render on either path leaves `lastObjectPath` on the
+/// last build that actually rendered, so the literal fast path can never re-run a build whose
+/// first full render failed.
 public actor JITStructuralReloader: StructuralReloader {
     private let generationCap: Int
     private var session: JITSession?
@@ -41,7 +43,6 @@ public actor JITStructuralReloader: StructuralReloader {
             generation += 1
             try session.newGeneration()
             try link(build, into: session)
-            lastObjectPath = build.objectPath
             // Setup runs once per agent process (its plugin state lives for the process's
             // lifetime), so re-run after a respawn but not per generation. The entry is
             // void; the wrapper's status word is meaningless for it.
@@ -50,6 +51,7 @@ public actor JITStructuralReloader: StructuralReloader {
                 didRunSetUp = true
             }
             try Self.runRenderEntry(session, build)
+            lastObjectPath = build.objectPath
             return
         }
 
@@ -69,6 +71,13 @@ public actor JITStructuralReloader: StructuralReloader {
         generation = 1
         didRunSetUp = build.setupEntrySymbol != nil
         lastObjectPath = build.objectPath
+        // With the outgoing agent dead and reaped, the fresh agent's record is guaranteed
+        // to be the sidecar's last write — settling the key status its dying predecessor
+        // recorded losing to us. Best-effort: a failure here only costs focus carry on
+        // the next handoff, which the window's own key observers heal on the next change.
+        if let stateEntry = build.windowStateEntrySymbol {
+            _ = try? fresh.runOnMain(symbol: stateEntry)
+        }
     }
 
     private func link(_ build: JITRenderBuild, into session: JITSession) throws {

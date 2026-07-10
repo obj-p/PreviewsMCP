@@ -187,7 +187,7 @@ struct PreviewHostJITReloadTests {
         #expect(host.agentWindowSpec(for: "visible") == nil)
     }
 
-    @Test func restoreBakesRecordedContentRectAndCarriesKey() async throws {
+    @Test func restoreBakesRecordedContentRect() async throws {
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent("p254r-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -227,8 +227,6 @@ struct PreviewHostJITReloadTests {
         #expect(spec.y == 200)
         #expect(spec.width == 400)
         #expect(spec.height == 600)
-        #expect(!spec.activate)
-        #expect(PreviewSession.storedWindowFrame(for: session.id)?.isKey == false)
     }
 
     @Test func unchangedSourceFireDoesNotReload() async throws {

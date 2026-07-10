@@ -28,6 +28,10 @@ public struct JITRenderBuild: Sendable {
     /// The generated `@_cdecl` setup entry (`previewSetUp`), present when the session has a
     /// setup plugin. The reloader runs it once per agent process before the first render.
     public let setupEntrySymbol: String?
+    /// The generated `@_cdecl` window-state entry (`recordPreviewWindowState`), present for
+    /// visible macOS sessions. The reloader runs it after a respawn handoff kills the outgoing
+    /// agent, so the sidecar's last write describes the surviving window (#254).
+    public let windowStateEntrySymbol: String?
 
     public init(
         objectPath: URL,
@@ -39,7 +43,8 @@ public struct JITRenderBuild: Sendable {
         archivePaths: [URL] = [],
         dylibPaths: [URL] = [],
         requiresFreshAgent: Bool = false,
-        setupEntrySymbol: String? = nil
+        setupEntrySymbol: String? = nil,
+        windowStateEntrySymbol: String? = nil
     ) {
         self.objectPath = objectPath
         self.imagePath = imagePath
@@ -51,6 +56,7 @@ public struct JITRenderBuild: Sendable {
         self.dylibPaths = dylibPaths
         self.requiresFreshAgent = requiresFreshAgent
         self.setupEntrySymbol = setupEntrySymbol
+        self.windowStateEntrySymbol = windowStateEntrySymbol
     }
 }
 
@@ -132,16 +138,14 @@ public actor PreviewSession {
             .appendingPathComponent("previewsmcp-jit-frame-\(id).json")
     }
 
-    /// A window placement (content rect) and key status recorded by the agent for a session.
-    /// `isKey` carries focus across the respawn handoff (#254); absent in the sidecar it
-    /// defaults to key, matching the activate-on-creation behavior of a window that never
-    /// reported otherwise.
+    /// A window placement (content rect) recorded by the agent for a session. The sidecar also
+    /// carries a live key-status field, but that is written and read only by generated agent
+    /// code (#254); the daemon never interprets or writes it.
     public struct WindowFrame: Sendable {
         public let x: Double
         public let y: Double
         public let width: Double
         public let height: Double
-        public let isKey: Bool
     }
 
     /// The last window frame the agent recorded for this session, or nil when none was written.
@@ -151,25 +155,7 @@ public actor PreviewSession {
               let x = obj["x"] as? Double, let y = obj["y"] as? Double,
               let width = obj["width"] as? Double, let height = obj["height"] as? Double
         else { return nil }
-        return WindowFrame(
-            x: x, y: y, width: width, height: height, isKey: obj["key"] as? Bool ?? true
-        )
-    }
-
-    /// Patch the recorded key status in place, keeping every other recorded field. The daemon
-    /// calls this after a reload: the outgoing agent's dying window resigns key to the incoming
-    /// one and records that loss, so the daemon reasserts the state it baked for the surviving
-    /// window. No-op when the session never recorded a sidecar or the status already matches.
-    public nonisolated static func recordWindowKeyState(_ isKey: Bool, for id: String) {
-        let url = frameSidecarPath(for: id)
-        guard let data = try? Data(contentsOf: url),
-              var obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              (obj["key"] as? Bool ?? true) != isKey
-        else { return }
-        obj["key"] = isKey
-        if let patched = try? JSONSerialization.data(withJSONObject: obj) {
-            try? patched.write(to: url, options: .atomic)
-        }
+        return WindowFrame(x: x, y: y, width: width, height: height)
     }
 
     /// Compile the preview for the JIT structural-reload path. Generates a render bridge
@@ -319,7 +305,8 @@ public actor PreviewSession {
             archivePaths: archivePaths,
             dylibPaths: dylibPaths,
             requiresFreshAgent: requiresFreshAgent,
-            setupEntrySymbol: hasSetup ? "previewSetUp" : nil
+            setupEntrySymbol: hasSetup ? "previewSetUp" : nil,
+            windowStateEntrySymbol: window?.headless == false ? "recordPreviewWindowState" : nil
         )
         lastJITBuild = build
         return build
