@@ -26,11 +26,13 @@ enum IOSSimulatorPicker {
     ///
     /// Current assignments (grep for `IOSSimulatorPicker.pickUDID(index:` to audit):
     ///
-    /// - index 0: `SimulatorManagerTests.bootAndShutdown`
-    /// - index 1: `IOSPreviewSessionTests.endToEnd`
-    /// - index 1: `IOSMCPTests.fullIOSWorkflow`
+    /// - index 0: `SimulatorManagerTests.bootAndShutdown` (PreviewsIOS target)
+    /// - index 1: `IOSMCPTests.fullIOSWorkflow`; shared with
+    ///   `SimulatorManagerTests.makeFramebufferStreamer` (PreviewsIOS
+    ///   target — different targets never run concurrently)
     /// - index 2: `IOSHIDInputTests.tapAndDrag`
     /// - index 3: `IOSAppServerTests.appServerEndToEnd`
+    /// - index 4: `SimulatorManagerTests.makeHIDClient` (PreviewsIOS target)
     static func pickUDID(index: Int) async throws -> String? {
         // Must drain stdout concurrently: `simctl list devices --json` on a
         // CI runner with 100+ simulators produces >64KB of JSON, filling
