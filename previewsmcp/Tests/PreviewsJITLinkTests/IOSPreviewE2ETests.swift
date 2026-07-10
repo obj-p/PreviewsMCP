@@ -1052,25 +1052,23 @@ enum IOSPreviewE2ESupport {
         try run("/usr/bin/xcrun", ["simctl", "spawn", udid, program]).output
     }
 
-    /// The suite's dedicated `previewsmcp-test-6` device (#355), resolved and
-    /// booted once per process. Warm reuse: `SimulatorTestDevices` keeps an
-    /// existing well-shaped device, and `simctl boot` on an already-booted one
-    /// is a harmless error (`run` does not throw on exit status), so a device
-    /// left booted by an earlier run is reused without a shutdown/boot cycle.
-    /// Callers hold `SimulatorTestLock`, which `SimulatorTestDevices` requires.
-    private static let bootedDevice = Task { () throws -> String? in
-        guard let udid = await SimulatorTestDevices.udid(index: 6) else { return nil }
-        _ = try run("/usr/bin/xcrun", ["simctl", "boot", udid])
-        _ = try run("/usr/bin/xcrun", ["simctl", "bootstatus", udid, "-b"])
-        return udid
-    }
-
+    /// The suite's dedicated `previewsmcp-test-6` device (#355), booted.
+    /// Resolve and boot run per call, not once per process: a transient
+    /// `simctl list` failure then costs one test instead of poisoning the
+    /// whole suite, and a device that shut down mid-suite is re-booted.
+    /// Warm reuse: `SimulatorTestDevices` keeps an existing well-shaped
+    /// device, and `simctl boot` on an already-booted one is a harmless
+    /// error (`run` does not throw on exit status), so a booted device is
+    /// reused without a shutdown/boot cycle. Callers hold
+    /// `SimulatorTestLock`, which `SimulatorTestDevices` requires.
     static func bootSimulator() async throws -> String {
-        guard let udid = try await bootedDevice.value else {
+        guard let udid = await SimulatorTestDevices.udid(index: 6) else {
             throw SpikeError.message(
                 "no \(SimulatorTestDevices.name(index: 6)) simulator (missing iPhone 17 device type or iOS 26+ runtime)"
             )
         }
+        _ = try run("/usr/bin/xcrun", ["simctl", "boot", udid])
+        _ = try run("/usr/bin/xcrun", ["simctl", "bootstatus", udid, "-b"])
         // Even an already-"booted" device can have its display port down
         // (the #269 "device may not be booted or have no display" window),
         // so settle before returning it for render/capture.
