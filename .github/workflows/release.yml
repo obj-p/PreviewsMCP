@@ -14,8 +14,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Must match the .bazelrc --xcode_version pin.
       - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_26.3.app
+        run: sudo xcode-select -s /Applications/Xcode_26.2.app
 
       - name: Get version from tag
         id: version
@@ -23,8 +24,15 @@ jobs:
           VERSION=${GITHUB_REF#refs/tags/v}
           echo "VERSION=$VERSION" >> "$GITHUB_OUTPUT"
 
+      - name: Cache Bazel disk cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/bazel-disk
+          key: bazel-disk-${{ runner.os }}-${{ hashFiles('MODULE.bazel.lock') }}
+          restore-keys: bazel-disk-${{ runner.os }}-
+
       - name: Build release binary
-        run: swift build -c release
+        run: bazel build -c opt //previewsmcp/cli:previewsmcp
 
       - name: Package binary
         env:
@@ -32,7 +40,7 @@ jobs:
         run: |
           STAGING="previewsmcp-${VERSION}-darwin-arm64"
           mkdir -p "$STAGING"
-          cp .build/release/previewsmcp "$STAGING/"
+          cp bazel-bin/previewsmcp/cli/previewsmcp "$STAGING/"
           cp LICENSE "$STAGING/"
           cp README.md "$STAGING/"
           tar -czf "${STAGING}.tar.gz" "$STAGING"
