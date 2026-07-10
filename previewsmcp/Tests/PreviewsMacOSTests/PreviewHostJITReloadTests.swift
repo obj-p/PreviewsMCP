@@ -1,4 +1,3 @@
-import AppKit
 import Foundation
 import PreviewsCore
 @testable import PreviewsMacOS
@@ -188,7 +187,7 @@ struct PreviewHostJITReloadTests {
         #expect(host.agentWindowSpec(for: "visible") == nil)
     }
 
-    @Test func restoreConvertsRecordedFrameToContentRectAndCarriesKey() async throws {
+    @Test func restoreBakesRecordedContentRectAndCarriesKey() async throws {
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent("p254r-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -217,22 +216,17 @@ struct PreviewHostJITReloadTests {
         )
 
         let recorded: [String: Any] = [
-            "x": 100.0, "y": 200.0, "width": 400.0, "height": 632.0, "key": false,
+            "x": 100.0, "y": 200.0, "width": 400.0, "height": 600.0, "key": false,
         ]
         try JSONSerialization.data(withJSONObject: recorded).write(to: sidecar)
 
         try await host.jitStructuralReload(sessionID: "s1", session: session)
 
         let spec = try #require(host.agentWindowSpec(for: "s1"))
-        let content = NSWindow.contentRect(
-            forFrameRect: NSRect(x: 100, y: 200, width: 400, height: 632),
-            styleMask: [.titled, .closable, .miniaturizable, .resizable]
-        )
-        #expect(spec.x == Double(content.origin.x))
-        #expect(spec.y == Double(content.origin.y))
-        #expect(spec.width == Double(content.width))
-        #expect(spec.height == Double(content.height))
-        #expect(content.height < 632)
+        #expect(spec.x == 100)
+        #expect(spec.y == 200)
+        #expect(spec.width == 400)
+        #expect(spec.height == 600)
         #expect(!spec.activate)
         #expect(PreviewSession.storedWindowFrame(for: session.id)?.isKey == false)
     }

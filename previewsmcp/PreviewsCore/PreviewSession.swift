@@ -132,23 +132,16 @@ public actor PreviewSession {
             .appendingPathComponent("previewsmcp-jit-frame-\(id).json")
     }
 
-    /// A window frame and key status recorded by the agent for a session. `isKey` carries
-    /// focus across the respawn handoff (#254); absent in the sidecar it defaults to key,
-    /// matching the activate-on-creation behavior of a window that never reported otherwise.
+    /// A window placement (content rect) and key status recorded by the agent for a session.
+    /// `isKey` carries focus across the respawn handoff (#254); absent in the sidecar it
+    /// defaults to key, matching the activate-on-creation behavior of a window that never
+    /// reported otherwise.
     public struct WindowFrame: Sendable {
         public let x: Double
         public let y: Double
         public let width: Double
         public let height: Double
         public let isKey: Bool
-
-        public init(x: Double, y: Double, width: Double, height: Double, isKey: Bool = true) {
-            self.x = x
-            self.y = y
-            self.width = width
-            self.height = height
-            self.isKey = isKey
-        }
     }
 
     /// The last window frame the agent recorded for this session, or nil when none was written.
@@ -163,18 +156,19 @@ public actor PreviewSession {
         )
     }
 
-    /// Overwrite the recorded key status, keeping the recorded frame. The daemon calls this
-    /// after a reload: the outgoing agent's dying window resigns key to the incoming one and
-    /// records that loss, so the daemon reasserts the state it baked for the surviving window.
-    /// No-op when the session never recorded a sidecar — there is nothing to correct.
+    /// Patch the recorded key status in place, keeping every other recorded field. The daemon
+    /// calls this after a reload: the outgoing agent's dying window resigns key to the incoming
+    /// one and records that loss, so the daemon reasserts the state it baked for the surviving
+    /// window. No-op when the session never recorded a sidecar or the status already matches.
     public nonisolated static func recordWindowKeyState(_ isKey: Bool, for id: String) {
-        guard let frame = storedWindowFrame(for: id) else { return }
-        let dict: [String: Any] = [
-            "x": frame.x, "y": frame.y, "width": frame.width, "height": frame.height,
-            "key": isKey,
-        ]
-        if let data = try? JSONSerialization.data(withJSONObject: dict) {
-            try? data.write(to: frameSidecarPath(for: id), options: .atomic)
+        let url = frameSidecarPath(for: id)
+        guard let data = try? Data(contentsOf: url),
+              var obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              (obj["key"] as? Bool ?? true) != isKey
+        else { return }
+        obj["key"] = isKey
+        if let patched = try? JSONSerialization.data(withJSONObject: obj) {
+            try? patched.write(to: url, options: .atomic)
         }
     }
 

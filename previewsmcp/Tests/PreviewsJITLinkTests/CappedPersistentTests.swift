@@ -284,8 +284,14 @@ struct CappedPersistentTests {
         #expect(try agent.runOnMain(symbol: "preview_move_probe") == 0)
 
         let frame = try #require(PreviewSession.storedWindowFrame(for: session.id))
-        #expect(frame.width == 321)
-        #expect(frame.height == 654)
+        let content = await MainActor.run {
+            NSWindow.contentRect(
+                forFrameRect: NSRect(x: -8000, y: -7000, width: 321, height: 654),
+                styleMask: [.titled, .closable, .miniaturizable, .resizable]
+            )
+        }
+        #expect(frame.width == Double(content.width))
+        #expect(frame.height == Double(content.height))
         #expect(frame.x != -9000)
         #expect(frame.y != -9000)
     }

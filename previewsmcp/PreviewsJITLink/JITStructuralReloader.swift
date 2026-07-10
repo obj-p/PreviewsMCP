@@ -49,13 +49,11 @@ public actor JITStructuralReloader: StructuralReloader {
                 _ = try session.runOnMain(symbol: setupEntry)
                 didRunSetUp = true
             }
-            let mark = ContinuousClock.now
-            try Self.run(session, build.entrySymbol)
-            Log.info("jit_latency: render-entry \(Log.millis(mark, ContinuousClock.now))ms")
+            try Self.runRenderEntry(session, build)
             return
         }
 
-        var mark = ContinuousClock.now
+        let mark = ContinuousClock.now
         let fresh = try JITSession(remoteAgentPath: JITSession.bundledAgentPath())
         Log.info(
             "jit_latency: agent-session force-fresh=\(build.requiresFreshAgent) "
@@ -65,9 +63,7 @@ public actor JITStructuralReloader: StructuralReloader {
         if let setupEntry = build.setupEntrySymbol {
             _ = try fresh.runOnMain(symbol: setupEntry)
         }
-        mark = ContinuousClock.now
-        try Self.run(fresh, build.entrySymbol)
-        Log.info("jit_latency: render-entry \(Log.millis(mark, ContinuousClock.now))ms")
+        try Self.runRenderEntry(fresh, build)
         // The fresh agent's window is up; replacing the session now kills the old agent.
         session = fresh
         generation = 1
@@ -96,6 +92,12 @@ public actor JITStructuralReloader: StructuralReloader {
             "jit_latency: add-objects \(build.supportObjectPaths.count + 1) "
                 + "\(Log.millis(mark, ContinuousClock.now))ms"
         )
+    }
+
+    private static func runRenderEntry(_ session: JITSession, _ build: JITRenderBuild) throws {
+        let mark = ContinuousClock.now
+        try run(session, build.entrySymbol)
+        Log.info("jit_latency: render-entry \(Log.millis(mark, ContinuousClock.now))ms")
     }
 
     private static func run(_ session: JITSession, _ entrySymbol: String) throws {

@@ -356,19 +356,20 @@ public enum BridgeGenerator {
         """
     }
 
-    /// Code (run once when the agent creates its visible window) that records the window's frame
-    /// and key status to `sidecarPath` on every move/resize/key change. A respawned agent reads
-    /// it back so the user's dragged/resized window is restored across non-leaf structural edits
-    /// (#195) and the handoff replacement only takes key when the outgoing window had it (#254).
-    /// Reads the state off the notification's window so the `@Sendable` observer closure captures
-    /// only the path.
+    /// Code (run once when the agent creates its visible window) that records the window's
+    /// content rect and key status to `sidecarPath` on every move/resize/key change. A respawned
+    /// agent reads it back so the user's dragged/resized window is restored across non-leaf
+    /// structural edits (#195) and the handoff replacement only takes key when the outgoing
+    /// window had it (#254). The content rect (not the frame) is recorded because that is what
+    /// window creation bakes, so readers never need the window's style mask. Reads the state off
+    /// the notification's window so the `@Sendable` observer closure captures only the path.
     private static func frameObserverCode(sidecarPath: String) -> String {
         """
         let __frameURL = URL(fileURLWithPath: "\(escapedForSwiftStringLiteral(sidecarPath))")
                         let __recordFrame: @Sendable (Notification) -> Void = { __note in
                             MainActor.assumeIsolated {
                                 guard let __win = __note.object as? NSWindow else { return }
-                                let __f = __win.frame
+                                let __f = __win.contentRect(forFrameRect: __win.frame)
                                 let __dict: [String: Any] = [
                                     "x": __f.origin.x, "y": __f.origin.y,
                                     "width": __f.size.width, "height": __f.size.height,
