@@ -20,9 +20,8 @@ import Foundation
 /// `DaemonTestLock`): non-blocking polling from Swift concurrency starves
 /// small cooperative pools.
 public enum SimulatorTestLock {
-    private static var lockPath: String {
+    private static let lockPath =
         (NSHomeDirectory() as NSString).appendingPathComponent(".previewsmcp/sim.lock")
-    }
 
     /// A held exclusive lock. Call `release()` to let the next waiter proceed;
     /// pair it with `defer` at the acquisition site.
@@ -40,16 +39,20 @@ public enum SimulatorTestLock {
 
     /// Block until the host-wide simulator lock is held, then return a `Guard`
     /// the caller releases (via `defer`) when its critical section ends.
+    ///
+    /// `O_CLOEXEC` is load-bearing: tests spawn children (daemons, `simctl`,
+    /// sim executables) while holding the lock, and an inherited dup of the
+    /// fd would keep the kernel flock held after this process exits — see
+    /// `DaemonRestart.acquireRestartLock` and issue #142.
     public static func acquire() async throws -> Guard {
         let path = lockPath
-        let fd = try await withCheckedThrowingContinuation {
-            (cont: CheckedContinuation<Int32, Error>) in
+        let fd = try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Int32, Error>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 let dir = (path as NSString).deletingLastPathComponent
                 try? FileManager.default.createDirectory(
                     atPath: dir, withIntermediateDirectories: true
                 )
-                let fd = open(path, O_CREAT | O_RDWR, 0o644)
+                let fd = open(path, O_CREAT | O_RDWR | O_CLOEXEC, 0o644)
                 guard fd >= 0 else {
                     cont.resume(
                         throwing: NSError(
