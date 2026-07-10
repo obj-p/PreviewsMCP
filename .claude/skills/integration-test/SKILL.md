@@ -80,6 +80,22 @@ PreviewsMCP runs as two separate processes with independent state:
 
 8. **Report results.** For each example, report pass/fail per test step. Summarize at the end.
 
+## Host simulator lock (iOS steps)
+
+Simulator boots are serialized machine-wide (#336): `//previewsmcp` test targets take a blocking flock on `~/.previewsmcp/sim.lock`, and example runs must join the same queue (#345). Before the first step that starts an iOS simulator session, acquire the lock:
+
+```bash
+$(git rev-parse --show-toplevel)/tools/simlock hold
+```
+
+`hold` blocks until the lock is free — waiting behind another workspace's sim tests is expected; do not abort or time it out. On success it prints a token path. Each Bash call runs in a fresh shell, so remember the token in the conversation, not in an env var. After the last iOS session is stopped — including on failure or early abort — release it:
+
+```bash
+$(git rev-parse --show-toplevel)/tools/simlock release <token>
+```
+
+macOS-only sessions do not need the lock. If a previous run leaked a holder, `ls ~/.previewsmcp/sim.lock.hold-*` lists the token, and the number in the filename is the holder's PID. Check `ps -p <pid>` before touching it: if the process is gone, the lock is already free and `release` just removes the litter; if it is alive, it is an active holder (possibly another workspace's run) — only `release` it if you know it belongs to your own dead run, because releasing a live holder drops the lock mid-run.
+
 ## Project path guidance
 
 The example projects are nested inside the PreviewsMCP repo, which has its own `Package.swift`. Without an explicit `projectPath`, auto-detection walks up from the source file, finds the repo root SPM package first, and fails. **Always pass `projectPath` pointing to the example directory** (e.g., `examples/bazel/` or `examples/xcodeproj/`) when calling `preview_start` for Bazel or Xcode examples. The SPM example does not need this because its `Package.swift` is the closest one found.

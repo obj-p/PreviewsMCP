@@ -1,0 +1,113 @@
+#!/usr/bin/python3
+import fcntl
+import os
+import subprocess
+import sys
+import time
+
+LOCK_PATH = os.path.expanduser("~/.previewsmcp/sim.lock")
+
+
+def usage():
+    sys.stderr.write(
+        "usage: simlock run <command> [args...]\n"
+        "       simlock hold\n"
+        "       simlock release <token>\n"
+        "stale holder from a dead run: ls %s.hold-* then release that path\n"
+        % LOCK_PATH
+    )
+    sys.exit(2)
+
+
+def token_path(pid):
+    return "%s.hold-%d" % (LOCK_PATH, pid)
+
+
+def acquire():
+    os.makedirs(os.path.dirname(LOCK_PATH), exist_ok=True)
+    fd = os.open(LOCK_PATH, os.O_CREAT | os.O_RDWR | os.O_CLOEXEC, 0o644)
+    fcntl.flock(fd, fcntl.LOCK_EX)
+    return fd
+
+
+def cmd_run(argv):
+    if not argv:
+        usage()
+    acquire()
+    try:
+        returncode = subprocess.run(argv).returncode
+    except OSError as error:
+        sys.stderr.write("simlock: cannot run %s: %s\n" % (argv[0], error.strerror))
+        return 127
+    return 128 - returncode if returncode < 0 else returncode
+
+
+def cmd_hold():
+    os.makedirs(os.path.dirname(LOCK_PATH), exist_ok=True)
+    probe_fd = os.open(LOCK_PATH, os.O_CREAT | os.O_RDWR | os.O_CLOEXEC, 0o644)
+    try:
+        fcntl.flock(probe_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        fcntl.flock(probe_fd, fcntl.LOCK_UN)
+    except OSError:
+        sys.stderr.write("simlock: waiting for %s (held by another sim run)\n" % LOCK_PATH)
+    finally:
+        os.close(probe_fd)
+    read_end, write_end = os.pipe()
+    pid = os.fork()
+    if pid == 0:
+        os.close(read_end)
+        os.setsid()
+        devnull = os.open(os.devnull, os.O_RDWR)
+        os.dup2(devnull, 0)
+        os.dup2(devnull, 1)
+        os.dup2(devnull, 2)
+        acquire()
+        token = token_path(os.getpid())
+        open(token, "w").close()
+        os.write(write_end, b"1")
+        os.close(write_end)
+        while os.path.exists(token):
+            time.sleep(0.5)
+        os._exit(0)
+    os.close(write_end)
+    if os.read(read_end, 1) != b"1":
+        sys.stderr.write("simlock: holder died before acquiring the lock\n")
+        return 1
+    print(token_path(pid))
+    return 0
+
+
+def cmd_release(argv):
+    if len(argv) != 1:
+        usage()
+    token = os.path.abspath(argv[0])
+    prefix = os.path.basename(LOCK_PATH) + ".hold-"
+    name = os.path.basename(token)
+    if (
+        os.path.dirname(token) != os.path.dirname(LOCK_PATH)
+        or not name.startswith(prefix)
+        or not name[len(prefix):].isdigit()
+    ):
+        sys.stderr.write("simlock: not a hold token: %s\n" % argv[0])
+        return 2
+    try:
+        os.remove(token)
+    except FileNotFoundError:
+        sys.stderr.write("simlock: no such token (already released?): %s\n" % argv[0])
+    return 0
+
+
+def main():
+    if len(sys.argv) < 2:
+        usage()
+    command = sys.argv[1]
+    if command == "run":
+        sys.exit(cmd_run(sys.argv[2:]))
+    if command == "hold":
+        sys.exit(cmd_hold())
+    if command == "release":
+        sys.exit(cmd_release(sys.argv[2:]))
+    usage()
+
+
+main()
