@@ -80,12 +80,12 @@ All CLI subcommands except `serve` are **daemon clients** — they connect to a 
 
 Key files:
 - `DaemonClient.swift` — auto-start + connect via `withDaemonClient(name:body:)`. Registers a stderr log-forwarder for `LogMessageNotification` before the MCP handshake.
-- `DaemonListener.swift` — `NWListener` on UDS, per-connection `MCP.Server`.
+- `DaemonListener.swift` — POSIX UDS accept loop (`DaemonSocket`), per-connection `PreviewsMCPServer` over `FramedTransport`.
 - `DaemonLifecycle.swift` — PID file, `setsid()` detachment, signal handlers.
 - `DaemonProbe.swift` — socket liveness check (connect + immediate close).
 - `SessionResolver.swift` — resolves `--session <uuid>` / `--file <path>` / sole-running-session targeting.
 - `DaemonProtocol.swift` — shared `Codable` DTOs for `structuredContent` payloads on tool responses.
-- `MCPContentHelpers.swift` — `Value.decode(_:)`, `Client.callToolStructured(...)`, `emitJSON(...)`.
+- `MCPContentHelpers.swift` — `Value.decode(_:)`, the `DaemonToolCalling` seam, `emitJSON(...)`.
 - `SessionTargetingOptions.swift` — shared `@OptionGroup` for `--session` / `--file`.
 
 `PreviewsMCPApp.swift` routes commands: only `serve` runs `NSApplication`; everything else uses `dispatchMain()` + async `Task`.

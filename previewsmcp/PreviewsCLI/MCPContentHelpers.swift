@@ -32,8 +32,9 @@ enum DecodeStructuredError: Error, CustomStringConvertible {
 /// `structuredContent`. Everything else `DaemonClient.withDaemonClient` does
 /// (connect, spawn, version-mismatch restart, stall detection, log
 /// forwarding) is connection lifecycle, not something command bodies touch —
-/// so it stays on the concrete `Client`/`DaemonClient` and isn't part of this
-/// protocol. A future test double can conform without any real socket.
+/// so it stays on the concrete `PreviewsMCPClient`/`DaemonClient` and isn't
+/// part of this protocol. A future test double can conform without any real
+/// socket.
 protocol DaemonToolCalling: Sendable {
     func callToolStructured(
         name: String,
