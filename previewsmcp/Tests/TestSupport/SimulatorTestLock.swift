@@ -8,77 +8,24 @@ import Foundation
 /// suites concurrently share the host's single CoreSimulator service and
 /// degrade it for both. This lock closes that gap: a blocking flock on a
 /// fixed per-user path, so any workspace's sim-booting tests queue behind
-/// each other machine-wide.
+/// each other machine-wide. `tools/simlock` locks the same path for
+/// examples/ integration runs and ad-hoc shell workloads (#345); the two
+/// path literals must stay in lockstep (guarded by `LockPathParityTests`).
 ///
 /// Ordering: acquire this lock BEFORE `DaemonTestLock`. Sim-booting daemon
 /// tests hold both; daemon-only tests hold only `DaemonTestLock`, so no
 /// cycle is possible. Waiting for the lock counts against a test's
 /// `.timeLimit`, which is the intent — queueing behind another workspace's
 /// sim work is strictly better than racing it.
-///
-/// Uses a blocking flock on a detached thread (same rationale as
-/// `DaemonTestLock`): non-blocking polling from Swift concurrency starves
-/// small cooperative pools.
 public enum SimulatorTestLock {
-    private static let lockPath =
+    public static let lockPath =
         (NSHomeDirectory() as NSString).appendingPathComponent(".previewsmcp/sim.lock")
 
-    /// A held exclusive lock. Call `release()` to let the next waiter proceed;
-    /// pair it with `defer` at the acquisition site.
-    public final class Guard: Sendable {
-        private let fd: Int32
-        fileprivate init(fd: Int32) {
-            self.fd = fd
-        }
-
-        public func release() {
-            _ = flock(fd, LOCK_UN)
-            close(fd)
-        }
-    }
+    public typealias Guard = TestFileLock.Guard
 
     /// Block until the host-wide simulator lock is held, then return a `Guard`
     /// the caller releases (via `defer`) when its critical section ends.
-    ///
-    /// `O_CLOEXEC` is load-bearing: tests spawn children (daemons, `simctl`,
-    /// sim executables) while holding the lock, and an inherited dup of the
-    /// fd would keep the kernel flock held after this process exits — see
-    /// `DaemonRestart.acquireRestartLock` and issue #142.
     public static func acquire() async throws -> Guard {
-        let path = lockPath
-        let fd = try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Int32, Error>) in
-            DispatchQueue.global(qos: .userInitiated).async {
-                let dir = (path as NSString).deletingLastPathComponent
-                try? FileManager.default.createDirectory(
-                    atPath: dir, withIntermediateDirectories: true
-                )
-                let fd = open(path, O_CREAT | O_RDWR | O_CLOEXEC, 0o644)
-                guard fd >= 0 else {
-                    cont.resume(
-                        throwing: NSError(
-                            domain: NSPOSIXErrorDomain, code: Int(errno),
-                            userInfo: [
-                                NSLocalizedDescriptionKey: "open(\(path)) failed",
-                            ]
-                        )
-                    )
-                    return
-                }
-                if flock(fd, LOCK_EX) != 0 {
-                    close(fd)
-                    cont.resume(
-                        throwing: NSError(
-                            domain: NSPOSIXErrorDomain, code: Int(errno),
-                            userInfo: [
-                                NSLocalizedDescriptionKey: "flock failed",
-                            ]
-                        )
-                    )
-                    return
-                }
-                cont.resume(returning: fd)
-            }
-        }
-        return Guard(fd: fd)
+        try await TestFileLock.acquire(lockPath)
     }
 }
