@@ -47,4 +47,23 @@ struct BridgeGeneratorRenderSizeTests {
         #expect(generated.source.contains(".titled"))
         #expect(generated.source.contains("makeKeyAndOrderFront"))
     }
+
+    @Test("non-activating visible window presents titled without taking key or activating")
+    func nonActivatingVisiblePresentsWithoutFocus() {
+        let generated = BridgeGenerator.generateCombinedSource(
+            originalSource: Self.source,
+            closureBody: "TestView()",
+            renderOutputPath: "/tmp/out.png",
+            renderWindow: JITRenderWindow(
+                x: 0, y: 0, width: 800, height: 1000, title: "t", activates: false
+            ),
+            frameSidecarPath: "/tmp/frame.json"
+        )
+        #expect(generated.source.contains(".titled"))
+        #expect(generated.source.contains("orderFrontRegardless"))
+        #expect(!generated.source.contains("makeKeyAndOrderFront"))
+        #expect(!generated.source.contains("activate(ignoringOtherApps"))
+        #expect(generated.source.contains("didMoveNotification"))
+        #expect(generated.source.contains("__previewsmcpWriteWindowState"))
+    }
 }
