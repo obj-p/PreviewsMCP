@@ -1,5 +1,6 @@
 import Foundation
 @testable import PreviewsIOS
+import PreviewsTestSupport
 @preconcurrency import SimulatorBridge
 import Testing
 
@@ -81,6 +82,8 @@ struct SimulatorManagerTests {
             print("No iOS simulator at picker index 0 — skipping")
             return
         }
+        let simLock = try await SimulatorTestLock.acquire()
+        defer { simLock.release() }
         let manager = SimulatorManager()
 
         // Boot, test, then always shutdown — even if assertions fail.
@@ -120,6 +123,8 @@ struct SimulatorManagerTests {
             print("No iOS simulator at picker index 4 — skipping")
             return
         }
+        let simLock = try await SimulatorTestLock.acquire()
+        defer { simLock.release() }
         let manager = SimulatorManager()
 
         // Boot only if needed, and shut down only what we booted, so the test
@@ -154,6 +159,8 @@ struct SimulatorManagerTests {
             print("No iOS simulator at picker index 1 — skipping")
             return
         }
+        let simLock = try await SimulatorTestLock.acquire()
+        defer { simLock.release() }
         let manager = SimulatorManager()
 
         let initial = try await manager.findDevice(udid: target.udid)

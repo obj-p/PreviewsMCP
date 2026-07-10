@@ -1,5 +1,6 @@
 import Foundation
 import MCP
+import PreviewsTestSupport
 import Testing
 
 /// All iOS MCP tests share a single server process and session to avoid
@@ -62,7 +63,10 @@ struct IOSMCPTests {
     )
     func fullIOSWorkflow() async throws {
         // Serialized against the other heavy iOS e2e suites — see the note in
-        // IOSAppServerTests.appServerEndToEnd.
+        // IOSAppServerTests.appServerEndToEnd — and against sim-booting runs
+        // from other checkouts (#336).
+        let simLock = try await SimulatorTestLock.acquire()
+        defer { simLock.release() }
         let lock = try await DaemonTestLock.acquire()
         defer { lock.release() }
 

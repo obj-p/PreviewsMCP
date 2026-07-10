@@ -1,6 +1,7 @@
 import Foundation
 import MCP
 import PreviewsIOS
+import PreviewsTestSupport
 @preconcurrency import SimulatorBridge
 import Testing
 
@@ -20,7 +21,10 @@ struct IOSHIDInputTests {
     )
     func tapAndDrag() async throws {
         // Serialized against the other heavy iOS e2e suites — see the note in
-        // IOSAppServerTests.appServerEndToEnd.
+        // IOSAppServerTests.appServerEndToEnd — and against sim-booting runs
+        // from other checkouts (#336).
+        let simLock = try await SimulatorTestLock.acquire()
+        defer { simLock.release() }
         let lock = try await DaemonTestLock.acquire()
         defer { lock.release() }
 

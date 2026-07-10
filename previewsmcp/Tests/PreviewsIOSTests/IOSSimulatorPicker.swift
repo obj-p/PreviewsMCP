@@ -25,10 +25,11 @@ enum IOSSimulatorPicker {
     /// Current assignments (grep for `IOSSimulatorPicker.pick(index:` to audit):
     ///
     /// - index 0: `SimulatorManagerTests.bootAndShutdown`
-    /// - index 1: `IOSPreviewSessionTests.endToEnd`
-    /// - index 2: `IOSMCPTests.fullIOSWorkflow` (in MCP target; uses UDID
-    ///   via preview_start's `deviceUDID` arg)
-    /// - index 3: `IOSPreviewSessionTests.endToEndUIViewBodyKindProbe`
+    /// - index 1: `SimulatorManagerTests.makeFramebufferStreamer`; shared
+    ///   with `IOSMCPTests.fullIOSWorkflow` (MCP target, via `pickUDID` —
+    ///   different targets never run concurrently)
+    /// - index 2: `IOSHIDInputTests.tapAndDrag` (MCP target)
+    /// - index 3: `IOSAppServerTests.appServerEndToEnd` (MCP target)
     /// - index 4: `SimulatorManagerTests.makeHIDClient`
     ///
     /// Sort order matches the MCP-target sibling's

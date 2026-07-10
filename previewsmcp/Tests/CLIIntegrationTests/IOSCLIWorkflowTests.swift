@@ -1,4 +1,5 @@
 import Foundation
+import PreviewsTestSupport
 import Testing
 
 /// Combined iOS CLI workflow test. Boots one iOS session and exercises
@@ -20,6 +21,8 @@ struct IOSCLIWorkflowTests {
         .timeLimit(.minutes(10))
     )
     func iosCLIWorkflow() async throws {
+        let simLock = try await SimulatorTestLock.acquire()
+        defer { simLock.release() }
         try await DaemonTestLock.run {
             let simResult = try await CLIRunner.runExternal(
                 "/usr/bin/xcrun",

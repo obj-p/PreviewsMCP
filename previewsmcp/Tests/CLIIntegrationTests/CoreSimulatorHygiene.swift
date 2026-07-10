@@ -14,11 +14,12 @@ import os
 ///
 /// Reset that state ONCE per test process, before the first iOS preview boots:
 /// shut every simulator down and bounce CoreSimulatorService so the next boot
-/// starts from a clean service. Call while holding `DaemonTestLock`, which
-/// serializes the sim-touching suites WITHIN this target (its flock path is
-/// per-target); across targets the only guard is this target's `exclusive`
-/// tag, which holds within a single bazel invocation — concurrent separate
-/// invocations are already forbidden by the repo's test-hygiene rules.
+/// starts from a clean service. Call while holding `SimulatorTestLock` (which
+/// serializes sim-booting tests host-wide, so this reset cannot kill another
+/// workspace's live run — #336) and `DaemonTestLock`, which serializes the
+/// sim-touching suites WITHIN this target (its flock path is per-target);
+/// across targets within one invocation the guard is this target's
+/// `exclusive` tag.
 enum CoreSimulatorHygiene {
     private static let didReset = OSAllocatedUnfairLock(initialState: false)
 

@@ -60,5 +60,6 @@ swift_test(
         "//previewsmcp/PreviewsCore",
         "//previewsmcp/PreviewsIOS",
         "//previewsmcp/PreviewsJITLink",
+        "//previewsmcp/Tests/TestSupport",
     ],
 )
