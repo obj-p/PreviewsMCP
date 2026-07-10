@@ -714,7 +714,9 @@ struct IOSPreviewE2ETests {
     /// see the bug. The probe reproduces the crash deterministically on any sub-26
     /// runtime by calling the exact selector ShellMain calls.
     @Test(.enabled(if: preIOS26RuntimePresent), .timeLimit(.minutes(5)))
-    func sceneHostingInitIsUnrecognizedSelectorOnPreIOS26() throws {
+    func sceneHostingInitIsUnrecognizedSelectorOnPreIOS26() async throws {
+        let simLock = try await SimulatorTestLock.acquire()
+        defer { simLock.release() }
         let udid = try IOSPreviewE2ESupport.bootLegacySimulator()
         let probe = try IOSPreviewE2ESupport.compileObjCExecutableForIOSSim(
             source: Self.sceneHostingProbeSource, name: "scene_host_sel_probe"
