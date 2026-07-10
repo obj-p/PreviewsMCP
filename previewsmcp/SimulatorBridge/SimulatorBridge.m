@@ -280,6 +280,7 @@ static Class _loadSimulatorKitHIDClass(NSError **error) {
 - (NSInteger)launchAppWithBundleID:(NSString *)bundleID
                          arguments:(NSArray<NSString *> *)args
                        environment:(NSDictionary<NSString *, NSString *> *)env
+                         suspended:(BOOL)suspended
                              error:(NSError **)error {
   @try {
     NSMutableDictionary *options = [NSMutableDictionary dictionary];
@@ -287,6 +288,8 @@ static Class _loadSimulatorKitHIDClass(NSError **error) {
       options[@"arguments"] = args;
     if (env)
       options[@"environment"] = env;
+    if (suspended)
+      options[@"activate_suspended"] = @YES;
 
     int pid = [(id<_SimDevice>)_simDevice launchApplicationWithID:bundleID
                                                           options:options

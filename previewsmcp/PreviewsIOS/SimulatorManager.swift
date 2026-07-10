@@ -256,6 +256,73 @@ public actor SimulatorManager: SimulatorLister {
         }
     }
 
+    /// Run a blocking SB private-API call on a GCD thread, racing a
+    /// wall-clock deadline. Exactly one resume wins. If the deadline does,
+    /// the blocked thread is abandoned (the call cannot be cancelled — it
+    /// eventually unblocks or leaks with the process) and `onTimeout` is
+    /// returned.
+    private static func runBlockingWithDeadline<T: Sendable>(
+        timeout: TimeInterval,
+        onTimeout: T,
+        _ body: @escaping @Sendable () -> T
+    ) async -> T {
+        await withCheckedContinuation { (cont: CheckedContinuation<T, Never>) in
+            let resumed = OSAllocatedUnfairLock(initialState: false)
+            let queue = DispatchQueue.global(qos: .userInitiated)
+            let finish: @Sendable (T) -> Void = { value in
+                let first = resumed.withLock { done -> Bool in
+                    guard !done else { return false }
+                    done = true
+                    return true
+                }
+                if first { cont.resume(returning: value) }
+            }
+            queue.async { finish(body()) }
+            queue.asyncAfter(deadline: .now() + timeout) { finish(onTimeout) }
+        }
+    }
+
+    /// Launch an app WITHOUT activating it, via CoreSimulator's
+    /// `activate_suspended` launch option: the process runs its launch
+    /// sequence but FrontBoard never brings it to the foreground (#352).
+    ///
+    /// `simctl launch` has no equivalent flag, so this one launch path uses
+    /// the SBDevice private API that `launchApp` retired on PR #141 (it can
+    /// hang unboundably on an intermediate-booted device). The call runs
+    /// under `runBlockingWithDeadline` with a 60s bound: on timeout this
+    /// throws and callers recover the device through their reboot-retry
+    /// loop, same as a hung `simctl launch`.
+    public func launchAppInBackground(
+        udid: String, bundleID: String, arguments: [String]
+    ) async throws -> Int {
+        try ensureLoaded()
+        let sbDevice = try findSBDevice(udid: udid)
+        let result: Result<Int, SimulatorError> = await Self.runBlockingWithDeadline(
+            timeout: 60,
+            onTimeout: .failure(
+                .launchFailed("background launch of \(bundleID) hung (exceeded 60s)")
+            )
+        ) {
+            var error: NSError?
+            let pid = sbDevice.launchApp(
+                withBundleID: bundleID,
+                arguments: arguments,
+                environment: nil,
+                suspended: true,
+                error: &error
+            )
+            guard pid > 0 else {
+                return .failure(
+                    .launchFailed(
+                        error?.localizedDescription ?? "background launch failed for \(bundleID)"
+                    )
+                )
+            }
+            return .success(pid)
+        }
+        return try result.get()
+    }
+
     /// Best-effort terminate of `bundleID` on `udid` via `simctl terminate`.
     ///
     /// Defensive cleanup before re-launching the host: a prior test or
@@ -450,12 +517,9 @@ public actor SimulatorManager: SimulatorLister {
     /// `SBCaptureFramebuffer` is a synchronous private-API C function that
     /// on PR #141 CI has been observed to block indefinitely inside the
     /// kernel when the simulator's display subsystem is in a bad state.
-    /// Swift `Task` cancellation can't preempt a synchronous C call, so
-    /// we dispatch the call onto a background thread and race it against
-    /// a semaphore-based deadline. If the deadline wins, we abandon the
-    /// blocked thread (it will eventually unblock or leak with the
-    /// process) and report `.timedOut` so the caller can retry or fall
-    /// back to the simctl path.
+    /// Swift `Task` cancellation can't preempt a synchronous C call, so it
+    /// runs under `runBlockingWithDeadline`; a deadline win reports
+    /// `.timedOut` so the caller can retry or fall back to the simctl path.
     private enum FramebufferCaptureResult {
         case success(Data)
         case failure(NSError?)
@@ -467,35 +531,12 @@ public actor SimulatorManager: SimulatorLister {
         jpegQuality: Double,
         timeout: TimeInterval
     ) async -> FramebufferCaptureResult {
-        await withCheckedContinuation { (cont: CheckedContinuation<FramebufferCaptureResult, Never>) in
-            let resumed = OSAllocatedUnfairLock<Bool>(initialState: false)
-            let queue = DispatchQueue.global(qos: .userInitiated)
-
-            queue.async {
-                var err: NSError?
-                let data = SBCaptureFramebuffer(sbDevice, jpegQuality, &err)
-                let didResume = resumed.withLock { done -> Bool in
-                    guard !done else { return false }
-                    done = true
-                    return true
-                }
-                guard didResume else { return }
-                if let data {
-                    cont.resume(returning: .success(data as Data))
-                } else {
-                    cont.resume(returning: .failure(err))
-                }
+        await Self.runBlockingWithDeadline(timeout: timeout, onTimeout: .timedOut) {
+            var err: NSError?
+            guard let data = SBCaptureFramebuffer(sbDevice, jpegQuality, &err) else {
+                return .failure(err)
             }
-
-            queue.asyncAfter(deadline: .now() + timeout) {
-                let didResume = resumed.withLock { done -> Bool in
-                    guard !done else { return false }
-                    done = true
-                    return true
-                }
-                guard didResume else { return }
-                cont.resume(returning: .timedOut)
-            }
+            return .success(data as Data)
         }
     }
 

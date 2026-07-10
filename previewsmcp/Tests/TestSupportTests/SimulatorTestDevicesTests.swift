@@ -32,9 +32,9 @@ struct SimulatorTestDevicesTests {
         let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
         let devicesByRuntime = json?["devices"] as? [String: [[String: Any]]] ?? [:]
         let entries = devicesByRuntime.values.joined()
-            .filter { $0["udid"] as? String == first }
+            .filter { $0["name"] as? String == SimulatorTestDevices.name(index: 5) }
         #expect(entries.count == 1)
-        #expect(entries.first?["name"] as? String == SimulatorTestDevices.name(index: 5))
+        #expect(entries.first?["udid"] as? String == first)
         #expect(
             entries.first?["deviceTypeIdentifier"] as? String == SimulatorTestDevices.deviceType
         )
