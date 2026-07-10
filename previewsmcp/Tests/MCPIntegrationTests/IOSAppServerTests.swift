@@ -79,7 +79,9 @@ struct IOSAppServerTests {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = Data(#"{"action":"drag","fromX":0.5,"fromY":0.7,"toX":0.5,"toY":0.3,"steps":12}"#.utf8)
-        let (_, response) = try await URLSession.shared.data(for: request)
+        let (_, response) = try await attributed("control-post") {
+            try await URLSession.shared.data(for: request)
+        }
         #expect((response as? HTTPURLResponse)?.statusCode == 200, "control POST should return 200")
         _ = try await server.awaitSnapshotChange(
             sessionID: sessionID, baseline: beforeDrag, timeout: .seconds(10)
@@ -102,7 +104,9 @@ struct IOSAppServerTests {
             drag.httpBody = Data(
                 #"{"action":"drag","fromX":0.5,"fromY":0.3,"toX":0.5,"toY":0.7,"steps":12}"#.utf8
             )
-            _ = try? await URLSession.shared.data(for: drag)
+            _ = try? await attributed("avcc-keyframe-drag") {
+                try await URLSession.shared.data(for: drag)
+            }
         }
         #expect(tags.contains(0x01), "avcc stream should carry an avcC description")
         #expect(tags.contains(0x02), "avcc stream should carry an H.264 keyframe")
@@ -119,6 +123,44 @@ struct IOSAppServerTests {
             name: "preview_stop", arguments: ["sessionID": .string(sessionID)]
         )
     }
+}
+
+/// Attribution for the #350 residual: `NSURLErrorDomain Code=-1 "(null)"` is
+/// opaque at the top level, and the daemon side already logs healthy (#334),
+/// so the failing layer must be pinned from the client. On error this prints
+/// which await site threw plus the full `NSUnderlyingError`/CFStream cascade
+/// (`_kCFStreamErrorDomainKey`/`CodeKey` carry the POSIX-level cause, e.g.
+/// ECONNRESET vs ECONNREFUSED), then rethrows unchanged.
+private func attributed<T>(
+    _ site: String, _ body: () async throws -> T
+) async rethrows -> T {
+    do {
+        return try await body()
+    } catch {
+        print("APPSERVER-ATTR site=\(site) \(errorChainDump(error))")
+        throw error
+    }
+}
+
+private func errorChainDump(_ error: Error) -> String {
+    var lines = [String]()
+    var current: NSError? = error as NSError
+    var depth = 0
+    while let nsError = current, depth < 6 {
+        var line = "[\(depth)] domain=\(nsError.domain) code=\(nsError.code)"
+        for key in ["_kCFStreamErrorDomainKey", "_kCFStreamErrorCodeKey"] {
+            if let value = nsError.userInfo[key] {
+                line += " \(key)=\(value)"
+            }
+        }
+        if let url = nsError.userInfo[NSURLErrorFailingURLStringErrorKey] {
+            line += " url=\(url)"
+        }
+        lines.append(line)
+        current = nsError.userInfo[NSUnderlyingErrorKey] as? NSError
+        depth += 1
+    }
+    return lines.joined(separator: " | ")
 }
 
 /// Read a bounded sample of an MJPEG stream, asserting the multipart content
@@ -139,12 +181,14 @@ private func readStreamSample(port: Int, limit: Int) async throws -> Data {
     defer { session.invalidateAndCancel() }
     var request = URLRequest(url: URL(string: "http://127.0.0.1:\(port)/stream.mjpeg")!)
     request.timeoutInterval = 15
-    let (bytes, response) = try await session.bytes(for: request)
+    let (bytes, response) = try await attributed("mjpeg-connect") {
+        try await session.bytes(for: request)
+    }
     let contentType = (response as? HTTPURLResponse)?.value(forHTTPHeaderField: "Content-Type") ?? ""
     #expect(contentType.contains("multipart/x-mixed-replace"), "stream should be MJPEG multipart")
 
     let buffer = OSAllocatedUnfairLock(initialState: Data())
-    try await boundedRead(bytes, deadline: .seconds(10)) { byte in
+    try await boundedRead("mjpeg-body", bytes, deadline: .seconds(10)) { byte in
         let count = buffer.withLock {
             $0.append(byte)
             return $0.count
@@ -168,7 +212,9 @@ private func readAVCCTags(
     defer { session.invalidateAndCancel() }
     var request = URLRequest(url: URL(string: "http://127.0.0.1:\(port)/stream.avcc")!)
     request.timeoutInterval = 25
-    let (bytes, response) = try await session.bytes(for: request)
+    let (bytes, response) = try await attributed("avcc-connect") {
+        try await session.bytes(for: request)
+    }
     let contentType = (response as? HTTPURLResponse)?.value(forHTTPHeaderField: "Content-Type") ?? ""
     #expect(contentType.contains("application/octet-stream"), "avcc stream should be octet-stream")
 
@@ -179,7 +225,7 @@ private func readAVCCTags(
         var connected = false
     }
     let state = OSAllocatedUnfairLock(initialState: Parse())
-    try await boundedRead(bytes, deadline: timeout) { byte in
+    try await boundedRead("avcc-body", bytes, deadline: timeout) { byte in
         let fireConnect = state.withLock { parse -> Bool in
             if parse.connected { return false }
             parse.connected = true
@@ -224,7 +270,14 @@ private func readAVCCTags(
 /// suspended task and its dead connection for the remaining test-process
 /// lifetime, which is bounded and harmless. The caller's assertions on
 /// whatever partial data arrived produce the attributable failure.
+///
+/// Every abnormal exit (deadline in any of its three faces, or a genuine
+/// stream error) prints an `APPSERVER-ATTR site=… exit=…` line with the
+/// task's wire-level byte count and task error, so a #350 specimen is
+/// attributed no matter which face it wears; the healthy limit-met exit
+/// stays quiet.
 private func boundedRead(
+    _ site: String,
     _ bytes: URLSession.AsyncBytes,
     deadline: Duration,
     consume: @escaping @Sendable (UInt8) async -> Bool
@@ -234,13 +287,17 @@ private func boundedRead(
             guard await consume(byte) else { break }
         }
     }
-    let resumed = OSAllocatedUnfairLock(initialState: false)
-    func claimResume() -> Bool {
-        resumed.withLock { done in
-            if done { return false }
-            done = true
+    let resolvedBy = OSAllocatedUnfairLock<String?>(initialState: nil)
+    func claimResume(_ who: String) -> Bool {
+        resolvedBy.withLock { claimed in
+            if claimed != nil { return false }
+            claimed = who
             return true
         }
+    }
+    func taskDump() -> String {
+        "wireBytes=\(bytes.task.countOfBytesReceived)"
+            + " taskError=\(bytes.task.error.map(errorChainDump) ?? "nil")"
     }
     do {
         try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
@@ -252,19 +309,30 @@ private func boundedRead(
                 } catch {
                     result = .failure(error)
                 }
-                if claimResume() { cont.resume(with: result) }
+                if claimResume("reader") { cont.resume(with: result) }
             }
             Task {
                 try? await Task.sleep(for: deadline)
                 bytes.task.cancel()
                 reader.cancel()
                 try? await Task.sleep(for: .seconds(2))
-                if claimResume() { cont.resume(returning: ()) }
+                if claimResume("deadline") { cont.resume(returning: ()) }
             }
+        }
+        if resolvedBy.withLock({ $0 }) == "deadline" {
+            print("APPSERVER-ATTR site=\(site) exit=deadline-abandoned \(taskDump())")
         }
     } catch is CancellationError {
         // Deadline: the caller inspects what arrived.
+        print("APPSERVER-ATTR site=\(site) exit=deadline-cancellation \(taskDump())")
     } catch let error as URLError where error.code == .cancelled {
         // Same, surfaced through URLSession instead.
+        print("APPSERVER-ATTR site=\(site) exit=deadline-urlcancelled \(taskDump())")
+    } catch {
+        print(
+            "APPSERVER-ATTR site=\(site) exit=threw \(taskDump())"
+                + " thrown: \(errorChainDump(error))"
+        )
+        throw error
     }
 }
