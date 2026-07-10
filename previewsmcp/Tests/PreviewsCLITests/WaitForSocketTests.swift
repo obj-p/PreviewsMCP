@@ -9,8 +9,8 @@ import Testing
 /// for the real daemon so the test is deterministic and fast.
 @Suite(.serialized)
 struct WaitForSocketTests {
-    /// Point `DaemonPaths` at an empty directory so `canConnect()` is false
-    /// (no `serve.sock`), run `body`, then restore the prior override.
+    /// Point `DaemonPaths` at an empty directory so `DaemonProbe.connect()`
+    /// returns nil (no `serve.sock`), run `body`, then restore the prior override.
     private func withEmptySocketDir(_ body: () async throws -> Void) async throws {
         let key = "PREVIEWSMCP_SOCKET_DIR"
         let previous = ProcessInfo.processInfo.environment[key]
