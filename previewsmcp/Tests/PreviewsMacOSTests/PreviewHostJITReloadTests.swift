@@ -187,6 +187,48 @@ struct PreviewHostJITReloadTests {
         #expect(host.agentWindowSpec(for: "visible") == nil)
     }
 
+    @Test func restoreBakesRecordedContentRect() async throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("p254r-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let sourceFile = dir.appendingPathComponent("ColorView.swift")
+        try """
+        import SwiftUI
+
+        #Preview {
+            Color.red.frame(width: 8, height: 8)
+        }
+        """.write(to: sourceFile, atomically: true, encoding: .utf8)
+
+        let compiler = try await Compiler()
+        let session = PreviewSession(sourceFile: sourceFile, compiler: compiler)
+        let sidecar = PreviewSession.frameSidecarPath(for: session.id)
+        try? FileManager.default.removeItem(at: sidecar)
+        defer { try? FileManager.default.removeItem(at: sidecar) }
+
+        let host = PreviewHost(makeStructuralReloader: { RecordingReloader() })
+        try await host.jitStart(
+            sessionID: "s1", session: session,
+            title: "Preview: ColorView.swift",
+            size: NSSize(width: 320, height: 240), headless: false
+        )
+
+        let recorded: [String: Any] = [
+            "x": 100.0, "y": 200.0, "width": 400.0, "height": 600.0, "key": false,
+        ]
+        try JSONSerialization.data(withJSONObject: recorded).write(to: sidecar)
+
+        try await host.jitStructuralReload(sessionID: "s1", session: session)
+
+        let spec = try #require(host.agentWindowSpec(for: "s1"))
+        #expect(spec.x == 100)
+        #expect(spec.y == 200)
+        #expect(spec.width == 400)
+        #expect(spec.height == 600)
+    }
+
     @Test func unchangedSourceFireDoesNotReload() async throws {
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent("p297u-\(UUID().uuidString)", isDirectory: true)

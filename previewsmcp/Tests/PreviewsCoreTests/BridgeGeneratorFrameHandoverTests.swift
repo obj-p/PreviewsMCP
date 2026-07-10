@@ -29,7 +29,13 @@ struct BridgeGeneratorFrameHandoverTests {
         )
         #expect(generated.source.contains("didMoveNotification"))
         #expect(generated.source.contains("didResizeNotification"))
+        #expect(generated.source.contains("didBecomeKeyNotification"))
+        #expect(generated.source.contains("didResignKeyNotification"))
         #expect(generated.source.contains("/tmp/frame.json"))
+        #expect(generated.source.contains("recordPreviewWindowState"))
+        #expect(generated.source.contains("makeKeyAndOrderFront"))
+        #expect(generated.source.contains("orderFrontRegardless"))
+        #expect(generated.source.contains("displayIfNeeded"))
     }
 
     @Test("headless render window installs no frame observers")
@@ -45,5 +51,7 @@ struct BridgeGeneratorFrameHandoverTests {
         )
         #expect(!generated.source.contains("didMoveNotification"))
         #expect(!generated.source.contains("didResizeNotification"))
+        #expect(!generated.source.contains("recordPreviewWindowState"))
+        #expect(!generated.source.contains("makeKeyAndOrderFront"))
     }
 }

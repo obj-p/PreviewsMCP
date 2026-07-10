@@ -224,6 +224,16 @@ struct CappedPersistentTests {
         try agent.addObject(path: probe.path)
         let bits = try agent.runOnMain(symbol: "preview_window_spec_probe")
         #expect(bits == 15, "bits=\(bits)")
+
+        // The visible path rasters before the window is first presented; the PNG must
+        // still contain the rendered content, not an empty backing store.
+        let rep = try #require(NSBitmapImageRep(data: Data(contentsOf: build.imagePath)))
+        let color = try #require(
+            rep.colorAt(x: rep.pixelsWide / 2, y: rep.pixelsHigh / 2)?
+                .usingColorSpace(.deviceRGB)
+        )
+        #expect(color.greenComponent > 0.5)
+        #expect(color.redComponent < 0.5)
     }
 
     @Test func bridgeRecordsWindowFrameOnMoveAndResize() async throws {
@@ -284,8 +294,14 @@ struct CappedPersistentTests {
         #expect(try agent.runOnMain(symbol: "preview_move_probe") == 0)
 
         let frame = try #require(PreviewSession.storedWindowFrame(for: session.id))
-        #expect(frame.width == 321)
-        #expect(frame.height == 654)
+        let content = await MainActor.run {
+            NSWindow.contentRect(
+                forFrameRect: NSRect(x: -8000, y: -7000, width: 321, height: 654),
+                styleMask: [.titled, .closable, .miniaturizable, .resizable]
+            )
+        }
+        #expect(frame.width == Double(content.width))
+        #expect(frame.height == Double(content.height))
         #expect(frame.x != -9000)
         #expect(frame.y != -9000)
     }

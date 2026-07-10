@@ -17,11 +17,11 @@ struct PreviewSessionFrameSidecarTests {
         #expect(PreviewSession.storedWindowFrame(for: "no-such-session-\(UUID().uuidString)") == nil)
     }
 
-    @Test("stored window frame round-trips a written sidecar")
+    @Test("stored window frame round-trips a written sidecar, tolerating agent-only fields")
     func roundTrips() throws {
         let id = "frame-test-\(UUID().uuidString)"
         let url = PreviewSession.frameSidecarPath(for: id)
-        let dict: [String: Double] = ["x": 12, "y": 34, "width": 567, "height": 890]
+        let dict: [String: Any] = ["x": 12, "y": 34, "width": 567, "height": 890, "key": false]
         try JSONSerialization.data(withJSONObject: dict).write(to: url)
         defer { try? FileManager.default.removeItem(at: url) }
 

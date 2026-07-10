@@ -28,6 +28,10 @@ public struct JITRenderBuild: Sendable {
     /// The generated `@_cdecl` setup entry (`previewSetUp`), present when the session has a
     /// setup plugin. The reloader runs it once per agent process before the first render.
     public let setupEntrySymbol: String?
+    /// The generated `@_cdecl` window-state entry (`recordPreviewWindowState`), present for
+    /// visible macOS sessions. The reloader runs it after a respawn handoff kills the outgoing
+    /// agent, so the sidecar's last write describes the surviving window (#254).
+    public let windowStateEntrySymbol: String?
 
     public init(
         objectPath: URL,
@@ -39,7 +43,8 @@ public struct JITRenderBuild: Sendable {
         archivePaths: [URL] = [],
         dylibPaths: [URL] = [],
         requiresFreshAgent: Bool = false,
-        setupEntrySymbol: String? = nil
+        setupEntrySymbol: String? = nil,
+        windowStateEntrySymbol: String? = nil
     ) {
         self.objectPath = objectPath
         self.imagePath = imagePath
@@ -51,6 +56,7 @@ public struct JITRenderBuild: Sendable {
         self.dylibPaths = dylibPaths
         self.requiresFreshAgent = requiresFreshAgent
         self.setupEntrySymbol = setupEntrySymbol
+        self.windowStateEntrySymbol = windowStateEntrySymbol
     }
 }
 
@@ -132,7 +138,9 @@ public actor PreviewSession {
             .appendingPathComponent("previewsmcp-jit-frame-\(id).json")
     }
 
-    /// A window frame recorded by the agent for a session.
+    /// A window placement (content rect) recorded by the agent for a session. The sidecar also
+    /// carries a live key-status field, but that is written and read only by generated agent
+    /// code (#254); the daemon never interprets or writes it.
     public struct WindowFrame: Sendable {
         public let x: Double
         public let y: Double
@@ -143,8 +151,9 @@ public actor PreviewSession {
     /// The last window frame the agent recorded for this session, or nil when none was written.
     public nonisolated static func storedWindowFrame(for id: String) -> WindowFrame? {
         guard let data = try? Data(contentsOf: frameSidecarPath(for: id)),
-              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Double],
-              let x = obj["x"], let y = obj["y"], let width = obj["width"], let height = obj["height"]
+              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let x = obj["x"] as? Double, let y = obj["y"] as? Double,
+              let width = obj["width"] as? Double, let height = obj["height"] as? Double
         else { return nil }
         return WindowFrame(x: x, y: y, width: width, height: height)
     }
@@ -296,7 +305,8 @@ public actor PreviewSession {
             archivePaths: archivePaths,
             dylibPaths: dylibPaths,
             requiresFreshAgent: requiresFreshAgent,
-            setupEntrySymbol: hasSetup ? "previewSetUp" : nil
+            setupEntrySymbol: hasSetup ? "previewSetUp" : nil,
+            windowStateEntrySymbol: window?.headless == false ? "recordPreviewWindowState" : nil
         )
         lastJITBuild = build
         return build

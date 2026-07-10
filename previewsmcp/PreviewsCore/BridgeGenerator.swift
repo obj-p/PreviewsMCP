@@ -5,6 +5,9 @@ import Foundation
 /// or a borderless off-screen window used only to render at the requested size (snapshots,
 /// headless daemons). Applied only when the agent creates the window, so a user's later drag or
 /// resize survives leaf edits. Nil means no spec at all — a borderless off-screen default size.
+/// Whether a new visible window takes key status is not baked: the generated entry decides at
+/// render time from the sidecar's live key record, so a focus change during the compile never
+/// steals or drops focus (#254).
 public struct JITRenderWindow: Sendable {
     public let x: Double
     public let y: Double
@@ -215,8 +218,9 @@ public enum BridgeGenerator {
     ) -> String {
         let seed = designTimeSeed(valuesPath)
         let createWindow: String
-        let presentNewWindow: String
-        let frameObservers: String
+        let preRasterPresent: String
+        let postRasterPresent: String
+        let stateWriter: String
         if let window, !window.headless {
             let title = escapedForSwiftStringLiteral(window.title)
             createWindow = """
@@ -228,15 +232,37 @@ public enum BridgeGenerator {
                                 styleMask: [.titled, .closable, .miniaturizable, .resizable],
                                 backing: .buffered, defer: false)
                             created.title = "\(title)"
+                            created.animationBehavior = .none
             """
-            // A visible window takes key status and activates the agent once, at
-            // creation, matching what the daemon's dylib window start used to do.
-            // Re-renders use orderFrontRegardless so edits never steal focus.
-            presentNewWindow = """
-            window.makeKeyAndOrderFront(nil)
-                            NSApplication.shared.activate(ignoringOtherApps: true)
+            // A new visible window is presented only after the raster succeeds, so a
+            // failing render never flashes a half-built window over the previous
+            // generation (the daemon keeps the old agent alive on failure). It takes key
+            // and activates only when the sidecar's live record says the outgoing window
+            // was key at this instant — decided at render time, not compile time, so a
+            // focus change during the compile never steals or drops focus. The trailing
+            // flush pushes the first frame to the WindowServer before the entry returns,
+            // because that return is the daemon's kill-the-old-agent signal.
+            preRasterPresent = """
+            if !isNewWindow {
+                                window.orderFrontRegardless()
+                            }
             """
-            frameObservers = frameSidecarPath.map(frameObserverCode) ?? ""
+            postRasterPresent = """
+            if isNewWindow {
+                                \(frameSidecarPath.map(runtimeKeyDecisionCode) ?? "let __takeKey = true")
+                                if __takeKey {
+                                    window.makeKeyAndOrderFront(nil)
+                                    NSApplication.shared.activate(ignoringOtherApps: true)
+                                } else {
+                                    window.orderFrontRegardless()
+                                }
+                                \(frameSidecarPath != nil ? frameObserverCode() : "")
+                                \(frameSidecarPath != nil ? "__previewsmcpWriteWindowState(window)" : "")
+                                window.displayIfNeeded()
+                                CATransaction.flush()
+                            }
+            """
+            stateWriter = frameSidecarPath.map(windowStateWriterCode) ?? ""
         } else {
             // Headless spec or no spec: a borderless off-screen window used only to render at
             // the requested size, never shown or activated. Falls back to 400x600 with no spec.
@@ -248,10 +274,15 @@ public enum BridgeGenerator {
                                 styleMask: [.borderless], backing: .buffered, defer: false)
                             created.setFrameOrigin(NSPoint(x: -10_000, y: -10_000))
             """
-            presentNewWindow = "window.orderFrontRegardless()"
-            frameObservers = ""
+            preRasterPresent = """
+            window.orderFrontRegardless()
+                            _ = isNewWindow
+            """
+            postRasterPresent = ""
+            stateWriter = ""
         }
         return """
+        \(stateWriter)
         @_cdecl("renderPreviewToFile")
         public func renderPreviewToFile() -> Int32 {
             MainActor.assumeIsolated {
@@ -271,12 +302,7 @@ public enum BridgeGenerator {
                 let hosting = NSHostingView(rootView: view)
                 hosting.sizingOptions = []
                 window.contentView = hosting
-                if isNewWindow {
-                    \(presentNewWindow)
-                    \(frameObservers)
-                } else {
-                    window.orderFrontRegardless()
-                }
+                \(preRasterPresent)
                 hosting.layoutSubtreeIfNeeded()
                 let bounds = hosting.bounds
                 guard bounds.width > 0, bounds.height > 0,
@@ -303,9 +329,64 @@ public enum BridgeGenerator {
                 } catch {
                     return Int32(-3)
                 }
+                \(postRasterPresent)
                 return 0
             }
         }
+        """
+    }
+
+    /// Top-level helper (visible windows with a sidecar) that atomically records the window's
+    /// content rect and key status. Called by the frame/key observers, once at first
+    /// presentation, and by the `recordPreviewWindowState` entry the reloader runs after a
+    /// handoff kills the outgoing agent — the last write is then guaranteed to describe the
+    /// surviving window, without the daemon ever writing the sidecar itself.
+    private static func windowStateWriterCode(sidecarPath: String) -> String {
+        """
+        @MainActor
+        func __previewsmcpWriteWindowState(_ __win: NSWindow) {
+            let __f = __win.contentRect(forFrameRect: __win.frame)
+            let __dict: [String: Any] = [
+                "x": __f.origin.x, "y": __f.origin.y,
+                "width": __f.size.width, "height": __f.size.height,
+                "key": __win.isKeyWindow,
+            ]
+            if let __data = try? JSONSerialization.data(withJSONObject: __dict) {
+                try? __data.write(
+                    to: URL(fileURLWithPath: "\(escapedForSwiftStringLiteral(sidecarPath))"),
+                    options: .atomic)
+            }
+        }
+
+        @_cdecl("recordPreviewWindowState")
+        public func recordPreviewWindowState() -> Int32 {
+            MainActor.assumeIsolated {
+                let identifier = NSUserInterfaceItemIdentifier("previewsmcp-preview")
+                guard
+                    let window = NSApplication.shared.windows.first(where: {
+                        $0.identifier == identifier
+                    })
+                else { return Int32(-1) }
+                __previewsmcpWriteWindowState(window)
+                return 0
+            }
+        }
+        """
+    }
+
+    /// Reads the sidecar's live key record to decide whether the replacement window takes key.
+    /// Absent sidecar or key field means the window never reported otherwise: take key,
+    /// matching a session's first visible window.
+    private static func runtimeKeyDecisionCode(sidecarPath: String) -> String {
+        """
+        var __takeKey = true
+                            if let __data = try? Data(
+                                contentsOf: URL(fileURLWithPath: "\(escapedForSwiftStringLiteral(sidecarPath))")),
+                                let __obj = try? JSONSerialization.jsonObject(with: __data) as? [String: Any],
+                                let __key = __obj["key"] as? Bool
+                            {
+                                __takeKey = __key
+                            }
         """
     }
 
@@ -334,32 +415,27 @@ public enum BridgeGenerator {
         """
     }
 
-    /// Code (run once when the agent creates its visible window) that records the window's frame
-    /// to `sidecarPath` on every move/resize. A respawned agent reads it back so the user's
-    /// dragged/resized window is restored across non-leaf structural edits (#195). Reads the frame
-    /// off the notification's window so the `@Sendable` observer closure captures only the path.
-    private static func frameObserverCode(sidecarPath: String) -> String {
+    /// Code (run once when the agent creates its visible window) that records the window's
+    /// state via `__previewsmcpWriteWindowState` on every move/resize/key change. A respawned
+    /// agent reads it back so the user's dragged/resized window is restored across non-leaf
+    /// structural edits (#195) and the handoff replacement only takes key when the outgoing
+    /// window had it (#254). The content rect (not the frame) is recorded because that is what
+    /// window creation bakes, so readers never need the window's style mask.
+    private static func frameObserverCode() -> String {
         """
-        let __frameURL = URL(fileURLWithPath: "\(escapedForSwiftStringLiteral(sidecarPath))")
-                        let __recordFrame: @Sendable (Notification) -> Void = { __note in
-                            MainActor.assumeIsolated {
-                                guard let __win = __note.object as? NSWindow else { return }
-                                let __f = __win.frame
-                                let __dict: [String: Double] = [
-                                    "x": __f.origin.x, "y": __f.origin.y,
-                                    "width": __f.size.width, "height": __f.size.height,
-                                ]
-                                if let __data = try? JSONSerialization.data(withJSONObject: __dict) {
-                                    try? __data.write(to: __frameURL, options: .atomic)
+        for __name in [
+                                NSWindow.didMoveNotification, NSWindow.didResizeNotification,
+                                NSWindow.didBecomeKeyNotification, NSWindow.didResignKeyNotification,
+                            ] {
+                                NotificationCenter.default.addObserver(
+                                    forName: __name, object: window, queue: nil
+                                ) { __note in
+                                    MainActor.assumeIsolated {
+                                        guard let __win = __note.object as? NSWindow else { return }
+                                        __previewsmcpWriteWindowState(__win)
+                                    }
                                 }
                             }
-                        }
-                        NotificationCenter.default.addObserver(
-                            forName: NSWindow.didMoveNotification, object: window, queue: nil,
-                            using: __recordFrame)
-                        NotificationCenter.default.addObserver(
-                            forName: NSWindow.didResizeNotification, object: window, queue: nil,
-                            using: __recordFrame)
         """
     }
 

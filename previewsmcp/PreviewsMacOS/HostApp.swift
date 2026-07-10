@@ -195,9 +195,11 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
         return try await jitRender(sessionID: sessionID, build: build)
     }
 
-    /// Before a structural reload, bake the agent's last recorded window frame into the session's
-    /// spec so a respawned agent restores the user's dragged/resized window instead of recentering
-    /// (#195). Only for visible sessions; absent sidecar keeps the stored spec unchanged.
+    /// Before a structural reload, bake the agent's last recorded window placement into the
+    /// session's spec so a respawned agent restores the user's dragged/resized window instead
+    /// of recentering (#195). The sidecar records the content rect — the same space the spec
+    /// bakes — so no frame conversion happens here. Only for visible sessions; absent sidecar
+    /// keeps the stored spec unchanged.
     private func restoreAgentWindowFrame(sessionID: String, session: PreviewSession) {
         guard let spec = agentWindowSpecs[sessionID], !spec.headless,
               let frame = PreviewSession.storedWindowFrame(for: session.id)
