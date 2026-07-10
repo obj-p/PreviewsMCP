@@ -39,10 +39,10 @@
   <rect x="162" y="176" width="34" height="10" rx="5" fill="#67B7A4"/>
 
   <!-- Refresh arrows (top pink, bottom cyan) on the seam -->
-  <g>
-    <path d="M 119 144 A 9 9 0 0 1 135 140" fill="none" stroke="#FF7AB2" stroke-width="3" stroke-linecap="round"/>
-    <path d="M -5 -4 L 0 0 L -5 4" fill="none" stroke="#FF7AB2" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" transform="translate(135 140) rotate(30)"/>
-    <path d="M 137 148 A 9 9 0 0 1 121 152" fill="none" stroke="#5DD8FF" stroke-width="3" stroke-linecap="round"/>
-    <path d="M -5 -4 L 0 0 L -5 4" fill="none" stroke="#5DD8FF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" transform="translate(121 152) rotate(-150)"/>
+  <g stroke-linecap="round" stroke-linejoin="round">
+    <path d="M 117.86 150.72 A 10.5 10.5 0 0 1 134.02 139.4" fill="none" stroke="#FF7AB2" stroke-width="3"/>
+    <path d="M 137.23 141.65 L 129.52 142.43 L 135.37 134.53 Z" fill="#FF7AB2" stroke="#FF7AB2" stroke-width="1.5"/>
+    <path d="M 138.14 145.28 A 10.5 10.5 0 0 1 121.98 156.6" fill="none" stroke="#5DD8FF" stroke-width="3"/>
+    <path d="M 118.9 154.85 L 125.9 153.58 L 120.77 161.3 Z" fill="#5DD8FF" stroke="#5DD8FF" stroke-width="1.5"/>
   </g>
 </svg>
