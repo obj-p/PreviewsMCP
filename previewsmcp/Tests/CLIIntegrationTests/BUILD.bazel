@@ -30,4 +30,5 @@ swift_test(
         "local",
     ],
     visibility = ["//visibility:public"],
+    deps = ["//previewsmcp/Tests/TestSupport"],
 )

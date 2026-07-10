@@ -1,4 +1,5 @@
 import Foundation
+import PreviewsTestSupport
 import Testing
 
 @Suite("CLI snapshot command", .serialized)
@@ -349,6 +350,8 @@ struct SnapshotCommandTests {
             print("iOS JIT resources not bundled — skipping iOS snapshot test")
             return
         }
+        let simLock = try await SimulatorTestLock.acquire()
+        defer { simLock.release() }
         try await DaemonTestLock.run {
             try await Self.cleanSlate()
             let simResult = try await CLIRunner.runExternal(

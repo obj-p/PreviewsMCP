@@ -1,5 +1,6 @@
 import Foundation
 @testable import PreviewsIOS
+import PreviewsTestSupport
 @preconcurrency import SimulatorBridge
 import Testing
 
@@ -63,6 +64,8 @@ struct SimulatorManagerTests {
 
     @Test("Boot and shutdown a device")
     func bootAndShutdown() async throws {
+        let simLock = try await SimulatorTestLock.acquire()
+        defer { simLock.release() }
         // Each test that boots a simulator gets its OWN device (distinct
         // IOSSimulatorPicker index) so the three iOS test suites don't
         // contend for the same device when Swift Testing runs them in
@@ -116,6 +119,8 @@ struct SimulatorManagerTests {
 
     @Test("Create a daemon-side HID client against a booted device")
     func makeHIDClient() async throws {
+        let simLock = try await SimulatorTestLock.acquire()
+        defer { simLock.release() }
         guard let target = try await IOSSimulatorPicker.pick(index: 4) else {
             print("No iOS simulator at picker index 4 — skipping")
             return
@@ -150,6 +155,8 @@ struct SimulatorManagerTests {
 
     @Test("Create a daemon-side framebuffer streamer against a booted device")
     func makeFramebufferStreamer() async throws {
+        let simLock = try await SimulatorTestLock.acquire()
+        defer { simLock.release() }
         guard let target = try await IOSSimulatorPicker.pick(index: 1) else {
             print("No iOS simulator at picker index 1 — skipping")
             return

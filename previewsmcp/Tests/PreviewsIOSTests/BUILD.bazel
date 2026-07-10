@@ -11,5 +11,8 @@ swift_test(
     env = {"PREVIEWSMCP_IOS_JIT_DIR": "$(rlocationpath //:ios_jit_resources)"},
     tags = ["local"],
     visibility = ["//visibility:public"],
-    deps = ["//previewsmcp/PreviewsIOS"],
+    deps = [
+        "//previewsmcp/PreviewsIOS",
+        "//previewsmcp/Tests/TestSupport",
+    ],
 )

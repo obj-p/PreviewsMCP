@@ -2,6 +2,7 @@ import Foundation
 import MCP
 import os
 import PreviewsIOS
+import PreviewsTestSupport
 import Testing
 
 /// Verifies the per-session app interface that the daemon hosts in-process:
@@ -27,6 +28,10 @@ struct IOSAppServerTests {
         // are .disabled on CI) three sims booting and driving their displays at
         // once starve the single host GPU/window-server, so whichever loses the
         // race flakes. One sim at a time keeps each render/capture healthy.
+        // The host lock extends that to sim-booting runs from other
+        // checkouts (#336).
+        let simLock = try await SimulatorTestLock.acquire()
+        defer { simLock.release() }
         let lock = try await DaemonTestLock.acquire()
         defer { lock.release() }
 

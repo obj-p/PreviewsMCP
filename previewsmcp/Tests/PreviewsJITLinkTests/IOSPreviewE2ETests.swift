@@ -2,6 +2,7 @@ import Foundation
 import PreviewsCore
 import PreviewsIOS
 import PreviewsJITLink
+import PreviewsTestSupport
 import Testing
 
 /// End-to-end iOS preview tests: the daemon builds the real agent app, boots the
@@ -32,6 +33,8 @@ struct IOSPreviewE2ETests {
     /// the termination handler, proving in-session spawn works without xcrun.
     @Test(.enabled(if: jitOrcRuntimePresent), .timeLimit(.minutes(5)))
     func spawnInSessionRunsProgramAndReportsExit() async throws {
+        let simLock = try await SimulatorTestLock.acquire()
+        defer { simLock.release() }
         let udid = try IOSPreviewE2ESupport.bootSimulator()
         let exe = try IOSPreviewE2ESupport.compileExecutableForIOSSim(
             source: "int main(void) { return 0; }", name: "trivial_exit"
@@ -62,6 +65,8 @@ struct IOSPreviewE2ETests {
     /// the daemon-side spawn a viable launch primitive (the plan's fallback).
     @Test(.enabled(if: jitOrcRuntimePresent), .timeLimit(.minutes(5)))
     func inSessionSpawnGetsHostLoopbackNetworking() async throws {
+        let simLock = try await SimulatorTestLock.acquire()
+        defer { simLock.release() }
         let udid = try IOSPreviewE2ESupport.bootSimulator()
         let exe = try IOSPreviewE2ESupport.compileExecutableForIOSSim(
             source: """
@@ -113,6 +118,8 @@ struct IOSPreviewE2ETests {
     /// mode needs no preview dylib, so the app launches with `--jit-port` alone.
     @Test(.enabled(if: jitOrcRuntimePresent), .timeLimit(.minutes(10)))
     func hostsRemoteSessionInRealHostApp() async throws {
+        let simLock = try await SimulatorTestLock.acquire()
+        defer { simLock.release() }
         let udid = try IOSPreviewE2ESupport.bootSimulator()
         let object = try IOSPreviewE2ESupport.compileForIOSSim("answer.c")
         let appPath = try await IOSAgentBuilder().ensureAgentApp()
@@ -147,6 +154,8 @@ struct IOSPreviewE2ETests {
     /// (it links answer.c and runs 42 inside the closure).
     @Test(.enabled(if: jitOrcRuntimePresent), .timeLimit(.minutes(10)))
     func productionSessionEstablishesJITOverSecondSocket() async throws {
+        let simLock = try await SimulatorTestLock.acquire()
+        defer { simLock.release() }
         let udid = try IOSPreviewE2ESupport.bootSimulator()
         let object = try IOSPreviewE2ESupport.compileForIOSSim("answer.c")
 
@@ -192,6 +201,8 @@ struct IOSPreviewE2ETests {
     /// must then contain the rendered text — proving the preview renders over JIT, not dylib.
     @Test(.enabled(if: jitOrcRuntimePresent), .timeLimit(.minutes(10)))
     func endToEndRendersOverJIT() async throws {
+        let simLock = try await SimulatorTestLock.acquire()
+        defer { simLock.release() }
         let udid = try IOSPreviewE2ESupport.bootSimulator()
 
         let tempDir = FileManager.default.temporaryDirectory
@@ -242,6 +253,8 @@ struct IOSPreviewE2ETests {
     /// agent stays non-`active` across respawn, where the value is meaningful.
     @Test(.enabled(if: jitOrcRuntimePresent), .timeLimit(.minutes(10)))
     func agentReportsForegroundLifecycleState() async throws {
+        let simLock = try await SimulatorTestLock.acquire()
+        defer { simLock.release() }
         let udid = try IOSPreviewE2ESupport.bootSimulator()
 
         let tempDir = FileManager.default.temporaryDirectory
@@ -290,6 +303,8 @@ struct IOSPreviewE2ETests {
     /// restart, which is how leaked `__swift5_*`/ObjC metadata is reclaimed.
     @Test(.enabled(if: jitOrcRuntimePresent), .timeLimit(.minutes(10)))
     func relaunchReRendersCurrentPreview() async throws {
+        let simLock = try await SimulatorTestLock.acquire()
+        defer { simLock.release() }
         let udid = try IOSPreviewE2ESupport.bootSimulator()
 
         let tempDir = FileManager.default.temporaryDirectory
@@ -352,6 +367,8 @@ struct IOSPreviewE2ETests {
     /// assertion (the signal is visual); saves frames to /tmp/flashfree-gap.
     @Test(.enabled(if: jitOrcRuntimePresent), .timeLimit(.minutes(10)))
     func flashFreeRespawnGap() async throws {
+        let simLock = try await SimulatorTestLock.acquire()
+        defer { simLock.release() }
         let udid = try IOSPreviewE2ESupport.bootSimulator()
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("previewsmcp-gap-\(UUID().uuidString)")
@@ -420,6 +437,8 @@ struct IOSPreviewE2ETests {
     /// red before it.
     @Test(.enabled(if: jitOrcRuntimePresent), .timeLimit(.minutes(10)))
     func stopWaitsOutInFlightRespawn() async throws {
+        let simLock = try await SimulatorTestLock.acquire()
+        defer { simLock.release() }
         let udid = try IOSPreviewE2ESupport.bootSimulator()
 
         let tempDir = FileManager.default.temporaryDirectory
@@ -496,6 +515,8 @@ struct IOSPreviewE2ETests {
     /// tracking reloader asserts no two renders overlap when many edits fire at once.
     @Test(.enabled(if: jitOrcRuntimePresent), .timeLimit(.minutes(10)))
     func concurrentEditsSerialize() async throws {
+        let simLock = try await SimulatorTestLock.acquire()
+        defer { simLock.release() }
         let udid = try IOSPreviewE2ESupport.bootSimulator()
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("previewsmcp-ios-jit-serialize-\(UUID().uuidString)")
@@ -552,6 +573,8 @@ struct IOSPreviewE2ETests {
     /// second render carried a fresh object path.
     @Test(.enabled(if: jitOrcRuntimePresent), .timeLimit(.minutes(10)))
     func literalEditReSeedsSameObjectWithoutRecompile() async throws {
+        let simLock = try await SimulatorTestLock.acquire()
+        defer { simLock.release() }
         let udid = try IOSPreviewE2ESupport.bootSimulator()
 
         let tempDir = FileManager.default.temporaryDirectory
@@ -625,6 +648,8 @@ struct IOSPreviewE2ETests {
     /// After the fix the banner's `dev@example.com` appears in the a11y tree.
     @Test(.enabled(if: jitOrcRuntimePresent), .timeLimit(.minutes(10)))
     func endToEndRendersSetupWrappedOverJIT() async throws {
+        let simLock = try await SimulatorTestLock.acquire()
+        defer { simLock.release() }
         let udid = try IOSPreviewE2ESupport.bootSimulator()
 
         let hot = Self.packageRoot
