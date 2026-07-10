@@ -7,7 +7,9 @@ import Foundation
 /// resize survives leaf edits. Nil means no spec at all — a borderless off-screen default size.
 /// Whether a new visible window takes key status is not baked: the generated entry decides at
 /// render time from the sidecar's live key record, so a focus change during the compile never
-/// steals or drops focus (#254).
+/// steals or drops focus (#254). `activates: false` opts a visible window out of that decision
+/// entirely — it is presented with `orderFrontRegardless()` and never takes key or activates
+/// the app, for callers that need a real on-screen window without stealing focus (#358).
 public struct JITRenderWindow: Sendable {
     public let x: Double
     public let y: Double
@@ -15,9 +17,11 @@ public struct JITRenderWindow: Sendable {
     public let height: Double
     public let title: String
     public let headless: Bool
+    public let activates: Bool
 
     public init(
-        x: Double, y: Double, width: Double, height: Double, title: String, headless: Bool = false
+        x: Double, y: Double, width: Double, height: Double, title: String,
+        headless: Bool = false, activates: Bool = true
     ) {
         self.x = x
         self.y = y
@@ -25,6 +29,7 @@ public struct JITRenderWindow: Sendable {
         self.height = height
         self.title = title
         self.headless = headless
+        self.activates = activates
     }
 }
 
@@ -239,23 +244,31 @@ public enum BridgeGenerator {
             // generation (the daemon keeps the old agent alive on failure). It takes key
             // and activates only when the sidecar's live record says the outgoing window
             // was key at this instant — decided at render time, not compile time, so a
-            // focus change during the compile never steals or drops focus. The trailing
-            // flush pushes the first frame to the WindowServer before the entry returns,
-            // because that return is the daemon's kill-the-old-agent signal.
+            // focus change during the compile never steals or drops focus. A spec with
+            // `activates: false` skips that decision and never takes key or activates
+            // the app (#358). The trailing flush pushes the first frame to the
+            // WindowServer before the entry returns, because that return is the
+            // daemon's kill-the-old-agent signal.
             preRasterPresent = """
             if !isNewWindow {
                                 window.orderFrontRegardless()
                             }
             """
+            let firstPresent =
+                window.activates
+                    ? """
+                    \(frameSidecarPath.map(runtimeKeyDecisionCode) ?? "let __takeKey = true")
+                                    if __takeKey {
+                                        window.makeKeyAndOrderFront(nil)
+                                        NSApplication.shared.activate(ignoringOtherApps: true)
+                                    } else {
+                                        window.orderFrontRegardless()
+                                    }
+                    """
+                    : "window.orderFrontRegardless()"
             postRasterPresent = """
             if isNewWindow {
-                                \(frameSidecarPath.map(runtimeKeyDecisionCode) ?? "let __takeKey = true")
-                                if __takeKey {
-                                    window.makeKeyAndOrderFront(nil)
-                                    NSApplication.shared.activate(ignoringOtherApps: true)
-                                } else {
-                                    window.orderFrontRegardless()
-                                }
+                                \(firstPresent)
                                 \(frameSidecarPath != nil ? frameObserverCode() : "")
                                 \(frameSidecarPath != nil ? "__previewsmcpWriteWindowState(window)" : "")
                                 window.displayIfNeeded()

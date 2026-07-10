@@ -185,7 +185,7 @@ struct CappedPersistentTests {
         let build = try await session.compileObjectForJIT(
             window: JITRenderWindow(
                 x: -9000, y: -9000, width: 320, height: 240,
-                title: "Preview: ColorView.swift"
+                title: "Preview: ColorView.swift", activates: false
             )
         )
 
@@ -210,6 +210,9 @@ struct CappedPersistentTests {
                         bits |= 4
                     }
                     if window.styleMask.contains(.titled) { bits |= 8 }
+                    if !NSApplication.shared.isActive { bits |= 16 }
+                    if !window.isKeyWindow { bits |= 32 }
+                    if window.isVisible { bits |= 64 }
                     return bits
                 }
             }
@@ -217,13 +220,30 @@ struct CappedPersistentTests {
             moduleName: "WindowSpecProbeFixture"
         )
 
+        // A second-generation build from the activating template keeps that codegen
+        // runtime-executed: rendering it against the existing window takes the
+        // window-reuse path, so nothing activates and the focus assertions below
+        // still hold (#358).
+        let activatingBuild = try await session.compileObjectForJIT(
+            window: JITRenderWindow(
+                x: -9000, y: -9000, width: 320, height: 240,
+                title: "Preview: ColorView.swift"
+            )
+        )
+
         let agent = try JITSession(remoteAgentPath: JITSession.bundledAgentPath())
         try agent.addObject(path: build.objectPath.path)
         #expect(try agent.runOnMain(symbol: build.entrySymbol) == 0)
         try agent.newGeneration()
+        try agent.addObject(path: activatingBuild.objectPath.path)
+        #expect(try agent.runOnMain(symbol: activatingBuild.entrySymbol) == 0)
+        try agent.newGeneration()
         try agent.addObject(path: probe.path)
+        // Bits 16/32/64 pin `activates: false` (#358): the window must be presented,
+        // but the agent app must never have been activated and the window must
+        // never have taken key.
         let bits = try agent.runOnMain(symbol: "preview_window_spec_probe")
-        #expect(bits == 15, "bits=\(bits)")
+        #expect(bits == 127, "bits=\(bits)")
 
         // The visible path rasters before the window is first presented; the PNG must
         // still contain the rendered content, not an empty backing store.
@@ -257,7 +277,7 @@ struct CappedPersistentTests {
         let build = try await session.compileObjectForJIT(
             window: JITRenderWindow(
                 x: -9000, y: -9000, width: 320, height: 240,
-                title: "Preview: ColorView.swift"
+                title: "Preview: ColorView.swift", activates: false
             )
         )
 
