@@ -3,6 +3,7 @@ import MCP
 import Network
 import os
 import PreviewsCLI
+import PreviewsTestSupport
 import Testing
 
 /// Documents why both daemon-channel `NetworkTransport`s are constructed with

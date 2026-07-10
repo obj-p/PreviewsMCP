@@ -3,6 +3,7 @@ import MCP
 import Network
 import os
 @testable import PreviewsCLI
+import PreviewsTestSupport
 import System
 import Testing
 

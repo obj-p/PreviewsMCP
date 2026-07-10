@@ -41,22 +41,6 @@ protocol DaemonToolCalling: Sendable {
     ) async throws -> CallTool.Result
 }
 
-extension Client: DaemonToolCalling {
-    /// Call an MCP tool and return the full `CallTool.Result` including
-    /// `structuredContent`. The SDK's primary `callTool(name:arguments:)`
-    /// overload drops that field; CLI commands that need the structured
-    /// payload go through this helper instead.
-    func callToolStructured(
-        name: String,
-        arguments: [String: Value]? = nil
-    ) async throws -> CallTool.Result {
-        let context: RequestContext<CallTool.Result> = try callTool(
-            name: name, arguments: arguments
-        )
-        return try await context.value
-    }
-}
-
 /// Write a single JSON document to stdout, followed by a newline. Used by
 /// CLI commands in `--json` mode. Pretty-printed with sorted keys for
 /// stable `diff`-friendly output when piping through `jq` or fixtures.
