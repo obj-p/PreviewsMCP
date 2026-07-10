@@ -188,7 +188,7 @@ private func readStreamSample(port: Int, limit: Int) async throws -> Data {
     #expect(contentType.contains("multipart/x-mixed-replace"), "stream should be MJPEG multipart")
 
     let buffer = OSAllocatedUnfairLock(initialState: Data())
-    try await attributed("mjpeg-body") {
+    do {
         try await boundedRead(bytes, deadline: .seconds(10)) { byte in
             let count = buffer.withLock {
                 $0.append(byte)
@@ -196,6 +196,15 @@ private func readStreamSample(port: Int, limit: Int) async throws -> Data {
             }
             return count < limit
         }
+    } catch {
+        let consumed = buffer.withLock { $0.count }
+        print(
+            "APPSERVER-ATTR site=mjpeg-body consumed=\(consumed)"
+                + " wireBytes=\(bytes.task.countOfBytesReceived)"
+                + " taskError=\(bytes.task.error.map(errorChainDump) ?? "nil")"
+                + " thrown: \(errorChainDump(error))"
+        )
+        throw error
     }
     return buffer.withLock { $0 }
 }
