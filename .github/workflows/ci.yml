@@ -1,8 +1,14 @@
 name: CI
 
-# TRIAL (see #355 discussion → CI-as-merge-gate direction): runs as a
-# non-required signal while we collect flake/wall-clock data. Do not make
-# this a required check until it has a green track record.
+# Runs on the self-hosted Mac mini runner (hosted macos-15 runners measured
+# 50-70 min warm vs ~5-7 min local; see PR #361). Non-required signal while
+# the trial collects data; the merge-gate ruleset comes after a green track
+# record.
+#
+# The runner host provides: Xcode 26.2 (the .bazelrc --xcode_version pin) with
+# the iOS 26.2 simulator runtime, bazelisk, and a persistent
+# ~/.cache/bazel-disk (so no actions/cache step — the disk cache never leaves
+# the machine). Spotlight indexing disabled once at host setup.
 
 on:
   push:
@@ -17,32 +23,15 @@ concurrency:
 
 jobs:
   bazel:
-    runs-on: macos-15
-    # Cold Bazel builds compile LLVM from source; the disk-cache restore
-    # makes warm runs the normal case. Generous cap while the trial
-    # measures real wall clock.
-    timeout-minutes: 300
+    runs-on: [self-hosted, macOS, ARM64]
+    timeout-minutes: 120
+    env:
+      # Pins xcrun/simctl (which the sim-booting tests shell out to) to the
+      # same Xcode as the Bazel pin, without mutating the host's global
+      # xcode-select.
+      DEVELOPER_DIR: /Applications/Xcode-26.2.0.app/Contents/Developer
     steps:
       - uses: actions/checkout@v4
-
-      # Must match the .bazelrc --xcode_version pin, and puts xcrun/simctl
-      # (which the sim-booting tests shell out to) on the same Xcode. The
-      # macos-15 image bundles the iOS 26.2 simulator runtime for this
-      # Xcode, so SimulatorTestDevices can create its previewsmcp-test-N
-      # iPhone 17 devices on a fresh runner.
-      - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_26.2.app
-
-      # Simulator-heavy suites are sensitive to background I/O load.
-      - name: Disable Spotlight
-        run: sudo mdutil -a -i off
-
-      - name: Cache Bazel disk cache
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/bazel-disk
-          key: bazel-disk-${{ runner.os }}-${{ hashFiles('MODULE.bazel.lock') }}
-          restore-keys: bazel-disk-${{ runner.os }}-
 
       - name: Test
         run: bazel test //... --test_output=errors
