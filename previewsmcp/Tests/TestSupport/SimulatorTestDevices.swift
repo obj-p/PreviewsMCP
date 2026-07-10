@@ -28,6 +28,8 @@ import PreviewsCore
 /// - index 4: `SimulatorManagerTests.makeHIDClient` (PreviewsIOSTests target)
 /// - index 5: `SimulatorTestDevicesTests` (TestSupportTests target; resolves
 ///   only, never boots)
+/// - index 6: `IOSPreviewE2ESupport.bootSimulator()` (IOSPreviewE2ETests
+///   target; one warm-reused device for the whole `.serialized` suite)
 public enum SimulatorTestDevices {
     public static let deviceType = "com.apple.CoreSimulator.SimDeviceType.iPhone-17"
 

@@ -35,7 +35,7 @@ struct IOSPreviewE2ETests {
     func spawnInSessionRunsProgramAndReportsExit() async throws {
         let simLock = try await SimulatorTestLock.acquire()
         defer { simLock.release() }
-        let udid = try IOSPreviewE2ESupport.bootSimulator()
+        let udid = try await IOSPreviewE2ESupport.bootSimulator()
         let exe = try IOSPreviewE2ESupport.compileExecutableForIOSSim(
             source: "int main(void) { return 0; }", name: "trivial_exit"
         )
@@ -67,7 +67,7 @@ struct IOSPreviewE2ETests {
     func inSessionSpawnGetsHostLoopbackNetworking() async throws {
         let simLock = try await SimulatorTestLock.acquire()
         defer { simLock.release() }
-        let udid = try IOSPreviewE2ESupport.bootSimulator()
+        let udid = try await IOSPreviewE2ESupport.bootSimulator()
         let exe = try IOSPreviewE2ESupport.compileExecutableForIOSSim(
             source: """
             #include <sys/socket.h>
@@ -120,7 +120,7 @@ struct IOSPreviewE2ETests {
     func hostsRemoteSessionInRealHostApp() async throws {
         let simLock = try await SimulatorTestLock.acquire()
         defer { simLock.release() }
-        let udid = try IOSPreviewE2ESupport.bootSimulator()
+        let udid = try await IOSPreviewE2ESupport.bootSimulator()
         let object = try IOSPreviewE2ESupport.compileForIOSSim("answer.c")
         let appPath = try await IOSAgentBuilder().ensureAgentApp()
         try IOSPreviewE2ESupport.installApp(udid: udid, appPath: appPath.path)
@@ -156,7 +156,7 @@ struct IOSPreviewE2ETests {
     func productionSessionEstablishesJITOverSecondSocket() async throws {
         let simLock = try await SimulatorTestLock.acquire()
         defer { simLock.release() }
-        let udid = try IOSPreviewE2ESupport.bootSimulator()
+        let udid = try await IOSPreviewE2ESupport.bootSimulator()
         let object = try IOSPreviewE2ESupport.compileForIOSSim("answer.c")
 
         let tempDir = FileManager.default.temporaryDirectory
@@ -203,7 +203,7 @@ struct IOSPreviewE2ETests {
     func endToEndRendersOverJIT() async throws {
         let simLock = try await SimulatorTestLock.acquire()
         defer { simLock.release() }
-        let udid = try IOSPreviewE2ESupport.bootSimulator()
+        let udid = try await IOSPreviewE2ESupport.bootSimulator()
 
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("previewsmcp-ios-jit-e2e-\(UUID().uuidString)")
@@ -255,7 +255,7 @@ struct IOSPreviewE2ETests {
     func agentReportsForegroundLifecycleState() async throws {
         let simLock = try await SimulatorTestLock.acquire()
         defer { simLock.release() }
-        let udid = try IOSPreviewE2ESupport.bootSimulator()
+        let udid = try await IOSPreviewE2ESupport.bootSimulator()
 
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("previewsmcp-ios-jit-lifecycle-\(UUID().uuidString)")
@@ -305,7 +305,7 @@ struct IOSPreviewE2ETests {
     func relaunchReRendersCurrentPreview() async throws {
         let simLock = try await SimulatorTestLock.acquire()
         defer { simLock.release() }
-        let udid = try IOSPreviewE2ESupport.bootSimulator()
+        let udid = try await IOSPreviewE2ESupport.bootSimulator()
 
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("previewsmcp-ios-jit-relaunch-\(UUID().uuidString)")
@@ -369,7 +369,7 @@ struct IOSPreviewE2ETests {
     func flashFreeRespawnGap() async throws {
         let simLock = try await SimulatorTestLock.acquire()
         defer { simLock.release() }
-        let udid = try IOSPreviewE2ESupport.bootSimulator()
+        let udid = try await IOSPreviewE2ESupport.bootSimulator()
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("previewsmcp-gap-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
@@ -439,7 +439,7 @@ struct IOSPreviewE2ETests {
     func stopWaitsOutInFlightRespawn() async throws {
         let simLock = try await SimulatorTestLock.acquire()
         defer { simLock.release() }
-        let udid = try IOSPreviewE2ESupport.bootSimulator()
+        let udid = try await IOSPreviewE2ESupport.bootSimulator()
 
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("previewsmcp-stop-race-\(UUID().uuidString)")
@@ -517,7 +517,7 @@ struct IOSPreviewE2ETests {
     func concurrentEditsSerialize() async throws {
         let simLock = try await SimulatorTestLock.acquire()
         defer { simLock.release() }
-        let udid = try IOSPreviewE2ESupport.bootSimulator()
+        let udid = try await IOSPreviewE2ESupport.bootSimulator()
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("previewsmcp-ios-jit-serialize-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
@@ -575,7 +575,7 @@ struct IOSPreviewE2ETests {
     func literalEditReSeedsSameObjectWithoutRecompile() async throws {
         let simLock = try await SimulatorTestLock.acquire()
         defer { simLock.release() }
-        let udid = try IOSPreviewE2ESupport.bootSimulator()
+        let udid = try await IOSPreviewE2ESupport.bootSimulator()
 
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("previewsmcp-ios-jit-literal-\(UUID().uuidString)")
@@ -650,7 +650,7 @@ struct IOSPreviewE2ETests {
     func endToEndRendersSetupWrappedOverJIT() async throws {
         let simLock = try await SimulatorTestLock.acquire()
         defer { simLock.release() }
-        let udid = try IOSPreviewE2ESupport.bootSimulator()
+        let udid = try await IOSPreviewE2ESupport.bootSimulator()
 
         let hot = Self.packageRoot
             .appendingPathComponent("examples/spm/Sources/ToDo/Summary.swift")
@@ -1052,22 +1052,26 @@ enum IOSPreviewE2ESupport {
         try run("/usr/bin/xcrun", ["simctl", "spawn", udid, program]).output
     }
 
-    static func bootSimulator() throws -> String {
-        // Reuse a booted iOS 26+ device if present; otherwise boot a supported
-        // one. Live previews require iOS 26+ (#282), so a booted pre-26 device
-        // (e.g. one left from the repro test) must not be picked here.
-        if let booted = iPhoneUDID(state: "booted", whereMajor: { $0 >= 26 }) {
-            // Even an already-"booted" device can have its display port down
-            // (the #269 "device may not be booted or have no display" window),
-            // so settle before returning it for render/capture.
-            try waitForDisplayReady(udid: booted)
-            return booted
-        }
-        guard let udid = iPhoneUDID(state: "available", whereMajor: { $0 >= 26 }) else {
-            throw SpikeError.message("no available iOS 26+ iPhone simulator to boot")
+    /// The suite's dedicated `previewsmcp-test-6` device (#355), booted.
+    /// Resolve and boot run per call, not once per process: a transient
+    /// `simctl list` failure then costs one test instead of poisoning the
+    /// whole suite, and a device that shut down mid-suite is re-booted.
+    /// Warm reuse: `SimulatorTestDevices` keeps an existing well-shaped
+    /// device, and `simctl boot` on an already-booted one is a harmless
+    /// error (`run` does not throw on exit status), so a booted device is
+    /// reused without a shutdown/boot cycle. Callers hold
+    /// `SimulatorTestLock`, which `SimulatorTestDevices` requires.
+    static func bootSimulator() async throws -> String {
+        guard let udid = await SimulatorTestDevices.udid(index: 6) else {
+            throw SpikeError.message(
+                "no \(SimulatorTestDevices.name(index: 6)) simulator (missing iPhone 17 device type or iOS 26+ runtime)"
+            )
         }
         _ = try run("/usr/bin/xcrun", ["simctl", "boot", udid])
         _ = try run("/usr/bin/xcrun", ["simctl", "bootstatus", udid, "-b"])
+        // Even an already-"booted" device can have its display port down
+        // (the #269 "device may not be booted or have no display" window),
+        // so settle before returning it for render/capture.
         try waitForDisplayReady(udid: udid)
         return udid
     }
@@ -1101,19 +1105,13 @@ enum IOSPreviewE2ESupport {
     }
 
     /// First available iPhone on a runtime older than iOS 26, or nil. Used to gate
-    /// and drive the #282 pre-iOS-26 scene-hosting repro.
-    static func availableUDIDBelowIOS26() -> String? {
-        iPhoneUDID(state: "available", whereMajor: { $0 < 26 })
-    }
-
-    /// First iPhone in the given simctl device `state` ("available" / "booted")
-    /// whose iOS major version satisfies `predicate`. Runtime keys look like
+    /// and drive the #282 pre-iOS-26 scene-hosting repro. Runtime keys look like
     /// `com.apple.CoreSimulator.SimRuntime.iOS-18-3`; the major is the
     /// `iOS-<major>-<minor>` segment.
-    private static func iPhoneUDID(state: String, whereMajor predicate: (Int) -> Bool) -> String? {
+    static func availableUDIDBelowIOS26() -> String? {
         guard
             let result = try? run(
-                "/usr/bin/xcrun", ["simctl", "list", "devices", state, "--json"]
+                "/usr/bin/xcrun", ["simctl", "list", "devices", "available", "--json"]
             ),
             let data = result.output.data(using: .utf8),
             let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -1122,7 +1120,7 @@ enum IOSPreviewE2ESupport {
             return nil
         }
         for (runtime, list) in devices {
-            guard let major = iOSMajorVersion(fromRuntimeKey: runtime), predicate(major) else {
+            guard let major = iOSMajorVersion(fromRuntimeKey: runtime), major < 26 else {
                 continue
             }
             guard let entries = list as? [[String: Any]] else { continue }
