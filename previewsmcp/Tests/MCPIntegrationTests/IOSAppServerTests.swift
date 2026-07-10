@@ -188,23 +188,12 @@ private func readStreamSample(port: Int, limit: Int) async throws -> Data {
     #expect(contentType.contains("multipart/x-mixed-replace"), "stream should be MJPEG multipart")
 
     let buffer = OSAllocatedUnfairLock(initialState: Data())
-    do {
-        try await boundedRead(bytes, deadline: .seconds(10)) { byte in
-            let count = buffer.withLock {
-                $0.append(byte)
-                return $0.count
-            }
-            return count < limit
+    try await boundedRead("mjpeg-body", bytes, deadline: .seconds(10)) { byte in
+        let count = buffer.withLock {
+            $0.append(byte)
+            return $0.count
         }
-    } catch {
-        let consumed = buffer.withLock { $0.count }
-        print(
-            "APPSERVER-ATTR site=mjpeg-body consumed=\(consumed)"
-                + " wireBytes=\(bytes.task.countOfBytesReceived)"
-                + " taskError=\(bytes.task.error.map(errorChainDump) ?? "nil")"
-                + " thrown: \(errorChainDump(error))"
-        )
-        throw error
+        return count < limit
     }
     return buffer.withLock { $0 }
 }
@@ -236,28 +225,26 @@ private func readAVCCTags(
         var connected = false
     }
     let state = OSAllocatedUnfairLock(initialState: Parse())
-    try await attributed("avcc-body") {
-        try await boundedRead(bytes, deadline: timeout) { byte in
-            let fireConnect = state.withLock { parse -> Bool in
-                if parse.connected { return false }
-                parse.connected = true
-                return true
+    try await boundedRead("avcc-body", bytes, deadline: timeout) { byte in
+        let fireConnect = state.withLock { parse -> Bool in
+            if parse.connected { return false }
+            parse.connected = true
+            return true
+        }
+        if fireConnect {
+            await onConnected()
+        }
+        return state.withLock { parse in
+            parse.buffer.append(byte)
+            while parse.buffer.count - parse.offset >= 4 {
+                let length =
+                    Int(parse.buffer[parse.offset]) << 24 | Int(parse.buffer[parse.offset + 1]) << 16
+                        | Int(parse.buffer[parse.offset + 2]) << 8 | Int(parse.buffer[parse.offset + 3])
+                guard parse.buffer.count - parse.offset >= 4 + length else { break }
+                parse.seen.insert(parse.buffer[parse.offset + 4])
+                parse.offset += 4 + length
             }
-            if fireConnect {
-                await onConnected()
-            }
-            return state.withLock { parse in
-                parse.buffer.append(byte)
-                while parse.buffer.count - parse.offset >= 4 {
-                    let length =
-                        Int(parse.buffer[parse.offset]) << 24 | Int(parse.buffer[parse.offset + 1]) << 16
-                            | Int(parse.buffer[parse.offset + 2]) << 8 | Int(parse.buffer[parse.offset + 3])
-                    guard parse.buffer.count - parse.offset >= 4 + length else { break }
-                    parse.seen.insert(parse.buffer[parse.offset + 4])
-                    parse.offset += 4 + length
-                }
-                return !need.isSubset(of: parse.seen)
-            }
+            return !need.isSubset(of: parse.seen)
         }
     }
     return state.withLock { $0.seen }
@@ -283,7 +270,14 @@ private func readAVCCTags(
 /// suspended task and its dead connection for the remaining test-process
 /// lifetime, which is bounded and harmless. The caller's assertions on
 /// whatever partial data arrived produce the attributable failure.
+///
+/// Every abnormal exit (deadline in any of its three faces, or a genuine
+/// stream error) prints an `APPSERVER-ATTR site=… exit=…` line with the
+/// task's wire-level byte count and task error, so a #350 specimen is
+/// attributed no matter which face it wears; the healthy limit-met exit
+/// stays quiet.
 private func boundedRead(
+    _ site: String,
     _ bytes: URLSession.AsyncBytes,
     deadline: Duration,
     consume: @escaping @Sendable (UInt8) async -> Bool
@@ -293,13 +287,17 @@ private func boundedRead(
             guard await consume(byte) else { break }
         }
     }
-    let resumed = OSAllocatedUnfairLock(initialState: false)
-    func claimResume() -> Bool {
-        resumed.withLock { done in
-            if done { return false }
-            done = true
+    let resolvedBy = OSAllocatedUnfairLock<String?>(initialState: nil)
+    func claimResume(_ who: String) -> Bool {
+        resolvedBy.withLock { claimed in
+            if claimed != nil { return false }
+            claimed = who
             return true
         }
+    }
+    func taskDump() -> String {
+        "wireBytes=\(bytes.task.countOfBytesReceived)"
+            + " taskError=\(bytes.task.error.map(errorChainDump) ?? "nil")"
     }
     do {
         try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
@@ -311,19 +309,30 @@ private func boundedRead(
                 } catch {
                     result = .failure(error)
                 }
-                if claimResume() { cont.resume(with: result) }
+                if claimResume("reader") { cont.resume(with: result) }
             }
             Task {
                 try? await Task.sleep(for: deadline)
                 bytes.task.cancel()
                 reader.cancel()
                 try? await Task.sleep(for: .seconds(2))
-                if claimResume() { cont.resume(returning: ()) }
+                if claimResume("deadline") { cont.resume(returning: ()) }
             }
+        }
+        if resolvedBy.withLock({ $0 }) == "deadline" {
+            print("APPSERVER-ATTR site=\(site) exit=deadline-abandoned \(taskDump())")
         }
     } catch is CancellationError {
         // Deadline: the caller inspects what arrived.
+        print("APPSERVER-ATTR site=\(site) exit=deadline-cancellation \(taskDump())")
     } catch let error as URLError where error.code == .cancelled {
         // Same, surfaced through URLSession instead.
+        print("APPSERVER-ATTR site=\(site) exit=deadline-urlcancelled \(taskDump())")
+    } catch {
+        print(
+            "APPSERVER-ATTR site=\(site) exit=threw \(taskDump())"
+                + " thrown: \(errorChainDump(error))"
+        )
+        throw error
     }
 }
