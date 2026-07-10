@@ -58,13 +58,13 @@ public enum PreviewsMCPApp {
         // Every CLI subcommand except `serve` is now a daemon client.
         // Only `serve` drives AppKit directly (it *is* the daemon).
         if !(command is ServeCommand) {
-            // Handle async commands: the MCP SDK's NetworkTransport schedules
-            // NWConnection callbacks on DispatchQueue.main, so we can't just
-            // block main with a semaphore — the callbacks would never fire.
-            // Use dispatchMain() to yield to libdispatch and let the async Task
-            // drive to completion, then delegate to ParsableCommand.exit()
-            // from the Task so error formatting matches the sync branch
-            // (ArgumentParser formats ValidationError / ExitCode correctly).
+            // Handle async commands: blocking main with a semaphore would
+            // starve anything the runtime schedules on the main queue, so
+            // use dispatchMain() to yield to libdispatch and let the async
+            // Task drive to completion, then delegate to
+            // ParsableCommand.exit() from the Task so error formatting
+            // matches the sync branch (ArgumentParser formats
+            // ValidationError / ExitCode correctly).
             if let asyncCommand = command as? any AsyncParsableCommand {
                 Task {
                     do {

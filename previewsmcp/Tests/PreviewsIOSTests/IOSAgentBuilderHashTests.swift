@@ -66,7 +66,9 @@ struct IOSAgentBuilderHashTests {
         // now com.previewsmcp.agent (executable PreviewsMCPAgent), AgentApp.swift
         // renamed its delegate/log prefixes from PreviewHost to PreviewAgent, and
         // its memory-reporting comment dropped the stale memory-cap relaunch claim.
-        let expected = "526ce5870e010448590e755907ff7cae4283788eaad0e1d9364531a119c25892"
+        // Updated 2026-07-09 for agent-icon arrowheads: AppIcon.png redrawn with
+        // filled arrowheads matching assets/agent-icon.svg.
+        let expected = "221b9c9090d760fa26aab1b41d05988514e592e2f84da500910b3be9452bf7c6"
         #expect(hash == expected, "agent-app artifact hash drifted (was \(expected), now \(hash))")
     }
 }

@@ -2,6 +2,7 @@ import Foundation
 import MCP
 import Network
 import PreviewsCLI
+import PreviewsTestSupport
 import Testing
 
 /// Integration tests for `previewsmcp serve --daemon` / `status` / `kill-daemon`.

@@ -1,9 +1,9 @@
 import MCP
 
-/// The SDK `Server` surface the daemon and the stage-1 characterization
-/// suite actually consume. Both the SDK server and `PreviewsMCPServer`
-/// conform, so the suite gates the rewrite differentially and the stage-5
-/// cutover is a construction-site swap.
+/// The server surface the daemon consumes. `PreviewsMCPServer` conforms in
+/// production; the SDK `Server` conforms test-side (see the test target's
+/// SDKConformances.swift) so the characterization suite gates the rewrite
+/// differentially.
 protocol MCPServing: Actor {
     @discardableResult
     func withMethodHandler<M: MCP.Method>(
@@ -15,10 +15,4 @@ protocol MCPServing: Actor {
     func waitUntilCompleted() async
     func notify(_ notification: Message<some MCP.Notification>) async throws
     func log(level: LogLevel, logger: String?, data: Value) async throws
-}
-
-extension Server: MCPServing {
-    func start(transport: any Transport) async throws {
-        try await start(transport: transport, initializeHook: nil)
-    }
 }

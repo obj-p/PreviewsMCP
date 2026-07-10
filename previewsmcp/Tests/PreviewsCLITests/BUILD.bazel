@@ -20,6 +20,7 @@ swift_test(
         "//previewsmcp/PreviewsCore",
         "//previewsmcp/PreviewsEngine",
         "//previewsmcp/PreviewsMacOS",
+        "//previewsmcp/Tests/TestSupport",
         "@swiftpkg_swift_argument_parser//:ArgumentParser",
         "@swiftpkg_swift_sdk//:MCP",
     ],

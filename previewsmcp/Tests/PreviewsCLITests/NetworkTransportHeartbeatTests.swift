@@ -3,10 +3,13 @@ import MCP
 import Network
 import os
 import PreviewsCLI
+import PreviewsTestSupport
 import Testing
 
-/// Documents why both daemon-channel `NetworkTransport`s are constructed with
-/// `heartbeatConfig: .disabled`: the SDK sends heartbeats WITHOUT the newline
+/// Documents why every test-side SDK `NetworkTransport` on the daemon
+/// channel must be constructed with `heartbeatConfig: .disabled` (production
+/// rides `FramedTransport` and constructs none): the SDK sends heartbeats
+/// WITHOUT the newline
 /// delimiter its messages use, and its receive loop classifies whole read
 /// chunks — a chunk that starts with the 4 heartbeat magic bytes is discarded
 /// entirely, so a JSON-RPC message coalesced into the same read as a preceding
