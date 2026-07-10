@@ -73,8 +73,10 @@ public actor JITStructuralReloader: StructuralReloader {
         lastObjectPath = build.objectPath
         // With the outgoing agent dead and reaped, the fresh agent's record is guaranteed
         // to be the sidecar's last write — settling the key status its dying predecessor
-        // recorded losing to us. Best-effort: a failure here only costs focus carry on
-        // the next handoff, which the window's own key observers heal on the next change.
+        // recorded losing to us. Best-effort twice over: a failure here, or activation
+        // still in flight (the record can say key=false moments before the app finishes
+        // becoming active), only costs focus carry on the next handoff, which the
+        // window's own key observers heal on the next change.
         if let stateEntry = build.windowStateEntrySymbol {
             _ = try? fresh.runOnMain(symbol: stateEntry)
         }
