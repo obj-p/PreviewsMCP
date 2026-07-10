@@ -11,6 +11,7 @@ swift_library(
     module_name = "PreviewsTestSupport",
     visibility = ["//previewsmcp/Tests:__subpackages__"],
     deps = [
+        "//previewsmcp/PreviewsCore",
         "@swiftpkg_swift_sdk//:MCP",
     ],
 )

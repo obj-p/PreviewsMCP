@@ -2,7 +2,10 @@ load("@rules_swift//swift:swift.bzl", "swift_test")
 
 swift_test(
     name = "TestSupportTests",
-    srcs = glob(["*.swift"]),
+    srcs = glob(
+        ["*.swift"],
+        exclude = ["SimulatorTestDevicesTests.swift"],
+    ),
     copts = [
         "-swift-version",
         "6",
@@ -10,4 +13,19 @@ swift_test(
     data = ["//tools:simlock"],
     visibility = ["//visibility:public"],
     deps = ["//previewsmcp/Tests/TestSupport"],
+)
+
+swift_test(
+    name = "SimulatorTestDevicesTests",
+    srcs = ["SimulatorTestDevicesTests.swift"],
+    copts = [
+        "-swift-version",
+        "6",
+    ],
+    tags = ["local"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//previewsmcp/PreviewsCore",
+        "//previewsmcp/Tests/TestSupport",
+    ],
 )

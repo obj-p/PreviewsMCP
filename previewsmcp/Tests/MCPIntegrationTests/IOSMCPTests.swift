@@ -75,21 +75,11 @@ struct IOSMCPTests {
         // CoreSimulatorHygiene).
         await CoreSimulatorHygiene.resetOnce()
 
-        // Use picker index 1, the same device IOSPreviewSessionTests.endToEnd
-        // uses in the PreviewsIOSTests target. That test runs in an earlier
-        // CI step (different `swift test --filter` invocation) so there's no
-        // parallel contention; and empirically that device model + UDID
-        // assignment is well-exercised and known to launch host apps
-        // cleanly on macos-15 GHA runners.
-        //
-        // Earlier this test used index 2, but on PR #141 CI the device that
-        // fell at index 2 (UDID varies per runner) consistently hung in
-        // both SBDevice.launchApp AND `xcrun simctl launch` — suggesting a
-        // wedged simulator-backend state tied to that specific device
-        // rather than a code bug. Switching to the same device
-        // IOSPreviewSessionTests uses resolves it.
-        guard let deviceUDID = try await IOSSimulatorPicker.pickUDID(index: 1) else {
-            print("No iOS simulator at picker index 1 — skipping iOS MCP tests")
+        // Index 1 is shared with SimulatorManagerTests.makeFramebufferStreamer
+        // (PreviewsIOSTests target) — different targets never run
+        // concurrently. See SimulatorTestDevices for the assignments.
+        guard let deviceUDID = await SimulatorTestDevices.udid(index: 1) else {
+            print("No dedicated test simulator for index 1 — skipping iOS MCP tests")
             return
         }
 

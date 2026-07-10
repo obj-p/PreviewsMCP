@@ -36,7 +36,8 @@ enum CoreSimulatorHygiene {
         // Shut down every booted simulator, then bounce the service. `killall`
         // is domain-agnostic (CoreSimulatorService runs in the GUI session, not
         // a fixed launchd domain) and the service auto-respawns on the next
-        // simctl invocation — pickUDID, moments later, brings it back clean.
+        // simctl invocation — the SimulatorTestDevices resolve, moments
+        // later, brings it back clean.
         await run(["/usr/bin/xcrun", "simctl", "shutdown", "all"])
         await run(["/usr/bin/killall", "-9", "com.apple.CoreSimulator.CoreSimulatorService"])
         didReset.withLock { $0 = true }
