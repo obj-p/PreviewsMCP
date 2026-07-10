@@ -239,6 +239,34 @@ struct BuildSystemTests {
         #expect(bazel.labelToPath("invalid") == nil)
     }
 
+    // MARK: - BazelBuildSystem module-redefinition classification (#279)
+
+    @Test("isModuleRedefinition matches the cross-config duplicate-modulemap failure")
+    func isModuleRedefinitionMatches() {
+        let error = BuildSystemError.buildFailed(
+            stderr: """
+            CombineSchedulers.rspm.__impl_modulemap/_/module.modulemap:1:8: \
+            error: redefinition of module 'CombineSchedulers'
+            <unknown>:0: error: could not build Objective-C module 'SwiftShims'
+            """,
+            exitCode: 1
+        )
+        #expect(BazelBuildSystem.isModuleRedefinition(error))
+    }
+
+    @Test("isModuleRedefinition rejects other failures and error types")
+    func isModuleRedefinitionRejects() {
+        let otherBuildFailure = BuildSystemError.buildFailed(
+            stderr: "error: no such module 'Foo'", exitCode: 1
+        )
+        #expect(!BazelBuildSystem.isModuleRedefinition(otherBuildFailure))
+
+        let otherError = BuildSystemError.targetNotFound(
+            sourceFile: "a.swift", project: "p"
+        )
+        #expect(!BazelBuildSystem.isModuleRedefinition(otherError))
+    }
+
     // MARK: - BuildSystemDetector with Bazel
 
     @Test("BuildSystemDetector prefers SPM when both Package.swift and MODULE.bazel exist")
