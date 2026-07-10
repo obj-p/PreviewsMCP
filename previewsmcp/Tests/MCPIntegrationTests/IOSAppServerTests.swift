@@ -79,7 +79,9 @@ struct IOSAppServerTests {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = Data(#"{"action":"drag","fromX":0.5,"fromY":0.7,"toX":0.5,"toY":0.3,"steps":12}"#.utf8)
-        let (_, response) = try await URLSession.shared.data(for: request)
+        let (_, response) = try await attributed("control-post") {
+            try await URLSession.shared.data(for: request)
+        }
         #expect((response as? HTTPURLResponse)?.statusCode == 200, "control POST should return 200")
         _ = try await server.awaitSnapshotChange(
             sessionID: sessionID, baseline: beforeDrag, timeout: .seconds(10)
@@ -102,7 +104,9 @@ struct IOSAppServerTests {
             drag.httpBody = Data(
                 #"{"action":"drag","fromX":0.5,"fromY":0.3,"toX":0.5,"toY":0.7,"steps":12}"#.utf8
             )
-            _ = try? await URLSession.shared.data(for: drag)
+            _ = try? await attributed("avcc-keyframe-drag") {
+                try await URLSession.shared.data(for: drag)
+            }
         }
         #expect(tags.contains(0x01), "avcc stream should carry an avcC description")
         #expect(tags.contains(0x02), "avcc stream should carry an H.264 keyframe")
@@ -119,6 +123,44 @@ struct IOSAppServerTests {
             name: "preview_stop", arguments: ["sessionID": .string(sessionID)]
         )
     }
+}
+
+/// Attribution for the #350 residual: `NSURLErrorDomain Code=-1 "(null)"` is
+/// opaque at the top level, and the daemon side already logs healthy (#334),
+/// so the failing layer must be pinned from the client. On error this prints
+/// which await site threw plus the full `NSUnderlyingError`/CFStream cascade
+/// (`_kCFStreamErrorDomainKey`/`CodeKey` carry the POSIX-level cause, e.g.
+/// ECONNRESET vs ECONNREFUSED), then rethrows unchanged.
+private func attributed<T>(
+    _ site: String, _ body: () async throws -> T
+) async rethrows -> T {
+    do {
+        return try await body()
+    } catch {
+        print("APPSERVER-ATTR site=\(site) \(errorChainDump(error))")
+        throw error
+    }
+}
+
+private func errorChainDump(_ error: Error) -> String {
+    var lines = [String]()
+    var current: NSError? = error as NSError
+    var depth = 0
+    while let nsError = current, depth < 6 {
+        var line = "[\(depth)] domain=\(nsError.domain) code=\(nsError.code)"
+        for key in ["_kCFStreamErrorDomainKey", "_kCFStreamErrorCodeKey"] {
+            if let value = nsError.userInfo[key] {
+                line += " \(key)=\(value)"
+            }
+        }
+        if let url = nsError.userInfo[NSURLErrorFailingURLStringErrorKey] {
+            line += " url=\(url)"
+        }
+        lines.append(line)
+        current = nsError.userInfo[NSUnderlyingErrorKey] as? NSError
+        depth += 1
+    }
+    return lines.joined(separator: " | ")
 }
 
 /// Read a bounded sample of an MJPEG stream, asserting the multipart content
@@ -139,17 +181,21 @@ private func readStreamSample(port: Int, limit: Int) async throws -> Data {
     defer { session.invalidateAndCancel() }
     var request = URLRequest(url: URL(string: "http://127.0.0.1:\(port)/stream.mjpeg")!)
     request.timeoutInterval = 15
-    let (bytes, response) = try await session.bytes(for: request)
+    let (bytes, response) = try await attributed("mjpeg-connect") {
+        try await session.bytes(for: request)
+    }
     let contentType = (response as? HTTPURLResponse)?.value(forHTTPHeaderField: "Content-Type") ?? ""
     #expect(contentType.contains("multipart/x-mixed-replace"), "stream should be MJPEG multipart")
 
     let buffer = OSAllocatedUnfairLock(initialState: Data())
-    try await boundedRead(bytes, deadline: .seconds(10)) { byte in
-        let count = buffer.withLock {
-            $0.append(byte)
-            return $0.count
+    try await attributed("mjpeg-body") {
+        try await boundedRead(bytes, deadline: .seconds(10)) { byte in
+            let count = buffer.withLock {
+                $0.append(byte)
+                return $0.count
+            }
+            return count < limit
         }
-        return count < limit
     }
     return buffer.withLock { $0 }
 }
@@ -168,7 +214,9 @@ private func readAVCCTags(
     defer { session.invalidateAndCancel() }
     var request = URLRequest(url: URL(string: "http://127.0.0.1:\(port)/stream.avcc")!)
     request.timeoutInterval = 25
-    let (bytes, response) = try await session.bytes(for: request)
+    let (bytes, response) = try await attributed("avcc-connect") {
+        try await session.bytes(for: request)
+    }
     let contentType = (response as? HTTPURLResponse)?.value(forHTTPHeaderField: "Content-Type") ?? ""
     #expect(contentType.contains("application/octet-stream"), "avcc stream should be octet-stream")
 
@@ -179,26 +227,28 @@ private func readAVCCTags(
         var connected = false
     }
     let state = OSAllocatedUnfairLock(initialState: Parse())
-    try await boundedRead(bytes, deadline: timeout) { byte in
-        let fireConnect = state.withLock { parse -> Bool in
-            if parse.connected { return false }
-            parse.connected = true
-            return true
-        }
-        if fireConnect {
-            await onConnected()
-        }
-        return state.withLock { parse in
-            parse.buffer.append(byte)
-            while parse.buffer.count - parse.offset >= 4 {
-                let length =
-                    Int(parse.buffer[parse.offset]) << 24 | Int(parse.buffer[parse.offset + 1]) << 16
-                        | Int(parse.buffer[parse.offset + 2]) << 8 | Int(parse.buffer[parse.offset + 3])
-                guard parse.buffer.count - parse.offset >= 4 + length else { break }
-                parse.seen.insert(parse.buffer[parse.offset + 4])
-                parse.offset += 4 + length
+    try await attributed("avcc-body") {
+        try await boundedRead(bytes, deadline: timeout) { byte in
+            let fireConnect = state.withLock { parse -> Bool in
+                if parse.connected { return false }
+                parse.connected = true
+                return true
             }
-            return !need.isSubset(of: parse.seen)
+            if fireConnect {
+                await onConnected()
+            }
+            return state.withLock { parse in
+                parse.buffer.append(byte)
+                while parse.buffer.count - parse.offset >= 4 {
+                    let length =
+                        Int(parse.buffer[parse.offset]) << 24 | Int(parse.buffer[parse.offset + 1]) << 16
+                            | Int(parse.buffer[parse.offset + 2]) << 8 | Int(parse.buffer[parse.offset + 3])
+                    guard parse.buffer.count - parse.offset >= 4 + length else { break }
+                    parse.seen.insert(parse.buffer[parse.offset + 4])
+                    parse.offset += 4 + length
+                }
+                return !need.isSubset(of: parse.seen)
+            }
         }
     }
     return state.withLock { $0.seen }
