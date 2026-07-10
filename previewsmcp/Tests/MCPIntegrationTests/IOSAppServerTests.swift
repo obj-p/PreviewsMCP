@@ -40,8 +40,8 @@ struct IOSAppServerTests {
         // CoreSimulatorHygiene).
         await CoreSimulatorHygiene.resetOnce()
 
-        guard let deviceUDID = try await IOSSimulatorPicker.pickUDID(index: 3) else {
-            print("No iOS simulator at picker index 3 — skipping")
+        guard let deviceUDID = await SimulatorTestDevices.udid(index: 3) else {
+            print("No dedicated test simulator for index 3 — skipping")
             return
         }
 

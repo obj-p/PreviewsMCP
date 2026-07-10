@@ -33,8 +33,8 @@ struct IOSHIDInputTests {
         // CoreSimulatorHygiene).
         await CoreSimulatorHygiene.resetOnce()
 
-        guard let deviceUDID = try await IOSSimulatorPicker.pickUDID(index: 2) else {
-            print("No iOS simulator at picker index 2 — skipping")
+        guard let deviceUDID = await SimulatorTestDevices.udid(index: 2) else {
+            print("No dedicated test simulator for index 2 — skipping")
             return
         }
 

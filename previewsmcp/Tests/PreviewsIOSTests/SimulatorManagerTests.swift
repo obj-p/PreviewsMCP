@@ -64,10 +64,10 @@ struct SimulatorManagerTests {
 
     @Test("Boot and shutdown a device")
     func bootAndShutdown() async throws {
-        // Each test that boots a simulator gets its OWN device (distinct
-        // IOSSimulatorPicker index) so the three iOS test suites don't
-        // contend for the same device when Swift Testing runs them in
-        // parallel. See IOSSimulatorPicker for the assignments.
+        // Each test that boots a simulator gets its OWN dedicated device
+        // (distinct SimulatorTestDevices index) so the three iOS test suites
+        // don't contend for the same device when Swift Testing runs them in
+        // parallel. See SimulatorTestDevices for the assignments.
         //
         // Scope: this test covers the boot→shutdown lifecycle only.
         // Screenshot coverage lives in IOSPreviewSessionTests.endToEnd,
@@ -78,22 +78,22 @@ struct SimulatorManagerTests {
         // fallback legitimately fail. That's fine as a product
         // contract (screenshotData surfaces a clear error after ~70s),
         // but not a scenario this test is trying to validate.
-        guard let target = try await IOSSimulatorPicker.pick(index: 0) else {
-            print("No iOS simulator at picker index 0 — skipping")
-            return
-        }
         let simLock = try await SimulatorTestLock.acquire()
         defer { simLock.release() }
+        guard let udid = await SimulatorTestDevices.udid(index: 0) else {
+            print("No dedicated test simulator for index 0 — skipping")
+            return
+        }
         let manager = SimulatorManager()
 
         // Boot, test, then always shutdown — even if assertions fail.
-        print("Booting \(target.name) (\(target.udid))...")
-        try await manager.bootDevice(udid: target.udid)
+        print("Booting \(SimulatorTestDevices.name(index: 0)) (\(udid))...")
+        try await manager.bootDevice(udid: udid)
 
         // Wrap test body so we always reach shutdown.
         var testError: (any Error)?
         do {
-            let booted = try await manager.findDevice(udid: target.udid)
+            let booted = try await manager.findDevice(udid: udid)
             // `bootDevice` blocks until the device is fully booted (via
             // `simctl bootstatus -b`), so the state must be `.booted` by
             // the time we get here — no more `.booting` tolerance.
@@ -105,9 +105,9 @@ struct SimulatorManagerTests {
 
         // Always shutdown.
         print("Shutting down...")
-        try await manager.shutdownDevice(udid: target.udid)
+        try await manager.shutdownDevice(udid: udid)
 
-        let afterShutdown = try await manager.findDevice(udid: target.udid)
+        let afterShutdown = try await manager.findDevice(udid: udid)
         #expect(
             afterShutdown.state == SimulatorManager.DeviceState.shutdown
                 || afterShutdown.state == SimulatorManager.DeviceState.shuttingDown
@@ -119,27 +119,27 @@ struct SimulatorManagerTests {
 
     @Test("Create a daemon-side HID client against a booted device")
     func makeHIDClient() async throws {
-        guard let target = try await IOSSimulatorPicker.pick(index: 4) else {
-            print("No iOS simulator at picker index 4 — skipping")
-            return
-        }
         let simLock = try await SimulatorTestLock.acquire()
         defer { simLock.release() }
+        guard let udid = await SimulatorTestDevices.udid(index: 4) else {
+            print("No dedicated test simulator for index 4 — skipping")
+            return
+        }
         let manager = SimulatorManager()
 
         // Boot only if needed, and shut down only what we booted, so the test
         // leaves the device in the state it found it.
-        let initial = try await manager.findDevice(udid: target.udid)
+        let initial = try await manager.findDevice(udid: udid)
         let weBootedIt = initial.state != SimulatorManager.DeviceState.booted
         if weBootedIt {
-            print("Booting \(target.name) (\(target.udid)) for HID client test...")
-            try await manager.bootDevice(udid: target.udid)
+            print("Booting \(SimulatorTestDevices.name(index: 4)) (\(udid)) for HID client test...")
+            try await manager.bootDevice(udid: udid)
         }
 
         var testError: (any Error)?
         do {
-            let c1 = try await manager.makeHIDClient(udid: target.udid)
-            let c2 = try await manager.makeHIDClient(udid: target.udid)
+            let c1 = try await manager.makeHIDClient(udid: udid)
+            let c2 = try await manager.makeHIDClient(udid: udid)
             #expect(c1 !== c2)
         } catch {
             testError = error
@@ -147,7 +147,7 @@ struct SimulatorManagerTests {
 
         if weBootedIt {
             print("Shutting down...")
-            try await manager.shutdownDevice(udid: target.udid)
+            try await manager.shutdownDevice(udid: udid)
         }
 
         if let testError { throw testError }
@@ -155,19 +155,19 @@ struct SimulatorManagerTests {
 
     @Test("Create a daemon-side framebuffer streamer against a booted device")
     func makeFramebufferStreamer() async throws {
-        guard let target = try await IOSSimulatorPicker.pick(index: 1) else {
-            print("No iOS simulator at picker index 1 — skipping")
-            return
-        }
         let simLock = try await SimulatorTestLock.acquire()
         defer { simLock.release() }
+        guard let udid = await SimulatorTestDevices.udid(index: 1) else {
+            print("No dedicated test simulator for index 1 — skipping")
+            return
+        }
         let manager = SimulatorManager()
 
-        let initial = try await manager.findDevice(udid: target.udid)
+        let initial = try await manager.findDevice(udid: udid)
         let weBootedIt = initial.state != SimulatorManager.DeviceState.booted
         if weBootedIt {
-            print("Booting \(target.name) (\(target.udid)) for streamer test...")
-            try await manager.bootDevice(udid: target.udid)
+            print("Booting \(SimulatorTestDevices.name(index: 1)) (\(udid)) for streamer test...")
+            try await manager.bootDevice(udid: udid)
         }
 
         var testError: (any Error)?
@@ -177,7 +177,7 @@ struct SimulatorManagerTests {
             // wire up, so `latestFrame` returning nil here is expected and must
             // not crash. End-to-end frame capture is covered by
             // IOSAppServerTests.appServerEndToEnd (which launches a preview).
-            let streamer = try await manager.makeFramebufferStreamer(udid: target.udid)
+            let streamer = try await manager.makeFramebufferStreamer(udid: udid)
             _ = streamer.latestFrame()
             streamer.stop()
         } catch {
@@ -186,7 +186,7 @@ struct SimulatorManagerTests {
 
         if weBootedIt {
             print("Shutting down...")
-            try await manager.shutdownDevice(udid: target.udid)
+            try await manager.shutdownDevice(udid: udid)
         }
 
         if let testError { throw testError }
