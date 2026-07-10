@@ -76,10 +76,10 @@ extension DaemonClient {
             "prev=\(staleVersion),now=\(currentVersion),"
                 + "by=pid\(ProcessInfo.processInfo.processIdentifier)"
         let child = try spawnDaemon(restartReason: reason)
-        try await waitForSocket(timeout: startTimeout, child: child)
+        let socket = try await waitForSocket(timeout: startTimeout, child: child)
 
         let (client, initResult) = try await openClient(
-            clientName: clientName, configure: configure
+            clientName: clientName, socket: socket, configure: configure
         )
         if !versionsMatch(currentVersion, initResult.serverInfo.version) {
             await client.disconnect()

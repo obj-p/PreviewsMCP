@@ -1,6 +1,7 @@
 import Foundation
 import MCP
 import PreviewsCore
+import System
 
 /// Client-side handle to the previewsmcp daemon.
 ///
@@ -54,14 +55,19 @@ enum DaemonClient {
         // (resolved authoritatively via `_NSGetExecutablePath`), so the
         // MCP `serverInfo.version` must equal our own compile-time
         // version — no handshake check needed on this branch.
-        let weJustSpawned = !DaemonProbe.canConnect()
+        //
+        // Either way the probe's connected socket is kept and handed to
+        // `openClient`, so the transport rides the probe connection
+        // instead of paying a second connect.
+        var probeSocket = DaemonProbe.connect()
+        let weJustSpawned = probeSocket == nil
         if weJustSpawned {
             let child = try spawnDaemon()
-            try await waitForSocket(timeout: startTimeout, child: child)
+            probeSocket = try await waitForSocket(timeout: startTimeout, child: child)
         }
 
         // If the daemon was already running but disappears between
-        // `canConnect()` and `openClient()`, a sibling CLI almost
+        // `DaemonProbe.connect()` and `openClient()`, a sibling CLI almost
         // certainly killed it for a version-mismatch respawn (issue
         // #142). The kill+respawn typically completes in <2s, so
         // wait for the socket to come back and retry the handshake
@@ -74,13 +80,13 @@ enum DaemonClient {
         let initResult: Initialize.Result
         do {
             (client, initResult) = try await openClient(
-                clientName: clientName, configure: configure
+                clientName: clientName, socket: probeSocket, configure: configure
             )
         } catch {
             guard !weJustSpawned else { throw error }
-            try await waitForSocket(timeout: startTimeout)
+            let socket = try await waitForSocket(timeout: startTimeout)
             (client, initResult) = try await openClient(
-                clientName: clientName, configure: configure
+                clientName: clientName, socket: socket, configure: configure
             )
         }
 
@@ -128,9 +134,12 @@ enum DaemonClient {
     /// daemon dead, a failed send) closes it after quiescence.
     static func openClient(
         clientName: String,
+        socket probeSocket: FileDescriptor? = nil,
         configure: ((any MCPClienting) async -> Void)?
     ) async throws -> (any MCPClienting, Initialize.Result) {
-        let socket = try DaemonSocket.connect(to: DaemonPaths.socket.path)
+        // A probe-handoff socket (already connected by `DaemonProbe.connect`
+        // or `waitForSocket`) is consumed here; otherwise connect fresh.
+        let socket = try probeSocket ?? DaemonSocket.connect(to: DaemonPaths.socket.path)
         let transport = FramedTransport(owningSocket: socket)
         let client = PreviewsMCPClient(
             name: clientName, version: PreviewsMCPCommand.version,
@@ -261,17 +270,22 @@ enum DaemonClient {
         return proc
     }
 
-    /// Poll the socket until it accepts connections or we give up.
+    /// Poll the socket until it accepts connections or we give up. The
+    /// winning poll's connected socket is returned (the caller owns it and
+    /// hands it to `openClient`), so readiness detection doubles as the
+    /// transport's connect.
     ///
     /// When `child` is the daemon process we just spawned, a startup crash
     /// is surfaced immediately as `daemonStartupFailed(exitCode:)` instead
     /// of waiting out the full timeout. The socket check runs first each
     /// iteration so a child that exited only because a sibling won the bind
     /// race still reads as success. See issue #99.
-    static func waitForSocket(timeout: TimeInterval, child: Process? = nil) async throws {
+    static func waitForSocket(
+        timeout: TimeInterval, child: Process? = nil
+    ) async throws -> FileDescriptor {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
-            if DaemonProbe.canConnect() { return }
+            if let socket = DaemonProbe.connect() { return socket }
             if let child, !child.isRunning {
                 throw DaemonClientError.daemonStartupFailed(exitCode: child.terminationStatus)
             }
