@@ -162,39 +162,31 @@ private func errorChainDump(_ error: Error) -> String {
     return lines.joined(separator: " | ")
 }
 
-/// Read a bounded sample of an MJPEG stream, asserting the multipart content
-/// type. URLSession unwraps multipart/x-mixed-replace and delivers the JPEG
-/// part bodies without the boundary.
+/// Read a bounded raw sample of the MJPEG response — status line, headers,
+/// and `limit` body bytes — over a plain socket, NOT URLSession.
 ///
-/// Uses a fresh single-use session, NOT `URLSession.shared`: these helpers
-/// abandon their response mid-body (the server is still streaming when the
-/// sample completes), and a shared session's connection pool can hand the
-/// dying connection to the next request against the same host:port — caught
-/// live as `NSURLErrorDomain Code=-1` on the follow-up `/stream.avcc` request
-/// ~50ms after a successful mjpeg sample (#320: daemon log showed the stream
-/// healthy, first frame sent, no server-side error). A fresh session has an
-/// empty pool, so nothing poisoned can be reused; `invalidateAndCancel()`
-/// tears the abandoned connection down with the session.
+/// URLSession is unusable for sampling multipart/x-mixed-replace: its
+/// multipart handling is timing-dependent, and once a full part sits
+/// buffered before the consumer starts iterating (loopback burst + a
+/// loaded machine), `AsyncBytes` either throws a bare NSURLError -1 or
+/// delivers no bytes at all while the task reports no error — reproduced
+/// deterministically outside the suite and root-caused as #350 (the ~1/9
+/// "NSURLError-1 after first frame sent" flake; the daemon side was never
+/// at fault). A raw read is timing-independent and asserts the actual
+/// wire framing the browser viewer consumes.
 private func readStreamSample(port: Int, limit: Int) async throws -> Data {
-    let session = URLSession(configuration: .ephemeral)
-    defer { session.invalidateAndCancel() }
-    var request = URLRequest(url: URL(string: "http://127.0.0.1:\(port)/stream.mjpeg")!)
-    request.timeoutInterval = 15
-    let (bytes, response) = try await attributed("mjpeg-connect") {
-        try await session.bytes(for: request)
+    let raw = try await attributed("mjpeg-raw") {
+        try await RawHTTP.sample(
+            port: port, path: "/stream.mjpeg",
+            bodyLimit: limit, deadline: .seconds(10)
+        )
     }
-    let contentType = (response as? HTTPURLResponse)?.value(forHTTPHeaderField: "Content-Type") ?? ""
-    #expect(contentType.contains("multipart/x-mixed-replace"), "stream should be MJPEG multipart")
-
-    let buffer = OSAllocatedUnfairLock(initialState: Data())
-    try await boundedRead("mjpeg-body", bytes, deadline: .seconds(10)) { byte in
-        let count = buffer.withLock {
-            $0.append(byte)
-            return $0.count
-        }
-        return count < limit
-    }
-    return buffer.withLock { $0 }
+    #expect(
+        raw.head.contains("Content-Type: multipart/x-mixed-replace"),
+        "stream should be MJPEG multipart"
+    )
+    #expect(raw.body.range(of: Data("--frame\r\n".utf8)) != nil, "body should carry the part boundary")
+    return raw.body
 }
 
 /// Read the length-prefixed `/stream.avcc` envelope stream and collect the chunk
@@ -202,7 +194,9 @@ private func readStreamSample(port: Int, limit: Int) async throws -> Data {
 /// registered by then) to drive a screen change so an IDR is produced. Returns
 /// when every tag in `need` has been seen or `timeout` elapses.
 ///
-/// Fresh single-use session for the same reason as `readStreamSample`.
+/// Fresh single-use ephemeral session: this helper abandons its response
+/// mid-stream, and a shared session's connection pool can hand the dying
+/// connection to a later request against the same host:port (#320).
 private func readAVCCTags(
     port: Int, need: Set<UInt8>, timeout: Duration,
     onConnected: @escaping @Sendable () async -> Void
