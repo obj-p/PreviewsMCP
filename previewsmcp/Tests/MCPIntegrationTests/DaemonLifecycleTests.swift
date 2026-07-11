@@ -16,12 +16,20 @@ struct DaemonLifecycleTests {
 
     static let binaryPath: String = MCPTestServer.binaryPath
 
-    /// Socket path for the current test's daemon. Uses the same per-run socket
-    /// dir the daemon is spawned with (#283), so it points at the
-    /// $TEST_TMPDIR-derived isolated dir under Bazel.
+    /// This test's per-run socket dir (#283): the $TEST_TMPDIR-derived isolated
+    /// dir under Bazel, or an explicit `PREVIEWSMCP_SOCKET_DIR` override.
+    static var baseSocketDir: String {
+        DaemonTestLock.socketDir ?? DaemonTestLock.effectiveSocketDir
+    }
+
+    /// The `serve.sock` path inside `dir`.
+    static func socketPath(inDir dir: String) -> String {
+        (dir as NSString).appendingPathComponent("serve.sock")
+    }
+
+    /// Socket path for the current test's daemon (the shared per-run dir).
     static var socketPath: String {
-        let dir = DaemonTestLock.socketDir ?? DaemonTestLock.effectiveSocketDir
-        return (dir as NSString).appendingPathComponent("serve.sock")
+        socketPath(inDir: baseSocketDir)
     }
 
     /// Environment for a spawned daemon/CLI: the current env with
@@ -32,8 +40,7 @@ struct DaemonLifecycleTests {
         socketDir: String? = nil
     ) -> [String: String] {
         var env = ProcessInfo.processInfo.environment
-        env["PREVIEWSMCP_SOCKET_DIR"] =
-            socketDir ?? DaemonTestLock.socketDir ?? DaemonTestLock.effectiveSocketDir
+        env["PREVIEWSMCP_SOCKET_DIR"] = socketDir ?? baseSocketDir
         return env
     }
 
@@ -285,24 +292,27 @@ struct DaemonLifecycleTests {
         }
     }
 
-    /// Regression for #274: a socket directory reached through a symlink must
-    /// still let the client find the daemon. The reported case was
-    /// `PREVIEWSMCP_SOCKET_DIR` under `/tmp` (itself a symlink to
-    /// `/private/tmp`), where `status` reported "daemon starting or shutting
-    /// down" even though the daemon had bound and logged ready.
+    /// End-to-end characterization for #274: a socket directory reached through
+    /// a symlink round-trips. The reported case was `PREVIEWSMCP_SOCKET_DIR`
+    /// under `/tmp` (itself a symlink to `/private/tmp`), where `status`
+    /// reported "daemon starting or shutting down" even though the daemon had
+    /// bound and logged ready.
     ///
-    /// The daemon's bind path and the client's readiness / pid-liveness probe
-    /// both derive from the same `Path.normalize(PREVIEWSMCP_SOCKET_DIR)`, so
-    /// they agree by construction — this test forces an explicit extra symlink
-    /// hop on the socket dir and asserts the CLI `status` path sees the daemon
-    /// and a real MCP client completes a round trip over the symlinked path.
+    /// Scope note: production's `DaemonPaths` derives the socket path from a
+    /// single `Path.normalize(PREVIEWSMCP_SOCKET_DIR)` used by BOTH the daemon
+    /// bind and the client probe, and the kernel resolves symlinks at
+    /// bind/connect time — so the two sides agree by construction and this test
+    /// passes on current main (the reported failure did not reproduce here). It
+    /// therefore locks the symlinked-dir round trip as a smoke test; it does
+    /// not, and structurally cannot, fail on a one-sided path change while the
+    /// two sides still resolve to the same inode.
     ///
     /// Self-contained (its own symlinked dir + env) so it needs neither the
     /// shared per-run socket dir nor the cross-suite lock.
     @Test("client finds the daemon when the socket dir is reached through a symlink (#274)")
     func clientConnectsThroughSymlinkedSocketDir() async throws {
         let fm = FileManager.default
-        let base = DaemonTestLock.socketDir ?? DaemonTestLock.effectiveSocketDir
+        let base = Self.baseSocketDir
         let realDir = base + "-274real"
         let linkDir = base + "-274link"
         try? fm.removeItem(atPath: linkDir)
@@ -314,11 +324,14 @@ struct DaemonLifecycleTests {
             try? fm.removeItem(atPath: realDir)
         }
 
-        // Only meaningful if linkDir genuinely traverses a symlink.
-        #expect(try fm.destinationOfSymbolicLink(atPath: linkDir) == realDir)
+        // Confirm the test's premise via the filesystem, not the string we
+        // just wrote: linkDir must resolve through a symlink to realDir.
+        let resolvedLink = URL(fileURLWithPath: linkDir).resolvingSymlinksInPath().path
+        #expect(resolvedLink == realDir)
+        #expect(resolvedLink != linkDir)
 
         let env = Self.childEnv(socketDir: linkDir)
-        let socketPath = (linkDir as NSString).appendingPathComponent("serve.sock")
+        let socketPath = Self.socketPath(inDir: linkDir)
 
         let daemon = try await Self.startDaemon(env: env, socketPath: socketPath)
         defer {
