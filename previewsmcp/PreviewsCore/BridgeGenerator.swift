@@ -226,6 +226,7 @@ public enum BridgeGenerator {
         let preRasterPresent: String
         let postRasterPresent: String
         let stateWriter: String
+        let snapshotWriter: String
         if let window, !window.headless {
             let title = escapedForSwiftStringLiteral(window.title)
             createWindow = """
@@ -276,6 +277,7 @@ public enum BridgeGenerator {
                             }
             """
             stateWriter = frameSidecarPath.map(windowStateWriterCode) ?? ""
+            snapshotWriter = snapshotEntryCode(path: path)
         } else {
             // Headless spec or no spec: a borderless off-screen window used only to render at
             // the requested size, never shown or activated. Falls back to 400x600 with no spec.
@@ -293,9 +295,12 @@ public enum BridgeGenerator {
             """
             postRasterPresent = ""
             stateWriter = ""
+            snapshotWriter = ""
         }
         return """
+        \(rasterHelperCode())
         \(stateWriter)
+        \(snapshotWriter)
         @_cdecl("renderPreviewToFile")
         public func renderPreviewToFile() -> Int32 {
             MainActor.assumeIsolated {
@@ -316,35 +321,53 @@ public enum BridgeGenerator {
                 hosting.sizingOptions = []
                 window.contentView = hosting
                 \(preRasterPresent)
-                hosting.layoutSubtreeIfNeeded()
-                let bounds = hosting.bounds
-                guard bounds.width > 0, bounds.height > 0,
-                    let rep = NSBitmapImageRep(
-                        bitmapDataPlanes: nil,
-                        pixelsWide: Int(bounds.width.rounded()),
-                        pixelsHigh: Int(bounds.height.rounded()),
-                        bitsPerSample: 8,
-                        samplesPerPixel: 4,
-                        hasAlpha: true,
-                        isPlanar: false,
-                        colorSpaceName: .deviceRGB,
-                        bytesPerRow: 0,
-                        bitsPerPixel: 0
-                    )
-                else { return Int32(-1) }
-                rep.size = bounds.size
-                hosting.cacheDisplay(in: bounds, to: rep)
-                guard let data = rep.representation(using: .png, properties: [:]) else {
-                    return Int32(-2)
-                }
-                do {
-                    try data.write(to: URL(fileURLWithPath: "\(escapedForSwiftStringLiteral(path))"))
-                } catch {
-                    return Int32(-3)
-                }
+                let __rc = __previewsmcpRasterView(
+                    hosting, to: "\(escapedForSwiftStringLiteral(path))")
+                guard __rc == 0 else { return __rc }
                 \(postRasterPresent)
                 return 0
             }
+        }
+        """
+    }
+
+    /// Top-level helper (macOS render + live-snapshot entries) that rasters a view's current
+    /// content to a PNG at `path` via `cacheDisplay`, writing atomically so a failed write
+    /// leaves the previous image intact for a caller to fall back on. Emitting one helper keeps
+    /// the render-time PNG and the on-request live snapshot pixel-identical (#346): both go
+    /// through the same pixel format, color space, 1x point sizing, and PNG encoding. Status:
+    /// 0 ok, -2 zero bounds / bitmap alloc, -3 PNG encode, -4 write.
+    private static func rasterHelperCode() -> String {
+        """
+        @MainActor
+        func __previewsmcpRasterView(_ __view: NSView, to __path: String) -> Int32 {
+            __view.layoutSubtreeIfNeeded()
+            let __bounds = __view.bounds
+            guard __bounds.width > 0, __bounds.height > 0,
+                let __rep = NSBitmapImageRep(
+                    bitmapDataPlanes: nil,
+                    pixelsWide: Int(__bounds.width.rounded()),
+                    pixelsHigh: Int(__bounds.height.rounded()),
+                    bitsPerSample: 8,
+                    samplesPerPixel: 4,
+                    hasAlpha: true,
+                    isPlanar: false,
+                    colorSpaceName: .deviceRGB,
+                    bytesPerRow: 0,
+                    bitsPerPixel: 0
+                )
+            else { return Int32(-2) }
+            __rep.size = __bounds.size
+            __view.cacheDisplay(in: __bounds, to: __rep)
+            guard let __data = __rep.representation(using: .png, properties: [:]) else {
+                return Int32(-3)
+            }
+            do {
+                try __data.write(to: URL(fileURLWithPath: __path), options: .atomic)
+            } catch {
+                return Int32(-4)
+            }
+            return 0
         }
         """
     }
@@ -382,6 +405,32 @@ public enum BridgeGenerator {
                 else { return Int32(-1) }
                 __previewsmcpWriteWindowState(window)
                 return 0
+            }
+        }
+        """
+    }
+
+    /// Top-level entry (visible windows) that re-rasters the live preview window's current
+    /// content view to the baked image path — without rebuilding the view or touching window
+    /// placement. The daemon runs it over `runOnMain` when `preview_snapshot` targets a visible
+    /// session, so the returned image reflects post-render interaction (toggles, scrolls, typed
+    /// text) that the render-time PNG cannot contain (#346). `cacheDisplay` re-renders the view
+    /// hierarchy into a bitmap rather than screenshotting the display, so it works even when the
+    /// window is occluded or not key.
+    private static func snapshotEntryCode(path: String) -> String {
+        """
+        @_cdecl("snapshotPreviewWindow")
+        public func snapshotPreviewWindow() -> Int32 {
+            MainActor.assumeIsolated {
+                let identifier = NSUserInterfaceItemIdentifier("previewsmcp-preview")
+                guard
+                    let window = NSApplication.shared.windows.first(where: {
+                        $0.identifier == identifier
+                    }),
+                    let hosting = window.contentView
+                else { return Int32(-1) }
+                return __previewsmcpRasterView(
+                    hosting, to: "\(escapedForSwiftStringLiteral(path))")
             }
         }
         """

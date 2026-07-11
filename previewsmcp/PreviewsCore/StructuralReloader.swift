@@ -16,4 +16,14 @@ public protocol StructuralReloader: Sendable {
     /// narrowing split). All are empty for the standalone path, where `objectPath` is
     /// self-contained.
     func render(_ build: JITRenderBuild) async throws
+
+    /// Re-raster the live agent window to its image path by running `entrySymbol`
+    /// (the generated `snapshotPreviewWindow`) on the live session's main thread, for a
+    /// visible session's on-request snapshot (#346). The default is a no-op so reloaders with
+    /// no live-window surface (and test stubs) need not implement it.
+    func snapshotLiveWindow(entrySymbol: String) async throws
+}
+
+public extension StructuralReloader {
+    func snapshotLiveWindow(entrySymbol _: String) async throws {}
 }
