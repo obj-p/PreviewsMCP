@@ -25,11 +25,15 @@ struct DaemonLifecycleTests {
     }
 
     /// Environment for a spawned daemon/CLI: the current env with
-    /// `PREVIEWSMCP_SOCKET_DIR` forced to this test's per-run socket dir (#283)
-    /// so the daemon's production `DaemonPaths` resolves there.
-    private static func childEnv() -> [String: String] {
+    /// `PREVIEWSMCP_SOCKET_DIR` forced to `socketDir` (defaulting to this
+    /// test's per-run socket dir, #283) so the daemon's production
+    /// `DaemonPaths` resolves there.
+    private static func childEnv(
+        socketDir: String? = nil
+    ) -> [String: String] {
         var env = ProcessInfo.processInfo.environment
-        env["PREVIEWSMCP_SOCKET_DIR"] = DaemonTestLock.socketDir ?? DaemonTestLock.effectiveSocketDir
+        env["PREVIEWSMCP_SOCKET_DIR"] =
+            socketDir ?? DaemonTestLock.socketDir ?? DaemonTestLock.effectiveSocketDir
         return env
     }
 
@@ -41,17 +45,21 @@ struct DaemonLifecycleTests {
     }
 
     /// Start a daemon in the background. Returns the Process; caller must
-    /// terminate it (or kill-daemon) in cleanup.
-    private static func startDaemon() async throws -> Process {
+    /// terminate it (or kill-daemon) in cleanup. `env`/`socketPath` default to
+    /// the shared per-run socket dir; pass both to run on an isolated dir.
+    private static func startDaemon(
+        env: [String: String]? = nil,
+        socketPath: String? = nil
+    ) async throws -> Process {
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: binaryPath)
         proc.arguments = ["serve", "--daemon"]
         proc.standardOutput = FileHandle.nullDevice
         proc.standardError = FileHandle.nullDevice
-        proc.environment = Self.childEnv()
+        proc.environment = env ?? Self.childEnv()
         try proc.run()
 
-        let currentSocketPath = socketPath
+        let currentSocketPath = socketPath ?? Self.socketPath
         let deadline = Date().addingTimeInterval(5)
         while Date() < deadline {
             if FileManager.default.fileExists(atPath: currentSocketPath) { break }
@@ -65,13 +73,16 @@ struct DaemonLifecycleTests {
         return proc
     }
 
-    /// Run a CLI subcommand with the current test's socket directory.
+    /// Run a CLI subcommand. `env` defaults to the shared per-run socket dir;
+    /// pass a custom env to target an isolated dir.
     @discardableResult
-    private static func runCLI(_ args: [String]) async throws -> (stdout: String, exit: Int32) {
+    private static func runCLI(
+        _ args: [String], env: [String: String]? = nil
+    ) async throws -> (stdout: String, exit: Int32) {
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: binaryPath)
         proc.arguments = args
-        proc.environment = Self.childEnv()
+        proc.environment = env ?? Self.childEnv()
         let out = Pipe()
         proc.standardOutput = out
         proc.standardError = FileHandle.nullDevice
@@ -272,5 +283,72 @@ struct DaemonLifecycleTests {
             #expect(exit == 0)
             #expect(out.contains("stale"))
         }
+    }
+
+    /// Regression for #274: a socket directory reached through a symlink must
+    /// still let the client find the daemon. The reported case was
+    /// `PREVIEWSMCP_SOCKET_DIR` under `/tmp` (itself a symlink to
+    /// `/private/tmp`), where `status` reported "daemon starting or shutting
+    /// down" even though the daemon had bound and logged ready.
+    ///
+    /// The daemon's bind path and the client's readiness / pid-liveness probe
+    /// both derive from the same `Path.normalize(PREVIEWSMCP_SOCKET_DIR)`, so
+    /// they agree by construction — this test forces an explicit extra symlink
+    /// hop on the socket dir and asserts the CLI `status` path sees the daemon
+    /// and a real MCP client completes a round trip over the symlinked path.
+    ///
+    /// Self-contained (its own symlinked dir + env) so it needs neither the
+    /// shared per-run socket dir nor the cross-suite lock.
+    @Test("client finds the daemon when the socket dir is reached through a symlink (#274)")
+    func clientConnectsThroughSymlinkedSocketDir() async throws {
+        let fm = FileManager.default
+        let base = DaemonTestLock.socketDir ?? DaemonTestLock.effectiveSocketDir
+        let realDir = base + "-274real"
+        let linkDir = base + "-274link"
+        try? fm.removeItem(atPath: linkDir)
+        try? fm.removeItem(atPath: realDir)
+        try fm.createDirectory(atPath: realDir, withIntermediateDirectories: true)
+        try fm.createSymbolicLink(atPath: linkDir, withDestinationPath: realDir)
+        defer {
+            try? fm.removeItem(atPath: linkDir)
+            try? fm.removeItem(atPath: realDir)
+        }
+
+        // Only meaningful if linkDir genuinely traverses a symlink.
+        #expect(try fm.destinationOfSymbolicLink(atPath: linkDir) == realDir)
+
+        let env = Self.childEnv(socketDir: linkDir)
+        let socketPath = (linkDir as NSString).appendingPathComponent("serve.sock")
+
+        let daemon = try await Self.startDaemon(env: env, socketPath: socketPath)
+        defer {
+            // kill-daemon (via the pid file) is the robust cleanup for this
+            // one-off dir; a bare terminate() would miss a detached daemon.
+            // defer can't await, so kill synchronously via a Process.
+            let kill = Process()
+            kill.executableURL = URL(fileURLWithPath: Self.binaryPath)
+            kill.arguments = ["kill-daemon", "--timeout", "5"]
+            kill.environment = env
+            kill.standardOutput = FileHandle.nullDevice
+            kill.standardError = FileHandle.nullDevice
+            try? kill.run()
+            kill.waitUntilExit()
+            if daemon.isRunning { daemon.terminate() }
+        }
+
+        // The exact #274 symptom surface: the CLI readiness / pid path must
+        // report the daemon running, not "starting or shutting down".
+        let (status, exit) = try await Self.runCLI(["status"], env: env)
+        #expect(status.contains("daemon running"), "status did not see the daemon: \(status)")
+        #expect(exit == 0)
+
+        // And a real MCP client completes a round trip over the symlinked path.
+        let connection = NWConnection(to: NWEndpoint.unix(path: socketPath), using: .tcp)
+        let client = Client(name: "socket-symlink-test", version: "1.0")
+        _ = try await client.connect(transport: daemonChannelTransport(connection: connection))
+        defer { Task { await client.disconnect() } }
+
+        let response = try await client.listTools()
+        #expect(!response.tools.isEmpty, "daemon should expose tools over the symlinked socket")
     }
 }
