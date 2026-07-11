@@ -12,13 +12,18 @@ public final class JITSession {
             }
         }
         // bazel run / detached daemon: the env vars above are absent, so derive
-        // the runfiles tree from the running executable's own location.
+        // the runfiles tree from the running executable's own location. Also
+        // try the symlink-resolved location: an installed binary (Homebrew
+        // bin/ symlink into libexec) keeps its runfiles beside the real file,
+        // not beside the symlink.
+        let sources = [
+            Bundle.main.executableURL,
+            CommandLine.arguments.first.map { URL(fileURLWithPath: $0) },
+        ].compactMap { $0 }
         var candidates: [String] = []
-        if let exe = Bundle.main.executableURL?.path {
-            candidates.append(exe + ".runfiles")
-        }
-        if let argv0 = CommandLine.arguments.first {
-            candidates.append(argv0 + ".runfiles")
+        for url in sources {
+            candidates.append(url.path + ".runfiles")
+            candidates.append(url.resolvingSymlinksInPath().path + ".runfiles")
         }
         for runfiles in candidates where FileManager.default.fileExists(atPath: runfiles) {
             return URL(fileURLWithPath: runfiles, isDirectory: true)

@@ -6,6 +6,11 @@ load("//bazel:stage_dir.bzl", "stage_dir")
 load("//bazel:transitions.bzl", "ios_sim_build")
 load("//bazel:version.bzl", "generated_version")
 
+exports_files([
+    "LICENSE",
+    "README.md",
+])
+
 generated_version(
     name = "generated_version",
     out = "GeneratedVersion.swift",

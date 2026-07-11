@@ -10,13 +10,18 @@ permissions:
 
 jobs:
   build:
-    runs-on: macos-15
+    # Same self-hosted mini as ci.yml: the persistent Bazel disk cache is what
+    # keeps the -c opt LLVM build from approaching GitHub's job cap (a cold
+    # hosted runner rebuilds the patched llvm-project from source every tag).
+    # The runner executes one job at a time, so a release queues behind any
+    # in-flight CI run instead of contending with it.
+    runs-on: [self-hosted, macOS, ARM64]
+    timeout-minutes: 180
+    env:
+      # Must match the .bazelrc --xcode_version pin.
+      DEVELOPER_DIR: /Applications/Xcode-26.2.0.app/Contents/Developer
     steps:
       - uses: actions/checkout@v7
-
-      # Must match the .bazelrc --xcode_version pin.
-      - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_26.2.app
 
       - name: Get version from tag
         id: version
@@ -24,26 +29,18 @@ jobs:
           VERSION=${GITHUB_REF#refs/tags/v}
           echo "VERSION=$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Cache Bazel disk cache
-        uses: actions/cache@v6
-        with:
-          path: ~/.cache/bazel-disk
-          key: bazel-disk-${{ runner.os }}-${{ hashFiles('MODULE.bazel.lock') }}
-          restore-keys: bazel-disk-${{ runner.os }}-
+      # release_tarball packages the binary WITH its runfiles tree
+      # (PreviewAgent, orc runtime, iOS JIT resources) — a bare binary's
+      # render path throws at runtime (#366).
+      - name: Build release tarball
+        run: bazel build -c opt //previewsmcp/cli:release_tarball
 
-      - name: Build release binary
-        run: bazel build -c opt //previewsmcp/cli:previewsmcp
-
-      - name: Package binary
+      - name: Stage versioned artifact
         env:
           VERSION: ${{ steps.version.outputs.VERSION }}
         run: |
           STAGING="previewsmcp-${VERSION}-darwin-arm64"
-          mkdir -p "$STAGING"
-          cp bazel-bin/previewsmcp/cli/previewsmcp "$STAGING/"
-          cp LICENSE "$STAGING/"
-          cp README.md "$STAGING/"
-          tar -czf "${STAGING}.tar.gz" "$STAGING"
+          cp -f bazel-bin/previewsmcp/cli/previewsmcp-darwin-arm64.tar.gz "${STAGING}.tar.gz"
           shasum -a 256 "${STAGING}.tar.gz" > "${STAGING}.tar.gz.sha256"
 
       - name: Create GitHub Release
