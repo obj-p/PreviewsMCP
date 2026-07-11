@@ -13,11 +13,7 @@ import Testing
 struct IOSHIDInputTests {
     @Test(
         "IndigoHID tap flips the toggle and drag scrolls the list",
-        .timeLimit(.minutes(20)),
-        .disabled(
-            if: ProcessInfo.processInfo.environment["CI"] != nil,
-            "boots a simulator + compiles a preview; local-only like fullIOSWorkflow"
-        )
+        .timeLimit(.minutes(20))
     )
     func tapAndDrag() async throws {
         // Serialized against the other heavy iOS e2e suites — see the note in
@@ -41,7 +37,9 @@ struct IOSHIDInputTests {
         let server = try await MCPTestServer.start()
         defer { server.stop() }
 
-        let (startContent, startError) = try await server.callTool(
+        // preview_start pays first-boot + cold example build on a fresh
+        // machine — see IOSMCPTests for the 600s rationale.
+        let (startContent, startError) = try await server.callToolWithTimeout(
             name: "preview_start",
             arguments: [
                 "filePath": .string(MCPTestServer.toDoViewPath),
@@ -49,7 +47,8 @@ struct IOSHIDInputTests {
                 "deviceUDID": .string(deviceUDID),
                 "headless": .bool(true),
                 "projectPath": .string(MCPTestServer.spmExampleRoot.path),
-            ]
+            ],
+            timeout: .seconds(600)
         )
         #expect(startError != true, "iOS preview_start should succeed")
         let sessionID = try MCPTestServer.extractSessionID(from: startContent)

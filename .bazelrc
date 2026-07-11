@@ -1,6 +1,10 @@
 build --apple_platform_type=macos
 build --xcode_version=26.2
 build --macos_minimum_os=14.0
+# Exec-config tools (e.g. rules_swift's test_discoverer) otherwise default to
+# the SDK's own version as their minimum and fail dyld on hosts running an
+# older macOS than the Xcode 26.2 SDK (the GHA macos-15 runners).
+build --host_macos_minimum_os=14.0
 build --ios_minimum_os=14.0
 build --verbose_failures
 build --workspace_status_command=bazel/workspace_status.sh

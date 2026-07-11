@@ -17,17 +17,13 @@ struct IOSAppServerTests {
 
     @Test(
         "daemon-hosted app server drives and streams the preview",
-        .timeLimit(.minutes(20)),
-        .disabled(
-            if: ProcessInfo.processInfo.environment["CI"] != nil,
-            "boots a simulator + compiles a preview; local-only like fullIOSWorkflow"
-        )
+        .timeLimit(.minutes(20))
     )
     func appServerEndToEnd() async throws {
-        // Serialize the heavy iOS e2e suites against each other: locally (these
-        // are .disabled on CI) three sims booting and driving their displays at
-        // once starve the single host GPU/window-server, so whichever loses the
-        // race flakes. One sim at a time keeps each render/capture healthy.
+        // Serialize the heavy iOS e2e suites against each other: three sims
+        // booting and driving their displays at once starve the single host
+        // GPU/window-server, so whichever loses the race flakes. One sim at a
+        // time keeps each render/capture healthy.
         // The host lock extends that to sim-booting runs from other
         // checkouts (#336).
         let simLock = try await SimulatorTestLock.acquire()
@@ -48,6 +44,8 @@ struct IOSAppServerTests {
         let server = try await MCPTestServer.start()
         defer { server.stop() }
 
+        // preview_start pays first-boot + cold example build on a fresh
+        // machine — see IOSMCPTests for the 600s rationale.
         let startResult = try await server.callToolResult(
             name: "preview_start",
             arguments: [
@@ -56,7 +54,8 @@ struct IOSAppServerTests {
                 "deviceUDID": .string(deviceUDID),
                 "headless": .bool(true),
                 "projectPath": .string(MCPTestServer.spmExampleRoot.path),
-            ]
+            ],
+            timeout: .seconds(600)
         )
         #expect(startResult.isError != true, "iOS preview_start should succeed")
         let sessionID = try MCPTestServer.extractSessionID(from: startResult.content)

@@ -105,13 +105,4 @@ The cache must never break `preview_start`:
 
 ## CI Integration
 
-The setup cache directory lives under `.build/`, which is already cached by the CI workflow's `actions/cache` step. No additional CI configuration is needed for setup caching to work across workflow runs.
-
-The CI workflow uses per-job cache keys to prevent the `build-and-test` and `ios-tests` jobs from clobbering each other's caches when running in parallel:
-
-| Job | Cache key |
-|-----|-----------|
-| `build-and-test` | `spm-${{ runner.os }}-build-${{ hashFiles('Package.resolved') }}` |
-| `ios-tests` | `spm-${{ runner.os }}-ios-${{ hashFiles('Package.resolved') }}` |
-
-Both share a `spm-${{ runner.os }}-` restore-keys fallback so a cold job can warm from the other's cache.
+CI runs on a persistent self-hosted runner, so the setup cache directory under `.build/` simply survives between runs on the runner's disk — no `actions/cache` step or per-job cache keys are involved. No CI configuration is needed for setup caching to work across workflow runs.

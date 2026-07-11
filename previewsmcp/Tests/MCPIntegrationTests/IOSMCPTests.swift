@@ -41,25 +41,7 @@ struct IOSMCPTests {
         // pre-launch preamble alone consumed 300–500s when the GHA
         // macos-15 runner was under combined build+multi-test load;
         // the prior 10-minute limit truncated before boot completed.
-        .timeLimit(.minutes(20)),
-        // Known-flaky on GHA macos-15 CI. After 30+ commits worth of
-        // structural fixes (pipe-deadlock, private-API timeouts,
-        // SIGKILL escalation, retry+reboot, simctl-launch subprocess,
-        // CoreSimulator-service bounce, device selection), the
-        // underlying wedge remains: by the time iOS MCP tests runs
-        // (after iOS unit tests + CLI snapshot + CLI integration have
-        // all consumed shared simctl state), either `simctl launch`
-        // or `simctl io screenshot` hangs indefinitely — even SIGKILL
-        // doesn't recover because the simctl subprocess is in
-        // uninterruptible kernel-sleep against a wedged
-        // CoreSimulatorService. Same workflow passes cleanly in
-        // PreviewsIOSTests.endToEnd (in-process, earlier in the job)
-        // and locally. Skip on CI until the infrastructure issue is
-        // resolved; local developers still get coverage.
-        .disabled(
-            if: ProcessInfo.processInfo.environment["CI"] != nil,
-            "iOS MCP workflow wedges CoreSimulator under combined load on GHA macos-15; see PR #141 for details"
-        )
+        .timeLimit(.minutes(20))
     )
     func fullIOSWorkflow() async throws {
         // Serialized against the other heavy iOS e2e suites — see the note in
@@ -87,7 +69,11 @@ struct IOSMCPTests {
         defer { server.stop() }
 
         // --- Start iOS preview (single preview_start for all iOS assertions) ---
-        let (startContent, startError) = try await server.callTool(
+        // preview_start is the known-slow tool: a fresh machine pays a first
+        // boot of the pinned device plus a cold SwiftPM build of the example,
+        // minutes by design (the 60s callTool default failed the mini's
+        // first-ever CI run). The suite .timeLimit still caps the test.
+        let (startContent, startError) = try await server.callToolWithTimeout(
             name: "preview_start",
             arguments: [
                 "filePath": .string(MCPTestServer.toDoViewPath),
@@ -95,7 +81,8 @@ struct IOSMCPTests {
                 "deviceUDID": .string(deviceUDID),
                 "headless": .bool(true),
                 "projectPath": .string(MCPTestServer.spmExampleRoot.path),
-            ]
+            ],
+            timeout: .seconds(600)
         )
         #expect(startError != true, "iOS preview_start should succeed")
         let sessionID = try MCPTestServer.extractSessionID(from: startContent)

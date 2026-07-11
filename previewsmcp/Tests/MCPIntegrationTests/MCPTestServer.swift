@@ -287,15 +287,31 @@ final class MCPTestServer: @unchecked Sendable {
     /// Call an MCP tool and return the full `CallTool.Result` including
     /// the `structuredContent` field that the tuple-returning `callTool`
     /// overload drops. Needed for tests that assert structured payload
-    /// shape.
+    /// shape. A non-nil `timeout` bounds the call like
+    /// `callToolWithTimeout` — crisp failure plus captured server stderr
+    /// instead of hanging to the suite `.timeLimit`.
     func callToolResult(
         name: String,
-        arguments: [String: Value]? = nil
+        arguments: [String: Value]? = nil,
+        timeout: Duration? = nil
     ) async throws -> CallTool.Result {
-        let context: RequestContext<CallTool.Result> = try await client.callTool(
-            name: name, arguments: arguments
-        )
-        return try await context.value
+        guard let timeout else {
+            let context: RequestContext<CallTool.Result> = try await client.callTool(
+                name: name, arguments: arguments
+            )
+            return try await context.value
+        }
+        do {
+            return try await Self.withTimeout(timeout, process: process) { [self] in
+                let context: RequestContext<CallTool.Result> = try await client.callTool(
+                    name: name, arguments: arguments
+                )
+                return try await context.value
+            }
+        } catch is TestTimeoutSentinel {
+            Issue.record("callTool(\(name)) timed out after \(timeout). Server stderr:\n\(stderrLog())")
+            throw MCPTestError.timedOut(operation: "callTool(\(name))", duration: timeout)
+        }
     }
 
     /// Decode `result.structuredContent` into a Codable DTO.

@@ -2,6 +2,7 @@ load("@rules_swift//swift:swift.bzl", "swift_test")
 
 swift_test(
     name = "PreviewsJITLinkTests",
+    timeout = "long",
     srcs = glob(
         ["**/*.swift"],
         exclude = [
@@ -36,6 +37,7 @@ swift_test(
 
 swift_test(
     name = "IOSPreviewE2ETests",
+    timeout = "eternal",
     srcs = ["IOSPreviewE2ETests.swift"],
     copts = [
         "-swift-version",
