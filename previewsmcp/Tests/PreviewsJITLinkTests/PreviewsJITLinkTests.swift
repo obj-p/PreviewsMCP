@@ -136,6 +136,36 @@ struct PreviewsJITLinkTests {
             Thread.sleep(forTimeInterval: 0.1)
             observed = try session.runOnMain(symbol: "event_pump_check")
         }
+
+        // #391 timing-neutral diagnosis (does not touch the 10s verdict below).
+        // Paradox: runOnMain answers every poll (the agent's main dispatch queue
+        // drains) yet the posted .applicationDefined event is not dispatched.
+        // Classify a red from one run: (A) idle window — stop polling so the
+        // agent main loop has no dispatch-main blocks; if it fires now it was
+        // STARVED-BY-POLLING, not wedged. (B) extended poll — ever fires (LAG,
+        // recoverable) or never (WEDGE, run-loop mode/pump defect).
+        func diag(_ m: String) {
+            FileHandle.standardError.write(Data("EPT-DIAG: \(m)\n".utf8))
+        }
+        if observed != 1 {
+            diag("RED at 10s budget; entering extended diagnosis")
+            Thread.sleep(forTimeInterval: 5.0)
+            let afterIdle = try session.runOnMain(symbol: "event_pump_check")
+            let idleDelay = try session.runOnMain(symbol: "event_pump_fire_delay_ms")
+            diag("after 5s idle (no polling): observed=\(afterIdle) fireDelayMs=\(idleDelay)")
+            var late: Int32 = afterIdle
+            for _ in 0 ..< 500 where late != 1 {
+                Thread.sleep(forTimeInterval: 0.1)
+                late = try session.runOnMain(symbol: "event_pump_check")
+            }
+            let finalDelay = try session.runOnMain(symbol: "event_pump_fire_delay_ms")
+            diag("extended poll to ~60s: observed=\(late) fireDelayMs=\(finalDelay) "
+                + "verdict=\(late == 1 ? (afterIdle == 1 ? "STARVED-BY-POLLING" : "LAG") : "WEDGE")")
+        } else {
+            let delay = try session.runOnMain(symbol: "event_pump_fire_delay_ms")
+            diag("GREEN fireDelayMs=\(delay)")
+        }
+
         #expect(observed == 1)
     }
 
