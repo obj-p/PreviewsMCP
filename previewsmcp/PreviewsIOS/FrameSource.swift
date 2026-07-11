@@ -25,6 +25,16 @@ public final class EventDrivenFrameSource: FrameSource, @unchecked Sendable {
         streamer.latestFrame()
     }
 
+    /// How many frames the event-driven pipeline has accepted and how stale
+    /// the newest one is. Logged with each cached-frame snapshot so a frozen
+    /// specimen shows whether the display pipeline stalled (#368).
+    public func frameStats() -> (count: UInt64, ageSeconds: Double) {
+        var count: UInt64 = 0
+        var age: Double = 0
+        streamer.getFrameCount(&count, ageSeconds: &age)
+        return (count, age)
+    }
+
     /// Capture the live display surface on demand at `jpegQuality` (PNG when
     /// `jpegQuality >= 1.0`), reusing the streamer's wired pipeline. Unlike
     /// `nextFrame`, this re-encodes current content at the requested quality

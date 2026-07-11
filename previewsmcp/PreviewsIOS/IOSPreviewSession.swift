@@ -761,6 +761,10 @@ public actor IOSPreviewSession {
             // PNG/lossless request (quality >= 1.0) can't reuse the JPEG cache,
             // so it falls through to a fresh re-encode.
             if jpegQuality < 1.0, let cached = await source.nextFrame() {
+                let stats = source.frameStats()
+                Log.info(
+                    "iosSnap: cached frame #\(stats.count) age \(String(format: "%.1f", stats.ageSeconds))s"
+                )
                 return cached
             }
             // Ride over brief surface gaps (e.g. the agent respawn the OS forces

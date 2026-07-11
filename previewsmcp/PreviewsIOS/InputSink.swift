@@ -1,4 +1,5 @@
 import Foundation
+import PreviewsCore
 @preconcurrency import SimulatorBridge
 
 /// A destination for normalized (0..1) pointer input on a preview surface. The
@@ -19,10 +20,14 @@ public struct IndigoHIDInputSink: InputSink {
     }
 
     public func tap(x: Double, y: Double) {
-        _ = client.tapAt(x: x, y: y)
+        if !client.tapAt(x: x, y: y) {
+            Log.warn("hid: tap not dispatched (Indigo mouse function unavailable)")
+        }
     }
 
     public func drag(fromX: Double, fromY: Double, toX: Double, toY: Double, steps: Int) {
-        _ = client.dragFrom(x: fromX, fromY: fromY, toX: toX, toY: toY, steps: steps)
+        if !client.dragFrom(x: fromX, fromY: fromY, toX: toX, toY: toY, steps: steps) {
+            Log.warn("hid: drag not dispatched (Indigo mouse function unavailable)")
+        }
     }
 }
