@@ -1,5 +1,6 @@
 import Foundation
 import PreviewsIOS
+import PreviewsTestSupport
 import Testing
 
 /// Verifies the PreviewAppServer MJPEG plumbing with a stub frame source. No
@@ -53,21 +54,16 @@ struct PreviewAppServerStreamTests {
     }
 }
 
-/// Read a bounded sample of an MJPEG stream, asserting the multipart content
-/// type. URLSession unwraps multipart/x-mixed-replace and delivers the JPEG
-/// part bodies without the boundary.
+/// Read a bounded raw sample of the MJPEG response, asserting the multipart
+/// content type and boundary on the wire. Raw socket, not URLSession — see
+/// RawHTTP.sample (#350).
 private func readStreamSample(port: Int, limit: Int) async throws -> Data {
-    var request = URLRequest(url: URL(string: "http://127.0.0.1:\(port)/stream.mjpeg")!)
-    request.timeoutInterval = 15
-    let (bytes, response) = try await URLSession.shared.bytes(for: request)
-    let contentType = (response as? HTTPURLResponse)?.value(forHTTPHeaderField: "Content-Type") ?? ""
-    #expect(contentType.contains("multipart/x-mixed-replace"), "stream should be MJPEG multipart")
-
-    var buffer = Data()
-    let deadline = ContinuousClock.now + .seconds(10)
-    for try await byte in bytes {
-        buffer.append(byte)
-        if buffer.count >= limit || ContinuousClock.now >= deadline { break }
-    }
-    return buffer
+    let raw = try await RawHTTP.sample(
+        port: port, path: "/stream.mjpeg", bodyLimit: limit, deadline: .seconds(10)
+    )
+    #expect(
+        raw.head.contains("Content-Type: multipart/x-mixed-replace"),
+        "stream should be MJPEG multipart"
+    )
+    return raw.body
 }
