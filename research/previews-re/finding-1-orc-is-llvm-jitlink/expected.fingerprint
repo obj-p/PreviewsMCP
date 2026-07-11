@@ -1,0 +1,14 @@
+# Load-bearing exported symbols proving Apple's Xcode-Previews runtime JIT
+# engine is LLVM ORC + JITLink, statically linked behind XOJITExecutor's
+# Swift/XPC facade. Source: archive/previews-research-3201
+# research/scripts/analysis/q6-jit-runtime-findings.md.
+#
+# reproduce.sh asserts every non-comment line below appears in the VM-side
+# `dyld_info -exports` of XOJITExecutor.framework. Lines are literal symbol
+# substrings. Any miss = the finding no longer holds on this OS/Xcode (drift).
+_llvm_orc_registerJITLoaderGDBAllocAction
+___jit_debug_register_code
+___jit_debug_descriptor
+___xojit_executor_write_mem
+___xojit_executor_run_program_on_main_thread
+___xojit_executor_run_program_wrapper
