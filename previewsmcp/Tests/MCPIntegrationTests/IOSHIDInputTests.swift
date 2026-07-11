@@ -13,11 +13,7 @@ import Testing
 struct IOSHIDInputTests {
     @Test(
         "IndigoHID tap flips the toggle and drag scrolls the list",
-        .timeLimit(.minutes(20)),
-        .disabled(
-            if: ProcessInfo.processInfo.environment["CI"] != nil,
-            "boots a simulator + compiles a preview; local-only like fullIOSWorkflow"
-        )
+        .timeLimit(.minutes(20))
     )
     func tapAndDrag() async throws {
         // Serialized against the other heavy iOS e2e suites — see the note in
