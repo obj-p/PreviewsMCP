@@ -12,7 +12,7 @@ enum CLIPlatform: String, ExpressibleByArgument, CaseIterable {
 
 /// Let `--build-system` parse straight into the core enum so ArgumentParser
 /// validates the value and lists the choices in `--help`.
-extension BuildSystemKind: ExpressibleByArgument {}
+extension BuildSystemKind: @retroactive ExpressibleByArgument {}
 
 /// Wall-clock instant the process began. Captured at app entry (the first
 /// line of `PreviewsMCPApp.main`) so the `preview_build_info` MCP tool can

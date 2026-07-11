@@ -106,7 +106,7 @@ actor PreviewsMCPClient: MCPClienting, LivenessPinging {
                     do {
                         try await transport.send(frame)
                     } catch {
-                        await self.fail(id: id, with: error)
+                        self.fail(id: id, with: error)
                     }
                 }
             }

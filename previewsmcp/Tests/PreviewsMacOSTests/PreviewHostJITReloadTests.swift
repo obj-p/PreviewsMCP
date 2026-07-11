@@ -88,7 +88,7 @@ struct PreviewHostJITReloadTests {
         #expect(made.count == 2)
         #expect(made.first?.calls.count == 2)
 
-        weak var first = made.first
+        weak let first = made.first
         made.removeFirst()
         host.closePreview(sessionID: "a")
         #expect(first == nil)
