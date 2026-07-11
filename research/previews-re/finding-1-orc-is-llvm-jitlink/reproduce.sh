@@ -30,8 +30,14 @@ cleanup() { "$VZY" stop "$BUNDLE" >/dev/null 2>&1 || true; }
 trap cleanup EXIT
 
 echo "== finding-1: XOJITExecutor is LLVM ORC + JITLink =="
+# Fail clearly if the snapshot was never baked, so a missing rung isn't
+# misread as framework/drift breakage. (`snapshot list` prints `<name>\t<date>`.)
+if ! "$VZY" snapshot list "$BUNDLE" 2>/dev/null | cut -f1 | grep -qx "$SNAPSHOT"; then
+    echo "FATAL: snapshot '${SNAPSHOT}' not found — run the bake ladder to it first." >&2
+    exit 1
+fi
 echo "[vm] restore snapshot '${SNAPSHOT}' and boot"
-"$VZY" snapshot restore "$BUNDLE" "$SNAPSHOT"
+"$VZY" snapshot restore "$BUNDLE" "$SNAPSHOT" || { echo "FATAL: snapshot restore failed" >&2; exit 1; }
 "$VZY" boot "$BUNDLE" --skip-ssh-wait &
 "$VZY" ssh "$BUNDLE" true   # blocks until SSH is reachable
 

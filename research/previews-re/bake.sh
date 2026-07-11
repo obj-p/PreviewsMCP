@@ -22,11 +22,13 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VZY="${VZY:-$HOME/Projects/vzy/.build/release/vzy}"
 BUNDLE="${VZY_BUNDLE:?set VZY_BUNDLE to the target vz bundle path}"
 IPSW="${IPSW:-latest}"
-LOG="${LOG:-/tmp/vzy-bake-$(date +%s 2>/dev/null || echo run).log}"
+LOG="${LOG:-/tmp/vzy-bake-$(date +%s).log}"
 
 [[ -x "$VZY" ]] || { echo "FATAL: vzy not built at $VZY (build.sh in ~/Projects/vzy)" >&2; exit 1; }
 
-have_snapshot() { "$VZY" snapshot list "$BUNDLE" 2>/dev/null | grep -qx "$1"; }
+# `vzy snapshot list` prints one `<name>\t<iso-date>` line per snapshot, so
+# match the first (tab-delimited) field, not the whole line.
+have_snapshot() { "$VZY" snapshot list "$BUNDLE" 2>/dev/null | cut -f1 | grep -qx "$1"; }
 
 # rung <snapshot> <human-desc> -- <command...>
 # Skips if <snapshot> already exists; else runs the command and snapshots.
@@ -42,7 +44,10 @@ rung() {
         echo "[bake] FAIL  ${snap} (${desc}) — fix and re-run bake.sh to resume" >&2
         exit 1
     fi
-    "$VZY" snapshot take "$BUNDLE" "$snap"
+    if ! "$VZY" snapshot take "$BUNDLE" "$snap"; then
+        echo "[bake] FAIL  ${snap} — snapshot take failed (disk full?)" >&2
+        exit 1
+    fi
     echo "[bake] DONE  ${snap}"
 }
 
@@ -57,9 +62,22 @@ bake() {
     echo "[bake] bundle=${BUNDLE} ipsw=${IPSW} log=${LOG}"
 
     # -- READY rungs (one-command via extracted vzy) ----------------------
-    if [[ ! -d "$BUNDLE" ]]; then
+    # Guard install on its own post-install snapshot so a completed install
+    # resumes cleanly. A bundle dir with no post-install snapshot is a partial
+    # install — fail loud rather than reinstall into it or skip it.
+    if have_snapshot post-install; then
+        echo "[bake] SKIP  post-install — already present"
+    elif [[ -d "$BUNDLE" ]]; then
+        echo "[bake] FAIL  ${BUNDLE} exists but has no post-install snapshot" >&2
+        echo "            (partial install?) — remove it and re-run bake.sh." >&2
+        exit 1
+    else
         echo "[bake] RUN   install (${IPSW})"
         "$VZY" install "$BUNDLE" --ipsw "$IPSW" || { echo "[bake] FAIL install" >&2; exit 1; }
+        if ! "$VZY" snapshot take "$BUNDLE" post-install; then
+            echo "[bake] FAIL  post-install — snapshot take failed" >&2; exit 1
+        fi
+        echo "[bake] DONE  post-install"
     fi
     rung post-sa "Setup Assistant complete + SSH provisioned" -- \
         "$VZY" setup "$BUNDLE" --preset provision-ssh --invisible
@@ -76,4 +94,4 @@ bake() {
 # Export the config so the caffeinate sub-shell (which only receives the
 # function bodies via declare -f) inherits it through the environment.
 export VZY BUNDLE IPSW LOG
-exec caffeinate -dimsu bash -c "$(declare -f have_snapshot rung stub bake); bake" 2>&1 | tee "$LOG"
+exec caffeinate -dimsu bash -c "set -uo pipefail; $(declare -f have_snapshot rung stub bake); bake" 2>&1 | tee "$LOG"

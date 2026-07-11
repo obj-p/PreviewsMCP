@@ -88,6 +88,13 @@ if [[ ! -f "${ORC_RT}" ]]; then
 fi
 echo "[split] ORC runtime: ${ORC_RT}"
 
+# run.sh drives its own asserted host_split invocation, so it builds with
+# BUILD_ONLY=1 to skip this default run (avoids the pixel check running twice).
+if [[ -n "${BUILD_ONLY:-}" ]]; then
+    echo "[split] BUILD_ONLY — artifacts built, skipping the run"
+    exit 0
+fi
+
 # -- run the pixel check ------------------------------------------------
 echo "[split] running host_split (v1 + v2 pixel check)"
 "${BUILD_DIR}/host_split" \

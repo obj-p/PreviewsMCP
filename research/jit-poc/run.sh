@@ -55,13 +55,13 @@ echo "== build =="
 if ! "${POC_DIR}/build.sh" >/tmp/jitpoc_run_build.log 2>&1; then
     echo "FATAL: build.sh failed; see /tmp/jitpoc_run_build.log" >&2; exit 1
 fi
-if ! "${POC_DIR}/build-split.sh" >/tmp/jitpoc_run_split.log 2>&1; then
+if ! BUILD_ONLY=1 "${POC_DIR}/build-split.sh" >/tmp/jitpoc_run_split.log 2>&1; then
     echo "FATAL: build-split.sh failed; see /tmp/jitpoc_run_split.log" >&2; exit 1
 fi
 echo "  built"
 
 echo "== assert findings =="
-cd "${BUILD_DIR}"
+cd "${BUILD_DIR}" || { echo "FATAL: build dir missing: ${BUILD_DIR}" >&2; exit 1; }
 
 # 1. Free-function override: v1 -> v2 in one process, two objects.
 check "free-function override (v2)" "hello from swift v2" -- \
