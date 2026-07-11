@@ -562,7 +562,16 @@ static SBIndigoMouseFunc _loadMouseFunc(void) {
 // 0x32 = digitizer target. eventType 1 = down (begin and move), 2 = up. Must
 // run on `inputQueue` so concurrent gestures never interleave on the shared
 // client.
-- (void)_sendEventType:(int32_t)eventType x:(double)x y:(double)y {
+//
+// `deliveredLabel` (issue #368 attribution): when non-NULL, the SimulatorKit
+// send completion logs "<label> delivered". The completion fires only if the
+// underlying HID connection is alive, so a gesture whose dispatch was logged
+// but whose delivered line never appears pins a dead/stale HID client —
+// distinguishing dropped input from a frozen display in flake specimens.
+- (void)_sendEventType:(int32_t)eventType
+                     x:(double)x
+                     y:(double)y
+        deliveredLabel:(const char *)deliveredLabel {
   SBIndigoMouseFunc mouse = _loadMouseFunc();
   if (!mouse)
     return;
@@ -570,19 +579,28 @@ static SBIndigoMouseFunc _loadMouseFunc(void) {
   void *msg = mouse(&pt, NULL, 0x32, eventType, 1.0, 1.0, 0);
   if (!msg)
     return;
+  void (^completion)(void) = nil;
+  dispatch_queue_t completionQueue = NULL;
+  if (deliveredLabel) {
+    NSString *label = [NSString stringWithUTF8String:deliveredLabel];
+    completionQueue = self.inputQueue;
+    completion = ^{
+      NSLog(@"SimulatorBridge: hid %@ delivered", label);
+    };
+  }
   [(id<_SimDeviceLegacyHIDClient>)self.hidClient sendWithMessage:msg
                                                     freeWhenDone:YES
-                                                 completionQueue:NULL
-                                                      completion:nil];
+                                                 completionQueue:completionQueue
+                                                      completion:completion];
 }
 
 - (BOOL)tapAtX:(double)x y:(double)y {
   if (!_loadMouseFunc())
     return NO;
   dispatch_async(self.inputQueue, ^{
-    [self _sendEventType:1 x:x y:y];
+    [self _sendEventType:1 x:x y:y deliveredLabel:NULL];
     usleep(60000);
-    [self _sendEventType:2 x:x y:y];
+    [self _sendEventType:2 x:x y:y deliveredLabel:"tap up"];
   });
   return YES;
 }
@@ -596,16 +614,17 @@ static SBIndigoMouseFunc _loadMouseFunc(void) {
     return NO;
   NSInteger n = steps < 1 ? 10 : steps;
   dispatch_async(self.inputQueue, ^{
-    [self _sendEventType:1 x:fromX y:fromY];
+    [self _sendEventType:1 x:fromX y:fromY deliveredLabel:NULL];
     usleep(8000);
     for (NSInteger i = 1; i <= n; i++) {
       double t = (double)i / (double)n;
       [self _sendEventType:1
                          x:fromX + (toX - fromX) * t
-                         y:fromY + (toY - fromY) * t];
+                         y:fromY + (toY - fromY) * t
+            deliveredLabel:NULL];
       usleep(16000);
     }
-    [self _sendEventType:2 x:toX y:toY];
+    [self _sendEventType:2 x:toX y:toY deliveredLabel:"drag up"];
   });
   return YES;
 }
@@ -848,6 +867,8 @@ static const void *const kFBStreamerQueueKey = &kFBStreamerQueueKey;
   NSMutableDictionary<NSNumber *, NSUUID *> *_callbackUUIDs;
   NSMutableDictionary<NSNumber *, NSNumber *> *_lastSeeds;
   NSData *_latestFrame;
+  unsigned long long _frameCounter;
+  CFAbsoluteTime _lastFrameTime;
   BOOL _hasFrame;
   dispatch_source_t _healTimer;
   BOOL _stopRequested;
@@ -1054,6 +1075,8 @@ static const void *const kFBStreamerQueueKey = &kFBStreamerQueueKey;
 
   @synchronized(self) {
     _latestFrame = jpeg;
+    _frameCounter += 1;
+    _lastFrameTime = CFAbsoluteTimeGetCurrent();
   }
 
   // Frames are flowing: the heal timer's only job (re-wire while we have none)
@@ -1091,6 +1114,16 @@ static const void *const kFBStreamerQueueKey = &kFBStreamerQueueKey;
   }
 }
 
+- (void)getFrameCount:(unsigned long long *)count
+           ageSeconds:(double *)ageSeconds {
+  @synchronized(self) {
+    *count = _frameCounter;
+    *ageSeconds = _frameCounter == 0
+                      ? INFINITY
+                      : CFAbsoluteTimeGetCurrent() - _lastFrameTime;
+  }
+}
+
 - (NSData *)captureFrameAtQuality:(double)jpegQuality {
   NSData * (^capture)(void) = ^NSData * {
     if (_stopped || _stopRequested)
@@ -1101,6 +1134,12 @@ static const void *const kFBStreamerQueueKey = &kFBStreamerQueueKey;
       return nil;
     if (IOSurfaceGetWidth(surface) == 0 || IOSurfaceGetHeight(surface) == 0)
       return nil;
+    // #368 attribution: a snapshot sequence whose surface ID and seed never
+    // move distinguishes "display content genuinely static" (dropped input)
+    // from "reading a detached surface" (seed frozen while the sim renders
+    // elsewhere, the #269 display-port class).
+    NSLog(@"SimulatorBridge: fb capture surface=%u seed=%u",
+          IOSurfaceGetID(surface), IOSurfaceGetSeed(surface));
     return _encodeSurface(surface, jpegQuality);
   };
 

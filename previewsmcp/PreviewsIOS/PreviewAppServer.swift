@@ -184,20 +184,25 @@ public final class PreviewAppServer: @unchecked Sendable {
     }
 
     private func dispatch(_ body: Data) {
-        guard let command = try? JSONDecoder().decode(ControlCommand.self, from: body) else { return }
+        guard let command = try? JSONDecoder().decode(ControlCommand.self, from: body) else {
+            Log.warn("appserver: control body undecodable (\(body.count) bytes)")
+            return
+        }
         switch command.action {
         case "tap":
             if let x = command.x, let y = command.y {
+                Log.info("appserver: control tap(\(x), \(y))")
                 sink.tap(x: x, y: y)
             }
         case "drag":
             if let fromX = command.fromX, let fromY = command.fromY,
                let toX = command.toX, let toY = command.toY
             {
+                Log.info("appserver: control drag(\(fromX), \(fromY) -> \(toX), \(toY))")
                 sink.drag(fromX: fromX, fromY: fromY, toX: toX, toY: toY, steps: command.steps ?? 10)
             }
         default:
-            break
+            Log.warn("appserver: control unknown action '\(command.action)'")
         }
     }
 

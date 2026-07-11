@@ -107,6 +107,14 @@ typedef NS_ENUM(NSInteger, SBDeviceState) {
 /// The most recently encoded frame, or nil before the first frame arrives.
 - (nullable NSData *)latestFrame;
 
+/// Read, atomically as a pair, the monotonic count of frames the
+/// event-driven capture path has accepted (i.e. surface seed changes it
+/// encoded) and the seconds since the newest one (INFINITY before the first
+/// frame). A counter that stops advancing while the screen should be
+/// changing pins a stalled display pipeline (issue #368 attribution).
+- (void)getFrameCount:(nonnull unsigned long long *)count
+           ageSeconds:(nonnull double *)ageSeconds;
+
 /// Encode the live display surface on demand at `jpegQuality` (PNG when
 /// `jpegQuality >= 1.0`), bypassing the cached stream frame. Reuses the wired
 /// display pipeline this streamer holds open, so it succeeds under the same
