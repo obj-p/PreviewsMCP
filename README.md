@@ -42,20 +42,7 @@ PreviewsMCP hosts your preview in its own app process, so you can extend it. The
 
 ## How it compares
 
-Apple now ships first-party preview capture: `RenderPreview` (Xcode 26.3) returns rendered SwiftUI previews to any MCP editor, and Xcode 27 adds simulator touch synthesis. So "an agent can see your preview" is no longer a unique hook. What stays out of Apple's reach is everything that doesn't need a running GUI Xcode.
-
-Apple's `RenderPreview` is tethered to a live GUI Xcode over `xcrun mcpbridge` (XPC) and gated by macOS Automation/TCC — no headless mode (so it cannot run on CI), no standalone-SPM or Bazel support. Xcode 27 touch synthesis drives a booted simulator by building and launching the app, not by injecting into a fast preview render.
-
-| Axis | Status vs Apple |
-|------|-----------------|
-| Headless / no GUI session / CI | **Safe** — Apple needs a live Xcode |
-| No Xcode running / editor without Xcode installed | **Safe** |
-| Bazel + standalone SPM (no `.xcodeproj`) | **Safe** |
-| Fast interactive input into the preview | **Mostly safe** — Apple uses boot-sim + launch-app |
-| "Agent can capture a preview" | **Contested** — Apple does this natively now |
-| Rich variant snapshots | **Contested** — Xcode 27 Preview Snapshot variants |
-
-> Xcode 27 specifics (touch synthesis, Preview Snapshot variants) rest on corroborated secondary reporting, not machine-verified Apple prose. Re-verify against Apple release notes before relying on the contrast.
+Apple now ships first-party preview capture — `RenderPreview` (Xcode 26.3) returns rendered SwiftUI previews to any MCP editor — so "an agent can see your preview" is no longer a unique hook. But `RenderPreview` is tethered to a live GUI Xcode over `xcrun mcpbridge` and gated by macOS Automation/TCC: no headless mode, no CI, no Bazel or standalone-SPM support. PreviewsMCP runs headless — on a CI runner, with Bazel and standalone SPM.
 
 ## Installation
 
