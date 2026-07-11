@@ -301,7 +301,14 @@ int main(int argc, char *argv[]) {
   // off-screen rendering works under the bare spin there.
   auto *SessionDict = reinterpret_cast<void *(*)()>(
       dlsym(RTLD_DEFAULT, "CGSessionCopyCurrentDictionary"));
-  if (SessionDict && SessionDict()) {
+  // #391 diagnostics: record which event loop this agent commits to, and the
+  // session-dict value that decides it. A failing agentDispatchesAppKitEvents
+  // self-reports the branch from these lines — the fallback drains the dispatch
+  // main queue (so run_on_main keeps answering) but never dequeues NSEvents.
+  void *Session = SessionDict ? SessionDict() : nullptr;
+  errs() << "PreviewAgent: event-loop select; CGSessionCopyCurrentDictionary="
+         << Session << "\n";
+  if (Session) {
     auto *GetClass = reinterpret_cast<void *(*)(const char *)>(
         dlsym(RTLD_DEFAULT, "objc_getClass"));
     auto *RegisterSel = reinterpret_cast<void *(*)(const char *)>(
@@ -311,12 +318,16 @@ int main(int argc, char *argv[]) {
     if (GetClass && RegisterSel && MsgSend) {
       if (void *AppClass = GetClass("NSApplication")) {
         void *App = MsgSend(AppClass, RegisterSel("sharedApplication"));
-        if (App)
+        if (App) {
+          errs() << "PreviewAgent: entering [NSApplication run] event loop\n";
           MsgSend(App, RegisterSel("run")); // never returns
+        }
       }
     }
   }
 
+  errs()
+      << "PreviewAgent: entering CFRunLoop fallback (no NSApp event dequeue)\n";
   // Fallback when AppKit or the window server is unavailable: keep servicing
   // the main queue.
   auto *RunInMode =
