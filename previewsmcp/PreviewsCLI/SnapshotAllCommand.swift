@@ -196,6 +196,7 @@ struct SnapshotAllCommand: AsyncParsableCommand {
         }
 
         let manifest = Manifest(
+            version: Self.manifestVersion,
             root: URL(fileURLWithPath: path).path,
             previewCount: previewCount,
             imageCount: imageCount,
@@ -643,9 +644,16 @@ struct VariantPlan {
 }
 
 extension SnapshotAllCommand {
+    /// Schema version of `manifest.json`. Bump when the shape changes in a
+    /// non-additive way; consumers (e.g. #41 visual diff) branch on it. Purely
+    /// additive fields do not require a bump.
+    static let manifestVersion = 1
+
     /// Machine-readable batch result. `entries` is the backbone — one per
     /// rendered (preview × variant) slot, each carrying its own status.
     struct Manifest: Encodable {
+        /// Schema version; see `SnapshotAllCommand.manifestVersion`.
+        let version: Int
         let root: String
         /// Distinct previews discovered (matches `list` output count).
         let previewCount: Int

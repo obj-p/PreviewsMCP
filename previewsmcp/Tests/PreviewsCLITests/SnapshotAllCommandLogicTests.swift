@@ -89,6 +89,7 @@ struct SnapshotAllCommandLogicTests {
         #expect(code == 0)
 
         let manifest = try env.manifest()
+        #expect(manifest.version == SnapshotAllCommand.manifestVersion)
         #expect(manifest.previewCount == 2)
         #expect(manifest.imageCount == 2)
         #expect(manifest.errorCount == 0)
@@ -239,6 +240,7 @@ struct SnapshotAllCommandLogicTests {
     }
 
     private struct DecodedManifest: Decodable {
+        let version: Int
         let previewCount: Int
         let imageCount: Int
         let skippedCount: Int

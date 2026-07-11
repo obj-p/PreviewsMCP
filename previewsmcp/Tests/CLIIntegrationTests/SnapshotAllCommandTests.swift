@@ -23,6 +23,7 @@ struct SnapshotAllCommandTests {
     /// (preview × variant) slot. Only the fields the tests assert on are
     /// decoded.
     private struct Manifest: Decodable {
+        let version: Int
         let previewCount: Int
         let imageCount: Int
         let skippedCount: Int
@@ -64,6 +65,7 @@ struct SnapshotAllCommandTests {
             #expect(result.exitCode == 0, "stderr: \(result.stderr)")
 
             let manifest = try Self.loadManifest(in: outDir)
+            #expect(manifest.version == 1, "manifest carries a schema version")
             // ToDoView.swift declares exactly two #Preview blocks.
             #expect(manifest.previewCount == 2, "expected 2 discovered previews")
             #expect(manifest.imageCount == 2)
