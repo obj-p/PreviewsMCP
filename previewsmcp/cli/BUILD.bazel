@@ -1,3 +1,4 @@
+load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
 load("@rules_swift//swift:swift.bzl", "swift_binary")
 
 swift_binary(
@@ -18,4 +19,22 @@ swift_binary(
     ],
     visibility = ["//visibility:public"],
     deps = ["//previewsmcp/PreviewsCLI"],
+)
+
+# Release artifact: the binary with its runfiles tree beside it, the layout
+# JITSession.runfilesRoot() resolves at runtime (PreviewAgent, orc runtime,
+# iOS JIT resources). Bare-binary packaging ships a tool whose render path
+# throws — see #366.
+pkg_tar(
+    name = "release_tarball",
+    srcs = [
+        ":previewsmcp",
+        "//:LICENSE",
+        "//:README.md",
+    ],
+    extension = "tar.gz",
+    include_runfiles = True,
+    package_file_name = "previewsmcp-darwin-arm64.tar.gz",
+    strip_prefix = ".",
+    visibility = ["//visibility:public"],
 )

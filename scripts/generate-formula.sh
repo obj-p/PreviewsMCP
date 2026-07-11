@@ -20,7 +20,12 @@ class Previewsmcp < Formula
   depends_on :macos
 
   def install
-    bin.install "previewsmcp"
+    # The binary resolves PreviewAgent, the orc runtime, and iOS JIT
+    # resources from the previewsmcp.runfiles tree beside its real file, so
+    # the whole tree lands in libexec and bin gets a symlink (the binary
+    # resolves symlinks when locating its runfiles).
+    libexec.install Dir["*"]
+    bin.install_symlink libexec/"previewsmcp"
   end
 
   def post_install
