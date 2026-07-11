@@ -38,6 +38,10 @@ public enum SetupAssistantSequence {
         /// text is the API; pixel positions are not. Only available
         /// from the VNC runner (NSEvent path is being phased out).
         case clickByText(String)
+        /// Like `clickByText`, but clicks just the WORD `text` even when
+        /// Vision groups it into a longer line (e.g. the menu bar). Uses
+        /// Vision's per-substring bounding box. VNC runner only.
+        case clickWord(String)
         /// OCR the current framebuffer; throw if `text` is not present.
         /// Used as a post-condition assertion ("after this step, we
         /// should be on the X screen") so the surrounding retry loop
@@ -114,6 +118,9 @@ public enum SetupAssistantSequence {
                 // OCR-by-text is only on the VNC runner since it's the
                 // production path for SA navigation.
                 Log.info("[SA step \(stepIndex)] clickByText: NSEvent runner doesn't support OCR; use the VNC transport.")
+
+            case .clickWord:
+                Log.info("[SA step \(stepIndex)] clickWord: NSEvent runner doesn't support OCR; use the VNC transport.")
 
             case .verifyText:
                 Log.info("[SA step \(stepIndex)] verifyText: NSEvent runner doesn't support OCR; use the VNC transport.")
@@ -243,6 +250,32 @@ extension SetupAssistantSequence {
                     )
                 }
                 Log.info("[SA/VNC step \(stepIndex)] OCR match \"\(match.text)\" → click (\(Int(match.center.x)), \(Int(match.center.y)))")
+                try await leftClickWithHold(
+                    client: client,
+                    x: UInt16(clamping: Int(match.center.x)),
+                    y: UInt16(clamping: Int(match.center.y)))
+
+            case .clickWord(let target):
+                Log.info("[SA/VNC step \(stepIndex)] clickWord \"\(target)\"")
+                let tempImage = FileManager.default.temporaryDirectory
+                    .appending(path: "previewsvm-ocr-\(UUID().uuidString).png")
+                defer { try? FileManager.default.removeItem(at: tempImage) }
+                try await MainActor.run {
+                    try Screenshot.captureContentView(host.view, to: tempImage)
+                }
+                let framebuffer = CGSize(width: 1280, height: 720)
+                guard let match = try FramebufferOCR.wordBox(
+                    target, imageURL: tempImage, framebufferSize: framebuffer
+                ) else {
+                    let nearby = try FramebufferOCR.recognize(
+                        imageURL: tempImage, framebufferSize: framebuffer)
+                        .prefix(20).map { $0.text }
+                    throw VMError(
+                        "OCR could not find word \"\(target)\" on the framebuffer. " +
+                        "Saw: \(nearby.joined(separator: " | "))"
+                    )
+                }
+                Log.info("[SA/VNC step \(stepIndex)] word match \"\(target)\" → click (\(Int(match.center.x)), \(Int(match.center.y)))")
                 try await leftClickWithHold(
                     client: client,
                     x: UInt16(clamping: Int(match.center.x)),

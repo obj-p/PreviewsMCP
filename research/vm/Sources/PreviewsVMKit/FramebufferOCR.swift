@@ -71,6 +71,60 @@ public enum FramebufferOCR {
         }
     }
 
+    /// Locate a single WORD and return the framebuffer box of just that
+    /// word, even when Vision groups it into a longer line (e.g. the menu
+    /// bar "Editor Product Debug …"). Uses Vision's per-substring bounding
+    /// box so the click lands on the word, not the line center.
+    public static func wordBox(
+        _ word: String,
+        imageURL: URL,
+        framebufferSize: CGSize,
+        caseInsensitive: Bool = true
+    ) throws -> Observation? {
+        guard let nsImage = NSImage(contentsOf: imageURL) else {
+            throw VMError("OCR: could not load image at \(imageURL.path)")
+        }
+        var rect = NSRect(origin: .zero, size: nsImage.size)
+        guard let cgImage = nsImage.cgImage(forProposedRect: &rect, context: nil, hints: nil) else {
+            throw VMError("OCR: could not get CGImage from \(imageURL.path)")
+        }
+
+        let request = VNRecognizeTextRequest()
+        request.recognitionLevel = .accurate
+        request.usesLanguageCorrection = false
+        request.recognitionLanguages = []
+
+        let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
+        do {
+            try handler.perform([request])
+        } catch {
+            throw VMError("OCR: VNRecognizeTextRequest failed", underlying: error)
+        }
+
+        // Among all lines containing the word, prefer the TOPMOST match.
+        // Menu-bar and toolbar items (the intended targets) sit above the
+        // navigator/editor, which may repeat the same word lower down.
+        let options: String.CompareOptions = caseInsensitive ? [.caseInsensitive] : []
+        var best: Observation?
+        for obs in request.results ?? [] {
+            guard let candidate = obs.topCandidates(1).first else { continue }
+            guard let range = candidate.string.range(of: word, options: options),
+                  let box = try? candidate.boundingBox(for: range) else { continue }
+            let bb = box.boundingBox  // normalized, bottom-left origin
+            let fbX = bb.minX * framebufferSize.width
+            let fbWidth = bb.width * framebufferSize.width
+            let fbHeight = bb.height * framebufferSize.height
+            let fbY = (1.0 - bb.minY - bb.height) * framebufferSize.height
+            let candidateObs = Observation(
+                text: word,
+                boundingBox: CGRect(x: fbX, y: fbY, width: fbWidth, height: fbHeight))
+            if best == nil || candidateObs.boundingBox.minY < best!.boundingBox.minY {
+                best = candidateObs
+            }
+        }
+        return best
+    }
+
     /// Find an observation whose text matches `target`. Strategy:
     /// 1. If any observation matches `target` exactly (case-insensitive),
     ///    return the one nearest the framebuffer center.

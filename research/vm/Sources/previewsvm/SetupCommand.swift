@@ -1462,7 +1462,14 @@ struct SetupCommand: AsyncParsableCommand {
 
             # Field offsets from the BuiltTargetDescription metadata field-offset
             # vector observed in the dump (0,16,24,40,56,64,112,120,...).
-            OFF_INSTALL, OFF_BUILDABLE, OFF_OBJ, OFF_ARC = 0, 24, 112, 120
+            # isExecutable is the Bool at +16 (between installName and buildableName).
+            OFF_INSTALL, OFF_EXEC, OFF_BUILDABLE, OFF_OBJ, OFF_ARC = 0, 16, 24, 112, 120
+
+            def _bool(proc, addr):
+                b = _rd(proc, addr, 1)
+                if not b:
+                    return None
+                return bool(bytearray(b)[0] & 1)
 
             def _arr_count(proc, buf):
                 if buf is None:
@@ -1485,7 +1492,7 @@ struct SetupCommand: AsyncParsableCommand {
                 if _done[0]:
                     return False
                 _hits[0] += 1
-                if _hits[0] > 4:
+                if _hits[0] > 16:
                     _w("=== hit cap; disabling ===")
                     for b in _bps: b.SetEnabled(False)
                     _done[0] = True
@@ -1503,19 +1510,20 @@ struct SetupCommand: AsyncParsableCommand {
                     seen.add(p)
                     inst = _swift_str(proc, p + OFF_INSTALL)
                     bn = _swift_str(proc, p + OFF_BUILDABLE)
+                    isexe = _bool(proc, p + OFF_EXEC)
                     objc = _arr_count(proc, _word(proc, p + OFF_OBJ))
                     arcc = _arr_count(proc, _word(proc, p + OFF_ARC))
                     blob = "%r %r" % (inst, bn)
-                    is_self = ("PreviewKit" in blob) or ("Preview" in blob and "-" in blob)
+                    is_self = ("PreviewKit" in blob) or ("MixedApp" in blob) or ("Preview" in blob and "-" in blob)
                     tag = "SELF" if is_self else "cand"
-                    _w("%s reg=%s base=0x%x installName=%r buildableName=%r objectFiles.count=%s staticArchives.count=%s" % (
-                        tag, reg, p, inst, bn, objc, arcc))
+                    _w("%s reg=%s base=0x%x installName=%r buildableName=%r isExecutable=%s objectFiles.count=%s staticArchives.count=%s" % (
+                        tag, reg, p, inst, bn, isexe, objc, arcc))
                     if is_self:
                         if objc and objc > 0:
                             _w("   objectFiles[0..]: %s" % _elem_path(proc, _word(proc, p + OFF_OBJ), objc))
                         if arcc and arcc > 0:
                             _w("   staticArchives[0..]: %s" % _elem_path(proc, _word(proc, p + OFF_ARC), arcc))
-                        _w("=== captured static-PreviewKit; disabling ===")
+                        _w("=== captured description %r; disabling ===" % inst)
                         for b in _bps: b.SetEnabled(False)
                         _done[0] = True
                         return False
@@ -1723,6 +1731,22 @@ struct SetupCommand: AsyncParsableCommand {
                 label: "stop stream + summarize ThunkProductNode/reason",
                 expectContains: "STREAM_STOPPED"),
             .screenshot(label: "05-stream-stopped"),
+
+            // Did Xcode run its OWN leaf compile of PreviewView.swift under
+            // previews? The executable's working description carried an
+            // Xcode-built `.o` under Build/Intermediates.noindex (NOT a
+            // bazel-out path). Separate Xcode-built PreviewKit objects from
+            // bazel outputs, and pull the preview leaf-compile log evidence,
+            // to tell "leaf compile never ran" from "ran but not fed to the
+            // static relink".
+            .hostShell(
+                command: remote("F=/tmp/leaf-probe.txt; { echo '=== Xcode-built PreviewKit objects (non-bazel) ==='; find $HOME/Library/Developer/Xcode/DerivedData -path '*Intermediates.noindex*' -name '*.o' 2>/dev/null | grep -i previewkit | grep -v bazel-out; echo '=== PreviewKit.swiftmodule (non-bazel) ==='; find $HOME/Library/Developer/Xcode/DerivedData -name 'PreviewKit.swiftmodule' 2>/dev/null | grep -v bazel-out; echo '=== PreviewView*.o anywhere ==='; find $HOME/Library/Developer/Xcode/DerivedData -name 'PreviewView*.o' 2>/dev/null | head; echo '=== preview-build PreviewKit.framework binary ==='; find $HOME/Library/Developer/Xcode/DerivedData -path '*Products*' -name PreviewKit -type f 2>/dev/null | head; echo '=== prev.log classification ==='; grep -i -E 'static-PreviewKit|UVLinkerArgumentParser|BuiltObjectFileDescription' /tmp/prev.log | head -20; } > $F 2>&1; echo WROTE $(wc -l < $F) lines; echo LEAFCOMPILE_PROBE_DONE"),
+                label: "probe framework leaf-compile + static-PreviewKit classification",
+                expectContains: "LEAFCOMPILE_PROBE_DONE"),
+            .hostShell(
+                command: remote("cat /tmp/leaf-probe.txt") + " > \"\(outputDir)/leaf-probe.txt\" && wc -l \"\(outputDir)/leaf-probe.txt\"",
+                label: "retrieve leaf-compile probe to host"),
+            .screenshot(label: "05b-leafcompile-probed"),
 
             // Capture the XOJIT preview build arena (every XCBuildData
             // manifest.json) before teardown, so the static-<target>
