@@ -45,6 +45,23 @@ struct SnapshotAllCommandLogicTests {
         )
     }
 
+    @Test("uniqueSlug disambiguates distinct files that share a base slug")
+    func uniqueSlugCollision() {
+        var used: Set<String> = []
+        // `Foo/Bar.swift` and `Foo_Bar.swift` both slug to "Foo_Bar" (the `/`
+        // becomes `_`); the second must not overwrite the first.
+        let a = SnapshotAllCommand.uniqueSlug(for: "/proj/Foo/Bar.swift", root: "/proj", used: &used)
+        let b = SnapshotAllCommand.uniqueSlug(for: "/proj/Foo_Bar.swift", root: "/proj", used: &used)
+        #expect(a == "Foo_Bar")
+        #expect(b == "Foo_Bar-2")
+    }
+
+    @Test("validate rejects an out-of-range --quality")
+    func validateQualityRange() {
+        #expect(throws: (any Error).self) { _ = try SnapshotAllCommand.parse(["--quality", "-0.5"]) }
+        #expect(throws: (any Error).self) { _ = try SnapshotAllCommand.parse(["--quality", "1.5"]) }
+    }
+
     @Test("resolvedQuality: png → 1.0, jpeg → explicit or 0.85")
     func resolvedQuality() throws {
         #expect(try SnapshotAllCommand.parse(["--format", "png"]).resolvedQuality() == 1.0)
@@ -115,6 +132,27 @@ struct SnapshotAllCommandLogicTests {
             let image = try #require(entry.image)
             #expect(gallery.contains(image))
         }
+    }
+
+    @Test("a requested variant the daemon omits is recorded as an error")
+    func missingVariantOutcome() async throws {
+        let env = try Fixture(previewCount: 1, extraArgs: ["--variants", "light,dark"])
+        defer { env.cleanup() }
+        let plan = try VariantPlan.resolve(from: env.command.variants)
+        // The daemon returns only "light"; "dark" is missing from the response.
+        let client = FakeDaemonClient(responses: [
+            "preview_start": try CallTool.Result.ephemeralStartResult(),
+            "preview_variants": try Self.variantsResult(labels: ["light"]),
+            "preview_stop": CallTool.Result(content: []),
+        ])
+
+        let code = try await env.command.execute(on: client, plan: plan)
+        #expect(code == 1, "one rendered + one missing → partial exit")
+
+        let manifest = try env.manifest()
+        #expect(manifest.entries.count == 2, "missing variant still gets an entry")
+        #expect(manifest.imageCount == 1)
+        #expect(manifest.errorCount == 1)
     }
 
     @Test("iOS-resolved previews are skipped without touching the daemon")

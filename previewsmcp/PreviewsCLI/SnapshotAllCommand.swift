@@ -109,15 +109,21 @@ struct SnapshotAllCommand: AsyncParsableCommand {
         case jpeg, png
     }
 
-    mutating func run() async throws {
+    func validate() throws {
         guard FileManager.default.fileExists(atPath: path) else {
             throw ValidationError("path does not exist: \(path)")
+        }
+        if let quality, !(0.0 ... 1.0).contains(quality) {
+            throw ValidationError("--quality must be between 0.0 and 1.0.")
         }
         if format == .jpeg, let quality, quality >= 1.0 {
             throw ValidationError(
                 "--quality must be < 1.0 when --format jpeg; use --format png for lossless output."
             )
         }
+    }
+
+    mutating func run() async throws {
         // Resolve variant labels + tokens up front so a bad preset / duplicate
         // label fails before any compile, and the split/lookup happens once.
         let plan = try VariantPlan.resolve(from: variants)
@@ -154,6 +160,7 @@ struct SnapshotAllCommand: AsyncParsableCommand {
 
         var entries: [ManifestEntry] = []
         var previewCount = 0
+        var usedSlugs: Set<String> = []
         for file in files {
             let previews: [PreviewInfo]
             do {
@@ -164,10 +171,14 @@ struct SnapshotAllCommand: AsyncParsableCommand {
             }
             guard !previews.isEmpty else { continue }
             previewCount += previews.count
+            // Disambiguate slugs across files: two distinct paths can map to
+            // the same base slug (e.g. `Foo/Bar.swift` and `Foo_Bar.swift`),
+            // which would otherwise overwrite each other's images.
+            let slug = Self.uniqueSlug(for: file, root: slugRoot, used: &usedSlugs)
             entries += await renderFile(
                 file: file,
                 previews: previews,
-                slugRoot: slugRoot,
+                slug: slug,
                 plan: plan,
                 imagesDir: imagesDir,
                 client: client
@@ -217,7 +228,7 @@ struct SnapshotAllCommand: AsyncParsableCommand {
     private func renderFile(
         file: String,
         previews: [PreviewInfo],
-        slugRoot: String,
+        slug: String,
         plan: VariantPlan,
         imagesDir: URL,
         client: any DaemonToolCalling
@@ -230,7 +241,6 @@ struct SnapshotAllCommand: AsyncParsableCommand {
             project: project,
             fileURL: fileURL
         )
-        let slug = Self.slug(for: file, root: slugRoot)
 
         guard resolvedPlatform == .macos else {
             return previews.flatMap {
@@ -440,13 +450,13 @@ struct SnapshotAllCommand: AsyncParsableCommand {
         }
         let result = try structured.decode(DaemonProtocol.VariantsResult.self)
 
-        return result.variants.map { outcome in
+        let returned = result.variants.map { outcome -> VariantOutcome in
             let slot = RenderSlot(
                 label: outcome.label, traits: plan.traitsByLabel[outcome.label] ?? PreviewTraits()
             )
             if outcome.status == "ok",
                let imageIndex = outcome.imageIndex,
-               imageIndex < response.content.count,
+               imageIndex >= 0, imageIndex < response.content.count,
                case let .image(base64, _, _) = response.content[imageIndex],
                let data = Data(base64Encoded: base64)
             {
@@ -457,6 +467,20 @@ struct SnapshotAllCommand: AsyncParsableCommand {
                 : (outcome.error ?? "unknown error")
             return VariantOutcome(slot: slot, rendered: .failure(message))
         }
+
+        // Account for any requested variant the daemon didn't return an outcome
+        // for (version skew / partial response) so a missing slot surfaces as a
+        // failure instead of silently vanishing from the manifest.
+        let returnedLabels = Set(result.variants.map(\.label))
+        let missing = plan.variants
+            .filter { !returnedLabels.contains($0.label) }
+            .map { variant in
+                VariantOutcome(
+                    slot: RenderSlot(label: variant.label, traits: variant.traits),
+                    rendered: .failure("daemon returned no outcome for variant '\(variant.label)'")
+                )
+            }
+        return returned + missing
     }
 
     private func stopSession(sessionID: String, client: any DaemonToolCalling) async {
@@ -546,6 +570,20 @@ struct SnapshotAllCommand: AsyncParsableCommand {
             relative = String(relative.dropLast(".swift".count))
         }
         return String(relative.map { slugAllowed.contains($0) ? $0 : "_" })
+    }
+
+    /// A `slug` guaranteed unique within `used`. Distinct source paths can map
+    /// to the same base slug (`/` and other disallowed chars both become `_`);
+    /// on a clash we append `-2`, `-3`, … so images never overwrite each other.
+    static func uniqueSlug(for file: String, root: String, used: inout Set<String>) -> String {
+        let base = slug(for: file, root: root)
+        var candidate = base
+        var suffix = 2
+        while !used.insert(candidate).inserted {
+            candidate = "\(base)-\(suffix)"
+            suffix += 1
+        }
+        return candidate
     }
 }
 

@@ -52,7 +52,12 @@ enum HTMLGallery {
         let body: String
         switch entry.status {
         case .ok:
-            let src = escape(entry.image ?? "")
+            // Percent-encode the path so a variant label with a URL-reserved
+            // char (#, ?, …) in the filename doesn't break the <img> ref, then
+            // HTML-escape the result for the attribute.
+            let encoded = (entry.image ?? "")
+                .addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? ""
+            let src = escape(encoded)
             body = "<img src=\"\(src)\" alt=\"\(title)\" loading=\"lazy\">"
         case .skipped:
             body = "<div class=\"status\">skipped: \(escape(entry.error ?? ""))</div>"
