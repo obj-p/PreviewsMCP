@@ -30,10 +30,10 @@ public func event_pump_check() -> Int32 {
     observedAppDefinedEvent ? 1 : 0
 }
 
-// #391 timing-neutral diagnostic: post->monitor-fire delay in ms, or -1 if the
-// monitor has not fired yet. The fire timestamp is recorded inside the monitor
-// closure, which only runs when [NSApp run] actually dispatches the event, so
-// this adds no work to agent startup or the run-loop selection path.
+/// #391 timing-neutral diagnostic: post->monitor-fire delay in ms, or -1 if the
+/// monitor has not fired yet. The fire timestamp is recorded inside the monitor
+/// closure, which only runs when [NSApp run] actually dispatches the event, so
+/// this adds no work to agent startup or the run-loop selection path.
 @_cdecl("event_pump_fire_delay_ms")
 public func event_pump_fire_delay_ms() -> Int32 {
     if observedAppDefinedEvent, fireTime > 0, postTime > 0 {
