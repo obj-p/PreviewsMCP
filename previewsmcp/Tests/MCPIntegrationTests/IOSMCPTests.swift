@@ -87,7 +87,11 @@ struct IOSMCPTests {
         defer { server.stop() }
 
         // --- Start iOS preview (single preview_start for all iOS assertions) ---
-        let (startContent, startError) = try await server.callTool(
+        // preview_start is the known-slow tool: a fresh machine pays a first
+        // boot of the pinned device plus a cold SwiftPM build of the example,
+        // minutes by design (the 60s callTool default failed the mini's
+        // first-ever CI run). The suite .timeLimit still caps the test.
+        let (startContent, startError) = try await server.callToolWithTimeout(
             name: "preview_start",
             arguments: [
                 "filePath": .string(MCPTestServer.toDoViewPath),
@@ -95,7 +99,8 @@ struct IOSMCPTests {
                 "deviceUDID": .string(deviceUDID),
                 "headless": .bool(true),
                 "projectPath": .string(MCPTestServer.spmExampleRoot.path),
-            ]
+            ],
+            timeout: .seconds(600)
         )
         #expect(startError != true, "iOS preview_start should succeed")
         let sessionID = try MCPTestServer.extractSessionID(from: startContent)

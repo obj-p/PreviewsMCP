@@ -41,7 +41,9 @@ struct IOSHIDInputTests {
         let server = try await MCPTestServer.start()
         defer { server.stop() }
 
-        let (startContent, startError) = try await server.callTool(
+        // preview_start pays first-boot + cold example build on a fresh
+        // machine — see IOSMCPTests for the 600s rationale.
+        let (startContent, startError) = try await server.callToolWithTimeout(
             name: "preview_start",
             arguments: [
                 "filePath": .string(MCPTestServer.toDoViewPath),
@@ -49,7 +51,8 @@ struct IOSHIDInputTests {
                 "deviceUDID": .string(deviceUDID),
                 "headless": .bool(true),
                 "projectPath": .string(MCPTestServer.spmExampleRoot.path),
-            ]
+            ],
+            timeout: .seconds(600)
         )
         #expect(startError != true, "iOS preview_start should succeed")
         let sessionID = try MCPTestServer.extractSessionID(from: startContent)
