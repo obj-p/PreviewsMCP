@@ -24,6 +24,40 @@ struct EventPumpTests {
             Thread.sleep(forTimeInterval: 0.1)
             observed = try session.runOnMain(symbol: "event_pump_check")
         }
+
+        // #391 timing-neutral diagnosis (does not touch the 10s verdict below).
+        // The paradox: runOnMain answers every poll (the agent's main dispatch
+        // queue drains) yet the posted .applicationDefined event is not
+        // dispatched. Distinguish the possibilities from a single red:
+        //   (A) idle window — stop polling so the agent's main run loop has no
+        //       dispatch-main blocks to service; if the event fires now, it was
+        //       merely starved behind our runOnMain polls (dispatch-source
+        //       priority), not wedged.
+        //   (B) extended poll — does it EVER fire (LAG, recoverable) or never
+        //       (WEDGE, genuine run-loop mode/pump defect)?
+        if observed != 1 {
+            diag("RED at 10s budget; entering extended diagnosis")
+            Thread.sleep(forTimeInterval: 5.0)
+            let afterIdle = try session.runOnMain(symbol: "event_pump_check")
+            let idleDelay = try session.runOnMain(symbol: "event_pump_fire_delay_ms")
+            diag("after 5s idle (no polling): observed=\(afterIdle) fireDelayMs=\(idleDelay)")
+            var late: Int32 = afterIdle
+            for _ in 0 ..< 500 where late != 1 {
+                Thread.sleep(forTimeInterval: 0.1)
+                late = try session.runOnMain(symbol: "event_pump_check")
+            }
+            let finalDelay = try session.runOnMain(symbol: "event_pump_fire_delay_ms")
+            diag("extended poll to ~60s: observed=\(late) fireDelayMs=\(finalDelay) "
+                + "verdict=\(late == 1 ? (afterIdle == 1 ? "STARVED-BY-POLLING" : "LAG") : "WEDGE")")
+        } else {
+            let delay = try session.runOnMain(symbol: "event_pump_fire_delay_ms")
+            diag("GREEN fireDelayMs=\(delay)")
+        }
+
         #expect(observed == 1)
+    }
+
+    private func diag(_ message: String) {
+        FileHandle.standardError.write(Data("EPT-DIAG: \(message)\n".utf8))
     }
 }
