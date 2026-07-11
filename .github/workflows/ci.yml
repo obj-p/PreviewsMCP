@@ -44,3 +44,16 @@ jobs:
 
       - name: Test
         run: bazel test //... --test_output=errors
+
+      # The state a flake leaves behind (booted sims, orphan daemons, the
+      # per-run daemon logs #350 collects specimens from) persists on the
+      # self-hosted host but can be mutated by the next run — capture it in
+      # this run's log while it is still true.
+      - name: Failure diagnostics
+        if: failure()
+        run: |
+          xcrun simctl list devices booted || true
+          pgrep -fl "previewsmcp|simctl" || true
+          for f in "${TMPDIR:-/tmp}"previewsmcp-test-*.log /tmp/previewsmcp-test-*.log; do
+            [ -f "$f" ] && { echo "=== $f (tail)"; tail -100 "$f"; }
+          done || true
