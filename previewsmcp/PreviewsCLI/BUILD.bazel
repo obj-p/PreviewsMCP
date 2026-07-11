@@ -13,6 +13,7 @@ swift_library(
         "//previewsmcp/PreviewsCore",
         "//previewsmcp/PreviewsEngine",
         "//previewsmcp/PreviewsIOS",
+        "//previewsmcp/PreviewsImageDiff",
         "//previewsmcp/PreviewsJITLink",
         "//previewsmcp/PreviewsMacOS",
         "@swiftpkg_swift_argument_parser//:ArgumentParser",

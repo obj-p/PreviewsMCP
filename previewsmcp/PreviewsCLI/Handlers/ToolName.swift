@@ -11,6 +11,7 @@ enum ToolName: String {
     case previewElements = "preview_elements"
     case previewTouch = "preview_touch"
     case previewVariants = "preview_variants"
+    case previewDiff = "preview_diff"
     case simulatorList = "simulator_list"
     case sessionList = "session_list"
     case previewBuildInfo = "preview_build_info"
