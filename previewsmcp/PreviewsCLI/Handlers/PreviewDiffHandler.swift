@@ -18,11 +18,11 @@ enum PreviewDiffHandler: ToolHandler {
         inputSchema: .object([
             "type": .string("object"),
             "properties": .object([
-                "snapshotA": .object([
+                "baseline": .object([
                     "type": .string("string"),
                     "description": .string("Absolute path to the baseline image (PNG or JPEG)"),
                 ]),
-                "snapshotB": .object([
+                "current": .object([
                     "type": .string("string"),
                     "description": .string("Absolute path to the current image (PNG or JPEG)"),
                 ]),
@@ -33,7 +33,7 @@ enum PreviewDiffHandler: ToolHandler {
                     ),
                 ]),
             ]),
-            "required": .array([.string("snapshotA"), .string("snapshotB")]),
+            "required": .array([.string("baseline"), .string("current")]),
         ])
     )
 
@@ -41,11 +41,11 @@ enum PreviewDiffHandler: ToolHandler {
         _ params: CallTool.Parameters,
         ctx _: HandlerContext
     ) async throws -> CallTool.Result {
-        let pathA: String
-        let pathB: String
+        let baselinePath: String
+        let currentPath: String
         do {
-            pathA = try extractString("snapshotA", from: params)
-            pathB = try extractString("snapshotB", from: params)
+            baselinePath = try extractString("baseline", from: params)
+            currentPath = try extractString("current", from: params)
         } catch {
             return CallTool.Result(content: [.text(error.localizedDescription)], isError: true)
         }
@@ -54,8 +54,8 @@ enum PreviewDiffHandler: ToolHandler {
         let result: ImageDiffResult
         do {
             result = try ImageDiff.compare(
-                baselineAt: URL(fileURLWithPath: pathA),
-                currentAt: URL(fileURLWithPath: pathB),
+                baselineAt: URL(fileURLWithPath: baselinePath),
+                currentAt: URL(fileURLWithPath: currentPath),
                 tolerance: tolerance
             )
         } catch {
@@ -66,10 +66,13 @@ enum PreviewDiffHandler: ToolHandler {
         }
 
         if let mismatch = result.sizeMismatch {
-            return CallTool.Result(content: [.text(
-                "Size mismatch: baseline is \(mismatch.baseline), current is \(mismatch.current). "
-                    + "Images must share dimensions to pixel-compare."
-            )])
+            return try CallTool.Result(
+                content: [.text(
+                    "Size mismatch: baseline is \(mismatch.baseline), current is \(mismatch.current). "
+                        + "Images must share dimensions to pixel-compare."
+                )],
+                structuredContent: DiffReport(result)
+            )
         }
 
         var content: [Tool.Content] = [
@@ -78,7 +81,7 @@ enum PreviewDiffHandler: ToolHandler {
         if let diffImage = result.diffImage, let data = try? diffImage.pngData() {
             content.append(.image(data: data.base64EncodedString(), mimeType: "image/png", metadata: nil))
         }
-        return CallTool.Result(content: content)
+        return try CallTool.Result(content: content, structuredContent: DiffReport(result))
     }
 
     private static func summary(for result: ImageDiffResult) -> String {

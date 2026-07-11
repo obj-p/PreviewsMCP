@@ -333,11 +333,11 @@
     "description" : "Compare two snapshot images. Returns a similarity score (0.0–1.0), the changed-pixel count and region, and a diff image highlighting changed pixels in red.",
     "inputSchema" : {
       "properties" : {
-        "snapshotA" : {
+        "baseline" : {
           "description" : "Absolute path to the baseline image (PNG or JPEG)",
           "type" : "string"
         },
-        "snapshotB" : {
+        "current" : {
           "description" : "Absolute path to the current image (PNG or JPEG)",
           "type" : "string"
         },
@@ -347,8 +347,8 @@
         }
       },
       "required" : [
-        "snapshotA",
-        "snapshotB"
+        "baseline",
+        "current"
       ],
       "type" : "object"
     },

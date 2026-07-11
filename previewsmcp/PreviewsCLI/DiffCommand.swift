@@ -3,6 +3,28 @@ import Foundation
 import PreviewsCore
 import PreviewsImageDiff
 
+/// The machine-readable diff result, shared by the `diff` CLI (`--json`)
+/// and the `preview_diff` MCP tool (`structuredContent`). `diffImage` is
+/// the written PNG path for the CLI; nil for the MCP tool, which returns
+/// the diff image as an inline content block instead.
+struct DiffReport: Codable {
+    let similarity: Double
+    let changedPixelCount: Int
+    let totalPixelCount: Int
+    let changedRegions: [DiffRegion]
+    let sizeMismatch: SizeMismatch?
+    let diffImage: String?
+
+    init(_ result: ImageDiffResult, diffImage: String? = nil) {
+        similarity = result.similarity
+        changedPixelCount = result.changedPixelCount
+        totalPixelCount = result.totalPixelCount
+        changedRegions = result.changedRegions
+        sizeMismatch = result.sizeMismatch
+        self.diffImage = diffImage
+    }
+}
+
 /// Compare two preview snapshots and report how much they changed.
 ///
 /// A pure, local command — it reads two image files, pixel-compares them,
@@ -60,26 +82,10 @@ struct DiffCommand: ParsableCommand {
         }
 
         if json {
-            try emitJSON(DiffJSON(
-                similarity: result.similarity,
-                changedPixelCount: result.changedPixelCount,
-                totalPixelCount: result.totalPixelCount,
-                changedRegions: result.changedRegions,
-                sizeMismatch: result.sizeMismatch,
-                diffImage: diffImagePath
-            ))
+            try emitJSON(DiffReport(result, diffImage: diffImagePath))
         } else {
             emitText(result, diffImagePath: diffImagePath)
         }
-    }
-
-    private struct DiffJSON: Encodable {
-        let similarity: Double
-        let changedPixelCount: Int
-        let totalPixelCount: Int
-        let changedRegions: [DiffRegion]
-        let sizeMismatch: SizeMismatch?
-        let diffImage: String?
     }
 
     private func emitText(_ result: ImageDiffResult, diffImagePath: String?) {

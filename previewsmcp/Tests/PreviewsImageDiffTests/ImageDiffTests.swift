@@ -124,6 +124,18 @@ struct ImageDiffTests {
         #expect(result.diffImage == nil)
     }
 
+    @Test("decoding a non-image file throws an ImageLoadError")
+    func nonImageFileThrows() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-bad-\(UUID().uuidString).png")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try Data("not an image".utf8).write(to: url)
+
+        #expect(throws: ImageLoadError.self) {
+            _ = try RGBAImage(contentsOf: url)
+        }
+    }
+
     @Test("PNG round-trip preserves pixels — decode and pixel-compare, never byte-compare")
     func pngRoundTripIsLossless() throws {
         let original = solid(5, 5, r: 12, g: 200, b: 77)
