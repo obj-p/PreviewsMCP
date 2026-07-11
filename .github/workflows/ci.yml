@@ -15,6 +15,11 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  schedule:
+    # Weekly heartbeat (Sunday 05:00 UTC): catches toolchain/host drift on the
+    # runner while the repo is quiet, and doubles as a standing flake probe.
+    - cron: "0 5 * * 0"
+  workflow_dispatch:
 
 # Cancel an in-progress run when a new commit lands on the same ref.
 concurrency:
@@ -31,7 +36,7 @@ jobs:
       # xcode-select.
       DEVELOPER_DIR: /Applications/Xcode-26.2.0.app/Contents/Developer
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Lint first: it costs seconds and fails fast before the minutes of tests.
       - name: Lint
