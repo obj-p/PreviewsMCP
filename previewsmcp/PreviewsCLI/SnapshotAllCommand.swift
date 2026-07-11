@@ -118,14 +118,14 @@ struct SnapshotAllCommand: AsyncParsableCommand {
                 "--quality must be < 1.0 when --format jpeg; use --format png for lossless output."
             )
         }
-        // Resolve variant labels up front so a bad preset / duplicate label
-        // fails before any compile.
-        let resolvedVariants = try Self.resolveVariants(variants)
+        // Resolve variant labels + tokens up front so a bad preset / duplicate
+        // label fails before any compile, and the split/lookup happens once.
+        let plan = try VariantPlan.resolve(from: variants)
 
         let exitCode = try await DaemonClient.withDaemonClient(
             name: "previewsmcp-snapshot-all"
         ) { client in
-            try await execute(on: client, resolvedVariants: resolvedVariants)
+            try await execute(on: client, plan: plan)
         }
         if exitCode != 0 { throw ExitCode(exitCode) }
     }
@@ -138,7 +138,7 @@ struct SnapshotAllCommand: AsyncParsableCommand {
     /// process exit code.
     func execute(
         on client: any DaemonToolCalling,
-        resolvedVariants: [PreviewTraits.Variant]
+        plan: VariantPlan
     ) async throws -> Int32 {
         var isDirectory: ObjCBool = false
         FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory)
@@ -168,15 +168,21 @@ struct SnapshotAllCommand: AsyncParsableCommand {
                 file: file,
                 previews: previews,
                 slugRoot: slugRoot,
-                resolvedVariants: resolvedVariants,
+                plan: plan,
                 imagesDir: imagesDir,
                 client: client
             )
         }
 
-        let imageCount = entries.count(where: { $0.status == .ok })
-        let skippedCount = entries.count(where: { $0.status == .skipped })
-        let errorCount = entries.count(where: { $0.status == .error })
+        // Tally the three statuses in a single pass over the entries.
+        var imageCount = 0, skippedCount = 0, errorCount = 0
+        for entry in entries {
+            switch entry.status {
+            case .ok: imageCount += 1
+            case .skipped: skippedCount += 1
+            case .error: errorCount += 1
+            }
+        }
 
         let manifest = Manifest(
             root: URL(fileURLWithPath: path).path,
@@ -199,7 +205,9 @@ struct SnapshotAllCommand: AsyncParsableCommand {
                 + "\(errorCount) failed across \(previewCount) previews.\n",
             stderr
         )
-        return Self.exitCode(ok: imageCount, failed: errorCount)
+        // Exit-code mapping is identical to `variants` (0 all / 2 total / 1
+        // partial); skips are neutral, so an all-iOS run reports 0 failures.
+        return VariantsCommand.exitCode(successCount: imageCount, failCount: errorCount)
     }
 
     /// Render every (preview × variant) slot for one file. Starts a single
@@ -210,7 +218,7 @@ struct SnapshotAllCommand: AsyncParsableCommand {
         file: String,
         previews: [PreviewInfo],
         slugRoot: String,
-        resolvedVariants: [PreviewTraits.Variant],
+        plan: VariantPlan,
         imagesDir: URL,
         client: any DaemonToolCalling
     ) async -> [ManifestEntry] {
@@ -225,14 +233,11 @@ struct SnapshotAllCommand: AsyncParsableCommand {
         let slug = Self.slug(for: file, root: slugRoot)
 
         guard resolvedPlatform == .macos else {
-            return previews.flatMap { preview in
-                slots(for: resolvedVariants).map { slot in
-                    ManifestEntry(
-                        preview: preview, file: file, slot: slot,
-                        image: nil, status: .skipped,
-                        error: "iOS previews are gated; batch iOS needs a booted simulator"
-                    )
-                }
+            return previews.flatMap {
+                failedEntries(
+                    preview: $0, file: file, plan: plan, status: .skipped,
+                    message: "iOS previews are gated; batch iOS needs a booted simulator"
+                )
             }
         }
 
@@ -240,14 +245,11 @@ struct SnapshotAllCommand: AsyncParsableCommand {
         do {
             sessionID = try await startSession(file: file, platform: resolvedPlatform, client: client)
         } catch {
-            let message = (error as? DaemonToolError)?.description ?? error.localizedDescription
-            return previews.flatMap { preview in
-                slots(for: resolvedVariants).map { slot in
-                    ManifestEntry(
-                        preview: preview, file: file, slot: slot,
-                        image: nil, status: .error, error: message
-                    )
-                }
+            return previews.flatMap {
+                failedEntries(
+                    preview: $0, file: file, plan: plan, status: .error,
+                    message: Self.message(from: error)
+                )
             }
         }
         var result: [ManifestEntry] = []
@@ -256,21 +258,16 @@ struct SnapshotAllCommand: AsyncParsableCommand {
                 do {
                     try await switchTo(index: preview.index, sessionID: sessionID, client: client)
                 } catch {
-                    let message = (error as? DaemonToolError)?.description
-                        ?? error.localizedDescription
-                    result += slots(for: resolvedVariants).map { slot in
-                        ManifestEntry(
-                            preview: preview, file: file, slot: slot,
-                            image: nil, status: .error, error: message
-                        )
-                    }
+                    result += failedEntries(
+                        preview: preview, file: file, plan: plan, status: .error,
+                        message: Self.message(from: error)
+                    )
                     continue
                 }
             }
             result += await renderPreview(
                 preview: preview, file: file, slug: slug,
-                resolvedVariants: resolvedVariants,
-                sessionID: sessionID, imagesDir: imagesDir, client: client
+                plan: plan, sessionID: sessionID, imagesDir: imagesDir, client: client
             )
         }
         // Await teardown before moving to the next file: a fire-and-forget
@@ -286,67 +283,67 @@ struct SnapshotAllCommand: AsyncParsableCommand {
         preview: PreviewInfo,
         file: String,
         slug: String,
-        resolvedVariants: [PreviewTraits.Variant],
+        plan: VariantPlan,
         sessionID: String,
         imagesDir: URL,
         client: any DaemonToolCalling
     ) async -> [ManifestEntry] {
-        if resolvedVariants.isEmpty {
+        if plan.isEmpty {
             let slot = RenderSlot(label: nil, traits: PreviewTraits())
             do {
                 let data = try await snapshot(sessionID: sessionID, client: client)
-                let image = try write(data, slug: slug, index: preview.index, label: nil, to: imagesDir)
-                return [ManifestEntry(
+                return [writtenEntry(
                     preview: preview, file: file, slot: slot,
-                    image: image, status: .ok, error: nil
+                    data: data, slug: slug, imagesDir: imagesDir
                 )]
             } catch {
-                let message = (error as? DaemonToolError)?.description ?? error.localizedDescription
                 return [ManifestEntry(
                     preview: preview, file: file, slot: slot,
-                    image: nil, status: .error, error: message
+                    image: nil, status: .error, error: Self.message(from: error)
                 )]
             }
         }
 
         do {
             let outcomes = try await captureVariants(
-                sessionID: sessionID, resolvedVariants: resolvedVariants, client: client
+                sessionID: sessionID, plan: plan, client: client
             )
             return outcomes.map { outcome in
-                let slot = RenderSlot(label: outcome.label, traits: outcome.traits)
                 switch outcome.rendered {
                 case let .success(data):
-                    do {
-                        let image = try write(
-                            data, slug: slug, index: preview.index,
-                            label: outcome.label, to: imagesDir
-                        )
-                        return ManifestEntry(
-                            preview: preview, file: file, slot: slot,
-                            image: image, status: .ok, error: nil
-                        )
-                    } catch {
-                        return ManifestEntry(
-                            preview: preview, file: file, slot: slot,
-                            image: nil, status: .error, error: error.localizedDescription
-                        )
-                    }
+                    writtenEntry(
+                        preview: preview, file: file, slot: outcome.slot,
+                        data: data, slug: slug, imagesDir: imagesDir
+                    )
                 case let .failure(message):
-                    return ManifestEntry(
-                        preview: preview, file: file, slot: slot,
+                    ManifestEntry(
+                        preview: preview, file: file, slot: outcome.slot,
                         image: nil, status: .error, error: message
                     )
                 }
             }
         } catch {
-            let message = (error as? DaemonToolError)?.description ?? error.localizedDescription
-            return slots(for: resolvedVariants).map { slot in
-                ManifestEntry(
-                    preview: preview, file: file, slot: slot,
-                    image: nil, status: .error, error: message
-                )
-            }
+            return failedEntries(
+                preview: preview, file: file, plan: plan, status: .error,
+                message: Self.message(from: error)
+            )
+        }
+    }
+
+    /// Build one error/skip `ManifestEntry` per render slot of a preview, so a
+    /// whole-preview failure still accounts for every expected slot.
+    private func failedEntries(
+        preview: PreviewInfo,
+        file: String,
+        plan: VariantPlan,
+        status: ManifestEntry.Status,
+        message: String
+    ) -> [ManifestEntry] {
+        plan.slots.map { slot in
+            ManifestEntry(
+                preview: preview, file: file, slot: slot,
+                image: nil, status: status, error: message
+            )
         }
     }
 
@@ -407,10 +404,10 @@ struct SnapshotAllCommand: AsyncParsableCommand {
         throw DaemonToolError.daemonError("daemon response contained no image content")
     }
 
-    /// One resolved variant's rendered outcome.
+    /// One variant's rendered outcome, already paired with the render slot it
+    /// belongs to (so the caller doesn't rebuild it).
     private struct VariantOutcome {
-        let label: String
-        let traits: PreviewTraits
+        let slot: RenderSlot
         let rendered: RenderResult
 
         enum RenderResult {
@@ -421,19 +418,17 @@ struct SnapshotAllCommand: AsyncParsableCommand {
 
     private func captureVariants(
         sessionID: String,
-        resolvedVariants: [PreviewTraits.Variant],
+        plan: VariantPlan,
         client: any DaemonToolCalling
     ) async throws -> [VariantOutcome] {
         // Pass the comma-expanded tokens, not the raw `--variants` values: a
         // single "light,dark" token would reach the daemon as one unknown
-        // preset. Expansion mirrors `resolveVariants`, so the daemon derives
-        // the same labels we key `traitsByLabel` on below.
-        let tokens = Self.expandVariantTokens(variants)
+        // preset. The daemon derives the same labels we key `traitsByLabel` on.
         let response = try await client.callToolStructured(
             name: "preview_variants",
             arguments: [
                 "sessionID": .string(sessionID),
-                "variants": .array(tokens.map { .string($0) }),
+                "variants": .array(plan.tokens.map { .string($0) }),
                 "quality": .double(resolvedQuality()),
             ]
         )
@@ -444,24 +439,23 @@ struct SnapshotAllCommand: AsyncParsableCommand {
             throw DaemonToolError.daemonError("preview_variants response missing structuredContent")
         }
         let result = try structured.decode(DaemonProtocol.VariantsResult.self)
-        let traitsByLabel = Dictionary(
-            resolvedVariants.map { ($0.label, $0.traits) }, uniquingKeysWith: { first, _ in first }
-        )
 
         return result.variants.map { outcome in
-            let traits = traitsByLabel[outcome.label] ?? PreviewTraits()
+            let slot = RenderSlot(
+                label: outcome.label, traits: plan.traitsByLabel[outcome.label] ?? PreviewTraits()
+            )
             if outcome.status == "ok",
                let imageIndex = outcome.imageIndex,
                imageIndex < response.content.count,
                case let .image(base64, _, _) = response.content[imageIndex],
                let data = Data(base64Encoded: base64)
             {
-                return VariantOutcome(label: outcome.label, traits: traits, rendered: .success(data))
+                return VariantOutcome(slot: slot, rendered: .success(data))
             }
             let message = outcome.status == "ok"
                 ? "daemon reported ok but image data was missing or invalid"
                 : (outcome.error ?? "unknown error")
-            return VariantOutcome(label: outcome.label, traits: traits, rendered: .failure(message))
+            return VariantOutcome(slot: slot, rendered: .failure(message))
         }
     }
 
@@ -477,14 +471,28 @@ struct SnapshotAllCommand: AsyncParsableCommand {
 
     // MARK: - Output
 
-    private func write(
-        _ data: Data, slug: String, index: Int, label: String?, to imagesDir: URL
-    ) throws -> String {
-        let ext = format == .png ? "png" : "jpg"
-        let name = label.map { "\(slug)-\(index)-\($0)" } ?? "\(slug)-\(index)"
-        let fileName = "\(name).\(ext)"
-        try data.write(to: imagesDir.appendingPathComponent(fileName))
-        return "images/\(fileName)"
+    /// Write a rendered image for one slot and return the `ok` manifest entry
+    /// pointing at it — or, if the write fails, an `error` entry. Shared by the
+    /// no-variants and variants success paths.
+    private func writtenEntry(
+        preview: PreviewInfo, file: String, slot: RenderSlot,
+        data: Data, slug: String, imagesDir: URL
+    ) -> ManifestEntry {
+        do {
+            let ext = format == .png ? "png" : "jpg"
+            let name = slot.label.map { "\(slug)-\(preview.index)-\($0)" } ?? "\(slug)-\(preview.index)"
+            let fileName = "\(name).\(ext)"
+            try data.write(to: imagesDir.appendingPathComponent(fileName))
+            return ManifestEntry(
+                preview: preview, file: file, slot: slot,
+                image: "images/\(fileName)", status: .ok, error: nil
+            )
+        } catch {
+            return ManifestEntry(
+                preview: preview, file: file, slot: slot,
+                image: nil, status: .error, error: error.localizedDescription
+            )
+        }
     }
 
     private func writeManifest(_ manifest: Manifest, to outURL: URL) throws {
@@ -506,13 +514,10 @@ struct SnapshotAllCommand: AsyncParsableCommand {
         return quality ?? 0.85
     }
 
-    /// Empty when no `--variants` were given (the single implicit "default"
-    /// slot is handled by the caller). Otherwise one `RenderSlot` per variant.
-    private func slots(for resolvedVariants: [PreviewTraits.Variant]) -> [RenderSlot] {
-        if resolvedVariants.isEmpty {
-            return [RenderSlot(label: nil, traits: PreviewTraits())]
-        }
-        return resolvedVariants.map { RenderSlot(label: $0.label, traits: $0.traits) }
+    /// Coerce a thrown error into a manifest message, preferring a daemon
+    /// tool error's message over the generic `localizedDescription`.
+    static func message(from error: Error) -> String {
+        (error as? DaemonToolError)?.description ?? error.localizedDescription
     }
 
     /// Comma-split bare `--variants` tokens (light,dark) while keeping JSON
@@ -523,23 +528,9 @@ struct SnapshotAllCommand: AsyncParsableCommand {
         }
     }
 
-    /// Expand and validate `--variants` tokens, resolving each to a `Variant`
-    /// (label + traits) and rejecting duplicate labels.
-    static func resolveVariants(_ tokens: [String]) throws -> [PreviewTraits.Variant] {
-        let resolved: [PreviewTraits.Variant]
-        do {
-            resolved = try expandVariantTokens(tokens).map(PreviewTraits.parseVariantString)
-        } catch {
-            throw ValidationError(error.localizedDescription)
-        }
-        var seen: Set<String> = []
-        for variant in resolved where !seen.insert(variant.label).inserted {
-            throw ValidationError(
-                "Duplicate variant label '\(variant.label)'. Provide a unique 'label' field."
-            )
-        }
-        return resolved
-    }
+    private static let slugAllowed = Set(
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
+    )
 
     /// Filename-safe slug for a source file, relative to the walked root so
     /// images from different files never collide.
@@ -554,15 +545,7 @@ struct SnapshotAllCommand: AsyncParsableCommand {
         if relative.hasSuffix(".swift") {
             relative = String(relative.dropLast(".swift".count))
         }
-        let allowed = Set("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_")
-        return String(relative.map { allowed.contains($0) ? $0 : "_" })
-    }
-
-    /// Exit codes mirror `variants`: 0 all rendered, 2 total failure, 1
-    /// partial. Skips are neutral — an all-iOS (all-skipped) run exits 0.
-    static func exitCode(ok: Int, failed: Int) -> Int32 {
-        if failed == 0 { return 0 }
-        return ok == 0 ? 2 : 1
+        return String(relative.map { slugAllowed.contains($0) ? $0 : "_" })
     }
 }
 
@@ -570,6 +553,55 @@ struct SnapshotAllCommand: AsyncParsableCommand {
 private struct RenderSlot {
     let label: String?
     let traits: PreviewTraits
+}
+
+/// Resolved `--variants` state, computed once per invocation: the parsed
+/// variants (labels + traits), the comma-expanded tokens the daemon parses,
+/// and a label→traits lookup for re-associating the daemon's outcomes.
+struct VariantPlan {
+    fileprivate let variants: [PreviewTraits.Variant]
+    fileprivate let tokens: [String]
+    fileprivate let traitsByLabel: [String: PreviewTraits]
+
+    /// True when no `--variants` were given; the caller renders one default
+    /// slot per preview.
+    var isEmpty: Bool {
+        variants.isEmpty
+    }
+
+    /// Render slots for one preview: the implicit default when no variants
+    /// were given, otherwise one per variant.
+    fileprivate var slots: [RenderSlot] {
+        if variants.isEmpty { return [RenderSlot(label: nil, traits: PreviewTraits())] }
+        return variants.map { RenderSlot(label: $0.label, traits: $0.traits) }
+    }
+
+    /// Expand + validate the raw `--variants` tokens once, rejecting duplicate
+    /// labels. Throws a `ValidationError` so a bad preset fails before compile.
+    static func resolve(from raw: [String]) throws -> VariantPlan {
+        let tokens = SnapshotAllCommand.expandVariantTokens(raw)
+        let variants: [PreviewTraits.Variant]
+        do {
+            variants = try tokens.map(PreviewTraits.parseVariantString)
+        } catch {
+            throw ValidationError(error.localizedDescription)
+        }
+        var seen: Set<String> = []
+        for variant in variants where !seen.insert(variant.label).inserted {
+            throw ValidationError(
+                "Duplicate variant label '\(variant.label)'. Provide a unique 'label' field."
+            )
+        }
+        let traitsByLabel = Dictionary(
+            variants.map { ($0.label, $0.traits) }, uniquingKeysWith: { first, _ in first }
+        )
+        return VariantPlan(variants: variants, tokens: tokens, traitsByLabel: traitsByLabel)
+    }
+
+    /// Ordered variant labels, for tests/inspection.
+    var labels: [String] {
+        variants.map(\.label)
+    }
 }
 
 extension SnapshotAllCommand {

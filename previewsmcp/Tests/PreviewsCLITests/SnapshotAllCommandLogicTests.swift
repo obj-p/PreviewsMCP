@@ -14,21 +14,21 @@ import Testing
 struct SnapshotAllCommandLogicTests {
     // MARK: - Pure helpers
 
-    @Test("resolveVariants comma-splits bare tokens but keeps JSON variants whole")
-    func resolveVariantsSplitting() throws {
-        let bare = try SnapshotAllCommand.resolveVariants(["light,dark"])
-        #expect(bare.map(\.label) == ["light", "dark"])
+    @Test("VariantPlan comma-splits bare tokens but keeps JSON variants whole")
+    func variantPlanSplitting() throws {
+        let bare = try VariantPlan.resolve(from: ["light,dark"])
+        #expect(bare.labels == ["light", "dark"])
 
-        let json = try SnapshotAllCommand.resolveVariants([
+        let json = try VariantPlan.resolve(from: [
             #"{"colorScheme":"dark","locale":"ar","label":"dark-ar"}"#,
         ])
-        #expect(json.map(\.label) == ["dark-ar"])
+        #expect(json.labels == ["dark-ar"])
     }
 
-    @Test("resolveVariants rejects duplicate labels")
-    func resolveVariantsDuplicateLabel() {
+    @Test("VariantPlan rejects duplicate labels")
+    func variantPlanDuplicateLabel() {
         #expect(throws: (any Error).self) {
-            _ = try SnapshotAllCommand.resolveVariants(["light,light"])
+            _ = try VariantPlan.resolve(from: ["light,light"])
         }
     }
 
@@ -43,14 +43,6 @@ struct SnapshotAllCommandLogicTests {
             SnapshotAllCommand.slug(for: "/proj/Sources/View.swift", root: "/proj/Sources")
                 == "View"
         )
-    }
-
-    @Test("exitCode: 0 all ok, 2 total failure, 1 partial, skips neutral")
-    func exitCodes() {
-        #expect(SnapshotAllCommand.exitCode(ok: 3, failed: 0) == 0)
-        #expect(SnapshotAllCommand.exitCode(ok: 0, failed: 0) == 0)
-        #expect(SnapshotAllCommand.exitCode(ok: 0, failed: 2) == 2)
-        #expect(SnapshotAllCommand.exitCode(ok: 2, failed: 1) == 1)
     }
 
     @Test("resolvedQuality: png → 1.0, jpeg → explicit or 0.85")
@@ -76,7 +68,7 @@ struct SnapshotAllCommandLogicTests {
             "preview_stop": CallTool.Result(content: []),
         ])
 
-        let code = try await env.command.execute(on: client, resolvedVariants: [])
+        let code = try await env.command.execute(on: client, plan: try VariantPlan.resolve(from: []))
         #expect(code == 0)
 
         let manifest = try env.manifest()
@@ -100,14 +92,14 @@ struct SnapshotAllCommandLogicTests {
     func batchVariantsAndGallery() async throws {
         let env = try Fixture(previewCount: 1, extraArgs: ["--variants", "light,dark", "--html"])
         defer { env.cleanup() }
-        let variants = try SnapshotAllCommand.resolveVariants(env.command.variants)
+        let plan = try VariantPlan.resolve(from: env.command.variants)
         let client = FakeDaemonClient(responses: [
             "preview_start": try CallTool.Result.ephemeralStartResult(),
             "preview_variants": try Self.variantsResult(labels: ["light", "dark"]),
             "preview_stop": CallTool.Result(content: []),
         ])
 
-        let code = try await env.command.execute(on: client, resolvedVariants: variants)
+        let code = try await env.command.execute(on: client, plan: plan)
         #expect(code == 0)
 
         let manifest = try env.manifest()
@@ -131,7 +123,7 @@ struct SnapshotAllCommandLogicTests {
         defer { env.cleanup() }
         let client = FakeDaemonClient()
 
-        let code = try await env.command.execute(on: client, resolvedVariants: [])
+        let code = try await env.command.execute(on: client, plan: try VariantPlan.resolve(from: []))
         // All skipped → nothing failed → exit 0.
         #expect(code == 0)
         #expect(client.calls.isEmpty, "no simulator/daemon work for gated iOS previews")
@@ -163,7 +155,7 @@ struct SnapshotAllCommandLogicTests {
             ]
         )
 
-        let code = try await env.command.execute(on: client, resolvedVariants: [])
+        let code = try await env.command.execute(on: client, plan: try VariantPlan.resolve(from: []))
         #expect(code == 1, "partial failure → exit 1")
 
         let manifest = try env.manifest()
