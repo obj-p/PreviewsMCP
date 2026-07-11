@@ -27,6 +27,7 @@
 - (NSString *)stateString;
 - (id)runtime;
 - (id)deviceType;
+- (id)io;
 - (BOOL)isAvailable;
 - (BOOL)bootWithOptions:(NSDictionary *)options error:(NSError **)error;
 - (BOOL)shutdownWithError:(NSError **)error;

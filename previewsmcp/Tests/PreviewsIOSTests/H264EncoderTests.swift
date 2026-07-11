@@ -1,5 +1,6 @@
 import CoreVideo
 import Foundation
+import os
 @testable import PreviewsIOS
 import Testing
 
@@ -51,13 +52,12 @@ struct H264EncoderTests {
         let encoder = H264Encoder(fps: 30, bitrate: 2_000_000)
 
         let result: H264Encoder.Encoded? = await withCheckedContinuation { cont in
-            let lock = NSLock()
-            var resumed = false
-            func finish(_ encoded: H264Encoder.Encoded?) {
-                lock.lock()
-                let first = !resumed
-                resumed = true
-                lock.unlock()
+            let resumed = OSAllocatedUnfairLock(initialState: false)
+            @Sendable func finish(_ encoded: H264Encoder.Encoded?) {
+                let first = resumed.withLock { alreadyResumed in
+                    defer { alreadyResumed = true }
+                    return !alreadyResumed
+                }
                 if first { cont.resume(returning: encoded) }
             }
 

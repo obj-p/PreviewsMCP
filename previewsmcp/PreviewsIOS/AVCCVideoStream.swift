@@ -59,7 +59,7 @@ enum AVCCEnvelope {
 public final class AVCCVideoStream: @unchecked Sendable {
     private let encoder: H264Encoder
     private let queue = DispatchQueue(label: "com.previewsmcp.avcc")
-    private var subscribers: [ObjectIdentifier: (Data) -> Void] = [:]
+    private var subscribers: [ObjectIdentifier: @Sendable (Data) -> Void] = [:]
     private var cachedDescription: Data?
     private var pendingKeyframe = false
     /// Mirrors `!subscribers.isEmpty` for a lock-cheap fast path in `feed`, so an
@@ -96,7 +96,7 @@ public final class AVCCVideoStream: @unchecked Sendable {
     /// Register a subscriber. Replays the cached decoder description and arms a
     /// forced keyframe so the new client decodes promptly. `send` is invoked on
     /// this type's queue with each enveloped chunk.
-    func addSubscriber(_ id: ObjectIdentifier, send: @escaping (Data) -> Void) {
+    func addSubscriber(_ id: ObjectIdentifier, send: @escaping @Sendable (Data) -> Void) {
         queue.async {
             if let desc = self.cachedDescription { send(desc) }
             self.pendingKeyframe = true

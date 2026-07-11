@@ -31,7 +31,7 @@ enum FDReadiness {
 
     private static let reattemptInterval: DispatchTimeInterval = .seconds(1)
 
-    private static func wait(on source: some DispatchSourceProtocol) async {
+    private static func wait(on source: some DispatchSourceProtocol & SendableMetatype) async {
         nonisolated(unsafe) let source = source
         await withTaskCancellationHandler {
             await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
