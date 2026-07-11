@@ -33,8 +33,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Test
-        run: bazel test //... --test_output=errors
-
+      # Lint first: it costs seconds and fails fast before the minutes of tests.
       - name: Lint
         run: bazel run //tools/lint:check
+
+      - name: Test
+        run: bazel test //... --test_output=errors
