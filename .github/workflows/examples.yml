@@ -1,0 +1,35 @@
+name: Examples
+
+# ci.yml's `bazel test //...` looks like it covers example renders via
+# SnapshotCommandTests, but only the spm example actually renders there:
+# the xcodeproj/xcworkspace/bazel example tests are tool-gated
+# (toolAvailable("mint"/"bazel")) and silently skip as "passed" under
+# bazel's sanitized test PATH — 0.03-0.14s "passes" in every CI log. This
+# workflow is the gated runner for that gap (#372), driving the bare CLI
+# with its default resource discovery (which the env-injecting tests also
+# never exercise). Scheduled + manual only, deliberately OUT of the
+# required path until its own track record justifies promotion. macOS
+# renders only; iOS example coverage is the follow-up noted on #372.
+
+on:
+  schedule:
+    # Tuesdays 14:00 UTC — staggered from ci.yml's Monday heartbeat.
+    - cron: '0 14 * * 2'
+  workflow_dispatch:
+
+concurrency:
+  group: examples-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  examples:
+    runs-on: [self-hosted, macOS, ARM64]
+    timeout-minutes: 60
+    env:
+      # Must match the .bazelrc --xcode_version pin.
+      DEVELOPER_DIR: /Applications/Xcode-26.2.0.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Render one preview per example project
+        run: bash scripts/examples-smoke.sh
