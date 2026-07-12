@@ -154,7 +154,11 @@ public actor IOSPreviewSession {
         do {
             return try await performStart()
         } catch {
+            // Mirror stop()'s teardown order so a failed start leaks nothing: SIGKILL the
+            // apps, close host sockets/JIT (incl. jitListenFD if it was bound), then reclaim
+            // the device/GUI. All idempotent — a no-op for whatever the partial start never set.
             await terminateAgentAndShell()
+            await releaseHostResources()
             await reclaimBootedDeviceAndGUI()
             throw error
         }
@@ -239,6 +243,9 @@ public actor IOSPreviewSession {
                 let device = try await simulatorManager.findDevice(udid: deviceUDID)
                 if device.state != .booted {
                     stage("attempt \(attempt): bootDevice")
+                    // Set only after bootDevice returns: a throw mid-boot leaves it false, so
+                    // the failure path won't try to reclaim a device that never fully booted
+                    // (simctl boot is ~atomic — a partial boot is a rare, low-risk exception).
                     try await simulatorManager.bootDevice(udid: deviceUDID)
                     didBootDevice = true
                     stage("attempt \(attempt): boot complete")
@@ -432,13 +439,7 @@ public actor IOSPreviewSession {
         // (EXC_BAD_ACCESS). simctl terminate is a SIGKILL, clean with no crash
         // report, and a dead agent cannot render.
         await terminateAgentAndShell()
-
-        await channel.close()
-        jitReloader = nil
-        if jitListenFD >= 0 {
-            Darwin.close(jitListenFD)
-            jitListenFD = -1
-        }
+        await releaseHostResources()
 
         // Reclaim the simulator state THIS session created, last — after the host
         // sockets + JIT session are down (the device-side agent was already SIGKILLed
@@ -452,6 +453,20 @@ public actor IOSPreviewSession {
     private func terminateAgentAndShell() async {
         await simulatorManager.terminateAppIfRunning(udid: deviceUDID, bundleID: Self.shellBundleID)
         await simulatorManager.terminateAppIfRunning(udid: deviceUDID, bundleID: Self.agentBundleID)
+    }
+
+    /// Close the host-side transport + JIT listener. Idempotent and guarded, so it is a
+    /// safe no-op when an early failure never opened them. Shared by `stop()` and the
+    /// `start()` failure path — a late-start throw (after the JIT listener is bound) must
+    /// not leak `jitListenFD` in the long-lived daemon, since a failed session is never
+    /// registered and has no `stop()`/`deinit` to reclaim it.
+    private func releaseHostResources() async {
+        await channel.close()
+        jitReloader = nil
+        if jitListenFD >= 0 {
+            Darwin.close(jitListenFD)
+            jitListenFD = -1
+        }
     }
 
     /// Reclaim simulator state this session created, gated + best-effort + time-bounded so
