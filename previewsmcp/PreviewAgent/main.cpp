@@ -296,12 +296,25 @@ int main(int argc, char *argv[]) {
   // in this process only receive window-server events (clicks, scrolls) when
   // -[NSApplication run] dequeues and dispatches them. The main dispatch
   // queue (run_on_main's dispatch_sync target) drains under it as well.
-  // Guarded on an Aqua session being reachable: registering with the window
-  // server from an SSH login or launchd context can kill the process, and
-  // off-screen rendering works under the bare spin there.
+  // Guarded on gui-capability: registering with the window server from an SSH
+  // login or launchd context can kill the process, and off-screen rendering
+  // works under the bare spin there.
+  //
+  // CGSessionCopyCurrentDictionary is the default guard, but under heavy
+  // concurrent load it returns null even in a gui-capable context where
+  // [NSApp run] is safe (#391 — a false negative that persists for the whole
+  // load window, so no retry recovers it). A launcher that KNOWS it spawned us
+  // in a gui context (the daemon, from its own startup session; JITSession, in
+  // CI) sets PREVIEWSMCP_GUI_CAPABLE, and we enter the AppKit loop despite the
+  // null read. A genuine headless context sets no signal and still takes the
+  // safe fallback below, so the fatal window-server registration never runs.
   auto *SessionDict = reinterpret_cast<void *(*)()>(
       dlsym(RTLD_DEFAULT, "CGSessionCopyCurrentDictionary"));
-  if (SessionDict && SessionDict()) {
+  bool HasSession = SessionDict && SessionDict();
+  if (HasSession || getenv("PREVIEWSMCP_GUI_CAPABLE")) {
+    if (!HasSession)
+      errs() << "PreviewAgent: CGSession null but gui-capable signal set, "
+                "entering [NSApp run]\n";
     auto *GetClass = reinterpret_cast<void *(*)(const char *)>(
         dlsym(RTLD_DEFAULT, "objc_getClass"));
     auto *RegisterSel = reinterpret_cast<void *(*)(const char *)>(
