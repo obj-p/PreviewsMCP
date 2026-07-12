@@ -13,6 +13,8 @@
 #include "llvm/Support/Memory.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include <atomic>
+#include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <dispatch/dispatch.h>
@@ -25,6 +27,29 @@
 
 using namespace llvm;
 using namespace llvm::orc;
+
+// #391 permanent diagnostic (count-only, behavior-neutral). The
+// event_loop_probe fixture reads these back via dlsym, so the readers must
+// survive dead-strip and stay exported — LLVM_ATTRIBUTE_USED, matching
+// linkComponents. On a regression: sessionNull==1/enteredNSAppRun==0 => the
+// agent took the CFRunLoop fallback (CGSession null AND no gui-capable signal);
+// enteredNSAppRun==1 with loopIterations climbing => [NSApp run] is alive but
+// the event was never delivered; loopIterations flat => the loop is frozen.
+namespace {
+std::atomic<int32_t> gLoopIterations{0};
+std::atomic<int32_t> gSessionNull{0};
+std::atomic<int32_t> gEnteredNSAppRun{0};
+} // namespace
+
+LLVM_ATTRIBUTE_USED extern "C" int32_t previewAgentLoopIterations() {
+  return gLoopIterations.load(std::memory_order_relaxed);
+}
+LLVM_ATTRIBUTE_USED extern "C" int32_t previewAgentSessionNull() {
+  return gSessionNull.load(std::memory_order_relaxed);
+}
+LLVM_ATTRIBUTE_USED extern "C" int32_t previewAgentEnteredNSAppRun() {
+  return gEnteredNSAppRun.load(std::memory_order_relaxed);
+}
 
 LLVM_ATTRIBUTE_USED void linkComponents() {
   errs() << (void *)&llvm_orc_registerEHFrameSectionWrapper
@@ -212,6 +237,38 @@ CWrapperFunctionResult previewsmcp_write_pointers(const char *ArgData,
           .release();
 }
 
+// Count-only run-loop observer for the #391 diagnostic. Fires each time the
+// [NSApp run] loop is about to wait, so loopIterations tells a live-but-starved
+// loop from a frozen one. It never touches the event queue, so it can't mask a
+// wedge.
+void noteLoopIteration(void * /*observer*/, unsigned long /*activity*/,
+                       void * /*info*/) {
+  gLoopIterations.fetch_add(1, std::memory_order_relaxed);
+}
+
+// Install the observer on the current (main) run loop. Best-effort: if any
+// symbol is missing the agent still runs, just without the loop counter.
+void installLoopObserver() {
+  auto *ObserverCreate =
+      reinterpret_cast<void *(*)(void *, unsigned long, unsigned char, long,
+                                 void (*)(void *, unsigned long, void *),
+                                 void *)>(
+          dlsym(RTLD_DEFAULT, "CFRunLoopObserverCreate"));
+  auto *GetCurrentLoop =
+      reinterpret_cast<void *(*)()>(dlsym(RTLD_DEFAULT, "CFRunLoopGetCurrent"));
+  auto *AddObserver = reinterpret_cast<void (*)(void *, void *, const void *)>(
+      dlsym(RTLD_DEFAULT, "CFRunLoopAddObserver"));
+  auto *CommonModes = reinterpret_cast<const void *const *>(
+      dlsym(RTLD_DEFAULT, "kCFRunLoopCommonModes"));
+  if (!ObserverCreate || !GetCurrentLoop || !AddObserver || !CommonModes)
+    return;
+
+  const unsigned long kBeforeWaiting = 1UL << 5;
+  if (void *Observer = ObserverCreate(nullptr, kBeforeWaiting, /*repeats=*/1, 0,
+                                      noteLoopIteration, nullptr))
+    AddObserver(GetCurrentLoop(), Observer, *CommonModes);
+}
+
 } // namespace
 
 static void printErrorAndExit(Twine ErrMsg) {
@@ -311,6 +368,8 @@ int main(int argc, char *argv[]) {
   auto *SessionDict = reinterpret_cast<void *(*)()>(
       dlsym(RTLD_DEFAULT, "CGSessionCopyCurrentDictionary"));
   bool HasSession = SessionDict && SessionDict();
+  if (!HasSession)
+    gSessionNull.store(1, std::memory_order_relaxed);
   if (HasSession || getenv("PREVIEWSMCP_GUI_CAPABLE")) {
     if (!HasSession)
       errs() << "PreviewAgent: CGSession null but gui-capable signal set, "
@@ -324,8 +383,11 @@ int main(int argc, char *argv[]) {
     if (GetClass && RegisterSel && MsgSend) {
       if (void *AppClass = GetClass("NSApplication")) {
         void *App = MsgSend(AppClass, RegisterSel("sharedApplication"));
-        if (App)
+        if (App) {
+          installLoopObserver();
+          gEnteredNSAppRun.store(1, std::memory_order_relaxed);
           MsgSend(App, RegisterSel("run")); // never returns
+        }
       }
     }
   }
