@@ -40,6 +40,16 @@ struct IOSCLIWorkflowTests {
             // CoreSimulatorHygiene).
             await CoreSimulatorHygiene.resetOnce()
 
+            // Pin the session to a dedicated test device. Without --device the CLI
+            // auto-selects (resolveDeviceUDID, BuildHelpers) a booted-or-first-available
+            // device, which lands on the generic default (8958D70E) — and booting a generic
+            // sim nulls the agent's CGSession, dropping it into the CFRunLoop fallback that
+            // never dequeues AppKit events (#391 H1). A pinned previewsmcp-test-N boots clean.
+            guard let deviceUDID = await SimulatorTestDevices.udid(index: 8) else {
+                print("Host cannot create \(SimulatorTestDevices.name(index: 8)) — skipping iOS CLI workflow")
+                return
+            }
+
             let file = CLIRunner.spmExampleRoot
                 .appendingPathComponent("Sources/ToDo/ToDoView.swift").path
             let configPath = CLIRunner.repoRoot
@@ -53,7 +63,8 @@ struct IOSCLIWorkflowTests {
             let runResult = try await CLIRunner.run(
                 "run",
                 arguments: [
-                    file, "--platform", "ios", "--config", configPath, "--detach", "--headless",
+                    file, "--platform", "ios", "--device", deviceUDID,
+                    "--config", configPath, "--detach", "--headless",
                 ]
             )
             #expect(runResult.exitCode == 0, "detach stderr: \(runResult.stderr)")
@@ -115,6 +126,10 @@ struct IOSCLIWorkflowTests {
                     "--variant", "dark",
                     "-o", tempDir.path,
                     "--platform", "ios",
+                    // Pin variants' own ephemeral session to the same dedicated device — it
+                    // auto-selects too, so without this it could still land on the generic
+                    // default (#391).
+                    "--device", deviceUDID,
                     "--project", CLIRunner.spmExampleRoot.path,
                     "--config", configPath,
                 ]
