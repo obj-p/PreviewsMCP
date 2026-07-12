@@ -45,11 +45,15 @@ struct IOSCLIWorkflowTests {
             let configPath = CLIRunner.repoRoot
                 .appendingPathComponent("examples/.previewsmcp.json").path
 
-            // Start a single iOS session for the entire workflow.
+            // Start a single iOS session for the entire workflow. --headless skips
+            // `open -a Simulator` (IOSPreviewSession only opens the GUI when NOT headless),
+            // so this test doesn't leak a persistent Simulator.app that degrades the shared
+            // CoreSimulator/WindowServer for later runs (#391). Touch/elements/variants all go
+            // through the in-app HID + framebuffer path, not the GUI, so headless is transparent.
             let runResult = try await CLIRunner.run(
                 "run",
                 arguments: [
-                    file, "--platform", "ios", "--config", configPath, "--detach",
+                    file, "--platform", "ios", "--config", configPath, "--detach", "--headless",
                 ]
             )
             #expect(runResult.exitCode == 0, "detach stderr: \(runResult.stderr)")
