@@ -370,7 +370,16 @@ int main(int argc, char *argv[]) {
   auto *SessionDict = reinterpret_cast<void *(*)()>(
       dlsym(RTLD_DEFAULT, "CGSessionCopyCurrentDictionary"));
   void *Session = SessionDict ? SessionDict() : nullptr;
-  if (Session) {
+  if (!Session && SessionDict)
+    gSessionNull.store(1, std::memory_order_relaxed);
+  // #391 C-DERISK (diag, do-not-merge): the null CGSession under concurrent
+  // sim load is a suspected FALSE NEGATIVE — this agent runs in the gui/501
+  // LaunchAgent context where [NSApp run] is safe and works (69/69 green
+  // agents). Force [NSApp run] whenever CoreGraphics is present, i.e. even on a
+  // null session, and observe deliver/hang/crash. Production will gate this
+  // bypass on a launcher-provided gui-capable signal (never unconditionally);
+  // here we assert gui-capability unconditionally to test the mechanism.
+  if (SessionDict) {
     auto *GetClass = reinterpret_cast<void *(*)(const char *)>(
         dlsym(RTLD_DEFAULT, "objc_getClass"));
     auto *RegisterSel = reinterpret_cast<void *(*)(const char *)>(
@@ -387,28 +396,6 @@ int main(int argc, char *argv[]) {
         }
       }
     }
-  } else if (SessionDict) {
-    gSessionNull.store(1, std::memory_order_relaxed);
-    // #391 duration probe (measurement only). On a side thread so the main
-    // thread still falls through to the fallback loop and keeps draining the
-    // dispatch queue (runOnMain stays alive); this run still reds. Poll whether
-    // and how fast CGSession recovers, to size a bounded retry (transient) or
-    // rule it out (persistent).
-    std::thread([SessionDict] {
-      // 9s window: must finish (and store) before the test's ~10s poll budget
-      // reads the counter and tears the agent down. A recovery later than that
-      // is unusable by a bounded retry anyway, so it reads as never (-1).
-      const int MaxMs = 9000, StepMs = 100;
-      int Elapsed = 0;
-      void *Recovered = nullptr;
-      for (; Elapsed < MaxMs && !Recovered; Elapsed += StepMs) {
-        usleep(StepMs * 1000);
-        Recovered = SessionDict();
-      }
-      int32_t Result = Recovered ? Elapsed : -1;
-      gRecoveryMs.store(Result, std::memory_order_relaxed);
-      errs() << "PreviewAgent: CGSession recovery probe = " << Result << "ms\n";
-    }).detach();
   }
 
   // Fallback when AppKit or the window server is unavailable: keep servicing
