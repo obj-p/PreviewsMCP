@@ -136,6 +136,13 @@ struct PreviewsJITLinkTests {
             Thread.sleep(forTimeInterval: 0.1)
             observed = try session.runOnMain(symbol: "event_pump_check")
         }
+        // C-derisk: report the branch signals UNCONDITIONALLY (even on a pass) so
+        // a GREEN run proves it hit the null and forced [NSApp run] to deliver.
+        let sn = try session.runOnMain(symbol: "event_pump_session_null")
+        let en = try session.runOnMain(symbol: "event_pump_entered_nsapp_run")
+        FileHandle.standardError.write(Data(
+            "C-DERISK: observed=\(observed) sessionNull=\(sn) enteredNSAppRun=\(en)\n".utf8
+        ))
         if observed != 1 {
             // #391 diagnosis on a red: sessionNull==1/enteredNSAppRun==0 => the
             // agent took the CFRunLoop fallback (CGSession was null), which never

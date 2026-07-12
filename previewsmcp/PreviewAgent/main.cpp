@@ -370,8 +370,11 @@ int main(int argc, char *argv[]) {
   auto *SessionDict = reinterpret_cast<void *(*)()>(
       dlsym(RTLD_DEFAULT, "CGSessionCopyCurrentDictionary"));
   void *Session = SessionDict ? SessionDict() : nullptr;
-  if (!Session && SessionDict)
+  if (!Session && SessionDict) {
     gSessionNull.store(1, std::memory_order_relaxed);
+    errs() << "PreviewAgent: sessionNull=1, forcing [NSApp run] under it "
+              "(gui-capable derisk)\n";
+  }
   // #391 C-DERISK (diag, do-not-merge): the null CGSession under concurrent
   // sim load is a suspected FALSE NEGATIVE — this agent runs in the gui/501
   // LaunchAgent context where [NSApp run] is safe and works (69/69 green

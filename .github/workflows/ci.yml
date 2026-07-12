@@ -65,7 +65,7 @@ jobs:
         run: bazel run //tools/lint:check
 
       - name: Test
-        run: bazel test //... --test_output=errors
+        run: bazel test //... --test_output=all
 
       # The state a flake leaves behind (booted sims, orphan daemons, the
       # per-run daemon logs #350 collects specimens from) persists on the
