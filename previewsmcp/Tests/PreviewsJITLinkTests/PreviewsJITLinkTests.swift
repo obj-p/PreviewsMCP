@@ -139,6 +139,42 @@ struct PreviewsJITLinkTests {
         #expect(observed == 1)
     }
 
+    // #391 diagnostic: deterministic, clean-host proof of the control-starvation
+    // mechanism AND the timer fix. Do not merge.
+    @Test func deterministicControlStarvationRepro() throws {
+        let object = try FixtureSupport.compile("event_loop_starve_probe.swift")
+        let session = try JITSession(remoteAgentPath: JITSession.bundledAgentPath())
+        try session.addObject(path: object.path)
+        func diag(_ m: String) { FileHandle.standardError.write(Data("STARVE-DIAG: \(m)\n".utf8)) }
+
+        #expect(try session.runOnMain(symbol: "starve_install") == 1)
+        // Phase A — wedge: main dispatch queue starved, NO timer. Poll ~6s.
+        let cyc0 = try session.runOnMain(symbol: "starve_loop_cycles")
+        var obsA: Int32 = 0
+        var pollsA = 0
+        for _ in 0 ..< 60 where obsA != 1 {
+            Thread.sleep(forTimeInterval: 0.1)
+            obsA = try session.runOnMain(symbol: "starve_check")
+            pollsA += 1
+        }
+        let cyc1 = try session.runOnMain(symbol: "starve_loop_cycles")
+        diag("PHASE A no-timer: observed=\(obsA) pollsAnswered=\(pollsA) loopCycles \(cyc0)->\(cyc1)")
+
+        // Phase B — fix: install the repeating timer. Poll ~6s.
+        _ = try session.runOnMain(symbol: "starve_install_timer")
+        var obsB: Int32 = obsA
+        for _ in 0 ..< 60 where obsB != 1 {
+            Thread.sleep(forTimeInterval: 0.1)
+            obsB = try session.runOnMain(symbol: "starve_check")
+        }
+        let cyc2 = try session.runOnMain(symbol: "starve_loop_cycles")
+        diag("PHASE B +timer: observed=\(obsB) loopCycles ->\(cyc2)")
+        let confirmed = obsA == 0 && pollsA >= 10 && obsB == 1 && cyc2 > cyc1
+        diag("VERDICT: \(confirmed ? "MECHANISM+FIX CONFIRMED" : "INCONCLUSIVE")")
+        _ = try session.runOnMain(symbol: "starve_stop")
+        #expect(confirmed)
+    }
+
     @Test func buildsHostingViewOnMainThreadRemotely() throws {
         let object = try FixtureSupport.compile("hosting_probe.swift")
         let session = try JITSession(remoteAgentPath: JITSession.bundledAgentPath())
