@@ -38,6 +38,19 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # Start from a clean host. A cancelled run (cancel-in-progress) can
+      # SIGKILL an xcodebuild/simctl mid-boot and leave a booted simulator, a
+      # thrashing CoreSimulatorService, and orphaned previewsmcp daemons behind
+      # — that leftover state degrades the next run and is the confirmed #391
+      # trigger. Reap it before Lint/Test so every run starts from the same
+      # state. `previewsmcp serve` is matched (not a bare `previewsmcp`) so the
+      # runner's own checkout path is never a match; each line is best-effort.
+      - name: Reset simulator and daemon state
+        run: |
+          xcrun simctl shutdown all || true
+          xcrun simctl delete unavailable || true
+          pkill -f 'previewsmcp serve' || true
+
       # Lint first: it costs seconds and fails fast before the minutes of tests.
       - name: Lint
         run: bazel run //tools/lint:check
