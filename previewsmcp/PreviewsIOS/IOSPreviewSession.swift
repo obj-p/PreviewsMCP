@@ -251,7 +251,7 @@ public actor IOSPreviewSession {
         var lastError: Error?
         for attempt in 1 ... maxBootAttempts {
             do {
-                stage("boot/install/launch attempt \(attempt)/3")
+                stage("boot/install/launch attempt \(attempt)/\(maxBootAttempts)")
                 let device = try await simulatorManager.findDevice(udid: deviceUDID)
                 if device.state != .booted {
                     stage("attempt \(attempt): bootDevice")
