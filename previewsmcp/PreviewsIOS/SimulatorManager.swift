@@ -344,6 +344,34 @@ public actor SimulatorManager: SimulatorLister {
         )
     }
 
+    /// Shut down a device via `simctl shutdown`, best-effort and time-bounded. Used by
+    /// session teardown to reclaim a device this process booted (#391). Prefers simctl over
+    /// the SB private-API `shutdownDevice(_:)` because the latter is unbounded and can block
+    /// on a wedged CoreSimulatorService — the very degraded state we are cleaning up after —
+    /// whereas simctl runs as a subprocess bounded by runAsync's SIGTERM→SIGKILL timeout.
+    /// A no-op (harmless nonzero exit) when the device is already shut down.
+    public func shutdownDeviceBestEffort(udid: String) async {
+        _ = try? await runAsync(
+            "/usr/bin/xcrun",
+            arguments: ["simctl", "shutdown", udid],
+            discardStderr: true,
+            timeout: .seconds(30)
+        )
+    }
+
+    /// Quit the Simulator.app GUI (opened for non-headless sessions), best-effort and
+    /// time-bounded. A no-op when it isn't running. Quitting the GUI does not shut down the
+    /// CoreSimulator devices it displays — those are reclaimed separately via
+    /// `shutdownDeviceBestEffort`.
+    public func quitSimulatorApp() async {
+        _ = try? await runAsync(
+            "/usr/bin/osascript",
+            arguments: ["-e", "tell application \"Simulator\" to quit"],
+            discardStderr: true,
+            timeout: .seconds(10)
+        )
+    }
+
     /// Launch an app on a booted device. Returns the PID.
     ///
     /// Uses `xcrun simctl launch` instead of the SBDevice private API.
