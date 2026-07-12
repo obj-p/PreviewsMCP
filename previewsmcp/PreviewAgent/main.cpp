@@ -13,6 +13,8 @@
 #include "llvm/Support/Memory.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include <atomic>
+#include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <dispatch/dispatch.h>
@@ -25,6 +27,31 @@
 
 using namespace llvm;
 using namespace llvm::orc;
+
+// #391 diagnostic (count-only, behavior-neutral). The event_loop_probe fixture
+// (JIT-loaded into this process) reads these back via dlsym, so the readers
+// must survive dead-strip and stay in the executable's export table —
+// LLVM_ATTRIBUTE_USED keeps them, matching linkComponents above. On a red:
+// sessionNull==1/enteredNSAppRun==0 => the agent took the CFRunLoop fallback
+// (CGSession was null); enteredNSAppRun==1 with loopIterations climbing => it
+// entered [NSApp run] but the event was never delivered; loopIterations flat =>
+// the loop is frozen. None of these dequeue or dispatch, so they cannot mask a
+// wedge.
+namespace {
+std::atomic<int32_t> gLoopIterations{0};
+std::atomic<int32_t> gSessionNull{0};
+std::atomic<int32_t> gEnteredNSAppRun{0};
+} // namespace
+
+LLVM_ATTRIBUTE_USED extern "C" int32_t previewAgentLoopIterations() {
+  return gLoopIterations.load(std::memory_order_relaxed);
+}
+LLVM_ATTRIBUTE_USED extern "C" int32_t previewAgentSessionNull() {
+  return gSessionNull.load(std::memory_order_relaxed);
+}
+LLVM_ATTRIBUTE_USED extern "C" int32_t previewAgentEnteredNSAppRun() {
+  return gEnteredNSAppRun.load(std::memory_order_relaxed);
+}
 
 LLVM_ATTRIBUTE_USED void linkComponents() {
   errs() << (void *)&llvm_orc_registerEHFrameSectionWrapper
@@ -212,6 +239,38 @@ CWrapperFunctionResult previewsmcp_write_pointers(const char *ArgData,
           .release();
 }
 
+// Count-only run-loop observer for #391 diagnosis. Fires each time -[NSApp
+// run]'s loop is about to wait, so loopIterations tells a live-but-starved loop
+// from a frozen one. It never touches the event queue, so it cannot mask the
+// wedge.
+void noteLoopIteration(void * /*observer*/, unsigned long /*activity*/,
+                       void * /*info*/) {
+  gLoopIterations.fetch_add(1, std::memory_order_relaxed);
+}
+
+// Install the observer on the current (main) run loop. Best-effort: if any
+// symbol is missing the agent still runs, just without the loop counter.
+void installLoopObserver() {
+  auto *ObserverCreate =
+      reinterpret_cast<void *(*)(void *, unsigned long, unsigned char, long,
+                                 void (*)(void *, unsigned long, void *),
+                                 void *)>(
+          dlsym(RTLD_DEFAULT, "CFRunLoopObserverCreate"));
+  auto *GetCurrentLoop =
+      reinterpret_cast<void *(*)()>(dlsym(RTLD_DEFAULT, "CFRunLoopGetCurrent"));
+  auto *AddObserver = reinterpret_cast<void (*)(void *, void *, const void *)>(
+      dlsym(RTLD_DEFAULT, "CFRunLoopAddObserver"));
+  auto *CommonModes = reinterpret_cast<const void *const *>(
+      dlsym(RTLD_DEFAULT, "kCFRunLoopCommonModes"));
+  if (!ObserverCreate || !GetCurrentLoop || !AddObserver || !CommonModes)
+    return;
+
+  const unsigned long kBeforeWaiting = 1UL << 5;
+  if (void *Observer = ObserverCreate(nullptr, kBeforeWaiting, /*repeats=*/1, 0,
+                                      noteLoopIteration, nullptr))
+    AddObserver(GetCurrentLoop(), Observer, *CommonModes);
+}
+
 } // namespace
 
 static void printErrorAndExit(Twine ErrMsg) {
@@ -301,7 +360,8 @@ int main(int argc, char *argv[]) {
   // off-screen rendering works under the bare spin there.
   auto *SessionDict = reinterpret_cast<void *(*)()>(
       dlsym(RTLD_DEFAULT, "CGSessionCopyCurrentDictionary"));
-  if (SessionDict && SessionDict()) {
+  void *Session = SessionDict ? SessionDict() : nullptr;
+  if (Session) {
     auto *GetClass = reinterpret_cast<void *(*)(const char *)>(
         dlsym(RTLD_DEFAULT, "objc_getClass"));
     auto *RegisterSel = reinterpret_cast<void *(*)(const char *)>(
@@ -311,10 +371,15 @@ int main(int argc, char *argv[]) {
     if (GetClass && RegisterSel && MsgSend) {
       if (void *AppClass = GetClass("NSApplication")) {
         void *App = MsgSend(AppClass, RegisterSel("sharedApplication"));
-        if (App)
+        if (App) {
+          installLoopObserver();
+          gEnteredNSAppRun.store(1, std::memory_order_relaxed);
           MsgSend(App, RegisterSel("run")); // never returns
+        }
       }
     }
+  } else if (SessionDict) {
+    gSessionNull.store(1, std::memory_order_relaxed);
   }
 
   // Fallback when AppKit or the window server is unavailable: keep servicing

@@ -136,6 +136,20 @@ struct PreviewsJITLinkTests {
             Thread.sleep(forTimeInterval: 0.1)
             observed = try session.runOnMain(symbol: "event_pump_check")
         }
+        if observed != 1 {
+            // #391 diagnosis on a red: sessionNull==1/enteredNSAppRun==0 => the
+            // agent took the CFRunLoop fallback (CGSession was null), which never
+            // dequeues AppKit events; enteredNSAppRun==1 with loopIterations
+            // climbing => [NSApp run] is alive but the event was never delivered;
+            // loopIterations flat => the loop is frozen. -1 => probe symbol absent.
+            let sessionNull = try session.runOnMain(symbol: "event_pump_session_null")
+            let enteredRun = try session.runOnMain(symbol: "event_pump_entered_nsapp_run")
+            let loopIterations = try session.runOnMain(symbol: "event_pump_loop_iterations")
+            Issue
+                .record(
+                    "pump wedge: observed=0 sessionNull=\(sessionNull) enteredNSAppRun=\(enteredRun) loopIterations=\(loopIterations)"
+                )
+        }
         #expect(observed == 1)
     }
 
