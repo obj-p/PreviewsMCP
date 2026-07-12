@@ -21,6 +21,11 @@ swift_test(
         "//previewsmcp/PreviewAgent",
     ],
     env = {
+        # #391: the CI runner is a gui/501 LaunchAgent (genuinely gui-capable), so tell the
+        # spawned macOS PreviewAgent to enter [NSApp run] even when its CGSession read comes
+        # back null under load — a TRUE assertion here, not masking. The test process's env is
+        # inherited by its posix_spawn'd agent. A non-gui host would fail these tests either way.
+        "PREVIEWSMCP_GUI_CAPABLE": "1",
         "PREVIEWSMCP_AGENT": "$(rlocationpath //previewsmcp/PreviewAgent)",
         "PREVIEWSMCP_ORC_RT": "$(rlocationpath //:orc_rt_archive)",
     },

@@ -97,6 +97,22 @@ public enum PreviewsMCPApp {
         // Always headless: no Dock icon, windows positioned off-screen.
         app.setActivationPolicy(.accessory)
 
+        // #391: cache gui-capability at daemon startup — a reliable CGSession read now, BEFORE
+        // any simulator workload can spuriously null it under load — and hand it to spawned
+        // agents via their inherited env (the JIT agent is posix_spawn'd with this process's
+        // environ). The macOS PreviewAgent uses it to enter `[NSApplication run]` even when its
+        // OWN CGSession read comes back null under load, which is safe here because this daemon
+        // runs AppKit in a real gui session. Set ONLY when genuinely gui-capable: a headless
+        // ssh/launchd daemon reads null and sets nothing, so its agents keep the safe CFRunLoop
+        // fallback (no `[NSApp run]` WindowServer-registration kill, #196). dlsym-resolved to
+        // match the agent's own probe and avoid a deprecated direct CGSession call.
+        if let sym = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "CGSessionCopyCurrentDictionary") {
+            typealias CGSessionCopy = @convention(c) () -> UnsafeRawPointer?
+            if unsafeBitCast(sym, to: CGSessionCopy.self)() != nil {
+                setenv("PREVIEWSMCP_GUI_CAPABLE", "1", 1)
+            }
+        }
+
         host.onLaunch = {
             Task { @MainActor in
                 do {
