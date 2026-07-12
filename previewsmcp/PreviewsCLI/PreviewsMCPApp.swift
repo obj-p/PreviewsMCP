@@ -106,11 +106,20 @@ public enum PreviewsMCPApp {
         // ssh/launchd daemon reads null and sets nothing, so its agents keep the safe CFRunLoop
         // fallback (no `[NSApp run]` WindowServer-registration kill, #196). dlsym-resolved to
         // match the agent's own probe and avoid a deprecated direct CGSession call.
+        // Authoritative: this daemon's own startup read fully determines the signal. Set it
+        // when gui-capable, otherwise CLEAR it — so a stray inherited PREVIEWSMCP_GUI_CAPABLE=1
+        // (exported in the environment, or from a gui parent that spawned this headless daemon)
+        // can never survive into a headless daemon's agents and drive them into a sessionless
+        // [NSApp run] (#196 kill).
+        var guiCapable = false
         if let sym = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "CGSessionCopyCurrentDictionary") {
             typealias CGSessionCopy = @convention(c) () -> UnsafeRawPointer?
-            if unsafeBitCast(sym, to: CGSessionCopy.self)() != nil {
-                setenv("PREVIEWSMCP_GUI_CAPABLE", "1", 1)
-            }
+            guiCapable = unsafeBitCast(sym, to: CGSessionCopy.self)() != nil
+        }
+        if guiCapable {
+            setenv("PREVIEWSMCP_GUI_CAPABLE", "1", 1)
+        } else {
+            unsetenv("PREVIEWSMCP_GUI_CAPABLE")
         }
 
         host.onLaunch = {
