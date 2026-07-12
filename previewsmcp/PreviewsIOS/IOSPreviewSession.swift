@@ -17,8 +17,12 @@ public actor IOSPreviewSession {
 
     private let compiler: Compiler
     private let agentBuilder: IOSAgentBuilder
-    private let simulatorManager: SimulatorManager
+    private let simulatorManager: any SimulatorControlling
     private let progress: (any ProgressReporter)?
+
+    /// Boot/install/launch retry ceiling (default 3). Injectable so a unit test can force a
+    /// single attempt (no 3s inter-attempt sleeps) to drive the start()-failure reclaim path.
+    private let maxBootAttempts: Int
 
     private var session: PreviewSession?
     public nonisolated let headless: Bool
@@ -46,6 +50,12 @@ public actor IOSPreviewSession {
     private let makeJITReloader: MakeJITReloader
     private var jitReloader: (any IOSStructuralReloader)?
     private var jitListenFD: Int32 = -1
+
+    /// Test-only read of the JIT listener fd (-1 when closed/unbound). Lets a unit test assert
+    /// the start()-failure path released host resources without exposing the fd more broadly.
+    var jitListenFDForTesting: Int32 {
+        jitListenFD
+    }
 
     /// `stop()` was called — suppress the death watcher so an intentional
     /// teardown never respawns. `isRelaunching` is true for the duration of a
@@ -76,7 +86,7 @@ public actor IOSPreviewSession {
         deviceUDID: String,
         compiler: Compiler,
         agentBuilder: IOSAgentBuilder,
-        simulatorManager: SimulatorManager,
+        simulatorManager: any SimulatorControlling,
         headless: Bool = true,
         buildContext: BuildContext? = nil,
         traits: PreviewTraits = PreviewTraits(),
@@ -86,6 +96,7 @@ public actor IOSPreviewSession {
         setupSDKPath: String? = nil,
         setupDylibPath: URL? = nil,
         progress: (any ProgressReporter)? = nil,
+        maxBootAttempts: Int = 3,
         makeJITReloader: @escaping MakeJITReloader
     ) {
         id = UUID().uuidString
@@ -95,6 +106,7 @@ public actor IOSPreviewSession {
         self.compiler = compiler
         self.agentBuilder = agentBuilder
         self.simulatorManager = simulatorManager
+        self.maxBootAttempts = maxBootAttempts
         self.headless = headless
         self.buildContext = buildContext
         self.traits = traits
@@ -237,7 +249,7 @@ public actor IOSPreviewSession {
 
         var launchedPid: Int?
         var lastError: Error?
-        for attempt in 1 ... 3 {
+        for attempt in 1 ... maxBootAttempts {
             do {
                 stage("boot/install/launch attempt \(attempt)/3")
                 let device = try await simulatorManager.findDevice(udid: deviceUDID)
@@ -302,7 +314,7 @@ public actor IOSPreviewSession {
             } catch {
                 stage("attempt \(attempt) failed: \(error)")
                 lastError = error
-                if attempt < 3 {
+                if attempt < maxBootAttempts {
                     // Shut down the device to clear any stuck kernel/backend
                     // state before the next boot attempt. Best-effort — if
                     // shutdown itself fails or hangs, the next findDevice +

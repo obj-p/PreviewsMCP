@@ -10,8 +10,46 @@ public protocol SimulatorLister: Sendable {
     func listDevices() async throws -> [SimulatorManager.Device]
 }
 
+/// The simulator operations `IOSPreviewSession` drives, extracted as a seam so tests can
+/// inject a stub — `SimulatorManager` is a private-API-backed actor that boots real devices,
+/// so a session's boot/install/launch/teardown path is otherwise only reachable via the
+/// real-simulator E2E gate. All requirements are `async` so `SimulatorManager`'s actor-
+/// isolated (and synchronous) methods witness them.
+public protocol SimulatorControlling: Sendable {
+    func findDevice(udid: String) async throws -> SimulatorManager.Device
+    func bootDevice(udid: String, timeout: Duration) async throws
+    func installApp(udid: String, appPath: String) async throws
+    func launchApp(
+        udid: String, bundleID: String, arguments: [String], environment: [String: String]
+    ) async throws -> Int
+    func launchAppInBackground(udid: String, bundleID: String, arguments: [String]) async throws -> Int
+    func terminateAppIfRunning(udid: String, bundleID: String) async
+    func shutdownDevice(udid: String) async throws
+    func shutdownDeviceBestEffort(udid: String) async
+    func quitSimulatorApp() async
+    func makeHIDClient(udid: String) async throws -> SBHIDClient
+    func makeFramebufferStreamer(udid: String, jpegQuality: Double) async throws -> SBFramebufferStreamer
+    func screenshotData(udid: String, jpegQuality: Double) async throws -> Data
+}
+
+public extension SimulatorControlling {
+    /// Default-argument conveniences matching `SimulatorManager`'s own defaults, so call
+    /// sites keep working through `any SimulatorControlling` (a protocol can't carry defaults).
+    func bootDevice(udid: String) async throws {
+        try await bootDevice(udid: udid, timeout: .seconds(600))
+    }
+
+    func launchApp(udid: String, bundleID: String, arguments: [String]) async throws -> Int {
+        try await launchApp(udid: udid, bundleID: bundleID, arguments: arguments, environment: [:])
+    }
+
+    func makeFramebufferStreamer(udid: String) async throws -> SBFramebufferStreamer {
+        try await makeFramebufferStreamer(udid: udid, jpegQuality: 0.7)
+    }
+}
+
 /// Manages iOS simulator devices via CoreSimulator.framework (loaded at runtime).
-public actor SimulatorManager: SimulatorLister {
+public actor SimulatorManager: SimulatorLister, SimulatorControlling {
     /// Sendable snapshot of a simulator device.
     public struct Device: Sendable, CustomStringConvertible {
         public let name: String
