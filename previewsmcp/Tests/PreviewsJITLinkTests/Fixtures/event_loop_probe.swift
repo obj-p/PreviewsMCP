@@ -27,6 +27,11 @@ public func event_pump_entered_nsapp_run() -> Int32 {
     agentCounter("previewAgentEnteredNSAppRun")
 }
 
+@_cdecl("event_pump_recovery_ms")
+public func event_pump_recovery_ms() -> Int32 {
+    agentCounter("previewAgentRecoveryMs")
+}
+
 @_cdecl("event_pump_install")
 public func event_pump_install() -> Int32 {
     NSEvent.addLocalMonitorForEvents(matching: .applicationDefined) { event in

@@ -145,9 +145,13 @@ struct PreviewsJITLinkTests {
             let sessionNull = try session.runOnMain(symbol: "event_pump_session_null")
             let enteredRun = try session.runOnMain(symbol: "event_pump_entered_nsapp_run")
             let loopIterations = try session.runOnMain(symbol: "event_pump_loop_iterations")
+            // #391 duration probe: recoveryMs >=0 => CGSession recovered that many
+            // ms after the null (transient => a bounded retry fixes it); -1 => never
+            // recovered in-window (persistent => retry futile); -2 => probe unfinished.
+            let recoveryMs = try session.runOnMain(symbol: "event_pump_recovery_ms")
             Issue
                 .record(
-                    "pump wedge: observed=0 sessionNull=\(sessionNull) enteredNSAppRun=\(enteredRun) loopIterations=\(loopIterations)"
+                    "pump wedge: observed=0 sessionNull=\(sessionNull) enteredNSAppRun=\(enteredRun) loopIterations=\(loopIterations) recoveryMs=\(recoveryMs)"
                 )
         }
         #expect(observed == 1)

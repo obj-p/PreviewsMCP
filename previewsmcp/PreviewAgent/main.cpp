@@ -23,6 +23,7 @@
 #include <mutex>
 #include <string>
 #include <thread>
+#include <unistd.h>
 #include <vector>
 
 using namespace llvm;
@@ -41,6 +42,11 @@ namespace {
 std::atomic<int32_t> gLoopIterations{0};
 std::atomic<int32_t> gSessionNull{0};
 std::atomic<int32_t> gEnteredNSAppRun{0};
+// #391 duration probe: ms to first non-null CGSession after a null-at-startup,
+// measured on a side thread. -2 = probe didn't run, -1 = never recovered in the
+// window, >=0 = ms to recovery. Decides transient (bounded retry fixes) vs
+// persistent (retry futile).
+std::atomic<int32_t> gRecoveryMs{-2};
 } // namespace
 
 LLVM_ATTRIBUTE_USED extern "C" int32_t previewAgentLoopIterations() {
@@ -51,6 +57,9 @@ LLVM_ATTRIBUTE_USED extern "C" int32_t previewAgentSessionNull() {
 }
 LLVM_ATTRIBUTE_USED extern "C" int32_t previewAgentEnteredNSAppRun() {
   return gEnteredNSAppRun.load(std::memory_order_relaxed);
+}
+LLVM_ATTRIBUTE_USED extern "C" int32_t previewAgentRecoveryMs() {
+  return gRecoveryMs.load(std::memory_order_relaxed);
 }
 
 LLVM_ATTRIBUTE_USED void linkComponents() {
@@ -380,6 +389,26 @@ int main(int argc, char *argv[]) {
     }
   } else if (SessionDict) {
     gSessionNull.store(1, std::memory_order_relaxed);
+    // #391 duration probe (measurement only). On a side thread so the main
+    // thread still falls through to the fallback loop and keeps draining the
+    // dispatch queue (runOnMain stays alive); this run still reds. Poll whether
+    // and how fast CGSession recovers, to size a bounded retry (transient) or
+    // rule it out (persistent).
+    std::thread([SessionDict] {
+      // 9s window: must finish (and store) before the test's ~10s poll budget
+      // reads the counter and tears the agent down. A recovery later than that
+      // is unusable by a bounded retry anyway, so it reads as never (-1).
+      const int MaxMs = 9000, StepMs = 100;
+      int Elapsed = 0;
+      void *Recovered = nullptr;
+      for (; Elapsed < MaxMs && !Recovered; Elapsed += StepMs) {
+        usleep(StepMs * 1000);
+        Recovered = SessionDict();
+      }
+      int32_t Result = Recovered ? Elapsed : -1;
+      gRecoveryMs.store(Result, std::memory_order_relaxed);
+      errs() << "PreviewAgent: CGSession recovery probe = " << Result << "ms\n";
+    }).detach();
   }
 
   // Fallback when AppKit or the window server is unavailable: keep servicing
