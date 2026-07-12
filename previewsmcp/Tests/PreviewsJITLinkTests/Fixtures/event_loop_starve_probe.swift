@@ -16,15 +16,17 @@ nonisolated(unsafe) var loopCycles: Int32 = 0
 nonisolated(unsafe) var rescueTimer: Timer?
 
 private func pumpBusy() {
-    guard starveRunning else { return }
     DispatchQueue.main.async {
-        // Occupy the loop briefly, then immediately re-feed the main-queue source
-        // so CFRunLoop keeps draining dispatch inline and never unwinds to
-        // _DPSNextEvent. Small enough that a runOnMain dispatch_sync still
-        // interleaves (proving dispatch answers while the event starves).
-        let end = Date().timeIntervalSince1970 + 0.004
-        while Date().timeIntervalSince1970 < end {}
+        guard starveRunning else { return }
+        // Re-enqueue FIRST so the main-queue source is already ready when this
+        // block returns: CFRunLoop keeps draining dispatch inline and never
+        // unwinds to _DPSNextEvent (no BeforeWaiting). The short busy span keeps
+        // the queue continuously fed while still letting a runOnMain
+        // dispatch_sync interleave FIFO (proving dispatch answers while the
+        // posted event starves).
         pumpBusy()
+        let end = Date().timeIntervalSince1970 + 0.003
+        while Date().timeIntervalSince1970 < end {}
     }
 }
 
