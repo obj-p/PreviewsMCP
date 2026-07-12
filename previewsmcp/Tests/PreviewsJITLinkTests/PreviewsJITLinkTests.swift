@@ -128,14 +128,24 @@ struct PreviewsJITLinkTests {
         let session = try JITSession(remoteAgentPath: JITSession.bundledAgentPath())
         try session.addObject(path: object.path)
         #expect(try session.runOnMain(symbol: "event_pump_install") == 1)
-        // 10s budget: event dequeue lags behind runOnMain's main-queue blocks
-        // on a loaded host (the mini's first CI run failed the old 2s budget
-        // while the agent was still answering polls).
+        // #391 sub-mechanism probe: correlate fireDelay with the run-loop
+        // cycle-rate under whatever load this instance sees. Measure cycles over
+        // a fixed ~3s window (light polling) regardless of when the event fires.
+        let t0 = Date().timeIntervalSince1970
+        let cyc0 = try session.runOnMain(symbol: "event_pump_loop_cycles")
         var observed: Int32 = 0
         for _ in 0 ..< 100 where observed != 1 {
             Thread.sleep(forTimeInterval: 0.1)
             observed = try session.runOnMain(symbol: "event_pump_check")
         }
+        // keep sampling cycles to the ~3s mark for a stable rate
+        while Date().timeIntervalSince1970 - t0 < 3.0 { Thread.sleep(forTimeInterval: 0.1) }
+        let cyc1 = try session.runOnMain(symbol: "event_pump_loop_cycles")
+        let fireDelay = try session.runOnMain(symbol: "event_pump_fire_delay_ms")
+        let winMs = (Date().timeIntervalSince1970 - t0) * 1000
+        let rate = Double(cyc1 - cyc0) / (winMs / 1000)
+        FileHandle.standardError.write(Data(
+            "MODE-PROBE: fireDelayMs=\(fireDelay) loopCyclesPerSec=\(Int(rate)) cycles=\(cyc1 - cyc0) winMs=\(Int(winMs))\n".utf8))
         #expect(observed == 1)
     }
 
