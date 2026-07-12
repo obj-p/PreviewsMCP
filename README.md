@@ -5,8 +5,8 @@
 # PreviewsMCP
 
 <p>
-  A headless SwiftUI preview host for humans and AI agents.<br>
-  No Xcode process, no GUI session — render, snapshot, and drive <code>#Preview</code> blocks from the command line or over <a href="https://modelcontextprotocol.io/">MCP</a>, even on a CI runner.
+  A standalone SwiftUI preview host for humans and AI agents.<br>
+  Run, snapshot, and interact with <code>#Preview</code> blocks from the command line or over <a href="https://modelcontextprotocol.io/">MCP</a> — no Xcode process required.
 </p>
 
 ## Quickstart
@@ -23,26 +23,21 @@ A live macOS preview window opens. Edit the source file and the window hot-reloa
 
 ## Why PreviewsMCP?
 
-PreviewsMCP runs headless: it JIT-compiles your `#Preview` closure and links it into a real app process (macOS `NSApplication` or iOS simulator `UIApplication`) with hot-reload, driven entirely from the command line or over MCP — no Xcode process, no GUI session.
+PreviewsMCP JIT-compiles your `#Preview` closure and links it into a real app process (macOS `NSApplication` or iOS simulator `UIApplication`) with hot-reload — driven entirely from the command line or over MCP. No Xcode process required.
 
 That makes it a standalone, extensible preview workflow:
 
-- **Headless and CI-ready** — no GUI Xcode and no desktop session, so it runs on a CI runner
-- **Build-system flexible** — works with standalone **SPM** (no `.xcodeproj`), **Xcode projects** (`.xcodeproj` / `.xcworkspace`), and **Bazel**
 - **CLI and MCP-native** — preview, snapshot, and iterate from the terminal or let an AI agent drive the loop
 - **Hot-reload** — edit a file, see changes immediately, with `@State` preserved across literal edits
 - **Trait and variant sweeps** — render one preview across color schemes, dynamic type sizes, locales, and layout directions in a single call
 - **iOS interaction** — walk the accessibility tree and inject taps/swipes through an in-simulator touch bridge
+- **Build system flexible** — works with **SPM**, **Xcode projects** (`.xcodeproj` / `.xcworkspace`), and **Bazel**
 
 ### Solving the Xcode preview sandbox problem
 
 Xcode previews run your code inside Apple's opaque preview agent, so you can't run your own initialization. `FirebaseApp.configure()`, font registration, auth, and DI containers have nowhere to go. Teams work around this with **micro apps** — standalone targets that render one feature with controlled dependencies — and pay a steady maintenance tax in extra targets, schemes, and mocks. (Airbnb's dev apps drive over half of local iOS builds; Point-Free's isowords ships 9 preview apps.)
 
 PreviewsMCP hosts your preview in its own app process, so you can extend it. The [setup plugin](Sources/PreviewsSetupKit/PreviewSetup.swift) is the hook: `setUp()` runs once per session (SDK init, auth, fonts, DI) and `wrap()` surrounds every render (themes, environment values). It's the micro app's dependency layer as a reusable framework, with no separate target to maintain.
-
-## How it compares
-
-Apple now ships first-party preview capture — `RenderPreview` (Xcode 26.3) returns rendered SwiftUI previews to any MCP editor — so "an agent can see your preview" is no longer a unique hook. But `RenderPreview` is tethered to a live GUI Xcode over `xcrun mcpbridge` and gated by macOS Automation/TCC: no headless mode, no CI, no Bazel or standalone-SPM support. PreviewsMCP runs headless — on a CI runner, with Bazel and standalone SPM.
 
 ## Installation
 

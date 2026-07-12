@@ -39,11 +39,10 @@ struct PreviewHostJITReloadTests {
 
         let reloader = RecordingReloader()
         let host = PreviewHost(makeStructuralReloader: { reloader })
-        try await host.jitStart(
-            sessionID: "s1", session: session,
-            title: "s1", size: NSSize(width: 8, height: 8), headless: true
-        )
-        #expect(host.agentSnapshotPath(for: "s1") != nil)
+        host.watchFile(sessionID: "s1", session: session, filePath: sourceFile.path, compiler: compiler)
+
+        let imagePath = try await host.jitStructuralReload(sessionID: "s1", session: session)
+        #expect(host.agentSnapshotPath(for: "s1") == imagePath)
         #expect(reloader.calls.count == 1)
         #expect(reloader.calls.first?.entrySymbol == "renderPreviewToFile")
     }
@@ -120,13 +119,10 @@ struct PreviewHostJITReloadTests {
 
         let compiler = try await Compiler()
         let session = PreviewSession(sourceFile: sourceFile, compiler: compiler)
+        let build = try await session.compileObjectForJIT()
 
         let host = PreviewHost(makeStructuralReloader: { RecordingReloader() })
-        try await host.jitStart(
-            sessionID: "s1", session: session,
-            title: "s1", size: NSSize(width: 8, height: 8), headless: true
-        )
-        let build = try await session.compileObjectForJIT()
+        host.watchFile(sessionID: "s1", session: session, filePath: sourceFile.path, compiler: compiler)
 
         let stringLiteral = try #require(
             build.literals.first { if case .string = $0.value { true } else { false } }

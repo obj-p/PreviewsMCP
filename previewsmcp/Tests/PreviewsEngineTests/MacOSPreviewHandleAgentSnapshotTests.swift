@@ -39,12 +39,9 @@ struct MacOSPreviewHandleAgentSnapshotTests {
         let compiler = try await Compiler()
         let session = PreviewSession(sourceFile: sourceFile, compiler: compiler)
         let host = PreviewHost(makeStructuralReloader: { RecordingReloader() })
-        try await host.jitStart(
-            sessionID: "s1", session: session,
-            title: "s1", size: NSSize(width: 8, height: 8), headless: true
-        )
+        host.watchFile(sessionID: "s1", session: session, filePath: sourceFile.path, compiler: compiler)
 
-        let imageURL = try #require(host.agentSnapshotPath(for: "s1"))
+        let imageURL = try await host.jitStructuralReload(sessionID: "s1", session: session)
         try Self.greenPNG().write(to: imageURL)
 
         let handle = MacOSPreviewHandle(id: "s1", session: session, host: host)

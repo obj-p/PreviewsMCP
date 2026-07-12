@@ -1,4 +1,3 @@
 .build
 examples/bazel
 examples/spm/.build
-research

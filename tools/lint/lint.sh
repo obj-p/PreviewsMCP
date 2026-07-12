@@ -21,8 +21,8 @@ mode="${1:-check}"
 cd "$BUILD_WORKSPACE_DIRECTORY"
 fail=0
 
-# Generated sources, example projects, and research spikes are never linted.
-_exclude='(^examples/|^research/|/IOSAgentAppSource\.swift$|/IOSAppIconData\.swift$)'
+# Generated sources and example projects are never linted.
+_exclude='(^examples/|/IOSAgentAppSource\.swift$|/IOSAppIconData\.swift$)'
 
 _candidates() {
   if [[ "$mode" == staged ]]; then
