@@ -48,6 +48,36 @@ public enum SimulatorTestDevices {
         "previewsmcp-test-\(index)"
     }
 
+    /// True when a dedicated simulator is REQUIRED (the merge-queue gate),
+    /// so a `nil` from `udid` must FAIL rather than silently skip iOS coverage
+    /// (the ~27s no-op false-green). False locally, so a dev without the pinned
+    /// device set isn't blocked.
+    ///
+    /// Bazel SCRUBS the test-action env, so raw `GITHUB_ACTIONS`/`CI` never
+    /// reach the sandbox — this reads a DEDICATED, purpose-specific var that
+    /// three coupled sites keep alive; changing one without the others makes
+    /// the guard inert:
+    ///   1. this read of `PREVIEWSMCP_REQUIRE_DEDICATED_SIM`;
+    ///   2. `.bazelrc` `test --test_env=PREVIEWSMCP_REQUIRE_DEDICATED_SIM`
+    ///      (propagates it into the scrubbed sandbox when set — inert locally);
+    ///   3. `.github/workflows/ci.yml` sets it =1 at job env + an "Assert
+    ///      iOS-coverage signal" step that fails the gate if it's ever dropped.
+    public static var requiresDedicatedSim: Bool {
+        ProcessInfo.processInfo.environment["PREVIEWSMCP_REQUIRE_DEDICATED_SIM"] != nil
+    }
+
+    /// The message a caller should `Issue.record` (failing the test) when a
+    /// dedicated simulator can't be provisioned, or nil to skip. Fails only
+    /// when a dedicated sim is required (the gate); locally it skips.
+    /// `requiresDedicatedSim` is a parameter so this policy is unit-testable
+    /// without mutating the process env; callers pass
+    /// `SimulatorTestDevices.requiresDedicatedSim`.
+    public static func missingDeviceFailure(index: Int, requiresDedicatedSim: Bool) -> String? {
+        guard requiresDedicatedSim else { return nil }
+        return "Required gate could not provision dedicated simulator index \(index) — "
+            + "failing, not skipping (must not silently drop iOS coverage)."
+    }
+
     /// Resolve the dedicated device for `index`, creating it if missing.
     ///
     /// Callers must hold `SimulatorTestLock`: create/delete mutate the shared

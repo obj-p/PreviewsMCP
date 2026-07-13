@@ -30,6 +30,11 @@ struct IOSHIDInputTests {
         await CoreSimulatorHygiene.resetOnce()
 
         guard let deviceUDID = await SimulatorTestDevices.udid(index: 2) else {
+            if let failure = SimulatorTestDevices.missingDeviceFailure(
+                index: 2, requiresDedicatedSim: SimulatorTestDevices.requiresDedicatedSim
+            ) {
+                Issue.record("\(failure)")
+            }
             print("No dedicated test simulator for index 2 — skipping")
             return
         }
