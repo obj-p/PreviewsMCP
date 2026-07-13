@@ -65,7 +65,11 @@ jobs:
         run: bazel run //tools/lint:check
 
       - name: Test
-        run: bazel test //... --test_output=errors
+        # THROWAWAY combined-remeasure branch only: N=3 uncached census to
+        # validate the AsyncProcess fix + Stream-C + #368 markers don't
+        # regress AND re-measure the flake rate with the top redder gone.
+        # Do NOT merge.
+        run: bazel test //... --nocache_test_results --runs_per_test=3 --test_output=errors
 
       # The state a flake leaves behind (booted sims, orphan daemons, the
       # per-run daemon logs #350 collects specimens from) persists on the
