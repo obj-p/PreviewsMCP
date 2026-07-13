@@ -604,8 +604,19 @@ static SBIndigoMouseFunc _loadMouseFunc(void) {
   if (!_loadMouseFunc())
     return NO;
   dispatch_async(self.inputQueue, ^{
+    // A moveless down->up occasionally fails app-side tap recognition (#368,
+    // ~8% on a healed runner): the held touch collapses into too few HID
+    // samples, so SwiftUI never observes a distinct began->ended and the
+    // toggle never flips (the input is delivered and the capture is live —
+    // the framebuffer just never changes). Re-sample the touch in place during
+    // the hold — the same begin->move->end shape the drag path below uses and
+    // which never flaked — so the held touch spans multiple samples every time.
     [self _sendEventType:1 x:x y:y deliveredLabel:"tap down"];
-    usleep(60000);
+    usleep(20000);
+    [self _sendEventType:1 x:x y:y deliveredLabel:NULL];
+    usleep(20000);
+    [self _sendEventType:1 x:x y:y deliveredLabel:NULL];
+    usleep(20000);
     [self _sendEventType:2 x:x y:y deliveredLabel:"tap up"];
   });
   return YES;
