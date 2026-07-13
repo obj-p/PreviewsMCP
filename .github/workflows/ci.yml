@@ -37,6 +37,12 @@ jobs:
       # same Xcode as the Bazel pin, without mutating the host's global
       # xcode-select.
       DEVELOPER_DIR: /Applications/Xcode-26.2.0.app/Contents/Developer
+      # Required-gate iOS-coverage signal. The "Assert iOS-coverage signal"
+      # step reads it here (runner shell); the Test step propagates it into
+      # bazel's scrubbed sandbox via .bazelrc --test_env so
+      # SimulatorTestDevices.requiresDedicatedSim is true → a nil provision
+      # FAILS the gate instead of silently skipping iOS coverage.
+      PREVIEWSMCP_REQUIRE_DEDICATED_SIM: "1"
     steps:
       - uses: actions/checkout@v7
 
@@ -78,7 +84,23 @@ jobs:
       - name: Lint
         run: bazel run //tools/lint:check
 
+      # Drift guard (runs in the runner shell, OUTSIDE bazel's scrubbed test
+      # env, so the job-level var IS visible here): if the required-gate
+      # iOS-coverage signal is ever dropped from the job env, fail loudly
+      # instead of letting the guard go silently inert. Coupled with
+      # SimulatorTestDevices.requiresDedicatedSim + the .bazelrc
+      # `--test_env=PREVIEWSMCP_REQUIRE_DEDICATED_SIM` line.
+      - name: Assert iOS-coverage signal is set
+        run: |
+          test -n "$PREVIEWSMCP_REQUIRE_DEDICATED_SIM" || {
+            echo "PREVIEWSMCP_REQUIRE_DEDICATED_SIM must be set (job env) so the required gate FAILS — not silently skips — when a dedicated simulator can't be provisioned. See SimulatorTestDevices.requiresDedicatedSim + .bazelrc --test_env."
+            exit 1
+          }
+
       - name: Test
+        # The job-level PREVIEWSMCP_REQUIRE_DEDICATED_SIM reaches bazel's
+        # scrubbed test env via the .bazelrc --test_env line, so a nil
+        # provision FAILS on the required gate instead of skip-as-green.
         run: bazel test //... --test_output=errors
 
       # The state a flake leaves behind (booted sims, orphan daemons, the
