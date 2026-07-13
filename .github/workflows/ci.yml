@@ -21,10 +21,12 @@ on:
     - cron: "0 5 * * 0"
   workflow_dispatch:
 
-# Cancel an in-progress run when a new commit lands on the same ref.
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+# No `concurrency` / cancel-in-progress on purpose: cancelling an in-progress
+# run SIGKILLs xcodebuild/simctl/previewsmcp mid-flight and LEAKS booted sims +
+# orphan daemon/agent/xctest procs that accumulate across runs, degrade the
+# shared CoreSimulator, and wedge the heaviest target (the MCPIntegrationTests
+# 3600s timeout; the confirmed #391 trigger). On a single serial runner an
+# overlapping run simply queues. Do not re-add it.
 
 jobs:
   bazel:
@@ -53,12 +55,24 @@ jobs:
       # runner's own checkout path; every line is best-effort.
       - name: Reset simulator and daemon state
         run: |
+          # Reap orphaned procs a prior cancelled/timed-out run leaked — a
+          # `previewsmcp run`/`serve`, its spawned PreviewAgent, or an orphan
+          # test bundle keeps a sim session / degrades CoreSimulator and is
+          # what wedges MCPIntegrationTests. Patterns are TARGETED, never a
+          # broad `-f previewsmcp`: `bazel test //previewsmcp/...` carries the
+          # package path in bazel's own argv, so a broad match would kill the
+          # live run.
+          pkill -9 -f 'previewsmcp serve' || true
+          pkill -9 -f 'previewsmcp run' || true
+          pkill -9 -x PreviewAgent || true
+          pkill -9 -f '\.xctest' || true
           killall -9 Simulator || true
           xcrun simctl shutdown all || true
           launchctl kickstart -k "gui/$(id -u)/com.apple.CoreSimulator.CoreSimulatorService" 2>/dev/null \
             || launchctl kickstart -k "system/com.apple.CoreSimulator.CoreSimulatorService" 2>/dev/null || true
+          # `delete unavailable` only — never `erase`/`delete all`, which would
+          # unpin the previewsmcp-test-N devices and make provisioning fail-loud.
           xcrun simctl delete unavailable || true
-          pkill -f 'previewsmcp serve' || true
 
       # Lint first: it costs seconds and fails fast before the minutes of tests.
       - name: Lint
@@ -79,3 +93,17 @@ jobs:
           for f in "${TMPDIR:-/tmp}"previewsmcp-test-*.log /tmp/previewsmcp-test-*.log; do
             [ -f "$f" ] && { echo "=== $f (tail)"; tail -100 "$f"; }
           done || true
+
+      # Reap this run's OWN leftovers even on success — a passed run can still
+      # leave a detached daemon/agent (spawned to outlive its CLI) or a booted
+      # sim. Runs after the diagnostics step so a failure capture sees the live
+      # state first. Same targeted reaps as the start-of-job reset.
+      - name: Reap leaked processes and simulators
+        if: always()
+        run: |
+          pkill -9 -f 'previewsmcp serve' || true
+          pkill -9 -f 'previewsmcp run' || true
+          pkill -9 -x PreviewAgent || true
+          pkill -9 -f '\.xctest' || true
+          killall -9 Simulator || true
+          xcrun simctl shutdown all || true
