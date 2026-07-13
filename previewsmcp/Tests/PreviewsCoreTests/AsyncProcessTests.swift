@@ -49,10 +49,12 @@ struct AsyncProcessTests {
 
     @Test("timeout SIGTERMs the subprocess and throws AsyncProcessTimeout")
     func timeoutFiresOnHungChild() async throws {
-        // /bin/sleep 30 would exceed a 500ms timeout by a lot. With the
-        // timer set, the call must return within ~1s (timer + terminate
-        // propagation). This is the regression guard for the simctl
-        // screenshot hang — see CI run 72501335737 on PR #140.
+        // /bin/sleep 30 would exceed a 500ms timeout by a lot. The guard is
+        // that the timeout FIRES — the call returns well before the 30s sleep
+        // instead of hanging (the simctl screenshot hang, CI run 72501335737,
+        // PR #140). The upper bound is generous (15s, not the ~1s happy path):
+        // under CI load the timer-fire + SIGTERM + subprocess-exit propagation
+        // stretches, and a tight bound flaked ~1/3 in the 2026-07-13 census.
         let start = ContinuousClock.now
         await #expect(throws: AsyncProcessTimeout.self) {
             _ = try await runAsync(
@@ -65,8 +67,8 @@ struct AsyncProcessTests {
             Double(elapsed.components.seconds)
                 + Double(elapsed.components.attoseconds) / 1e18
         #expect(
-            elapsedSeconds >= 0.5 && elapsedSeconds < 3,
-            "expected timeout in 0.5-3s (got \(elapsedSeconds)s)"
+            elapsedSeconds >= 0.5 && elapsedSeconds < 15,
+            "expected timeout to fire in 0.5-15s (got \(elapsedSeconds)s)"
         )
     }
 
