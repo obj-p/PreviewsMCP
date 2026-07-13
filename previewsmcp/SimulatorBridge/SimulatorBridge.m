@@ -585,9 +585,9 @@ static SBIndigoMouseFunc _loadMouseFunc(void) {
     NSString *label = [NSString stringWithUTF8String:deliveredLabel];
     // Send-time marker (#368 (b1) splitter): logged inline before dispatch, so
     // the down->up gap here reflects the real inter-event hold. The "delivered"
-    // completion below runs on inputQueue *after* the 60ms usleep between the
-    // down and up sends, so its timestamps batch together and can't measure the
-    // hold — this one can.
+    // completion below runs on inputQueue *after* the usleep holds between the
+    // sends, so its timestamps batch together and can't measure the hold — this
+    // one can.
     NSLog(@"SimulatorBridge: hid %@ sent at (%.4f, %.4f)", label, x, y);
     completionQueue = self.inputQueue;
     completion = ^{
@@ -604,13 +604,15 @@ static SBIndigoMouseFunc _loadMouseFunc(void) {
   if (!_loadMouseFunc())
     return NO;
   dispatch_async(self.inputQueue, ^{
-    // A moveless down->up occasionally fails app-side tap recognition (#368,
-    // ~8% on a healed runner): the held touch collapses into too few HID
-    // samples, so SwiftUI never observes a distinct began->ended and the
-    // toggle never flips (the input is delivered and the capture is live —
-    // the framebuffer just never changes). Re-sample the touch in place during
-    // the hold — the same begin->move->end shape the drag path below uses and
-    // which never flaked — so the held touch spans multiple samples every time.
+    // A moveless down->up occasionally (~8% on a healed runner) fails app-side
+    // tap recognition (#368): the input is delivered and the capture stays live
+    // (frame numbers advance), yet the framebuffer never changes — the tap
+    // reaches the digitizer but SwiftUI never flips the toggle. Re-sampling the
+    // held touch during the hold makes it register reliably (forced-fire went
+    // 2/24 -> 0/100). The leading explanation is that the extra type-1 sends
+    // keep the touch spanning enough HID samples for a distinct began->ended,
+    // mirroring the drag path below (which never flaked); the empirical result
+    // holds whether the operative cause is sample count or the send timing.
     [self _sendEventType:1 x:x y:y deliveredLabel:"tap down"];
     usleep(20000);
     [self _sendEventType:1 x:x y:y deliveredLabel:NULL];
