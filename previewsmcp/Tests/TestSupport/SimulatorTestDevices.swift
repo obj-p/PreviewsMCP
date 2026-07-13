@@ -45,6 +45,28 @@ public enum SimulatorTestDevices {
         "previewsmcp-test-\(index)"
     }
 
+    /// True when running under CI (GitHub Actions sets both). Callers use this
+    /// to FAIL rather than silently skip when a dedicated simulator can't be
+    /// provisioned: on the required merge-queue gate a `nil` from `udid` means
+    /// the host lost CoreSimulator, and a skip-as-green would drop iOS coverage
+    /// invisibly (the ~27s no-op false-green). Locally, `nil` still skips so a
+    /// dev without the pinned device set isn't blocked.
+    public static var isCI: Bool {
+        let env = ProcessInfo.processInfo.environment
+        return env["GITHUB_ACTIONS"] != nil || env["CI"] != nil
+    }
+
+    /// The message a caller should `Issue.record` (failing the test) when a
+    /// dedicated simulator can't be provisioned, or nil to skip. Fails only
+    /// under CI — locally a missing device is a skip. `isCI` is a parameter so
+    /// this policy is unit-testable without mutating the process environment;
+    /// callers pass `SimulatorTestDevices.isCI`.
+    public static func missingDeviceFailure(index: Int, isCI: Bool) -> String? {
+        guard isCI else { return nil }
+        return "CI could not provision dedicated simulator index \(index) — "
+            + "failing, not skipping (a required gate must not silently drop iOS coverage)."
+    }
+
     /// Resolve the dedicated device for `index`, creating it if missing.
     ///
     /// Callers must hold `SimulatorTestLock`: create/delete mutate the shared

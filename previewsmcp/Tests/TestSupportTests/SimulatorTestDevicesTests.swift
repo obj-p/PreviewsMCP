@@ -14,6 +14,11 @@ struct SimulatorTestDevicesTests {
         defer { simLock.release() }
 
         guard let first = await SimulatorTestDevices.udid(index: 5) else {
+            if let failure = SimulatorTestDevices.missingDeviceFailure(
+                index: 5, isCI: SimulatorTestDevices.isCI
+            ) {
+                Issue.record("\(failure)")
+            }
             print("Host cannot create \(SimulatorTestDevices.deviceType) — skipping")
             return
         }
