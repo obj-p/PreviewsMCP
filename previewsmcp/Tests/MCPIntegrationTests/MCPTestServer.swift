@@ -572,25 +572,23 @@ final class MCPTestServer: @unchecked Sendable {
         baseline: Data,
         timeout: Duration
     ) async throws -> Data {
+        // Each poll gets snapshotBytes' full default budget — like the sibling
+        // pollers awaitElementsText/awaitStderrContains — NOT a shrinking
+        // slice of the remaining window. A near-zero final slice used to trip
+        // snapshotBytes' withTimeout, which terminates the server and throws a
+        // misleading `callTool(preview_snapshot) timed out after 0.06s`,
+        // masking the honest "bytes did not change" record below (#368). The
+        // `while` deadline stops issuing polls once the window elapses; a poll
+        // that genuinely hangs still surfaces its own snapshot timeout (also
+        // honest, not masked).
         let deadline = ContinuousClock.now + timeout
         while ContinuousClock.now < deadline {
-            let current = try await snapshotBytes(
-                sessionID: sessionID,
-                timeout: Self.remainingBudget(until: deadline)
-            )
+            let current = try await snapshotBytes(sessionID: sessionID)
             if current != baseline { return current }
             try await Task.sleep(for: .milliseconds(200))
         }
         Issue.record("Snapshot bytes did not change within \(timeout). Server stderr:\n\(stderrLog())")
         throw MCPTestError.timedOut(operation: "awaitSnapshotChange(sessionID: \(sessionID))", duration: timeout)
-    }
-
-    private static func remainingBudget(
-        until deadline: ContinuousClock.Instant
-    ) -> Duration {
-        let now = ContinuousClock.now
-        guard now < deadline else { return .milliseconds(1) }
-        return now.duration(to: deadline)
     }
 
     // MARK: - Timeout primitive
