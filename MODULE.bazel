@@ -64,18 +64,10 @@ llvm_repository = use_repo_rule("//bazel:llvm.bzl", "llvm_repository")
 
 llvm_repository(
     name = "llvm_src",
-    commit = "9784760565e8cae0bc0b97bad69aaf498408dc3d",
     patches = [
         "//patches:llvm-machoplatform-bootstrap-race.patch",
         "//patches:llvm-mapperjitlink-abandon-slab.patch",
     ],
-    remote = "https://github.com/swiftlang/llvm-project.git",
-    sparse_paths = [
-        "llvm",
-        "compiler-rt",
-        "cmake",
-        "third-party",
-        "runtimes",
-    ],
-    tag = "swift-6.2.3-RELEASE",
+    sha256 = "a906c066310e19d876faae4119b5269d7bcee1abab8eebc3e30839b7f81bbbc7",
+    url = "https://github.com/obj-p/PreviewsMCP/releases/download/llvm-src-swift-6.2.3-RELEASE/llvm-src-swift-6.2.3-RELEASE.tar.gz",
 )
