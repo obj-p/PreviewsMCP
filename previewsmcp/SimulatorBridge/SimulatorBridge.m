@@ -583,9 +583,15 @@ static SBIndigoMouseFunc _loadMouseFunc(void) {
   dispatch_queue_t completionQueue = NULL;
   if (deliveredLabel) {
     NSString *label = [NSString stringWithUTF8String:deliveredLabel];
+    // Send-time marker (#368 (b1) splitter): logged inline before dispatch, so
+    // the down->up gap here reflects the real inter-event hold. The "delivered"
+    // completion below runs on inputQueue *after* the 60ms usleep between the
+    // down and up sends, so its timestamps batch together and can't measure the
+    // hold — this one can.
+    NSLog(@"SimulatorBridge: hid %@ sent at (%.4f, %.4f)", label, x, y);
     completionQueue = self.inputQueue;
     completion = ^{
-      NSLog(@"SimulatorBridge: hid %@ delivered", label);
+      NSLog(@"SimulatorBridge: hid %@ delivered at (%.4f, %.4f)", label, x, y);
     };
   }
   [(id<_SimDeviceLegacyHIDClient>)self.hidClient sendWithMessage:msg
@@ -598,7 +604,7 @@ static SBIndigoMouseFunc _loadMouseFunc(void) {
   if (!_loadMouseFunc())
     return NO;
   dispatch_async(self.inputQueue, ^{
-    [self _sendEventType:1 x:x y:y deliveredLabel:NULL];
+    [self _sendEventType:1 x:x y:y deliveredLabel:"tap down"];
     usleep(60000);
     [self _sendEventType:2 x:x y:y deliveredLabel:"tap up"];
   });
@@ -614,7 +620,7 @@ static SBIndigoMouseFunc _loadMouseFunc(void) {
     return NO;
   NSInteger n = steps < 1 ? 10 : steps;
   dispatch_async(self.inputQueue, ^{
-    [self _sendEventType:1 x:fromX y:fromY deliveredLabel:NULL];
+    [self _sendEventType:1 x:fromX y:fromY deliveredLabel:"drag down"];
     usleep(8000);
     for (NSInteger i = 1; i <= n; i++) {
       double t = (double)i / (double)n;
@@ -1138,8 +1144,12 @@ static const void *const kFBStreamerQueueKey = &kFBStreamerQueueKey;
     // move distinguishes "display content genuinely static" (dropped input)
     // from "reading a detached surface" (seed frozen while the sim renders
     // elsewhere, the #269 display-port class).
-    NSLog(@"SimulatorBridge: fb capture surface=%u seed=%u",
-          IOSurfaceGetID(surface), IOSurfaceGetSeed(surface));
+    // size= is the sim's pixel resolution (#368 (b2) splitter): a sane WxH
+    // confirms the normalized tap coords map to the expected pixel; a
+    // degenerate/rotated size under churn would point at coord/scaling-off.
+    NSLog(@"SimulatorBridge: fb capture surface=%u seed=%u size=%zux%zu",
+          IOSurfaceGetID(surface), IOSurfaceGetSeed(surface),
+          IOSurfaceGetWidth(surface), IOSurfaceGetHeight(surface));
     return _encodeSurface(surface, jpegQuality);
   };
 
