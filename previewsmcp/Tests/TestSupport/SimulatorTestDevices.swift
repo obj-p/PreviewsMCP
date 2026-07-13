@@ -30,7 +30,10 @@ import PreviewsCore
 ///   only, never boots)
 /// - index 6: `IOSPreviewE2ESupport.bootSimulator()` (IOSPreviewE2ETests
 ///   target; one warm-reused device for the whole `.serialized` suite)
-/// - index 7: `IOSPreviewE2ETests` device-reclaim tests (Stream C, #391)
+/// - index 7: `IOSPreviewE2ETests` reclaim tests
+///   (`stopShutsDownADeviceTheSessionBooted`,
+///   `failedStartShutsDownADeviceTheSessionBooted`) — dedicated so pre-shutting
+///   + fresh-booting it doesn't churn the index-6 warm-reused device (#391)
 /// - index 8: `IOSCLIWorkflowTests.iosCLIWorkflow` (CLIIntegrationTests target;
 ///   pins the CLI run + variants sessions so the auto-select can't boot a
 ///   generic default device that nulls the agent CGSession, #391)

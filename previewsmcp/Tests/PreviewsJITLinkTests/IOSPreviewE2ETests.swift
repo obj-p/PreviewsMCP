@@ -766,6 +766,92 @@ struct IOSPreviewE2ETests {
     }
     """
 
+    /// #391 reclaim contract (device-side, real sim): a session that BOOTS its device must
+    /// shut it back down — both on a clean `stop()` and on a `start()` that throws after the
+    /// boot — so a teardown never leaks a booted device that degrades the shared CoreSimulator/
+    /// WindowServer. Uses the dedicated index-7 device and pre-shuts it so the session boots it
+    /// fresh (`didBootDevice == true`); a device that was ALREADY booted is intentionally left
+    /// alone, so the fresh boot is what makes the shutdown assertion meaningful.
+    @Test(.enabled(if: jitOrcRuntimePresent), .timeLimit(.minutes(10)))
+    func stopShutsDownADeviceTheSessionBooted() async throws {
+        let simLock = try await SimulatorTestLock.acquire()
+        defer { simLock.release() }
+        guard let udid = await SimulatorTestDevices.udid(index: 7) else {
+            print("Host cannot create \(SimulatorTestDevices.name(index: 7)) — skipping")
+            return
+        }
+        let sim = SimulatorManager()
+        await sim.shutdownDeviceBestEffort(udid: udid)
+
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ios-reclaim-stop-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+        let sourceFile = tempDir.appendingPathComponent("HelloView.swift")
+        try Self.helloViewSource.write(to: sourceFile, atomically: true, encoding: .utf8)
+
+        let session = try await IOSPreviewSession(
+            sourceFile: sourceFile,
+            deviceUDID: udid,
+            compiler: Compiler(platform: .iOS),
+            agentBuilder: IOSAgentBuilder(),
+            simulatorManager: SimulatorManager(),
+            makeJITReloader: { fd, orcPath in
+                try IOSJITStructuralReloader(remoteFD: fd, orcRuntimePath: orcPath)
+            }
+        )
+        defer {
+            IOSPreviewE2ESupport.terminateApp(udid: udid, bundleID: IOSPreviewSession.agentBundleID)
+        }
+
+        _ = try await session.start()
+        await session.stop()
+
+        let dev = try await sim.findDevice(udid: udid)
+        #expect(dev.state == .shutdown, "stop() must shut down a device the session booted (#391)")
+    }
+
+    @Test(.enabled(if: jitOrcRuntimePresent), .timeLimit(.minutes(10)))
+    func failedStartShutsDownADeviceTheSessionBooted() async throws {
+        let simLock = try await SimulatorTestLock.acquire()
+        defer { simLock.release() }
+        guard let udid = await SimulatorTestDevices.udid(index: 7) else {
+            print("Host cannot create \(SimulatorTestDevices.name(index: 7)) — skipping")
+            return
+        }
+        let sim = SimulatorManager()
+        await sim.shutdownDeviceBestEffort(udid: udid)
+
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ios-reclaim-fail-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+        let sourceFile = tempDir.appendingPathComponent("HelloView.swift")
+        try Self.helloViewSource.write(to: sourceFile, atomically: true, encoding: .utf8)
+
+        struct InducedJITFailure: Error {}
+        let session = try await IOSPreviewSession(
+            sourceFile: sourceFile,
+            deviceUDID: udid,
+            compiler: Compiler(platform: .iOS),
+            agentBuilder: IOSAgentBuilder(),
+            simulatorManager: SimulatorManager(),
+            // Throw at the JIT step — a real post-boot failure (device booted, agent up); any
+            // earlier post-boot failure would reclaim the same way, so the assertion is robust.
+            makeJITReloader: { _, _ in throw InducedJITFailure() }
+        )
+        defer {
+            IOSPreviewE2ESupport.terminateApp(udid: udid, bundleID: IOSPreviewSession.agentBundleID)
+        }
+
+        await #expect(throws: (any Error).self) {
+            _ = try await session.start()
+        }
+
+        let dev = try await sim.findDevice(udid: udid)
+        #expect(dev.state == .shutdown, "a start() that throws post-boot must shut down the device it booted (#391)")
+    }
+
     static let helloViewSource = """
     import SwiftUI
 

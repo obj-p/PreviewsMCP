@@ -17,8 +17,12 @@ public actor IOSPreviewSession {
 
     private let compiler: Compiler
     private let agentBuilder: IOSAgentBuilder
-    private let simulatorManager: SimulatorManager
+    private let simulatorManager: any SimulatorControlling
     private let progress: (any ProgressReporter)?
+
+    /// Boot/install/launch retry ceiling (default 3). Injectable so a unit test can force a
+    /// single attempt (no 3s inter-attempt sleeps) to drive the start()-failure reclaim path.
+    private let maxBootAttempts: Int
 
     private var session: PreviewSession?
     public nonisolated let headless: Bool
@@ -47,6 +51,12 @@ public actor IOSPreviewSession {
     private var jitReloader: (any IOSStructuralReloader)?
     private var jitListenFD: Int32 = -1
 
+    /// Test-only read of the JIT listener fd (-1 when closed/unbound). Lets a unit test assert
+    /// the start()-failure path released host resources without exposing the fd more broadly.
+    var jitListenFDForTesting: Int32 {
+        jitListenFD
+    }
+
     /// `stop()` was called — suppress the death watcher so an intentional
     /// teardown never respawns. `isRelaunching` is true for the duration of a
     /// planned `_relaunch()` (memory-cap or recovery) so its own host-termination
@@ -55,6 +65,13 @@ public actor IOSPreviewSession {
     private var stopping = false
     private var isRelaunching = false
     private var recovering = false
+
+    /// Whether THIS session booted its device (vs finding it already booted). Only a
+    /// device we booted is ours to shut down on `stop()`; a pre-existing device — the
+    /// persistent pinned test pool reused across sessions (#337), or a user's already-
+    /// running simulator — is left for its owner. Prevents a teardown from leaking a
+    /// booted device that degrades the shared CoreSimulator/WindowServer (#391).
+    private var didBootDevice = false
 
     public static let agentBundleID = "com.previewsmcp.agent"
     public static let shellBundleID = "com.previewsmcp.shell"
@@ -69,7 +86,7 @@ public actor IOSPreviewSession {
         deviceUDID: String,
         compiler: Compiler,
         agentBuilder: IOSAgentBuilder,
-        simulatorManager: SimulatorManager,
+        simulatorManager: any SimulatorControlling,
         headless: Bool = true,
         buildContext: BuildContext? = nil,
         traits: PreviewTraits = PreviewTraits(),
@@ -79,6 +96,7 @@ public actor IOSPreviewSession {
         setupSDKPath: String? = nil,
         setupDylibPath: URL? = nil,
         progress: (any ProgressReporter)? = nil,
+        maxBootAttempts: Int = 3,
         makeJITReloader: @escaping MakeJITReloader
     ) {
         id = UUID().uuidString
@@ -88,6 +106,7 @@ public actor IOSPreviewSession {
         self.compiler = compiler
         self.agentBuilder = agentBuilder
         self.simulatorManager = simulatorManager
+        self.maxBootAttempts = maxBootAttempts
         self.headless = headless
         self.buildContext = buildContext
         self.traits = traits
@@ -138,8 +157,26 @@ public actor IOSPreviewSession {
     // MARK: - Lifecycle
 
     /// Start the iOS preview: compile, boot sim, install host, launch, connect socket.
-    /// Returns the PID of the launched agent app.
+    /// Returns the PID of the launched agent app. On failure, reclaims any simulator state
+    /// this partial start created — the device we booted, the launched apps, an opened
+    /// Simulator.app — before rethrowing. The caller registers the session only AFTER a
+    /// successful start, so no later `stop()` runs on a failed one; without this, a start that
+    /// throws post-boot would leak the device it booted, asymmetric with a clean stop (#391).
     public func start() async throws -> Int {
+        do {
+            return try await performStart()
+        } catch {
+            // Mirror stop()'s teardown order so a failed start leaks nothing: SIGKILL the
+            // apps, close host sockets/JIT (incl. jitListenFD if it was bound), then reclaim
+            // the device/GUI. All idempotent — a no-op for whatever the partial start never set.
+            await terminateAgentAndShell()
+            await releaseHostResources()
+            await reclaimBootedDeviceAndGUI()
+            throw error
+        }
+    }
+
+    private func performStart() async throws -> Int {
         guard let orcPath = IOSAgentBuilder.jitOrcRuntimePath else {
             throw IOSPreviewSessionError.jitRuntimeMissing
         }
@@ -212,13 +249,17 @@ public actor IOSPreviewSession {
 
         var launchedPid: Int?
         var lastError: Error?
-        for attempt in 1 ... 3 {
+        for attempt in 1 ... maxBootAttempts {
             do {
-                stage("boot/install/launch attempt \(attempt)/3")
+                stage("boot/install/launch attempt \(attempt)/\(maxBootAttempts)")
                 let device = try await simulatorManager.findDevice(udid: deviceUDID)
                 if device.state != .booted {
                     stage("attempt \(attempt): bootDevice")
+                    // Set only after bootDevice returns: a throw mid-boot leaves it false, so
+                    // the failure path won't try to reclaim a device that never fully booted
+                    // (simctl boot is ~atomic — a partial boot is a rare, low-risk exception).
                     try await simulatorManager.bootDevice(udid: deviceUDID)
+                    didBootDevice = true
                     stage("attempt \(attempt): boot complete")
                 } else {
                     stage("attempt \(attempt): already booted")
@@ -273,11 +314,14 @@ public actor IOSPreviewSession {
             } catch {
                 stage("attempt \(attempt) failed: \(error)")
                 lastError = error
-                if attempt < 3 {
+                if attempt < maxBootAttempts {
                     // Shut down the device to clear any stuck kernel/backend
                     // state before the next boot attempt. Best-effort — if
                     // shutdown itself fails or hangs, the next findDevice +
                     // bootDevice will handle whatever state we end up in.
+                    // NOTE: this recovery shutdown fires even for a pre-existing
+                    // (pooled) device we did not boot, churning the pinned pool.
+                    // Pre-existing + orthogonal to the leak fix; tracked separately.
                     stage("attempt \(attempt): shutting down for clean reboot")
                     try? await simulatorManager.shutdownDevice(udid: deviceUDID)
                     try await Task.sleep(for: .seconds(3))
@@ -406,14 +450,48 @@ public actor IOSPreviewSession {
         // agent is alive makes its next main-loop render fault on freed pages
         // (EXC_BAD_ACCESS). simctl terminate is a SIGKILL, clean with no crash
         // report, and a dead agent cannot render.
+        await terminateAgentAndShell()
+        await releaseHostResources()
+
+        // Reclaim the simulator state THIS session created, last — after the host
+        // sockets + JIT session are down (the device-side agent was already SIGKILLed
+        // above) — so a teardown doesn't leak a booted device / open Simulator.app that
+        // degrades the shared CoreSimulator + WindowServer for later runs (#391).
+        await reclaimBootedDeviceAndGUI()
+    }
+
+    /// SIGKILL the agent + shell on the device (best-effort, each simctl-terminate
+    /// time-bounded). Shared by `stop()` and the `start()` failure path.
+    private func terminateAgentAndShell() async {
         await simulatorManager.terminateAppIfRunning(udid: deviceUDID, bundleID: Self.shellBundleID)
         await simulatorManager.terminateAppIfRunning(udid: deviceUDID, bundleID: Self.agentBundleID)
+    }
 
+    /// Close the host-side transport + JIT listener. Idempotent and guarded, so it is a
+    /// safe no-op when an early failure never opened them. Shared by `stop()` and the
+    /// `start()` failure path — a late-start throw (after the JIT listener is bound) must
+    /// not leak `jitListenFD` in the long-lived daemon, since a failed session is never
+    /// registered and has no `stop()`/`deinit` to reclaim it.
+    private func releaseHostResources() async {
         await channel.close()
         jitReloader = nil
         if jitListenFD >= 0 {
             Darwin.close(jitListenFD)
             jitListenFD = -1
+        }
+    }
+
+    /// Reclaim simulator state this session created, gated + best-effort + time-bounded so
+    /// cleanup can't inherit a wedged CoreSimulatorService hang (#391):
+    ///  - Shut down ONLY a device we booted; a pre-existing device (the pinned pool reused
+    ///    across sessions, or a user's already-running sim) is left for its owner.
+    ///  - Quit Simulator.app only if this session opened it (non-headless).
+    private func reclaimBootedDeviceAndGUI() async {
+        if didBootDevice {
+            await simulatorManager.shutdownDeviceBestEffort(udid: deviceUDID)
+        }
+        if !headless {
+            await simulatorManager.quitSimulatorApp()
         }
     }
 
