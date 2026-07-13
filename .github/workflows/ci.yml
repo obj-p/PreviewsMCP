@@ -1,9 +1,11 @@
 name: CI
 
 # Runs on the self-hosted Mac mini runner (hosted macos-15 runners measured
-# 50-70 min warm vs ~5-7 min local; see PR #361). Non-required signal while
-# the trial collects data; the merge-gate ruleset comes after a green track
-# record.
+# 50-70 min warm vs ~5-7 min local; see PR #361). This is the merge gate: the
+# `bazel` job is a required status check that runs only on `merge_group`
+# (GitHub merge queue), so a PR is tested already squashed onto main at merge
+# time — there is no per-push/per-PR run. See docs/ci-merge-queue.md for the
+# model and the main-ruleset config.
 #
 # The runner host provides: Xcode 26.2 (the .bazelrc --xcode_version pin) with
 # the iOS 26.2 simulator runtime, bazelisk, and a persistent
@@ -11,10 +13,11 @@ name: CI
 # the machine). Spotlight indexing disabled once at host setup.
 
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+  # The merge gate. GitHub adds a queued PR to a temporary gh-readonly-queue/*
+  # ref and dispatches merge_group, so the suite runs against the PR already
+  # squashed onto main. This is the only pre-merge signal — there is no
+  # push/pull_request trigger.
+  merge_group:
   schedule:
     # Weekly heartbeat (Sunday 05:00 UTC): catches toolchain/host drift on the
     # runner while the repo is quiet, and doubles as a standing flake probe.
