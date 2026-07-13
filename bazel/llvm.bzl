@@ -1,9 +1,10 @@
 """Hermetic fetch of the swiftlang/llvm-project fork PreviewsJITLink links against.
 
 Downloads a pinned, sha256-verified sparse source archive (the same tree the
-former git sparse-checkout produced), applies the local patches, strips a
-cyclic test symlink that otherwise breaks Bazel's source glob, and writes the
-BUILD that consumes @llvm_src//:all.
+former git sparse-checkout produced), applies the local patches with the
+native `ctx.patch` (no git on PATH), strips a cyclic test symlink that
+otherwise breaks Bazel's source glob, and writes the BUILD that consumes
+@llvm_src//:all.
 
 The archive is a self-hosted, immutable release asset. A `download_and_extract`
 fetch is content-addressable, so it populates Bazel's repository cache and is
@@ -26,13 +27,8 @@ def _llvm_repository_impl(ctx):
         sha256 = ctx.attr.sha256,
     )
 
-    git = ctx.which("git")
-    if git == None:
-        fail("git not found on PATH")
     for patch in ctx.attr.patches:
-        res = ctx.execute([git, "apply", str(ctx.path(patch))])
-        if res.return_code != 0:
-            fail("git apply %s failed:\n%s%s" % (patch, res.stdout, res.stderr))
+        ctx.patch(ctx.path(patch), strip = 1)
 
     ctx.delete("llvm/test/tools/llvm-cas/Inputs/self")
     ctx.file("BUILD.bazel", _BUILD_FILE, executable = False)
