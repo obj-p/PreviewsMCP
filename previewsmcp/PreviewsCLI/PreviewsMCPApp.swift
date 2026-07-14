@@ -166,6 +166,7 @@ struct PreviewsMCPCommand: ParsableCommand {
             ConfigureCommand.self, SwitchCommand.self, ElementsCommand.self,
             TouchCommand.self, SimulatorsCommand.self, StopCommand.self,
             ServeCommand.self, StatusCommand.self, LogsCommand.self, KillDaemonCommand.self,
+            DiffCommand.self,
         ],
         defaultSubcommand: RunCommand.self
     )

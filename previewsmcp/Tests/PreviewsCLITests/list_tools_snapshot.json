@@ -330,6 +330,31 @@
     "name" : "preview_variants"
   },
   {
+    "description" : "Compare two snapshot images. Returns a similarity score (0.0–1.0), the changed-pixel count and region, and a diff image highlighting changed pixels in red.",
+    "inputSchema" : {
+      "properties" : {
+        "baseline" : {
+          "description" : "Absolute path to the baseline image (PNG or JPEG)",
+          "type" : "string"
+        },
+        "current" : {
+          "description" : "Absolute path to the current image (PNG or JPEG)",
+          "type" : "string"
+        },
+        "tolerance" : {
+          "description" : "Per-channel tolerance 0–255 (default: 8). A pixel differs when any channel exceeds this; nonzero absorbs anti-aliasing and font-hinting noise.",
+          "type" : "integer"
+        }
+      },
+      "required" : [
+        "baseline",
+        "current"
+      ],
+      "type" : "object"
+    },
+    "name" : "preview_diff"
+  },
+  {
     "description" : "List available iOS simulator devices with their UDIDs and states.",
     "inputSchema" : {
       "properties" : {

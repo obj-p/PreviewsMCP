@@ -22,6 +22,7 @@ let handlerRegistry: [any ToolHandler.Type] = [
     PreviewElementsHandler.self,
     PreviewTouchHandler.self,
     PreviewVariantsHandler.self,
+    PreviewDiffHandler.self,
     SimulatorListHandler.self,
     SessionListHandler.self,
     PreviewBuildInfoHandler.self,
