@@ -32,7 +32,9 @@ so auto-merge lands it without a second full run.
    Rebase again and re-add the label to re-run.
 
 Re-running after a new push means removing and re-adding the label — the
-`labeled` event only fires when a label is newly added.
+`labeled` event only fires when a label is newly added. The same remove-then-add
+re-runs the gate after a spurious flake (e.g. the #368 tap residual), which is
+why a low-rate flake never permanently blocks a PR under this gate.
 
 ## Why on-demand
 
