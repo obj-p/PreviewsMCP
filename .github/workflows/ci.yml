@@ -1,11 +1,11 @@
 name: CI
 
 # Runs on the self-hosted Mac mini runner (hosted macos-15 runners measured
-# 50-70 min warm vs ~5-7 min local; see PR #361). This is the merge gate: the
-# `bazel` job is a required status check that runs only on `merge_group`
-# (GitHub merge queue), so a PR is tested already squashed onto main at merge
-# time — there is no per-push/per-PR run. See docs/ci-merge-queue.md for the
-# model and the main-ruleset config.
+# 50-70 min warm vs ~5-7 min local; see PR #361). On-demand label gate: the
+# `ci` job is the required status check and runs only when a `ci` or `merge`
+# label is applied to a PR, never automatically on push. `merge` also arms
+# GitHub auto-merge, which lands the PR (squash) once `ci` is green and the
+# branch is up to date. See docs/ci.md for the flow.
 #
 # The runner host provides: Xcode 26.2 (the .bazelrc --xcode_version pin) with
 # the iOS 26.2 simulator runtime, bazelisk, and a persistent
@@ -13,14 +13,16 @@ name: CI
 # the machine). Spotlight indexing disabled once at host setup.
 
 on:
-  # The merge gate. GitHub adds a queued PR to a temporary gh-readonly-queue/*
-  # ref and dispatches merge_group, so the suite runs against the PR already
-  # squashed onto main. This is the only pre-merge signal — there is no
-  # push/pull_request trigger.
-  merge_group:
+  # On-demand only: adding the `ci` (test) or `merge` (test + auto-merge) label
+  # to a PR fires this. No push/pull_request-sync trigger, so a WIP push never
+  # spends a run — you label when you are ready. The required-check + "require
+  # branches up to date" ruleset makes the labeled run test the merged result.
+  pull_request:
+    types: [labeled]
   schedule:
     # Weekly heartbeat (Sunday 05:00 UTC): catches toolchain/host drift on the
     # runner while the repo is quiet, and doubles as a standing flake probe.
+    # Matters more under on-demand CI, where the suite can sit idle for days.
     - cron: "0 5 * * 0"
   workflow_dispatch:
 
@@ -28,13 +30,39 @@ on:
 # run SIGKILLs xcodebuild/simctl/previewsmcp mid-flight and LEAKS booted sims +
 # orphan daemon/agent/xctest procs that accumulate across runs, degrade the
 # shared CoreSimulator, and wedge the heaviest target (the MCPIntegrationTests
-# 3600s timeout; the confirmed #391 trigger). On a single serial runner an
-# overlapping run simply queues. Do not re-add it.
+# 3600s timeout; the confirmed #391 trigger). Label-gating already means a push
+# never starts a run, so there is nothing to auto-cancel. Do not re-add it.
 
 jobs:
-  bazel:
+  # Arm GitHub auto-merge the moment `merge` is applied, on a hosted runner so
+  # it happens instantly regardless of the mini's queue. Auto-merge waits for
+  # the required `ci` check and an up-to-date branch, then squash-merges.
+  arm-merge:
+    if: github.event_name == 'pull_request' && github.event.label.name == 'merge'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Enable auto-merge
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: gh pr merge "$PR" --repo "$GITHUB_REPOSITORY" --auto --squash
+
+  ci:
+    # The required status check. Runs on the `ci` label (test only) and the
+    # `merge` label (test + arm-merge lands it), plus the weekly heartbeat and
+    # manual dispatch. Renamed from `bazel`; the ruleset requires context `ci`.
+    if: >-
+      github.event_name != 'pull_request' ||
+      github.event.label.name == 'ci' ||
+      github.event.label.name == 'merge'
     runs-on: [self-hosted, macOS, ARM64]
     timeout-minutes: 120
+    permissions:
+      contents: read
+      checks: read
     env:
       # Pins xcrun/simctl (which the sim-booting tests shell out to) to the
       # same Xcode as the Bazel pin, without mutating the host's global
@@ -47,13 +75,33 @@ jobs:
       # FAILS the gate instead of silently skipping iOS coverage.
       PREVIEWSMCP_REQUIRE_DEDICATED_SIM: "1"
     steps:
-      - uses: actions/checkout@v7
+      # Dedup (label `ci` then `merge`): if `merge` lands on a commit the `ci`
+      # label already turned green, skip the suite. This job still runs and
+      # reports `ci` success (a real conclusion, never a skipped-context that
+      # would block the required check), so auto-merge proceeds without a second
+      # full run. `merge` on an untested commit finds no green check and runs.
+      - name: Skip suite if this commit is already green
+        id: dedup
+        if: github.event_name == 'pull_request' && github.event.label.name == 'merge'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if gh api "repos/$GITHUB_REPOSITORY/commits/$SHA/check-runs" \
+               --jq '.check_runs[] | select(.name=="ci" and .conclusion=="success") | .id' \
+               | grep -q .; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "A green ci check already exists for $SHA — skipping the suite."
+          fi
 
-      # Start from a clean host. A cancelled run (cancel-in-progress) can
-      # SIGKILL an xcodebuild/simctl mid-boot and leave a booted simulator, a
-      # wedged CoreSimulatorService, and orphaned previewsmcp daemons behind —
-      # that leftover state degrades the next run and is the confirmed #391
-      # trigger. Reap it before Lint/Test so every run starts clean.
+      - if: steps.dedup.outputs.skip != 'true'
+        uses: actions/checkout@v7
+
+      # Start from a clean host. A cancelled or timed-out prior run can leave a
+      # booted simulator, a wedged CoreSimulatorService, and orphaned previewsmcp
+      # daemons behind — that leftover state degrades the next run and is the
+      # confirmed #391 trigger. Reap it before Lint/Test so every run starts
+      # clean.
       #
       # `killall Simulator` is first and load-bearing: a Simulator.app left
       # holding a device keeps it booted, and `simctl shutdown all` alone can
@@ -63,6 +111,7 @@ jobs:
       # `killall`/`pkill 'previewsmcp serve'` match process names, never the
       # runner's own checkout path; every line is best-effort.
       - name: Reset simulator and daemon state
+        if: steps.dedup.outputs.skip != 'true'
         run: |
           # Reap orphaned procs a prior cancelled/timed-out run leaked — a
           # `previewsmcp run`/`serve`, its spawned PreviewAgent, or an orphan
@@ -85,6 +134,7 @@ jobs:
 
       # Lint first: it costs seconds and fails fast before the minutes of tests.
       - name: Lint
+        if: steps.dedup.outputs.skip != 'true'
         run: bazel run //tools/lint:check
 
       # Drift guard (runs in the runner shell, OUTSIDE bazel's scrubbed test
@@ -94,6 +144,7 @@ jobs:
       # SimulatorTestDevices.requiresDedicatedSim + the .bazelrc
       # `--test_env=PREVIEWSMCP_REQUIRE_DEDICATED_SIM` line.
       - name: Assert iOS-coverage signal is set
+        if: steps.dedup.outputs.skip != 'true'
         run: |
           test -n "$PREVIEWSMCP_REQUIRE_DEDICATED_SIM" || {
             echo "PREVIEWSMCP_REQUIRE_DEDICATED_SIM must be set (job env) so the required gate FAILS — not silently skips — when a dedicated simulator can't be provisioned. See SimulatorTestDevices.requiresDedicatedSim + .bazelrc --test_env."
@@ -101,6 +152,7 @@ jobs:
           }
 
       - name: Test
+        if: steps.dedup.outputs.skip != 'true'
         # The job-level PREVIEWSMCP_REQUIRE_DEDICATED_SIM reaches bazel's
         # scrubbed test env via the .bazelrc --test_env line, so a nil
         # provision FAILS on the required gate instead of skip-as-green.
