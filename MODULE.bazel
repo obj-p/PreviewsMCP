@@ -62,6 +62,8 @@ http_archive(
 
 llvm_repository = use_repo_rule("//bazel:llvm.bzl", "llvm_repository")
 
+# To bump the pin, run tools/llvm-release/package.sh <swift-tag> --publish and
+# paste the url + sha256 it prints below.
 llvm_repository(
     name = "llvm_src",
     patches = [
