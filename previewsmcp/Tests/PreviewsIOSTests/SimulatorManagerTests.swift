@@ -80,12 +80,7 @@ struct SimulatorManagerTests {
         // but not a scenario this test is trying to validate.
         let simLock = try await SimulatorTestLock.acquire()
         defer { simLock.release() }
-        guard let udid = await SimulatorTestDevices.udid(index: 0) else {
-            if let failure = SimulatorTestDevices.missingDeviceFailure(
-                index: 0, requiresDedicatedSim: SimulatorTestDevices.requiresDedicatedSim
-            ) {
-                Issue.record("\(failure)")
-            }
+        guard let udid = try await SimulatorTestDevices.udid(index: 0) else {
             print("No dedicated test simulator for index 0 — skipping")
             return
         }
@@ -126,12 +121,7 @@ struct SimulatorManagerTests {
     func makeHIDClient() async throws {
         let simLock = try await SimulatorTestLock.acquire()
         defer { simLock.release() }
-        guard let udid = await SimulatorTestDevices.udid(index: 4) else {
-            if let failure = SimulatorTestDevices.missingDeviceFailure(
-                index: 4, requiresDedicatedSim: SimulatorTestDevices.requiresDedicatedSim
-            ) {
-                Issue.record("\(failure)")
-            }
+        guard let udid = try await SimulatorTestDevices.udid(index: 4) else {
             print("No dedicated test simulator for index 4 — skipping")
             return
         }
@@ -167,12 +157,7 @@ struct SimulatorManagerTests {
     func makeFramebufferStreamer() async throws {
         let simLock = try await SimulatorTestLock.acquire()
         defer { simLock.release() }
-        guard let udid = await SimulatorTestDevices.udid(index: 1) else {
-            if let failure = SimulatorTestDevices.missingDeviceFailure(
-                index: 1, requiresDedicatedSim: SimulatorTestDevices.requiresDedicatedSim
-            ) {
-                Issue.record("\(failure)")
-            }
+        guard let udid = try await SimulatorTestDevices.udid(index: 1) else {
             print("No dedicated test simulator for index 1 — skipping")
             return
         }

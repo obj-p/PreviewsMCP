@@ -13,16 +13,11 @@ struct SimulatorTestDevicesTests {
         let simLock = try await SimulatorTestLock.acquire()
         defer { simLock.release() }
 
-        guard let first = await SimulatorTestDevices.udid(index: 5) else {
-            if let failure = SimulatorTestDevices.missingDeviceFailure(
-                index: 5, requiresDedicatedSim: SimulatorTestDevices.requiresDedicatedSim
-            ) {
-                Issue.record("\(failure)")
-            }
+        guard let first = try await SimulatorTestDevices.udid(index: 5) else {
             print("Host cannot create \(SimulatorTestDevices.deviceType) — skipping")
             return
         }
-        let second = await SimulatorTestDevices.udid(index: 5)
+        let second = try await SimulatorTestDevices.udid(index: 5)
         #expect(second == first)
 
         let output = try await runAsync(

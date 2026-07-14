@@ -66,16 +66,14 @@ public enum SimulatorTestDevices {
         ProcessInfo.processInfo.environment["PREVIEWSMCP_REQUIRE_DEDICATED_SIM"] != nil
     }
 
-    /// The message a caller should `Issue.record` (failing the test) when a
-    /// dedicated simulator can't be provisioned, or nil to skip. Fails only
-    /// when a dedicated sim is required (the gate); locally it skips.
-    /// `requiresDedicatedSim` is a parameter so this policy is unit-testable
-    /// without mutating the process env; callers pass
-    /// `SimulatorTestDevices.requiresDedicatedSim`.
-    public static func missingDeviceFailure(index: Int, requiresDedicatedSim: Bool) -> String? {
+    /// Apply the fail-vs-skip policy to a resolved device. This seam keeps the
+    /// policy unit-testable without mutating the process environment.
+    public static func enforceAvailability(
+        _ udid: String?, index: Int, requiresDedicatedSim: Bool
+    ) throws -> String? {
+        guard udid == nil else { return udid }
         guard requiresDedicatedSim else { return nil }
-        return "Required gate could not provision dedicated simulator index \(index) — "
-            + "failing, not skipping (must not silently drop iOS coverage)."
+        throw RequiredDeviceUnavailable(index: index)
     }
 
     /// Resolve the dedicated device for `index`, creating it if missing.
@@ -84,11 +82,17 @@ public enum SimulatorTestDevices {
     /// CoreSimulator device set, and the lock is what makes the
     /// check-then-create idempotent across concurrent workspaces.
     ///
-    /// Returns nil whenever the device cannot be provided — no iPhone 17
-    /// device type, no compatible runtime, or simctl itself failing/hanging —
-    /// so callers skip the test exactly as they did when the old picker ran
-    /// out of pool; a failed `simctl list` is nil, never a blind create.
-    public static func udid(index: Int) async -> String? {
+    /// Returns nil locally when the device cannot be provided. On the required
+    /// gate, throws instead so callers cannot silently skip iOS coverage.
+    public static func udid(index: Int) async throws -> String? {
+        try enforceAvailability(
+            await resolveUDID(index: index),
+            index: index,
+            requiresDedicatedSim: requiresDedicatedSim
+        )
+    }
+
+    private static func resolveUDID(index: Int) async -> String? {
         let name = name(index: index)
         do {
             guard let devices = try await list(name: name) else { return nil }
@@ -114,6 +118,15 @@ public enum SimulatorTestDevices {
         } catch {
             print("SimulatorTestDevices: resolving \(name) failed: \(error)")
             return nil
+        }
+    }
+
+    private struct RequiredDeviceUnavailable: LocalizedError {
+        let index: Int
+
+        var errorDescription: String? {
+            "Required gate could not provision dedicated simulator index \(index) — "
+                + "failing, not skipping (must not silently drop iOS coverage)."
         }
     }
 

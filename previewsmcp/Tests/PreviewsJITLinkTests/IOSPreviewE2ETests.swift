@@ -776,7 +776,7 @@ struct IOSPreviewE2ETests {
     func stopShutsDownADeviceTheSessionBooted() async throws {
         let simLock = try await SimulatorTestLock.acquire()
         defer { simLock.release() }
-        guard let udid = await SimulatorTestDevices.udid(index: 7) else {
+        guard let udid = try await SimulatorTestDevices.udid(index: 7) else {
             print("Host cannot create \(SimulatorTestDevices.name(index: 7)) — skipping")
             return
         }
@@ -815,7 +815,7 @@ struct IOSPreviewE2ETests {
     func failedStartShutsDownADeviceTheSessionBooted() async throws {
         let simLock = try await SimulatorTestLock.acquire()
         defer { simLock.release() }
-        guard let udid = await SimulatorTestDevices.udid(index: 7) else {
+        guard let udid = try await SimulatorTestDevices.udid(index: 7) else {
             print("Host cannot create \(SimulatorTestDevices.name(index: 7)) — skipping")
             return
         }
@@ -1148,7 +1148,7 @@ enum IOSPreviewE2ESupport {
     /// reused without a shutdown/boot cycle. Callers hold
     /// `SimulatorTestLock`, which `SimulatorTestDevices` requires.
     static func bootSimulator() async throws -> String {
-        guard let udid = await SimulatorTestDevices.udid(index: 6) else {
+        guard let udid = try await SimulatorTestDevices.udid(index: 6) else {
             throw SpikeError.message(
                 "no \(SimulatorTestDevices.name(index: 6)) simulator (missing iPhone 17 device type or iOS 26+ runtime)"
             )

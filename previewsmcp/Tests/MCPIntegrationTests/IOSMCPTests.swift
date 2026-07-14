@@ -60,12 +60,7 @@ struct IOSMCPTests {
         // Index 1 is shared with SimulatorManagerTests.makeFramebufferStreamer
         // (PreviewsIOSTests target) — different targets never run
         // concurrently. See SimulatorTestDevices for the assignments.
-        guard let deviceUDID = await SimulatorTestDevices.udid(index: 1) else {
-            if let failure = SimulatorTestDevices.missingDeviceFailure(
-                index: 1, requiresDedicatedSim: SimulatorTestDevices.requiresDedicatedSim
-            ) {
-                Issue.record("\(failure)")
-            }
+        guard let deviceUDID = try await SimulatorTestDevices.udid(index: 1) else {
             print("No dedicated test simulator for index 1 — skipping iOS MCP tests")
             return
         }
