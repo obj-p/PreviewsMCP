@@ -537,6 +537,75 @@ final class MCPTestServer: @unchecked Sendable {
         )
     }
 
+    /// Poll until the labeled accessibility element exposes a value.
+    func awaitElementValue(
+        sessionID: String,
+        label: String,
+        timeout: Duration
+    ) async throws -> String {
+        let deadline = ContinuousClock.now + timeout
+        while ContinuousClock.now < deadline {
+            if let value = try await elementValue(sessionID: sessionID, label: label) {
+                return value
+            }
+            try await Task.sleep(for: .milliseconds(200))
+        }
+        Issue.record(
+            "preview_elements did not expose a value for \(label.debugDescription) within \(timeout). Server stderr:\n\(stderrLog())"
+        )
+        throw MCPTestError.timedOut(
+            operation: "awaitElementValue(label: \(label.debugDescription))", duration: timeout
+        )
+    }
+
+    /// Poll briefly for a labeled accessibility value to differ. Returning nil
+    /// is intentional: callers can retry the action without recording a failed
+    /// test for an individual missed attempt.
+    func waitForElementValueChange(
+        sessionID: String,
+        label: String,
+        baseline: String,
+        timeout: Duration
+    ) async throws -> String? {
+        let deadline = ContinuousClock.now + timeout
+        while ContinuousClock.now < deadline {
+            if let value = try await elementValue(sessionID: sessionID, label: label),
+               value != baseline
+            {
+                return value
+            }
+            try await Task.sleep(for: .milliseconds(200))
+        }
+        return nil
+    }
+
+    private func elementValue(sessionID: String, label: String) async throws -> String? {
+        let (content, isError) = try await callTool(
+            name: "preview_elements",
+            arguments: ["sessionID": .string(sessionID), "filter": .string("labeled")]
+        )
+        let text = Self.extractText(from: content)
+        if isError == true {
+            throw MCPTestError.toolError(tool: "preview_elements", content: text)
+        }
+        guard let data = text.data(using: .utf8) else { return nil }
+        return try JSONDecoder().decode(AccessibilityNode.self, from: data).value(forLabel: label)
+    }
+
+    private struct AccessibilityNode: Decodable {
+        let label: String?
+        let value: String?
+        let children: [AccessibilityNode]?
+
+        func value(forLabel target: String) -> String? {
+            if label == target, let value { return value }
+            for child in children ?? [] {
+                if let value = child.value(forLabel: target) { return value }
+            }
+            return nil
+        }
+    }
+
     // MARK: - Snapshot helpers
 
     /// Capture a snapshot and return its raw image bytes. Decodes via the existing
