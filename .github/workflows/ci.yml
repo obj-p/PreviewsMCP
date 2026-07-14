@@ -69,7 +69,7 @@ jobs:
       # xcode-select.
       DEVELOPER_DIR: /Applications/Xcode-26.2.0.app/Contents/Developer
       # Required-gate iOS-coverage signal. The "Assert iOS-coverage signal"
-      # step reads it here (runner shell); the Test step propagates it into
+      # step reads it here (runner shell); the Bazel test steps propagate it into
       # bazel's scrubbed sandbox via .bazelrc --test_env so
       # SimulatorTestDevices.requiresDedicatedSim is true → a nil provision
       # FAILS the gate instead of silently skipping iOS coverage.
@@ -151,12 +151,19 @@ jobs:
             exit 1
           }
 
-      - name: Test
+      # Run in-process tests first so a fast failure does not spend time on the
+      # simulator/daemon/agent tier. Both steps belong to the required `ci` job,
+      # so both must pass before a PR can merge.
+      - name: Test (unit)
+        if: steps.dedup.outputs.skip != 'true'
+        run: bazel test //... --test_tag_filters=-integration --test_output=errors
+
+      - name: Test (integration)
         if: steps.dedup.outputs.skip != 'true'
         # The job-level PREVIEWSMCP_REQUIRE_DEDICATED_SIM reaches bazel's
         # scrubbed test env via the .bazelrc --test_env line, so a nil
         # provision FAILS on the required gate instead of skip-as-green.
-        run: bazel test //... --test_output=errors
+        run: bazel test //... --test_tag_filters=integration --test_output=errors
 
       # The state a flake leaves behind (booted sims, orphan daemons, the
       # per-run daemon logs #350 collects specimens from) persists on the

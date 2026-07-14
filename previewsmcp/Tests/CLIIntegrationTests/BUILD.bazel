@@ -28,6 +28,7 @@ swift_test(
     },
     tags = [
         "exclusive",
+        "integration",
         "local",
     ],
     visibility = ["//visibility:public"],
