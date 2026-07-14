@@ -19,6 +19,20 @@ Adding `merge` after a green `ci` on the same commit does **not** re-run the
 suite: the `ci` job sees the existing green check for that commit and exits fast,
 so auto-merge lands it without a second full run.
 
+## Test tiers
+
+The required `ci` job runs tests in two ordered Bazel steps after lint:
+
+1. **Unit:** `bazel test //... --test_tag_filters=-integration` runs the
+   in-process, parallel-safe targets first.
+2. **Integration:** `bazel test //... --test_tag_filters=integration` runs the
+   simulator, daemon, agent, and AppKit targets only after the unit tier passes.
+
+A unit failure stops the job before the slow integration tier, while either
+tier failing still blocks the merge through the same required `ci` check. The
+`integration` tag is only a selection label; existing `exclusive` tags and
+runtime simulator locks continue to control scheduling and isolation.
+
 ## Normal flow
 
 1. Open the PR. Nothing runs.

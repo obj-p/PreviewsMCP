@@ -23,7 +23,10 @@ swift_test(
         "-swift-version",
         "6",
     ],
-    tags = ["local"],
+    tags = [
+        "integration",
+        "local",
+    ],
     visibility = ["//visibility:public"],
     deps = [
         "//previewsmcp/PreviewsCore",
