@@ -67,6 +67,17 @@ public actor MacOSPreviewHandle: PreviewSessionHandle {
         let format: Snapshot.ImageFormat = quality >= 1.0 ? .png : .jpeg(quality: quality)
         let sessionID = id
         let colorScheme = await session.currentTraits.colorScheme
+        // Re-raster the live window to the session's image path first, so a visible session's
+        // snapshot reflects post-render interaction rather than the last render (#346). No-op
+        // for headless sessions — their render-time PNG is already the truth. Best-effort: a
+        // raster failure (e.g. a dead agent, or a transient zero-bounds/encode error) falls
+        // back to the last good on-disk PNG rather than failing the snapshot outright. The
+        // entry writes atomically, so a failed write leaves that fallback intact.
+        do {
+            try await host.refreshLiveSnapshot(sessionID: sessionID)
+        } catch {
+            Log.info("snap: live re-raster failed, serving last render: \(error)")
+        }
         return try await MainActor.run {
             guard let imagePath = host.agentSnapshotPath(for: sessionID) else {
                 throw SnapshotError.captureFailed

@@ -276,6 +276,19 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
         agentImagePaths[sessionID]
     }
 
+    /// Re-raster the live window to the session's image path before a snapshot, so
+    /// `preview_snapshot` reflects post-render interaction on a visible session (#346).
+    /// Only visible sessions run the generated `snapshotPreviewWindow` entry — headless ones
+    /// no-op, their render-time PNG is already the truth. No-op too without a reloader. Throws
+    /// a raster failure so the caller can decide whether to surface it or fall back to the last
+    /// good PNG (the handle falls back).
+    public func refreshLiveSnapshot(sessionID: String) async throws {
+        guard agentWindowSpecs[sessionID]?.headless == false,
+              let reloader = reloaders[sessionID]
+        else { return }
+        try await reloader.snapshotLiveWindow(entrySymbol: "snapshotPreviewWindow")
+    }
+
     /// Literal-only reload for an agent-backed session: rewrite the design-time values
     /// JSON and re-render the same object in the agent — no recompile. Returns the new
     /// image path, or nil if there is no reloader or no prior JIT build.

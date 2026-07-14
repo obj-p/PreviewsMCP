@@ -82,6 +82,18 @@ public actor JITStructuralReloader: StructuralReloader {
         }
     }
 
+    /// Re-raster the live window to the current build's image path by running the generated
+    /// `snapshotPreviewWindow` entry on the live agent's main thread (#346). No live session
+    /// yet (no render has happened) means nothing to snapshot. A non-zero status is a real
+    /// raster failure and propagates, like the render entry.
+    public func snapshotLiveWindow(entrySymbol: String) async throws {
+        guard let session else { return }
+        let status = try session.runOnMain(symbol: entrySymbol)
+        guard status == 0 else {
+            throw JITReloadError.snapshotFailed(status: status)
+        }
+    }
+
     private func link(_ build: JITRenderBuild, into session: JITSession) throws {
         var mark = ContinuousClock.now
         for dylib in build.dylibPaths {
@@ -121,11 +133,14 @@ public actor JITStructuralReloader: StructuralReloader {
 
 public enum JITReloadError: Error, LocalizedError, CustomStringConvertible {
     case renderFailed(status: Int32)
+    case snapshotFailed(status: Int32)
 
     public var description: String {
         switch self {
         case let .renderFailed(status):
             "JIT render entry returned non-zero status \(status)"
+        case let .snapshotFailed(status):
+            "JIT live-snapshot entry returned non-zero status \(status)"
         }
     }
 
