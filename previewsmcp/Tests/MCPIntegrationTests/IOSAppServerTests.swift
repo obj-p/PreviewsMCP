@@ -36,12 +36,7 @@ struct IOSAppServerTests {
         // CoreSimulatorHygiene).
         await CoreSimulatorHygiene.resetOnce()
 
-        guard let deviceUDID = await SimulatorTestDevices.udid(index: 3) else {
-            if let failure = SimulatorTestDevices.missingDeviceFailure(
-                index: 3, requiresDedicatedSim: SimulatorTestDevices.requiresDedicatedSim
-            ) {
-                Issue.record("\(failure)")
-            }
+        guard let deviceUDID = try await SimulatorTestDevices.udid(index: 3) else {
             print("No dedicated test simulator for index 3 — skipping")
             return
         }

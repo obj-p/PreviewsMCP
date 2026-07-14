@@ -24,15 +24,6 @@ struct IOSCLIWorkflowTests {
         let simLock = try await SimulatorTestLock.acquire()
         defer { simLock.release() }
         try await DaemonTestLock.run {
-            let simResult = try await CLIRunner.runExternal(
-                "/usr/bin/xcrun",
-                arguments: ["simctl", "list", "devices", "available"]
-            )
-            guard simResult.exitCode == 0, simResult.stdout.contains("iPhone") else {
-                print("No available iOS simulator — skipping iOS CLI workflow")
-                return
-            }
-
             try await Self.cleanSlate()
 
             // Reset host-global CoreSimulator state once before the first iOS
@@ -45,7 +36,7 @@ struct IOSCLIWorkflowTests {
             // device, which lands on the generic default (8958D70E) — and booting a generic
             // sim nulls the agent's CGSession, dropping it into the CFRunLoop fallback that
             // never dequeues AppKit events (#391 H1). A pinned previewsmcp-test-N boots clean.
-            guard let deviceUDID = await SimulatorTestDevices.udid(index: 8) else {
+            guard let deviceUDID = try await SimulatorTestDevices.udid(index: 8) else {
                 print("Host cannot create \(SimulatorTestDevices.name(index: 8)) — skipping iOS CLI workflow")
                 return
             }
