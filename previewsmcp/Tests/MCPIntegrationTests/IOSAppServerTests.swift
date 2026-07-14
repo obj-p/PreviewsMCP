@@ -195,142 +195,41 @@ private func readStreamSample(port: Int, limit: Int) async throws -> Data {
 }
 
 /// Read the length-prefixed `/stream.avcc` envelope stream and collect the chunk
-/// tags seen. `onConnected` runs once the first byte arrives (the subscriber is
-/// registered by then) to drive a screen change so an IDR is produced. Returns
-/// when every tag in `need` has been seen or `timeout` elapses.
-///
-/// Fresh single-use ephemeral session: this helper abandons its response
-/// mid-stream, and a shared session's connection pool can hand the dying
-/// connection to a later request against the same host:port (#320).
+/// tags seen. `onConnected` runs once the first body bytes arrive (the
+/// subscriber is registered by then) to drive a screen change so an IDR is
+/// produced. Returns when every tag in `need` has been seen or `timeout`
+/// elapses. Raw socket, not URLSession — see RawHTTP.stream (#350).
 private func readAVCCTags(
     port: Int, need: Set<UInt8>, timeout: Duration,
     onConnected: @escaping @Sendable () async -> Void
 ) async throws -> Set<UInt8> {
-    let session = URLSession(configuration: .ephemeral)
-    defer { session.invalidateAndCancel() }
-    var request = URLRequest(url: URL(string: "http://127.0.0.1:\(port)/stream.avcc")!)
-    request.timeoutInterval = 25
-    let (bytes, response) = try await attributed("avcc-connect") {
-        try await session.bytes(for: request)
-    }
-    let contentType = (response as? HTTPURLResponse)?.value(forHTTPHeaderField: "Content-Type") ?? ""
-    #expect(contentType.contains("application/octet-stream"), "avcc stream should be octet-stream")
-
     struct Parse {
         var buffer = [UInt8]()
         var offset = 0
         var seen = Set<UInt8>()
-        var connected = false
     }
     let state = OSAllocatedUnfairLock(initialState: Parse())
-    try await boundedRead("avcc-body", bytes, deadline: timeout) { byte in
-        let fireConnect = state.withLock { parse -> Bool in
-            if parse.connected { return false }
-            parse.connected = true
-            return true
-        }
-        if fireConnect {
-            await onConnected()
-        }
-        return state.withLock { parse in
-            parse.buffer.append(byte)
-            while parse.buffer.count - parse.offset >= 4 {
-                let length =
-                    Int(parse.buffer[parse.offset]) << 24 | Int(parse.buffer[parse.offset + 1]) << 16
-                        | Int(parse.buffer[parse.offset + 2]) << 8 | Int(parse.buffer[parse.offset + 3])
-                guard parse.buffer.count - parse.offset >= 4 + length else { break }
-                parse.seen.insert(parse.buffer[parse.offset + 4])
-                parse.offset += 4 + length
-            }
-            return !need.isSubset(of: parse.seen)
-        }
-    }
-    return state.withLock { $0.seen }
-}
-
-/// Feed `bytes` to `consume` until it returns false or `deadline` elapses,
-/// then return; rethrows genuine stream errors. The deadline must bound the
-/// await itself, not just the loop body: when the app server drops the
-/// connection without URLSession surfacing it (observed: server-side drop
-/// right after headers → zero body bytes → socket gone, iterator never
-/// resumes), an in-body deadline check is unreachable and the test hangs
-/// holding DaemonTestLock until its `.timeLimit` — queued suites then blow
-/// their own limits as collateral.
-///
-/// The outer await must never structurally depend on the reader resuming.
-/// Two weaker designs were disproven by thread-sampling recurred wedges:
-/// cooperative `Task.cancel()` does not resume an iterator parked inside
-/// `AsyncBytes.Iterator.next()`, and even `bytes.task.cancel()` leaves the
-/// continuation unresumed when the transfer is already dead underneath
-/// (`reloadBufferAndNext()` parked with no completion left to deliver). So
-/// the deadline path races the reader via a once-guarded continuation and,
-/// after a short grace for the cancels to land, abandons it — leaking one
-/// suspended task and its dead connection for the remaining test-process
-/// lifetime, which is bounded and harmless. The caller's assertions on
-/// whatever partial data arrived produce the attributable failure.
-///
-/// Every abnormal exit (deadline in any of its three faces, or a genuine
-/// stream error) prints an `APPSERVER-ATTR site=… exit=…` line with the
-/// task's wire-level byte count and task error, so a #350 specimen is
-/// attributed no matter which face it wears; the healthy limit-met exit
-/// stays quiet.
-private func boundedRead(
-    _ site: String,
-    _ bytes: URLSession.AsyncBytes,
-    deadline: Duration,
-    consume: @escaping @Sendable (UInt8) async -> Bool
-) async throws {
-    let reader = Task {
-        for try await byte in bytes {
-            guard await consume(byte) else { break }
-        }
-    }
-    let resolvedBy = OSAllocatedUnfairLock<String?>(initialState: nil)
-    func claimResume(_ who: String) -> Bool {
-        resolvedBy.withLock { claimed in
-            if claimed != nil { return false }
-            claimed = who
-            return true
-        }
-    }
-    func taskDump() -> String {
-        "wireBytes=\(bytes.task.countOfBytesReceived)"
-            + " taskError=\(bytes.task.error.map(errorChainDump) ?? "nil")"
-    }
-    do {
-        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
-            Task {
-                let result: Result<Void, Error>
-                do {
-                    try await reader.value
-                    result = .success(())
-                } catch {
-                    result = .failure(error)
+    let head = try await attributed("avcc-raw") {
+        try await RawHTTP.stream(
+            port: port, path: "/stream.avcc", deadline: timeout, onConnected: onConnected
+        ) { chunk in
+            state.withLock { parse in
+                parse.buffer.append(contentsOf: chunk)
+                while parse.buffer.count - parse.offset >= 4 {
+                    let length =
+                        Int(parse.buffer[parse.offset]) << 24 | Int(parse.buffer[parse.offset + 1]) << 16
+                            | Int(parse.buffer[parse.offset + 2]) << 8 | Int(parse.buffer[parse.offset + 3])
+                    guard parse.buffer.count - parse.offset >= 4 + length else { break }
+                    parse.seen.insert(parse.buffer[parse.offset + 4])
+                    parse.offset += 4 + length
                 }
-                if claimResume("reader") { cont.resume(with: result) }
-            }
-            Task {
-                try? await Task.sleep(for: deadline)
-                bytes.task.cancel()
-                reader.cancel()
-                try? await Task.sleep(for: .seconds(2))
-                if claimResume("deadline") { cont.resume(returning: ()) }
+                return !need.isSubset(of: parse.seen)
             }
         }
-        if resolvedBy.withLock({ $0 }) == "deadline" {
-            print("APPSERVER-ATTR site=\(site) exit=deadline-abandoned \(taskDump())")
-        }
-    } catch is CancellationError {
-        // Deadline: the caller inspects what arrived.
-        print("APPSERVER-ATTR site=\(site) exit=deadline-cancellation \(taskDump())")
-    } catch let error as URLError where error.code == .cancelled {
-        // Same, surfaced through URLSession instead.
-        print("APPSERVER-ATTR site=\(site) exit=deadline-urlcancelled \(taskDump())")
-    } catch {
-        print(
-            "APPSERVER-ATTR site=\(site) exit=threw \(taskDump())"
-                + " thrown: \(errorChainDump(error))"
-        )
-        throw error
     }
+    #expect(
+        head.contains("Content-Type: application/octet-stream"),
+        "avcc stream should be octet-stream"
+    )
+    return state.withLock { $0.seen }
 }
