@@ -801,7 +801,7 @@ public actor IOSPreviewSession {
         _ = try await channel.sendAndAwait(
             ["type": "touch", "action": "tap", "x": x, "y": y, "id": requestID],
             id: requestID,
-            timeout: .seconds(5)
+            timeout: .seconds(15)
         )
         try await Task.sleep(for: .milliseconds(250))
     }
@@ -825,7 +825,7 @@ public actor IOSPreviewSession {
                 "id": requestID,
             ],
             id: requestID,
-            timeout: .seconds(duration + 5)
+            timeout: .seconds(duration + 15)
         )
         try await Task.sleep(for: .milliseconds(200))
     }

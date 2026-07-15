@@ -50,15 +50,12 @@ enum PreviewElementsHandler: ToolHandler {
             )
         }
 
-        if await iosSession.failed {
+        guard let handle = await ctx.router.handle(for: sessionID) else {
             return CallTool.Result(
-                content: [
-                    .text(
-                        "The preview agent for session \(sessionID) crashed and could not be relaunched. Stop the session and start a new one."
-                    ),
-                ], isError: true
+                content: [.text("No session found for \(sessionID).")], isError: true
             )
         }
+        if let failure = await terminalFailureResult(for: handle) { return failure }
 
         let validFilters: Set = ["all", "interactable", "labeled"]
         let filter = extractOptionalString("filter", from: params) ?? "all"
@@ -86,12 +83,12 @@ enum PreviewElementsHandler: ToolHandler {
             nil
         }
 
-        return await appendingCrashNotice(
+        return await appendingIncidentNotice(
             CallTool.Result(
                 content: [.text(elementsJSON)],
                 structuredContent: structured
             ),
-            from: iosSession
+            from: handle
         )
     }
 }

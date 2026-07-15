@@ -103,10 +103,8 @@ public actor IOSSessionManager {
     }
 
     public func removeSession(_ id: String) async {
-        if let session = sessions[id],
-           let owner = await claims.owner(ofSessionOn: session.deviceUDID, sessionID: id)
-        {
-            await claims.release(device: session.deviceUDID, owner: owner)
+        if let session = sessions[id] {
+            await claims.releaseLive(device: session.deviceUDID, sessionID: id)
         }
         sessions.removeValue(forKey: id)
         fileWatchers[id]?.stop()

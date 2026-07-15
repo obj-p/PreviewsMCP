@@ -307,7 +307,11 @@ fail-fast error naming that session and its owning pid (a foreign session
 cannot be stopped in an ordered way, so replacement stays within-process).
 The belt terminate runs only after the cross-process check comes back
 clear, so it only ever hits agents orphaned by dead daemons — which is what
-it was for.
+it was for. Named limitation: the cross-process check is
+read-before-publish, so two daemons starting on one device at the same
+moment can both pass it — closing that window needs a per-device
+cross-process lock (flock in the registry dir), deferred until a row
+reproduces the race.
 
 **L04 — agent death is a session-state transition, not a log line.**
 

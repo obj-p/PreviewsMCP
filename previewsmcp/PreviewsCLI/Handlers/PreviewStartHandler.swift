@@ -278,139 +278,151 @@ private func handleIOSPreviewStart(
         return CallTool.Result(content: [.text(error.localizedDescription)], isError: true)
     }
 
-    stage("getting compiler")
-    let iosCompiler = try await ctx.iosState.getCompiler()
-    stage("getting agentBuilder")
-    let agentBuilder = try await ctx.iosState.getAgentBuilder()
-    stage("getting simulatorManager")
-    let simulatorManager = await ctx.iosState.simulatorManager
-
-    let headless = extractOptionalBool("headless", from: params) ?? true
-
-    // Detect build system
-    let progress = mcpReporter(server: ctx.server, params: params, totalSteps: 8)
-    let buildContext: BuildContext?
+    // One catch spans everything between claim and success: before the
+    // claim is confirmed live, a throw releases it (a leaked claim wedges
+    // the device forever — waiters have no timeout); after, a throw tears
+    // the registered session down, which releases through removeSession.
+    var liveSession: IOSPreviewSession?
     do {
-        stage("detectBuildContext begin")
-        buildContext = try await detectBuildContext(for: fileURL, params: params, platform: .iOS, progress: progress)
-        stage("detectBuildContext done (\(buildContext == nil ? "nil" : "ok"))")
-    } catch {
-        stage("detectBuildContext failed: \(error)")
-        await ctx.iosState.releaseDeviceClaim(deviceUDID, owner: claimOwner)
-        return CallTool.Result(content: [.text("Project build failed: \(error.localizedDescription)")], isError: true)
-    }
+        stage("getting compiler")
+        let iosCompiler = try await ctx.iosState.getCompiler()
+        stage("getting agentBuilder")
+        let agentBuilder = try await ctx.iosState.getAgentBuilder()
+        stage("getting simulatorManager")
+        let simulatorManager = await ctx.iosState.simulatorManager
 
-    stage("buildSetupIfConfigured begin")
-    let setupResult: SetupBuilder.Result?
-    do {
-        setupResult = try await buildSetupIfConfigured(
+        let headless = extractOptionalBool("headless", from: params) ?? true
+
+        // Detect build system
+        let progress = mcpReporter(server: ctx.server, params: params, totalSteps: 8)
+        let buildContext: BuildContext?
+        do {
+            stage("detectBuildContext begin")
+            buildContext = try await detectBuildContext(
+                for: fileURL,
+                params: params,
+                platform: .iOS,
+                progress: progress
+            )
+            stage("detectBuildContext done (\(buildContext == nil ? "nil" : "ok"))")
+        } catch {
+            stage("detectBuildContext failed: \(error)")
+            await ctx.iosState.releaseDeviceClaim(deviceUDID, owner: claimOwner)
+            return CallTool.Result(
+                content: [.text("Project build failed: \(error.localizedDescription)")],
+                isError: true
+            )
+        }
+
+        stage("buildSetupIfConfigured begin")
+        let setupResult = try await buildSetupIfConfigured(
             config: config, configDirectory: configResult?.directory, platform: .iOS
         )
-    } catch {
-        await ctx.iosState.releaseDeviceClaim(deviceUDID, owner: claimOwner)
-        throw error
-    }
-    stage("buildSetupIfConfigured done (\(setupResult == nil ? "nil" : "ok"))")
+        stage("buildSetupIfConfigured done (\(setupResult == nil ? "nil" : "ok"))")
 
-    let session = IOSPreviewSession(
-        sourceFile: fileURL,
-        previewIndex: previewIndex,
-        deviceUDID: deviceUDID,
-        compiler: iosCompiler,
-        agentBuilder: agentBuilder,
-        simulatorManager: simulatorManager,
-        headless: headless,
-        buildContext: buildContext,
-        traits: traits,
-        setupModule: setupResult?.moduleName,
-        setupType: setupResult?.typeName,
-        setupCompilerFlags: setupResult?.compilerFlags ?? [],
-        setupSDKPath: setupResult?.sdkPath,
-        setupDylibPath: setupResult?.dylibPath,
-        progress: progress,
-        makeJITReloader: iosJITReloaderFactory
-    )
-
-    stage("session.start begin")
-    let pid: Int
-    do {
-        pid = try await session.start()
-    } catch {
-        await ctx.iosState.releaseDeviceClaim(deviceUDID, owner: claimOwner)
-        throw error
-    }
-    stage("session.start done pid=\(pid)")
-    await ctx.iosState.addSession(session)
-
-    guard await ctx.iosState.confirmDeviceClaim(
-        deviceUDID, owner: claimOwner, sessionID: session.id
-    ) else {
-        stage("claim lost while launching; tearing down")
-        await session.stop()
-        await ctx.iosState.removeSession(session.id)
-        return CallTool.Result(
-            content: [
-                .text(
-                    "Session was replaced by a newer preview_start on device \(deviceUDID) while launching."
-                ),
-            ], isError: true
+        let session = IOSPreviewSession(
+            sourceFile: fileURL,
+            previewIndex: previewIndex,
+            deviceUDID: deviceUDID,
+            compiler: iosCompiler,
+            agentBuilder: agentBuilder,
+            simulatorManager: simulatorManager,
+            headless: headless,
+            buildContext: buildContext,
+            traits: traits,
+            setupModule: setupResult?.moduleName,
+            setupType: setupResult?.typeName,
+            setupCompilerFlags: setupResult?.compilerFlags ?? [],
+            setupSDKPath: setupResult?.sdkPath,
+            setupDylibPath: setupResult?.dylibPath,
+            progress: progress,
+            makeJITReloader: iosJITReloaderFactory
         )
-    }
 
-    // Set up file watching for hot-reload
-    let sessionID = session.id
-    let allPaths = [fileURL.path] + (buildContext?.sourceFiles?.map(\.path) ?? [])
-    let iosState = ctx.iosState
-    let canonicalPrimary = FileWatcher.canonicalPath(fileURL.path) ?? fileURL.path
-    let watcher = try? FileWatcher(paths: allPaths) { firedPaths in
-        Task {
-            Log.info("MCP: iOS file change detected, reloading session \(sessionID)...")
-            do {
-                try await session.handleSourceChange(
-                    firedPaths: firedPaths, canonicalPrimary: canonicalPrimary
-                )
-                Log.info("MCP: iOS source change — recompiled and re-linked over JIT")
-            } catch {
-                Log.error("MCP: iOS reload failed for session \(sessionID): \(error)")
+        stage("session.start begin")
+        let pid = try await session.start()
+        stage("session.start done pid=\(pid)")
+        await ctx.iosState.addSession(session)
+
+        guard await ctx.iosState.confirmDeviceClaim(
+            deviceUDID, owner: claimOwner, sessionID: session.id
+        ) else {
+            stage("claim lost while launching; tearing down")
+            await session.stop()
+            await ctx.iosState.removeSession(session.id)
+            return CallTool.Result(
+                content: [
+                    .text(
+                        "Session was replaced by a newer preview_start on device \(deviceUDID) while launching."
+                    ),
+                ], isError: true
+            )
+        }
+        liveSession = session
+
+        // Set up file watching for hot-reload
+        let sessionID = session.id
+        let allPaths = [fileURL.path] + (buildContext?.sourceFiles?.map(\.path) ?? [])
+        let iosState = ctx.iosState
+        let canonicalPrimary = FileWatcher.canonicalPath(fileURL.path) ?? fileURL.path
+        let watcher = try? FileWatcher(paths: allPaths) { firedPaths in
+            Task {
+                Log.info("MCP: iOS file change detected, reloading session \(sessionID)...")
+                do {
+                    try await session.handleSourceChange(
+                        firedPaths: firedPaths, canonicalPrimary: canonicalPrimary
+                    )
+                    Log.info("MCP: iOS source change — recompiled and re-linked over JIT")
+                } catch {
+                    Log.error("MCP: iOS reload failed for session \(sessionID): \(error)")
+                }
             }
         }
-    }
-    if let watcher {
-        await iosState.setFileWatcher(sessionID, watcher)
-    }
+        if let watcher {
+            await iosState.setFileWatcher(sessionID, watcher)
+        }
 
-    // Wait briefly for the app to launch and render
-    try await Task.sleep(for: .seconds(2))
+        // Wait briefly for the app to launch and render
+        try await Task.sleep(for: .seconds(2))
 
-    let traitInfo = traits.isEmpty ? "" : " Traits: \(traitsSummary(traits))."
-    let previews = try PreviewParser.parse(fileAt: fileURL)
-    let previewList = formatPreviewList(previews: previews, activeIndex: previewIndex)
-    let switchHint = previews.count > 1 ? "\nUse preview_switch to change the active preview." : ""
-    let structured = DaemonProtocol.PreviewStartResult(
-        sessionID: sessionID,
-        platform: "ios",
-        sourceFilePath: fileURL.path,
-        deviceUDID: deviceUDID,
-        pid: Int(pid),
-        traits: DaemonProtocol.TraitsDTO.orNil(traits),
-        previews: previews.map {
-            DaemonProtocol.PreviewInfoDTO(from: $0, activeIndex: previewIndex)
-        },
-        activeIndex: previewIndex,
-        setupWarning: nil,
-        appServerPort: (await session.appServerPort).map(Int.init)
-    )
-    let viewerHint = structured.appServerPort.map {
-        "\nInteractive viewer: http://127.0.0.1:\($0)/ — open it in the in-app browser."
-    } ?? ""
-    return try CallTool.Result(
-        content: [
-            .text(
-                "iOS simulator preview started on device \(deviceUDID). Session ID: \(sessionID). PID: \(pid).\(traitInfo)\(replacedSessionID.map { " Replaced session \($0) on this device." } ?? "") File is being watched for changes.\n\(previewList)\(switchHint)\(viewerHint)"
-            ),
-        ],
-        structuredContent: structured
-    )
+        let traitInfo = traits.isEmpty ? "" : " Traits: \(traitsSummary(traits))."
+        let previews = try PreviewParser.parse(fileAt: fileURL)
+        let previewList = formatPreviewList(previews: previews, activeIndex: previewIndex)
+        let switchHint = previews.count > 1 ? "\nUse preview_switch to change the active preview." : ""
+        let structured = DaemonProtocol.PreviewStartResult(
+            sessionID: sessionID,
+            platform: "ios",
+            sourceFilePath: fileURL.path,
+            deviceUDID: deviceUDID,
+            pid: Int(pid),
+            traits: DaemonProtocol.TraitsDTO.orNil(traits),
+            previews: previews.map {
+                DaemonProtocol.PreviewInfoDTO(from: $0, activeIndex: previewIndex)
+            },
+            activeIndex: previewIndex,
+            setupWarning: nil,
+            appServerPort: (await session.appServerPort).map(Int.init)
+        )
+        let viewerHint = structured.appServerPort.map {
+            "\nInteractive viewer: http://127.0.0.1:\($0)/ — open it in the in-app browser."
+        } ?? ""
+        return try CallTool.Result(
+            content: [
+                .text(
+                    "iOS simulator preview started on device \(deviceUDID). Session ID: \(sessionID). PID: \(pid).\(traitInfo)\(replacedSessionID.map { " Replaced session \($0) on this device." } ?? "") File is being watched for changes.\n\(previewList)\(switchHint)\(viewerHint)"
+                ),
+            ],
+            structuredContent: structured
+        )
+    } catch {
+        if let liveSession {
+            await liveSession.stop()
+            await ctx.iosState.removeSession(liveSession.id)
+        } else {
+            await ctx.iosState.releaseDeviceClaim(deviceUDID, owner: claimOwner)
+        }
+        throw error
+    }
 }
 
 /// Build the setup package if configured. Returns nil if no setup or standalone mode.

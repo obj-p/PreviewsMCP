@@ -9,9 +9,11 @@ import Foundation
 /// session that is still starting: a start that finds an existing claim
 /// waits for it to leave `claiming`, then deterministically replaces the
 /// live incumbent through the supplied `stopIncumbent` (which suppresses
-/// the incumbent's death-watcher respawn via its own stop flag). A start
-/// that was itself replaced while launching discovers it at
-/// `confirmLive` and must tear itself down.
+/// the incumbent's death-watcher respawn via its own stop flag). Because
+/// claiming claims are waited out, never preempted, a launching start
+/// loses its claim only through its own failure-path `release`; the
+/// false return of `confirmLive` is defense-in-depth for that window,
+/// not a preemption signal.
 ///
 /// Claims are keyed by an opaque `owner` token rather than the session ID
 /// because the claim must exist before the session object does (the
@@ -78,12 +80,14 @@ public actor DeviceClaims {
         notifyWaiters(on: device)
     }
 
-    /// The session ID a stop should release the claim for, resolved by
-    /// session rather than owner token (stop paths know only the session).
-    public func owner(ofSessionOn device: String, sessionID: String) -> String? {
-        guard let claim = claims[device], claim.state == .live(sessionID: sessionID)
-        else { return nil }
-        return claim.owner
+    /// Release the claim on `device` iff it is live for `sessionID`.
+    /// Stop paths know only the session, not the owner token; the
+    /// live-state guard means a replacement's fresh claim is never
+    /// released by the replaced session's teardown.
+    public func releaseLive(device: String, sessionID: String) {
+        guard claims[device]?.state == .live(sessionID: sessionID) else { return }
+        claims[device] = nil
+        notifyWaiters(on: device)
     }
 
     private func waitForChange(on device: String) async {

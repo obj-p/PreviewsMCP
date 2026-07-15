@@ -82,14 +82,19 @@ struct DeviceClaimsTests {
         #expect(await claims.confirmLive(device: "dev-1", owner: "a", sessionID: "s-a") == false)
     }
 
-    @Test("owner resolution matches only the live session")
-    func ownerResolution() async {
+    @Test("releaseLive frees only the matching live session")
+    func releaseLiveMatchesLiveSession() async {
         let claims = DeviceClaims()
         _ = await claims.claim(device: "dev-1", owner: "a") { _ in }
-        #expect(await claims.owner(ofSessionOn: "dev-1", sessionID: "s-a") == nil)
-        _ = await claims.confirmLive(device: "dev-1", owner: "a", sessionID: "s-a")
-        #expect(await claims.owner(ofSessionOn: "dev-1", sessionID: "s-a") == "a")
-        #expect(await claims.owner(ofSessionOn: "dev-1", sessionID: "other") == nil)
+        await claims.releaseLive(device: "dev-1", sessionID: "s-a")
+        #expect(await claims.confirmLive(device: "dev-1", owner: "a", sessionID: "s-a"),
+                "a claiming reservation must not be released by session teardown")
+        await claims.releaseLive(device: "dev-1", sessionID: "other")
+        let stillHeld = await claims.claim(device: "dev-2", owner: "probe") { _ in }
+        #expect(stillHeld == nil)
+        await claims.releaseLive(device: "dev-1", sessionID: "s-a")
+        let freed = await claims.claim(device: "dev-1", owner: "b") { _ in }
+        #expect(freed == nil, "device should be free after releaseLive of the live session")
     }
 
     @Test("claims on different devices are independent")

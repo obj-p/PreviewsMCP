@@ -3,7 +3,6 @@ import MCP
 import os
 import PreviewsCore
 import PreviewsEngine
-import PreviewsIOS
 
 // MARK: - Progress
 
@@ -164,20 +163,7 @@ func appendingIncidentNotice(
     _ result: CallTool.Result, from handle: any PreviewSessionHandle
 ) async -> CallTool.Result {
     guard let notice = await handle.takeIncidentNotice() else { return result }
-    return appending(notice, to: result)
-}
-
-/// `appendingIncidentNotice` for handlers that hold the iOS session
-/// directly (touch, elements) rather than a routed handle.
-func appendingCrashNotice(
-    _ result: CallTool.Result, from session: IOSPreviewSession
-) async -> CallTool.Result {
-    guard let notice = await session.takeUndisclosedCrashNotice() else { return result }
-    return appending(notice, to: result)
-}
-
-private func appending(_ notice: String, to result: CallTool.Result) -> CallTool.Result {
-    CallTool.Result(
+    return CallTool.Result(
         content: result.content + [.text(notice)],
         structuredContent: result.structuredContent,
         isError: result.isError

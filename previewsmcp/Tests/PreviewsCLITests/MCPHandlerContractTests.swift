@@ -86,6 +86,52 @@ struct MCPHandlerContractTests {
         #expect(await configQualityForSession(handle.id, ctx: ctx) == 0.25)
     }
 
+    @Test("a terminally failed session returns a classified error, not a payload")
+    func terminalFailureGatesHandlers() async throws {
+        let source = try HandlerContractSupport.previewFile()
+        let handle = FakePreviewSessionHandle(id: "failed-session", sourceFile: source)
+        await handle.setTerminalFailure("agent gone for failed-session")
+        let ctx = try await HandlerContractSupport.context(handles: [handle])
+
+        let result = try await PreviewSnapshotHandler.handle(
+            params(.previewSnapshot, ["sessionID": .string(handle.id)]),
+            ctx: ctx
+        )
+
+        #expect(result.isError == true)
+        #expect(text(in: result).contains("agent gone for failed-session"))
+        #expect(await handle.snapshotQualities.isEmpty, "a failed session must not be operated on")
+    }
+
+    @Test("a crash notice rides as a trailing item and is delivered exactly once")
+    func crashNoticeTrailsAndClearsOnDelivery() async throws {
+        let source = try HandlerContractSupport.previewFile()
+        let handle = FakePreviewSessionHandle(id: "crashed-session", sourceFile: source)
+        await handle.setPendingIncidentNotice("agent was relaunched")
+        let ctx = try await HandlerContractSupport.context(handles: [handle])
+
+        let first = try await PreviewSnapshotHandler.handle(
+            params(.previewSnapshot, ["sessionID": .string(handle.id)]),
+            ctx: ctx
+        )
+        #expect(first.isError != true)
+        guard case .image = first.content.first else {
+            Issue.record("content[0] must stay the primary payload; got \(first.content)")
+            return
+        }
+        guard case let .text(trailing) = try #require(first.content.last) else {
+            Issue.record("notice should be the trailing content item")
+            return
+        }
+        #expect(trailing == "agent was relaunched")
+
+        let second = try await PreviewSnapshotHandler.handle(
+            params(.previewSnapshot, ["sessionID": .string(handle.id)]),
+            ctx: ctx
+        )
+        #expect(second.content.count == 1, "the notice is delivered exactly once")
+    }
+
     @Test("preview_snapshot uses the routed handle and returns the requested image type")
     func previewSnapshotUsesRoutedHandle() async throws {
         let source = try HandlerContractSupport.previewFile()
@@ -484,6 +530,25 @@ private actor FakePreviewSessionHandle: PreviewSessionHandle {
     private(set) var snapshotQualities: [Double] = []
     private(set) var stopCallCount = 0
     private var registered = true
+    var terminalFailureValue: String?
+    private var pendingIncidentNotice: String?
+
+    func setTerminalFailure(_ value: String?) {
+        terminalFailureValue = value
+    }
+
+    func setPendingIncidentNotice(_ value: String?) {
+        pendingIncidentNotice = value
+    }
+
+    var terminalFailure: String? {
+        terminalFailureValue
+    }
+
+    func takeIncidentNotice() async -> String? {
+        defer { pendingIncidentNotice = nil }
+        return pendingIncidentNotice
+    }
 
     init(
         id: String,
