@@ -95,7 +95,10 @@ fresh walk and a fresh decode.
 Alternative rejected: an evidence-keyed cache (validate every probed ancestor
 path plus the found file's mtime/size on each read). Validation performs the
 same syscalls as the walk, so the cache would only memoize the JSON decode.
-That is complexity with no measurable win.
+That is complexity with no measurable win. The repo's precedent for
+evidence-keyed caching, `SetupCache` (`SetupCache.swift:120-169`), earns its
+keep because re-derivation there is a full package build; config
+re-derivation is a stat walk, so the same pattern buys nothing.
 
 Unchanged by design: a **running** session reads its config once at start
 (documented at `PreviewStartHandler.swift:139-141`). The C rows only require
@@ -112,22 +115,25 @@ the producer chain that consumed it.
 **EvidenceSet.** Each capture returns, alongside the compile command:
 
 - `targetSources` — already captured today.
-- `dependencySources` — SwiftPM: the `.swift` inputs of every other `C.*`
-  compile node in the same llbuild manifest (one file, already parsed;
-  verified against the W04 fixture — the App's `debug.yaml` enumerates
-  `C.SharedLocal`'s sources). Bazel: swift inputs of dependency
-  `SwiftCompile` actions by widening the existing aquery to
-  `mnemonic("SwiftCompile", deps(target))` — verified against the B01
-  fixture, same jsonproto shape — with each source realpath-normalized (see
-  the exclusion rule; aquery spells local `path_override` dependency sources
-  as `external/…` paths that resolve back into the workspace). Xcode: the
-  other targets' SwiftFileLists from the same build log; net-new parsing —
-  today's parser returns at the first line matching the target module
-  (`XcodeCommandCapture.swift:35,45`).
 - `sourceDirectories` — the source roots of the target and its local
-  dependencies (SwiftPM target directories, Bazel package directories, Xcode
-  synchronized-group roots). This is what makes file **addition/removal**
-  visible; a per-file watch list cannot see a new file.
+  dependencies. This is the load-bearing category: it is what makes file
+  **addition/removal** visible (a per-file watch list cannot see a new
+  file), and directory scope means dependency source *files* need not be
+  carried as their own category — an edit under a dependency's root fires
+  the directory match. Root derivation per system: SwiftPM from the target
+  directories of the other `C.*` compile nodes in the same llbuild manifest
+  (one file, already parsed; verified against the W04 fixture — the App's
+  `debug.yaml` enumerates `C.SharedLocal`'s sources); Bazel from the
+  sources of dependency `SwiftCompile` actions by widening the existing
+  aquery to `mnemonic("SwiftCompile", deps(target))` (verified against the
+  B01 fixture, same jsonproto shape — the existing parse already loops
+  `SwiftCompile` actions, `BazelCommandCapture.swift:35-41`), each source
+  realpath-classified per the exclusion rule before its root is taken;
+  Xcode from the project's target group roots (synchronized-group roots
+  where used). Named caveat: an Xcode source reachable only through an
+  old-style file reference with no enclosing group root (the X01
+  referenced-project shape) has no directory representation and keeps
+  today's behavior.
 - `runtimeInputs` — resource files, best-effort per system; a miss degrades
   to today's behavior (not watched). SwiftPM: the inputs of `copy-tool`
   nodes in the llbuild manifest (verified against the W02 fixture; take the
@@ -185,41 +191,45 @@ unchanged/literal/structural classification (`PreviewSession.swift:505`)
 stays as-is for bursts confined to the primary file and `targetSources` —
 W01/W03 guard behavior is untouched. Two tiers sit above it:
 
-1. Burst touches `dependencySources`, `runtimeInputs`, or a path under any
-   `sourceDirectories` root that is not an already-captured target source
-   (a file added to or removed from the target itself also invalidates the
-   captured source list, so the target's own root participates; only edits
-   to existing `targetSources` stay on the fast path) → **refresh**: re-run
-   the native build through the same build system that ran at session start
-   (rebuilds dependency swiftmodules, restages resource bundles),
-   re-capture, swap the session's compile context and reinstall the watcher
-   from the new EvidenceSet, then structural reload. W04's healthy result —
-   "watch dependency sources and rebuild the dependency module before
-   reload" — is exactly this tier; likewise W02's "rebuild/restage affected
-   runtime inputs without a daemon restart".
-   Refreshes are serialized and coalesced **per project root**, shared by
-   every session on that root — the resource being protected is the build
-   state (one `.build`, one DerivedData, one Bazel output base), not the
-   session, and two sessions previewing files from the same package must
-   not run overlapping `swift build`s against one build.db. A burst
-   arriving while a refresh's native build is in flight marks the root
-   dirty **at the highest tier observed** and one follow-up runs after at
-   that tier (a definition-file change landing mid-refresh must not be
-   downgraded to a plain rebuild — it still owes the re-resolve below).
-   iOS sessions already serialize their render entry points via the render
-   lock + `recovering` coalescing pattern
-   (`IOSPreviewSession.swift:141,411-413`); macOS has no equivalent mutex
-   today and gains one with this change, and the per-root build lock sits
-   above both.
-   Loop damping: the capture records a content hash per watched evidence
-   file; a fired burst whose files all hash to their recorded values is
-   dropped without re-deriving. This makes a deterministic in-tree
-   generator (a build step that rewrites a generated `.swift` inside a
-   watched source root with identical content) converge after one refresh
-   instead of looping; a **nondeterministic** in-tree generator (embedded
-   timestamps) would still self-trigger and is a named limitation —
-   build-tool outputs belong under `.build`, where the product exclusion
-   already drops them.
+1. Burst touches `runtimeInputs`, or a path under any `sourceDirectories`
+   root that is not an already-captured target source (a file added to or
+   removed from the target itself also invalidates the captured source
+   list, so the target's own root participates; only edits to existing
+   `targetSources` stay on the fast path) → **refresh**: re-run the native
+   build through the same build system that ran at session start (rebuilds
+   dependency swiftmodules, restages resource bundles), re-capture, swap
+   the session's compile context and reinstall the watcher from the new
+   EvidenceSet, then structural reload. W04's healthy result — "watch
+   dependency sources and rebuild the dependency module before reload" —
+   is exactly this tier; likewise W02's "rebuild/restage affected runtime
+   inputs without a daemon restart".
+   The **entire** refresh — native build through reload — runs under the
+   session's serialized entry-point mutex, and a burst arriving mid-refresh
+   marks the session dirty **at the highest tier observed** so one
+   follow-up runs after at that tier (a definition-file change landing
+   mid-refresh must not be downgraded to a plain rebuild — it still owes
+   the re-resolve below). iOS already has the mutex — the render lock +
+   `recovering` coalescing (`IOSPreviewSession.swift:141,411-413`), whose
+   hold widens to cover the build and capture steps; macOS has no
+   equivalent today and gains one. Cross-session build exclusion on a
+   shared project root is delegated to the build tools' own build-directory
+   locks (SwiftPM refuses concurrent use of one `.build`; Bazel serializes
+   on the output base) rather than a new cross-session lock of ours — L05
+   already drives two concurrent starts against one package and passes.
+   Stage 4's manual pass drives two co-rooted sessions through a shared
+   dependency edit to confirm the delegation holds.
+   Loop damping is lazy and scoped to fired paths: the first fire of a
+   path records its content hash (reusing `SetupCache`'s per-file SHA256
+   shape, `SetupCache.swift:41-101`); a subsequent fire whose content
+   hashes to the recorded value is dropped without re-deriving, and a real
+   change updates the record. Normal sessions therefore hash nothing until
+   a burst arrives, and only the burst's files ever. This makes a
+   deterministic in-tree generator (a build step that rewrites a generated
+   `.swift` inside a watched source root with identical content) converge
+   after one refresh instead of looping; a **nondeterministic** in-tree
+   generator (embedded timestamps) would still self-trigger and is a named
+   limitation — build-tool outputs belong under `.build`, where the
+   product exclusion already drops them.
    iOS resource restaging: the native build restages into the host `.build`,
    but the agent reads `Bundle.module` from the app container installed in
    the simulator, so the refresh must push the rebuilt bundle into the
@@ -234,16 +244,25 @@ W01/W03 guard behavior is untouched. Two tiers sit above it:
 `buildContext` changes from `let` to a private, session-owned replaceable
 value with one update entry point per platform session; the watcher swap
 reuses the existing stop-and-replace path (`HostApp.swift:95-96`,
-`IOSSessionManager.setFileWatcher`). Both platforms share the tier
-classifier in `PreviewsCore` next to `classifySourceChange`; the reload
-executors stay platform-specific, as today.
+`IOSSessionManager.setFileWatcher`). The seam for the new tiers is
+`classifyWatchedChange` (`PreviewSession.swift:492-497`) — it already
+receives the fired-path burst and owns the primary-vs-secondary
+discrimination; the tiers widen its secondary-file branch, and the
+single-file content diff below it (`classifySourceChange`,
+`PreviewSession.swift:505`) is untouched. Both platforms share the widened
+classifier in `PreviewsCore`; the reload executors stay platform-specific,
+as today.
 
 Cost accepted: a dependency or resource edit now costs one native build.
 That is the same step every session start already runs, and it is what Xcode
 Previews itself pays per edit. Alternative rejected: compiling dependency
 sources into the preview dylib to avoid the native build — that re-implements
 the native build's semantics, which is the defect family the resolver just
-eliminated.
+eliminated. Also accepted: the refresh always ends in a structural reload
+even when the rebuild changed no module interface (a comment-only dependency
+edit pays the full reload); the reliable gate would be a module-interface
+diff across three build systems, recorded as a future optimization, not
+designed here.
 
 Instrumentation note: W02's reproduction recorded a "reload transition" on a
 resource-only edit even though a resource path cannot pass today's trampoline
@@ -308,19 +327,19 @@ it was for.
   detects that interval.
 - Session-scoped handlers surface an undisclosed incident in their next
   response: "the preview agent crashed and was relaunched; UI state was
-  reset." The notice is **appended as the last `content` item** — never
-  index 0 and never concatenated into an existing text block, because
-  `elements` returns raw JSON as `content[0].text`
-  (`PreviewElementsHandler.swift:80`) and clients parse that position — and
-  is additionally set as a field in `structuredContent` when the handler
-  produces one. The incident is cleared only when a response actually
-  carried the notice, not when it was merely eligible: `elements` builds
-  `structuredContent` conditionally (`PreviewElementsHandler.swift:68-77`),
-  and a disclosure that rode only a nil structure would be silently lost. A
-  `failed` session returns a classified error on every call. This is the
-  row's "report the failure and preserve daemon liveness": the daemon never
-  dies, and no caller can mistake a crash-reset session for the one they
-  were interacting with.
+  reset." Two constraints are normative here; the concrete carrier (content
+  position, `structuredContent` field, uniformity across handlers) is owned
+  by the phase/error-protocol family's response taxonomy and gets its final
+  shape there. First, the notice must not displace or amend `content[0]`,
+  which clients parse as raw JSON in `elements`
+  (`PreviewElementsHandler.swift:80`). Second, the incident is cleared only
+  when a response actually **carried** the notice, not when it was merely
+  eligible — `elements` builds `structuredContent` conditionally
+  (`PreviewElementsHandler.swift:68-77`), and a disclosure that rode only a
+  nil structure would be silently lost. A `failed` session returns a
+  classified error on every call. This is the row's "report the failure and
+  preserve daemon liveness": the daemon never dies, and no caller can
+  mistake a crash-reset session for the one they were interacting with.
 
 macOS's JIT agent shares the ownership pattern but has no reproduced row;
 it adopts the same incident surface only if a row ever reproduces there.
@@ -344,23 +363,25 @@ re-verification flipping rows in VERIFICATION.md before the next stage.
    launch, death-during-touch). Manual: L01/L04 flip; L05 and L02's
    daemon-liveness half hold.
 3. **EvidenceSet capture.** Extend the captures to enumerate
-   `dependencySources`, `sourceDirectories`, `runtimeInputs`,
-   `definitionFiles` per the scoping above; carry the set on
-   `BuildContext`; log it at session start for verifiability. Effort is
-   uneven by system: SwiftPM is a widening of the existing manifest parse
-   (verified); Bazel dependency sources are a query widening plus the
-   realpath classification; Xcode dependency sources are net-new log
-   parsing, and Xcode/Bazel `runtimeInputs` are scoped out. Unit-tested per
-   system against the regress fixtures. No behavior change: W rows still
-   reproduce, all resolver guards (S, X, B, D rows) hold.
+   `sourceDirectories`, `runtimeInputs`, `definitionFiles` per the scoping
+   above; carry the set on `BuildContext`; log it at session start for
+   verifiability. Effort is uneven by system: SwiftPM is a widening of the
+   existing manifest parse (verified); Bazel roots come from a query
+   widening plus the realpath classification; Xcode roots come from the
+   project model, and Xcode/Bazel `runtimeInputs` are scoped out.
+   Unit-tested per system against the regress fixtures. No behavior
+   change: W rows still reproduce, all resolver guards (S, X, B, D rows)
+   hold.
 4. **Tiered invalidation (W02, W04, D07 residue).** Directory-scoped
-   watcher matching with the realpath exclusion rule, evidence content
-   hashes for loop damping, tier classifier in `PreviewsCore`, per-root
-   serialized/coalesced refresh carrying the highest observed tier (native
+   watcher matching with the realpath exclusion rule, lazy fired-path hash
+   damping, the widened `classifyWatchedChange` tiers, whole-refresh hold
+   of the per-session mutex carrying the highest observed tier (native
    rebuild + re-capture + context/watcher swap), iOS bundle push into the
    app container, then reload. Manual: W02/W04 flip (#415 closes), D07
    residue exercised by regenerating the project mid-session, W01/W03
-   guards hold.
+   guards hold, and two co-rooted sessions through a shared dependency
+   edit confirm the build tools' own locks serialize the concurrent
+   rebuilds.
 
 Stages 1 and 2 are independent of 3→4 and of each other; 3 must land before
 4, mirroring the resolver's capture-then-consume order.
