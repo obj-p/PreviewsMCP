@@ -75,46 +75,40 @@ public enum BuildSystemDetector {
             }
             return nil
         }
-        // SPM first (most common for Swift-only projects)
-        if let spm = try await SPMBuildSystem.detect(for: sourceFile) {
-            return spm
-        }
-        // Bazel (rules_swift projects)
-        if let bazel = try await BazelBuildSystem.detect(for: sourceFile) {
-            return bazel
-        }
-        // Xcode (.xcworkspace / .xcodeproj)
-        if let xcode = try await XcodeBuildSystem.detect(for: sourceFile, scheme: scheme) {
-            return xcode
-        }
-        return nil
+        // Nearest-confirming-root walk: at each directory level the candidate
+        // markers are consulted in tie-break order (SwiftPM, Bazel, Xcode) and
+        // the nearest root whose own model confirms membership wins. Markers
+        // found but never confirmed fail loudly with their reasons; nil means
+        // no markers exist at all (standalone mode).
+        return try await resolve(
+            walk: OwnershipWalk(resolvers: OwnershipWalk.allResolvers),
+            sourceFile: sourceFile, scheme: scheme
+        )
     }
 
     /// Build the requested system for an explicit override. With a `projectRoot`
-    /// it constructs the system directly; without one it walks up from the source
-    /// file via that system's own `detect`. Either way it never falls through to
-    /// another build system.
+    /// it constructs the system directly; without one it walks up from the
+    /// source file consulting only that system's markers, still requiring
+    /// membership confirmation. Either way it never falls through to another
+    /// build system.
     private static func forced(
         _ kind: BuildSystemKind,
         for sourceFile: URL,
         projectRoot: URL?,
         scheme: String?
     ) async throws -> (any BuildSystem)? {
+        guard let projectRoot else {
+            return try await resolve(
+                walk: OwnershipWalk(resolvers: OwnershipWalk.resolvers(for: kind)),
+                sourceFile: sourceFile, scheme: scheme
+            )
+        }
         switch kind {
         case .spm:
-            guard let projectRoot else {
-                return try await SPMBuildSystem.detect(for: sourceFile)
-            }
             return SPMBuildSystem(projectRoot: projectRoot, sourceFile: sourceFile)
         case .bazel:
-            guard let projectRoot else {
-                return try await BazelBuildSystem.detect(for: sourceFile)
-            }
             return BazelBuildSystem(projectRoot: projectRoot, sourceFile: sourceFile)
         case .xcode:
-            guard let projectRoot else {
-                return try await XcodeBuildSystem.detect(for: sourceFile, scheme: scheme)
-            }
             guard let projectFile = XcodeBuildSystem.findXcodeProject(in: projectRoot) else {
                 throw BuildSystemError.buildSystemUnavailable(
                     kind: kind.rawValue,
@@ -126,6 +120,32 @@ public enum BuildSystemDetector {
                 sourceFile: sourceFile,
                 projectFile: projectFile,
                 requestedScheme: scheme
+            )
+        }
+    }
+
+    private static func resolve(
+        walk: OwnershipWalk, sourceFile: URL, scheme: String?
+    ) async throws -> (any BuildSystem)? {
+        let standardized = sourceFile.standardizedFileURL
+        guard let ownership = try await walk.resolve(sourceFile: standardized, scheme: scheme)
+        else { return nil }
+        switch ownership.kind {
+        case .spm:
+            return SPMBuildSystem(projectRoot: ownership.projectRoot, sourceFile: standardized)
+        case .bazel:
+            return BazelBuildSystem(projectRoot: ownership.projectRoot, sourceFile: standardized)
+        case .xcode:
+            guard
+                let projectFile = ownership.projectFile
+                ?? XcodeBuildSystem.findXcodeProject(in: ownership.projectRoot)
+            else { return nil }
+            return XcodeBuildSystem(
+                projectRoot: ownership.projectRoot,
+                sourceFile: standardized,
+                projectFile: projectFile,
+                requestedScheme: scheme,
+                confirmedTarget: ownership.targetName
             )
         }
     }

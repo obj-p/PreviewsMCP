@@ -165,6 +165,65 @@ public actor SPMBuildSystem: BuildSystem {
         return nil
     }
 
+    // MARK: - Ownership
+
+    /// Confirm membership against the package's own model: the target whose
+    /// resolved `sources` list (post-exclusion) contains the file. Targets
+    /// that omit `sources` fall back to path containment so a package that
+    /// builds fine never turns into `notMember` on a missing field.
+    static func confirmOwnership(
+        projectRoot: URL, sourceFile: URL
+    ) async -> OwnershipVerdict {
+        let output: ProcessOutput
+        do {
+            output = try await runAsync(
+                "/usr/bin/env",
+                arguments: ["swift", "package", "describe", "--type", "json"],
+                workingDirectory: projectRoot
+            )
+        } catch {
+            return .indeterminate(
+                reason: "swift package describe failed: \(error.localizedDescription)"
+            )
+        }
+        guard output.exitCode == 0 else {
+            let detail = output.stderr.split(separator: "\n").last.map(String.init) ?? ""
+            return .indeterminate(
+                reason: "swift package describe exited \(output.exitCode): \(detail)"
+            )
+        }
+        guard
+            let data = output.stdout.data(using: .utf8),
+            let description = try? JSONDecoder().decode(PackageDescription.self, from: data)
+        else {
+            return .indeterminate(reason: "could not decode swift package describe output")
+        }
+
+        let filePath = sourceFile.standardizedFileURL.path
+        for target in description.targets {
+            let targetDir = projectRoot.appendingPathComponent(target.path).standardizedFileURL
+            let member =
+                if let sources = target.sources {
+                    sources.contains {
+                        targetDir.appendingPathComponent($0).standardizedFileURL.path == filePath
+                    }
+                } else {
+                    filePath.hasPrefix(targetDir.path + "/") || filePath == targetDir.path
+                }
+            if member {
+                return .confirmed(
+                    Ownership(
+                        kind: .spm, projectRoot: projectRoot, targetName: target.name
+                    )
+                )
+            }
+        }
+        return .notMember(
+            reason:
+            "no target in package '\(description.name)' lists \(sourceFile.lastPathComponent)"
+        )
+    }
+
     // MARK: - Build
 
     public func build(platform: PreviewPlatform) async throws -> BuildContext {

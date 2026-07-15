@@ -6,6 +6,7 @@ public actor XcodeBuildSystem: BuildSystem {
     private let sourceFile: URL
     private let projectFile: URL
     private let requestedScheme: String?
+    private let confirmedTarget: String?
 
     /// The xcodebuild flag for referencing the project or workspace.
     private var xcodebuildFlag: String {
@@ -16,12 +17,14 @@ public actor XcodeBuildSystem: BuildSystem {
         projectRoot: URL,
         sourceFile: URL,
         projectFile: URL,
-        requestedScheme: String? = nil
+        requestedScheme: String? = nil,
+        confirmedTarget: String? = nil
     ) {
         self.projectRoot = projectRoot
         self.sourceFile = sourceFile.standardizedFileURL
         self.projectFile = projectFile
         self.requestedScheme = requestedScheme
+        self.confirmedTarget = confirmedTarget
     }
 
     // MARK: - Detection
@@ -197,7 +200,13 @@ public actor XcodeBuildSystem: BuildSystem {
         // 2. Exactly one scheme: unambiguous.
         if schemes.count == 1 { return schemes[0] }
 
-        // 3. Multiple schemes: try to match the target directory containing the
+        // 3. A scheme named after the ownership-confirmed target beats the
+        //    path heuristic below.
+        if let confirmedTarget, schemes.contains(confirmedTarget) {
+            return confirmedTarget
+        }
+
+        // 4. Multiple schemes: try to match the target directory containing the
         //    source file. This is a heuristic and only fires when a scheme name
         //    appears as a directory component on the source file path.
         let pathComponents = Set(sourceFile.pathComponents)
@@ -205,7 +214,7 @@ public actor XcodeBuildSystem: BuildSystem {
             return match
         }
 
-        // 4. Give up and ask the caller to disambiguate.
+        // 5. Give up and ask the caller to disambiguate.
         throw BuildSystemError.ambiguousTarget(
             sourceFile: sourceFile.lastPathComponent,
             candidates: schemes
@@ -224,21 +233,35 @@ public actor XcodeBuildSystem: BuildSystem {
             "-showBuildSettings",
             "-destination", destination
         )
-        return Self.parseBuildSettings(output)
+        return Self.parseBuildSettings(output, target: confirmedTarget)
     }
 
-    /// Parse build settings from xcodebuild output.
-    /// Only parses the first target's settings (stops at the next "Build settings for" header).
-    static func parseBuildSettings(_ output: String) -> [String: String] {
+    /// Parse build settings from xcodebuild output. Parses the named target's
+    /// section when given (a scheme can build several targets and the first is
+    /// not necessarily the owner); otherwise, or when the named target has no
+    /// section, the first target's settings.
+    static func parseBuildSettings(_ output: String, target: String? = nil) -> [String: String] {
+        if let target {
+            let settings = parseFirstSettingsBlock(
+                output, startingAt: "Build settings for action build and target \(target):"
+            )
+            if !settings.isEmpty { return settings }
+        }
+        return parseFirstSettingsBlock(output, startingAt: "Build settings for")
+    }
+
+    private static func parseFirstSettingsBlock(
+        _ output: String, startingAt header: String
+    ) -> [String: String] {
         var settings: [String: String] = [:]
         var foundFirstTarget = false
         for line in output.split(separator: "\n", omittingEmptySubsequences: false) {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
-            if trimmed.hasPrefix("Build settings for") {
-                if foundFirstTarget { break }
-                foundFirstTarget = true
+            if !foundFirstTarget {
+                if trimmed.hasPrefix(header) { foundFirstTarget = true }
                 continue
             }
+            if trimmed.hasPrefix("Build settings for") { break }
             guard let equalsRange = trimmed.range(of: " = ") else { continue }
             let key = String(trimmed[trimmed.startIndex ..< equalsRange.lowerBound])
                 .trimmingCharacters(in: .whitespaces)
@@ -725,6 +748,88 @@ extension XcodeBuildSystem.ProjectInfo: Decodable {
                     debugDescription:
                     "Expected 'project' or 'workspace' key in xcodebuild -list JSON"
                 )
+            )
+        }
+    }
+}
+
+// MARK: - Ownership
+
+extension XcodeBuildSystem {
+    /// Confirm membership from the project file(s) themselves, before any
+    /// build: classic targets via PBXBuildFile references, Xcode 16+
+    /// synchronized groups via folder containment minus exception sets. A
+    /// workspace checks each referenced project.
+    static func confirmOwnership(
+        projectRoot: URL, projectFile: URL, sourceFile: URL, scheme: String?
+    ) -> OwnershipVerdict {
+        let projects =
+            projectFile.pathExtension == "xcworkspace"
+                ? XcodeProjectMembership.projects(inWorkspace: projectFile)
+                : [projectFile]
+        guard !projects.isEmpty else {
+            return .indeterminate(
+                reason: "\(projectFile.lastPathComponent) references no projects"
+            )
+        }
+
+        var memberships: [XcodeProjectMembership.TargetMembership] = []
+        var unparseable: [String] = []
+        for project in projects {
+            do {
+                memberships += try XcodeProjectMembership.targets(
+                    compiling: sourceFile, inProject: project
+                )
+            } catch {
+                unparseable.append(project.lastPathComponent)
+            }
+        }
+
+        guard !memberships.isEmpty else {
+            if !unparseable.isEmpty {
+                return .indeterminate(
+                    reason: "could not parse \(unparseable.joined(separator: ", "))"
+                )
+            }
+            var reason =
+                "no target in \(projectFile.lastPathComponent) compiles \(sourceFile.lastPathComponent)"
+            if hasGeneratedProjectManifest(projectFile.deletingLastPathComponent()) {
+                reason += "; the project may be stale — run `xcodegen generate`"
+            }
+            return .notMember(reason: reason)
+        }
+
+        let nonTest = memberships.filter {
+            $0.productType?.localizedCaseInsensitiveContains("test") != true
+        }
+        let candidates = nonTest.isEmpty ? memberships : nonTest
+        let names = candidates.map(\.targetName)
+        let chosen: String? =
+            if names.count == 1 {
+                names[0]
+            } else if let scheme, names.contains(scheme) {
+                scheme
+            } else {
+                nil
+            }
+        guard let chosen else {
+            return .indeterminate(
+                reason:
+                "multiple targets compile \(sourceFile.lastPathComponent): \(names.joined(separator: ", ")). Pass the scheme parameter to pick one"
+            )
+        }
+        return .confirmed(
+            Ownership(
+                kind: .xcode, projectRoot: projectRoot,
+                targetName: chosen, projectFile: projectFile
+            )
+        )
+    }
+
+    private static func hasGeneratedProjectManifest(_ directory: URL) -> Bool {
+        ["project.yml", "project.yaml"].contains {
+            FileManager.default.fileExists(
+                atPath: directory.appendingPathComponent($0).path
             )
         }
     }

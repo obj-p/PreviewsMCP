@@ -71,8 +71,9 @@ controls, fixture corrections, and repeatability notes are in
 [`VERIFICATION.md`](VERIFICATION.md).
 
 A reproduced current failure is not a passing test. The healthy-result column
-remains the acceptance contract, while D02 and D05 currently act as guards for
-working behavior and an explicit precedence decision.
+remains the acceptance contract. The D-family rows act as guards for the
+ownership walk (`docs/build-system-resolver.md`); the same-level marker
+precedence is SwiftPM, then Bazel, then Xcode.
 
 ## How to Use the Matrix
 

@@ -41,6 +41,67 @@ public actor BazelBuildSystem: BuildSystem {
         return nil
     }
 
+    // MARK: - Ownership
+
+    /// Confirm membership via the workspace's own model: a package-scoped
+    /// `rdeps` query for a swift_library whose srcs include the file. Broad
+    /// universes are never queried; a workspace-wide query loads every
+    /// package.
+    static func confirmOwnership(
+        projectRoot: URL, sourceFile: URL
+    ) async -> OwnershipVerdict {
+        guard await isBazelAvailable(in: projectRoot) else {
+            return .indeterminate(
+                reason: "bazel workspace marker found but bazel is not runnable here"
+            )
+        }
+        let system = BazelBuildSystem(projectRoot: projectRoot, sourceFile: sourceFile)
+        return await system.confirmOwnership()
+    }
+
+    private func confirmOwnership() async -> OwnershipVerdict {
+        let packagePath: String
+        do {
+            packagePath = try findBazelPackage(for: sourceFile)
+        } catch {
+            return .notMember(
+                reason:
+                "no BUILD file between \(sourceFile.lastPathComponent) and the workspace root"
+            )
+        }
+        let sourceLabel = buildSourceLabel(packagePath: packagePath, sourceFile: sourceFile)
+        let query = "kind(\"swift_library\", rdeps(//\(packagePath):all, \(sourceLabel)))"
+        let output: String
+        do {
+            output = try await runBazel(["bazel", "query", query])
+        } catch {
+            let message = (error as? BuildSystemError)?.errorDescription
+                ?? error.localizedDescription
+            // "no such target/package" is the workspace answering "not mine"
+            // (e.g. the file sits under a .bazelignore'd path); only
+            // infrastructure failures are indeterminate.
+            let notMine = ["no such target", "no targets found", "no such package"]
+            if notMine.contains(where: message.contains) {
+                return .notMember(
+                    reason:
+                    "//\(packagePath) does not declare \(sourceFile.lastPathComponent) as a target source"
+                )
+            }
+            let detail = message.split(separator: "\n").last.map(String.init) ?? message
+            return .indeterminate(reason: "bazel query failed: \(detail)")
+        }
+        let targets = output.split(separator: "\n").map(String.init)
+        guard let target = targets.first else {
+            return .notMember(
+                reason:
+                "no swift_library in //\(packagePath) depends on \(sourceFile.lastPathComponent)"
+            )
+        }
+        return .confirmed(
+            Ownership(kind: .bazel, projectRoot: projectRoot, targetName: target)
+        )
+    }
+
     /// Check if bazel is available by running `bazel version`.
     private static func isBazelAvailable(in directory: URL) async -> Bool {
         do {
