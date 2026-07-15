@@ -12,7 +12,7 @@ private struct FakeResolver: OwnershipResolving {
     }
 
     func owner(
-        of _: URL, at candidateRoot: URL, scheme _: String?
+        of _: URL, at candidateRoot: URL, marker _: URL, scheme _: String?
     ) async -> OwnershipVerdict {
         verdicts[candidateRoot.path] ?? .notMember(reason: "fake")
     }
@@ -155,7 +155,7 @@ struct OwnershipWalkTests {
             to: root.appendingPathComponent("project.yml"), atomically: true, encoding: .utf8
         )
 
-        let walk = OwnershipWalk(resolvers: [])
+        let walk = OwnershipWalk(resolvers: [XcodeOwnershipResolver()])
         do {
             _ = try await walk.resolve(sourceFile: file, scheme: nil)
             Issue.record("expected noOwner")

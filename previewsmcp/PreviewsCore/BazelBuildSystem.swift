@@ -4,10 +4,12 @@ import Foundation
 public actor BazelBuildSystem: BuildSystem {
     public nonisolated let projectRoot: URL
     private let sourceFile: URL
+    private let confirmedTarget: String?
 
-    public init(projectRoot: URL, sourceFile: URL) {
+    public init(projectRoot: URL, sourceFile: URL, confirmedTarget: String? = nil) {
         self.projectRoot = projectRoot
         self.sourceFile = sourceFile.standardizedFileURL
+        self.confirmedTarget = confirmedTarget
     }
 
     // MARK: - Detection
@@ -18,25 +20,16 @@ public actor BazelBuildSystem: BuildSystem {
     /// Marker files that indicate a Bazel package directory.
     static let packageMarkers = ["BUILD.bazel", "BUILD"]
 
-    public static func detect(for sourceFile: URL) async throws -> BazelBuildSystem? {
-        var dir = sourceFile.deletingLastPathComponent().standardizedFileURL
-        let root = URL(fileURLWithPath: "/")
-
-        while dir.path != root.path {
-            for marker in projectMarkers {
-                let markerFile = dir.appendingPathComponent(marker)
-                var isDir: ObjCBool = false
-                if FileManager.default.fileExists(atPath: markerFile.path, isDirectory: &isDir),
-                   !isDir.boolValue
-                {
-                    // Verify bazel is actually available
-                    guard await isBazelAvailable(in: dir) else { return nil }
-                    return BazelBuildSystem(
-                        projectRoot: dir, sourceFile: sourceFile.standardizedFileURL
-                    )
-                }
+    /// The workspace marker file in the given directory, if any.
+    static func projectMarker(in directory: URL) -> URL? {
+        for marker in projectMarkers {
+            let markerURL = directory.appendingPathComponent(marker)
+            var isDir: ObjCBool = false
+            if FileManager.default.fileExists(atPath: markerURL.path, isDirectory: &isDir),
+               !isDir.boolValue
+            {
+                return markerURL
             }
-            dir = dir.deletingLastPathComponent()
         }
         return nil
     }
@@ -70,7 +63,7 @@ public actor BazelBuildSystem: BuildSystem {
             )
         }
         let sourceLabel = buildSourceLabel(packagePath: packagePath, sourceFile: sourceFile)
-        let query = "kind(\"swift_library\", rdeps(//\(packagePath):all, \(sourceLabel)))"
+        let query = Self.owningTargetQuery(packagePath: packagePath, sourceLabel: sourceLabel)
         let output: String
         do {
             output = try await runBazel(["bazel", "query", query])
@@ -118,10 +111,16 @@ public actor BazelBuildSystem: BuildSystem {
     // MARK: - Build
 
     public func build(platform: PreviewPlatform) async throws -> BuildContext {
-        // 1. Find the Bazel package and owning target
+        // 1. Find the Bazel package and owning target (already answered by the
+        //    ownership walk when this instance came from detection)
         let packagePath = try findBazelPackage(for: sourceFile)
-        let sourceLabel = buildSourceLabel(packagePath: packagePath, sourceFile: sourceFile)
-        let target = try await findOwningTarget(packagePath: packagePath, sourceLabel: sourceLabel)
+        let target: String
+        if let confirmedTarget {
+            target = confirmedTarget
+        } else {
+            let sourceLabel = buildSourceLabel(packagePath: packagePath, sourceFile: sourceFile)
+            target = try await findOwningTarget(packagePath: packagePath, sourceLabel: sourceLabel)
+        }
 
         // 2. Get module name
         let moduleName = try await queryModuleName(target: target)
@@ -324,10 +323,14 @@ public actor BazelBuildSystem: BuildSystem {
 
     // MARK: - Private: Target Discovery
 
+    /// The package-scoped query for the swift_library that owns a source file.
+    static func owningTargetQuery(packagePath: String, sourceLabel: String) -> String {
+        "kind(\"swift_library\", rdeps(//\(packagePath):all, \(sourceLabel)))"
+    }
+
     /// Find the swift_library target that owns the source file using a package-scoped query.
     private func findOwningTarget(packagePath: String, sourceLabel: String) async throws -> String {
-        let query =
-            "kind(\"swift_library\", rdeps(//\(packagePath):all, \(sourceLabel)))"
+        let query = Self.owningTargetQuery(packagePath: packagePath, sourceLabel: sourceLabel)
 
         let output = try await runBazelQuery(query)
         let targets = output.split(separator: "\n").map(String.init)

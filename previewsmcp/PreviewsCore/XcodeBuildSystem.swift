@@ -29,32 +29,6 @@ public actor XcodeBuildSystem: BuildSystem {
 
     // MARK: - Detection
 
-    public static func detect(for sourceFile: URL) async throws -> XcodeBuildSystem? {
-        try await detect(for: sourceFile, scheme: nil)
-    }
-
-    public static func detect(
-        for sourceFile: URL,
-        scheme: String?
-    ) async throws -> XcodeBuildSystem? {
-        var dir = sourceFile.deletingLastPathComponent().standardizedFileURL
-        let root = URL(fileURLWithPath: "/")
-
-        while dir.path != root.path {
-            if let projectFile = findXcodeProject(in: dir) {
-                guard await isXcodebuildAvailable() else { return nil }
-                return XcodeBuildSystem(
-                    projectRoot: dir,
-                    sourceFile: sourceFile.standardizedFileURL,
-                    projectFile: projectFile,
-                    requestedScheme: scheme
-                )
-            }
-            dir = dir.deletingLastPathComponent()
-        }
-        return nil
-    }
-
     /// Find a .xcworkspace or .xcodeproj in the given directory.
     /// Prefers a .xcworkspace whose name matches a colocated .xcodeproj (standard Xcode convention),
     /// then falls back to any workspace, then any project.
@@ -76,10 +50,6 @@ public actor XcodeBuildSystem: BuildSystem {
             }
         }
         return workspaces.first ?? projects.first
-    }
-
-    private static func isXcodebuildAvailable() async -> Bool {
-        ((try? await Toolchain.xcodebuildPath()) ?? nil) != nil
     }
 
     // MARK: - Build
@@ -793,7 +763,7 @@ extension XcodeBuildSystem {
             }
             var reason =
                 "no target in \(projectFile.lastPathComponent) compiles \(sourceFile.lastPathComponent)"
-            if hasGeneratedProjectManifest(projectFile.deletingLastPathComponent()) {
+            if generatedProjectManifest(in: projectFile.deletingLastPathComponent()) != nil {
                 reason += "; the project may be stale — run `xcodegen generate`"
             }
             return .notMember(reason: reason)
@@ -826,11 +796,14 @@ extension XcodeBuildSystem {
         )
     }
 
-    private static func hasGeneratedProjectManifest(_ directory: URL) -> Bool {
-        ["project.yml", "project.yaml"].contains {
-            FileManager.default.fileExists(
-                atPath: directory.appendingPathComponent($0).path
-            )
+    /// The XcodeGen manifest in the given directory, if any.
+    static func generatedProjectManifest(in directory: URL) -> URL? {
+        for manifest in ["project.yml", "project.yaml"] {
+            let manifestURL = directory.appendingPathComponent(manifest)
+            if FileManager.default.fileExists(atPath: manifestURL.path) {
+                return manifestURL
+            }
         }
+        return nil
     }
 }
