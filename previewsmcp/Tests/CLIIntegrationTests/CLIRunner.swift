@@ -40,6 +40,7 @@ enum CLIRunner {
     static let xcodeprojExampleRoot: URL = repoRoot.appendingPathComponent("examples/xcodeproj")
     static let xcworkspaceExampleRoot: URL = repoRoot.appendingPathComponent("examples/xcworkspace")
     static let bazelExampleRoot: URL = repoRoot.appendingPathComponent("examples/bazel")
+    static let regressRoot: URL = repoRoot.appendingPathComponent("examples/regress")
 
     /// Mirrors `Sources/PreviewsCLI/DaemonPaths.swift`. The daemon writes its
     /// stderr to this file when launched detached. We can't import PreviewsCLI
