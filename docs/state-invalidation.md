@@ -32,8 +32,9 @@ never absorbed as log lines.
 | Watch set is a subset of the evidence; producers never re-run | W02, W04 (#415), D07 residue | The watch set is the preview file plus the captured **target** Swift sources only (`PreviewStartHandler.swift:328`, `HostApp.swift:93`); `SPMCommandCapture` drops non-Swift inputs (`SPMCommandCapture.swift:46-47`); `buildContext` is immutable for the session's life (`PreviewsCore/PreviewSession.swift:91`, `PreviewsIOS/IOSPreviewSession.swift:29`); a structural reload re-runs Tier 2 `swiftc` only — the native build, capture, and resource staging never re-run (`HostApp.swift:151-157`, `IOSPreviewSession.swift:662-663`) |
 | Session liveness assumed | L01, L04 | No device→session ownership: a second start on the same device SIGKILLs the incumbent's agent behind its back (`IOSPreviewSession.swift:282-288`) and leaves the zombie registered (`IOSSessionManager.swift:43-57`); out-of-band agent death respawns silently (#253, `IOSPreviewSession.swift:405-424`) with failures printed to stdout instead of the log (`:422`); `touch` returns success without any liveness round-trip (`PreviewTouchHandler.swift:94-99`) |
 
-Guards that must keep passing: W01, W03 (atomic saves), L02, L05, D07's
-start-time diagnosis, R02, M02.
+Guards that must keep passing: W01, W03 (atomic saves), L05, D07's
+start-time diagnosis, R02, M02, and the daemon-liveness half of L02 (its
+message opacity belongs to the phase/error family).
 
 Not addressed here (separate families): thunking (C01/C02/V02), phase/error
 protocol (F01, R01, T01, T03, L02, L03, P01), semantic interaction (I01–I03).
@@ -65,9 +66,10 @@ protocol family will later fold it into its classified error taxonomy.
   to `.swift`); Xcode's persisted capture already computes the definition-file
   evidence set — referenced pbxprojs + xcconfigs with mtimes — to key capture
   validity across **starts** (`XcodeCommandCapture.swift:93`), but no live
-  session watches those files; Bazel's aquery can enumerate dependency
-  `SwiftCompile` actions as easily as the target's
-  (`BazelCommandCapture.swift:16-17`).
+  session watches those files; Bazel's aquery jsonproto parse loops over
+  `SwiftCompile` actions already (`BazelCommandCapture.swift:35-41`);
+  today's query returns only the target's, and enumeration widens the query
+  to `deps(target)`.
 - iOS lifecycle: `IOSSessionManager` is a flat `[id: session]` map with no
   device index (`IOSSessionManager.swift:12`). `preview_start` resolves a
   device and launches; the pre-launch "terminate stale agent + shell"
@@ -183,21 +185,41 @@ unchanged/literal/structural classification (`PreviewSession.swift:505`)
 stays as-is for bursts confined to the primary file and `targetSources` —
 W01/W03 guard behavior is untouched. Two tiers sit above it:
 
-1. Burst touches `dependencySources`, `sourceDirectories` (non-target), or
-   `runtimeInputs` → **refresh**: re-run the native build through the same
-   build system that ran at session start (rebuilds dependency swiftmodules,
-   restages resource bundles), re-capture, swap the session's compile context
-   and reinstall the watcher from the new EvidenceSet, then structural
-   reload. W04's healthy result — "watch dependency sources and rebuild the
-   dependency module before reload" — is exactly this tier; likewise W02's
-   "rebuild/restage affected runtime inputs without a daemon restart".
-   Refreshes are serialized and coalesced per session on **both** platforms:
-   a burst arriving while a refresh's native build is in flight marks the
-   session dirty and one follow-up refresh runs after; overlapping `swift
-   build` invocations against one `.build` contend on llbuild's build.db and
-   can corrupt incremental state. iOS reuses the render lock + `recovering`
-   coalescing pattern (`IOSPreviewSession.swift:141,411-413`); macOS has no
-   equivalent mutex today and gains one with this change.
+1. Burst touches `dependencySources`, `runtimeInputs`, or a path under any
+   `sourceDirectories` root that is not an already-captured target source
+   (a file added to or removed from the target itself also invalidates the
+   captured source list, so the target's own root participates; only edits
+   to existing `targetSources` stay on the fast path) → **refresh**: re-run
+   the native build through the same build system that ran at session start
+   (rebuilds dependency swiftmodules, restages resource bundles),
+   re-capture, swap the session's compile context and reinstall the watcher
+   from the new EvidenceSet, then structural reload. W04's healthy result —
+   "watch dependency sources and rebuild the dependency module before
+   reload" — is exactly this tier; likewise W02's "rebuild/restage affected
+   runtime inputs without a daemon restart".
+   Refreshes are serialized and coalesced **per project root**, shared by
+   every session on that root — the resource being protected is the build
+   state (one `.build`, one DerivedData, one Bazel output base), not the
+   session, and two sessions previewing files from the same package must
+   not run overlapping `swift build`s against one build.db. A burst
+   arriving while a refresh's native build is in flight marks the root
+   dirty **at the highest tier observed** and one follow-up runs after at
+   that tier (a definition-file change landing mid-refresh must not be
+   downgraded to a plain rebuild — it still owes the re-resolve below).
+   iOS sessions already serialize their render entry points via the render
+   lock + `recovering` coalescing pattern
+   (`IOSPreviewSession.swift:141,411-413`); macOS has no equivalent mutex
+   today and gains one with this change, and the per-root build lock sits
+   above both.
+   Loop damping: the capture records a content hash per watched evidence
+   file; a fired burst whose files all hash to their recorded values is
+   dropped without re-deriving. This makes a deterministic in-tree
+   generator (a build step that rewrites a generated `.swift` inside a
+   watched source root with identical content) converge after one refresh
+   instead of looping; a **nondeterministic** in-tree generator (embedded
+   timestamps) would still self-trigger and is a named limitation —
+   build-tool outputs belong under `.build`, where the product exclusion
+   already drops them.
    iOS resource restaging: the native build restages into the host `.build`,
    but the agent reads `Bundle.module` from the app container installed in
    the simulator, so the refresh must push the rebuilt bundle into the
@@ -257,6 +279,17 @@ without a timeout", and does not force the client to hunt down a session it
 may not know about. L05 (two simultaneous starts) is the guard that catches
 a botched reservation.
 
+The claim is per-daemon, but the device is a cross-process resource and the
+belt terminate is device-scoped — a second daemon would SIGKILL a live
+incumbent owned by the first. So `SessionRegistry.Entry` gains a
+`deviceUDID` field, and claiming consults `readOthers()`: a session on the
+target device published by a **live** foreign process is a classified
+fail-fast error naming that session and its owning pid (a foreign session
+cannot be stopped in an ordered way, so replacement stays within-process).
+The belt terminate runs only after the cross-process check comes back
+clear, so it only ever hits agents orphaned by dead daemons — which is what
+it was for.
+
 **L04 — agent death is a session-state transition, not a log line.**
 
 - The death watcher records a crash incident (monotonic count, wall time)
@@ -264,19 +297,30 @@ a botched reservation.
   session to a terminal `failed` state. Both paths log via `Log.error` —
   today the failure goes to stdout (`IOSPreviewSession.swift:422`) and is
   invisible in `serve.log`.
-- `IOSAgentChannel.send` to a disconnected channel throws instead of
-  dropping, so an in-flight `touch`/`switch`/`configure` that hits the crash
-  window returns a classified error rather than success.
-- Session-scoped handlers surface an undisclosed incident exactly once in
-  their next response: "the preview agent crashed and was relaunched; UI
-  state was reset." The notice is carried as a **separate** `content` item
-  (and a field in `structuredContent`), never concatenated into an existing
-  text block — `elements` returns raw JSON as `content[0].text`
-  (`PreviewElementsHandler.swift:80`), and prepending prose there would
-  break clients that parse it. A `failed` session returns a classified
-  error on every call. This is the row's "report the failure and preserve
-  daemon liveness": the daemon never dies, and no caller can mistake a
-  crash-reset session for the one they were interacting with.
+- Agent-bound operations that claim success become acknowledged
+  round-trips: `touch`/`switch`/`configure` use the channel's existing
+  request/response path (`sendAndAwait`, as `elements` already does,
+  `IOSPreviewSession.swift:802`) instead of fire-and-forget `send`. A
+  throwing send on a disconnected channel is kept as a backstop but does
+  not close the crash window by itself — in the interval between the agent
+  dying and the socket noticing, `isConnected` is still true and a write
+  into the dead socket's buffer succeeds; only a missing acknowledgment
+  detects that interval.
+- Session-scoped handlers surface an undisclosed incident in their next
+  response: "the preview agent crashed and was relaunched; UI state was
+  reset." The notice is **appended as the last `content` item** — never
+  index 0 and never concatenated into an existing text block, because
+  `elements` returns raw JSON as `content[0].text`
+  (`PreviewElementsHandler.swift:80`) and clients parse that position — and
+  is additionally set as a field in `structuredContent` when the handler
+  produces one. The incident is cleared only when a response actually
+  carried the notice, not when it was merely eligible: `elements` builds
+  `structuredContent` conditionally (`PreviewElementsHandler.swift:68-77`),
+  and a disclosure that rode only a nil structure would be silently lost. A
+  `failed` session returns a classified error on every call. This is the
+  row's "report the failure and preserve daemon liveness": the daemon never
+  dies, and no caller can mistake a crash-reset session for the one they
+  were interacting with.
 
 macOS's JIT agent shares the ownership pattern but has no reproduced row;
 it adopts the same incident surface only if a row ever reproduces there.
@@ -291,11 +335,14 @@ re-verification flipping rows in VERIFICATION.md before the next stage.
    walk at each consumer. Unit: existing config tests keep passing; the
    quality lookup path gets a fresh-read test. Manual: C03/C04/C05 flip.
 2. **Device claim + crash disclosure (L01, L04).** Manager-owned device
-   reservation (`claiming`/`live`/`stopping`) with ordered replacement;
-   crash incidents, throwing sends, one-shot disclosure in a separate
-   content block. Unit: claim replacement and incident bookkeeping under
+   reservation (`claiming`/`live`/`stopping`) with ordered in-process
+   replacement and the cross-process registry check (`deviceUDID` on
+   `SessionRegistry.Entry`); crash incidents, acknowledged agent
+   round-trips, disclosure appended as the last content item and cleared
+   only on delivery. Unit: claim replacement and incident bookkeeping under
    the contended paths (start-B-while-A-still-starting, replacement during
-   launch, death-during-touch). Manual: L01/L04 flip; L02/L05 guards hold.
+   launch, death-during-touch). Manual: L01/L04 flip; L05 and L02's
+   daemon-liveness half hold.
 3. **EvidenceSet capture.** Extend the captures to enumerate
    `dependencySources`, `sourceDirectories`, `runtimeInputs`,
    `definitionFiles` per the scoping above; carry the set on
@@ -307,12 +354,13 @@ re-verification flipping rows in VERIFICATION.md before the next stage.
    system against the regress fixtures. No behavior change: W rows still
    reproduce, all resolver guards (S, X, B, D rows) hold.
 4. **Tiered invalidation (W02, W04, D07 residue).** Directory-scoped
-   watcher matching with the realpath exclusion rule, tier classifier in
-   `PreviewsCore`, serialized/coalesced refresh (native rebuild +
-   re-capture + context/watcher swap) on both platforms, iOS bundle push
-   into the app container, then reload. Manual: W02/W04 flip (#415
-   closes), D07 residue exercised by regenerating the project mid-session,
-   W01/W03 guards hold.
+   watcher matching with the realpath exclusion rule, evidence content
+   hashes for loop damping, tier classifier in `PreviewsCore`, per-root
+   serialized/coalesced refresh carrying the highest observed tier (native
+   rebuild + re-capture + context/watcher swap), iOS bundle push into the
+   app container, then reload. Manual: W02/W04 flip (#415 closes), D07
+   residue exercised by regenerating the project mid-session, W01/W03
+   guards hold.
 
 Stages 1 and 2 are independent of 3→4 and of each other; 3 must land before
 4, mirroring the resolver's capture-then-consume order.
@@ -323,8 +371,8 @@ Stages 1 and 2 are independent of 3→4 and of each other; 3 must land before
   start is documented behavior; no matrix row demands otherwise).
 - `@State` preservation across tier-1/2 refreshes — a structural reload
   resets live state by design; the refresh tiers inherit that.
-- The phase/error protocol family (F01, R01, T01, T03, L03, P01 and the
-  heartbeat surface): the crash disclosure here is the minimal slice L04
-  needs and will be re-expressed in that family's error taxonomy.
+- The phase/error protocol family (F01, R01, T01, T03, L02, L03, P01 and
+  the heartbeat surface): the crash disclosure here is the minimal slice
+  L04 needs and will be re-expressed in that family's error taxonomy.
 - Watcher coverage for standalone sessions (no build context): they keep
   today's primary-file-only watch.
