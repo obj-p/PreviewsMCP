@@ -275,9 +275,7 @@ struct XcodeCommandCaptureTests {
         CompileC /dd/Objects-normal/arm64/Other.o /proj/Other/Other.m normal arm64 objective-c com.apple.compilers.llvm.clang.1_0.compiler (in target 'OtherTarget' from project 'BridgingApp')
         """
         let captured = try #require(
-            XcodeCommandCapture.parse(
-                log: log, moduleName: "BridgingApp", targetName: "BridgingApp"
-            )
+            XcodeCommandCapture.parse(log: log, moduleName: "BridgingApp")
         )
         #expect(captured.arguments.contains("-import-objc-header"))
         #expect(captured.arguments.contains("-enforce-exclusivity=checked"))
@@ -291,7 +289,7 @@ struct XcodeCommandCaptureTests {
         let log = """
             builtin-SwiftDriver -- /toolchain/usr/bin/swiftc -module-name OtherModule -DDEBUG
         """
-        #expect(XcodeCommandCapture.parse(log: log, moduleName: "App", targetName: "App") == nil)
+        #expect(XcodeCommandCapture.parse(log: log, moduleName: "App") == nil)
         #expect(XcodeCommandCapture.logsDriverInvocations(log))
         #expect(!XcodeCommandCapture.logsDriverInvocations("SwiftCompile bazel-out/x"))
     }
@@ -315,11 +313,24 @@ struct XcodeCommandCaptureTests {
         let validity = ["/proj/project.pbxproj": Date(timeIntervalSince1970: 100)]
         XcodeCommandCapture.persist(command, at: url, validity: validity)
 
-        let loaded = XcodeCommandCapture.loadPersisted(at: url, validity: validity)
-        #expect(loaded?.arguments == ["-DDEBUG"])
+        guard case let .command(loaded)? = XcodeCommandCapture.loadPersisted(
+            at: url, validity: validity
+        ) else {
+            Issue.record("expected persisted command")
+            return
+        }
+        #expect(loaded.arguments == ["-DDEBUG"])
 
         let stale = ["/proj/project.pbxproj": Date(timeIntervalSince1970: 200)]
         #expect(XcodeCommandCapture.loadPersisted(at: url, validity: stale) == nil)
+
+        XcodeCommandCapture.persist(nil, at: url, validity: validity)
+        guard case .driverless? = XcodeCommandCapture.loadPersisted(
+            at: url, validity: validity
+        ) else {
+            Issue.record("expected driverless marker")
+            return
+        }
     }
 
     @Test("normalizer drops Xcode bookkeeping incl. wrapped const-gather and vfs stat cache")

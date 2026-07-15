@@ -17,14 +17,16 @@ enum XcodeCommandCapture {
         var swiftSources: [String]
     }
 
+    private static let driverMarkers = [
+        "builtin-SwiftDriver -- ", "builtin-Swift-Compilation -- ",
+    ]
+
     /// Parse a build log for the module's compile command. Nil when the log
     /// has no matching SwiftDriver invocation (null build, or a build system
     /// that does not log one). The target's C/ObjC objects are deliberately
     /// not read from the log — an incremental build only logs CompileC for
     /// changed sources — they come from the objects directory on disk.
-    static func parse(log: String, moduleName: String, targetName _: String) -> CapturedCommand? {
-        let driverMarkers = ["builtin-SwiftDriver -- ", "builtin-Swift-Compilation -- "]
-
+    static func parse(log: String, moduleName: String) -> CapturedCommand? {
         for rawLine in log.split(separator: "\n", omittingEmptySubsequences: true) {
             let line = rawLine.trimmingCharacters(in: .whitespaces)
             guard let marker = driverMarkers.first(where: line.contains) else { continue }
@@ -50,18 +52,28 @@ enum XcodeCommandCapture {
     /// recompile to capture) from build-with-Bazel projects (fall back to
     /// settings derivation immediately).
     static func logsDriverInvocations(_ log: String) -> Bool {
-        log.contains("builtin-SwiftDriver")
+        driverMarkers.contains { marker in
+            log.contains(marker.trimmingCharacters(in: .whitespaces))
+        }
     }
 
     // MARK: - Persistence
 
+    /// A valid persisted answer: the captured command, or the knowledge that
+    /// this project's build system never logs one (build-with-Bazel), which
+    /// spares the per-start forced-rebuild probe.
+    enum PersistedResult {
+        case command(CapturedCommand)
+        case driverless
+    }
+
     private struct PersistedCapture: Codable {
         var validity: [String: Date]
-        var command: CapturedCommand
+        var command: CapturedCommand?
     }
 
     static func persist(
-        _ command: CapturedCommand, at url: URL, validity: [String: Date]
+        _ command: CapturedCommand?, at url: URL, validity: [String: Date]
     ) {
         let persisted = PersistedCapture(validity: validity, command: command)
         if let data = try? JSONEncoder().encode(persisted) {
@@ -69,13 +81,13 @@ enum XcodeCommandCapture {
         }
     }
 
-    static func loadPersisted(at url: URL, validity: [String: Date]) -> CapturedCommand? {
+    static func loadPersisted(at url: URL, validity: [String: Date]) -> PersistedResult? {
         guard
             let data = try? Data(contentsOf: url),
             let persisted = try? JSONDecoder().decode(PersistedCapture.self, from: data),
             persisted.validity == validity
         else { return nil }
-        return persisted.command
+        return persisted.command.map(PersistedResult.command) ?? .driverless
     }
 
     /// The mtimes that must be unchanged for a persisted capture to stay

@@ -87,8 +87,7 @@ public actor XcodeBuildSystem: BuildSystem {
         //    settings-derived path below stays as its fallback.
         let captured = try await captureCommand(
             buildLog: buildLog, scheme: scheme, platform: platform,
-            moduleName: moduleName, targetName: targetName,
-            builtProductsDir: builtProductsDir
+            moduleName: moduleName, builtProductsDir: builtProductsDir
         )
         if let captured {
             return try await buildContext(
@@ -151,44 +150,44 @@ public actor XcodeBuildSystem: BuildSystem {
     /// SwiftDriver invocations (build-with-Bazel).
     private func captureCommand(
         buildLog: String, scheme: String, platform: PreviewPlatform,
-        moduleName: String, targetName: String, builtProductsDir: String
+        moduleName: String, builtProductsDir: String
     ) async throws -> XcodeCommandCapture.CapturedCommand? {
-        if let captured = XcodeCommandCapture.parse(
-            log: buildLog, moduleName: moduleName, targetName: targetName
-        ) {
-            XcodeCommandCapture.persist(
-                captured, at: persistedCaptureURL(builtProductsDir, moduleName),
-                validity: captureValidity()
-            )
+        let persistURL = persistedCaptureURL(builtProductsDir, moduleName)
+        let validity = captureValidity()
+        func parseAndPersist(_ log: String) -> XcodeCommandCapture.CapturedCommand? {
+            guard
+                let captured = XcodeCommandCapture.parse(log: log, moduleName: moduleName)
+            else { return nil }
+            XcodeCommandCapture.persist(captured, at: persistURL, validity: validity)
             return captured
         }
 
-        if let persisted = XcodeCommandCapture.loadPersisted(
-            at: persistedCaptureURL(builtProductsDir, moduleName),
-            validity: captureValidity()
-        ) {
-            return persisted
+        if let captured = parseAndPersist(buildLog) {
+            return captured
+        }
+        switch XcodeCommandCapture.loadPersisted(at: persistURL, validity: validity) {
+        case let .command(persisted): return persisted
+        case .driverless: return nil
+        case nil: break
         }
 
         // No compile line and no valid persisted capture. A null build and a
         // build-with-Bazel project both log nothing here, so force the module
         // to recompile (identity content, only the preview file's mtime
         // moves): under XCBuild the forced log must carry the driver line;
-        // a forced log without one is Bazel driving the build.
+        // a forced log without one is Bazel driving the build, remembered so
+        // the probe does not repeat every start.
         try? FileManager.default.setAttributes(
             [.modificationDate: Date()], ofItemAtPath: sourceFile.path
         )
         let forcedLog = try await runBuild(scheme: scheme, platform: platform)
-        if let captured = XcodeCommandCapture.parse(
-            log: forcedLog, moduleName: moduleName, targetName: targetName
-        ) {
-            XcodeCommandCapture.persist(
-                captured, at: persistedCaptureURL(builtProductsDir, moduleName),
-                validity: captureValidity()
-            )
+        if let captured = parseAndPersist(forcedLog) {
             return captured
         }
-        guard XcodeCommandCapture.logsDriverInvocations(forcedLog) else { return nil }
+        guard XcodeCommandCapture.logsDriverInvocations(forcedLog) else {
+            XcodeCommandCapture.persist(nil, at: persistURL, validity: validity)
+            return nil
+        }
         throw BuildSystemError.missingArtifacts(
             "No compile command for module '\(moduleName)' in the xcodebuild log"
         )
@@ -231,9 +230,18 @@ public actor XcodeBuildSystem: BuildSystem {
         // projects, X01): -F/-framework pairs are what the JIT agent resolves
         // to framework binaries to dlopen. The target's own framework is the
         // Tier 2 recompile itself, never loaded.
+        var ownNames: Set<String> = [moduleName, targetName]
+        for key in ["PRODUCT_NAME", "EXECUTABLE_NAME"] {
+            if let value = settings[key] { ownNames.insert(value) }
+        }
+        if let wrapper = settings["CODESIGNING_FOLDER_PATH"] {
+            ownNames.insert(
+                URL(fileURLWithPath: wrapper).deletingPathExtension().lastPathComponent
+            )
+        }
         let dependencyFrameworks = BuildSystemSupport.collectFrameworks(
             binPath: URL(fileURLWithPath: builtProductsDir)
-        ).filter { $0 != moduleName && $0 != targetName }
+        ).filter { !ownNames.contains($0) }
         if !dependencyFrameworks.isEmpty {
             flags += ["-F", builtProductsDir]
             for framework in dependencyFrameworks {
@@ -314,7 +322,7 @@ public actor XcodeBuildSystem: BuildSystem {
         settings: [String: String], targetName: String, swiftSources: [String]
     ) -> [String] {
         guard let objectFileDir = settings["OBJECT_FILE_DIR_normal"] else { return [] }
-        let objectsDir = URL(fileURLWithPath: objectFileDir).appendingPathComponent("arm64")
+        let objectsDir = URL(fileURLWithPath: objectFileDir).appendingPathComponent(hostArch)
         guard
             let entries = try? FileManager.default.contentsOfDirectory(
                 at: objectsDir, includingPropertiesForKeys: nil
@@ -342,7 +350,7 @@ public actor XcodeBuildSystem: BuildSystem {
         objects: [String], moduleName: String, builtProductsDir: String
     ) async -> [String] {
         let cacheDir = (builtProductsDir as NSString)
-            .appendingPathComponent("previewsmcp-package-archives")
+            .appendingPathComponent(Self.archiveCacheDirName)
         try? FileManager.default.createDirectory(
             atPath: cacheDir, withIntermediateDirectories: true
         )
@@ -350,7 +358,7 @@ public actor XcodeBuildSystem: BuildSystem {
         let archivePath = (cacheDir as NSString).appendingPathComponent("lib\(libName).a")
         try? FileManager.default.removeItem(atPath: archivePath)
         let result = try? await runAsync(
-            "/usr/bin/env", arguments: ["ar", "rcs", archivePath] + objects
+            "/usr/bin/ar", arguments: ["rcs", archivePath] + objects
         )
         guard result?.exitCode == 0 else { return [] }
         return ["-L", cacheDir, "-l\(libName)"]
@@ -838,7 +846,7 @@ extension XcodeBuildSystem {
         guard !objects.isEmpty else { return ([], []) }
 
         let cacheDir = (builtProductsDir as NSString)
-            .appendingPathComponent("previewsmcp-package-archives")
+            .appendingPathComponent(Self.archiveCacheDirName)
         try? fm.createDirectory(atPath: cacheDir, withIntermediateDirectories: true)
 
         // Each object's archive + autolink work is independent, so process them
@@ -894,6 +902,9 @@ extension XcodeBuildSystem {
         )
         return (base, await frameworks)
     }
+
+    /// Archives PreviewsMCP creates beside the build products for the JIT link.
+    static let archiveCacheDirName = "previewsmcp-package-archives"
 
     /// The arch the JIT agent runs as, used to thin universal package objects.
     static var hostArch: String {
