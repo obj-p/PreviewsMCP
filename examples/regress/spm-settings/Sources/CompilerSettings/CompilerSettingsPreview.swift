@@ -19,8 +19,7 @@ struct CompilerSettingsView: View {
             #if COMPILER_SETTINGS_PRESENT
                 Text("Conditional Swift setting present")
             #else
-                Text("Conditional Swift setting missing")
-                    .foregroundStyle(.red)
+                #error("COMPILER_SETTINGS_PRESENT was not forwarded to the compile")
             #endif
         }
         .padding()

@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import os
 import Testing
@@ -40,6 +41,7 @@ enum CLIRunner {
     static let xcodeprojExampleRoot: URL = repoRoot.appendingPathComponent("examples/xcodeproj")
     static let xcworkspaceExampleRoot: URL = repoRoot.appendingPathComponent("examples/xcworkspace")
     static let bazelExampleRoot: URL = repoRoot.appendingPathComponent("examples/bazel")
+    static let regressRoot: URL = repoRoot.appendingPathComponent("examples/regress")
 
     /// Mirrors `Sources/PreviewsCLI/DaemonPaths.swift`. The daemon writes its
     /// stderr to this file when launched detached. We can't import PreviewsCLI
@@ -139,6 +141,26 @@ enum CLIRunner {
             #expect(w == expectedWidth, "PNG width should be \(expectedWidth), got \(w)")
             #expect(h == expectedHeight, "PNG height should be \(expectedHeight), got \(h)")
         }
+    }
+
+    /// Assert the PNG decodes and is not a uniform frame. A blank (single
+    /// color) render encodes a perfectly valid PNG over the 1024-byte floor,
+    /// so guards for "renders real content" need a pixel check, not a size
+    /// heuristic. Scans every pixel's raw bytes — sampling grids step over
+    /// thin glyphs (a centered "42" in a 400x600 frame).
+    static func assertNonBlankPNG(at path: String) throws {
+        let data = try Data(contentsOf: URL(fileURLWithPath: path))
+        let rep = try #require(NSBitmapImageRep(data: data), "PNG should decode")
+        let bytes = try #require(rep.bitmapData, "PNG should expose bitmap data")
+        let bytesPerPixel = rep.bitsPerPixel / 8
+        let width = rep.pixelsWide
+        for y in 0 ..< rep.pixelsHigh {
+            let row = bytes + y * rep.bytesPerRow
+            for x in 0 ..< width where memcmp(row + x * bytesPerPixel, bytes, bytesPerPixel) != 0 {
+                return
+            }
+        }
+        Issue.record("PNG appears blank: every pixel matches the first")
     }
 
     static func assertValidJPEG(at path: String, minSize: Int = 1024) throws {
