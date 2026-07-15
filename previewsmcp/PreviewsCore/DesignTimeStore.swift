@@ -6,7 +6,11 @@ public enum DesignTimeStoreSource {
 
     @Observable
     final class DesignTimeStore {
-        static let shared = DesignTimeStore()
+        // The generated unit compiles under the target's captured language
+        // mode, which may be Swift 6 with strict concurrency; the shared
+        // store is design-time state mutated from the agent's control
+        // channel only.
+        nonisolated(unsafe) static let shared = DesignTimeStore()
         var values: [String: Any] = [:]
 
         func string(_ id: String, fallback: String) -> String {

@@ -577,10 +577,23 @@ public actor PreviewSession {
         "g" + UUID().uuidString.replacingOccurrences(of: "-", with: "").prefix(12)
     }
 
-    private static func moduleName(for file: URL) -> String {
+    static func moduleName(for file: URL) -> String {
         let stem = file.deletingPathExtension().lastPathComponent
         let hash = String(stableHash(file.path), radix: 16).prefix(6)
-        return "Preview_\(stem)_\(hash)"
+        return "Preview_\(sanitizedIdentifier(stem))_\(hash)"
+    }
+
+    /// File stems flow into `-module-name`, which must be a valid Swift
+    /// identifier; spaces, dashes, and other punctuation in file names are
+    /// mapped to underscores (the path-hash suffix keeps collisions apart).
+    static func sanitizedIdentifier(_ stem: String) -> String {
+        String(
+            stem.map { character in
+                character.isASCII
+                    && (character.isLetter || character.isNumber || character == "_")
+                    ? character : "_"
+            }
+        )
     }
 
     /// FNV-1a hash producing a stable, deterministic value across processes.

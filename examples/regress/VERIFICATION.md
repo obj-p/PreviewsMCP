@@ -2,7 +2,9 @@
 
 Last full manual pass: 2026-07-14. Detection rows (D01–D09, X02's detection
 half) re-verified 2026-07-15 after the ownership-walk resolver landed
-(`docs/build-system-resolver.md`, stage 1).
+(`docs/build-system-resolver.md`, stage 1). SwiftPM compile rows (S01–S06,
+D09, W01's edit variant) re-verified 2026-07-15 after compile-command
+capture landed (stage 2).
 
 Environment: Xcode 26.2, an iOS 26.3 `previewsmcp-test` iPhone simulator,
 and the Bazel-built CLI from this checkout. Commands used an isolated daemon
@@ -25,14 +27,14 @@ not a nonzero command exit.
 | D06 | Guard passes | 2026-07-15 (ownership walk): the start error names every declined candidate (the fixture's fallback package and workspace, the repo root) and the `project.yml` manifest with `run xcodegen generate`. Previously a generic SwiftPM ownership failure. |
 | D07 | Guard passes | 2026-07-15 (ownership walk): the start error reports that no target in `StaleOutput.xcodeproj` compiles `NewPreview.swift` and that the project may be stale relative to its XcodeGen manifest. Previously the outer SwiftPM root claimed the file and forced Xcode silently rendered a file outside the project. |
 | D08 | Guard passes | 2026-07-15 (ownership walk): membership confirmed target `Beta`; the `Combined` scheme's build settings are parsed for that target and the preview rendered `Beta owns this preview`. Previously it compiled as module `Alpha` and failed. |
-| D09 | Reproduced | 2026-07-15: the ownership walk confirms the spaced/Unicode path and SwiftPM builds it. The remaining failure is the derived module name: `swiftc` rejects `Preview_Unicode–Preview_...` as an invalid identifier (identifier sanitizer lands with compile-context capture). |
+| D09 | Guard passes | 2026-07-15 (compile capture): derived module names are sanitized to valid identifiers; rendered `path fixture: café` through the spaced/Unicode fixture path. |
 | X01 | Reproduced | Native `xcodebuild` passed for the workspace's `Preview Debug` configuration. PreviewsMCP selected the workspace, built both projects, linked `SharedKit`, and rendered its text, but the snapshot showed `wrong Xcode configuration` because `PREVIEW_WORKSPACE` from the selected `.xcconfig` was missing in Tier 2. |
-| S01 | Reproduced | Native `swift build` passed. PreviewsMCP Tier 2 failed with `no such module 'FixtureC'`; its command also included the excluded `DoNotCompile.swift` and omitted the plugin-generated source/settings. |
-| S02 | Reproduced | Native SwiftPM passed and PreviewsMCP compiled/rendered the isolated target, proving the upcoming-feature syntax remained usable. The snapshot showed `Conditional Swift setting missing`, so the target's conditional define was not forwarded. |
-| S03 | Reproduced | Native SwiftPM generated and compiled `GeneratedFixtureStamp`. PreviewsMCP's Tier 2 compile failed with `cannot find 'GeneratedFixtureStamp' in scope`. |
-| S04 | Reproduced | Native SwiftPM honored the exclusion and Clang dependency. PreviewsMCP included `Excluded/DoNotCompile.swift` in its incremental command and failed first with `no such module 'FixtureC'`. |
-| S05 | Reproduced | Native SwiftPM built the macro plugin and client. PreviewsMCP Tier 2 failed with `external macro implementation type 'FixtureMacrosPlugin.FixtureStampMacro' could not be found ... plugin for module 'FixtureMacrosPlugin' not found`; the plugin executable was never built for the host or passed to the compile. |
-| S06 | Guard passes | The `@Observable` toolchain macro compiled through the default plugin path and the preview rendered `toolchain macro active` on macOS. |
+| S01 | Guard passes | 2026-07-15 (compile capture): rendered `Compiler settings preserved`, the processed resource, `build-tool generated`, `C module value: 42`, and `Conditional Swift setting present`. The captured command carries the C module map and defines; the captured inputs honor the exclusion and include the plugin-generated source. |
+| S02 | Guard passes | 2026-07-15 (compile capture): rendered `ExistentialAny enabled` and `Conditional Swift setting present` — the conditional define, upcoming feature, and unsafe flags forward through the normalized captured command. |
+| S03 | Guard passes | 2026-07-15 (compile capture): the plugin-generated `GeneratedFixtureStamp` is a captured compile input; rendered `build-tool generated`. |
+| S04 | Guard passes | 2026-07-15 (compile capture): the exclusion is honored by the captured inputs and the Clang module resolves; rendered `C module value: 42`. |
+| S05 | Guard passes | 2026-07-15 (compile capture): rendered `custom macro expansion active`. The captured `-Xfrontend -load-plugin-executable` points at the host-built plugin SwiftPM already produced (#413). |
+| S06 | Guard passes | The `@Observable` toolchain macro compiled through the default plugin path and the preview rendered `toolchain macro active` on macOS. Re-verified 2026-07-15 under compile capture. |
 | X02 | Reproduced | Native `xcodebuild` passed. 2026-07-15: auto-detection now selects the fixture's Xcode project (the outer-SwiftPM misclaim is fixed by the ownership walk); the compile still fails with `cannot find 'BridgedGreeting' in scope` because `SWIFT_OBJC_BRIDGING_HEADER` is not forwarded to Tier 2 (#414). |
 | C01 | Reproduced | Native SwiftPM build passed. Literal thunking changed `0 ..< 12` into a parser-invalid operator boundary (`'..<' is not a postfix unary operator`). |
 | C02 | Reproduced | Native SwiftPM build passed. String thunking produced `String` where `String.LocalizationValue` was required. |
@@ -47,7 +49,7 @@ not a nonzero command exit.
 | R01 | Reproduced | macOS and iOS reached JIT materialization and failed on the target-wide framework/autolink closure. The CLI error was an unclassified symbol dump; the daemon remained responsive. |
 | R02 | Reproduced | English JSON, text, and localization resources rendered on macOS and iOS. Both selecting preview index 1 and an explicit single-preview Spanish localization control produced a blank or partial framebuffer on iOS. Native SwiftPM build passed and both locale directories were present in the staged bundle. |
 | R03 | Reproduced | macOS and iOS rendered the generated color symbol, while the localized key remained `resource.title` and plist/Core Data lookup reported missing. The cold iOS Xcode build also spent about 49 seconds in one progress step. |
-| W01 | Partial guard | Editing a dependency Swift file live changed `source version one` to `source version two` in a stable follow-up snapshot without restarting the session. The add/rename/remove variants are present in the fixture instructions but were not all exercised in this pass. |
+| W01 | Partial guard | Editing a dependency Swift file live changed `source version one` to `source version two` in a stable follow-up snapshot without restarting the session. The add/rename/remove variants are present in the fixture instructions but were not all exercised in this pass. Edit variant re-verified 2026-07-15 with the watcher fed by captured compile inputs; the fixture's Swift 6 language mode also forced two generated-source concurrency fixes (DesignTimeStore, window-state observer). |
 | W02 | Reproduced | Changing only `Resources/reload-value.txt` produced a reload transition, but stable follow-up snapshots still showed `resource version one`; the rebuilt/staged resource was stale. |
 | W03 | Guard passes | Both editor save styles reloaded on macOS: write-temp-then-rename-over and rename-away-then-recreate each updated the render to the new source value in a stable follow-up snapshot. |
 | W04 | Reproduced | The App preview rendered `dependency version one`. Editing `SharedLocal/Sources/SharedLocal/SharedValue.swift` in the live session produced no watcher or rebuild activity in the daemon log, and follow-up snapshots at 10 and 30 seconds were byte-identical stale renders. The dependency package's sources are not watched. |

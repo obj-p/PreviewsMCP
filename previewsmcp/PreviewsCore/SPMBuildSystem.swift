@@ -4,18 +4,17 @@ import Foundation
 public actor SPMBuildSystem: BuildSystem {
     public nonisolated let projectRoot: URL
     private let sourceFile: URL
-    private var primed: (targetName: String, description: PackageDescription)?
+    private var primedTarget: String?
 
     public init(projectRoot: URL, sourceFile: URL) {
         self.projectRoot = projectRoot
         self.sourceFile = sourceFile
     }
 
-    /// Hand over the target and decoded description the ownership walk
-    /// already paid a `swift package describe` for, so build() does not run
-    /// a second one.
-    func prime(targetName: String, description: PackageDescription) {
-        primed = (targetName, description)
+    /// Hand over the target the ownership walk already confirmed, so build()
+    /// does not run a second `swift package describe` to re-find it.
+    func prime(targetName: String) {
+        primedTarget = targetName
     }
 
     // MARK: - Platform Detection
@@ -222,11 +221,9 @@ public actor SPMBuildSystem: BuildSystem {
                     filePath.hasPrefix(targetDir.path + "/") || filePath == targetDir.path
                 }
             if member {
-                var ownership = Ownership(
-                    kind: .spm, projectRoot: projectRoot, targetName: target.name
+                return .confirmed(
+                    Ownership(kind: .spm, projectRoot: projectRoot, targetName: target.name)
                 )
-                ownership.packageDescription = description
-                return .confirmed(ownership)
             }
         }
         return .notMember(
@@ -240,13 +237,10 @@ public actor SPMBuildSystem: BuildSystem {
     public func build(platform: PreviewPlatform) async throws -> BuildContext {
         // 1. Describe the package to find the target (already answered by the
         //    ownership walk when this instance came from detection)
-        let description: PackageDescription
-        let targetName: String
-        if let primed {
-            (targetName, description) = primed
+        let targetName: String = if let primedTarget {
+            primedTarget
         } else {
-            description = try await describePackage()
-            targetName = try findTarget(for: sourceFile, in: description)
+            try findTarget(for: sourceFile, in: await describePackage())
         }
 
         // 2. Resolve iOS SDK path once (used by both swift build and --show-bin-path)
@@ -284,16 +278,29 @@ public actor SPMBuildSystem: BuildSystem {
         //     and -framework flags instead of -L/-l.
         let frameworkNames = BuildSystemSupport.collectFrameworks(binPath: binPath)
 
-        // 7. Build compiler flags
-        //    -I <Modules>   resolves dependency .swiftmodule files at compile time
+        // 7. Capture the compile command swift build actually ran for the
+        //    target out of the llbuild manifest it just wrote. The normalized
+        //    args carry the target's defines, language mode, feature flags,
+        //    macro plugin loads, C module maps, search paths, and
+        //    -package-name — everything the previous per-setting derivation
+        //    dropped. Deriving the manifest path from `binPath` also covers
+        //    users who relocate `.build` via --scratch-path / SWIFTPM_BUILD_DIR.
+        guard let manifestPath = Self.manifestPath(forBinPath: binPath) else {
+            throw BuildSystemError.missingArtifacts(
+                "Could not locate the build manifest for \(binPath.path)"
+            )
+        }
+        let captured = try SPMCommandCapture.capture(
+            manifestAt: manifestPath, forTarget: targetName
+        )
+        var flags = CompileCommandNormalizer.normalize(captured.arguments)
+
+        //    Link-time inputs are not part of the captured compile command:
         //    -L <binPath>   library search path for the archives created above
         //    -l<Dep>        per-dependency archive (lazy archive linking means only
         //                   object files actually referenced get pulled in)
         //    -F <binPath>   framework search path for binary XCFramework deps
         //    -framework X   link against a binary framework
-        var flags: [String] = [
-            "-I", modulesDir.path,
-        ]
         if !dependencyLibs.isEmpty {
             flags += ["-L", binPath.path]
             for dep in dependencyLibs {
@@ -311,68 +318,20 @@ public actor SPMBuildSystem: BuildSystem {
             flags += ["-Xlinker", "-rpath", "-Xlinker", binPath.path]
         }
 
-        // Add C module include paths for targets with C shims
-        let targetBuildDir = binPath.appendingPathComponent("\(targetName).build")
-        let includeDir = targetBuildDir.appendingPathComponent("include")
-        if FileManager.default.fileExists(atPath: includeDir.path) {
-            flags += ["-I", includeDir.path]
-        }
-
-        // Forward SPM's -package-name so package-access symbols from sibling
-        // targets in the same package stay visible when the dylib recompiles.
-        // The identity cannot be derived from Package.swift's `name:` — for
-        // path packages SPM uses the directory basename lowercased — so we
-        // read the exact value out of the LLBuild manifest that `swift build`
-        // just wrote. Deriving the manifest path from `binPath` also covers
-        // users who relocate `.build` via --scratch-path / SWIFTPM_BUILD_DIR.
-        if let manifestPath = Self.manifestPath(forBinPath: binPath),
-           let packageName = Self.readPackageName(
-               fromManifestAt: manifestPath, forTarget: targetName
-           )
-        {
-            flags += ["-package-name", packageName]
-        }
-
-        // 8. Collect Tier 2 data: other source files in the target
-        var otherSourceFiles = try collectSourceFiles(
-            targetName: targetName,
-            in: description
-        )
-
-        // 8b. Union SPM-generated sources (e.g. resource_bundle_accessor.swift
-        //     for targets with .process/.copy resources, which defines
-        //     Bundle.module). Without these, previews that use Bundle.module
-        //     fail to compile with "type 'Bundle' has no member 'module'".
-        let generated = Self.collectGeneratedSources(
-            binPath: binPath, targetName: targetName
-        )
-        if !generated.isEmpty {
-            otherSourceFiles = (otherSourceFiles ?? []) + generated
-        }
+        // 8. Tier 2 sources are the captured compile inputs: exclusions
+        //    already applied, resource accessors and plugin-generated sources
+        //    already included. Only the preview file is held out (it is
+        //    compiled separately with ThunkGenerator).
+        let previewPath = sourceFile.standardizedFileURL.path
+        let otherSourceFiles = captured.swiftInputs.filter { $0.path != previewPath }
 
         return BuildContext(
             moduleName: targetName,
             compilerFlags: flags,
             projectRoot: projectRoot,
             targetName: targetName,
-            sourceFiles: otherSourceFiles
+            sourceFiles: otherSourceFiles.isEmpty ? nil : otherSourceFiles
         )
-    }
-
-    /// Collect SPM-generated Swift sources that swiftc would normally compile into
-    /// the target. SPM writes these (currently `resource_bundle_accessor.swift` for
-    /// targets with resources) to `<binPath>/<Target>.build/DerivedSources/` and
-    /// never co-locates user sources there, so a shallow glob is safe. No filename
-    /// whitelist — SPM has renamed the accessor across Swift versions and may add
-    /// more generated files in the future.
-    nonisolated static func collectGeneratedSources(
-        binPath: URL, targetName: String
-    ) -> [URL] {
-        let derivedDir =
-            binPath
-                .appendingPathComponent("\(targetName).build")
-                .appendingPathComponent("DerivedSources")
-        return BuildSystemSupport.collectGeneratedSources(in: derivedDir)
     }
 
     // MARK: - Private: Package Description
@@ -422,7 +381,10 @@ public actor SPMBuildSystem: BuildSystem {
     // MARK: - Private: Build
 
     private func runSwiftBuild(platform: PreviewPlatform, iosSDKPath: String?) async throws {
-        var args = ["build"]
+        // Pin the build system that writes the llbuild manifest the compile
+        // capture reads; SwiftPM's default is moving to Swift Build, which
+        // does not emit it.
+        var args = ["build", "--build-system", "native"]
 
         if platform == .iOS, let sdkPath = iosSDKPath {
             args += ["--triple", PreviewPlatform.iOS.targetTriple, "--sdk", sdkPath]
@@ -440,7 +402,7 @@ public actor SPMBuildSystem: BuildSystem {
     }
 
     private func showBinPath(platform: PreviewPlatform, iosSDKPath: String?) async throws -> URL {
-        var args = ["swift", "build", "--show-bin-path"]
+        var args = ["swift", "build", "--build-system", "native", "--show-bin-path"]
 
         if platform == .iOS, let sdkPath = iosSDKPath {
             args += ["--triple", PreviewPlatform.iOS.targetTriple, "--sdk", sdkPath]
@@ -586,78 +548,6 @@ public actor SPMBuildSystem: BuildSystem {
         guard !config.isEmpty else { return nil }
         let scratchDir = binPath.deletingLastPathComponent().deletingLastPathComponent()
         return scratchDir.appendingPathComponent("\(config).yaml")
-    }
-
-    /// Read the `-package-name` value SPM passed to swiftc for a given target
-    /// out of the LLBuild manifest. Returns nil when the file is missing, the
-    /// target's compile command can't be found, or the target has no
-    /// `-package-name` flag (older toolchains).
-    ///
-    /// The manifest encodes each compile command on a single line like
-    ///     args: [..., "-module-name","ToDo", ..., "-package-name","spm"]
-    /// so we scan line-by-line for the one that matches our target and pull
-    /// the adjacent package-name out. Anchoring the module-name match with
-    /// surrounding quotes/commas is what keeps `ToDo` from colliding with
-    /// `ToDoExtras`.
-    static func readPackageName(fromManifestAt url: URL, forTarget target: String) -> String? {
-        guard let data = try? Data(contentsOf: url),
-              let contents = String(data: data, encoding: .utf8)
-        else { return nil }
-
-        let moduleNeedle = "\"-module-name\",\"\(target)\""
-        let packageFlag = "\"-package-name\",\""
-
-        for rawLine in contents.split(separator: "\n", omittingEmptySubsequences: true) {
-            let line = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard line.hasPrefix("args: ["), line.contains(moduleNeedle) else { continue }
-            // Fall through (not bail) when the matched line lacks -package-name:
-            // SPM may emit more than one compile command per module (e.g. a
-            // wrapper plus the real args line), and only the args line carries
-            // the flag.
-            guard let flagRange = line.range(of: packageFlag) else { continue }
-            let tail = line[flagRange.upperBound...]
-            guard let endQuote = tail.firstIndex(of: "\"") else { continue }
-            return String(tail[..<endQuote])
-        }
-        return nil
-    }
-
-    // MARK: - Private: Source Files (Tier 2)
-
-    /// Collect all .swift source files in the target EXCEPT the preview file.
-    /// These are compiled alongside the transformed preview file so all types are visible.
-    private func collectSourceFiles(
-        targetName: String,
-        in description: PackageDescription
-    ) throws -> [URL]? {
-        guard let target = description.targets.first(where: { $0.name == targetName }) else {
-            return nil
-        }
-
-        let targetDir = projectRoot.appendingPathComponent(target.path).standardizedFileURL
-
-        // Enumerate .swift files in the target directory
-        guard
-            let enumerator = FileManager.default.enumerator(
-                at: targetDir,
-                includingPropertiesForKeys: nil,
-                options: [.skipsHiddenFiles]
-            )
-        else {
-            return nil
-        }
-
-        var sourceFiles: [URL] = []
-        for case let fileURL as URL in enumerator {
-            guard fileURL.pathExtension == "swift" else { continue }
-            let standardized = fileURL.standardizedFileURL
-            // Exclude the preview file — it's compiled separately with ThunkGenerator
-            if standardized.path != sourceFile.path {
-                sourceFiles.append(standardized)
-            }
-        }
-
-        return sourceFiles.isEmpty ? nil : sourceFiles
     }
 
     // MARK: - Private: Process Execution

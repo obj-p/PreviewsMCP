@@ -492,8 +492,13 @@ public enum BridgeGenerator {
                                 NotificationCenter.default.addObserver(
                                     forName: __name, object: window, queue: nil
                                 ) { __note in
+                                    // NSWindow notifications fire on main (hence
+                                    // assumeIsolated); the unsafe binding keeps the
+                                    // non-Sendable payload legal when the target's
+                                    // captured language mode is Swift 6.
+                                    nonisolated(unsafe) let __object = __note.object
                                     MainActor.assumeIsolated {
-                                        guard let __win = __note.object as? NSWindow else { return }
+                                        guard let __win = __object as? NSWindow else { return }
                                         __previewsmcpWriteWindowState(__win)
                                     }
                                 }

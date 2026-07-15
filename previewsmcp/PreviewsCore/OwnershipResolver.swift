@@ -9,10 +9,6 @@ public struct Ownership: Sendable {
     public let targetName: String?
     /// The .xcodeproj/.xcworkspace that confirmed membership (Xcode only).
     public let projectFile: URL?
-    /// The decoded package description the SwiftPM confirmation already paid
-    /// for, handed to the constructed build system so build() does not run a
-    /// second `swift package describe` (SwiftPM only).
-    var packageDescription: SPMBuildSystem.PackageDescription?
 
     public init(
         kind: BuildSystemKind,
