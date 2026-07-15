@@ -579,30 +579,6 @@ public actor BazelBuildSystem: BuildSystem {
             != nil
     }
 
-    /// Convert a Bazel label like "//Sources/ToDo:Item.swift" to a relative path "Sources/ToDo/Item.swift".
-    nonisolated func labelToPath(_ label: String) -> String? {
-        var label = label
-        // Strip leading "//" or "@//"
-        if let atSlashRange = label.range(of: "@//") {
-            label = String(label[atSlashRange.upperBound...])
-        } else if label.hasPrefix("//") {
-            label = String(label.dropFirst(2))
-        } else {
-            return nil
-        }
-
-        // Split on ":" — package:file
-        guard let colonIndex = label.firstIndex(of: ":") else { return nil }
-
-        let packagePath = String(label[label.startIndex ..< colonIndex])
-        let fileName = String(label[label.index(after: colonIndex)...])
-
-        if packagePath.isEmpty {
-            return fileName
-        }
-        return "\(packagePath)/\(fileName)"
-    }
-
     // MARK: - Private: Platform Flags
 
     /// Deployment-target pin shared by both iOS build paths, matching the

@@ -162,7 +162,13 @@ bazel-bin/<package>/
 
 PreviewsMCP relies on `bazel cquery --output=files` to locate the `.swiftmodule`, falling back to `bazel-bin/<package>/<moduleName>.swiftmodule` if cquery returns no files. The directory containing the `.swiftmodule` becomes the single `-I` flag passed to swiftc — there is no per-file enumeration of dependency search paths.
 
-Source files for Tier 2 are enumerated via `bazel query 'labels(srcs, <target>)'`. There is **no** `DerivedSources/` walk: rules_swift's `swift_library` does not synthesize a `Bundle.module` accessor (resources are exposed as a separate `apple_resource_bundle` reached via `Bundle(identifier:)` or a hand-written accessor). Auto-generated outputs from `swift_proto_library` / `swift_grpc_library` are also not currently picked up; if needed, extend `collectSourceFiles` to union those `.swift` outputs from `bazel cquery --output=files`.
+Source files for Tier 2 are the captured SwiftCompile action's `.swift`
+inputs (`BazelCommandCapture`), which resolve generated sources —
+genrule/proto outputs included — to their execroot paths. There is **no**
+`DerivedSources/` walk: rules_swift's `swift_library` does not synthesize a
+`Bundle.module` accessor (resources are exposed as a separate
+`apple_resource_bundle` reached via `Bundle(identifier:)` or a hand-written
+accessor).
 
 ### File Watching
 

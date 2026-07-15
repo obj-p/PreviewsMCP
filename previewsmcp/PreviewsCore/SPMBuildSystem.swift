@@ -315,7 +315,11 @@ public actor SPMBuildSystem: BuildSystem {
             let name = String(
                 entry.deletingPathExtension().lastPathComponent.dropFirst(3)
             )
-            if !linkLibs.contains(name) {
+            if !linkLibs.contains(name),
+               !Self.shouldSkipDependencyTarget(
+                   targetName: name, consumerTargetName: targetName, binPath: binPath
+               )
+            {
                 linkLibs.append(name)
             }
         }
