@@ -122,10 +122,8 @@ public enum BuildSystemDetector {
             let system = SPMBuildSystem(
                 projectRoot: ownership.projectRoot, sourceFile: standardized
             )
-            if let targetName = ownership.targetName,
-               let description = ownership.packageDescription
-            {
-                await system.prime(targetName: targetName, description: description)
+            if let targetName = ownership.targetName {
+                await system.prime(targetName: targetName)
             }
             return system
         case .bazel:
