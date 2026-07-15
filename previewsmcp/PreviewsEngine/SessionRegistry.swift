@@ -33,11 +33,18 @@ public actor SessionRegistry {
         public let sessionID: String
         public let platform: String
         public let sourceFilePath: String
+        /// Simulator device this session occupies (iOS only). Optional so
+        /// registry files written before the field existed still decode.
+        public let deviceUDID: String?
 
-        public init(sessionID: String, platform: String, sourceFilePath: String) {
+        public init(
+            sessionID: String, platform: String, sourceFilePath: String,
+            deviceUDID: String? = nil
+        ) {
             self.sessionID = sessionID
             self.platform = platform
             self.sourceFilePath = sourceFilePath
+            self.deviceUDID = deviceUDID
         }
     }
 
@@ -107,9 +114,14 @@ public actor SessionRegistry {
 
     /// Replace the iOS slice of our published session set and rewrite
     /// our PID file.
-    public func publishIOSSessions(_ sessions: [(id: String, sourceFile: URL)]) {
+    public func publishIOSSessions(
+        _ sessions: [(id: String, sourceFile: URL, deviceUDID: String?)]
+    ) {
         iosSnapshot = sessions.map {
-            Entry(sessionID: $0.id, platform: "ios", sourceFilePath: $0.sourceFile.path)
+            Entry(
+                sessionID: $0.id, platform: "ios", sourceFilePath: $0.sourceFile.path,
+                deviceUDID: $0.deviceUDID
+            )
         }
         writeOurFile()
     }

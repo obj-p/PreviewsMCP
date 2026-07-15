@@ -64,15 +64,20 @@ enum PreviewConfigureHandler: ToolHandler {
             return CallTool.Result(content: [.text("No session found for \(sessionID)")], isError: true)
         }
 
+        if let failure = await terminalFailureResult(for: handle) { return failure }
+
         let progress = mcpReporter(server: ctx.server, params: params, totalSteps: 1)
         await progress.report(.compilingBridge, message: "Recompiling with new traits...")
         try await handle.reconfigure(traits: traits, clearing: clearedFields)
 
         let activeTraits = await handle.currentTraits
-        return CallTool.Result(content: [
-            .text(
-                "Configured session \(sessionID): \(traitsSummary(activeTraits)). View recompiled (@State was reset)."
-            ),
-        ])
+        return await appendingIncidentNotice(
+            CallTool.Result(content: [
+                .text(
+                    "Configured session \(sessionID): \(traitsSummary(activeTraits)). View recompiled (@State was reset)."
+                ),
+            ]),
+            from: handle
+        )
     }
 }

@@ -50,6 +50,16 @@ enum PreviewElementsHandler: ToolHandler {
             )
         }
 
+        if await iosSession.failed {
+            return CallTool.Result(
+                content: [
+                    .text(
+                        "The preview agent for session \(sessionID) crashed and could not be relaunched. Stop the session and start a new one."
+                    ),
+                ], isError: true
+            )
+        }
+
         let validFilters: Set = ["all", "interactable", "labeled"]
         let filter = extractOptionalString("filter", from: params) ?? "all"
         guard validFilters.contains(filter) else {
@@ -76,9 +86,12 @@ enum PreviewElementsHandler: ToolHandler {
             nil
         }
 
-        return CallTool.Result(
-            content: [.text(elementsJSON)],
-            structuredContent: structured
+        return await appendingCrashNotice(
+            CallTool.Result(
+                content: [.text(elementsJSON)],
+                structuredContent: structured
+            ),
+            from: iosSession
         )
     }
 }

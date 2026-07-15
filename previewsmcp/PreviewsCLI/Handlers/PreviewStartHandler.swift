@@ -264,6 +264,20 @@ private func handleIOSPreviewStart(
         return CallTool.Result(content: [.text(error.localizedDescription)], isError: true)
     }
 
+    // Claim the device before building or launching anything: one live
+    // session per device, transferred in order (docs/state-invalidation.md,
+    // L01). A live in-process incumbent is stopped and disclosed; a live
+    // peer process's session is a classified fail-fast error.
+    let claimOwner = UUID().uuidString
+    let replacedSessionID: String?
+    do {
+        stage("claiming device")
+        replacedSessionID = try await ctx.iosState.claimDevice(deviceUDID, owner: claimOwner)
+        stage("claimed device (replaced=\(replacedSessionID ?? "none"))")
+    } catch {
+        return CallTool.Result(content: [.text(error.localizedDescription)], isError: true)
+    }
+
     stage("getting compiler")
     let iosCompiler = try await ctx.iosState.getCompiler()
     stage("getting agentBuilder")
@@ -282,13 +296,20 @@ private func handleIOSPreviewStart(
         stage("detectBuildContext done (\(buildContext == nil ? "nil" : "ok"))")
     } catch {
         stage("detectBuildContext failed: \(error)")
+        await ctx.iosState.releaseDeviceClaim(deviceUDID, owner: claimOwner)
         return CallTool.Result(content: [.text("Project build failed: \(error.localizedDescription)")], isError: true)
     }
 
     stage("buildSetupIfConfigured begin")
-    let setupResult = try await buildSetupIfConfigured(
-        config: config, configDirectory: configResult?.directory, platform: .iOS
-    )
+    let setupResult: SetupBuilder.Result?
+    do {
+        setupResult = try await buildSetupIfConfigured(
+            config: config, configDirectory: configResult?.directory, platform: .iOS
+        )
+    } catch {
+        await ctx.iosState.releaseDeviceClaim(deviceUDID, owner: claimOwner)
+        throw error
+    }
     stage("buildSetupIfConfigured done (\(setupResult == nil ? "nil" : "ok"))")
 
     let session = IOSPreviewSession(
@@ -311,9 +332,30 @@ private func handleIOSPreviewStart(
     )
 
     stage("session.start begin")
-    let pid = try await session.start()
+    let pid: Int
+    do {
+        pid = try await session.start()
+    } catch {
+        await ctx.iosState.releaseDeviceClaim(deviceUDID, owner: claimOwner)
+        throw error
+    }
     stage("session.start done pid=\(pid)")
     await ctx.iosState.addSession(session)
+
+    guard await ctx.iosState.confirmDeviceClaim(
+        deviceUDID, owner: claimOwner, sessionID: session.id
+    ) else {
+        stage("claim lost while launching; tearing down")
+        await session.stop()
+        await ctx.iosState.removeSession(session.id)
+        return CallTool.Result(
+            content: [
+                .text(
+                    "Session was replaced by a newer preview_start on device \(deviceUDID) while launching."
+                ),
+            ], isError: true
+        )
+    }
 
     // Set up file watching for hot-reload
     let sessionID = session.id
@@ -364,7 +406,7 @@ private func handleIOSPreviewStart(
     return try CallTool.Result(
         content: [
             .text(
-                "iOS simulator preview started on device \(deviceUDID). Session ID: \(sessionID). PID: \(pid).\(traitInfo) File is being watched for changes.\n\(previewList)\(switchHint)\(viewerHint)"
+                "iOS simulator preview started on device \(deviceUDID). Session ID: \(sessionID). PID: \(pid).\(traitInfo)\(replacedSessionID.map { " Replaced session \($0) on this device." } ?? "") File is being watched for changes.\n\(previewList)\(switchHint)\(viewerHint)"
             ),
         ],
         structuredContent: structured

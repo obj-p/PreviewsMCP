@@ -47,12 +47,17 @@ enum PreviewSnapshotHandler: ToolHandler {
             )
         }
 
+        if let failure = await terminalFailureResult(for: handle) { return failure }
+
         let imageData = try await handle.snapshot(quality: quality)
         Log.info("snap: captured \(imageData.count) bytes")
         let base64 = imageData.base64EncodedString()
 
-        return CallTool.Result(content: [
-            .image(data: base64, mimeType: mimeType, metadata: nil),
-        ])
+        return await appendingIncidentNotice(
+            CallTool.Result(content: [
+                .image(data: base64, mimeType: mimeType, metadata: nil),
+            ]),
+            from: handle
+        )
     }
 }

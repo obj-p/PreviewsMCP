@@ -73,6 +73,16 @@ enum PreviewTouchHandler: ToolHandler {
             )
         }
 
+        if await iosSession.failed {
+            return CallTool.Result(
+                content: [
+                    .text(
+                        "The preview agent for session \(sessionID) crashed and could not be relaunched. Stop the session and start a new one."
+                    ),
+                ], isError: true
+            )
+        }
+
         let action = extractOptionalString("action", from: params) ?? "tap"
 
         if action == "swipe" {
@@ -88,7 +98,12 @@ enum PreviewTouchHandler: ToolHandler {
             let duration = extractOptionalDouble("duration", from: params) ?? 0.3
 
             try await iosSession.sendSwipe(fromX: x, fromY: y, toX: toX, toY: toY, duration: duration)
-            return CallTool.Result(content: [.text("Swipe from (\(Int(x)),\(Int(y))) to (\(Int(toX)),\(Int(toY)))")])
+            return await appendingCrashNotice(
+                CallTool.Result(
+                    content: [.text("Swipe from (\(Int(x)),\(Int(y))) to (\(Int(toX)),\(Int(toY)))")]
+                ),
+                from: iosSession
+            )
         }
 
         try await iosSession.sendTap(x: x, y: y)
@@ -96,6 +111,9 @@ enum PreviewTouchHandler: ToolHandler {
         // Wait briefly for the touch to register and UI to update
         try await Task.sleep(for: .milliseconds(300))
 
-        return CallTool.Result(content: [.text("Tap sent at (\(Int(x)), \(Int(y)))")])
+        return await appendingCrashNotice(
+            CallTool.Result(content: [.text("Tap sent at (\(Int(x)), \(Int(y)))")]),
+            from: iosSession
+        )
     }
 }

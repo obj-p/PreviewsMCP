@@ -80,6 +80,8 @@ enum PreviewVariantsHandler: ToolHandler {
             return CallTool.Result(content: [.text("No session found for \(sessionID)")], isError: true)
         }
 
+        if let failure = await terminalFailureResult(for: handle) { return failure }
+
         let variantConfigQuality = await configQualityForSession(sessionID, ctx: ctx)
         let quality = max(0.0, min(1.0, extractOptionalDouble("quality", from: params) ?? variantConfigQuality ?? 0.85))
         let mimeType = quality >= 1.0 ? "image/png" : "image/jpeg"
@@ -156,10 +158,13 @@ enum PreviewVariantsHandler: ToolHandler {
             successCount: outcomes.count - failCount,
             failCount: failCount
         )
-        return try CallTool.Result(
-            content: contentBlocks,
-            structuredContent: structured,
-            isError: failCount == resolved.count
+        return try await appendingIncidentNotice(
+            CallTool.Result(
+                content: contentBlocks,
+                structuredContent: structured,
+                isError: failCount == resolved.count
+            ),
+            from: handle
         )
     }
 }
