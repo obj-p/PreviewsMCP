@@ -80,7 +80,9 @@ public actor BazelBuildSystem: BuildSystem {
                     "//\(packagePath) does not declare \(sourceFile.lastPathComponent) as a target source"
                 )
             }
-            let detail = message.split(separator: "\n").last.map(String.init) ?? message
+            let detail = message.split(separator: "\n")
+                .first { $0.contains("ERROR:") }
+                .map(String.init) ?? String(message.prefix(300))
             return .indeterminate(reason: "bazel query failed: \(detail)")
         }
         let targets = output.split(separator: "\n").map(String.init)
@@ -88,6 +90,12 @@ public actor BazelBuildSystem: BuildSystem {
             return .notMember(
                 reason:
                 "no swift_library in //\(packagePath) depends on \(sourceFile.lastPathComponent)"
+            )
+        }
+        guard targets.count == 1 else {
+            return .indeterminate(
+                reason:
+                "multiple swift_library targets in //\(packagePath) include \(sourceFile.lastPathComponent): \(targets.joined(separator: ", "))"
             )
         }
         return .confirmed(

@@ -732,14 +732,17 @@ extension XcodeBuildSystem {
     /// workspace checks each referenced project.
     static func confirmOwnership(
         projectRoot: URL, projectFile: URL, sourceFile: URL, scheme: String?
-    ) -> OwnershipVerdict {
+    ) async -> OwnershipVerdict {
         let projects =
             projectFile.pathExtension == "xcworkspace"
                 ? XcodeProjectMembership.projects(inWorkspace: projectFile)
                 : [projectFile]
         guard !projects.isEmpty else {
-            return .indeterminate(
-                reason: "\(projectFile.lastPathComponent) references no projects"
+            // A packages-only workspace (no .xcodeproj) cannot own the
+            // compile in this model — a definitive answer, so the walk may
+            // continue to farther roots.
+            return .notMember(
+                reason: "\(projectFile.lastPathComponent) references no .xcodeproj"
             )
         }
 
@@ -774,18 +777,28 @@ extension XcodeBuildSystem {
         }
         let candidates = nonTest.isEmpty ? memberships : nonTest
         let names = candidates.map(\.targetName)
-        let chosen: String? =
-            if names.count == 1 {
-                names[0]
-            } else if let scheme, names.contains(scheme) {
-                scheme
-            } else {
-                nil
-            }
-        guard let chosen else {
+        let chosen: String?
+        if names.count == 1 {
+            chosen = names[0]
+        } else if let scheme, names.contains(scheme) {
+            chosen = scheme
+        } else if scheme != nil {
+            // The scheme parameter names a scheme, not a target; when it
+            // matches no target name, ownership is still confirmed and the
+            // requested scheme resolves the ambiguity at build time
+            // (pickScheme honors it, settings fall to that scheme's first
+            // target).
+            chosen = nil
+        } else {
             return .indeterminate(
                 reason:
                 "multiple targets compile \(sourceFile.lastPathComponent): \(names.joined(separator: ", ")). Pass the scheme parameter to pick one"
+            )
+        }
+        guard await isXcodebuildAvailable() else {
+            return .indeterminate(
+                reason:
+                "\(projectFile.lastPathComponent) owns \(sourceFile.lastPathComponent) but xcodebuild is unavailable (install full Xcode)"
             )
         }
         return .confirmed(
@@ -794,6 +807,10 @@ extension XcodeBuildSystem {
                 targetName: chosen, projectFile: projectFile
             )
         )
+    }
+
+    private static func isXcodebuildAvailable() async -> Bool {
+        ((try? await Toolchain.xcodebuildPath()) ?? nil) != nil
     }
 
     /// The XcodeGen manifest in the given directory, if any.

@@ -93,6 +93,25 @@ struct OwnershipWalkTests {
         }
     }
 
+    @Test("a same-level peer that confirms beats an indeterminate marker")
+    func sameLevelConfirmBeatsIndeterminate() async throws {
+        let (root, file) = try tempTree("Sources/View.swift")
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let broken = FakeResolver(
+            kind: .spm,
+            verdicts: [root.path: .indeterminate(reason: "broken manifest")]
+        )
+        let bazel = FakeResolver(
+            kind: .bazel,
+            verdicts: [root.path: .confirmed(Ownership(kind: .bazel, projectRoot: root))]
+        )
+
+        let walk = OwnershipWalk(resolvers: [broken, bazel])
+        let ownership = try await walk.resolve(sourceFile: file, scheme: nil)
+        #expect(ownership?.kind == .bazel)
+    }
+
     @Test("same-level tie-break follows resolver order")
     func sameLevelTieBreak() async throws {
         let (root, file) = try tempTree("Sources/View.swift")

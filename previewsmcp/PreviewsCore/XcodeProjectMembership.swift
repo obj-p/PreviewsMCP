@@ -171,8 +171,10 @@ enum XcodeProjectMembership {
     ) -> [String: String] {
         var paths: [String: String] = [:]
         guard let groupID else { return paths }
+        var visited: Set<String> = []
 
         func visit(objectID: String, parentDir: URL) {
+            guard visited.insert(objectID).inserted else { return }
             guard let object = objects[objectID] else { return }
             let path = object["path"] as? String
             let sourceTree = object["sourceTree"] as? String ?? "<group>"

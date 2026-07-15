@@ -118,6 +118,10 @@ struct OwnershipWalk {
         let root = URL(fileURLWithPath: "/")
 
         while dir.path != root.path {
+            // An indeterminate marker blocks FARTHER levels, not same-level
+            // peers: a peer at the same distance that positively confirms is
+            // not a guess, so the throw is deferred until the level ends.
+            var blocking: OwnershipDecline?
             for resolver in resolvers {
                 guard let marker = resolver.candidateMarker(in: dir) else {
                     if let diagnostic = resolver.diagnose(in: dir) {
@@ -135,9 +139,16 @@ struct OwnershipWalk {
                         OwnershipDecline(markerPath: marker.path, reason: reason)
                     )
                 case let .indeterminate(reason):
-                    let blocking = OwnershipDecline(markerPath: marker.path, reason: reason)
-                    throw OwnershipError.indeterminate(blocking, declines: declines)
+                    let decline = OwnershipDecline(markerPath: marker.path, reason: reason)
+                    if blocking == nil {
+                        blocking = decline
+                    } else {
+                        declines.append(decline)
+                    }
                 }
+            }
+            if let blocking {
+                throw OwnershipError.indeterminate(blocking, declines: declines)
             }
             dir = dir.deletingLastPathComponent()
         }
@@ -195,7 +206,7 @@ struct XcodeOwnershipResolver: OwnershipResolving {
     func owner(
         of sourceFile: URL, at candidateRoot: URL, marker: URL, scheme: String?
     ) async -> OwnershipVerdict {
-        XcodeBuildSystem.confirmOwnership(
+        await XcodeBuildSystem.confirmOwnership(
             projectRoot: candidateRoot, projectFile: marker,
             sourceFile: sourceFile, scheme: scheme
         )
