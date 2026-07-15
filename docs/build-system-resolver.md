@@ -223,19 +223,23 @@ system used for the owning target, and transform it:
   Bazel pre-processor strips the driver prefix and DROPS captured
   `-sdk`/`-target`/`-file-prefix-map`, keeping `Compiler`'s own injection and
   the existing `platformFlags` authoritative.
-- **Xcode**: the least structured of the three; the stage starts with a
-  capture spike. Candidate mechanisms in preference order: (1) parse the
-  `SwiftDriver`/`swiftc` invocation from a `xcodebuild build` log — exact but
-  absent on null builds, so the first capture forces the target's compile and
-  the result is persisted keyed on pbxproj/xcconfig/DerivedData mtimes;
-  (2) XCBuild's build description under DerivedData (`XCBuildData/`) —
-  structured and null-build-stable but undocumented (reverse-engineering
-  Apple's own tooling is an accepted approach in this project);
-  (3) fall back to today's `-showBuildSettings` mapping extended with the
-  known-missing settings (`SWIFT_OBJC_BRIDGING_HEADER`,
-  `SWIFT_ACTIVE_COMPILATION_CONDITIONS`, `OTHER_SWIFT_FLAGS` pass-through) —
-  weakest, still a catalog, acceptable only as the fallback when no compile
-  command is capturable.
+- **Xcode**: build-log parse, decided by the stage-0 spike (run 2026-07-15
+  against `xcode-bridging`, Xcode 26.2). The `xcodebuild build` log carries
+  the complete `swiftc` invocation on a `builtin-SwiftDriver -- <argv>` line,
+  including `-import-objc-header` (the X02 flag), `-D` defines,
+  `-swift-version`, and hmap/search paths; the Swift source list is the
+  on-disk `@<...>.SwiftFileList` response file it references, and the
+  target's ObjC sources appear as `CompileC` lines (the other half X02
+  needs). Confirmed weakness: a null build emits zero compile lines. Handling:
+  the first capture forces the target's compile by touching one of its
+  sources (identity content, so artifacts stay valid), and the parsed command
+  is persisted keyed on pbxproj/xcconfig mtimes. Confirmed fallback: the same
+  argv strings persist across null builds in
+  `DerivedData/.../XCBuildData/*.xcbuilddata/task-store.msgpack`, usable as a
+  null-build-stable secondary source (undocumented msgpack;
+  reverse-engineering Apple's tooling is an accepted approach here).
+  Today's `-showBuildSettings` mapping survives only for artifact locations,
+  as elsewhere.
 
 Normalization is two layers, honestly split. A per-system pre-processor
 handles what is irreducibly per-system: driver-prefix stripping and
@@ -282,9 +286,10 @@ mitigations:
 - *Captured commands embed absolute and ephemeral paths.* The normalizer
   strips module-cache/temp paths and keeps project-absolute ones; fixture
   coverage exercises this per system.
-- *Xcode null builds emit no compile command.* Force the first capture,
-  persist it keyed on project-file mtimes; spike XCBuildData as the
-  null-build-stable source.
+- *Xcode null builds emit no compile command.* Confirmed by the spike, and
+  handled: force the first capture with a source touch, persist it keyed on
+  project-file mtimes, with XCBuildData's `task-store.msgpack` verified to
+  hold the same argv as a null-build-stable secondary.
 - *Manifest/aquery formats drift with toolchain versions.* They are more
   stable than the settings catalog they replace (llbuild manifest format and
   aquery jsonproto are machine interfaces), and the regress matrix is the
@@ -306,10 +311,9 @@ rows Reproduced→Guard in `VERIFICATION.md` with dated entries.
    vector is recoverable — `spm-settings` (S02) **and** `macro-target` (S05:
    the `-load-plugin-executable` flag only appears there; `spm-settings` uses
    a build-tool plugin, not a macro), `bazel-bzlmod` (B01), `xcode-bridging`
-   (X02). The SwiftPM and Bazel spikes were effectively run during design
-   review (manifest and aquery output verified to carry the dropped flags);
-   the Xcode spike remains open and picks the mechanism. Exit: captured args
-   contain the known-dropped flag for each.
+   (X02). Exit: captured args contain the known-dropped flag for each.
+   DONE 2026-07-15 for all three systems: SwiftPM and Bazel verified during
+   design review, Xcode verified by the log-parse spike above.
 1. **Ownership walk + declines** (D-family): implement `owner(of:at:)` for
    all three systems, replace `BuildSystemDetector` order with the
    nearest-confirming walk, wire declines into the start-failure message.
