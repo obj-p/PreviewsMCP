@@ -67,7 +67,6 @@ struct MCPHandlerContractTests {
         let childConfig = child.appendingPathComponent(".previewsmcp.json")
 
         let source = child.appendingPathComponent("FreshPreview.swift")
-        try "// placeholder".write(to: source, atomically: true, encoding: .utf8)
         let handle = FakePreviewSessionHandle(id: "config-fresh-session", sourceFile: source)
         let ctx = try await HandlerContractSupport.context(handles: [handle])
 

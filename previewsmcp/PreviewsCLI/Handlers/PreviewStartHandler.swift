@@ -131,19 +131,9 @@ enum PreviewStartHandler: ToolHandler {
         let previewIndex = extractOptionalInt("previewIndex", from: params) ?? 0
 
         Log.info("preview_start: loading config")
-        // Config is walked fresh on every load: the filesystem owns config
-        // discovery, so a nearer config appearing, an in-place edit, or a
-        // deletion is visible to the next start (C03-C05,
-        // docs/state-invalidation.md stage 1). The walk is a stat chain,
-        // negligible against a session start.
-        let configResult: ProjectConfigLoader.Result? = if let explicitConfig = extractOptionalString(
-            "config",
-            from: params
-        ) {
-            loadProjectConfig(explicit: explicitConfig, fileURL: fileURL)
-        } else {
-            ProjectConfigLoader.find(from: fileURL.deletingLastPathComponent())
-        }
+        let configResult = loadProjectConfig(
+            explicit: extractOptionalString("config", from: params), fileURL: fileURL
+        )
         Log.info("preview_start: config loaded")
         let config = configResult?.config
         let platformStr: String = if let explicit = extractOptionalString("platform", from: params) {

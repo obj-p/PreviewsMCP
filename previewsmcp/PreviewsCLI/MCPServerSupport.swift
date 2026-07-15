@@ -144,7 +144,5 @@ func clearedTraitFields(
 /// Used by `preview_snapshot` and `preview_variants`.
 func configQualityForSession(_ sessionID: String, ctx: HandlerContext) async -> Double? {
     guard let handle = await ctx.router.handle(for: sessionID) else { return nil }
-    return ProjectConfigLoader.find(
-        from: handle.sourceFile.deletingLastPathComponent()
-    )?.config.quality
+    return loadProjectConfig(explicit: nil, fileURL: handle.sourceFile)?.config.quality
 }

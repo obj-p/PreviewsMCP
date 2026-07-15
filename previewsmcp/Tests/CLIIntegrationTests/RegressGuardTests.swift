@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Testing
 
@@ -244,6 +245,57 @@ struct RegressGuardTests {
             "preview-forms/Sources/PreviewForms/NoPreview.swift",
             containing: ["Preview index 0 not found. File has 0 preview(s)."]
         )
+    }
+
+    // MARK: - Config-discovery rows
+
+    /// C03/C04/C05: config discovery is walked fresh per session start in
+    /// one daemon — a nearer config appearing, an in-place edit, and a
+    /// removal are each visible to the next start. The whole sequence runs
+    /// in one lock block because the same-daemon semantics are the
+    /// contract; the rendered scheme is read from the snapshot's
+    /// background luminance.
+    @Test("C03/C04/C05: config discovery fresh per start", .timeLimit(.minutes(5)))
+    func configRowsFreshPerStart() async throws {
+        try await DaemonTestLock.run {
+            try await Self.cleanSlate()
+            let tempDir = try CLIRunner.makeTempDir()
+            defer { try? FileManager.default.removeItem(at: tempDir) }
+            let nearer = URL(fileURLWithPath: Self.fixture("config-cache/Nested/.previewsmcp.json"))
+            try? FileManager.default.removeItem(at: nearer)
+            defer { try? FileManager.default.removeItem(at: nearer) }
+            let source = Self.fixture(
+                "config-cache/Nested/Sources/ConfigCache/ConfigCachePreview.swift"
+            )
+
+            @Sendable func rendersDark(_ name: String) async throws -> Bool {
+                let out = tempDir.appendingPathComponent(name).path
+                let result = try await CLIRunner.run("snapshot", arguments: [source, "-o", out])
+                #expect(result.exitCode == 0, "\(name) stderr: \(result.stderr)")
+                let rep = try #require(
+                    NSBitmapImageRep(data: Data(contentsOf: URL(fileURLWithPath: out)))
+                )
+                let bytes = try #require(rep.bitmapData)
+                return bytes[0] < 128
+            }
+
+            #expect(try await rendersDark("base.png") == false, "parent light config applies")
+
+            try #"{"traits": {"colorScheme": "dark"}}"#
+                .write(to: nearer, atomically: true, encoding: .utf8)
+            #expect(try await rendersDark("c03.png") == true, "C03: nearer config appeared")
+
+            try #"{"traits": {"colorScheme": "light"}}"#
+                .write(to: nearer, atomically: true, encoding: .utf8)
+            #expect(try await rendersDark("c04.png") == false, "C04: in-place edit re-read")
+
+            try #"{"traits": {"colorScheme": "dark"}}"#
+                .write(to: nearer, atomically: true, encoding: .utf8)
+            #expect(try await rendersDark("c05-pre.png") == true, "C05 precondition: dark applies")
+
+            try FileManager.default.removeItem(at: nearer)
+            #expect(try await rendersDark("c05.png") == false, "C05: removal falls back to parent")
+        }
     }
 
     // MARK: - Setup-fault rows
