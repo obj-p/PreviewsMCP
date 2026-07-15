@@ -1,4 +1,7 @@
 .build
+.claude/worktrees
+.worktrees
 examples/bazel
+examples/regress
 examples/spm/.build
 research

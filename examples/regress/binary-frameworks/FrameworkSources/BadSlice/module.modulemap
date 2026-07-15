@@ -1,0 +1,5 @@
+framework module BadSlice {
+    umbrella header "BadSlice.h"
+    export *
+    module * { export * }
+}

@@ -1,0 +1,19 @@
+name: SharedKit
+options:
+  bundleIdPrefix: dev.previewsmcp.regress
+  deploymentTarget:
+    iOS: "17.0"
+configs:
+  Debug: debug
+  Preview Debug: debug
+  Release: release
+targets:
+  SharedKit:
+    type: framework
+    platform: iOS
+    sources:
+      - Sources
+    settings:
+      base:
+        CODE_SIGNING_ALLOWED: NO
+        SWIFT_VERSION: 6.0

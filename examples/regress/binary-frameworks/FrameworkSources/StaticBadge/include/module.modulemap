@@ -1,0 +1,4 @@
+module StaticBadge {
+    header "StaticBadge.h"
+    export *
+}

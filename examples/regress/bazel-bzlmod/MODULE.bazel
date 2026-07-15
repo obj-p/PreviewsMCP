@@ -1,0 +1,11 @@
+module(
+    name = "bzlmod_fixture",
+    version = "1.0.0",
+)
+
+bazel_dep(name = "rules_swift", version = "3.5.0")
+bazel_dep(name = "local_badge", version = "1.0.0")
+local_path_override(
+    module_name = "local_badge",
+    path = "ThirdParty/LocalBadge",
+)

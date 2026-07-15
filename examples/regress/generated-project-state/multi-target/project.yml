@@ -1,0 +1,33 @@
+name: MultiTarget
+options:
+  minimumXcodeGenVersion: "2.42.0"
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+targets:
+  Alpha:
+    type: framework
+    supportedDestinations: [macOS, iOS]
+    sources:
+      - Sources/Alpha
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.previewsmcp.regress.alpha
+        GENERATE_INFOPLIST_FILE: YES
+  Beta:
+    type: framework
+    supportedDestinations: [macOS, iOS]
+    sources:
+      - Sources/Beta
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.previewsmcp.regress.beta
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  Combined:
+    build:
+      targets:
+        Alpha: all
+        Beta: all
+    run:
+      config: Debug

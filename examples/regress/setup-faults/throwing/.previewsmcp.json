@@ -1,0 +1,8 @@
+{
+  "platform": "macos",
+  "setup": {
+    "moduleName": "ThrowingPreviewSetup",
+    "typeName": "ThrowingSetup",
+    "packagePath": "PreviewSetup"
+  }
+}

@@ -1,0 +1,99 @@
+# Regression Fixture Verification
+
+Last full manual pass: 2026-07-14
+
+Environment: Xcode 26.2, an iOS 26.3 `previewsmcp-test` iPhone simulator,
+and the Bazel-built CLI from this checkout. Commands used an isolated daemon
+socket directory so the verification did not share sessions with the normal
+development daemon.
+
+`Reproduced` means the current product exhibited the boundary's failure or
+missed acceptance contract and a native or forced-build-system control showed
+that the fixture itself was usable. `Guard passes` means the current product
+already handles the case. Some gaps are undesirable success or stale state,
+not a nonzero command exit.
+
+| ID | Result | Observed current behavior and control |
+|---|---|---|
+| D01 | Reproduced | Auto-detection selected the distant SwiftPM root and failed source ownership. Forced Xcode started the same preview. |
+| D02 | Guard passes | Auto-detection selected the nested SwiftPM package and started the preview. |
+| D03 | Reproduced | The outer SwiftPM package claimed the nested Xcode source and failed ownership. Forced Xcode started it. |
+| D04 | Reproduced | The outer SwiftPM package claimed the nested Bazel source and failed ownership. Forced Bazel started it. |
+| D05 | Guard / policy decision | Auto-detection selected SwiftPM and started the preview; forced Bazel also started it. The precedence is observable but remains a policy to document. |
+| D06 | Reproduced | Auto-detection returned generic SwiftPM ownership failure. Forced Xcode reported only that no project exists; neither path identified the present generated-project manifest or missing output. |
+| D07 | Reproduced | Auto-detection was claimed by the repository's outer SwiftPM root. Forced Xcode rendered `NewPreview.swift` even though the checked-in project does not contain it, so stale project membership was not diagnosed. |
+| D08 | Reproduced | Auto-detection was claimed by the outer SwiftPM root. Forced Xcode with `Combined` compiled as module `Alpha` and failed because `BetaModel` was unavailable. |
+| D09 | Reproduced | Native SwiftPM built the package at its spaced path. PreviewsMCP preserved the path arguments but derived `Preview_Unicode–Preview_...` as a Swift module name; `swiftc` rejected the Unicode dash as an invalid identifier. |
+| X01 | Reproduced | Native `xcodebuild` passed for the workspace's `Preview Debug` configuration. PreviewsMCP selected the workspace, built both projects, linked `SharedKit`, and rendered its text, but the snapshot showed `wrong Xcode configuration` because `PREVIEW_WORKSPACE` from the selected `.xcconfig` was missing in Tier 2. |
+| S01 | Reproduced | Native `swift build` passed. PreviewsMCP Tier 2 failed with `no such module 'FixtureC'`; its command also included the excluded `DoNotCompile.swift` and omitted the plugin-generated source/settings. |
+| S02 | Reproduced | Native SwiftPM passed and PreviewsMCP compiled/rendered the isolated target, proving the upcoming-feature syntax remained usable. The snapshot showed `Conditional Swift setting missing`, so the target's conditional define was not forwarded. |
+| S03 | Reproduced | Native SwiftPM generated and compiled `GeneratedFixtureStamp`. PreviewsMCP's Tier 2 compile failed with `cannot find 'GeneratedFixtureStamp' in scope`. |
+| S04 | Reproduced | Native SwiftPM honored the exclusion and Clang dependency. PreviewsMCP included `Excluded/DoNotCompile.swift` in its incremental command and failed first with `no such module 'FixtureC'`. |
+| S05 | Reproduced | Native SwiftPM built the macro plugin and client. PreviewsMCP Tier 2 failed with `external macro implementation type 'FixtureMacrosPlugin.FixtureStampMacro' could not be found ... plugin for module 'FixtureMacrosPlugin' not found`; the plugin executable was never built for the host or passed to the compile. |
+| S06 | Guard passes | The `@Observable` toolchain macro compiled through the default plugin path and the preview rendered `toolchain macro active` on macOS. |
+| X02 | Reproduced | Native `xcodebuild` passed. Auto-detection was claimed by the repository's outer SwiftPM root; forced Xcode failed with `cannot find 'BridgedGreeting' in scope`, so `SWIFT_OBJC_BRIDGING_HEADER` was not forwarded to the Tier 2 compile. |
+| C01 | Reproduced | Native SwiftPM build passed. Literal thunking changed `0 ..< 12` into a parser-invalid operator boundary (`'..<' is not a postfix unary operator`). |
+| C02 | Reproduced | Native SwiftPM build passed. String thunking produced `String` where `String.LocalizationValue` was required. |
+| C03 | Reproduced | A fresh daemon rendered the parent light config. After a nearer dark config appeared and the first session stopped, the same daemon still returned `colorScheme: light`. |
+| C04 | Reproduced | A nearer config was cached with `light`, edited in place to `dark`, and the session was restarted in the same daemon. The response still reported `colorScheme: light`. |
+| C05 | Reproduced | A fresh daemon cached a nearer dark config. After that file was removed, a same-daemon restart still reported `dark` instead of falling back to the parent light config. |
+| B01 | Reproduced | Native Bazel build passed. PreviewsMCP passed a generated target name as a workspace-relative input and `swiftc` rejected `generated_build_stamp` as an unexpected input file. Re-verified identically after bumping the fixture pin from Bazel 8.2.1 to 9.2.0; with `examples/bazel` on 8.6.0 the two Bazel fixtures now cover one workspace per major. |
+| B02 | Reproduced | The physically isolated combined package passed its native iOS simulator build. PreviewsMCP included the dynamic framework flags but its manual compile failed with `no such module 'StaticBadge'`. |
+| B03 | Reproduced | The static-only package passed its native iOS simulator build. PreviewsMCP reached its manual compile with no StaticBadge module search path and failed `no such module 'StaticBadge'`. |
+| B04 | Reproduced | The dynamic-only package passed natively and PreviewsMCP loaded it on iOS: the snapshot rendered `Dynamic simulator XCFramework`. The same snapshot reported `framework resource missing`, so the framework's internal JSON was not staged with the loaded binary. |
+| F01 | Reproduced | The generator and XCFramework metadata provide only an iPhoneOS device slice. Native simulator and PreviewsMCP builds both failed `no such module 'BadSlice'`; PreviewsMCP did not classify the incompatible slice, while the daemon remained responsive. |
+| R01 | Reproduced | macOS and iOS reached JIT materialization and failed on the target-wide framework/autolink closure. The CLI error was an unclassified symbol dump; the daemon remained responsive. |
+| R02 | Reproduced | English JSON, text, and localization resources rendered on macOS and iOS. Both selecting preview index 1 and an explicit single-preview Spanish localization control produced a blank or partial framebuffer on iOS. Native SwiftPM build passed and both locale directories were present in the staged bundle. |
+| R03 | Reproduced | macOS and iOS rendered the generated color symbol, while the localized key remained `resource.title` and plist/Core Data lookup reported missing. The cold iOS Xcode build also spent about 49 seconds in one progress step. |
+| W01 | Partial guard | Editing a dependency Swift file live changed `source version one` to `source version two` in a stable follow-up snapshot without restarting the session. The add/rename/remove variants are present in the fixture instructions but were not all exercised in this pass. |
+| W02 | Reproduced | Changing only `Resources/reload-value.txt` produced a reload transition, but stable follow-up snapshots still showed `resource version one`; the rebuilt/staged resource was stale. |
+| W03 | Guard passes | Both editor save styles reloaded on macOS: write-temp-then-rename-over and rename-away-then-recreate each updated the render to the new source value in a stable follow-up snapshot. |
+| W04 | Reproduced | The App preview rendered `dependency version one`. Editing `SharedLocal/Sources/SharedLocal/SharedValue.swift` in the live session produced no watcher or rebuild activity in the daemon log, and follow-up snapshots at 10 and 30 seconds were byte-identical stale renders. The dependency package's sources are not watched. |
+| T01 | Reproduced | Both app and setup packages built. `setUp()` threw and the app rendered without setup, but the CLI returned success without the documented warning; the snapshot contained only the app content. |
+| T02 | Guard passes | The app package built, the setup package failed at its intentional syntax error, and PreviewsMCP returned `Setup package 'BrokenPreviewSetup' build failed` with the compiler diagnostic. Daemon status remained healthy. |
+| T03 | Reproduced | The setup implementation sleeps for eight seconds, but `run` returned a started session in about 2.3 seconds after the compile line and emitted no setup-execution heartbeat. The first-render contract did not await asynchronous setup completion. |
+| V01 | Guard passes | `list` found the legacy `PreviewProvider` expression and PreviewsMCP rendered it on macOS. |
+| V02 | Reproduced | On macOS, `list` exposed both the debug preview and the `#if os(iOS)` preview. Switching to the iOS-only index reported success and compiled its extracted expression outside the original platform guard. |
+| V03 | Guard passes | Both duplicate names were listed with stable indices; starting index 1 selected the second declaration. |
+| V04 | Guard passes | The constrained generic specialization compiled and rendered on macOS. |
+| V05 | Guard passes | `list` returned no rows, and `run` returned the specific diagnostic `Preview index 0 not found. File has 0 preview(s).` |
+| L01 | Reproduced | Session B started on the same device after Session A, but A remained registered. `variants` for A then failed with `iOS preview session has not been started`; after explicitly stopping stale A, the identical variants command succeeded. |
+| L02 | Reproduced | The daemon log named the injected unresolved symbol. The CLI collapsed it to a `_renderPreviewToFile` materialization failure, while daemon status remained healthy. |
+| L03 | Reproduced | The eight-second render completed, but timestamps showed an eight-second silent interval with no elapsed-time heartbeat. |
+| L04 | Reproduced | Tapping the crash button terminated the original agent PID and logged transport disconnects. `touch` still reported success and a later `elements` call returned the stale tree; the daemon itself remained alive. |
+| L05 | Guard passes | Two simultaneous detached starts from the same package returned distinct session UUIDs, and each session's snapshot showed its own content (macOS; the same-device iOS variant remains covered by L01). |
+| I01 | Reproduced | `elements` reported the trailing toggle as a 370-point-wide row. A center tap left value `0`; an edge tap changed it to `1`. Toggle identifiers were absent from the returned tree. |
+| I02 | Reproduced | The tree contained duplicate labels and a disabled trait, but most toggle identifiers were absent and the CLI offered only coordinate injection. A dispatched tap acknowledged only `Tap sent`, not matched element, enabled state, or observed value change. |
+| I03 | Reproduced | The scaled/rotated preview started and returned transformed-looking axis-aligned frames but no activation points. Tapping the reported center of the standard toggle returned success while its value remained `0`. |
+| P01 | Reproduced | A cold 2,000-file run rendered successfully after an 11.8-second silent build step with no heartbeat. A warm 800-file run took about two seconds and was not a reproduction. |
+| M01 | Guard passes | Root `.bazelignore` contains both `.claude/worktrees` and `.worktrees`; root Bazel query/build do not traverse the regression matrix or nested worktrees. Worktree-local MCP binary selection remains a launch/integration assertion rather than a source fixture. |
+| M02 | Guard passes | A daemon advertising `0.0.1-stale` (via the `_PREVIEWSMCP_TEST_DAEMON_VERSION` hook) was detected at connect: the CLI printed `daemon was 0.0.1-stale, CLI is ... — restarting`, killed it, respawned from its own binary under the restart lock, and completed the command. Like M01, this is a launch assertion with no source fixture. |
+
+## Fixture Corrections Made During Verification
+
+- Split lifecycle fault families into separate SwiftPM targets. The injected
+  L02 unresolved symbol previously contaminated L01, L03, and L04.
+- Added a single-preview Spanish resource control and made locale selection
+  explicit in the Foundation localization call. The prior environment-only
+  variant did not actually select Foundation's localization locale.
+- Split combined/static/dynamic/bad-slice XCFramework cases into separate
+  SwiftPM package roots after a package-wide build let the bad slice contaminate
+  supposedly isolated targets.
+- Made the hot-reload target's source/resource path explicit after SwiftPM
+  inferred resources relative to the wrong directory name.
+- Added the custom `Preview Debug` configuration to both workspace projects;
+  without it, the native control could not build the referenced framework.
+
+## Repeatability Notes
+
+- Run detection cases without overrides first; forced build systems are
+  controls only.
+- B02, B03, B04, and F01 require
+  `binary-frameworks/generate-artifacts.sh`.
+- P01 requires `large-tier2/generate-sources.sh`; set `FILE_COUNT=2000` and
+  clean that fixture's SwiftPM products for the cold timing check.
+- Use a dedicated simulator and isolated `PREVIEWSMCP_SOCKET_DIR` for the iOS
+  rows. Stop sessions between unrelated cases, except where stale or
+  same-device state is the assertion.
+- Verify rendered resource and interaction assertions from snapshots and
+  `elements` values, not command exit codes alone.

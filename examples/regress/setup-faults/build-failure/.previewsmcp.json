@@ -1,0 +1,8 @@
+{
+  "platform": "macos",
+  "setup": {
+    "moduleName": "BrokenPreviewSetup",
+    "typeName": "BrokenSetup",
+    "packagePath": "PreviewSetup"
+  }
+}

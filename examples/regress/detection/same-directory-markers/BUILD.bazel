@@ -1,0 +1,8 @@
+load("@rules_swift//swift:swift.bzl", "swift_library")
+
+swift_library(
+    name = "HybridMarker",
+    srcs = ["Sources/HybridMarker/HybridMarkerPreview.swift"],
+    module_name = "HybridMarker",
+    visibility = ["//visibility:public"],
+)
