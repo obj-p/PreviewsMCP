@@ -82,6 +82,44 @@ struct SPMCommandCaptureTests {
         }
     }
 
+    @Test("prefers the real compile node (-c) over a wrapper node for the same module")
+    func prefersCompileNodeOverWrapper() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("capture-\(UUID().uuidString).yaml")
+        try """
+        commands:
+          "C.ToDo-arm64-apple-macosx26.0-debug.module-wrapper":
+            tool: shell
+            args: ["/toolchain/usr/bin/swiftc","-module-name","ToDo","-emit-module"]
+          "C.ToDo-arm64-apple-macosx26.0-debug.module":
+            tool: shell
+            args: ["/toolchain/usr/bin/swiftc","-module-name","ToDo","-c","-package-name","spm"]
+            inputs: ["/pkg/Sources/ToDo/View.swift"]
+        """.write(to: url, atomically: true, encoding: .utf8)
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let captured = try SPMCommandCapture.capture(manifestAt: url, forTarget: "ToDo")
+        #expect(captured.arguments.contains("-package-name"))
+        #expect(captured.swiftInputs.map(\.lastPathComponent) == ["View.swift"])
+    }
+
+    @Test("inputs after args within a node are still captured")
+    func inputsAfterArgs() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("capture-\(UUID().uuidString).yaml")
+        try """
+        commands:
+          "C.ToDo-arm64-apple-macosx26.0-debug.module":
+            tool: shell
+            args: ["/toolchain/usr/bin/swiftc","-module-name","ToDo","-c"]
+            inputs: ["/pkg/Sources/ToDo/View.swift"]
+        """.write(to: url, atomically: true, encoding: .utf8)
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let captured = try SPMCommandCapture.capture(manifestAt: url, forTarget: "ToDo")
+        #expect(captured.swiftInputs.map(\.lastPathComponent) == ["View.swift"])
+    }
+
     @Test("a matching module name in a non-compile node is ignored")
     func nonCompileNodeIgnored() throws {
         let url = FileManager.default.temporaryDirectory
@@ -121,6 +159,8 @@ struct CompileCommandNormalizerTests {
             "-index-store-path", "/pkg/.build/debug/index/store",
             "-Onone",
             "-enable-testing",
+            "-g",
+            "-Xcc", "-fPIC", "-Xcc", "-g",
             "-j16",
             "-DSWIFT_PACKAGE", "-DDEBUG", "-DSETTINGS_FIXTURE",
             "-Xcc", "-fmodule-map-file=/pkg/.build/debug/FixtureC.build/module.modulemap",
@@ -157,7 +197,12 @@ struct CompileCommandNormalizerTests {
         #expect(!joined.contains("-emit-module"))
         #expect(!joined.contains("output-file-map"))
         #expect(!joined.contains("-j16"))
-        #expect(!joined.contains("@/pkg"))
+        #expect(!normalized.contains("-g"))
+        #expect(joined.contains("-Xcc -fPIC"))
+        #expect(!joined.contains("-Xcc -g"))
+        #expect(!joined.contains("-Xcc -Xcc"))
+        #expect(!joined.contains("-Xcc -j"))
+        #expect(!joined.contains("-Xcc -package-name"))
         #expect(!joined.contains("ModuleCache"))
         #expect(!joined.contains("index/store"))
         #expect(!joined.contains("SettingsFixture-Swift.h"))

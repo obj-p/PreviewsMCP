@@ -29,36 +29,56 @@ enum SPMCommandCapture {
 
         let moduleNeedle = "\"-module-name\",\"\(target)\""
         var inCompileNode = false
-        var nodeInputsLine: String?
+        var inputsLine: String?
+        var matchedArgsLine: String?
+        var candidates: [CapturedCommand] = []
+
+        func closeNode() {
+            defer {
+                inputsLine = nil
+                matchedArgsLine = nil
+            }
+            guard let matchedArgsLine else { return }
+            let args = decodeStringArray(from: matchedArgsLine, prefix: "args: ")
+            guard args.count > 1 else { return }
+            let inputs = inputsLine.map {
+                decodeStringArray(from: $0, prefix: "inputs: ")
+                    .filter { $0.hasSuffix(".swift") }
+                    .map { URL(fileURLWithPath: $0).standardizedFileURL }
+            } ?? []
+            candidates.append(
+                CapturedCommand(arguments: Array(args.dropFirst()), swiftInputs: inputs)
+            )
+        }
 
         for rawLine in contents.split(separator: "\n", omittingEmptySubsequences: true) {
             let line = rawLine.trimmingCharacters(in: .whitespaces)
             if rawLine.hasPrefix("  \"") {
+                closeNode()
                 inCompileNode = rawLine.hasPrefix("  \"C.")
-                nodeInputsLine = nil
                 continue
             }
             guard inCompileNode else { continue }
             if line.hasPrefix("inputs: ") {
-                nodeInputsLine = line
+                inputsLine = line
             } else if line.hasPrefix("args: "), line.contains(moduleNeedle) {
-                let args = decodeStringArray(from: line, prefix: "args: ")
-                guard !args.isEmpty else { break }
-                let inputs = nodeInputsLine.map {
-                    decodeStringArray(from: $0, prefix: "inputs: ")
-                        .filter { $0.hasSuffix(".swift") }
-                        .map { URL(fileURLWithPath: $0).standardizedFileURL }
-                } ?? []
-                return CapturedCommand(
-                    arguments: Array(args.dropFirst()),
-                    swiftInputs: inputs
-                )
+                matchedArgsLine = line
             }
         }
+        closeNode()
 
-        throw BuildSystemError.missingArtifacts(
-            "No compile command for target '\(target)' in the build manifest at \(url.path)"
-        )
+        // SPM can emit more than one compile node per module (a wrapper or
+        // emit-module invocation plus the real one); the real compile carries
+        // -c. Falling back to any candidate keeps unusual manifests working.
+        guard
+            let command = candidates.first(where: { $0.arguments.contains("-c") })
+            ?? candidates.first
+        else {
+            throw BuildSystemError.missingArtifacts(
+                "No compile command for target '\(target)' in the build manifest at \(url.path)"
+            )
+        }
+        return command
     }
 
     private static func decodeStringArray(from line: String, prefix: String) -> [String] {

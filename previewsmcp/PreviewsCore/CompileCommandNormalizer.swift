@@ -3,8 +3,10 @@ import Foundation
 /// Turns a compile command captured from a native build into flags a Tier 2
 /// preview compile can reuse. The philosophy is capture fidelity: only
 /// known build-bookkeeping is stripped (inputs, outputs, output-file maps,
-/// incremental and diagnostics state, module caches, and the module/target
-/// identity the preview compile sets itself); every other flag — defines,
+/// incremental and diagnostics state, module caches, debug info — preview
+/// objects are JIT-linked and never debugged, so Compiler's -gnone stands —
+/// and the module identity the preview compile sets itself); every other
+/// flag — defines,
 /// language modes, feature flags, bridging headers, plugin loads, search
 /// paths, unsafe flags — passes through untouched, so fidelity does not
 /// depend on an ever-growing allowlist.
@@ -24,6 +26,12 @@ enum CompileCommandNormalizer {
             }
             if token == "-Xfrontend", index + 1 < args.count,
                droppedFrontendFlags.contains(args[index + 1])
+            {
+                index += 2
+                continue
+            }
+            if token == "-Xcc", index + 1 < args.count,
+               droppedClangFlags.contains(args[index + 1])
             {
                 index += 2
                 continue
@@ -54,6 +62,7 @@ enum CompileCommandNormalizer {
         "-parse-as-library": 0,
         "-emit-objc-header": 0,
         "-whole-module-optimization": 0,
+        "-g": 0,
         "-emit-module-path": 1,
         "-output-file-map": 1,
         "-index-store-path": 1,
@@ -66,6 +75,10 @@ enum CompileCommandNormalizer {
 
     private static let droppedFrontendFlags: Set<String> = [
         "-serialize-debugging-options",
+    ]
+
+    private static let droppedClangFlags: Set<String> = [
+        "-g",
     ]
 
     private static func jobCountPattern(_ token: String) -> Bool {
