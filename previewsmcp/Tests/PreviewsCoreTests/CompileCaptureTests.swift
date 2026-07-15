@@ -150,11 +150,12 @@ struct CompileCommandNormalizerTests {
         #expect(joined.contains("-plugin-path"))
         #expect(joined.contains("-enable-testing"))
 
+        #expect(joined.contains("-target arm64-apple-macosx14.0"))
+        #expect(joined.contains("-sdk /sdk/MacOSX26.2.sdk"))
+
         #expect(!joined.contains("-module-name"))
         #expect(!joined.contains("-emit-module"))
         #expect(!joined.contains("output-file-map"))
-        #expect(!joined.contains("-target"))
-        #expect(!joined.contains("-sdk"))
         #expect(!joined.contains("-j16"))
         #expect(!joined.contains("@/pkg"))
         #expect(!joined.contains("ModuleCache"))

@@ -220,9 +220,9 @@ build (already required today), then read the exact compile command the build
 system used for the owning target, and transform it:
 
 - **SwiftPM**: read the target's `args:` line from the llbuild manifest at
-  `<scratch>/<config>.yaml` — the mechanism `readPackageName` already uses
-  (`SPMBuildSystem.swift:507-546`), generalized to return the whole argument
-  vector. Verified against the fixtures: the manifest carries every flag the
+  `<scratch>/<config>.yaml` — `SPMCommandCapture`, which generalized the
+  former `readPackageName` reader into the whole argument vector plus
+  inputs. Verified against the fixtures: the manifest carries every flag the
   current re-derivation drops (`-DSETTINGS_FIXTURE`,
   `-enable-upcoming-feature`, `-strict-concurrency=targeted`,
   `-swift-version`, `-package-name`, and macro-target's

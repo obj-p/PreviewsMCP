@@ -29,26 +29,29 @@ enum SPMCommandCapture {
 
         let moduleNeedle = "\"-module-name\",\"\(target)\""
         var inCompileNode = false
-        var nodeInputs: [URL] = []
+        var nodeInputsLine: String?
 
         for rawLine in contents.split(separator: "\n", omittingEmptySubsequences: true) {
             let line = rawLine.trimmingCharacters(in: .whitespaces)
             if rawLine.hasPrefix("  \"") {
                 inCompileNode = rawLine.hasPrefix("  \"C.")
-                nodeInputs = []
+                nodeInputsLine = nil
                 continue
             }
             guard inCompileNode else { continue }
             if line.hasPrefix("inputs: ") {
-                nodeInputs = decodeStringArray(from: line, prefix: "inputs: ")
-                    .filter { $0.hasSuffix(".swift") }
-                    .map { URL(fileURLWithPath: $0).standardizedFileURL }
+                nodeInputsLine = line
             } else if line.hasPrefix("args: "), line.contains(moduleNeedle) {
                 let args = decodeStringArray(from: line, prefix: "args: ")
                 guard !args.isEmpty else { break }
+                let inputs = nodeInputsLine.map {
+                    decodeStringArray(from: $0, prefix: "inputs: ")
+                        .filter { $0.hasSuffix(".swift") }
+                        .map { URL(fileURLWithPath: $0).standardizedFileURL }
+                } ?? []
                 return CapturedCommand(
                     arguments: Array(args.dropFirst()),
-                    swiftInputs: nodeInputs
+                    swiftInputs: inputs
                 )
             }
         }

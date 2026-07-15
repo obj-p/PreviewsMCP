@@ -538,7 +538,7 @@ public actor SPMBuildSystem: BuildSystem {
         return libs
     }
 
-    // MARK: - Private: Package Name (from build manifest)
+    // MARK: - Private: Build Manifest
 
     /// Locate SPM's LLBuild manifest given the build's bin path.
     /// Bin path is `<scratch>/<triple>/<config>/`; the manifest lives at

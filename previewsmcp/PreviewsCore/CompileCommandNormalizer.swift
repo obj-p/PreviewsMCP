@@ -39,9 +39,10 @@ enum CompileCommandNormalizer {
     }
 
     /// Bookkeeping flags to drop, with the number of value tokens each
-    /// consumes. `-target`/`-sdk` are dropped because `Compiler` injects the
-    /// preview platform's own pair; the captured values become authoritative
-    /// with the CompileContext migration.
+    /// consumes. `-target`/`-sdk` pass through: the captured values are
+    /// appended after `Compiler`'s own injection, so the native build's pair
+    /// wins (the design's SwiftPM/Xcode ruling); per-system pre-processors
+    /// drop placeholder-bearing captures (Bazel) before reaching here.
     private static let droppedFlags: [String: Int] = [
         "-emit-dependencies": 0,
         "-emit-module": 0,
@@ -60,8 +61,6 @@ enum CompileCommandNormalizer {
         "-module-cache-path": 1,
         "-emit-objc-header-path": 1,
         "-module-name": 1,
-        "-target": 1,
-        "-sdk": 1,
         "-o": 1,
     ]
 
