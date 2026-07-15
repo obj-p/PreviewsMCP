@@ -1,0 +1,1 @@
+This file proves Bundle.module can read a processed non-localized resource.

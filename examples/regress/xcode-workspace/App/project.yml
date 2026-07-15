@@ -1,0 +1,35 @@
+name: WorkspaceApp
+options:
+  bundleIdPrefix: dev.previewsmcp.regress
+  deploymentTarget:
+    iOS: "17.0"
+configs:
+  Debug: debug
+  Preview Debug: debug
+  Release: release
+configFiles:
+  Debug: Config/Debug.xcconfig
+  Preview Debug: Config/Preview.xcconfig
+projectReferences:
+  SharedKit:
+    path: ../SharedKit/SharedKit.xcodeproj
+targets:
+  WorkspaceFeature:
+    type: framework
+    platform: iOS
+    sources:
+      - Sources
+    dependencies:
+      - target: SharedKit/SharedKit
+    settings:
+      base:
+        CODE_SIGNING_ALLOWED: NO
+        SWIFT_VERSION: 6.0
+schemes:
+  WorkspaceFeature:
+    build:
+      targets:
+        WorkspaceFeature: all
+        SharedKit/SharedKit: all
+    run:
+      config: Preview Debug

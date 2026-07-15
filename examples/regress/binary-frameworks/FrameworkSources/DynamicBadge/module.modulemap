@@ -1,0 +1,5 @@
+framework module DynamicBadge {
+    umbrella header "DynamicBadge.h"
+    export *
+    module * { export * }
+}

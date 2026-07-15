@@ -1,0 +1,18 @@
+load("@rules_swift//swift:swift.bzl", "swift_library")
+
+genrule(
+    name = "generated_build_stamp",
+    outs = ["GeneratedBuildStamp.swift"],
+    cmd = "printf '%s\n' 'enum GeneratedBuildStamp { static let value = \"Bazel generated source\" }' > $@",
+)
+
+swift_library(
+    name = "BzlmodFixture",
+    srcs = [
+        "Sources/BzlmodPreview.swift",
+        ":generated_build_stamp",
+    ],
+    module_name = "BzlmodFixture",
+    visibility = ["//visibility:public"],
+    deps = ["@local_badge//:LocalBadge"],
+)

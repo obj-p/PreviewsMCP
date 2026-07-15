@@ -1,0 +1,13 @@
+name: MissingOutput
+options:
+  minimumXcodeGenVersion: "2.42.0"
+targets:
+  MissingOutput:
+    type: framework
+    supportedDestinations: [macOS, iOS]
+    sources:
+      - Sources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.previewsmcp.regress.missing-output
+        GENERATE_INFOPLIST_FILE: YES

@@ -1,0 +1,8 @@
+{
+  "platform": "macos",
+  "setup": {
+    "moduleName": "SlowPreviewSetup",
+    "typeName": "SlowSetup",
+    "packagePath": "PreviewSetup"
+  }
+}

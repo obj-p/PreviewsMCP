@@ -1,0 +1,14 @@
+name: StaleOutput
+options:
+  minimumXcodeGenVersion: "2.42.0"
+targets:
+  StaleOutput:
+    type: framework
+    supportedDestinations: [macOS, iOS]
+    sources:
+      - Sources/LegacyView.swift
+      - Sources/NewPreview.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.previewsmcp.regress.stale-output
+        GENERATE_INFOPLIST_FILE: YES

@@ -1,0 +1,4 @@
+module(
+    name = "mixed_marker_workspace",
+    version = "1.0.0",
+)

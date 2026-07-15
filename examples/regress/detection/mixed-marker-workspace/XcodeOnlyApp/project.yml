@@ -1,0 +1,16 @@
+name: MarkerBoundary
+options:
+  minimumXcodeGenVersion: "2.42.0"
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+targets:
+  MarkerBoundary:
+    type: framework
+    supportedDestinations: [macOS, iOS]
+    sources:
+      - Sources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.previewsmcp.regress.marker-boundary
+        GENERATE_INFOPLIST_FILE: YES
