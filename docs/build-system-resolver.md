@@ -7,8 +7,8 @@ systems in a fixed order, each walking up to its nearest marker, without ever
 confirming that the chosen project actually contains the file. It then answers
 "how do I compile this target" by re-deriving a thin flag set (`-I`/`-F`/`-L`)
 from directory scans and partial tool output, dropping every other
-compile-affecting setting. These two guesses are the root cause of roughly 20
-reproduced rows in `examples/regress/VERIFICATION.md`.
+compile-affecting setting. These two guesses are the root cause of 17
+reproduced rows in `examples/regress/VERIFICATION.md`, plus part of R03.
 
 This design replaces both guesses with one contract per build system: an
 `owner(file)` query that only claims a file when the build system's own model
@@ -27,7 +27,7 @@ mapped.
 |---|---|---|
 | Ownership guessed | D01, D03, D04, D07, D08, X02 (detection half) | Fixed order SPM→Bazel→Xcode (`PreviewsCore/BuildSystem.swift:78-90`); each `detect` returns the nearest own-marker with no membership check (`SPMBuildSystem.swift:151-166`), so the repo-root `Package.swift` claims files that live in nested Xcode/Bazel projects |
 | No ownership diagnostics | D06 | Detection returns a bare system or nil; nothing reports the candidate markers found and why each declined |
-| Compile context re-derived | S01–S05, X01, X02 (compile half), B01, B02, B03 | `BuildContext` carries only `moduleName` + search-path flags + a scanned source list (`BuildContext.swift:4-50`); defines, language mode, upcoming features, bridging headers, macro plugin flags, exclusions, and generated inputs are dropped |
+| Compile context re-derived | S01–S05, X01, X02 (compile half), B01, B02, B03, R03 (generated-sources half only) | `BuildContext` carries only `moduleName` + search-path flags + a scanned source list (`BuildContext.swift:4-50`); defines, language mode, upcoming features, bridging headers, macro plugin flags, exclusions, and generated inputs are dropped |
 | Identifier fidelity | D09 | Generated module names are built from raw file names; Unicode/space paths produce invalid identifiers |
 
 Guards that must keep passing: D02, D05 (with the tie-break documented), S06.
@@ -51,7 +51,8 @@ dependency sources, which is the missing prerequisite for W04.
 - `build(platform:)` produces `BuildContext { moduleName, compilerFlags,
   projectRoot, targetName, frameworkPaths, sourceFiles? }`
   (`PreviewsCore/BuildContext.swift:4`). `-target`/`-sdk` are injected later by
-  `Compiler` (`Compiler.swift:45-46`); nothing carries defines, `-swift-version`,
+  `Compiler` (computed at `Compiler.swift:45-46`, emitted at
+  `Compiler.swift:76,162,262,325`); nothing carries defines, `-swift-version`,
   `-enable-upcoming-feature`, `-import-objc-header`, or
   `-load-plugin-executable`. The Xcode flag extractor explicitly keeps only
   `-I`/`-F`/`-Xcc` (`XcodeBuildSystem.swift:499-543`).
@@ -126,7 +127,9 @@ public struct CompileContext: Sendable {
     public let swiftcArgs: [String]
     /// The target's compile inputs as the native build saw them: honors
     /// exclusions, includes generated sources, resolves generated labels to
-    /// real paths. Preview file excluded, as today.
+    /// real paths. The preview file and any @main entry file are excluded,
+    /// as today (BazelBuildSystem.swift:543): an app-lifecycle entry symbol
+    /// poisons the preview JIT link, and captured inputs include it.
     public let sourceFiles: [URL]?
     public let frameworkPaths: [URL]
     public var supportsTier2: Bool { sourceFiles != nil }
@@ -152,7 +155,11 @@ Replace the fixed system order with a single upward walk from the source file:
      `SPMBuildSystem.swift:307-312`). Not path-prefix-minus-exclusions:
      `describe` has no `exclude` field, and a path-prefix test would over-claim
      files a target's explicit `sources:` omits — the S04 over-inclusion bug
-     re-imported into ownership.
+     re-imported into ownership. The decoded `sources` is optional
+     (`SPMBuildSystem.swift:311`); when a target omits it, membership falls
+     back to path containment under the target's `path` — today's test — so a
+     package that builds fine never turns into `notMember` on a missing
+     field.
    - **Bazel**: existing package-scoped `rdeps` query on the source label
      (`BazelBuildSystem.swift:267-282`); it must stay package-scoped, since a
      broad-universe query loads every package in the workspace
@@ -277,7 +284,7 @@ locating artifacts, and it is the Xcode fallback, but it should stop being the
 source of compile-command truth.
 
 **Option C — keep the current per-system re-derivation.** Known-failing on
-11 reproduced rows; listed only for completeness.
+the 10 compile-context rows above; listed only for completeness.
 
 Recommendation: **A**, with B retained where it is already correct (ownership
 queries, artifact locations) and as the Xcode fallback. Risks and their
@@ -341,7 +348,9 @@ full local suite, `merge` label).
 - Watching/invalidation (W04, C03–C05): the captured input list is handed to
   the watcher as an enabler, but invalidation ownership rules are the next
   design.
-- Runtime staging of framework resources (B04), slice classification (F01),
+- Runtime staging of framework resources (B04) and of R03's built bundle
+  (its generated-sources half is in scope above; the runtime-resource half is
+  not), slice classification (F01),
   phase/heartbeat protocol, semantic interaction.
 - Caching `CompileContext` across sessions: explicitly not in v1; capture
   cost is bounded by the native build that already runs.
