@@ -31,6 +31,19 @@ public actor IOSPreviewHandle: PreviewSessionHandle {
         }
     }
 
+    public var terminalFailure: String? {
+        get async {
+            await iosSession.failed
+                ? "The preview agent for session \(id) crashed and could not be "
+                + "relaunched. Stop the session and start a new one."
+                : nil
+        }
+    }
+
+    public func takeIncidentNotice() async -> String? {
+        await iosSession.takeUndisclosedCrashNotice()
+    }
+
     public func setTraits(_ traits: PreviewTraits) async throws {
         try await iosSession.setTraits(traits)
     }

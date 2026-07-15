@@ -55,6 +55,29 @@ public protocol PreviewSessionHandle: Sendable {
     /// Tear down the session and unregister it from its backend's
     /// registry. After this returns, the handle should not be reused.
     func stop() async
+
+    /// A classified reason this session can no longer serve calls (e.g.
+    /// its agent died and could not be respawned), or nil while healthy.
+    /// Handlers return this as an error instead of operating on a dead
+    /// session (docs/state-invalidation.md, L04).
+    var terminalFailure: String? { get async }
+
+    /// An undisclosed incident notice (agent crash + relaunch) the next
+    /// response must carry, cleared by this call. Callers take it as the
+    /// LAST step of assembling a response so a taken notice is always
+    /// carried; it is appended as a trailing content item, never at
+    /// index 0, which clients parse as the primary payload.
+    func takeIncidentNotice() async -> String?
+}
+
+public extension PreviewSessionHandle {
+    var terminalFailure: String? {
+        nil
+    }
+
+    func takeIncidentNotice() async -> String? {
+        nil
+    }
 }
 
 /// Resolves a session ID to a platform-agnostic handle. Kept as a

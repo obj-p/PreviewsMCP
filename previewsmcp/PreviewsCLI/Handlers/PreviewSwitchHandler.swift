@@ -45,6 +45,8 @@ enum PreviewSwitchHandler: ToolHandler {
             return CallTool.Result(content: [.text("No session found for \(sessionID)")], isError: true)
         }
 
+        if let failure = await terminalFailureResult(for: handle) { return failure }
+
         // Bounds-check before delegating. The compile path will also
         // validate (PreviewSession.compile throws previewNotFound) but
         // an early structured error guarantees a fast, deterministic
@@ -70,13 +72,16 @@ enum PreviewSwitchHandler: ToolHandler {
                 DaemonProtocol.PreviewInfoDTO(from: $0, activeIndex: newIndex)
             }
         )
-        return try CallTool.Result(
-            content: [
-                .text(
-                    "Switched to preview \(newIndex) in session \(sessionID).\(traitInfo) View recompiled (@State was reset).\n\(previewList)"
-                ),
-            ],
-            structuredContent: structured
+        return try await appendingIncidentNotice(
+            CallTool.Result(
+                content: [
+                    .text(
+                        "Switched to preview \(newIndex) in session \(sessionID).\(traitInfo) View recompiled (@State was reset).\n\(previewList)"
+                    ),
+                ],
+                structuredContent: structured
+            ),
+            from: handle
         )
     }
 }

@@ -509,12 +509,17 @@ class PreviewAgentAppDelegate: UIResponder, UIApplicationDelegate {
     private func handleTouchCommand(_ command: [String: Any]) {
         guard let action = command["action"] as? String else { return }
 
+        // Ack after the last scheduled touch phase so the host's
+        // acknowledged round-trip means "events injected", not "bytes
+        // buffered". Commands without an id (older hosts) get no ack.
+        let injectionDeadline: Double
         switch action {
         case "tap":
             guard let x = command["x"] as? Double,
                   let y = command["y"] as? Double
             else { return }
             sendTap(x: x, y: y)
+            injectionDeadline = 0.08
         case "swipe":
             guard let fromX = command["fromX"] as? Double,
                   let fromY = command["fromY"] as? Double,
@@ -527,8 +532,15 @@ class PreviewAgentAppDelegate: UIResponder, UIApplicationDelegate {
                 fromX: fromX, fromY: fromY, toX: toX, toY: toY,
                 duration: duration, steps: steps
             )
+            injectionDeadline = duration + 0.05
         default:
-            break
+            return
+        }
+
+        if let id = command["id"] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + injectionDeadline) {
+                self.sendResponse(["type": "touchResponse", "id": id])
+            }
         }
     }
 

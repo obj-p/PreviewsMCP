@@ -50,6 +50,13 @@ enum PreviewElementsHandler: ToolHandler {
             )
         }
 
+        guard let handle = await ctx.router.handle(for: sessionID) else {
+            return CallTool.Result(
+                content: [.text("No session found for \(sessionID).")], isError: true
+            )
+        }
+        if let failure = await terminalFailureResult(for: handle) { return failure }
+
         let validFilters: Set = ["all", "interactable", "labeled"]
         let filter = extractOptionalString("filter", from: params) ?? "all"
         guard validFilters.contains(filter) else {
@@ -76,9 +83,12 @@ enum PreviewElementsHandler: ToolHandler {
             nil
         }
 
-        return CallTool.Result(
-            content: [.text(elementsJSON)],
-            structuredContent: structured
+        return await appendingIncidentNotice(
+            CallTool.Result(
+                content: [.text(elementsJSON)],
+                structuredContent: structured
+            ),
+            from: handle
         )
     }
 }

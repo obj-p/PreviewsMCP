@@ -29,7 +29,7 @@ struct SessionRegistryTests {
         let reader = SessionRegistry(registryDir: dir, liveCheck: alwaysLive, pid: 100_002)
 
         await writer.publishIOSSessions([
-            (id: "ios-A", sourceFile: URL(fileURLWithPath: "/tmp/A.swift")),
+            (id: "ios-A", sourceFile: URL(fileURLWithPath: "/tmp/A.swift"), deviceUDID: nil),
         ])
 
         let entries = await reader.readOthers()
@@ -66,7 +66,7 @@ struct SessionRegistryTests {
         let reader = SessionRegistry(registryDir: dir, liveCheck: alwaysLive, pid: 100_022)
 
         await writer.publishIOSSessions([
-            (id: "ios-X", sourceFile: URL(fileURLWithPath: "/tmp/X.swift")),
+            (id: "ios-X", sourceFile: URL(fileURLWithPath: "/tmp/X.swift"), deviceUDID: nil),
         ])
         await writer.publishMacOSSessions([
             (id: "mac-Y", sourceFile: URL(fileURLWithPath: "/tmp/Y.swift")),
@@ -84,7 +84,7 @@ struct SessionRegistryTests {
 
         let writer = SessionRegistry(registryDir: dir, liveCheck: alwaysLive, pid: 100_031)
         await writer.publishIOSSessions([
-            (id: "self-only", sourceFile: URL(fileURLWithPath: "/tmp/me.swift")),
+            (id: "self-only", sourceFile: URL(fileURLWithPath: "/tmp/me.swift"), deviceUDID: nil),
         ])
 
         // The same PID reads its own file via `readOthers` — must not see itself.
@@ -103,7 +103,7 @@ struct SessionRegistryTests {
         let reader = SessionRegistry(registryDir: dir, liveCheck: alwaysLive, pid: 100_042)
 
         await writer.publishIOSSessions([
-            (id: "ephemeral", sourceFile: URL(fileURLWithPath: "/tmp/e.swift")),
+            (id: "ephemeral", sourceFile: URL(fileURLWithPath: "/tmp/e.swift"), deviceUDID: nil),
         ])
         #expect(await reader.readOthers().count == 1)
 
@@ -120,7 +120,7 @@ struct SessionRegistryTests {
         let reader = SessionRegistry(registryDir: dir, liveCheck: alwaysLive, pid: 100_052)
 
         await writer.publishIOSSessions([
-            (id: "vanishing", sourceFile: URL(fileURLWithPath: "/tmp/v.swift")),
+            (id: "vanishing", sourceFile: URL(fileURLWithPath: "/tmp/v.swift"), deviceUDID: nil),
         ])
         #expect(await reader.readOthers().count == 1)
 

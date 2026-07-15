@@ -146,3 +146,26 @@ func configQualityForSession(_ sessionID: String, ctx: HandlerContext) async -> 
     guard let handle = await ctx.router.handle(for: sessionID) else { return nil }
     return loadProjectConfig(explicit: nil, fileURL: handle.sourceFile)?.config.quality
 }
+
+/// Classified error for a session whose agent is terminally gone, or nil
+/// while healthy. Session-scoped handlers return this instead of
+/// operating on a dead session (docs/state-invalidation.md, L04).
+func terminalFailureResult(for handle: any PreviewSessionHandle) async -> CallTool.Result? {
+    guard let failure = await handle.terminalFailure else { return nil }
+    return CallTool.Result(content: [.text(failure)], isError: true)
+}
+
+/// Append the session's undisclosed crash notice (if any) as a TRAILING
+/// content item. Called as the last step of assembling a success
+/// response; never touches `content[0]`, which clients parse as the
+/// primary payload.
+func appendingIncidentNotice(
+    _ result: CallTool.Result, from handle: any PreviewSessionHandle
+) async -> CallTool.Result {
+    guard let notice = await handle.takeIncidentNotice() else { return result }
+    return CallTool.Result(
+        content: result.content + [.text(notice)],
+        structuredContent: result.structuredContent,
+        isError: result.isError
+    )
+}

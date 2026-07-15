@@ -73,6 +73,13 @@ enum PreviewTouchHandler: ToolHandler {
             )
         }
 
+        guard let handle = await ctx.router.handle(for: sessionID) else {
+            return CallTool.Result(
+                content: [.text("No session found for \(sessionID).")], isError: true
+            )
+        }
+        if let failure = await terminalFailureResult(for: handle) { return failure }
+
         let action = extractOptionalString("action", from: params) ?? "tap"
 
         if action == "swipe" {
@@ -88,7 +95,12 @@ enum PreviewTouchHandler: ToolHandler {
             let duration = extractOptionalDouble("duration", from: params) ?? 0.3
 
             try await iosSession.sendSwipe(fromX: x, fromY: y, toX: toX, toY: toY, duration: duration)
-            return CallTool.Result(content: [.text("Swipe from (\(Int(x)),\(Int(y))) to (\(Int(toX)),\(Int(toY)))")])
+            return await appendingIncidentNotice(
+                CallTool.Result(
+                    content: [.text("Swipe from (\(Int(x)),\(Int(y))) to (\(Int(toX)),\(Int(toY)))")]
+                ),
+                from: handle
+            )
         }
 
         try await iosSession.sendTap(x: x, y: y)
@@ -96,6 +108,9 @@ enum PreviewTouchHandler: ToolHandler {
         // Wait briefly for the touch to register and UI to update
         try await Task.sleep(for: .milliseconds(300))
 
-        return CallTool.Result(content: [.text("Tap sent at (\(Int(x)), \(Int(y)))")])
+        return await appendingIncidentNotice(
+            CallTool.Result(content: [.text("Tap sent at (\(Int(x)), \(Int(y)))")]),
+            from: handle
+        )
     }
 }

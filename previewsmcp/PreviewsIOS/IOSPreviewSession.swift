@@ -66,6 +66,25 @@ public actor IOSPreviewSession {
     private var isRelaunching = false
     private var recovering = false
 
+    /// Out-of-band agent-death bookkeeping (docs/state-invalidation.md,
+    /// L04). Every unplanned death increments the count and arms an
+    /// undisclosed incident; a failed respawn moves the session to a
+    /// terminal `failed` state. Handlers surface the incident once per
+    /// crash and treat `failed` as a classified error on every call.
+    public private(set) var crashCount = 0
+    private var undisclosedCrash = false
+    public private(set) var failed = false
+
+    /// The crash notice a handler must carry in its next response, or nil.
+    /// Clearing happens here, at take time — callers take it as the LAST
+    /// step of assembling a response so a taken notice is always carried.
+    public func takeUndisclosedCrashNotice() -> String? {
+        guard undisclosedCrash else { return nil }
+        undisclosedCrash = false
+        return "The preview agent crashed and was relaunched; UI state was reset "
+            + "(crash #\(crashCount) for this session)."
+    }
+
     /// Whether THIS session booted its device (vs finding it already booted). Only a
     /// device we booted is ours to shut down on `stop()`; a pre-existing device — the
     /// persistent pinned test pool reused across sessions (#337), or a user's already-
@@ -412,6 +431,10 @@ public actor IOSPreviewSession {
         recovering = true
         defer { recovering = false }
 
+        crashCount += 1
+        undisclosedCrash = true
+        Log.error("iOS preview \(id): agent died out of band (crash #\(crashCount)); respawning")
+
         await acquireRenderLock()
         defer { releaseRenderLock() }
         guard !stopping else { return }
@@ -419,7 +442,8 @@ public actor IOSPreviewSession {
         do {
             _ = try await _relaunch()
         } catch {
-            print("iOS preview: agent respawn after unexpected death failed: \(error)")
+            failed = true
+            Log.error("iOS preview \(id): agent respawn after unexpected death failed: \(error)")
         }
     }
 
@@ -769,26 +793,41 @@ public actor IOSPreviewSession {
     }
 
     /// Send a tap at the given point coordinates (in device points).
+    /// Acknowledged round-trip: success means the agent received and
+    /// injected the events, not merely that bytes entered a socket buffer
+    /// a dead agent will never read (docs/state-invalidation.md, L04).
     public func sendTap(x: Double, y: Double) async throws {
-        await channel.send(["type": "touch", "action": "tap", "x": x, "y": y])
+        let requestID = UUID().uuidString
+        _ = try await channel.sendAndAwait(
+            ["type": "touch", "action": "tap", "x": x, "y": y, "id": requestID],
+            id: requestID,
+            timeout: .seconds(15)
+        )
         try await Task.sleep(for: .milliseconds(250))
     }
 
-    /// Send a swipe gesture from one point to another.
+    /// Send a swipe gesture from one point to another. Acknowledged like
+    /// `sendTap`; the agent acks after the final touch event is injected.
     public func sendSwipe(
         fromX: Double, fromY: Double,
         toX: Double, toY: Double,
         duration: Double = 0.3,
         steps: Int = 10
     ) async throws {
-        await channel.send([
-            "type": "touch",
-            "action": "swipe",
-            "fromX": fromX, "fromY": fromY,
-            "toX": toX, "toY": toY,
-            "duration": duration, "steps": steps,
-        ])
-        try await Task.sleep(for: .milliseconds(Int(duration * 1000) + 200))
+        let requestID = UUID().uuidString
+        _ = try await channel.sendAndAwait(
+            [
+                "type": "touch",
+                "action": "swipe",
+                "fromX": fromX, "fromY": fromY,
+                "toX": toX, "toY": toY,
+                "duration": duration, "steps": steps,
+                "id": requestID,
+            ],
+            id: requestID,
+            timeout: .seconds(duration + 15)
+        )
+        try await Task.sleep(for: .milliseconds(200))
     }
 
     /// Fetch the accessibility tree from the running preview.
