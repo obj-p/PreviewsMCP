@@ -5,7 +5,9 @@ half) re-verified 2026-07-15 after the ownership-walk resolver landed
 (`docs/build-system-resolver.md`, stage 1). SwiftPM compile rows (S01–S06,
 D09, W01's edit variant) re-verified 2026-07-15 after compile-command
 capture landed (stage 2). Xcode rows (X01, X02, D08, R03, D01/D07 guards)
-re-verified 2026-07-15 after build-log capture landed (stage 3).
+re-verified 2026-07-15 after build-log capture landed (stage 3). Bazel and
+binary-framework rows (B01–B04, D04/D05 guards) re-verified 2026-07-15
+after aquery capture landed (stage 4).
 
 Environment: Xcode 26.2, an iOS 26.3 `previewsmcp-test` iPhone simulator,
 and the Bazel-built CLI from this checkout. Commands used an isolated daemon
@@ -42,9 +44,9 @@ not a nonzero command exit.
 | C03 | Reproduced | A fresh daemon rendered the parent light config. After a nearer dark config appeared and the first session stopped, the same daemon still returned `colorScheme: light`. |
 | C04 | Reproduced | A nearer config was cached with `light`, edited in place to `dark`, and the session was restarted in the same daemon. The response still reported `colorScheme: light`. |
 | C05 | Reproduced | A fresh daemon cached a nearer dark config. After that file was removed, a same-daemon restart still reported `dark` instead of falling back to the parent light config. |
-| B01 | Reproduced | Native Bazel build passed. PreviewsMCP passed a generated target name as a workspace-relative input and `swiftc` rejected `generated_build_stamp` as an unexpected input file. Re-verified identically after bumping the fixture pin from Bazel 8.2.1 to 9.2.0; with `examples/bazel` on 8.6.0 the two Bazel fixtures now cover one workspace per major. |
-| B02 | Reproduced | The physically isolated combined package passed its native iOS simulator build. PreviewsMCP included the dynamic framework flags but its manual compile failed with `no such module 'StaticBadge'`. |
-| B03 | Reproduced | The static-only package passed its native iOS simulator build. PreviewsMCP reached its manual compile with no StaticBadge module search path and failed `no such module 'StaticBadge'`. |
+| B01 | Guard passes | 2026-07-15 (Bazel aquery capture): rendered `Canonical Bzlmod repository` and `Bazel generated source`. The SwiftCompile action's arguments carry the generated source at its execroot path and the canonical external repo's module search path; external dependency archives are force-built for the JIT link. |
+| B02 | Guard passes | 2026-07-15 (compile capture): rendered both `Static simulator XCFramework` and `Dynamic simulator XCFramework` on iOS — the captured flags resolve the StaticBadge module and the copied static archive in binPath links alongside the dynamic framework. |
+| B03 | Guard passes | 2026-07-15 (compile capture): rendered `Static simulator XCFramework` on iOS; the static XCFramework's module resolves from the captured flags and its copied `libStaticBadge.a` links from binPath. |
 | B04 | Reproduced | The dynamic-only package passed natively and PreviewsMCP loaded it on iOS: the snapshot rendered `Dynamic simulator XCFramework`. The same snapshot reported `framework resource missing`, so the framework's internal JSON was not staged with the loaded binary. |
 | F01 | Reproduced | The generator and XCFramework metadata provide only an iPhoneOS device slice. Native simulator and PreviewsMCP builds both failed `no such module 'BadSlice'`; PreviewsMCP did not classify the incompatible slice, while the daemon remained responsive. |
 | R01 | Reproduced | macOS and iOS reached JIT materialization and failed on the target-wide framework/autolink closure. The CLI error was an unclassified symbol dump; the daemon remained responsive. |
