@@ -173,24 +173,36 @@ public actor XcodeBuildSystem: BuildSystem {
 
         // No compile line and no valid persisted capture. A null build and a
         // build-with-Bazel project both log nothing here, so force the module
-        // to recompile (identity content, only the preview file's mtime
-        // moves): under XCBuild the forced log must carry the driver line;
-        // a forced log without one is Bazel driving the build, remembered so
-        // the probe does not repeat every start.
+        // to recompile (identity content; the mtime moves for the build and
+        // is restored right after so watchers and the working tree stay
+        // clean): under XCBuild the forced log carries the driver line.
+        let originalDate = try? FileManager.default
+            .attributesOfItem(atPath: sourceFile.path)[.modificationDate] as? Date
         try? FileManager.default.setAttributes(
             [.modificationDate: Date()], ofItemAtPath: sourceFile.path
         )
         let forcedLog = try await runBuild(scheme: scheme, platform: platform)
+        if let originalDate {
+            try? FileManager.default.setAttributes(
+                [.modificationDate: originalDate], ofItemAtPath: sourceFile.path
+            )
+        }
         if let captured = parseAndPersist(forcedLog) {
             return captured
         }
-        guard XcodeCommandCapture.logsDriverInvocations(forcedLog) else {
+        // Only a log showing Bazel actually drove the build earns the
+        // persisted driverless marker; anything else (content-signature
+        // no-op rebuilds, variant schemes) falls back for this start and
+        // retries the probe next time.
+        if !XcodeCommandCapture.logsDriverInvocations(forcedLog),
+           forcedLog.contains("bazel")
+        {
             XcodeCommandCapture.persist(nil, at: persistURL, validity: validity)
-            return nil
         }
-        throw BuildSystemError.missingArtifacts(
-            "No compile command for module '\(moduleName)' in the xcodebuild log"
+        Log.info(
+            "xcode capture: no compile command for \(moduleName); using settings derivation"
         )
+        return nil
     }
 
     private nonisolated func persistedCaptureURL(
@@ -249,8 +261,10 @@ public actor XcodeBuildSystem: BuildSystem {
             }
         }
 
+        let wholeModule = captured.arguments.contains { $0 == "-whole-module-optimization" || $0 == "-wmo" }
         let clangObjects = Self.clangObjects(
-            settings: settings, targetName: targetName,
+            settings: settings,
+            excludedStems: wholeModule ? [targetName] : [],
             swiftSources: captured.swiftSources
         )
         if !clangObjects.isEmpty {
@@ -261,10 +275,19 @@ public actor XcodeBuildSystem: BuildSystem {
             )
         }
 
-        let previewPath = sourceFile.standardizedFileURL.path
+        let previewPath = sourceFile.resolvingSymlinksInPath().path
         var sourceFiles = captured.swiftSources
             .map { URL(fileURLWithPath: $0).standardizedFileURL }
-            .filter { $0.path != previewPath }
+            .filter { $0.resolvingSymlinksInPath().path != previewPath }
+
+        // An unreadable SwiftFileList must not silently shrink Tier 2 to the
+        // preview file alone; the OutputFileMap enumeration is the fallback
+        // source list.
+        if sourceFiles.isEmpty,
+           let fallback = collectSourceFiles(settings: settings, targetName: targetName)
+        {
+            sourceFiles = fallback
+        }
 
         // Union Xcode-generated Swift sources from DERIVED_FILE_DIR (asset
         // symbols and friends are generated during the build; a capture from
@@ -316,10 +339,11 @@ public actor XcodeBuildSystem: BuildSystem {
 
     /// The target's C/ObjC objects: everything in the objects directory that
     /// is not a Swift compile output. Swift outputs are named after the
-    /// captured Swift sources; over-inclusion is safe because archive
-    /// members link lazily.
+    /// captured Swift sources — plus the whole-module master object named
+    /// after the target when the capture shows WMO — and over-inclusion is
+    /// otherwise safe because archive members link lazily.
     private static func clangObjects(
-        settings: [String: String], targetName: String, swiftSources: [String]
+        settings: [String: String], excludedStems: [String], swiftSources: [String]
     ) -> [String] {
         guard let objectFileDir = settings["OBJECT_FILE_DIR_normal"] else { return [] }
         let objectsDir = URL(fileURLWithPath: objectFileDir).appendingPathComponent(hostArch)
@@ -328,17 +352,15 @@ public actor XcodeBuildSystem: BuildSystem {
                 at: objectsDir, includingPropertiesForKeys: nil
             )
         else { return [] }
-        let swiftStems = Set(
+        var swiftStems = Set(
             swiftSources.map {
                 URL(fileURLWithPath: $0).deletingPathExtension().lastPathComponent
             }
         )
+        swiftStems.formUnion(excludedStems)
         return entries
             .filter { $0.pathExtension == "o" }
-            .filter {
-                let stem = $0.deletingPathExtension().lastPathComponent
-                return !swiftStems.contains(stem) && stem != targetName
-            }
+            .filter { !swiftStems.contains($0.deletingPathExtension().lastPathComponent) }
             .map(\.path)
             .sorted()
     }

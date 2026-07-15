@@ -91,8 +91,10 @@ enum XcodeCommandCapture {
     }
 
     /// The mtimes that must be unchanged for a persisted capture to stay
-    /// valid: the project definition and every xcconfig under the project
-    /// root (X01: xcconfig contents feed the captured settings).
+    /// valid: the project definition(s) — every referenced project's pbxproj
+    /// when the marker is a workspace — and every xcconfig under the project
+    /// root (X01: xcconfig contents feed the captured settings). The
+    /// xcconfig walk is depth-bounded; configs live near the project.
     static func validityKeys(projectFile: URL, projectRoot: URL) -> [String: Date] {
         var keys: [String: Date] = [:]
         func record(_ url: URL) {
@@ -102,14 +104,27 @@ enum XcodeCommandCapture {
                 keys[url.path] = date
             }
         }
-        record(projectFile.appendingPathComponent("project.pbxproj"))
-        record(projectFile.appendingPathComponent("contents.xcworkspacedata"))
+        if projectFile.pathExtension == "xcworkspace" {
+            record(projectFile.appendingPathComponent("contents.xcworkspacedata"))
+            for project in XcodeProjectMembership.projects(inWorkspace: projectFile) {
+                record(project.appendingPathComponent("project.pbxproj"))
+            }
+        } else {
+            record(projectFile.appendingPathComponent("project.pbxproj"))
+        }
+        let rootDepth = projectRoot.pathComponents.count
         if let enumerator = FileManager.default.enumerator(
             at: projectRoot, includingPropertiesForKeys: [.contentModificationDateKey],
             options: [.skipsHiddenFiles, .skipsPackageDescendants]
         ) {
-            for case let url as URL in enumerator where url.pathExtension == "xcconfig" {
-                record(url)
+            for case let url as URL in enumerator {
+                if url.pathComponents.count - rootDepth > 4 {
+                    enumerator.skipDescendants()
+                    continue
+                }
+                if url.pathExtension == "xcconfig" {
+                    record(url)
+                }
             }
         }
         return keys
