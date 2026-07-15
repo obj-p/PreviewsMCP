@@ -14,7 +14,6 @@ import PreviewsMacOS
 struct HandlerContext {
     let host: PreviewHost
     let iosState: IOSSessionManager
-    let configCache: ConfigCache
     let router: any SessionRouting
     let simulatorLister: any SimulatorLister
     let registry: SessionRegistry

@@ -9,7 +9,7 @@ import System
 ///
 /// Accepts multiple concurrent client connections. Each connection gets its
 /// own `PreviewsMCPServer` instance, but all connections share a single
-/// `IOSSessionManager`, `ConfigCache`, and `Compiler` created at daemon
+/// `IOSSessionManager` and `Compiler` created at daemon
 /// startup — so preview sessions persist across CLI invocations and
 /// simultaneous clients see consistent state.
 enum DaemonListener {
@@ -33,7 +33,6 @@ enum DaemonListener {
         // CLI invocations.
         let compiler = try await Compiler()
         let iosManager = IOSSessionManager()
-        let configCache = ConfigCache()
         // Cross-process session registry. Constructed once and attached
         // here (not per-connection) so the publish-on-mutation hooks on
         // the iOS manager and macOS host are wired exactly once. See
@@ -73,8 +72,7 @@ enum DaemonListener {
                 Task {
                     await handleConnection(
                         connection, compiler: compiler, host: host,
-                        iosManager: iosManager, configCache: configCache,
-                        registry: registry
+                        iosManager: iosManager, registry: registry
                     )
                 }
             }
@@ -88,14 +86,12 @@ enum DaemonListener {
     /// so a finishing render warms the next one.
     private static func handleConnection(
         _ connection: FileDescriptor, compiler: Compiler, host: PreviewHost,
-        iosManager: IOSSessionManager, configCache: ConfigCache,
-        registry: SessionRegistry
+        iosManager: IOSSessionManager, registry: SessionRegistry
     ) async {
         let transport = FramedTransport(owningSocket: connection)
         do {
             let (server, _) = try await configureMCPServer(
-                host: host, iosManager: iosManager,
-                configCache: configCache, registry: registry,
+                host: host, iosManager: iosManager, registry: registry,
                 sharedCompiler: compiler,
                 // A dead peer's fds close and the read loop sees EOF, so
                 // pings only backstop the wedged-but-alive case. Generous

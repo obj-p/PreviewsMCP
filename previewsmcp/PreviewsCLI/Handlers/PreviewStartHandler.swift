@@ -131,16 +131,18 @@ enum PreviewStartHandler: ToolHandler {
         let previewIndex = extractOptionalInt("previewIndex", from: params) ?? 0
 
         Log.info("preview_start: loading config")
+        // Config is walked fresh on every load: the filesystem owns config
+        // discovery, so a nearer config appearing, an in-place edit, or a
+        // deletion is visible to the next start (C03-C05,
+        // docs/state-invalidation.md stage 1). The walk is a stat chain,
+        // negligible against a session start.
         let configResult: ProjectConfigLoader.Result? = if let explicitConfig = extractOptionalString(
             "config",
             from: params
         ) {
-            // Explicit `config` bypasses the auto-discovery cache. One-shot
-            // load is fine: config is read once at session start; long-lived
-            // sessions don't consult it again.
             loadProjectConfig(explicit: explicitConfig, fileURL: fileURL)
         } else {
-            await ctx.configCache.load(for: fileURL)
+            ProjectConfigLoader.find(from: fileURL.deletingLastPathComponent())
         }
         Log.info("preview_start: config loaded")
         let config = configResult?.config

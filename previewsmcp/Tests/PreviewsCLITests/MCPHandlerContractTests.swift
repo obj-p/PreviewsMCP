@@ -53,6 +53,40 @@ struct MCPHandlerContractTests {
         #expect(text(in: result).isEmpty)
     }
 
+    @Test("config quality is re-read from the filesystem on every lookup")
+    func configQualityRereadsFilesystem() async throws {
+        let parent = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-config-fresh-\(UUID().uuidString)")
+        let child = parent.appendingPathComponent("child")
+        try FileManager.default.createDirectory(at: child, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: parent) }
+        try #"{"quality": 0.25}"#.write(
+            to: parent.appendingPathComponent(".previewsmcp.json"),
+            atomically: true, encoding: .utf8
+        )
+        let childConfig = child.appendingPathComponent(".previewsmcp.json")
+
+        let source = child.appendingPathComponent("FreshPreview.swift")
+        try "// placeholder".write(to: source, atomically: true, encoding: .utf8)
+        let handle = FakePreviewSessionHandle(id: "config-fresh-session", sourceFile: source)
+        let ctx = try await HandlerContractSupport.context(handles: [handle])
+
+        // Parent config applies while no nearer one exists.
+        #expect(await configQualityForSession(handle.id, ctx: ctx) == 0.25)
+
+        // C03: a nearer config appearing is visible to the next lookup.
+        try #"{"quality": 0.5}"#.write(to: childConfig, atomically: true, encoding: .utf8)
+        #expect(await configQualityForSession(handle.id, ctx: ctx) == 0.5)
+
+        // C04: an in-place edit is visible to the next lookup.
+        try #"{"quality": 0.9}"#.write(to: childConfig, atomically: true, encoding: .utf8)
+        #expect(await configQualityForSession(handle.id, ctx: ctx) == 0.9)
+
+        // C05: removing the nearer config falls back to the parent.
+        try FileManager.default.removeItem(at: childConfig)
+        #expect(await configQualityForSession(handle.id, ctx: ctx) == 0.25)
+    }
+
     @Test("preview_snapshot uses the routed handle and returns the requested image type")
     func previewSnapshotUsesRoutedHandle() async throws {
         let source = try HandlerContractSupport.previewFile()
@@ -352,7 +386,6 @@ private enum HandlerContractSupport {
             PreviewHost(makeStructuralReloader: { StubReloader() })
         }
         let iosManager = IOSSessionManager()
-        let configCache = ConfigCache()
         let router = FakeSessionRouter(handles: handles)
         let registry = SessionRegistry(
             registryDir: FileManager.default.temporaryDirectory
@@ -367,7 +400,6 @@ private enum HandlerContractSupport {
         return HandlerContext(
             host: host,
             iosState: iosManager,
-            configCache: configCache,
             router: router,
             simulatorLister: FakeSimulatorLister(devices: simulators),
             registry: registry,

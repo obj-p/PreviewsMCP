@@ -56,7 +56,6 @@ func mcpToolSchemas() -> [Tool] {
 func configureMCPServer(
     host previewHost: PreviewHost,
     iosManager: IOSSessionManager,
-    configCache cache: ConfigCache,
     registry: SessionRegistry,
     sharedCompiler: Compiler? = nil,
     liveness: PingLiveness? = nil
@@ -81,7 +80,6 @@ func configureMCPServer(
     let ctx = HandlerContext(
         host: previewHost,
         iosState: iosManager,
-        configCache: cache,
         router: router,
         simulatorLister: await iosManager.simulatorManager,
         registry: registry,
