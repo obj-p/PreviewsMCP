@@ -25,15 +25,15 @@ enum CompileCommandNormalizer {
                 continue
             }
             if token == "-Xfrontend", index + 1 < args.count,
-               droppedFrontendFlags.contains(args[index + 1])
+               let valueCount = droppedFrontendFlags[args[index + 1]]
             {
-                index += 2
+                index += 2 + valueCount * 2
                 continue
             }
             if token == "-Xcc", index + 1 < args.count,
-               droppedClangFlags.contains(args[index + 1])
+               let valueCount = droppedClangFlags[args[index + 1]]
             {
-                index += 2
+                index += 2 + valueCount * 2
                 continue
             }
             if token.hasSuffix(".swift"), !token.hasPrefix("-") {
@@ -71,14 +71,28 @@ enum CompileCommandNormalizer {
         "-emit-objc-header-path": 1,
         "-module-name": 1,
         "-o": 1,
+        "-explicit-module-build": 0,
+        "-validate-clang-modules-once": 0,
+        "-clang-build-session-file": 1,
+        "-clang-scanner-module-cache-path": 1,
+        "-sdk-module-cache-path": 1,
+        "-save-temps": 0,
+        "-no-color-diagnostics": 0,
+        "-use-frontend-parseable-output": 0,
+        "-experimental-emit-module-separately": 0,
+        "-emit-const-values": 0,
     ]
 
-    private static let droppedFrontendFlags: Set<String> = [
-        "-serialize-debugging-options",
+    /// Frontend flags to drop with their `-Xfrontend`-wrapped value counts.
+    private static let droppedFrontendFlags: [String: Int] = [
+        "-serialize-debugging-options": 0,
+        "-const-gather-protocols-file": 1,
     ]
 
-    private static let droppedClangFlags: Set<String> = [
-        "-g",
+    /// Clang flags to drop with their `-Xcc`-wrapped value counts.
+    private static let droppedClangFlags: [String: Int] = [
+        "-g": 0,
+        "-ivfsstatcache": 1,
     ]
 
     private static func jobCountPattern(_ token: String) -> Bool {
