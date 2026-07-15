@@ -16,16 +16,15 @@ struct SettingsFixtureView: View {
     private let provider: any FixtureMessageProviding
 
     init() {
-        let resourceName: String = if let url = Bundle.module.url(forResource: "settings", withExtension: "json"),
-                                      let data = try? Data(contentsOf: url),
-                                      let object = try? JSONSerialization.jsonObject(with: data) as? [String: String]
-        {
-            object["name"] ?? "missing resource value"
-        } else {
-            "missing settings.json"
+        guard let url = Bundle.module.url(forResource: "settings", withExtension: "json"),
+              let data = try? Data(contentsOf: url),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: String],
+              let name = object["name"]
+        else {
+            fatalError("settings.json was not staged with the preview")
         }
 
-        provider = FixtureMessage(message: resourceName)
+        provider = FixtureMessage(message: name)
     }
 
     var body: some View {
@@ -38,8 +37,7 @@ struct SettingsFixtureView: View {
             #if SETTINGS_FIXTURE
                 Text("Conditional Swift setting present")
             #else
-                Text("Conditional Swift setting missing")
-                    .foregroundStyle(.red)
+                #error("SETTINGS_FIXTURE was not forwarded to the compile")
             #endif
         }
         .padding()

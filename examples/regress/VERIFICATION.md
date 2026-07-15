@@ -90,6 +90,11 @@ not a nonzero command exit.
   inferred resources relative to the wrong directory name.
 - Added the custom `Preview Debug` configuration to both workspace projects;
   without it, the native control could not build the referenced framework.
+- Made S01/S02 fail closed (2026-07-15, guard automation): the `#else`
+  branches that rendered "setting missing" text became `#error`, and S01's
+  missing-resource fallback became a `fatalError`, so a regression is a
+  loud compile/render failure instead of a silently-wrong render that an
+  exit-code guard would miss. The healthy render is unchanged.
 
 ## Repeatability Notes
 

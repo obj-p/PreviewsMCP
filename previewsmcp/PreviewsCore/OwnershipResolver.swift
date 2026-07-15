@@ -129,6 +129,10 @@ struct OwnershipWalk {
                     of: sourceFile, at: dir, marker: marker, scheme: scheme
                 ) {
                 case let .confirmed(ownership):
+                    Log.info(
+                        "ownership: \(resolver.kind.rawValue) confirmed by "
+                            + "\(marker.lastPathComponent) for \(sourceFile.lastPathComponent)"
+                    )
                     return ownership
                 case let .notMember(reason):
                     declines.append(
