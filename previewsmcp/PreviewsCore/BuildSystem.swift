@@ -1,12 +1,10 @@
 import Foundation
 
-/// Protocol for build system integrations. Each implementation detects its project type,
-/// builds the project, and provides compiler flags (and optionally .o files) for preview compilation.
+/// Protocol for build system integrations. Ownership of a source file is
+/// resolved by `OwnershipWalk` before an implementation is constructed; each
+/// implementation builds the project and provides compiler flags (and
+/// optionally .o files) for preview compilation.
 public protocol BuildSystem: Sendable {
-    /// Check if this build system applies to the given source file.
-    /// Returns a configured instance ready to build, or nil if this build system doesn't apply.
-    static func detect(for sourceFile: URL) async throws -> Self?
-
     /// Build the project and return the context needed to compile the preview dylib.
     func build(platform: PreviewPlatform) async throws -> BuildContext
 
@@ -47,22 +45,11 @@ public enum BuildSystemDetector {
         }
         // If an explicit project root is provided, detect which build system applies there
         if let projectRoot {
-            let fm = FileManager.default
-            var isDir: ObjCBool = false
-            if fm.fileExists(
-                atPath: projectRoot.appendingPathComponent("Package.swift").path,
-                isDirectory: &isDir
-            ), !isDir.boolValue {
+            if SPMBuildSystem.packageMarker(in: projectRoot) != nil {
                 return SPMBuildSystem(projectRoot: projectRoot, sourceFile: sourceFile)
             }
-            for marker in BazelBuildSystem.projectMarkers {
-                isDir = false
-                if fm.fileExists(
-                    atPath: projectRoot.appendingPathComponent(marker).path,
-                    isDirectory: &isDir
-                ), !isDir.boolValue {
-                    return BazelBuildSystem(projectRoot: projectRoot, sourceFile: sourceFile)
-                }
+            if BazelBuildSystem.projectMarker(in: projectRoot) != nil {
+                return BazelBuildSystem(projectRoot: projectRoot, sourceFile: sourceFile)
             }
             // Xcode: enumerate directory for *.xcworkspace / *.xcodeproj (name varies)
             if let projectFile = XcodeBuildSystem.findXcodeProject(in: projectRoot) {
@@ -75,46 +62,40 @@ public enum BuildSystemDetector {
             }
             return nil
         }
-        // SPM first (most common for Swift-only projects)
-        if let spm = try await SPMBuildSystem.detect(for: sourceFile) {
-            return spm
-        }
-        // Bazel (rules_swift projects)
-        if let bazel = try await BazelBuildSystem.detect(for: sourceFile) {
-            return bazel
-        }
-        // Xcode (.xcworkspace / .xcodeproj)
-        if let xcode = try await XcodeBuildSystem.detect(for: sourceFile, scheme: scheme) {
-            return xcode
-        }
-        return nil
+        // Nearest-confirming-root walk: at each directory level the candidate
+        // markers are consulted in tie-break order (SwiftPM, Bazel, Xcode) and
+        // the nearest root whose own model confirms membership wins. Markers
+        // found but never confirmed fail loudly with their reasons; nil means
+        // no markers exist at all (standalone mode).
+        return try await resolve(
+            walk: OwnershipWalk(resolvers: OwnershipWalk.allResolvers),
+            sourceFile: sourceFile, scheme: scheme
+        )
     }
 
     /// Build the requested system for an explicit override. With a `projectRoot`
-    /// it constructs the system directly; without one it walks up from the source
-    /// file via that system's own `detect`. Either way it never falls through to
-    /// another build system.
+    /// it constructs the system directly; without one it walks up from the
+    /// source file consulting only that system's markers, still requiring
+    /// membership confirmation. Either way it never falls through to another
+    /// build system.
     private static func forced(
         _ kind: BuildSystemKind,
         for sourceFile: URL,
         projectRoot: URL?,
         scheme: String?
     ) async throws -> (any BuildSystem)? {
+        guard let projectRoot else {
+            return try await resolve(
+                walk: OwnershipWalk(resolvers: OwnershipWalk.resolvers(for: kind)),
+                sourceFile: sourceFile, scheme: scheme
+            )
+        }
         switch kind {
         case .spm:
-            guard let projectRoot else {
-                return try await SPMBuildSystem.detect(for: sourceFile)
-            }
             return SPMBuildSystem(projectRoot: projectRoot, sourceFile: sourceFile)
         case .bazel:
-            guard let projectRoot else {
-                return try await BazelBuildSystem.detect(for: sourceFile)
-            }
             return BazelBuildSystem(projectRoot: projectRoot, sourceFile: sourceFile)
         case .xcode:
-            guard let projectRoot else {
-                return try await XcodeBuildSystem.detect(for: sourceFile, scheme: scheme)
-            }
             guard let projectFile = XcodeBuildSystem.findXcodeProject(in: projectRoot) else {
                 throw BuildSystemError.buildSystemUnavailable(
                     kind: kind.rawValue,
@@ -126,6 +107,43 @@ public enum BuildSystemDetector {
                 sourceFile: sourceFile,
                 projectFile: projectFile,
                 requestedScheme: scheme
+            )
+        }
+    }
+
+    private static func resolve(
+        walk: OwnershipWalk, sourceFile: URL, scheme: String?
+    ) async throws -> (any BuildSystem)? {
+        let standardized = sourceFile.standardizedFileURL
+        guard let ownership = try await walk.resolve(sourceFile: standardized, scheme: scheme)
+        else { return nil }
+        switch ownership.kind {
+        case .spm:
+            let system = SPMBuildSystem(
+                projectRoot: ownership.projectRoot, sourceFile: standardized
+            )
+            if let targetName = ownership.targetName,
+               let description = ownership.packageDescription
+            {
+                await system.prime(targetName: targetName, description: description)
+            }
+            return system
+        case .bazel:
+            return BazelBuildSystem(
+                projectRoot: ownership.projectRoot, sourceFile: standardized,
+                confirmedTarget: ownership.targetName
+            )
+        case .xcode:
+            guard
+                let projectFile = ownership.projectFile
+                ?? XcodeBuildSystem.findXcodeProject(in: ownership.projectRoot)
+            else { return nil }
+            return XcodeBuildSystem(
+                projectRoot: ownership.projectRoot,
+                sourceFile: standardized,
+                projectFile: projectFile,
+                requestedScheme: scheme,
+                confirmedTarget: ownership.targetName
             )
         }
     }

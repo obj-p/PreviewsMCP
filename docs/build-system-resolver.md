@@ -75,9 +75,11 @@ Two questions, answered per build system, replacing `detect` + `build`:
 public struct Ownership: Sendable {
     public let kind: BuildSystemKind
     public let projectRoot: URL
-    public let targetName: String
-    public let moduleName: String
-    public let markerDepth: Int
+    public let targetName: String?
+    /// The .xcodeproj/.xcworkspace that confirmed membership (Xcode only).
+    public let projectFile: URL?
+    /// Internal: artifacts the confirmation already paid for (e.g. SwiftPM's
+    /// decoded describe output) ride along so build() does not redo the work.
 }
 
 /// Ownership is ternary, not binary. `indeterminate` (tool missing, describe
@@ -93,11 +95,22 @@ public enum OwnershipVerdict: Sendable {
 }
 
 public protocol BuildSystemResolver: Sendable {
+    /// The candidate marker (Package.swift, workspace marker, .xcodeproj)
+    /// in a directory, if any. The walk passes the found marker back into
+    /// owner() so directories are scanned once.
+    func candidateMarker(in directory: URL) -> URL?
+
     /// Claim the file only when this build system's own model confirms the
     /// target membership. No native build may run here; this must stay cheap
     /// enough to call for every candidate marker on the walk.
-    func owner(of sourceFile: URL, at candidateRoot: URL) async
-        -> OwnershipVerdict
+    func owner(of sourceFile: URL, at candidateRoot: URL, marker: URL,
+               scheme: String?) async -> OwnershipVerdict
+
+    /// A diagnostic for a directory with no candidate marker, when the
+    /// resolver can still explain why one was expected (the XcodeGen
+    /// manifest-without-output case). System-specific knowledge stays out
+    /// of the shared walk.
+    func diagnose(in directory: URL) -> OwnershipDecline?
 
     /// Build the owning target natively, capture its compile command, and
     /// return the full-fidelity context.
@@ -190,9 +203,13 @@ markers, still requiring membership confirmation, still reporting
 Cost note: for the winning root the confirmation is dwarfed by the native
 build that follows, but disconfirming losers run with no build to hide
 behind, and `swift package describe` resolves the package graph each time.
-Within one walk, memoize per candidate root; nested-SPM monorepos are the
-case that stacks describes. No cross-session caching in v1; ownership
-re-resolves per session start, same as today.
+The winning SwiftPM confirmation hands its decoded describe output to the
+constructed build system so build() does not run a second describe; Bazel
+hands over the confirmed target label. Describe results are NOT cached
+across session starts or walks: describe's resolved `sources` depends on
+files on disk, and a stale cache would misclassify a newly created preview
+file as `notMember` (the C-family lesson). Nested-SPM monorepos stack one
+describe per candidate root per start; acceptable until proven otherwise.
 
 ## Compile context: capture, interrogate, or re-derive
 

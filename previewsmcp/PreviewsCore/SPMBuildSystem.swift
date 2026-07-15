@@ -4,10 +4,18 @@ import Foundation
 public actor SPMBuildSystem: BuildSystem {
     public nonisolated let projectRoot: URL
     private let sourceFile: URL
+    private var primed: (targetName: String, description: PackageDescription)?
 
     public init(projectRoot: URL, sourceFile: URL) {
         self.projectRoot = projectRoot
         self.sourceFile = sourceFile
+    }
+
+    /// Hand over the target and decoded description the ownership walk
+    /// already paid a `swift package describe` for, so build() does not run
+    /// a second one.
+    func prime(targetName: String, description: PackageDescription) {
+        primed = (targetName, description)
     }
 
     // MARK: - Platform Detection
@@ -83,11 +91,7 @@ public actor SPMBuildSystem: BuildSystem {
                 return nil
             }
 
-            let packageSwift = dir.appendingPathComponent("Package.swift")
-            var isDir: ObjCBool = false
-            if fm.fileExists(atPath: packageSwift.path, isDirectory: &isDir),
-               !isDir.boolValue
-            {
+            if packageMarker(in: dir) != nil {
                 return dir
             }
             dir = dir.deletingLastPathComponent()
@@ -153,11 +157,7 @@ public actor SPMBuildSystem: BuildSystem {
         let root = URL(fileURLWithPath: "/")
 
         while dir.path != root.path {
-            let packageSwift = dir.appendingPathComponent("Package.swift")
-            var isDir: ObjCBool = false
-            if FileManager.default.fileExists(atPath: packageSwift.path, isDirectory: &isDir),
-               !isDir.boolValue
-            {
+            if packageMarker(in: dir) != nil {
                 return SPMBuildSystem(projectRoot: dir, sourceFile: sourceFile.standardizedFileURL)
             }
             dir = dir.deletingLastPathComponent()
@@ -165,12 +165,89 @@ public actor SPMBuildSystem: BuildSystem {
         return nil
     }
 
+    /// The Package.swift marker file in the given directory, if any.
+    static func packageMarker(in directory: URL) -> URL? {
+        let marker = directory.appendingPathComponent("Package.swift")
+        var isDir: ObjCBool = false
+        guard
+            FileManager.default.fileExists(atPath: marker.path, isDirectory: &isDir),
+            !isDir.boolValue
+        else { return nil }
+        return marker
+    }
+
+    // MARK: - Ownership
+
+    /// Confirm membership against the package's own model: the target whose
+    /// resolved `sources` list (post-exclusion) contains the file. Targets
+    /// that omit `sources` fall back to path containment so a package that
+    /// builds fine never turns into `notMember` on a missing field.
+    static func confirmOwnership(
+        projectRoot: URL, sourceFile: URL
+    ) async -> OwnershipVerdict {
+        let output: ProcessOutput
+        do {
+            output = try await runAsync(
+                "/usr/bin/env",
+                arguments: ["swift", "package", "describe", "--type", "json"],
+                workingDirectory: projectRoot
+            )
+        } catch {
+            return .indeterminate(
+                reason: "swift package describe failed: \(error.localizedDescription)"
+            )
+        }
+        guard output.exitCode == 0 else {
+            let detail = output.stderr.split(separator: "\n").last.map(String.init) ?? ""
+            return .indeterminate(
+                reason: "swift package describe exited \(output.exitCode): \(detail)"
+            )
+        }
+        guard
+            let data = output.stdout.data(using: .utf8),
+            let description = try? JSONDecoder().decode(PackageDescription.self, from: data)
+        else {
+            return .indeterminate(reason: "could not decode swift package describe output")
+        }
+
+        let filePath = sourceFile.standardizedFileURL.path
+        for target in description.targets {
+            let targetDir = projectRoot.appendingPathComponent(target.path).standardizedFileURL
+            let member =
+                if let sources = target.sources {
+                    sources.contains {
+                        targetDir.appendingPathComponent($0).standardizedFileURL.path == filePath
+                    }
+                } else {
+                    filePath.hasPrefix(targetDir.path + "/") || filePath == targetDir.path
+                }
+            if member {
+                var ownership = Ownership(
+                    kind: .spm, projectRoot: projectRoot, targetName: target.name
+                )
+                ownership.packageDescription = description
+                return .confirmed(ownership)
+            }
+        }
+        return .notMember(
+            reason:
+            "no target in package '\(description.name)' lists \(sourceFile.lastPathComponent)"
+        )
+    }
+
     // MARK: - Build
 
     public func build(platform: PreviewPlatform) async throws -> BuildContext {
-        // 1. Describe the package to find the target
-        let description = try await describePackage()
-        let targetName = try findTarget(for: sourceFile, in: description)
+        // 1. Describe the package to find the target (already answered by the
+        //    ownership walk when this instance came from detection)
+        let description: PackageDescription
+        let targetName: String
+        if let primed {
+            (targetName, description) = primed
+        } else {
+            description = try await describePackage()
+            targetName = try findTarget(for: sourceFile, in: description)
+        }
 
         // 2. Resolve iOS SDK path once (used by both swift build and --show-bin-path)
         let iosSDKPath: String? =
@@ -300,7 +377,7 @@ public actor SPMBuildSystem: BuildSystem {
 
     // MARK: - Private: Package Description
 
-    private struct PackageDescription: Decodable {
+    struct PackageDescription: Decodable {
         let name: String
         let targets: [Target]
 

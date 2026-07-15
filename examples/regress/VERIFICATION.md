@@ -1,6 +1,8 @@
 # Regression Fixture Verification
 
-Last full manual pass: 2026-07-14
+Last full manual pass: 2026-07-14. Detection rows (D01–D09, X02's detection
+half) re-verified 2026-07-15 after the ownership-walk resolver landed
+(`docs/build-system-resolver.md`, stage 1).
 
 Environment: Xcode 26.2, an iOS 26.3 `previewsmcp-test` iPhone simulator,
 and the Bazel-built CLI from this checkout. Commands used an isolated daemon
@@ -15,15 +17,15 @@ not a nonzero command exit.
 
 | ID | Result | Observed current behavior and control |
 |---|---|---|
-| D01 | Reproduced | Auto-detection selected the distant SwiftPM root and failed source ownership. Forced Xcode started the same preview. |
-| D02 | Guard passes | Auto-detection selected the nested SwiftPM package and started the preview. |
-| D03 | Reproduced | The outer SwiftPM package claimed the nested Xcode source and failed ownership. Forced Xcode started it. |
-| D04 | Reproduced | The outer SwiftPM package claimed the nested Bazel source and failed ownership. Forced Bazel started it. |
-| D05 | Guard / policy decision | Auto-detection selected SwiftPM and started the preview; forced Bazel also started it. The precedence is observable but remains a policy to document. |
-| D06 | Reproduced | Auto-detection returned generic SwiftPM ownership failure. Forced Xcode reported only that no project exists; neither path identified the present generated-project manifest or missing output. |
-| D07 | Reproduced | Auto-detection was claimed by the repository's outer SwiftPM root. Forced Xcode rendered `NewPreview.swift` even though the checked-in project does not contain it, so stale project membership was not diagnosed. |
-| D08 | Reproduced | Auto-detection was claimed by the outer SwiftPM root. Forced Xcode with `Combined` compiled as module `Alpha` and failed because `BetaModel` was unavailable. |
-| D09 | Reproduced | Native SwiftPM built the package at its spaced path. PreviewsMCP preserved the path arguments but derived `Preview_Unicode–Preview_...` as a Swift module name; `swiftc` rejected the Unicode dash as an invalid identifier. |
+| D01 | Guard passes | 2026-07-15 (ownership walk): auto-detection confirmed membership in the nearer Xcode project and rendered `Nearest marker: Xcode`. Previously the distant SwiftPM root claimed the file and failed. |
+| D02 | Guard passes | Auto-detection selected the nested SwiftPM package and started the preview. Re-verified 2026-07-15 under the ownership walk. |
+| D03 | Guard passes | 2026-07-15 (ownership walk): auto-detection selected the nested Xcode project and rendered `Outer Package.swift must not win`. Previously the outer SwiftPM package claimed it. |
+| D04 | Guard passes | 2026-07-15 (ownership walk): auto-detection selected the nested Bazel workspace and rendered `Outer Package.swift must not win`. Previously the outer SwiftPM package claimed it. |
+| D05 | Guard passes | Auto-detection selected SwiftPM and rendered. The same-level precedence (SwiftPM, then Bazel, then Xcode) is now the documented tie-break in the ownership walk, re-verified 2026-07-15. |
+| D06 | Guard passes | 2026-07-15 (ownership walk): the start error names every declined candidate (the fixture's fallback package and workspace, the repo root) and the `project.yml` manifest with `run xcodegen generate`. Previously a generic SwiftPM ownership failure. |
+| D07 | Guard passes | 2026-07-15 (ownership walk): the start error reports that no target in `StaleOutput.xcodeproj` compiles `NewPreview.swift` and that the project may be stale relative to its XcodeGen manifest. Previously the outer SwiftPM root claimed the file and forced Xcode silently rendered a file outside the project. |
+| D08 | Guard passes | 2026-07-15 (ownership walk): membership confirmed target `Beta`; the `Combined` scheme's build settings are parsed for that target and the preview rendered `Beta owns this preview`. Previously it compiled as module `Alpha` and failed. |
+| D09 | Reproduced | 2026-07-15: the ownership walk confirms the spaced/Unicode path and SwiftPM builds it. The remaining failure is the derived module name: `swiftc` rejects `Preview_Unicode–Preview_...` as an invalid identifier (identifier sanitizer lands with compile-context capture). |
 | X01 | Reproduced | Native `xcodebuild` passed for the workspace's `Preview Debug` configuration. PreviewsMCP selected the workspace, built both projects, linked `SharedKit`, and rendered its text, but the snapshot showed `wrong Xcode configuration` because `PREVIEW_WORKSPACE` from the selected `.xcconfig` was missing in Tier 2. |
 | S01 | Reproduced | Native `swift build` passed. PreviewsMCP Tier 2 failed with `no such module 'FixtureC'`; its command also included the excluded `DoNotCompile.swift` and omitted the plugin-generated source/settings. |
 | S02 | Reproduced | Native SwiftPM passed and PreviewsMCP compiled/rendered the isolated target, proving the upcoming-feature syntax remained usable. The snapshot showed `Conditional Swift setting missing`, so the target's conditional define was not forwarded. |
@@ -31,7 +33,7 @@ not a nonzero command exit.
 | S04 | Reproduced | Native SwiftPM honored the exclusion and Clang dependency. PreviewsMCP included `Excluded/DoNotCompile.swift` in its incremental command and failed first with `no such module 'FixtureC'`. |
 | S05 | Reproduced | Native SwiftPM built the macro plugin and client. PreviewsMCP Tier 2 failed with `external macro implementation type 'FixtureMacrosPlugin.FixtureStampMacro' could not be found ... plugin for module 'FixtureMacrosPlugin' not found`; the plugin executable was never built for the host or passed to the compile. |
 | S06 | Guard passes | The `@Observable` toolchain macro compiled through the default plugin path and the preview rendered `toolchain macro active` on macOS. |
-| X02 | Reproduced | Native `xcodebuild` passed. Auto-detection was claimed by the repository's outer SwiftPM root; forced Xcode failed with `cannot find 'BridgedGreeting' in scope`, so `SWIFT_OBJC_BRIDGING_HEADER` was not forwarded to the Tier 2 compile. |
+| X02 | Reproduced | Native `xcodebuild` passed. 2026-07-15: auto-detection now selects the fixture's Xcode project (the outer-SwiftPM misclaim is fixed by the ownership walk); the compile still fails with `cannot find 'BridgedGreeting' in scope` because `SWIFT_OBJC_BRIDGING_HEADER` is not forwarded to Tier 2 (#414). |
 | C01 | Reproduced | Native SwiftPM build passed. Literal thunking changed `0 ..< 12` into a parser-invalid operator boundary (`'..<' is not a postfix unary operator`). |
 | C02 | Reproduced | Native SwiftPM build passed. String thunking produced `String` where `String.LocalizationValue` was required. |
 | C03 | Reproduced | A fresh daemon rendered the parent light config. After a nearer dark config appeared and the first session stopped, the same daemon still returned `colorScheme: light`. |
