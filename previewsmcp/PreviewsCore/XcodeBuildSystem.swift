@@ -60,7 +60,7 @@ public actor XcodeBuildSystem: BuildSystem {
         let scheme = try pickScheme(from: projectInfo)
 
         // 2. Build the project (must happen before getBuildSettings so DerivedData is populated)
-        try await runBuild(scheme: scheme, platform: platform)
+        let buildLog = try await runBuild(scheme: scheme, platform: platform)
 
         // 3. Get build settings (post-build so all paths are valid)
         let settings = try await getBuildSettings(scheme: scheme, platform: platform)
@@ -82,7 +82,22 @@ public actor XcodeBuildSystem: BuildSystem {
             )
         }
 
-        // 5. Collect source files for Tier 2 (from OutputFileMap.json)
+        // 5. Capture the compile command xcodebuild actually ran; a
+        //    build-with-Bazel project logs no SwiftDriver invocation, so the
+        //    settings-derived path below stays as its fallback.
+        let captured = try await captureCommand(
+            buildLog: buildLog, scheme: scheme, platform: platform,
+            moduleName: moduleName, builtProductsDir: builtProductsDir
+        )
+        if let captured {
+            return try await buildContext(
+                from: captured, settings: settings,
+                moduleName: moduleName, targetName: targetName,
+                builtProductsDir: builtProductsDir, platform: platform
+            )
+        }
+
+        // 5-fallback. Collect source files for Tier 2 (from OutputFileMap.json)
         var sourceFiles = collectSourceFiles(settings: settings, targetName: targetName)
 
         // 5b. Union Xcode-generated Swift sources from DERIVED_FILE_DIR.
@@ -124,6 +139,251 @@ public actor XcodeBuildSystem: BuildSystem {
             frameworkPaths: package.frameworkPaths,
             sourceFiles: sourceFiles
         )
+    }
+
+    // MARK: - Private: Compile Capture
+
+    /// The captured compile command for the module: parsed from the build
+    /// log, or the persisted capture from an earlier start when this build
+    /// was null, or parsed after forcing the module to recompile (a source
+    /// touch) when neither exists. Nil when the build system never logs
+    /// SwiftDriver invocations (build-with-Bazel).
+    private func captureCommand(
+        buildLog: String, scheme: String, platform: PreviewPlatform,
+        moduleName: String, builtProductsDir: String
+    ) async throws -> XcodeCommandCapture.CapturedCommand? {
+        let persistURL = persistedCaptureURL(builtProductsDir, moduleName)
+        let validity = captureValidity()
+        func parseAndPersist(_ log: String) -> XcodeCommandCapture.CapturedCommand? {
+            guard
+                let captured = XcodeCommandCapture.parse(log: log, moduleName: moduleName)
+            else { return nil }
+            XcodeCommandCapture.persist(captured, at: persistURL, validity: validity)
+            return captured
+        }
+
+        if let captured = parseAndPersist(buildLog) {
+            return captured
+        }
+        switch XcodeCommandCapture.loadPersisted(at: persistURL, validity: validity) {
+        case let .command(persisted): return persisted
+        case .driverless: return nil
+        case nil: break
+        }
+
+        // No compile line and no valid persisted capture. A null build and a
+        // build-with-Bazel project both log nothing here, so force the module
+        // to recompile (identity content; the mtime moves for the build and
+        // is restored right after so watchers and the working tree stay
+        // clean): under XCBuild the forced log carries the driver line.
+        let originalDate = try? FileManager.default
+            .attributesOfItem(atPath: sourceFile.path)[.modificationDate] as? Date
+        try? FileManager.default.setAttributes(
+            [.modificationDate: Date()], ofItemAtPath: sourceFile.path
+        )
+        let forcedLog = try await runBuild(scheme: scheme, platform: platform)
+        if let originalDate {
+            try? FileManager.default.setAttributes(
+                [.modificationDate: originalDate], ofItemAtPath: sourceFile.path
+            )
+        }
+        if let captured = parseAndPersist(forcedLog) {
+            return captured
+        }
+        // Only a log showing Bazel actually drove the build earns the
+        // persisted driverless marker; anything else (content-signature
+        // no-op rebuilds, variant schemes) falls back for this start and
+        // retries the probe next time.
+        if !XcodeCommandCapture.logsDriverInvocations(forcedLog),
+           forcedLog.contains("bazel")
+        {
+            XcodeCommandCapture.persist(nil, at: persistURL, validity: validity)
+        }
+        Log.info(
+            "xcode capture: no compile command for \(moduleName); using settings derivation"
+        )
+        return nil
+    }
+
+    private nonisolated func persistedCaptureURL(
+        _ builtProductsDir: String, _ moduleName: String
+    ) -> URL {
+        URL(fileURLWithPath: builtProductsDir)
+            .appendingPathComponent("previewsmcp-capture-\(moduleName).json")
+    }
+
+    private nonisolated func captureValidity() -> [String: Date] {
+        XcodeCommandCapture.validityKeys(projectFile: projectFile, projectRoot: projectRoot)
+    }
+
+    /// Assemble the BuildContext from a captured command: normalized captured
+    /// flags plus the link-time inputs a compile command cannot carry
+    /// (dependency archives from OTHER_LDFLAGS, Xcode-managed package
+    /// products, and the target's own C/ObjC objects for bridging-header
+    /// symbols).
+    private func buildContext(
+        from captured: XcodeCommandCapture.CapturedCommand,
+        settings: [String: String],
+        moduleName: String, targetName: String, builtProductsDir: String,
+        platform: PreviewPlatform
+    ) async throws -> BuildContext {
+        var flags = CompileCommandNormalizer.normalize(
+            Self.stripForeignTargetTriple(captured.arguments, platform: platform)
+        )
+
+        if let ldFlags = settings["OTHER_LDFLAGS"] {
+            let archives = Self.collectDependencyArchives(fromOtherLDFlags: ldFlags)
+            flags += Self.archiveLinkFlags(archivePaths: archives, targetName: targetName)
+        }
+        let package = await Self.swiftPMPackageProducts(builtProductsDir: builtProductsDir)
+        flags += package.flags
+
+        // Dependency frameworks built into the products directory (referenced
+        // projects, X01): -F/-framework pairs are what the JIT agent resolves
+        // to framework binaries to dlopen. The target's own framework is the
+        // Tier 2 recompile itself, never loaded.
+        var ownNames: Set<String> = [moduleName, targetName]
+        for key in ["PRODUCT_NAME", "EXECUTABLE_NAME"] {
+            if let value = settings[key] { ownNames.insert(value) }
+        }
+        if let wrapper = settings["CODESIGNING_FOLDER_PATH"] {
+            ownNames.insert(
+                URL(fileURLWithPath: wrapper).deletingPathExtension().lastPathComponent
+            )
+        }
+        let dependencyFrameworks = BuildSystemSupport.collectFrameworks(
+            binPath: URL(fileURLWithPath: builtProductsDir)
+        ).filter { !ownNames.contains($0) }
+        if !dependencyFrameworks.isEmpty {
+            flags += ["-F", builtProductsDir]
+            for framework in dependencyFrameworks {
+                flags += ["-framework", framework]
+            }
+        }
+
+        let wholeModule = captured.arguments.contains { $0 == "-whole-module-optimization" || $0 == "-wmo" }
+        let clangObjects = Self.clangObjects(
+            settings: settings,
+            excludedStems: wholeModule ? [targetName] : [],
+            swiftSources: captured.swiftSources
+        )
+        if !clangObjects.isEmpty {
+            flags += await Self.clangObjectLinkFlags(
+                objects: clangObjects,
+                moduleName: moduleName,
+                builtProductsDir: builtProductsDir
+            )
+        }
+
+        let previewPath = sourceFile.resolvingSymlinksInPath().path
+        var sourceFiles = captured.swiftSources
+            .map { URL(fileURLWithPath: $0).standardizedFileURL }
+            .filter { $0.resolvingSymlinksInPath().path != previewPath }
+
+        // An unreadable SwiftFileList must not silently shrink Tier 2 to the
+        // preview file alone; the OutputFileMap enumeration is the fallback
+        // source list.
+        if sourceFiles.isEmpty,
+           let fallback = collectSourceFiles(settings: settings, targetName: targetName)
+        {
+            sourceFiles = fallback
+        }
+
+        // Union Xcode-generated Swift sources from DERIVED_FILE_DIR (asset
+        // symbols and friends are generated during the build; a capture from
+        // an earlier log may predate them).
+        if let derivedFileDir = settings["DERIVED_FILE_DIR"] {
+            let generated = Self.collectGeneratedSources(
+                derivedFileDir: URL(fileURLWithPath: derivedFileDir)
+            )
+            let seen = Set(sourceFiles.map(\.path))
+            sourceFiles += generated.filter { !seen.contains($0.path) }
+        }
+        sourceFiles = Self.applyResourceBundleRewrites(sources: sourceFiles, settings: settings)
+
+        return BuildContext(
+            moduleName: moduleName,
+            compilerFlags: flags,
+            projectRoot: projectRoot,
+            targetName: targetName,
+            frameworkPaths: package.frameworkPaths,
+            sourceFiles: sourceFiles.isEmpty ? nil : sourceFiles
+        )
+    }
+
+    /// Xcode pre-processing for the shared normalizer: a scheme can build a
+    /// platform variant the preview environment cannot host (Mac Catalyst
+    /// under the macOS agent), and the captured `-target`/`-sdk` would
+    /// otherwise win over Compiler's injection. Keep the captured pair only
+    /// when the triple matches the preview platform family.
+    static func stripForeignTargetTriple(
+        _ args: [String], platform: PreviewPlatform
+    ) -> [String] {
+        guard
+            let index = args.firstIndex(of: "-target"), index + 1 < args.count
+        else { return args }
+        let triple = args[index + 1]
+        let compatible =
+            switch platform {
+            case .macOS: triple.contains("apple-macos")
+            case .iOS: triple.contains("simulator")
+            }
+        guard !compatible else { return args }
+        var result = args
+        result.removeSubrange(index ... index + 1)
+        if let sdkIndex = result.firstIndex(of: "-sdk"), sdkIndex + 1 < result.count {
+            result.removeSubrange(sdkIndex ... sdkIndex + 1)
+        }
+        return result
+    }
+
+    /// The target's C/ObjC objects: everything in the objects directory that
+    /// is not a Swift compile output. Swift outputs are named after the
+    /// captured Swift sources — plus the whole-module master object named
+    /// after the target when the capture shows WMO — and over-inclusion is
+    /// otherwise safe because archive members link lazily.
+    private static func clangObjects(
+        settings: [String: String], excludedStems: [String], swiftSources: [String]
+    ) -> [String] {
+        guard let objectFileDir = settings["OBJECT_FILE_DIR_normal"] else { return [] }
+        let objectsDir = URL(fileURLWithPath: objectFileDir).appendingPathComponent(hostArch)
+        guard
+            let entries = try? FileManager.default.contentsOfDirectory(
+                at: objectsDir, includingPropertiesForKeys: nil
+            )
+        else { return [] }
+        var swiftStems = Set(
+            swiftSources.map {
+                URL(fileURLWithPath: $0).deletingPathExtension().lastPathComponent
+            }
+        )
+        swiftStems.formUnion(excludedStems)
+        return entries
+            .filter { $0.pathExtension == "o" }
+            .filter { !swiftStems.contains($0.deletingPathExtension().lastPathComponent) }
+            .map(\.path)
+            .sorted()
+    }
+
+    /// Archive the target's C/ObjC objects and emit -L/-l for the
+    /// JIT link, so bridging-header symbols resolve at runtime (X02's link
+    /// half).
+    private static func clangObjectLinkFlags(
+        objects: [String], moduleName: String, builtProductsDir: String
+    ) async -> [String] {
+        let cacheDir = (builtProductsDir as NSString)
+            .appendingPathComponent(Self.archiveCacheDirName)
+        try? FileManager.default.createDirectory(
+            atPath: cacheDir, withIntermediateDirectories: true
+        )
+        let libName = "\(moduleName)PreviewClang"
+        let archivePath = (cacheDir as NSString).appendingPathComponent("lib\(libName).a")
+        try? FileManager.default.removeItem(atPath: archivePath)
+        let result = try? await runAsync(
+            "/usr/bin/ar", arguments: ["rcs", archivePath] + objects
+        )
+        guard result?.exitCode == 0 else { return [] }
+        return ["-L", cacheDir, "-l\(libName)"]
     }
 
     // MARK: - Private: Scheme Discovery
@@ -244,15 +504,19 @@ public actor XcodeBuildSystem: BuildSystem {
 
     // MARK: - Private: Build
 
-    private func runBuild(scheme: String, platform: PreviewPlatform) async throws {
+    /// Runs the build and returns the full log — the compile capture reads
+    /// the swiftc invocation out of it, so -quiet must stay off. No
+    /// -configuration override: the scheme's own build configuration (which
+    /// may be custom, X01) selects the xcconfig contents the capture must
+    /// reflect.
+    @discardableResult
+    private func runBuild(scheme: String, platform: PreviewPlatform) async throws -> String {
         let destination = destinationString(for: platform)
-        try await runXcodebuild(
+        return try await runXcodebuild(
             "build",
             xcodebuildFlag, projectFile.path,
             "-scheme", scheme,
-            "-configuration", "Debug",
-            "-destination", destination,
-            "-quiet"
+            "-destination", destination
         )
     }
 
@@ -604,7 +868,7 @@ extension XcodeBuildSystem {
         guard !objects.isEmpty else { return ([], []) }
 
         let cacheDir = (builtProductsDir as NSString)
-            .appendingPathComponent("previewsmcp-package-archives")
+            .appendingPathComponent(Self.archiveCacheDirName)
         try? fm.createDirectory(atPath: cacheDir, withIntermediateDirectories: true)
 
         // Each object's archive + autolink work is independent, so process them
@@ -660,6 +924,9 @@ extension XcodeBuildSystem {
         )
         return (base, await frameworks)
     }
+
+    /// Archives PreviewsMCP creates beside the build products for the JIT link.
+    static let archiveCacheDirName = "previewsmcp-package-archives"
 
     /// The arch the JIT agent runs as, used to thin universal package objects.
     static var hostArch: String {

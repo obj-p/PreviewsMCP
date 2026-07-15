@@ -4,7 +4,8 @@ Last full manual pass: 2026-07-14. Detection rows (D01–D09, X02's detection
 half) re-verified 2026-07-15 after the ownership-walk resolver landed
 (`docs/build-system-resolver.md`, stage 1). SwiftPM compile rows (S01–S06,
 D09, W01's edit variant) re-verified 2026-07-15 after compile-command
-capture landed (stage 2).
+capture landed (stage 2). Xcode rows (X01, X02, D08, R03, D01/D07 guards)
+re-verified 2026-07-15 after build-log capture landed (stage 3).
 
 Environment: Xcode 26.2, an iOS 26.3 `previewsmcp-test` iPhone simulator,
 and the Bazel-built CLI from this checkout. Commands used an isolated daemon
@@ -28,14 +29,14 @@ not a nonzero command exit.
 | D07 | Guard passes | 2026-07-15 (ownership walk): the start error reports that no target in `StaleOutput.xcodeproj` compiles `NewPreview.swift` and that the project may be stale relative to its XcodeGen manifest. Previously the outer SwiftPM root claimed the file and forced Xcode silently rendered a file outside the project. |
 | D08 | Guard passes | 2026-07-15 (ownership walk): membership confirmed target `Beta`; the `Combined` scheme's build settings are parsed for that target and the preview rendered `Beta owns this preview`. Previously it compiled as module `Alpha` and failed. |
 | D09 | Guard passes | 2026-07-15 (compile capture): derived module names are sanitized to valid identifiers; rendered `path fixture: café` through the spaced/Unicode fixture path. |
-| X01 | Reproduced | Native `xcodebuild` passed for the workspace's `Preview Debug` configuration. PreviewsMCP selected the workspace, built both projects, linked `SharedKit`, and rendered its text, but the snapshot showed `wrong Xcode configuration` because `PREVIEW_WORKSPACE` from the selected `.xcconfig` was missing in Tier 2. |
+| X01 | Guard passes | 2026-07-15 (Xcode compile capture): the iOS snapshot rendered `cross-project dependency` and `custom workspace configuration` — the scheme's own configuration drives the build (no forced -configuration), so `PREVIEW_WORKSPACE` from the selected `.xcconfig` arrives via the captured command, and products-dir dependency frameworks are dlopen-staged for the JIT. |
 | S01 | Guard passes | 2026-07-15 (compile capture): rendered `Compiler settings preserved`, the processed resource, `build-tool generated`, `C module value: 42`, and `Conditional Swift setting present`. The captured command carries the C module map and defines; the captured inputs honor the exclusion and include the plugin-generated source. |
 | S02 | Guard passes | 2026-07-15 (compile capture): rendered `ExistentialAny enabled` and `Conditional Swift setting present` — the conditional define, upcoming feature, and unsafe flags forward through the normalized captured command. |
 | S03 | Guard passes | 2026-07-15 (compile capture): the plugin-generated `GeneratedFixtureStamp` is a captured compile input; rendered `build-tool generated`. |
 | S04 | Guard passes | 2026-07-15 (compile capture): the exclusion is honored by the captured inputs and the Clang module resolves; rendered `C module value: 42`. |
 | S05 | Guard passes | 2026-07-15 (compile capture): rendered `custom macro expansion active`. The captured `-Xfrontend -load-plugin-executable` points at the host-built plugin SwiftPM already produced (#413). |
 | S06 | Guard passes | The `@Observable` toolchain macro compiled through the default plugin path and the preview rendered `toolchain macro active` on macOS. Re-verified 2026-07-15 under compile capture. |
-| X02 | Reproduced | Native `xcodebuild` passed. 2026-07-15: auto-detection now selects the fixture's Xcode project (the outer-SwiftPM misclaim is fixed by the ownership walk); the compile still fails with `cannot find 'BridgedGreeting' in scope` because `SWIFT_OBJC_BRIDGING_HEADER` is not forwarded to Tier 2 (#414). |
+| X02 | Guard passes | 2026-07-15 (Xcode compile capture): rendered `bridged objc active`. The captured command carries `-import-objc-header` and the target's C/ObjC objects are archived for the JIT link, closing #414. |
 | C01 | Reproduced | Native SwiftPM build passed. Literal thunking changed `0 ..< 12` into a parser-invalid operator boundary (`'..<' is not a postfix unary operator`). |
 | C02 | Reproduced | Native SwiftPM build passed. String thunking produced `String` where `String.LocalizationValue` was required. |
 | C03 | Reproduced | A fresh daemon rendered the parent light config. After a nearer dark config appeared and the first session stopped, the same daemon still returned `colorScheme: light`. |
@@ -48,7 +49,7 @@ not a nonzero command exit.
 | F01 | Reproduced | The generator and XCFramework metadata provide only an iPhoneOS device slice. Native simulator and PreviewsMCP builds both failed `no such module 'BadSlice'`; PreviewsMCP did not classify the incompatible slice, while the daemon remained responsive. |
 | R01 | Reproduced | macOS and iOS reached JIT materialization and failed on the target-wide framework/autolink closure. The CLI error was an unclassified symbol dump; the daemon remained responsive. |
 | R02 | Reproduced | English JSON, text, and localization resources rendered on macOS and iOS. Both selecting preview index 1 and an explicit single-preview Spanish localization control produced a blank or partial framebuffer on iOS. Native SwiftPM build passed and both locale directories were present in the staged bundle. |
-| R03 | Reproduced | macOS and iOS rendered the generated color symbol, while the localized key remained `resource.title` and plist/Core Data lookup reported missing. The cold iOS Xcode build also spent about 49 seconds in one progress step. |
+| R03 | Reproduced | macOS and iOS rendered the generated color symbol, while the localized key remained `resource.title` and plist/Core Data lookup reported missing. The cold iOS Xcode build also spent about 49 seconds in one progress step. Re-verified 2026-07-15 under Xcode compile capture: the generated-sources half renders identically; the remaining gap is runtime-resource staging (out of the resolver's scope). |
 | W01 | Partial guard | Editing a dependency Swift file live changed `source version one` to `source version two` in a stable follow-up snapshot without restarting the session. The add/rename/remove variants are present in the fixture instructions but were not all exercised in this pass. Edit variant re-verified 2026-07-15 with the watcher fed by captured compile inputs; the fixture's Swift 6 language mode also forced two generated-source concurrency fixes (DesignTimeStore, window-state observer). |
 | W02 | Reproduced | Changing only `Resources/reload-value.txt` produced a reload transition, but stable follow-up snapshots still showed `resource version one`; the rebuilt/staged resource was stale. |
 | W03 | Guard passes | Both editor save styles reloaded on macOS: write-temp-then-rename-over and rename-away-then-recreate each updated the render to the new source value in a stable follow-up snapshot. |
