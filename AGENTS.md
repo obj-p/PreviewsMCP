@@ -71,7 +71,7 @@ Key files:
 
 `previewsmcp serve` runs in two modes that are **separate processes with separate session state**:
 
-- **Stdio** (default) — spawned by MCP clients via `.mcp.json` (Claude Code, Cursor). Self-contained: own `PreviewHost`, `IOSSessionManager`, `ConfigCache`. Resident for the lifetime of the MCP host process.
+- **Stdio** (default) — spawned by MCP clients via `.mcp.json` (Claude Code, Cursor). Self-contained: own `PreviewHost`, `IOSSessionManager`. Resident for the lifetime of the MCP host process.
 - **UDS daemon** (`--daemon`) — auto-spawned by every CLI subcommand at `~/.previewsmcp/serve.sock`. Persists across CLI invocations.
 
 A session created via MCP tools lives in the stdio process and is **not** visible to `previewsmcp list` / `snapshot --session-id …` (which talk to the daemon), and vice versa.

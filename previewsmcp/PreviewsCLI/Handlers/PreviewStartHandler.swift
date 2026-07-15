@@ -131,17 +131,9 @@ enum PreviewStartHandler: ToolHandler {
         let previewIndex = extractOptionalInt("previewIndex", from: params) ?? 0
 
         Log.info("preview_start: loading config")
-        let configResult: ProjectConfigLoader.Result? = if let explicitConfig = extractOptionalString(
-            "config",
-            from: params
-        ) {
-            // Explicit `config` bypasses the auto-discovery cache. One-shot
-            // load is fine: config is read once at session start; long-lived
-            // sessions don't consult it again.
-            loadProjectConfig(explicit: explicitConfig, fileURL: fileURL)
-        } else {
-            await ctx.configCache.load(for: fileURL)
-        }
+        let configResult = loadProjectConfig(
+            explicit: extractOptionalString("config", from: params), fileURL: fileURL
+        )
         Log.info("preview_start: config loaded")
         let config = configResult?.config
         let platformStr: String = if let explicit = extractOptionalString("platform", from: params) {

@@ -59,7 +59,7 @@ struct ServeCommand: ParsableCommand {
         Task { @MainActor in
             let host = Self.sharedHost!
             do {
-                // One iosManager / configCache / registry per stdio process.
+                // One iosManager / registry per stdio process.
                 // Attach the registry here so its publish-on-mutation hooks
                 // are wired before any tool call can create a session.
                 try DaemonPaths.ensureDirectory()
@@ -67,8 +67,7 @@ struct ServeCommand: ParsableCommand {
                 let registry = SessionRegistry(registryDir: DaemonPaths.sessionsDirectory)
                 await registry.attachTo(iosManager: iosManager, previewHost: host)
                 let (server, _) = try await configureMCPServer(
-                    host: host, iosManager: iosManager,
-                    configCache: ConfigCache(), registry: registry
+                    host: host, iosManager: iosManager, registry: registry
                 )
                 let startISO = ISO8601DateFormatter().string(from: ProcessStartup.time)
                 Log.info(
