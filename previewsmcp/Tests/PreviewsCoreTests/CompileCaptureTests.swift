@@ -355,3 +355,51 @@ struct XcodeCommandCaptureTests {
         #expect(normalized == ["-import-objc-header", "/proj/Bridging.h", "-DDEBUG"])
     }
 }
+
+@Suite("BazelCommandCapture")
+struct BazelCommandCaptureTests {
+    private let jsonProto = """
+    {"actions": [
+      {"mnemonic": "SwiftCompile", "arguments": [
+        "bazel-out/darwin_arm64-opt-exec/bin/external/rules_swift/tools/worker/worker",
+        "swiftc", "-target", "arm64-apple-macos14.0",
+        "-sdk", "__BAZEL_XCODE_SDKROOT__",
+        "-file-prefix-map", "__BAZEL_XCODE_DEVELOPER_DIR__=/PLACEHOLDER_DEVELOPER_DIR",
+        "-module-name", "BzlmodFixture", "-DSTAMPED",
+        "-I", "bazel-out/darwin_arm64-fastbuild/bin/deps",
+        "-Xcc", "-iquote", "-Xcc", ".",
+        "Sources/BzlmodPreview.swift",
+        "bazel-out/darwin_arm64-fastbuild/bin/generated_build_stamp.swift",
+        "-c"
+      ]},
+      {"mnemonic": "SwiftCompile", "arguments": [
+        "swiftc", "-module-name", "OtherModule", "-c", "Other.swift"
+      ]}
+    ]}
+    """
+
+    @Test("parses the module's action, strips worker prefix and placeholder pairs")
+    func parsesAction() throws {
+        let captured = try #require(
+            BazelCommandCapture.parse(jsonProto: jsonProto, moduleName: "BzlmodFixture")
+        )
+        #expect(captured.arguments.first == "-module-name")
+        #expect(!captured.arguments.contains { $0.hasSuffix("worker") || $0 == "swiftc" })
+        #expect(!captured.arguments.contains("-sdk"))
+        #expect(!captured.arguments.contains("-target"))
+        #expect(!captured.arguments.contains { $0.contains("__BAZEL_XCODE_") })
+        #expect(captured.arguments.contains("-DSTAMPED"))
+        #expect(
+            captured.swiftSources == [
+                "Sources/BzlmodPreview.swift",
+                "bazel-out/darwin_arm64-fastbuild/bin/generated_build_stamp.swift",
+            ]
+        )
+    }
+
+    @Test("an unmatched module or unparseable output returns nil")
+    func unmatchedModule() {
+        #expect(BazelCommandCapture.parse(jsonProto: jsonProto, moduleName: "Nope") == nil)
+        #expect(BazelCommandCapture.parse(jsonProto: "not json", moduleName: "X") == nil)
+    }
+}

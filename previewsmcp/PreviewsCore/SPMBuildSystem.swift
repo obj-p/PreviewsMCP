@@ -301,9 +301,31 @@ public actor SPMBuildSystem: BuildSystem {
         //                   object files actually referenced get pulled in)
         //    -F <binPath>   framework search path for binary XCFramework deps
         //    -framework X   link against a binary framework
-        if !dependencyLibs.isEmpty {
+        //    SPM also copies static binaryTarget archives (libX.a out of a
+        //    static XCFramework slice) straight into binPath; scanning for
+        //    lib*.a picks up both those and the archives created above.
+        var linkLibs = dependencyLibs
+        let binPathEntries =
+            (try? FileManager.default.contentsOfDirectory(
+                at: binPath, includingPropertiesForKeys: nil
+            )) ?? []
+        for entry in binPathEntries
+            where entry.pathExtension == "a" && entry.lastPathComponent.hasPrefix("lib")
+        {
+            let name = String(
+                entry.deletingPathExtension().lastPathComponent.dropFirst(3)
+            )
+            if !linkLibs.contains(name),
+               !Self.shouldSkipDependencyTarget(
+                   targetName: name, consumerTargetName: targetName, binPath: binPath
+               )
+            {
+                linkLibs.append(name)
+            }
+        }
+        if !linkLibs.isEmpty {
             flags += ["-L", binPath.path]
-            for dep in dependencyLibs {
+            for dep in linkLibs {
                 flags += ["-l\(dep)"]
             }
         }

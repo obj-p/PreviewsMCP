@@ -223,22 +223,6 @@ struct BuildSystemTests {
         #expect(label == "//Sources/Feature:Sub/View.swift")
     }
 
-    // MARK: - BazelBuildSystem label-to-path conversion
-
-    @Test("BazelBuildSystem converts label to relative path")
-    func labelToPath() {
-        let bazel = BazelBuildSystem(
-            projectRoot: URL(fileURLWithPath: "/tmp"),
-            sourceFile: URL(fileURLWithPath: "/tmp/a.swift")
-        )
-
-        #expect(bazel.labelToPath("//Sources/ToDo:Item.swift") == "Sources/ToDo/Item.swift")
-        #expect(bazel.labelToPath("//lib:Lib.swift") == "lib/Lib.swift")
-        #expect(bazel.labelToPath("//:root.swift") == "root.swift")
-        #expect(bazel.labelToPath("@//Sources/ToDo:Item.swift") == "Sources/ToDo/Item.swift")
-        #expect(bazel.labelToPath("invalid") == nil)
-    }
-
     // MARK: - BazelBuildSystem module-redefinition classification (#279)
 
     @Test("isModuleRedefinition matches the cross-config duplicate-modulemap failure")

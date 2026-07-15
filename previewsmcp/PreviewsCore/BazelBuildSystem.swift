@@ -179,31 +179,92 @@ public actor BazelBuildSystem: BuildSystem {
             target: target, expr: expr, moduleName: moduleName, platformArgs: platformArgs
         )
 
-        // Add dependency module search paths (swift_library deps and
-        // objc_library module maps) from the target's SwiftCompile action,
-        // so the bridge's `import <Dep>` resolves.
-        compilerFlags += try await findDependencyModuleFlags(
-            expr: expr, platformArgs: platformArgs
+        // Capture the target's own SwiftCompile action: its arguments carry
+        // the defines, language mode, dependency module search paths, and
+        // module maps Bazel actually compiled with, and its .swift inputs
+        // resolve generated sources to execroot paths (B01).
+        let aqueryOutput = try await runBazel(
+            ["bazel", "aquery", "mnemonic(\"SwiftCompile\", \(expr))", "--output=jsonproto"]
+                + platformArgs,
+            discardStderr: true
         )
+        // A graph with no parseable SwiftCompile action (the #279
+        // apple-bundle fallback under some configs) degrades to the
+        // module-search flags above, as the pre-capture derivation did.
+        let captured = BazelCommandCapture.parse(
+            jsonProto: aqueryOutput, moduleName: moduleName
+        )
+        if captured == nil {
+            Log.info(
+                "bazel capture: no SwiftCompile action for \(moduleName); degrading to module search paths"
+            )
+        }
+        if let captured {
+            compilerFlags += CompileCommandNormalizer.normalize(captured.arguments)
+                .map(resolveExecrootToken)
+        }
 
         // Add dependency archive link flags (`-L`/`-l`) for the target's
         // static-library deps, so the preview JIT link resolves their
-        // cross-target symbols (`findDependencyModuleFlags` only covers the
+        // cross-target symbols (the captured compile command only covers the
         // compile-time module search).
         compilerFlags += try await findDependencyArchiveFlags(
             target: target, expr: expr, platformArgs: platformArgs
         )
 
-        // Collect source files for Tier 2
-        let sourceFiles = try await collectSourceFiles(target: target)
+        // Tier 2 sources are the captured compile inputs, minus the preview
+        // file and `@main` entry points (their app-lifecycle entry symbol
+        // poisons the preview JIT link).
+        let previewPath = sourceFile.resolvingSymlinksInPath().path
+        let sourceFiles = (captured?.swiftSources ?? [])
+            .map(resolveExecrootPath)
+            .filter { $0.resolvingSymlinksInPath().path != previewPath }
+            .filter { !Self.declaresMainEntry($0) }
 
         return BuildContext(
             moduleName: moduleName,
             compilerFlags: compilerFlags,
             projectRoot: projectRoot,
             targetName: moduleName,
-            sourceFiles: sourceFiles
+            sourceFiles: sourceFiles.isEmpty ? nil : sourceFiles
         )
+    }
+
+    /// Resolve execroot-relative paths inside a normalized flag token to
+    /// absolute paths: bare value tokens, `flag=path` tails, and the
+    /// execroot-root `.` include.
+    private func resolveExecrootToken(_ token: String) -> String {
+        func resolved(_ path: String) -> String? {
+            if path == "." { return projectRoot.path }
+            guard !path.hasPrefix("/"), !path.hasPrefix("-") else { return nil }
+            if path.hasPrefix("bazel-out/")
+                || FileManager.default.fileExists(
+                    atPath: projectRoot.appendingPathComponent(path).path
+                )
+            {
+                return resolveExecrootPath(path).path
+            }
+            return nil
+        }
+        if token.hasPrefix("-") {
+            for joined in ["-I", "-F"] where token.hasPrefix(joined) && token.count > 2 {
+                let tail = String(token.dropFirst(joined.count))
+                guard let absolute = resolved(tail) else { return token }
+                return joined + absolute
+            }
+            // Only known path-bearing `flag=path` forms are rewritten; a
+            // define like -DASSET_ROOT=Resources must keep its literal value
+            // even when it happens to match an on-disk path.
+            for prefix in ["-fmodule-map-file=", "-explicit-swift-module-map-file="]
+                where token.hasPrefix(prefix)
+            {
+                let tail = String(token.dropFirst(prefix.count))
+                guard let absolute = resolved(tail) else { return token }
+                return prefix + absolute
+            }
+            return token
+        }
+        return resolved(token) ?? token
     }
 
     /// True if `error` is a build failure whose diagnostics contain swiftc's
@@ -445,70 +506,25 @@ public actor BazelBuildSystem: BuildSystem {
     }
 
     /// Resolve a Bazel `cquery`/`aquery` output path (relative to the execroot,
-    /// or already absolute) to an absolute URL.
+    /// or already absolute) to an absolute URL. `bazel-out/` and workspace
+    /// paths resolve through the workspace's convenience symlinks; the
+    /// `external/` tree has no symlink and resolves through the execroot the
+    /// `bazel-out` symlink points into.
     private func resolveExecrootPath(_ path: String) -> URL {
-        path.hasPrefix("/")
-            ? URL(fileURLWithPath: path)
-            : projectRoot.appendingPathComponent(path).standardizedFileURL
-    }
-
-    /// Extract dependency module-search flags from the target's `SwiftCompile`
-    /// action, so the bridge compile can import the target's dependency modules
-    /// (`swift_library` deps via `-I`, `objc_library` modules via
-    /// `-Xcc -fmodule-map-file=`). The target's own `-I` is added by
-    /// `findCompilerFlags`; this fills in everything its `import`s need.
-    ///
-    /// Reuses Bazel's own flags rather than reconstructing them per dependency,
-    /// because objc module maps live at non-obvious paths
-    /// (`<pkg>/<name>_modulemap/_/module.modulemap`) that are not in
-    /// `cquery --output=files`.
-    private func findDependencyModuleFlags(
-        expr: String, platformArgs: [String]
-    ) async throws -> [String] {
-        var args = ["bazel", "aquery", "mnemonic(\"SwiftCompile\", \(expr))"]
-        args += platformArgs
-        let output = (try? await runBazel(args, discardStderr: true)) ?? ""
-
-        func resolve(_ path: String) -> String {
-            resolveExecrootPath(path).path
+        if path.hasPrefix("/") {
+            return URL(fileURLWithPath: path)
         }
-
-        let tokens =
-            output
-                .split(whereSeparator: { $0 == "\n" || $0 == " " || $0 == "\t" })
-                .map { $0.trimmingCharacters(in: CharacterSet(charactersIn: " \t\\'\"")) }
-                .filter { !$0.isEmpty }
-
-        var flags: [String] = []
-        var seen = Set<String>()
-        func add(_ items: [String], key: String) {
-            if seen.insert(key).inserted { flags += items }
+        if path.hasPrefix("external/"),
+           let bazelOut = try? FileManager.default.destinationOfSymbolicLink(
+               atPath: projectRoot.appendingPathComponent("bazel-out").path
+           )
+        {
+            return URL(fileURLWithPath: bazelOut)
+                .deletingLastPathComponent()
+                .appendingPathComponent(path)
+                .standardizedFileURL
         }
-
-        var i = 0
-        while i < tokens.count {
-            let t = tokens[i]
-            if t.hasPrefix("-I"), t.count > 2 {
-                let p = resolve(String(t.dropFirst(2)))
-                add(["-I", p], key: "I:" + p)
-            } else if t.hasPrefix("-F"), t.count > 2 {
-                let p = resolve(String(t.dropFirst(2)))
-                add(["-F", p], key: "F:" + p)
-            } else if t == "-Xcc", i + 1 < tokens.count {
-                let next = tokens[i + 1]
-                if next.hasPrefix("-fmodule-map-file=") {
-                    let p = resolve(String(next.dropFirst("-fmodule-map-file=".count)))
-                    add(["-Xcc", "-fmodule-map-file=\(p)"], key: "mmap:" + p)
-                    i += 1
-                } else if next.hasPrefix("-I"), next.count > 2 {
-                    let p = resolve(String(next.dropFirst(2)))
-                    add(["-Xcc", "-I\(p)"], key: "XccI:" + p)
-                    i += 1
-                }
-            }
-            i += 1
-        }
-        return flags
+        return projectRoot.appendingPathComponent(path).standardizedFileURL
     }
 
     /// Build the target's dependency libraries so their static archives are on
@@ -523,9 +539,17 @@ public actor BazelBuildSystem: BuildSystem {
                 "kind(\"(swift|objc)_library\", deps(\(target)))"
             )) ?? ""
         let labels = depLibs.split(separator: "\n").map(String.init)
-            .filter { $0.hasPrefix("//") }
-        if !labels.isEmpty {
-            try await runBazel(["bazel", "build"] + labels + platformArgs)
+        let workspaceLabels = labels.filter { $0.hasPrefix("//") }
+        if !workspaceLabels.isEmpty {
+            try await runBazel(["bazel", "build"] + workspaceLabels + platformArgs)
+        }
+        // External-repository archives (B01's canonical repo) are built
+        // best-effort: some external libraries only configure through a rule
+        // transition and fail as bare top-level targets, and a miss surfaces
+        // later as a link diagnostic rather than failing the preview here.
+        let externalLabels = labels.filter { $0.hasPrefix("@") }
+        if !externalLabels.isEmpty {
+            _ = try? await runBazel(["bazel", "build"] + externalLabels + platformArgs)
         }
     }
 
@@ -579,46 +603,6 @@ public actor BazelBuildSystem: BuildSystem {
 
     // MARK: - Private: Source Files (Tier 2)
 
-    /// Collect all source files for the target, excluding the preview file.
-    ///
-    /// Unlike SPM and Xcode, we do not walk a "DerivedSources" directory for
-    /// auto-generated Swift files. rules_swift's `swift_library` does not
-    /// synthesize a `Bundle.module` accessor for resources — `apple_resource_bundle`
-    /// yields a separate bundle reached via `Bundle(identifier:)` or a
-    /// hand-written accessor. Known gaps this method does not cover:
-    ///   * `swift_proto_library` / `swift_grpc_library` emit `.swift` under
-    ///     `bazel-bin/<pkg>/<name>.proto_library/`.
-    ///   * Consumer macros that produce adjacent `.swift` outputs.
-    /// If those cases need to be previewed, extend by querying
-    /// `labels(outs, <target>)` or `bazel cquery --output=files <target>` and
-    /// unioning any `.swift` outputs with the `srcs` result below.
-    private func collectSourceFiles(target: String) async throws -> [URL]? {
-        let output: String
-        do {
-            output = try await runBazelQuery("labels(srcs, \(target))")
-        } catch {
-            // If query fails, fall back to Tier 1 (no source files)
-            return nil
-        }
-
-        let labels = output.split(separator: "\n").map(String.init)
-        var sourceFiles: [URL] = []
-
-        for label in labels {
-            guard let path = labelToPath(label) else { continue }
-            let url = projectRoot.appendingPathComponent(path).standardizedFileURL
-            // Exclude the preview file
-            if url.path == sourceFile.path { continue }
-            // Exclude `@main` entry-point files: their app-lifecycle entry
-            // symbol poisons the preview JIT link, and the preview never needs
-            // the app entry point.
-            if Self.declaresMainEntry(url) { continue }
-            sourceFiles.append(url)
-        }
-
-        return sourceFiles.isEmpty ? nil : sourceFiles
-    }
-
     /// True if `file` declares an `@main` entry point at the start of a line.
     private static func declaresMainEntry(_ file: URL) -> Bool {
         guard let text = try? String(contentsOf: file, encoding: .utf8) else {
@@ -626,30 +610,6 @@ public actor BazelBuildSystem: BuildSystem {
         }
         return text.range(of: #"(?m)^[ \t]*@main\b"#, options: .regularExpression)
             != nil
-    }
-
-    /// Convert a Bazel label like "//Sources/ToDo:Item.swift" to a relative path "Sources/ToDo/Item.swift".
-    nonisolated func labelToPath(_ label: String) -> String? {
-        var label = label
-        // Strip leading "//" or "@//"
-        if let atSlashRange = label.range(of: "@//") {
-            label = String(label[atSlashRange.upperBound...])
-        } else if label.hasPrefix("//") {
-            label = String(label.dropFirst(2))
-        } else {
-            return nil
-        }
-
-        // Split on ":" — package:file
-        guard let colonIndex = label.firstIndex(of: ":") else { return nil }
-
-        let packagePath = String(label[label.startIndex ..< colonIndex])
-        let fileName = String(label[label.index(after: colonIndex)...])
-
-        if packagePath.isEmpty {
-            return fileName
-        }
-        return "\(packagePath)/\(fileName)"
     }
 
     // MARK: - Private: Platform Flags
