@@ -31,6 +31,7 @@ enum BazelCommandCapture {
             let graph = try? JSONDecoder().decode(ActionGraph.self, from: data)
         else { return nil }
 
+        var fallback: CapturedCommand?
         for action in graph.actions ?? [] where action.mnemonic == "SwiftCompile" {
             guard
                 let arguments = action.arguments,
@@ -39,14 +40,22 @@ enum BazelCommandCapture {
                 arguments[moduleIndex + 1] == moduleName
             else { continue }
             let stripped = preprocess(arguments)
-            return CapturedCommand(
+            let command = CapturedCommand(
                 arguments: stripped,
                 swiftSources: stripped.filter {
                     $0.hasSuffix(".swift") && !$0.hasPrefix("-")
                 }
             )
+            // A module analyzed in more than one configuration (an exec-config
+            // copy for a tool or macro) must not shadow the target-config
+            // action; exec-config output paths carry an "-exec" segment.
+            if stripped.contains(where: { $0.contains("-exec-") || $0.contains("-exec/") }) {
+                fallback = fallback ?? command
+                continue
+            }
+            return command
         }
-        return nil
+        return fallback
     }
 
     /// Drop the persistent-worker/driver prefix (everything through the

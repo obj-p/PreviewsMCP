@@ -188,17 +188,21 @@ public actor BazelBuildSystem: BuildSystem {
                 + platformArgs,
             discardStderr: true
         )
-        guard
-            let captured = BazelCommandCapture.parse(
-                jsonProto: aqueryOutput, moduleName: moduleName
-            )
-        else {
-            throw BuildSystemError.missingArtifacts(
-                "No SwiftCompile action for module '\(moduleName)' in bazel aquery output"
+        // A graph with no parseable SwiftCompile action (the #279
+        // apple-bundle fallback under some configs) degrades to the
+        // module-search flags above, as the pre-capture derivation did.
+        let captured = BazelCommandCapture.parse(
+            jsonProto: aqueryOutput, moduleName: moduleName
+        )
+        if captured == nil {
+            Log.info(
+                "bazel capture: no SwiftCompile action for \(moduleName); degrading to module search paths"
             )
         }
-        compilerFlags += CompileCommandNormalizer.normalize(captured.arguments)
-            .map(resolveExecrootToken)
+        if let captured {
+            compilerFlags += CompileCommandNormalizer.normalize(captured.arguments)
+                .map(resolveExecrootToken)
+        }
 
         // Add dependency archive link flags (`-L`/`-l`) for the target's
         // static-library deps, so the preview JIT link resolves their
@@ -212,7 +216,7 @@ public actor BazelBuildSystem: BuildSystem {
         // file and `@main` entry points (their app-lifecycle entry symbol
         // poisons the preview JIT link).
         let previewPath = sourceFile.resolvingSymlinksInPath().path
-        let sourceFiles = captured.swiftSources
+        let sourceFiles = (captured?.swiftSources ?? [])
             .map(resolveExecrootPath)
             .filter { $0.resolvingSymlinksInPath().path != previewPath }
             .filter { !Self.declaresMainEntry($0) }
@@ -248,10 +252,17 @@ public actor BazelBuildSystem: BuildSystem {
                 guard let absolute = resolved(tail) else { return token }
                 return joined + absolute
             }
-            guard let equals = token.firstIndex(of: "=") else { return token }
-            let tail = String(token[token.index(after: equals)...])
-            guard let absolute = resolved(tail) else { return token }
-            return String(token[...equals]) + absolute
+            // Only known path-bearing `flag=path` forms are rewritten; a
+            // define like -DASSET_ROOT=Resources must keep its literal value
+            // even when it happens to match an on-disk path.
+            for prefix in ["-fmodule-map-file=", "-explicit-swift-module-map-file="]
+                where token.hasPrefix(prefix)
+            {
+                let tail = String(token.dropFirst(prefix.count))
+                guard let absolute = resolved(tail) else { return token }
+                return prefix + absolute
+            }
+            return token
         }
         return resolved(token) ?? token
     }
@@ -495,11 +506,25 @@ public actor BazelBuildSystem: BuildSystem {
     }
 
     /// Resolve a Bazel `cquery`/`aquery` output path (relative to the execroot,
-    /// or already absolute) to an absolute URL.
+    /// or already absolute) to an absolute URL. `bazel-out/` and workspace
+    /// paths resolve through the workspace's convenience symlinks; the
+    /// `external/` tree has no symlink and resolves through the execroot the
+    /// `bazel-out` symlink points into.
     private func resolveExecrootPath(_ path: String) -> URL {
-        path.hasPrefix("/")
-            ? URL(fileURLWithPath: path)
-            : projectRoot.appendingPathComponent(path).standardizedFileURL
+        if path.hasPrefix("/") {
+            return URL(fileURLWithPath: path)
+        }
+        if path.hasPrefix("external/"),
+           let bazelOut = try? FileManager.default.destinationOfSymbolicLink(
+               atPath: projectRoot.appendingPathComponent("bazel-out").path
+           )
+        {
+            return URL(fileURLWithPath: bazelOut)
+                .deletingLastPathComponent()
+                .appendingPathComponent(path)
+                .standardizedFileURL
+        }
+        return projectRoot.appendingPathComponent(path).standardizedFileURL
     }
 
     /// Build the target's dependency libraries so their static archives are on
@@ -514,9 +539,17 @@ public actor BazelBuildSystem: BuildSystem {
                 "kind(\"(swift|objc)_library\", deps(\(target)))"
             )) ?? ""
         let labels = depLibs.split(separator: "\n").map(String.init)
-            .filter { $0.hasPrefix("//") || $0.hasPrefix("@") }
-        if !labels.isEmpty {
-            try await runBazel(["bazel", "build"] + labels + platformArgs)
+        let workspaceLabels = labels.filter { $0.hasPrefix("//") }
+        if !workspaceLabels.isEmpty {
+            try await runBazel(["bazel", "build"] + workspaceLabels + platformArgs)
+        }
+        // External-repository archives (B01's canonical repo) are built
+        // best-effort: some external libraries only configure through a rule
+        // transition and fail as bare top-level targets, and a miss surfaces
+        // later as a link diagnostic rather than failing the preview here.
+        let externalLabels = labels.filter { $0.hasPrefix("@") }
+        if !externalLabels.isEmpty {
+            _ = try? await runBazel(["bazel", "build"] + externalLabels + platformArgs)
         }
     }
 
