@@ -308,16 +308,26 @@ private func handleIOSPreviewStart(
 
         let headless = extractOptionalBool("headless", from: params) ?? true
 
-        // Detect build system
+        // Detect build system. The same detect-and-build, minus progress,
+        // becomes the session's rebuilder for stage-4 refreshes.
         let progress = mcpReporter(server: ctx.server, params: params, totalSteps: 8)
         let buildContext: BuildContext?
+        let rebuild: @Sendable () async throws -> BuildContext?
         do {
             stage("detectBuildContext begin")
-            buildContext = try await detectBuildContext(
-                for: fileURL,
-                params: params,
-                platform: .iOS,
-                progress: progress
+            let projectRootURL = extractOptionalString("projectPath", from: params)
+                .map { Path.normalizeURL($0) }
+            let scheme = extractOptionalString("scheme", from: params)
+            let buildSystemOverride = try parseBuildSystemOverride(from: params)
+            rebuild = {
+                try await detectAndBuild(
+                    for: fileURL, projectRoot: projectRootURL, platform: .iOS,
+                    scheme: scheme, buildSystem: buildSystemOverride
+                )
+            }
+            buildContext = try await detectAndBuild(
+                for: fileURL, projectRoot: projectRootURL, platform: .iOS,
+                scheme: scheme, buildSystem: buildSystemOverride, progress: progress
             )
             stage("detectBuildContext done (\(buildContext == nil ? "nil" : "ok"))")
         } catch {
@@ -375,27 +385,38 @@ private func handleIOSPreviewStart(
         }
         liveSession = session
 
-        // Set up file watching for hot-reload
+        // Set up file watching for hot-reload. The install closure is
+        // reused by onEvidenceRefresh to reinstall the watcher from the
+        // fresh EvidenceSet after a stage-4 refresh swaps the context.
         let sessionID = session.id
-        let allPaths = [fileURL.path] + (buildContext?.sourceFiles?.map(\.path) ?? [])
         let iosState = ctx.iosState
         let canonicalPrimary = FileWatcher.canonicalPath(fileURL.path) ?? fileURL.path
-        let watcher = try? FileWatcher(paths: allPaths) { firedPaths in
-            Task {
-                Log.info("MCP: iOS file change detected, reloading session \(sessionID)...")
-                do {
-                    try await session.handleSourceChange(
-                        firedPaths: firedPaths, canonicalPrimary: canonicalPrimary
-                    )
-                    Log.info("MCP: iOS source change — recompiled and re-linked over JIT")
-                } catch {
-                    Log.error("MCP: iOS reload failed for session \(sessionID): \(error)")
+        let installWatcher: @Sendable (BuildContext?) async -> Void = { context in
+            let watchSet = WatchSet.derive(primary: fileURL.path, buildContext: context)
+            let watcher = try? FileWatcher(
+                paths: watchSet.paths, directories: watchSet.directories
+            ) { firedPaths in
+                Task {
+                    Log.info("MCP: iOS file change detected, reloading session \(sessionID)...")
+                    do {
+                        try await session.handleSourceChange(
+                            firedPaths: firedPaths, canonicalPrimary: canonicalPrimary
+                        )
+                        Log.info("MCP: iOS source change — recompiled and re-linked over JIT")
+                    } catch {
+                        Log.error("MCP: iOS reload failed for session \(sessionID): \(error)")
+                    }
                 }
             }
+            if let watcher {
+                await iosState.setFileWatcher(sessionID, watcher)
+            }
         }
-        if let watcher {
-            await iosState.setFileWatcher(sessionID, watcher)
+        await session.setRebuildContext(rebuild)
+        await session.setOnEvidenceRefresh { newContext in
+            Task { await installWatcher(newContext) }
         }
+        await installWatcher(buildContext)
 
         // Wait briefly for the app to launch and render
         try await Task.sleep(for: .seconds(2))

@@ -113,6 +113,7 @@ public actor IOSSessionManager {
     }
 
     public func setFileWatcher(_ id: String, _ watcher: FileWatcher) {
+        fileWatchers[id]?.stop()
         fileWatchers[id] = watcher
     }
 
