@@ -65,6 +65,11 @@ deliberately no `concurrency` / `cancel-in-progress` block — do not add one.
   as a standing flake probe while the repo is quiet.
 - `workflow_dispatch` — ad-hoc manual run.
 
+A separate `cleanup.yml` (`pull_request` `types: [closed]`, hosted runner)
+deletes the head branch of every merged same-repo PR. The repo's native
+delete-on-merge setting fires unreliably when auto-merge lands the squash
+via the Actions token, so the workflow owns the deletion.
+
 ## Ruleset (`main`, id 14088159)
 
 - **Require a pull request before merging.**
