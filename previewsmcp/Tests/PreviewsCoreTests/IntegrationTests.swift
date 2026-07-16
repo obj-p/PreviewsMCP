@@ -228,6 +228,92 @@ struct IntegrationTests {
         #expect(count >= 1, "Back-to-back saves should produce at least one callback, got \(count)")
     }
 
+    /// Directory-scoped entries (docs/state-invalidation.md stage 4): a
+    /// fired path matches when it lies under a watched directory root and
+    /// has a watched extension. This is what makes file addition visible —
+    /// an exact-path set cannot see a file that did not exist at install.
+    @Test("FileWatcher matches added and edited files under a watched directory")
+    func fileWatcherDirectoryScope() async throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previews-mcp-test-\(UUID().uuidString)")
+        let sourcesDir = tempDir.appendingPathComponent("Sources/Dep")
+        try FileManager.default.createDirectory(at: sourcesDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let primary = tempDir.appendingPathComponent("watched.swift")
+        try "primary".write(to: primary, atomically: false, encoding: .utf8)
+        let existing = sourcesDir.appendingPathComponent("Existing.swift")
+        try "existing".write(to: existing, atomically: false, encoding: .utf8)
+
+        let fired = Mutex<Set<String>>([])
+        let watcher = try FileWatcher(
+            paths: [primary.path],
+            directories: [.init(root: sourcesDir.path, extensions: ["swift"])]
+        ) { paths in
+            fired.withLock { $0.formUnion(paths) }
+        }
+        defer { watcher.stop() }
+
+        try await Task.sleep(for: .milliseconds(100))
+
+        let added = sourcesDir.appendingPathComponent("Added.swift")
+        try "added".write(to: added, atomically: false, encoding: .utf8)
+        try "existing 2".write(to: existing, atomically: false, encoding: .utf8)
+
+        try await Task.sleep(for: .milliseconds(300))
+
+        let canonicalRoot = try #require(FileWatcher.canonicalPath(sourcesDir.path))
+        let firedPaths = fired.withLock { $0 }
+        #expect(
+            firedPaths.contains("\(canonicalRoot)/Added.swift"),
+            "a file ADDED under the watched root should fire, got \(firedPaths)"
+        )
+        #expect(
+            firedPaths.contains("\(canonicalRoot)/Existing.swift"),
+            "an edit under the watched root should fire, got \(firedPaths)"
+        )
+    }
+
+    @Test("FileWatcher directory scope filters by extension and keeps exact paths working")
+    func fileWatcherDirectoryScopeExtensionFilter() async throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("previews-mcp-test-\(UUID().uuidString)")
+        let sourcesDir = tempDir.appendingPathComponent("Sources")
+        try FileManager.default.createDirectory(at: sourcesDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let primary = tempDir.appendingPathComponent("watched.swift")
+        try "primary".write(to: primary, atomically: false, encoding: .utf8)
+
+        let fired = Mutex<Set<String>>([])
+        let watcher = try FileWatcher(
+            paths: [primary.path],
+            directories: [.init(root: sourcesDir.path, extensions: ["swift"])]
+        ) { paths in
+            fired.withLock { $0.formUnion(paths) }
+        }
+        defer { watcher.stop() }
+
+        try await Task.sleep(for: .milliseconds(100))
+
+        let object = sourcesDir.appendingPathComponent("stray.o")
+        try Data([0x1]).write(to: object)
+        try "primary 2".write(to: primary, atomically: false, encoding: .utf8)
+
+        try await Task.sleep(for: .milliseconds(300))
+
+        let canonicalPrimary = try #require(FileWatcher.canonicalPath(primary.path))
+        let firedPaths = fired.withLock { $0 }
+        #expect(
+            firedPaths.contains(canonicalPrimary),
+            "the exact-path watch should keep firing, got \(firedPaths)"
+        )
+        #expect(
+            !firedPaths.contains { $0.hasSuffix("/stray.o") },
+            "a non-watched extension under the root must not fire, got \(firedPaths)"
+        )
+    }
+
     /// Some editors (and some Foundation paths) delete the file and create
     /// a new one on every save. A path-based watcher must survive this; an
     /// inode-bound one would not.
