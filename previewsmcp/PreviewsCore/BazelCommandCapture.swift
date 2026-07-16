@@ -17,15 +17,40 @@ enum BazelCommandCapture {
         let swiftSources: [String]
     }
 
-    static func parse(jsonProto: String, moduleName: String) -> CapturedCommand? {
-        struct ActionGraph: Decodable {
-            struct Action: Decodable {
-                let mnemonic: String?
-                let arguments: [String]?
-            }
-
-            let actions: [Action]?
+    private struct ActionGraph: Decodable {
+        struct Action: Decodable {
+            let mnemonic: String?
+            let arguments: [String]?
         }
+
+        let actions: [Action]?
+    }
+
+    /// Every `SwiftCompile` action's Swift sources (execroot-relative),
+    /// one group per action. Fed by a `deps(target)` aquery, this is the
+    /// dependency-source surface for the stage-3 EvidenceSet
+    /// (docs/state-invalidation.md). Exec-config actions contribute
+    /// groups too, deliberately: a macro or tool's workspace sources are
+    /// evidence (editing them must invalidate), and their realpaths
+    /// dedup against the target-config copies while generated inputs
+    /// classify out against the output base.
+    static func allSwiftSourceGroups(jsonProto: String) -> [[String]] {
+        guard
+            let data = jsonProto.data(using: .utf8),
+            let graph = try? JSONDecoder().decode(ActionGraph.self, from: data)
+        else { return [] }
+
+        return (graph.actions ?? [])
+            .filter { $0.mnemonic == "SwiftCompile" }
+            .compactMap { action in
+                let sources = (action.arguments ?? []).filter {
+                    $0.hasSuffix(".swift") && !$0.hasPrefix("-")
+                }
+                return sources.isEmpty ? nil : sources
+            }
+    }
+
+    static func parse(jsonProto: String, moduleName: String) -> CapturedCommand? {
         guard
             let data = jsonProto.data(using: .utf8),
             let graph = try? JSONDecoder().decode(ActionGraph.self, from: data)

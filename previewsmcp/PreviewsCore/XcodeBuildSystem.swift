@@ -85,15 +85,18 @@ public actor XcodeBuildSystem: BuildSystem {
         // 5. Capture the compile command xcodebuild actually ran; a
         //    build-with-Bazel project logs no SwiftDriver invocation, so the
         //    settings-derived path below stays as its fallback.
+        let validity = captureValidity()
         let captured = try await captureCommand(
             buildLog: buildLog, scheme: scheme, platform: platform,
-            moduleName: moduleName, builtProductsDir: builtProductsDir
+            moduleName: moduleName, builtProductsDir: builtProductsDir,
+            validity: validity
         )
         if let captured {
             return try await buildContext(
                 from: captured, settings: settings,
                 moduleName: moduleName, targetName: targetName,
-                builtProductsDir: builtProductsDir, platform: platform
+                builtProductsDir: builtProductsDir, platform: platform,
+                validity: validity
             )
         }
 
@@ -131,13 +134,21 @@ public actor XcodeBuildSystem: BuildSystem {
         let package = await Self.swiftPMPackageProducts(builtProductsDir: builtProductsDir)
         compilerFlags += package.flags
 
+        let evidence = deriveEvidence(
+            settings: settings, targetSources: sourceFiles ?? [], validity: validity
+        )
+        if let evidence {
+            Log.info("xcode \(evidence.logDescription)")
+        }
+
         return BuildContext(
             moduleName: moduleName,
             compilerFlags: compilerFlags,
             projectRoot: projectRoot,
             targetName: targetName,
             frameworkPaths: package.frameworkPaths,
-            sourceFiles: sourceFiles
+            sourceFiles: sourceFiles,
+            evidence: evidence
         )
     }
 
@@ -150,10 +161,10 @@ public actor XcodeBuildSystem: BuildSystem {
     /// SwiftDriver invocations (build-with-Bazel).
     private func captureCommand(
         buildLog: String, scheme: String, platform: PreviewPlatform,
-        moduleName: String, builtProductsDir: String
+        moduleName: String, builtProductsDir: String,
+        validity: [String: Date]
     ) async throws -> XcodeCommandCapture.CapturedCommand? {
         let persistURL = persistedCaptureURL(builtProductsDir, moduleName)
-        let validity = captureValidity()
         func parseAndPersist(_ log: String) -> XcodeCommandCapture.CapturedCommand? {
             guard
                 let captured = XcodeCommandCapture.parse(log: log, moduleName: moduleName)
@@ -225,7 +236,8 @@ public actor XcodeBuildSystem: BuildSystem {
         from captured: XcodeCommandCapture.CapturedCommand,
         settings: [String: String],
         moduleName: String, targetName: String, builtProductsDir: String,
-        platform: PreviewPlatform
+        platform: PreviewPlatform,
+        validity: [String: Date]
     ) async throws -> BuildContext {
         var flags = CompileCommandNormalizer.normalize(
             Self.stripForeignTargetTriple(captured.arguments, platform: platform)
@@ -301,14 +313,60 @@ public actor XcodeBuildSystem: BuildSystem {
         }
         sourceFiles = Self.applyResourceBundleRewrites(sources: sourceFiles, settings: settings)
 
+        let evidence = deriveEvidence(
+            settings: settings, targetSources: sourceFiles, validity: validity
+        )
+        if let evidence {
+            Log.info("xcode \(evidence.logDescription)")
+        }
+
         return BuildContext(
             moduleName: moduleName,
             compilerFlags: flags,
             projectRoot: projectRoot,
             targetName: targetName,
             frameworkPaths: package.frameworkPaths,
-            sourceFiles: sourceFiles.isEmpty ? nil : sourceFiles
+            sourceFiles: sourceFiles.isEmpty ? nil : sourceFiles,
+            evidence: evidence
         )
+    }
+
+    /// Derive the stage-3 EvidenceSet: the target's own source root (the
+    /// common directory of its captured sources — dependency-target roots
+    /// are net-new log parsing, scoped out with the referenced-project
+    /// caveat in docs/state-invalidation.md), plus the definition files
+    /// the capture's validity walk already enumerated and the XcodeGen
+    /// manifest when one governs the project. Product roots come from the
+    /// build's own settings (generated sources under OBJROOT/DerivedData
+    /// classify out). Runtime resources are scoped out: incremental build
+    /// logs omit unchanged CpResource lines, so there is no reliable
+    /// start-time enumeration.
+    private func deriveEvidence(
+        settings: [String: String], targetSources: [URL], validity: [String: Date]
+    ) -> EvidenceSet? {
+        let productRoots = ["OBJROOT", "SYMROOT", "BUILT_PRODUCTS_DIR", "DERIVED_FILE_DIR"]
+            .compactMap { settings[$0] }
+            .map { EvidenceClassifier.productRoot(URL(fileURLWithPath: $0)) }
+
+        let roots = EvidenceClassifier.sourceRoots(
+            forGroups: [targetSources], productRoots: productRoots
+        )
+
+        var definitions: Set<URL> = []
+        for path in validity.keys {
+            if let file = EvidenceClassifier.evidencePath(
+                URL(fileURLWithPath: path), productRoots: productRoots
+            ) {
+                definitions.insert(file)
+            }
+        }
+        if let manifest = Self.generatedProjectManifest(
+            in: projectFile.deletingLastPathComponent()
+        ), let file = EvidenceClassifier.evidencePath(manifest, productRoots: productRoots) {
+            definitions.insert(file)
+        }
+
+        return EvidenceSet.make(sourceDirectories: roots, definitionFiles: definitions)
     }
 
     /// Xcode pre-processing for the shared normalizer: a scheme can build a
