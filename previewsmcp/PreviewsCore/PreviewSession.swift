@@ -98,6 +98,8 @@ public actor PreviewSession {
     private var lastOriginalSource: String?
     private var lastJITBuild: JITRenderBuild?
     private var cachedStableModule: (key: [String: Date], module: Compiler.StableModule)?
+    private var firedPathDamper = FiredPathDamper()
+    private var canonicalTargetSources: Set<String>?
 
     public var currentTraits: PreviewTraits {
         traits
@@ -482,6 +484,85 @@ public actor PreviewSession {
         case literal([(id: String, newValue: LiteralValue)])
         /// The structure changed. Requires a full recompile / agent respawn.
         case structural
+    }
+
+    /// What a watcher burst owes the session (docs/state-invalidation.md
+    /// stage 4). Ordered: a `reresolve` includes a `refresh`'s work, which
+    /// includes a fast-path reload's.
+    public enum WatchedBurstAction: Sendable {
+        /// Burst confined to the primary file and existing target sources:
+        /// today's unchanged/literal/structural classification applies.
+        case fastPath(SourceChangeKind)
+        /// Burst touched captured evidence: re-run the native build,
+        /// re-capture, swap the compile context and watcher, then reload.
+        case refresh
+        /// Burst touched a project-definition file: re-run the ownership
+        /// walk first, then proceed as a refresh.
+        case reresolve
+    }
+
+    /// Tier a watcher burst against the session's captured evidence. Damping
+    /// runs before tiering: an evidence path whose content is unchanged since
+    /// its last fire is dropped, so a deterministic in-tree generator cannot
+    /// feed a rebuild loop. An edit to an existing captured target source
+    /// stays on the fast path; a removed one invalidates the captured source
+    /// list itself and refreshes. Sessions without evidence delegate straight
+    /// to today's classification.
+    public func classifyWatchedBurst(
+        firedPaths: Set<String>, canonicalPrimary: String, newPrimarySource: String
+    ) -> WatchedBurstAction {
+        guard let evidence = buildContext?.evidence else {
+            return .fastPath(classifyWatchedChange(
+                firedPaths: firedPaths, canonicalPrimary: canonicalPrimary,
+                newPrimarySource: newPrimarySource
+            ))
+        }
+        let definitions = Set(evidence.definitionFiles.map(\.path))
+        let runtime = Set(evidence.runtimeInputs.map(\.path))
+        let roots = evidence.sourceDirectories.map(\.path)
+        let targets = targetSourceSet()
+
+        var fastPathFired = Set<String>()
+        var refreshHits = [String]()
+        var reresolveHits = [String]()
+        for path in firedPaths {
+            if path == canonicalPrimary {
+                fastPathFired.insert(path)
+            } else if definitions.contains(path) {
+                reresolveHits.append(path)
+            } else if targets.contains(path) {
+                if FileManager.default.fileExists(atPath: path) {
+                    fastPathFired.insert(path)
+                } else {
+                    refreshHits.append(path)
+                }
+            } else if runtime.contains(path)
+                || roots.contains(where: { path.hasPrefix($0 + "/") })
+            {
+                refreshHits.append(path)
+            } else {
+                fastPathFired.insert(path)
+            }
+        }
+        // Damp both tiers before deciding so every fired evidence path's
+        // hash is recorded even when a higher tier wins the burst.
+        let realReresolve = reresolveHits.filter { firedPathDamper.isRealChange($0) }
+        let realRefresh = refreshHits.filter { firedPathDamper.isRealChange($0) }
+        if !realReresolve.isEmpty { return .reresolve }
+        if !realRefresh.isEmpty { return .refresh }
+        return .fastPath(classifyWatchedChange(
+            firedPaths: fastPathFired, canonicalPrimary: canonicalPrimary,
+            newPrimarySource: newPrimarySource
+        ))
+    }
+
+    private func targetSourceSet() -> Set<String> {
+        if let canonicalTargetSources { return canonicalTargetSources }
+        let set = Set((buildContext?.sourceFiles ?? []).compactMap {
+            FileWatcher.canonicalPath($0.path)
+        })
+        canonicalTargetSources = set
+        return set
     }
 
     /// Decide how a watcher burst should be applied. A burst that touched any SECONDARY
