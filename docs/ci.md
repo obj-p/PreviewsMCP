@@ -65,10 +65,15 @@ deliberately no `concurrency` / `cancel-in-progress` block — do not add one.
   as a standing flake probe while the repo is quiet.
 - `workflow_dispatch` — ad-hoc manual run.
 
-A separate `cleanup.yml` (`pull_request` `types: [closed]`, hosted runner)
-deletes the head branch of every merged same-repo PR. The repo's native
-delete-on-merge setting fires unreliably when auto-merge lands the squash
-via the Actions token, so the workflow owns the deletion.
+A separate `cleanup.yml` (hosted runner) deletes the head branch of every
+merged same-repo PR. Its `pull_request` `types: [closed]` trigger only
+fires for merges performed by a real user: a label-gate auto-merge is
+attributed to `GITHUB_TOKEN`, and GitHub suppresses workflow runs for
+events that token causes — the same root cause that makes the repo's
+native delete-on-merge setting unreliable. A daily scheduled sweep
+(also runnable via `workflow_dispatch`) covers those merges: it deletes
+surviving head branches of recently merged PRs, keeping any branch whose
+tip moved past the merged head or that an open PR reuses.
 
 ## Ruleset (`main`, id 14088159)
 
