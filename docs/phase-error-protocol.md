@@ -139,9 +139,7 @@ One error carrier for everything a phase can fail with, defined in
 
 ```swift
 public struct PhaseFailure: Error, Sendable {
-    /// Nil only for unattributed failures escaping a handler that never
-    /// entered a phase.
-    public let phase: BuildPhase?
+    public let phase: BuildPhase
     public let code: FailureCode
     /// One-line classification. Stable tokens: guards pin identifiers and
     /// commands from this line, never connective prose.
@@ -152,11 +150,13 @@ public struct PhaseFailure: Error, Sendable {
     public let remediation: String?
 }
 
+/// Only codes a designed flow actually produces; a case is added when a
+/// migration reaches it, never speculatively.
 public enum FailureCode: String, Sendable {
-    case buildFailed, incompatibleSlice, unresolvedSymbols
-    case setupBuildFailed, setupFailed
-    case renderFailed, agentCrashed, sessionFailed
-    case ownershipLost, deviceBusy, unattributed
+    case buildFailed          // native build failure (F01's base)
+    case incompatibleSlice    // F01
+    case unresolvedSymbols    // L02, R01
+    case sessionFailed        // the terminal failed session state (L04)
 }
 ```
 
@@ -168,25 +168,35 @@ remediation, and whose `structuredContent` carries
 clients get the machine-readable classification the CLI's text already
 implies.
 
-Attribution is the safety net. The dispatch closure
-(`MCPServer.swift:104-110`) creates a per-request `PhaseTracker` — a
-reference type — and hands each handler a per-request *copy* of the shared
-`HandlerContext` struct carrying it (`HandlerContext` is immutable and
-shared across concurrent requests today, `HandlerContext.swift:14-22`, so
-the tracker must not be a field mutated on the shared value). The
-reporter's constructor takes the tracker and records each phase it enters;
-the dispatch wrapper catches any escaped error and formats it as a
-`PhaseFailure` with `code: .unattributed` and the tracker's phase.
-`PhaseFailure.phase` is optional for exactly this path: handlers that
-never create a reporter (`elements`, `session_list`, `simulator_list`)
-produce phase-less unattributed failures. Every failure therefore names at
-least what is known — the flattener at `PreviewsMCPServer.swift:158`
-remains only as the backstop for bugs in the wrapper itself, and
-protocol-level `MCPError`s pass through untouched. Existing hand-built
-`isError` sites migrate to thrown `PhaseFailure`s where a row needs them
-(the start path's build/setup catches); a whole-tree sweep is deliberately
-not required — guards pin today's message tokens, and the migration must
-keep them.
+The existing domain enums are not replaced — they remain the internal
+throwing vocabulary (`BuildSystemError`, `SetupBuilderError`,
+`IOSPreviewSessionError` and the resolver's ownership errors), and a
+single boundary adapter beside the formatter maps a thrown domain error
+to a `PhaseFailure`, deriving `message` from the enum's
+`errorDescription`. That derivation is what keeps the pinned guard tokens
+correct by construction — T02's `"Setup package '<X>' build failed"`
+(`SetupBuilder.swift:298-299`) flows through unchanged rather than being
+hand-copied into a new call site where it could drift. The same adapter
+retires the last string-typed classification carrier:
+`PreviewSessionHandle.terminalFailure` (`PreviewSessionHandle.swift:63`,
+formatted today by `terminalFailureResult`,
+`MCPServerSupport.swift:153-156`) becomes `PhaseFailure`-typed with
+`code: .sessionFailed`, so session-death classification travels the same
+path as every other failure instead of as a parallel hand-formatted
+string. Existing hand-built `isError` sites migrate to the adapter where
+a row needs them (the start path's build/setup catches); a whole-tree
+sweep is deliberately not required — the flattener at
+`PreviewsMCPServer.swift:158` stays as the backstop for un-migrated
+throws, and protocol-level `MCPError`s pass through untouched.
+
+Alternative rejected: a per-request phase tracker threaded through
+dispatch so that *any* escaped error gets phase attribution. Every row in
+this family is retired by a specific classification at a known catch
+site; the generic net would exist for failures no reproduced row
+produces, at the cost of a reference type threaded through the
+deliberately immutable shared `HandlerContext`
+(`HandlerContext.swift:14-22`). Deferred until an opacity report
+reproduces on a path no classified site covers.
 
 Alternative rejected: extending the JSON-RPC error object with structured
 data. Tool-level failures belong in tool results per MCP convention
@@ -220,15 +230,14 @@ notice):
   notice-typed). Re-arm on each new occurrence.
 - The crash notice's existing sentence is kept verbatim — L04's guard pins
   its tokens; the notice code rides `structuredContent` only.
-- Both `elements` CLI paths need a half of this design. Its `--json` path
-  emits `structuredContent` only (`ElementsCommand.swift:91`) — today a
-  trailing notice there is cleared as delivered yet never shown; the
-  `structuredContent.notices` mirror is what makes it visible. Its
-  default path joins every text item onto stdout
-  (`ElementsCommand.swift:95-98`) — today a notice concatenates onto the
-  accessibility JSON; routing trailing notice text to stderr keeps the
-  machine payload clean while still showing the notice. Other commands
-  keep joining — their stdout is prose.
+- One uniform CLI rule, not a per-command patch: trailing notice text is
+  a diagnostic and goes to **stderr** for every command; stdout carries
+  only the payload. This retires both halves of the `elements` hazard in
+  the evidence section (the `--json` path shows notices at all via the
+  `structuredContent.notices` mirror; the default path stops
+  concatenating them onto the machine payload) and means the next
+  command to grow a machine-readable stdout inherits the rule instead of
+  re-hitting the corruption.
 - `PreviewStartResult.setupWarning` stays for wire compatibility and is
   populated from the same notice that rides the content items.
 
@@ -268,9 +277,10 @@ CLI already forwards to stderr; `ProgressNotification` when the caller
 supplied a token, with a fractional progress bump capped below the next
 step so values stay monotonic — MCP progress must increase). `[step/total]`
 numbering is unchanged by construction. The ticker is cancelled when the
-work returns or throws; a throw is wrapped with the phase's attribution.
-The tick message carries elapsed seconds only — parsing build-tool output
-for finer progress is rejected below.
+work returns or throws; the throw itself propagates untouched — failure
+classification is the catch sites' job, not the clock's. The tick message
+carries elapsed seconds only — parsing build-tool output for finer
+progress is rejected below.
 
 Two executor rules are normative, or L03 ticks zero times. First, the
 ticker runs on its own executor (`Task.detached` or equivalent), never
@@ -299,8 +309,10 @@ JIT link + render entry (covering L03's 8-second render), the setup run
 (T03), and the iOS boot/install/launch/connect awaits. The reporter is
 threaded (optionally) through `compileObjectForJIT` and the render call
 path on both platforms; watcher-triggered refreshes have no request to
-tick to and pass no reporter — their phases keep logging boundary lines
-with elapsed markers in `serve.log` only.
+tick to and pass no reporter — a nil reporter starts **no ticker** (no
+`Task.detached` spawned and cancelled per debounced save on the
+hot-reload path); those phases keep logging boundary lines in
+`serve.log` only.
 
 `AsyncProcess` is untouched: it still returns child output at exit
 (`AsyncProcess.swift:303-326`), and builds still run without timeouts
@@ -376,9 +388,13 @@ Three changes, all at the seam the empirical pass isolated:
    fixture before anything is built on it. If the write proves
    restricted, the named fallback is the agent → daemon JSON channel that
    already carries `latestJITError` (`IOSAgentChannel.swift:379-381`).
-3. **Make the setup run a phase.** The reloader's setup entry runs under
-   `.runningSetup` with the phase clock, so T03's 8-second setup ticks
-   `Running preview setup... (5s)` instead of holding the start in silence.
+3. **Make the setup run a phase.** The setup entry falls under the same
+   normative placement rule as the render entry (the phase-clock section
+   above): the `.runningSetup` wrapper sits at the caller layer with a
+   detached ticker, never inside the reloader actor — the setup entry is
+   the same thread-pinning synchronous EPC shape as the render entry. So
+   T03's 8-second setup ticks `Running preview setup... (5s)` instead of
+   holding the start in silence.
 
 T03's ordering contract — "finish setup before the first render" — already
 holds once setup is wired: verified 2026-07-16, the wired variant blocked
@@ -398,7 +414,10 @@ returned error:
   (`PreviewsJITLinkCxx.cpp:360-450`), it installs an ExecutionSession
   error reporter that appends each reported error string to a
   mutex-guarded per-session buffer — and still logs it, the log keeps its
-  copy. Materialization runs in the daemon process on both platforms (the
+  copy. The buffer is scoped to one materialization attempt: cleared at
+  each lookup/run entry, so a failure on the fiftieth re-render drains
+  only that attempt's reports, never strings accumulated across a
+  session's lifetime of successful renders. Materialization runs in the daemon process on both platforms (the
   evidence section above), so no cross-process shipping is needed; the
   sim-side executor's `logAllUnhandledErrors` sinks are EPC-transport
   lifecycle reporting and stay untouched. When `lookupInitialized` or a
@@ -433,13 +452,19 @@ here.
 ### Native-build failure enrichment (F01)
 
 `buildFailed` grows a classifier pass before formatting: when the stderr
-matches `no such module '<M>'` and the owning package's manifest declares
-`<M>` as a `binaryTarget`, the enricher acts. The describe output the
-ownership walk decoded is not retained anywhere the failure surfaces
-(`BuildContext` carries no manifest model, `BuildContext.swift:4-57`), so
-the enricher runs its own `swift package describe` from
-`BuildContext.projectRoot` at classification time — negligible cost on a
-path that just paid for a failed native build. It locates the artifact at
+matches `no such module '<M>'` and `<M>` is a declared `binaryTarget`,
+the enricher acts. The gate must be answerable without new work: the
+resolver design intended describe output to ride along on `Ownership`
+but that carrier never shipped (`OwnershipResolver.swift:4-24` carries
+only kind/root/target/projectFile; `BuildContext` has no manifest model,
+`BuildContext.swift:4-57`), so stage 4 retains the binary-target
+name → declared-path pairs on `BuildContext`, captured where the SPM
+confirm step already decodes the manifest — fulfilling the resolver's
+ride-along intent for exactly the fields this needs. Classification then
+reads a field; no `describe` runs at failure time, which also keeps the
+enricher free on the much larger class of `no such module` failures
+(typos, unresolved dependencies) that are not binary targets at all. It
+locates the artifact at
 the target's declared `path:` (the F01 fixture declares
 `Artifacts/BadSlice.xcframework`; the path is read from the declaration,
 never assumed beside the manifest) or under `.build/artifacts/` for
@@ -453,7 +478,8 @@ message names the module, the available `LibraryIdentifier`s, and the slice
 the preview needed; the remediation says to rebuild the XCFramework with a
 simulator slice. Any miss in the chain — no manifest, no artifact, plist
 unreadable, a slice actually present (the failure was something else) —
-degrades to today's `buildFailed` text with phase attribution; the enricher
+degrades to today's `buildFailed` text through the boundary adapter's
+`.buildFailed` classification; the enricher
 can only ever add information. Architecture checking is deliberately out
 (platform + variant retires F01; Rosetta nuances have no row). Xcode and
 Bazel binary dependencies keep the unenriched error — named limitation, no
@@ -478,12 +504,13 @@ Stages follow the family discipline: design → adversarial review → gates
 re-verification flipping rows in VERIFICATION.md before the next stage.
 
 1. **Protocol carrier.** `PhaseFailure`/`FailureCode`/`Notice` in
-   `PreviewsCore`; the dispatch-level attribution wrapper + per-request
-   phase tracker; the notices carrier subsuming the crash disclosure
-   (text verbatim — L04 tokens hold) and mirroring `setupWarning`; the
-   `structuredContent.notices` mirror plus the `elements` CLI's
-   trailing-text-to-stderr routing. Flips nothing — the enabler stage,
-   like EvidenceSet capture was. Manual: every pinned guard token holds
+   `PreviewsCore`; the one-place formatter and the domain-enum boundary
+   adapter (including `terminalFailure` becoming `PhaseFailure`-typed);
+   the notices carrier subsuming the crash disclosure (text verbatim —
+   L04 tokens hold) and mirroring `setupWarning`; the
+   `structuredContent.notices` mirror plus the uniform CLI
+   notices-to-stderr rule. Flips nothing — the enabler stage, like
+   EvidenceSet capture was. Manual: every pinned guard token holds
    (T02, D06, D07, V05, M02), and L04's disclosure re-verified through
    the typed carrier on both `elements` CLI paths — `--json` now shows it
    at all (today it is cleared without being shown), and the default path
@@ -502,9 +529,10 @@ re-verification flipping rows in VERIFICATION.md before the next stage.
 4. **Failure classification.** Opens with the reporter spike: install the
    ExecutionSession error reporter in `createRemoteSessionFromFDs` and
    prove `Symbols not found` is captured against the L02 fixture. Then
-   the combined error strings, the `unresolvedSymbols` classification,
-   and the F01 slice enricher. Manual: **F01, R01, L02 flip**;
-   B02/B03/B04 and the resolver guards hold.
+   the attempt-scoped combined error strings, the `unresolvedSymbols`
+   classification, the binary-target name → path retention on
+   `BuildContext`, and the F01 slice enricher. Manual: **F01, R01, L02
+   flip**; B02/B03/B04 and the resolver guards hold.
 
 Stage 1 is the base for 3 and 4; stage 3 additionally needs stage 2 (its
 setup tick runs under `phase(_:_:work:)` and `.runningSetup`, which stage
