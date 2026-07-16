@@ -1,0 +1,37 @@
+# Deterministic head-branch deletion for merged PRs.
+#
+# The repo's native "automatically delete head branches" setting fires
+# unreliably when the squash-merge is performed by the Actions token via
+# the `merge` label gate's auto-merge (2026-07-15: two of four same-day
+# auto-merged PRs kept their branches, with no head_ref_deleted event).
+# This workflow owns the deletion instead of hoping the native path runs.
+#
+# Deletion is skipped for cross-fork PRs (not our ref to delete) and is
+# best-effort when the native path already removed the ref (422 from the
+# API is logged, not failed).
+name: cleanup
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: write
+
+jobs:
+  delete-head-branch:
+    if: >-
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete merged head branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          if gh api -X DELETE "repos/${{ github.repository }}/git/refs/heads/${HEAD_REF}"; then
+            echo "deleted ${HEAD_REF}"
+          else
+            echo "branch ${HEAD_REF} already gone (native deletion won the race)"
+          fi
