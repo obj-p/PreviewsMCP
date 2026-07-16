@@ -172,12 +172,26 @@ enum PreviewStartHandler: ToolHandler {
         let height = extractOptionalInt("height", from: params) ?? 600
         let headless = extractOptionalBool("headless", from: params) ?? true
 
-        // Detect build system (auto-detect or explicit projectPath)
+        // Detect build system (auto-detect or explicit projectPath). The
+        // same detect-and-build, minus progress, becomes the session's
+        // rebuilder for stage-4 refreshes.
         let progress = mcpReporter(server: ctx.server, params: params, totalSteps: 3)
         let buildContext: BuildContext?
+        let rebuild: @Sendable () async throws -> BuildContext?
         do {
-            buildContext = try await detectBuildContext(
-                for: fileURL, params: params, platform: .macOS, progress: progress
+            let projectRootURL = extractOptionalString("projectPath", from: params)
+                .map { Path.normalizeURL($0) }
+            let scheme = extractOptionalString("scheme", from: params)
+            let buildSystemOverride = try parseBuildSystemOverride(from: params)
+            rebuild = {
+                try await detectAndBuild(
+                    for: fileURL, projectRoot: projectRootURL, platform: .macOS,
+                    scheme: scheme, buildSystem: buildSystemOverride
+                )
+            }
+            buildContext = try await detectAndBuild(
+                for: fileURL, projectRoot: projectRootURL, platform: .macOS,
+                scheme: scheme, buildSystem: buildSystemOverride, progress: progress
             )
         } catch {
             return CallTool.Result(
@@ -203,7 +217,8 @@ enum PreviewStartHandler: ToolHandler {
             traits: resolvedTraits,
             setupResult: setupResult,
             headless: headless,
-            host: ctx.host
+            host: ctx.host,
+            refresh: rebuild
         )
 
         let traitInfo = resolvedTraits.isEmpty ? "" : " Traits: \(traitsSummary(resolvedTraits))."
@@ -478,7 +493,8 @@ private func startMacOSPreview(
     traits: PreviewTraits = PreviewTraits(),
     setupResult: SetupBuilder.Result? = nil,
     headless: Bool = true,
-    host: PreviewHost
+    host: PreviewHost,
+    refresh: (@Sendable () async throws -> BuildContext?)? = nil
 ) async throws -> String {
     let session = PreviewSession(
         sourceFile: fileURL,
@@ -505,9 +521,8 @@ private func startMacOSPreview(
             sessionID: sessionID,
             session: session,
             filePath: fileURL.path,
-            compiler: compiler,
-            additionalPaths: buildContext?.sourceFiles?.map(\.path) ?? [],
-            buildContext: buildContext
+            buildContext: buildContext,
+            refresh: refresh
         )
     }
 

@@ -88,7 +88,7 @@ public actor PreviewSession {
 
     private let compiler: Compiler
     private let platform: PreviewPlatform
-    private let buildContext: BuildContext?
+    private var buildContext: BuildContext?
     private var traits: PreviewTraits
     private let setupModule: String?
     private let setupType: String?
@@ -554,6 +554,16 @@ public actor PreviewSession {
             firedPaths: fastPathFired, canonicalPrimary: canonicalPrimary,
             newPrimarySource: newPrimarySource
         ))
+    }
+
+    /// Swap the compile context after a stage-4 refresh re-ran the native
+    /// build. Clears the target-source set derived from the old context.
+    /// The fired-path damper is deliberately kept: its records are what
+    /// stop an in-tree generator's identical rewrite from re-triggering
+    /// the refresh that just consumed it.
+    public func replaceBuildContext(_ newContext: BuildContext?) {
+        buildContext = newContext
+        canonicalTargetSources = nil
     }
 
     private func targetSourceSet() -> Set<String> {

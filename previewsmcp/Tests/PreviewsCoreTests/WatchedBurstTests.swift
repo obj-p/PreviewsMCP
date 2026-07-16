@@ -187,6 +187,45 @@ struct WatchedBurstTests {
         }
     }
 
+    @Test("replaceBuildContext re-derives the captured target-source set")
+    func replaceBuildContextRederivesTargets() async throws {
+        let f = try await makeFixture()
+        defer { try? FileManager.default.removeItem(at: f.root) }
+
+        let added = "\(f.sourceRoot)/Added.swift"
+        try "struct A {}".write(
+            to: URL(fileURLWithPath: added), atomically: true, encoding: .utf8
+        )
+        guard case .refresh = await classify(f, fired: [added]) else {
+            Issue.record("expected the uncaptured file to .refresh")
+            return
+        }
+
+        let recaptured = BuildContext(
+            moduleName: "Target",
+            compilerFlags: [],
+            projectRoot: f.root,
+            targetName: "Target",
+            sourceFiles: [
+                URL(fileURLWithPath: f.targetSource), URL(fileURLWithPath: added),
+            ],
+            evidence: EvidenceSet(
+                sourceDirectories: [URL(fileURLWithPath: f.sourceRoot)]
+            )
+        )
+        await f.session.replaceBuildContext(recaptured)
+
+        try "struct A2 {}".write(
+            to: URL(fileURLWithPath: added), atomically: true, encoding: .utf8
+        )
+        guard case let .fastPath(kind) = await classify(f, fired: [added]),
+              case .structural = kind
+        else {
+            Issue.record("expected the newly captured file to stay on the fast path")
+            return
+        }
+    }
+
     @Test("Without evidence the burst keeps today's classification")
     func noEvidenceDelegates() async throws {
         let root = FileManager.default.temporaryDirectory
