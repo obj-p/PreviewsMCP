@@ -8,9 +8,29 @@ import Foundation
 /// the same path rather than vanishing into a deleted-inode hole the way a
 /// kqueue/`DispatchSource.makeFileSystemObjectSource` watcher would.
 ///
-/// One watch is installed per unique canonical parent directory; the callback
-/// fires when any event under those directories matches a watched path.
+/// One watch is installed per unique canonical parent directory (and per
+/// directory-scoped root); the callback fires when any event under those
+/// directories matches a watched path or a watched root's extension filter.
 public final class FileWatcher: @unchecked Sendable {
+    /// A directory-scoped watch entry (docs/state-invalidation.md stage 4):
+    /// any path under `root` whose extension is in `extensions` matches.
+    /// Directory scope is what makes file addition/removal visible — an
+    /// exact-path set cannot see a file that did not exist at install.
+    /// Callers own stream-root hygiene: never pass a root that contains a
+    /// build-product directory (`EvidenceClassifier.sourceRoots` enforces
+    /// this for evidence-derived roots).
+    public struct DirectoryWatch: Sendable {
+        public let root: String
+        public let extensions: Set<String>
+        let rootPrefix: String
+
+        public init(root: String, extensions: Set<String>) {
+            self.root = root
+            self.extensions = extensions
+            rootPrefix = root + "/"
+        }
+    }
+
     private let box: CallbackBox
     private let queue = DispatchQueue(label: "com.previewsmcp.filewatcher")
     private var stream: FSEventStreamRef?
@@ -24,9 +44,10 @@ public final class FileWatcher: @unchecked Sendable {
 
     public init(
         paths: [String],
+        directories: [DirectoryWatch] = [],
         callback: @escaping @Sendable (Set<String>) -> Void
     ) throws {
-        guard !paths.isEmpty else {
+        guard !paths.isEmpty || !directories.isEmpty else {
             throw FileWatcherError.cannotOpen(path: "<empty>")
         }
         for path in paths {
@@ -44,8 +65,22 @@ public final class FileWatcher: @unchecked Sendable {
             canonical.insert(resolved)
             parentDirs.insert((resolved as NSString).deletingLastPathComponent)
         }
+        var canonicalDirectories = [DirectoryWatch]()
+        for directory in directories {
+            guard let resolved = Self.canonicalize(directory.root) else {
+                throw FileWatcherError.cannotOpen(path: directory.root)
+            }
+            canonicalDirectories.append(
+                DirectoryWatch(root: resolved, extensions: directory.extensions)
+            )
+            parentDirs.insert(resolved)
+        }
 
-        box = CallbackBox(canonicalPaths: canonical, callback: callback)
+        box = CallbackBox(
+            canonicalPaths: canonical,
+            directories: canonicalDirectories,
+            callback: callback
+        )
 
         // Hand FSEvents a retained pointer to `box`, not to `self`. The
         // context's `release` callback drops the +1 when the stream is
@@ -81,7 +116,7 @@ public final class FileWatcher: @unchecked Sendable {
             // the latency window) delivers them together so the caller can tell a
             // cross-file edit apart from a primary-only one.
             var fired = Set<String>()
-            for case let path as String in nsPaths where box.canonicalPaths.contains(path) {
+            for case let path as String in nsPaths where box.matches(path) {
                 fired.insert(path)
             }
             if !fired.isEmpty { box.callback(fired) }
@@ -151,11 +186,29 @@ public final class FileWatcher: @unchecked Sendable {
 /// deinit without racing in-flight callbacks against partial destruction.
 private final class CallbackBox: @unchecked Sendable {
     let canonicalPaths: Set<String>
+    let directories: [FileWatcher.DirectoryWatch]
     let callback: @Sendable (Set<String>) -> Void
 
-    init(canonicalPaths: Set<String>, callback: @escaping @Sendable (Set<String>) -> Void) {
+    init(
+        canonicalPaths: Set<String>,
+        directories: [FileWatcher.DirectoryWatch],
+        callback: @escaping @Sendable (Set<String>) -> Void
+    ) {
         self.canonicalPaths = canonicalPaths
+        self.directories = directories
         self.callback = callback
+    }
+
+    /// Fired paths are canonical (FSEvents reports resolved paths); watched
+    /// paths and roots were canonicalized at install, so both matches are
+    /// plain string comparisons with no per-fire syscall.
+    func matches(_ path: String) -> Bool {
+        if canonicalPaths.contains(path) { return true }
+        guard !directories.isEmpty else { return false }
+        let ext = (path as NSString).pathExtension
+        return directories.contains {
+            $0.extensions.contains(ext) && path.hasPrefix($0.rootPrefix)
+        }
     }
 }
 

@@ -1,0 +1,28 @@
+import Foundation
+
+/// Derives a session's watch set from its build context
+/// (docs/state-invalidation.md stage 4): the primary file and the target's
+/// sources exactly, the captured evidence's runtime inputs and definition
+/// files exactly, and its source roots directory-scoped to `.swift`.
+public enum WatchSet {
+    /// Paths and directory roots that no longer exist are dropped —
+    /// `FileWatcher` refuses missing entries, and a refresh triggered by a
+    /// deletion must still reinstall its watcher rather than losing the
+    /// whole watch set. They rejoin when a later refresh re-captures them.
+    public static func derive(
+        primary: String, buildContext: BuildContext?
+    ) -> (paths: [String], directories: [FileWatcher.DirectoryWatch]) {
+        var paths: Set<String> = [primary]
+        paths.formUnion((buildContext?.sourceFiles ?? []).map(\.path))
+        let evidence = buildContext?.evidence
+        paths.formUnion((evidence?.runtimeInputs ?? []).map(\.path))
+        paths.formUnion((evidence?.definitionFiles ?? []).map(\.path))
+        let directories = (evidence?.sourceDirectories ?? [])
+            .filter { FileManager.default.fileExists(atPath: $0.path) }
+            .map { FileWatcher.DirectoryWatch(root: $0.path, extensions: ["swift"]) }
+        return (
+            Array(paths.filter { FileManager.default.fileExists(atPath: $0) }),
+            directories
+        )
+    }
+}

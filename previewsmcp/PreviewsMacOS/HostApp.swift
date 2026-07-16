@@ -56,6 +56,8 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
 
     private var fileWatchers: [String: FileWatcher] = [:]
     private var retainedFileWatchers: [FileWatcher] = []
+    private var refreshers: [String: @Sendable () async throws -> BuildContext?] = [:]
+    private var burstTails: [String: Task<Void, Never>] = [:]
 
     /// Hold a strong reference to a file watcher for the lifetime of the
     /// host. `FileWatcher`'s timer closure captures `self` weakly, so a
@@ -79,26 +81,52 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
 
     /// Start watching source files and reload the preview on changes.
     /// Uses the fast path (literal-only update via DesignTimeStore) when possible.
-    /// When `additionalPaths` is provided, watches all target files for cross-file changes.
+    /// The watch set derives from the build context: the target's source
+    /// files exactly, plus the captured evidence (stage 4) — runtime inputs
+    /// and definition files exactly, source roots directory-scoped.
+    /// `refresh` re-runs the session's native build and returns a fresh
+    /// context; it powers the evidence tiers and is kept across reinstalls.
     public func watchFile(
         sessionID: String,
         session: PreviewSession,
         filePath: String,
-        compiler _: Compiler,
-        additionalPaths: [String] = [],
-        buildContext _: BuildContext? = nil
+        buildContext: BuildContext? = nil,
+        refresh: (@Sendable () async throws -> BuildContext?)? = nil
     ) {
         sessions[sessionID] = session
         notifySessionsChanged()
-        let allPaths = [filePath] + additionalPaths
+        refreshers[sessionID] = refresh
+        let watchSet = WatchSet.derive(primary: filePath, buildContext: buildContext)
         let canonicalPrimary = FileWatcher.canonicalPath(filePath) ?? filePath
         fileWatchers[sessionID]?.stop()
-        fileWatchers[sessionID] = try? FileWatcher(paths: allPaths) { [weak self] firedPaths in
-            Task {
-                await self?.handleWatchedChange(
-                    sessionID: sessionID, canonicalPrimary: canonicalPrimary, firedPaths: firedPaths
+        fileWatchers[sessionID] = try? FileWatcher(
+            paths: watchSet.paths, directories: watchSet.directories
+        ) { [weak self] firedPaths in
+            Task { @MainActor in
+                self?.enqueueWatchedChange(
+                    sessionID: sessionID, canonicalPrimary: canonicalPrimary,
+                    firedPaths: firedPaths
                 )
             }
+        }
+    }
+
+    /// Serialize burst handling per session: the whole reaction — for the
+    /// evidence tiers, native build through reload — runs under this chain,
+    /// and a burst arriving mid-refresh waits, then classifies against the
+    /// already-swapped context, so consumed changes damp to no-ops and an
+    /// undowngraded follow-up runs for real ones (the stage-4 per-session
+    /// mutex macOS gains).
+    private func enqueueWatchedChange(
+        sessionID: String, canonicalPrimary: String, firedPaths: Set<String>
+    ) {
+        let previous = burstTails[sessionID]
+        burstTails[sessionID] = Task { [weak self] in
+            await previous?.value
+            await self?.handleWatchedChange(
+                sessionID: sessionID, canonicalPrimary: canonicalPrimary,
+                firedPaths: firedPaths
+            )
         }
     }
 
@@ -116,13 +144,25 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
         }
         Log.info("jit_latency: watch-fire")
 
-        let newSource = try? String(contentsOf: session.sourceFile, encoding: .utf8)
-        let kind: PreviewSession.SourceChangeKind = if let newSource {
-            await session.classifyWatchedChange(
-                firedPaths: firedPaths, canonicalPrimary: canonicalPrimary, newPrimarySource: newSource
-            )
-        } else {
-            .structural
+        // An unreadable primary (mid atomic-rename, deleted) classifies with
+        // empty source — the fast path diffs to structural, and evidence
+        // tiering still runs so a definition/resource change in the same
+        // burst is not reloaded against a stale context.
+        let newSource = (try? String(contentsOf: session.sourceFile, encoding: .utf8)) ?? ""
+        let action = await session.classifyWatchedBurst(
+            firedPaths: firedPaths, canonicalPrimary: canonicalPrimary, newPrimarySource: newSource
+        )
+
+        let kind: PreviewSession.SourceChangeKind
+        switch action {
+        case .refresh:
+            await refreshSession(sessionID: sessionID, session: session, tier: "refresh")
+            return
+        case .reresolve:
+            await refreshSession(sessionID: sessionID, session: session, tier: "re-resolve")
+            return
+        case let .fastPath(fastPathKind):
+            kind = fastPathKind
         }
 
         switch kind {
@@ -135,7 +175,7 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
                 if try await jitLiteralReload(
                     sessionID: sessionID, session: session, changes: changes
                 ) != nil {
-                    if let newSource { await session.commitSourceBaseline(newSource) }
+                    await session.commitSourceBaseline(newSource)
                     fputs("Literal re-rendered in agent (no recompile)\n", stderr)
                     return
                 }
@@ -157,11 +197,56 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// Re-run the native build after an evidence change, swap the session's
+    /// compile context, reinstall the watcher from the fresh EvidenceSet,
+    /// then structurally reload (docs/state-invalidation.md stage 4). A
+    /// resolution that no longer finds a build system keeps the current
+    /// preview rather than rendering against a stale context.
+    private func refreshSession(
+        sessionID: String, session: PreviewSession, tier: String
+    ) async {
+        guard let refresh = refreshers[sessionID] else {
+            fputs("Evidence change (\(tier)) but no rebuilder; structural reload only\n", stderr)
+            do {
+                _ = try await jitStructuralReload(sessionID: sessionID, session: session)
+            } catch {
+                fputs("Recompilation failed: \(error)\n", stderr)
+            }
+            return
+        }
+        fputs("Evidence change (\(tier)): re-running the native build...\n", stderr)
+        do {
+            guard let newContext = try await refresh() else {
+                fputs(
+                    "Refresh: no build system resolves \(session.sourceFile.path) anymore; keeping current preview\n",
+                    stderr
+                )
+                return
+            }
+            guard sessions[sessionID] != nil else {
+                fputs("Refresh: session \(sessionID) closed mid-refresh; discarding\n", stderr)
+                return
+            }
+            await session.replaceBuildContext(newContext)
+            watchFile(
+                sessionID: sessionID, session: session,
+                filePath: session.sourceFile.path,
+                buildContext: newContext, refresh: refresh
+            )
+            _ = try await jitStructuralReload(sessionID: sessionID, session: session)
+            fputs("Refreshed (native rebuild + reload)\n", stderr); fflush(stderr)
+        } catch {
+            fputs("Refresh failed: \(error)\n", stderr)
+        }
+    }
+
     /// Close and clean up a preview session. Dropping the session's reloader kills
     /// its agent process, closing the agent-hosted window with it.
     public func closePreview(sessionID: String) {
         fileWatchers[sessionID]?.stop()
         fileWatchers.removeValue(forKey: sessionID)
+        refreshers.removeValue(forKey: sessionID)
+        burstTails.removeValue(forKey: sessionID)
         sessions.removeValue(forKey: sessionID)
         agentImagePaths.removeValue(forKey: sessionID)
         reloaders.removeValue(forKey: sessionID)

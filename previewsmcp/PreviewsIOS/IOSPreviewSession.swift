@@ -25,8 +25,32 @@ public actor IOSPreviewSession {
     private let maxBootAttempts: Int
 
     private var session: PreviewSession?
+
+    /// Re-runs the session's native build for the stage-4 evidence tiers.
+    /// Set by the start handler alongside the file watcher; nil keeps
+    /// evidence bursts on the plain structural-reload path.
+    private var rebuildContext: (@Sendable () async throws -> BuildContext?)?
+
+    /// Invoked after a refresh swapped the compile context, so the owner
+    /// of the file watcher can reinstall it from the fresh EvidenceSet.
+    /// Awaited under the render lock, so paths added by the refresh are
+    /// watched before the next burst can run.
+    private var onEvidenceRefresh: (@Sendable (BuildContext) async -> Void)?
+
+    public func setRebuildContext(
+        _ rebuild: (@Sendable () async throws -> BuildContext?)?
+    ) {
+        rebuildContext = rebuild
+    }
+
+    public func setOnEvidenceRefresh(
+        _ callback: (@Sendable (BuildContext) async -> Void)?
+    ) {
+        onEvidenceRefresh = callback
+    }
+
     public nonisolated let headless: Bool
-    private let buildContext: BuildContext?
+    private var buildContext: BuildContext?
     private var traits: PreviewTraits
     private let setupModule: String?
     private let setupType: String?
@@ -451,6 +475,8 @@ public actor IOSPreviewSession {
     /// `IOSAgentChannel.close()` is safe to call when nothing was opened.
     public func stop() async {
         stopping = true
+        rebuildContext = nil
+        onEvidenceRefresh = nil
 
         appServer?.stop()
         appServer = nil
@@ -664,27 +690,62 @@ public actor IOSPreviewSession {
             throw IOSPreviewSessionError.notStarted
         }
 
-        let newSource = try String(contentsOf: sourceFile, encoding: .utf8)
-        switch await session.classifyWatchedChange(
+        // An unreadable primary classifies with empty source (structural on
+        // the fast path) so evidence tiering still runs; see the macOS twin.
+        let newSource = (try? String(contentsOf: sourceFile, encoding: .utf8)) ?? ""
+        switch await session.classifyWatchedBurst(
             firedPaths: firedPaths,
             canonicalPrimary: canonicalPrimary ?? sourceFile.path,
             newPrimarySource: newSource
         ) {
-        case .unchanged:
-            return
-        case let .literal(changes):
-            if let build = try await session.applyLiteralValuesForJIT(changes) {
-                try await jitReloader.render(build)
-                await session.commitSourceBaseline(newSource)
+        case .refresh:
+            guard try await refreshBuildContext(session: session, tier: "refresh") else { return }
+        case .reresolve:
+            guard try await refreshBuildContext(session: session, tier: "re-resolve") else { return }
+        case let .fastPath(kind):
+            switch kind {
+            case .unchanged:
                 return
+            case let .literal(changes):
+                if let build = try await session.applyLiteralValuesForJIT(changes) {
+                    try await jitReloader.render(build)
+                    await session.commitSourceBaseline(newSource)
+                    return
+                }
+            // No prior JIT build to patch: fall through to a structural reload.
+            case .structural:
+                break
             }
-        // No prior JIT build to patch: fall through to a structural reload.
-        case .structural:
-            break
         }
 
         let build = try await session.compileObjectForJIT()
         try await jitReloader.render(build)
+    }
+
+    /// Re-run the native build after an evidence change, swap the compile
+    /// context on this session and the persistent `PreviewSession`, and let
+    /// the watcher owner reinstall from the fresh EvidenceSet
+    /// (docs/state-invalidation.md stage 4). Runs under the render lock the
+    /// caller already holds, so a mid-refresh burst queues and re-classifies
+    /// against the swapped context. Returns false when the reload should be
+    /// skipped — a resolution that no longer finds a build system must not
+    /// render against a stale context.
+    private func refreshBuildContext(
+        session: PreviewSession, tier: String
+    ) async throws -> Bool {
+        guard let rebuildContext else { return true }
+        Log.info("iOS evidence change (\(tier)): re-running the native build")
+        guard let newContext = try await rebuildContext() else {
+            Log.error(
+                "iOS refresh: no build system resolves \(sourceFile.path) anymore; keeping current preview"
+            )
+            return false
+        }
+        guard !stopping else { return false }
+        buildContext = newContext
+        await session.replaceBuildContext(newContext)
+        await onEvidenceRefresh?(newContext)
+        return true
     }
 
     /// Relaunch the whole agent app to reclaim leaked `__swift5_*`/ObjC metadata that the
