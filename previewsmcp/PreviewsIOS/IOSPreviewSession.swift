@@ -692,8 +692,10 @@ public actor IOSPreviewSession {
             canonicalPrimary: canonicalPrimary ?? sourceFile.path,
             newPrimarySource: newSource
         ) {
-        case .refresh, .reresolve:
-            guard try await refreshBuildContext(session: session) else { return }
+        case .refresh:
+            guard try await refreshBuildContext(session: session, tier: "refresh") else { return }
+        case .reresolve:
+            guard try await refreshBuildContext(session: session, tier: "re-resolve") else { return }
         case let .fastPath(kind):
             switch kind {
             case .unchanged:
@@ -722,9 +724,11 @@ public actor IOSPreviewSession {
     /// against the swapped context. Returns false when the reload should be
     /// skipped — a resolution that no longer finds a build system must not
     /// render against a stale context.
-    private func refreshBuildContext(session: PreviewSession) async throws -> Bool {
+    private func refreshBuildContext(
+        session: PreviewSession, tier: String
+    ) async throws -> Bool {
         guard let rebuildContext else { return true }
-        Log.info("iOS evidence change: re-running the native build")
+        Log.info("iOS evidence change (\(tier)): re-running the native build")
         guard let newContext = try await rebuildContext() else {
             Log.error(
                 "iOS refresh: no build system resolves \(sourceFile.path) anymore; keeping current preview"

@@ -9,7 +9,12 @@ import Foundation
 /// in-tree generator (a build step rewriting a generated file with
 /// identical content) converge after one refresh instead of looping.
 struct FiredPathDamper {
-    private var recorded: [String: String] = [:]
+    private enum ContentMarker: Equatable {
+        case absent
+        case hash(SHA256.Digest)
+    }
+
+    private var recorded: [String: ContentMarker] = [:]
 
     /// Whether this fire represents a real change: true on first sight
     /// and on any content transition (including the path appearing or
@@ -17,14 +22,13 @@ struct FiredPathDamper {
     /// value.
     mutating func isRealChange(_ path: String) -> Bool {
         let marker = Self.contentMarker(path)
-        let previous = recorded.updateValue(marker, forKey: path)
-        return previous != marker
+        return recorded.updateValue(marker, forKey: path) != marker
     }
 
-    private static func contentMarker(_ path: String) -> String {
+    private static func contentMarker(_ path: String) -> ContentMarker {
         guard let data = FileManager.default.contents(atPath: path) else {
-            return "absent"
+            return .absent
         }
-        return SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+        return .hash(SHA256.hash(data: data))
     }
 }

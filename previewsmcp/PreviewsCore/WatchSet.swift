@@ -14,15 +14,15 @@ public enum WatchSet {
     ) -> (paths: [String], directories: [FileWatcher.DirectoryWatch]) {
         var paths: Set<String> = [primary]
         paths.formUnion((buildContext?.sourceFiles ?? []).map(\.path))
-        guard let evidence = buildContext?.evidence else {
-            return (Array(paths), [])
-        }
-        paths.formUnion(evidence.runtimeInputs.map(\.path))
-        paths.formUnion(evidence.definitionFiles.map(\.path))
-        let existing = paths.filter { FileManager.default.fileExists(atPath: $0) }
-        let directories = evidence.sourceDirectories.map {
+        let evidence = buildContext?.evidence
+        paths.formUnion((evidence?.runtimeInputs ?? []).map(\.path))
+        paths.formUnion((evidence?.definitionFiles ?? []).map(\.path))
+        let directories = (evidence?.sourceDirectories ?? []).map {
             FileWatcher.DirectoryWatch(root: $0.path, extensions: ["swift"])
         }
-        return (Array(existing), directories)
+        return (
+            Array(paths.filter { FileManager.default.fileExists(atPath: $0) }),
+            directories
+        )
     }
 }

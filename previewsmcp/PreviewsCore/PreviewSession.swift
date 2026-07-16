@@ -100,6 +100,21 @@ public actor PreviewSession {
     private var cachedStableModule: (key: [String: Date], module: Compiler.StableModule)?
     private var firedPathDamper = FiredPathDamper()
     private var canonicalTargetSources: Set<String>?
+    private var evidenceIndex: EvidenceIndex?
+
+    /// Burst-membership sets derived once per compile context — the
+    /// evidence only changes on `replaceBuildContext`, not per fire.
+    private struct EvidenceIndex {
+        let definitions: Set<String>
+        let runtime: Set<String>
+        let rootPrefixes: [String]
+
+        init(_ evidence: EvidenceSet) {
+            definitions = Set(evidence.definitionFiles.map(\.path))
+            runtime = Set(evidence.runtimeInputs.map(\.path))
+            rootPrefixes = evidence.sourceDirectories.map { $0.path + "/" }
+        }
+    }
 
     public var currentTraits: PreviewTraits {
         traits
@@ -517,9 +532,11 @@ public actor PreviewSession {
                 newPrimarySource: newPrimarySource
             ))
         }
-        let definitions = Set(evidence.definitionFiles.map(\.path))
-        let runtime = Set(evidence.runtimeInputs.map(\.path))
-        let roots = evidence.sourceDirectories.map(\.path)
+        let index = evidenceIndex ?? {
+            let fresh = EvidenceIndex(evidence)
+            evidenceIndex = fresh
+            return fresh
+        }()
         let targets = targetSourceSet()
 
         var fastPathFired = Set<String>()
@@ -528,7 +545,7 @@ public actor PreviewSession {
         for path in firedPaths {
             if path == canonicalPrimary {
                 fastPathFired.insert(path)
-            } else if definitions.contains(path) {
+            } else if index.definitions.contains(path) {
                 reresolveHits.append(path)
             } else if targets.contains(path) {
                 if FileManager.default.fileExists(atPath: path) {
@@ -536,8 +553,8 @@ public actor PreviewSession {
                 } else {
                     refreshHits.append(path)
                 }
-            } else if runtime.contains(path)
-                || roots.contains(where: { path.hasPrefix($0 + "/") })
+            } else if index.runtime.contains(path)
+                || index.rootPrefixes.contains(where: { path.hasPrefix($0) })
             {
                 refreshHits.append(path)
             } else {
@@ -564,6 +581,7 @@ public actor PreviewSession {
     public func replaceBuildContext(_ newContext: BuildContext?) {
         buildContext = newContext
         canonicalTargetSources = nil
+        evidenceIndex = nil
     }
 
     private func targetSourceSet() -> Set<String> {

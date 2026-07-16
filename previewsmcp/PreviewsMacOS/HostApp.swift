@@ -155,8 +155,11 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
 
         let kind: PreviewSession.SourceChangeKind
         switch action {
-        case .refresh, .reresolve:
-            await refreshSession(sessionID: sessionID, session: session)
+        case .refresh:
+            await refreshSession(sessionID: sessionID, session: session, tier: "refresh")
+            return
+        case .reresolve:
+            await refreshSession(sessionID: sessionID, session: session, tier: "re-resolve")
             return
         case let .fastPath(fastPathKind):
             kind = fastPathKind
@@ -199,9 +202,11 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
     /// then structurally reload (docs/state-invalidation.md stage 4). A
     /// resolution that no longer finds a build system keeps the current
     /// preview rather than rendering against a stale context.
-    private func refreshSession(sessionID: String, session: PreviewSession) async {
+    private func refreshSession(
+        sessionID: String, session: PreviewSession, tier: String
+    ) async {
         guard let refresh = refreshers[sessionID] else {
-            fputs("Evidence change but no rebuilder; structural reload only\n", stderr)
+            fputs("Evidence change (\(tier)) but no rebuilder; structural reload only\n", stderr)
             do {
                 _ = try await jitStructuralReload(sessionID: sessionID, session: session)
             } catch {
@@ -209,7 +214,7 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
             }
             return
         }
-        fputs("Evidence change: re-running the native build...\n", stderr)
+        fputs("Evidence change (\(tier)): re-running the native build...\n", stderr)
         do {
             guard let newContext = try await refresh() else {
                 fputs(

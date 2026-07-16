@@ -172,26 +172,13 @@ enum PreviewStartHandler: ToolHandler {
         let height = extractOptionalInt("height", from: params) ?? 600
         let headless = extractOptionalBool("headless", from: params) ?? true
 
-        // Detect build system (auto-detect or explicit projectPath). The
-        // same detect-and-build, minus progress, becomes the session's
-        // rebuilder for stage-4 refreshes.
+        // Detect build system (auto-detect or explicit projectPath)
         let progress = mcpReporter(server: ctx.server, params: params, totalSteps: 3)
         let buildContext: BuildContext?
         let rebuild: @Sendable () async throws -> BuildContext?
         do {
-            let projectRootURL = extractOptionalString("projectPath", from: params)
-                .map { Path.normalizeURL($0) }
-            let scheme = extractOptionalString("scheme", from: params)
-            let buildSystemOverride = try parseBuildSystemOverride(from: params)
-            rebuild = {
-                try await detectAndBuild(
-                    for: fileURL, projectRoot: projectRootURL, platform: .macOS,
-                    scheme: scheme, buildSystem: buildSystemOverride
-                )
-            }
-            buildContext = try await detectAndBuild(
-                for: fileURL, projectRoot: projectRootURL, platform: .macOS,
-                scheme: scheme, buildSystem: buildSystemOverride, progress: progress
+            (buildContext, rebuild) = try await detectBuildContext(
+                for: fileURL, params: params, platform: .macOS, progress: progress
             )
         } catch {
             return CallTool.Result(
@@ -308,26 +295,14 @@ private func handleIOSPreviewStart(
 
         let headless = extractOptionalBool("headless", from: params) ?? true
 
-        // Detect build system. The same detect-and-build, minus progress,
-        // becomes the session's rebuilder for stage-4 refreshes.
+        // Detect build system
         let progress = mcpReporter(server: ctx.server, params: params, totalSteps: 8)
         let buildContext: BuildContext?
         let rebuild: @Sendable () async throws -> BuildContext?
         do {
             stage("detectBuildContext begin")
-            let projectRootURL = extractOptionalString("projectPath", from: params)
-                .map { Path.normalizeURL($0) }
-            let scheme = extractOptionalString("scheme", from: params)
-            let buildSystemOverride = try parseBuildSystemOverride(from: params)
-            rebuild = {
-                try await detectAndBuild(
-                    for: fileURL, projectRoot: projectRootURL, platform: .iOS,
-                    scheme: scheme, buildSystem: buildSystemOverride
-                )
-            }
-            buildContext = try await detectAndBuild(
-                for: fileURL, projectRoot: projectRootURL, platform: .iOS,
-                scheme: scheme, buildSystem: buildSystemOverride, progress: progress
+            (buildContext, rebuild) = try await detectBuildContext(
+                for: fileURL, params: params, platform: .iOS, progress: progress
             )
             stage("detectBuildContext done (\(buildContext == nil ? "nil" : "ok"))")
         } catch {
@@ -385,38 +360,24 @@ private func handleIOSPreviewStart(
         }
         liveSession = session
 
-        // Set up file watching for hot-reload. The install closure is
-        // reused by onEvidenceRefresh to reinstall the watcher from the
-        // fresh EvidenceSet after a stage-4 refresh swaps the context.
-        let sessionID = session.id
+        // Set up file watching for hot-reload; onEvidenceRefresh reinstalls
+        // the watcher from the fresh EvidenceSet after a stage-4 refresh
+        // swaps the context.
         let iosState = ctx.iosState
-        let canonicalPrimary = FileWatcher.canonicalPath(fileURL.path) ?? fileURL.path
-        let installWatcher: @Sendable (BuildContext?) async -> Void = { context in
-            let watchSet = WatchSet.derive(primary: fileURL.path, buildContext: context)
-            let watcher = try? FileWatcher(
-                paths: watchSet.paths, directories: watchSet.directories
-            ) { firedPaths in
-                Task {
-                    Log.info("MCP: iOS file change detected, reloading session \(sessionID)...")
-                    do {
-                        try await session.handleSourceChange(
-                            firedPaths: firedPaths, canonicalPrimary: canonicalPrimary
-                        )
-                        Log.info("MCP: iOS source change — recompiled and re-linked over JIT")
-                    } catch {
-                        Log.error("MCP: iOS reload failed for session \(sessionID): \(error)")
-                    }
-                }
-            }
-            if let watcher {
-                await iosState.setFileWatcher(sessionID, watcher)
-            }
-        }
         await session.setRebuildContext(rebuild)
         await session.setOnEvidenceRefresh { newContext in
-            Task { await installWatcher(newContext) }
+            Task {
+                await installIOSWatcher(
+                    session: session, fileURL: fileURL,
+                    iosState: iosState, buildContext: newContext
+                )
+            }
         }
-        await installWatcher(buildContext)
+        await installIOSWatcher(
+            session: session, fileURL: fileURL,
+            iosState: iosState, buildContext: buildContext
+        )
+        let sessionID = session.id
 
         // Wait briefly for the app to launch and render
         try await Task.sleep(for: .seconds(2))
@@ -473,23 +434,66 @@ private func buildSetupIfConfigured(
     )
 }
 
+/// Install (or reinstall) an iOS session's file watcher from the watch set
+/// the build context derives.
+private func installIOSWatcher(
+    session: IOSPreviewSession, fileURL: URL,
+    iosState: IOSSessionManager, buildContext: BuildContext?
+) async {
+    let sessionID = session.id
+    let canonicalPrimary = FileWatcher.canonicalPath(fileURL.path) ?? fileURL.path
+    let watchSet = WatchSet.derive(primary: fileURL.path, buildContext: buildContext)
+    let watcher = try? FileWatcher(
+        paths: watchSet.paths, directories: watchSet.directories
+    ) { firedPaths in
+        Task {
+            Log.info("MCP: iOS file change detected, reloading session \(sessionID)...")
+            do {
+                try await session.handleSourceChange(
+                    firedPaths: firedPaths, canonicalPrimary: canonicalPrimary
+                )
+                Log.info("MCP: iOS source change — recompiled and re-linked over JIT")
+            } catch {
+                Log.error("MCP: iOS reload failed for session \(sessionID): \(error)")
+            }
+        }
+    }
+    if let watcher {
+        await iosState.setFileWatcher(sessionID, watcher)
+    }
+}
+
+/// Detect and build the project, and return the same detect-and-build —
+/// minus progress — as the session's rebuilder for stage-4 refreshes.
 private func detectBuildContext(
     for fileURL: URL,
     params: CallTool.Parameters,
     platform: PreviewPlatform,
     progress: (any ProgressReporter)? = nil
-) async throws -> BuildContext? {
+) async throws -> (context: BuildContext?, rebuild: @Sendable () async throws -> BuildContext?) {
     let projectRootURL = extractOptionalString("projectPath", from: params)
         .map { Path.normalizeURL($0) }
     let scheme = extractOptionalString("scheme", from: params)
     let buildSystem = try parseBuildSystemOverride(from: params)
-    return try await detectAndBuild(
-        for: fileURL,
-        projectRoot: projectRootURL,
-        platform: platform,
-        scheme: scheme,
-        buildSystem: buildSystem,
-        progress: progress
+    let rebuild: @Sendable () async throws -> BuildContext? = {
+        try await detectAndBuild(
+            for: fileURL,
+            projectRoot: projectRootURL,
+            platform: platform,
+            scheme: scheme,
+            buildSystem: buildSystem
+        )
+    }
+    return (
+        try await detectAndBuild(
+            for: fileURL,
+            projectRoot: projectRootURL,
+            platform: platform,
+            scheme: scheme,
+            buildSystem: buildSystem,
+            progress: progress
+        ),
+        rebuild
     )
 }
 

@@ -22,10 +22,12 @@ public final class FileWatcher: @unchecked Sendable {
     public struct DirectoryWatch: Sendable {
         public let root: String
         public let extensions: Set<String>
+        let rootPrefix: String
 
         public init(root: String, extensions: Set<String>) {
             self.root = root
             self.extensions = extensions
+            rootPrefix = root + "/"
         }
     }
 
@@ -205,7 +207,7 @@ private final class CallbackBox: @unchecked Sendable {
         guard !directories.isEmpty else { return false }
         let ext = (path as NSString).pathExtension
         return directories.contains {
-            $0.extensions.contains(ext) && path.hasPrefix($0.root + "/")
+            $0.extensions.contains(ext) && path.hasPrefix($0.rootPrefix)
         }
     }
 }
