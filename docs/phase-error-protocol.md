@@ -121,13 +121,14 @@ interaction (I01–I03), resource staging (B04/R02/R03).
   only on actual delivery. The start response has a `setupWarning` field
   populated only for standalone mode (`DaemonProtocol.swift:67`,
   `PreviewStartHandler.swift:193-196,226`; iOS hardcodes nil at `:399`).
-  Hazard, two-sided: the CLI's `elements` command emits
-  `structuredContent` when present and ignores every text content item
-  (`ElementsCommand.swift:91`), so a trailing notice on that path is
-  consumed by attach-and-clear but never shown to the CLI user; only the
-  structured-absent fallback joins text items
-  (`ElementsCommand.swift:97-98`, `MCPContentHelpers.swift:8-13`), where a
-  notice instead concatenates onto the JSON printed to stdout.
+  Hazard, two-sided, branching on the `elements` CLI's `--json` flag
+  (`ElementsCommand.swift:42,85`): the default path joins **all** text
+  items to stdout (`ElementsCommand.swift:95-98`,
+  `MCPContentHelpers.swift:8-13`), so a trailing notice is shown but
+  concatenated onto the accessibility-tree JSON — corrupting piped
+  consumers; the `--json` path emits `structuredContent` only
+  (`ElementsCommand.swift:91`) and ignores text items, so there the
+  notice is consumed by attach-and-clear yet never shown.
 
 ## Design
 
@@ -219,43 +220,57 @@ notice):
   notice-typed). Re-arm on each new occurrence.
 - The crash notice's existing sentence is kept verbatim — L04's guard pins
   its tokens; the notice code rides `structuredContent` only.
-- The `structuredContent` mirror is the load-bearing half for `elements`:
-  its primary output path emits the structure and ignores text items
-  (`ElementsCommand.swift:91`), so today a trailing notice there is
-  cleared as delivered yet never shown. With the mirror, the structure
-  carries the notices; the CLI additionally routes trailing notice text to
-  stderr on both of its paths (structured: shown at all; fallback: no
-  longer concatenated onto the stdout JSON). Other commands keep joining —
-  their stdout is prose.
+- Both `elements` CLI paths need a half of this design. Its `--json` path
+  emits `structuredContent` only (`ElementsCommand.swift:91`) — today a
+  trailing notice there is cleared as delivered yet never shown; the
+  `structuredContent.notices` mirror is what makes it visible. Its
+  default path joins every text item onto stdout
+  (`ElementsCommand.swift:95-98`) — today a notice concatenates onto the
+  accessibility JSON; routing trailing notice text to stderr keeps the
+  machine payload clean while still showing the notice. Other commands
+  keep joining — their stdout is prose.
 - `PreviewStartResult.setupWarning` stays for wire compatibility and is
   populated from the same notice that rides the content items.
 
 ### The phase clock: elapsed-time heartbeats (L03, P01, T03)
 
-`ProgressReporter` gains a scoped entry point; the boundary `report` stays
-for call sites with nothing to wrap:
+`ProgressReporter` gains one new requirement and one derived entry point;
+the boundary `report` stays for call sites with nothing to wrap:
 
 ```swift
+public protocol ProgressReporter: Sendable {
+    func report(_ phase: BuildPhase, message: String) async
+    /// Read-only re-emit of the current step with an elapsed marker.
+    /// Must not advance any step counter.
+    func tick(message: String, elapsed: Duration) async
+}
+
 extension ProgressReporter {
     func phase<T>(_ phase: BuildPhase, _ message: String,
                   work: () async throws -> T) async rethrows -> T
 }
 ```
 
+The split matters: the tick's emission needs the concrete reporter's
+channels (`MCPProgressReporter`'s private `server`, `progressToken`, and
+`stepCounter`, `MCPServerSupport.swift:10-21`), which a protocol
+extension cannot reach — and routing ticks through `report` instead
+would increment the step counter per tick and walk the `[step/total]`
+numbering forward during one phase. So `tick` is a requirement each
+conformer implements against its own channels, and `phase(_:_:work:)` is
+the shared default composing them.
+
 `phase(_:_:work:)` reports the boundary line exactly as today, then starts
-a ticker: after 5 seconds, and every 5 seconds thereafter, it re-emits the
+a ticker: after 5 seconds, and every 5 seconds thereafter, it ticks the
 same step with the elapsed time — `[2/3] Building (SPMBuildSystem)... (10s)`
 — through the same two channels (`logger:"preview"` log always, which the
 CLI already forwards to stderr; `ProgressNotification` when the caller
 supplied a token, with a fractional progress bump capped below the next
-step so values stay monotonic — MCP progress must increase). The tick
-bypasses `report(_:message:)` and its step counter
-(`MCPServerSupport.swift:24-27`): a read-only re-emit that holds the step
-and advances only the elapsed marker, so `[step/total]` numbering is
-unchanged. The ticker is cancelled when the work returns or throws; a
-throw is wrapped with the phase's attribution. The tick message carries
-elapsed seconds only — parsing build-tool output for finer progress is
-rejected below.
+step so values stay monotonic — MCP progress must increase). `[step/total]`
+numbering is unchanged by construction. The ticker is cancelled when the
+work returns or throws; a throw is wrapped with the phase's attribution.
+The tick message carries elapsed seconds only — parsing build-tool output
+for finer progress is rejected below.
 
 Two executor rules are normative, or L03 ticks zero times. First, the
 ticker runs on its own executor (`Task.detached` or equivalent), never
@@ -301,8 +316,14 @@ nothing new.
 Three changes, all at the seam the empirical pass isolated:
 
 1. **Wire setup independently of the Tier 2 split.** `hasSetup` becomes
-   `isUsableSetup(module:type:) && setupDylibPath != nil`
-   (`PreviewSession.swift:209-211`); the no-bulk compile branch gains
+   `isUsableSetup(module:type:) && setupDylibPath != nil &&
+   buildContext != nil` (`PreviewSession.swift:209-211`) — the dropped
+   `splitContext` guard implicitly carried the build-context invariant,
+   and `setupDylibPath` alone cannot re-establish it (`buildSetupIfConfigured`
+   builds the dylib independent of any build context), so standalone mode
+   must stay excluded explicitly or the no-bulk branch would compile
+   setup-wrapped source with no target context at all; the no-bulk
+   compile branch gains
    `setupCompilerFlags` and `overrideSDK: setupSDKPath` exactly as both
    split branches already pass them (`PreviewSession.swift:277-279,291-292`
    vs `:305-309`). The decoupling leans on `setupCompilerFlags` carrying
@@ -316,12 +337,21 @@ Three changes, all at the seam the empirical pass isolated:
    the error instead of `try?`-dropping it (`BridgeGenerator.swift:509-522`),
    writing `String(describing: error)` to a setup-error sidecar path baked
    into the bridge (the frame-sidecar precedent,
-   `PreviewSession.frameSidecarPath`), setting a
-   `nonisolated(unsafe)` bridge-module flag, and returning nonzero. The
-   generated `viewWithSetup` consults the flag and skips `wrap` on failure
-   — the documented contract is "renders without setup"
-   (`docs/setup-plugin.md:12`), and wrapping through a plugin whose
-   `setUp()` failed would hand it half-initialized state. The reloader
+   `PreviewSession.frameSidecarPath`), recording the failure, and
+   returning nonzero. The failure record must live for the **agent
+   process's** lifetime, not the bridge module's: setup runs once per
+   agent (`!didRunSetUp`, `JITStructuralReloader.swift:49`) while every
+   generation links a fresh bridge module whose statics reset — a
+   bridge-module flag would silently re-enable `wrap` on the first
+   post-failure edit. So the flag lives in `PreviewsSetupKit` (a
+   `nonisolated(unsafe)` static in the kit the setup dylib links exactly
+   once per agent, the same process-lifetime reasoning that shares
+   `libPreviewSetup.dylib` statics, `SetupBuilder.swift:118-264`): the
+   generated entry sets it, and every generation's `viewWithSetup`
+   consults it and skips `wrap` while it stands — the documented contract
+   is "renders without setup" (`docs/setup-plugin.md:12`), and wrapping
+   through a plugin whose `setUp()` failed would hand it half-initialized
+   state, on the first render or any later generation. The reloader
    reads the status it currently discards (`JITStructuralReloader.swift:49-52,65-67`,
    `IOSJITStructuralReloader.swift:50-53`); on nonzero the session reads
    the sidecar and arms a `setupFailed` notice — take-and-clear, same as
@@ -455,9 +485,9 @@ re-verification flipping rows in VERIFICATION.md before the next stage.
    trailing-text-to-stderr routing. Flips nothing — the enabler stage,
    like EvidenceSet capture was. Manual: every pinned guard token holds
    (T02, D06, D07, V05, M02), and L04's disclosure re-verified through
-   the typed carrier — including that it now *reaches* the `elements` CLI
-   user on the structured path, where today it is cleared without being
-   shown.
+   the typed carrier on both `elements` CLI paths — `--json` now shows it
+   at all (today it is cleared without being shown), and the default path
+   shows it on stderr with the stdout JSON no longer corrupted.
 2. **Phase clock.** `phase(_:_:work:)` with the 5-second ticker; reporter
    threaded through the compile/render path; `.runningSetup`/`.rendering`
    phases. Manual: **L03 and P01 flip** (ticks observed in the CLI's
@@ -476,10 +506,11 @@ re-verification flipping rows in VERIFICATION.md before the next stage.
    and the F01 slice enricher. Manual: **F01, R01, L02 flip**;
    B02/B03/B04 and the resolver guards hold.
 
-Stage 1 is the base; stages 2–4 depend only on it and not on each other
-(2 shares only the new `BuildPhase` cases). Recommended order as numbered —
-the clock is the smallest lever and de-risks the two pure-heartbeat rows
-early.
+Stage 1 is the base for 3 and 4; stage 3 additionally needs stage 2 (its
+setup tick runs under `phase(_:_:work:)` and `.runningSetup`, which stage
+2 introduces). Stage 4 is independent of 2 and 3. Recommended order as
+numbered — the clock is the smallest lever and de-risks the two
+pure-heartbeat rows early.
 
 ## Out of scope
 
