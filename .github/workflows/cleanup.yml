@@ -6,21 +6,41 @@
 # auto-merged PRs kept their branches, with no head_ref_deleted event).
 # This workflow owns the deletion instead of hoping the native path runs.
 #
-# Deletion is skipped for cross-fork PRs (not our ref to delete) and is
-# best-effort when the native path already removed the ref (422 from the
-# API is logged, not failed).
+# The pull_request:closed trigger only covers merges performed by a real
+# user: a label-gate auto-merge is attributed to GITHUB_TOKEN (arm-merge
+# enables auto-merge with it), and GitHub suppresses workflow runs for
+# events caused by GITHUB_TOKEN (2026-07-16: #427 merged with no closed
+# run created). The daily sweep covers those — the actor suppression
+# does not apply to cron — and workflow_dispatch exists to exercise it
+# on demand. Caveat: GitHub pauses cron schedules after 60 days without
+# repo activity, so a long-quiet repo sweeps again on its next push.
+# Deliberate trade: arming auto-merge with a GitHub App token would
+# restore both native paths (the merge actor would no longer be
+# GITHUB_TOKEN) but requires a standing App private-key secret; the
+# sweep needs no secret beyond the per-run github.token, at the cost of
+# a bounded deletion delay.
+#
+# Deletion is skipped for cross-fork PRs (not our ref to delete), for
+# branches whose tip moved past the merged head (post-merge commits are
+# never ours to delete), and for branches reused by an open PR. A ref
+# already gone (404/422 from the API) is logged, not failed.
 name: cleanup
 
 on:
   pull_request:
     types: [closed]
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
 
 permissions:
   contents: write
+  pull-requests: read
 
 jobs:
   delete-head-branch:
     if: >-
+      github.event_name == 'pull_request' &&
       github.event.pull_request.merged == true &&
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
@@ -35,3 +55,47 @@ jobs:
           else
             echo "branch ${HEAD_REF} already gone (native deletion won the race)"
           fi
+
+  sweep-merged-branches:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete surviving head branches of merged PRs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          DEFAULT_BRANCH: main
+        run: |
+          # Iterate the live branches, not the merged-PR history: the
+          # branch list is small and complete, so no backlog can sit
+          # outside a fixed PR-list window. A branch is deleted only when
+          # its tip is exactly a head some merged PR merged and no open
+          # PR uses it; both checks are exact per-branch queries.
+          gh api "repos/${REPO}/git/matching-refs/heads/" --paginate \
+            --jq '.[] | "\(.ref | ltrimstr("refs/heads/")) \(.object.sha)"' |
+          while read -r ref tip; do
+            if [ "$ref" = "$DEFAULT_BRANCH" ]; then
+              continue
+            fi
+            merged_oids=$(gh pr list --repo "$REPO" --state merged --head "$ref" \
+              --json headRefOid,isCrossRepository \
+              --jq '.[] | select(.isCrossRepository | not) | .headRefOid') || continue
+            if [ -z "$merged_oids" ]; then
+              continue
+            fi
+            if ! printf '%s\n' "$merged_oids" | grep -qxF "$tip"; then
+              echo "kept ${ref} (tip ${tip} moved past its merged PR heads)"
+              continue
+            fi
+            open_count=$(gh pr list --repo "$REPO" --state open --head "$ref" \
+              --json number --jq length) || continue
+            if [ "$open_count" != "0" ]; then
+              echo "kept ${ref} (open PR reuses it)"
+              continue
+            fi
+            if gh api -X DELETE "repos/${REPO}/git/refs/heads/${ref}"; then
+              echo "deleted ${ref}"
+            else
+              echo "branch ${ref} vanished mid-sweep"
+            fi
+          done
