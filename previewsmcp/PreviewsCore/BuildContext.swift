@@ -28,6 +28,11 @@ public struct BuildContext: Sendable {
     /// into a single dylib — all types are visible and literal hot-reload works.
     public let sourceFiles: [URL]?
 
+    /// The filesystem inputs this context was derived from
+    /// (docs/state-invalidation.md stage 3). Carried for the stage-4
+    /// watch set; nil when the build system enumerated none.
+    public let evidence: EvidenceSet?
+
     /// Whether this context supports Tier 2 (source compilation with literal hot-reload).
     public var supportsTier2: Bool {
         sourceFiles != nil
@@ -39,7 +44,8 @@ public struct BuildContext: Sendable {
         projectRoot: URL,
         targetName: String,
         frameworkPaths: [URL] = [],
-        sourceFiles: [URL]? = nil
+        sourceFiles: [URL]? = nil,
+        evidence: EvidenceSet? = nil
     ) {
         self.moduleName = moduleName
         self.compilerFlags = compilerFlags
@@ -47,5 +53,6 @@ public struct BuildContext: Sendable {
         self.targetName = targetName
         self.frameworkPaths = frameworkPaths
         self.sourceFiles = sourceFiles
+        self.evidence = evidence
     }
 }

@@ -183,11 +183,26 @@ public actor BazelBuildSystem: BuildSystem {
         // the defines, language mode, dependency module search paths, and
         // module maps Bazel actually compiled with, and its .swift inputs
         // resolve generated sources to execroot paths (B01).
-        let aqueryOutput = try await runBazel(
-            ["bazel", "aquery", "mnemonic(\"SwiftCompile\", \(expr))", "--output=jsonproto"]
-                + platformArgs,
-            discardStderr: true
-        )
+        // One deps()-widened aquery serves both the compile-command capture
+        // (module-name match) and the evidence surface (every action's
+        // sources), per the design's widen-the-existing-query shape. The
+        // narrow retry keeps the load-bearing capture path as reliable as
+        // before if the widened query ever fails where the narrow one
+        // would not.
+        let aqueryOutput: String
+        do {
+            aqueryOutput = try await runBazel(
+                ["bazel", "aquery", "mnemonic(\"SwiftCompile\", deps(\(expr)))",
+                 "--output=jsonproto"] + platformArgs,
+                discardStderr: true
+            )
+        } catch {
+            aqueryOutput = try await runBazel(
+                ["bazel", "aquery", "mnemonic(\"SwiftCompile\", \(expr))", "--output=jsonproto"]
+                    + platformArgs,
+                discardStderr: true
+            )
+        }
         // A graph with no parseable SwiftCompile action (the #279
         // apple-bundle fallback under some configs) degrades to the
         // module-search flags above, as the pre-capture derivation did.
@@ -221,13 +236,76 @@ public actor BazelBuildSystem: BuildSystem {
             .filter { $0.resolvingSymlinksInPath().path != previewPath }
             .filter { !Self.declaresMainEntry($0) }
 
+        let evidence = deriveEvidence(target: target, aqueryOutput: aqueryOutput)
+        if let evidence {
+            Log.info("bazel \(evidence.logDescription)")
+        }
+
         return BuildContext(
             moduleName: moduleName,
             compilerFlags: compilerFlags,
             projectRoot: projectRoot,
             targetName: moduleName,
-            sourceFiles: sourceFiles.isEmpty ? nil : sourceFiles
+            sourceFiles: sourceFiles.isEmpty ? nil : sourceFiles,
+            evidence: evidence
         )
+    }
+
+    /// Derive the stage-3 EvidenceSet from the already-fetched widened
+    /// aquery output: one source root per `SwiftCompile` action,
+    /// realpath-classified against the output base (derived from the
+    /// `bazel-out` symlink, never name-matched) so `path_override` local
+    /// dependencies resolve into the workspace and fetched dependencies
+    /// drop out, plus the module and owning-package build files.
+    private func deriveEvidence(target: String, aqueryOutput: String) -> EvidenceSet? {
+        let productRoots = outputBaseRoot().map { [$0] } ?? []
+
+        let groups = BazelCommandCapture.allSwiftSourceGroups(jsonProto: aqueryOutput)
+            .map { $0.map(resolveExecrootPath) }
+        let roots = EvidenceClassifier.sourceRoots(
+            forGroups: groups, productRoots: productRoots
+        )
+
+        var definitions: Set<URL> = []
+        for name in ["MODULE.bazel", "WORKSPACE.bazel", "WORKSPACE"] {
+            if let file = EvidenceClassifier.evidencePath(
+                projectRoot.appendingPathComponent(name), productRoots: productRoots
+            ) {
+                definitions.insert(file)
+            }
+        }
+        if target.hasPrefix("//"), let colon = target.firstIndex(of: ":") {
+            let packagePath = String(target[target.index(target.startIndex, offsetBy: 2) ..< colon])
+            for name in ["BUILD.bazel", "BUILD"] {
+                if let file = EvidenceClassifier.evidencePath(
+                    projectRoot.appendingPathComponent(packagePath).appendingPathComponent(name),
+                    productRoots: productRoots
+                ) {
+                    definitions.insert(file)
+                    break
+                }
+            }
+        }
+
+        return EvidenceSet.make(sourceDirectories: roots, definitionFiles: definitions)
+    }
+
+    /// The output base owning this workspace's build products, derived
+    /// from where the `bazel-out` convenience symlink points
+    /// (`<output_base>/execroot/<repo>/bazel-out`). Nil when the symlink
+    /// is absent (no build has run — evidence derivation follows a build,
+    /// so this is defensive).
+    private func outputBaseRoot() -> URL? {
+        guard
+            let bazelOut = try? FileManager.default.destinationOfSymbolicLink(
+                atPath: projectRoot.appendingPathComponent("bazel-out").path
+            )
+        else { return nil }
+        let outputBase = URL(fileURLWithPath: bazelOut)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        return EvidenceClassifier.productRoot(outputBase)
     }
 
     /// Resolve execroot-relative paths inside a normalized flag token to

@@ -290,8 +290,9 @@ public actor SPMBuildSystem: BuildSystem {
                 "Could not locate the build manifest for \(binPath.path)"
             )
         }
+        let manifestContents = try SPMCommandCapture.readManifest(at: manifestPath)
         let captured = try SPMCommandCapture.capture(
-            manifestAt: manifestPath, forTarget: targetName
+            contents: manifestContents, forTarget: targetName, manifestPath: manifestPath
         )
         var flags = CompileCommandNormalizer.normalize(captured.arguments)
 
@@ -347,13 +348,88 @@ public actor SPMBuildSystem: BuildSystem {
         let previewPath = sourceFile.standardizedFileURL.path
         let otherSourceFiles = captured.swiftInputs.filter { $0.path != previewPath }
 
+        let evidence = Self.deriveEvidence(
+            manifestContents: manifestContents,
+            scratchDirectory: Self.scratchDirectory(forManifestPath: manifestPath),
+            projectRoot: projectRoot
+        )
+        if let evidence {
+            Log.info("spm \(evidence.logDescription)")
+        }
+
         return BuildContext(
             moduleName: targetName,
             compilerFlags: flags,
             projectRoot: projectRoot,
             targetName: targetName,
-            sourceFiles: otherSourceFiles.isEmpty ? nil : otherSourceFiles
+            sourceFiles: otherSourceFiles.isEmpty ? nil : otherSourceFiles,
+            evidence: evidence
         )
+    }
+
+    /// Derive the stage-3 EvidenceSet from the llbuild manifest: one
+    /// source root per compile node (the target's and its local
+    /// dependencies'; fetched dependencies live under the scratch dir and
+    /// classify as products), `copy-tool` inputs as runtime resources,
+    /// and the package manifests governing each root. The product root is
+    /// the actual scratch directory — derived, not name-matched, so
+    /// `--scratch-path` relocations stay covered.
+    static func deriveEvidence(
+        manifestContents: String, scratchDirectory: URL, projectRoot: URL
+    ) -> EvidenceSet? {
+        let raw = SPMCommandCapture.evidence(contents: manifestContents)
+        let productRoots = [EvidenceClassifier.productRoot(scratchDirectory)]
+
+        let roots = EvidenceClassifier.sourceRoots(
+            forGroups: raw.compileNodeSwiftInputs, productRoots: productRoots
+        )
+        var definitions: Set<URL> = []
+        for root in roots {
+            if let manifest = nearestPackageManifest(above: root, productRoots: productRoots) {
+                definitions.insert(manifest)
+            }
+        }
+
+        let resources = raw.copyToolInputs.compactMap {
+            EvidenceClassifier.evidencePath($0, productRoots: productRoots)
+        }
+
+        for name in ["Package.swift", "Package.resolved"] {
+            if let file = EvidenceClassifier.evidencePath(
+                projectRoot.appendingPathComponent(name), productRoots: productRoots
+            ) {
+                definitions.insert(file)
+            }
+        }
+
+        return EvidenceSet.make(
+            sourceDirectories: roots, runtimeInputs: resources, definitionFiles: definitions
+        )
+    }
+
+    /// The scratch directory owning a build manifest (`<scratch>/<config>.yaml`).
+    static func scratchDirectory(forManifestPath manifestPath: URL) -> URL {
+        manifestPath.deletingLastPathComponent()
+    }
+
+    /// The `Package.swift` governing a source root, found by walking up
+    /// a bounded number of levels (a target source dir sits at most a
+    /// few levels below its package root).
+    private static func nearestPackageManifest(
+        above directory: URL, productRoots: [URL]
+    ) -> URL? {
+        var dir = directory
+        for _ in 0 ..< 6 {
+            if let manifest = EvidenceClassifier.evidencePath(
+                dir.appendingPathComponent("Package.swift"), productRoots: productRoots
+            ) {
+                return manifest
+            }
+            let parent = dir.deletingLastPathComponent()
+            if parent.path == dir.path { break }
+            dir = parent
+        }
+        return nil
     }
 
     // MARK: - Private: Package Description

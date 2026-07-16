@@ -18,6 +18,10 @@ enum SPMCommandCapture {
     }
 
     static func capture(manifestAt url: URL, forTarget target: String) throws -> CapturedCommand {
+        try capture(contents: readManifest(at: url), forTarget: target, manifestPath: url)
+    }
+
+    static func readManifest(at url: URL) throws -> String {
         guard
             let data = try? Data(contentsOf: url),
             let contents = String(data: data, encoding: .utf8)
@@ -26,7 +30,12 @@ enum SPMCommandCapture {
                 "Could not read the build manifest at \(url.path)"
             )
         }
+        return contents
+    }
 
+    static func capture(
+        contents: String, forTarget target: String, manifestPath: URL
+    ) throws -> CapturedCommand {
         let moduleNeedle = "\"-module-name\",\"\(target)\""
         var inCompileNode = false
         var inputsLine: String?
@@ -75,10 +84,67 @@ enum SPMCommandCapture {
             ?? candidates.first
         else {
             throw BuildSystemError.missingArtifacts(
-                "No compile command for target '\(target)' in the build manifest at \(url.path)"
+                "No compile command for target '\(target)' in the build manifest at \(manifestPath.path)"
             )
         }
         return command
+    }
+
+    struct CapturedEvidence {
+        /// Every compile node's Swift inputs — the target's AND its
+        /// dependencies' (one manifest carries the whole graph). The
+        /// caller derives per-node source roots and classifies paths.
+        let compileNodeSwiftInputs: [[URL]]
+        /// Inputs of `copy-tool` nodes: the editable source resources
+        /// staged into runtime bundles.
+        let copyToolInputs: [URL]
+    }
+
+    /// Enumerate the manifest's evidence surface for the stage-3
+    /// EvidenceSet (docs/state-invalidation.md).
+    static func evidence(contents: String) -> CapturedEvidence {
+        var compileNodes: [[URL]] = []
+        var copyInputs: [URL] = []
+        var inCompileNode = false
+        var inputsLine: String?
+        var toolIsCopy = false
+
+        func closeNode() {
+            defer {
+                inputsLine = nil
+                toolIsCopy = false
+            }
+            guard let inputsLine else { return }
+            let inputs = decodeStringArray(from: inputsLine, prefix: "inputs: ")
+            if inCompileNode {
+                let swift = inputs.filter { $0.hasSuffix(".swift") }
+                    .map { URL(fileURLWithPath: $0).standardizedFileURL }
+                if !swift.isEmpty { compileNodes.append(swift) }
+            } else if toolIsCopy {
+                copyInputs.append(contentsOf: inputs.map {
+                    URL(fileURLWithPath: $0).standardizedFileURL
+                })
+            }
+        }
+
+        for rawLine in contents.split(separator: "\n", omittingEmptySubsequences: true) {
+            let line = rawLine.trimmingCharacters(in: .whitespaces)
+            if rawLine.hasPrefix("  \"") {
+                closeNode()
+                inCompileNode = rawLine.hasPrefix("  \"C.")
+                continue
+            }
+            if line.hasPrefix("inputs: ") {
+                inputsLine = line
+            } else if line == "tool: copy-tool" {
+                toolIsCopy = true
+            }
+        }
+        closeNode()
+
+        return CapturedEvidence(
+            compileNodeSwiftInputs: compileNodes, copyToolInputs: copyInputs
+        )
     }
 
     private static func decodeStringArray(from line: String, prefix: String) -> [String] {
