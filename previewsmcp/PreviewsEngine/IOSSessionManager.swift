@@ -112,7 +112,13 @@ public actor IOSSessionManager {
         await republish()
     }
 
+    /// Refuses IDs no longer in the session map, so a refresh completing
+    /// after its session stopped cannot resurrect a watcher for it.
     public func setFileWatcher(_ id: String, _ watcher: FileWatcher) {
+        guard sessions[id] != nil else {
+            watcher.stop()
+            return
+        }
         fileWatchers[id]?.stop()
         fileWatchers[id] = watcher
     }

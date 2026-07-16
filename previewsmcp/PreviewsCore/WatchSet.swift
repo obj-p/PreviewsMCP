@@ -5,10 +5,10 @@ import Foundation
 /// sources exactly, the captured evidence's runtime inputs and definition
 /// files exactly, and its source roots directory-scoped to `.swift`.
 public enum WatchSet {
-    /// Paths that no longer exist are dropped — `FileWatcher` refuses
-    /// missing paths, and a refresh triggered by a deletion must still
-    /// reinstall its watcher. They rejoin the set when a later refresh
-    /// re-captures them.
+    /// Paths and directory roots that no longer exist are dropped —
+    /// `FileWatcher` refuses missing entries, and a refresh triggered by a
+    /// deletion must still reinstall its watcher rather than losing the
+    /// whole watch set. They rejoin when a later refresh re-captures them.
     public static func derive(
         primary: String, buildContext: BuildContext?
     ) -> (paths: [String], directories: [FileWatcher.DirectoryWatch]) {
@@ -17,9 +17,9 @@ public enum WatchSet {
         let evidence = buildContext?.evidence
         paths.formUnion((evidence?.runtimeInputs ?? []).map(\.path))
         paths.formUnion((evidence?.definitionFiles ?? []).map(\.path))
-        let directories = (evidence?.sourceDirectories ?? []).map {
-            FileWatcher.DirectoryWatch(root: $0.path, extensions: ["swift"])
-        }
+        let directories = (evidence?.sourceDirectories ?? [])
+            .filter { FileManager.default.fileExists(atPath: $0.path) }
+            .map { FileWatcher.DirectoryWatch(root: $0.path, extensions: ["swift"]) }
         return (
             Array(paths.filter { FileManager.default.fileExists(atPath: $0) }),
             directories

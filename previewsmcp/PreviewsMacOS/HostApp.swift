@@ -144,14 +144,14 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
         }
         Log.info("jit_latency: watch-fire")
 
-        let newSource = try? String(contentsOf: session.sourceFile, encoding: .utf8)
-        let action: PreviewSession.WatchedBurstAction = if let newSource {
-            await session.classifyWatchedBurst(
-                firedPaths: firedPaths, canonicalPrimary: canonicalPrimary, newPrimarySource: newSource
-            )
-        } else {
-            .fastPath(.structural)
-        }
+        // An unreadable primary (mid atomic-rename, deleted) classifies with
+        // empty source — the fast path diffs to structural, and evidence
+        // tiering still runs so a definition/resource change in the same
+        // burst is not reloaded against a stale context.
+        let newSource = (try? String(contentsOf: session.sourceFile, encoding: .utf8)) ?? ""
+        let action = await session.classifyWatchedBurst(
+            firedPaths: firedPaths, canonicalPrimary: canonicalPrimary, newPrimarySource: newSource
+        )
 
         let kind: PreviewSession.SourceChangeKind
         switch action {
@@ -175,7 +175,7 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
                 if try await jitLiteralReload(
                     sessionID: sessionID, session: session, changes: changes
                 ) != nil {
-                    if let newSource { await session.commitSourceBaseline(newSource) }
+                    await session.commitSourceBaseline(newSource)
                     fputs("Literal re-rendered in agent (no recompile)\n", stderr)
                     return
                 }
@@ -221,6 +221,10 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
                     "Refresh: no build system resolves \(session.sourceFile.path) anymore; keeping current preview\n",
                     stderr
                 )
+                return
+            }
+            guard sessions[sessionID] != nil else {
+                fputs("Refresh: session \(sessionID) closed mid-refresh; discarding\n", stderr)
                 return
             }
             await session.replaceBuildContext(newContext)

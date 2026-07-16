@@ -33,7 +33,9 @@ public actor IOSPreviewSession {
 
     /// Invoked after a refresh swapped the compile context, so the owner
     /// of the file watcher can reinstall it from the fresh EvidenceSet.
-    private var onEvidenceRefresh: (@Sendable (BuildContext) -> Void)?
+    /// Awaited under the render lock, so paths added by the refresh are
+    /// watched before the next burst can run.
+    private var onEvidenceRefresh: (@Sendable (BuildContext) async -> Void)?
 
     public func setRebuildContext(
         _ rebuild: (@Sendable () async throws -> BuildContext?)?
@@ -42,7 +44,7 @@ public actor IOSPreviewSession {
     }
 
     public func setOnEvidenceRefresh(
-        _ callback: (@Sendable (BuildContext) -> Void)?
+        _ callback: (@Sendable (BuildContext) async -> Void)?
     ) {
         onEvidenceRefresh = callback
     }
@@ -473,6 +475,8 @@ public actor IOSPreviewSession {
     /// `IOSAgentChannel.close()` is safe to call when nothing was opened.
     public func stop() async {
         stopping = true
+        rebuildContext = nil
+        onEvidenceRefresh = nil
 
         appServer?.stop()
         appServer = nil
@@ -686,7 +690,9 @@ public actor IOSPreviewSession {
             throw IOSPreviewSessionError.notStarted
         }
 
-        let newSource = try String(contentsOf: sourceFile, encoding: .utf8)
+        // An unreadable primary classifies with empty source (structural on
+        // the fast path) so evidence tiering still runs; see the macOS twin.
+        let newSource = (try? String(contentsOf: sourceFile, encoding: .utf8)) ?? ""
         switch await session.classifyWatchedBurst(
             firedPaths: firedPaths,
             canonicalPrimary: canonicalPrimary ?? sourceFile.path,
@@ -735,9 +741,10 @@ public actor IOSPreviewSession {
             )
             return false
         }
+        guard !stopping else { return false }
         buildContext = newContext
         await session.replaceBuildContext(newContext)
-        onEvidenceRefresh?(newContext)
+        await onEvidenceRefresh?(newContext)
         return true
     }
 

@@ -47,7 +47,7 @@ public final class FileWatcher: @unchecked Sendable {
         directories: [DirectoryWatch] = [],
         callback: @escaping @Sendable (Set<String>) -> Void
     ) throws {
-        guard !paths.isEmpty else {
+        guard !paths.isEmpty || !directories.isEmpty else {
             throw FileWatcherError.cannotOpen(path: "<empty>")
         }
         for path in paths {

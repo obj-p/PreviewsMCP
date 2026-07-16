@@ -365,13 +365,12 @@ private func handleIOSPreviewStart(
         // swaps the context.
         let iosState = ctx.iosState
         await session.setRebuildContext(rebuild)
-        await session.setOnEvidenceRefresh { newContext in
-            Task {
-                await installIOSWatcher(
-                    session: session, fileURL: fileURL,
-                    iosState: iosState, buildContext: newContext
-                )
-            }
+        await session.setOnEvidenceRefresh { [weak session] newContext in
+            guard let session else { return }
+            await installIOSWatcher(
+                session: session, fileURL: fileURL,
+                iosState: iosState, buildContext: newContext
+            )
         }
         await installIOSWatcher(
             session: session, fileURL: fileURL,

@@ -250,6 +250,53 @@ struct WatchedBurstTests {
     }
 }
 
+@Suite("Watch-set derivation")
+struct WatchSetTests {
+    @Test("Missing files and missing directory roots are dropped, not fatal")
+    func missingEntriesDropped() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("watchset-\(UUID().uuidString)")
+        let liveDir = root.appendingPathComponent("Sources/Live")
+        try FileManager.default.createDirectory(at: liveDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let primary = liveDir.appendingPathComponent("Primary.swift")
+        try "p".write(to: primary, atomically: true, encoding: .utf8)
+
+        let derived = WatchSet.derive(
+            primary: primary.path,
+            buildContext: BuildContext(
+                moduleName: "M", compilerFlags: [], projectRoot: root, targetName: "T",
+                sourceFiles: [root.appendingPathComponent("Gone.swift")],
+                evidence: EvidenceSet(
+                    sourceDirectories: [liveDir, root.appendingPathComponent("Sources/Gone")],
+                    runtimeInputs: [root.appendingPathComponent("gone.json")]
+                )
+            )
+        )
+        #expect(derived.paths == [primary.path])
+        #expect(derived.directories.map(\.root) == [liveDir.path])
+
+        let watcher = try FileWatcher(
+            paths: derived.paths, directories: derived.directories
+        ) { _ in }
+        watcher.stop()
+    }
+
+    @Test("A directory-only watch set installs")
+    func directoryOnlyWatchInstalls() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("watchset-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let watcher = try FileWatcher(
+            paths: [],
+            directories: [.init(root: root.path, extensions: ["swift"])]
+        ) { _ in }
+        watcher.stop()
+    }
+}
+
 @Suite("Fired-path damper")
 struct FiredPathDamperTests {
     private func makeFile(_ content: String) throws -> URL {
