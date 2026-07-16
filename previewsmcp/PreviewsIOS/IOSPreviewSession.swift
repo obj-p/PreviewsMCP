@@ -46,6 +46,7 @@ public actor IOSPreviewSession {
     ) {
         onEvidenceRefresh = callback
     }
+
     public nonisolated let headless: Bool
     private var buildContext: BuildContext?
     private var traits: PreviewTraits
