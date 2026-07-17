@@ -31,10 +31,17 @@ extension CallTool.Result {
     /// The response text minus notice items: what a command may print to
     /// stdout. Notices are diagnostics and go to stderr for every command
     /// (the uniform CLI rule) — call `surfaceNotices()` alongside this.
+    /// Notices are appended as the TRAILING items, so only a matching
+    /// suffix is stripped — a payload line that happens to equal a notice
+    /// message is untouched.
     func payloadText() -> String {
-        let notices = Set(noticeMessages)
-        return content.compactMap { item in
-            if case let .text(t) = item, !notices.contains(t) { return t }
+        var items = content
+        for message in noticeMessages.reversed() {
+            guard case let .text(t) = items.last, t == message else { break }
+            items.removeLast()
+        }
+        return items.compactMap { item in
+            if case let .text(t) = item { return t }
             return nil
         }.joined(separator: "\n")
     }

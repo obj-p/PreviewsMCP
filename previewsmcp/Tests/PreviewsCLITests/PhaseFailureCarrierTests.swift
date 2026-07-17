@@ -112,6 +112,30 @@ struct PhaseFailureCarrierTests {
         #expect(carried.content.count == 2)
     }
 
+    @Test("payloadText strips only the trailing notice suffix, not equal payload lines")
+    func payloadKeepsEqualBodyLines() {
+        let carried = appendingNotices(
+            CallTool.Result(content: [.text("crash notice"), .text("payload")]),
+            [Notice(code: .agentCrashed, message: "crash notice")]
+        )
+
+        #expect(carried.payloadText() == "crash notice\npayload")
+    }
+
+    @Test("detection failures classify at detectingProject, build output at buildingProject")
+    func detectionVersusBuildPhase() {
+        #expect(
+            detectionOrBuildPhase(
+                for: BuildSystemError.buildFailed(stderr: "no such module", exitCode: 1)
+            ) == .buildingProject
+        )
+        #expect(
+            detectionOrBuildPhase(
+                for: BuildSystemError.ambiguousTarget(sourceFile: "A.swift", candidates: ["X", "Y"])
+            ) == .detectingProject
+        )
+    }
+
     @Test("empty notices leave the result untouched")
     func emptyNoticesNoOp() {
         let base = CallTool.Result(content: [.text("payload")])

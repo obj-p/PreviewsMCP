@@ -181,7 +181,7 @@ enum PreviewStartHandler: ToolHandler {
                 for: fileURL, params: params, platform: .macOS, progress: progress
             )
         } catch {
-            return phaseFailureResult(classifiedFailure(error, at: .buildingProject))
+            return phaseFailureResult(classifiedFailure(error, at: detectionOrBuildPhase(for: error)))
         }
 
         // Build setup plugin if configured
@@ -317,7 +317,7 @@ private func handleIOSPreviewStart(
         } catch {
             stage("detectBuildContext failed: \(error)")
             await ctx.iosState.releaseDeviceClaim(deviceUDID, owner: claimOwner)
-            return phaseFailureResult(classifiedFailure(error, at: .buildingProject))
+            return phaseFailureResult(classifiedFailure(error, at: detectionOrBuildPhase(for: error)))
         }
 
         stage("buildSetupIfConfigured begin")

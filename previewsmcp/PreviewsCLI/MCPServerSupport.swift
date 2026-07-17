@@ -186,6 +186,19 @@ func classifiedFailure(_ error: Error, at phase: BuildPhase) -> PhaseFailure {
     )
 }
 
+/// `detectBuildContext` spans detection AND the native build; attribute
+/// its failure to the phase that actually produced it: compiler/build
+/// output is a build failure, everything else (ownership walk declines,
+/// ambiguous targets, unavailable build systems) failed while detecting.
+func detectionOrBuildPhase(for error: Error) -> BuildPhase {
+    switch error {
+    case BuildSystemError.buildFailed, BuildSystemError.missingArtifacts:
+        .buildingProject
+    default:
+        .detectingProject
+    }
+}
+
 /// Classified error for a session whose agent is terminally gone, or nil
 /// while healthy. Session-scoped handlers return this instead of
 /// operating on a dead session (docs/state-invalidation.md, L04).
@@ -199,7 +212,9 @@ func terminalFailureResult(for handle: any PreviewSessionHandle) async -> CallTo
 /// last step of assembling a success response; never touches
 /// `content[0]`, which clients parse as the primary payload. The mirror
 /// is created even when the result had no structure, so CLI consumers
-/// can always identify notice items to route to stderr.
+/// can always identify notice items to route to stderr. A non-object
+/// structure keeps its shape and skips the mirror — a handler that
+/// carries notices must use an object structure (all current ones do).
 func appendingNotices(
     _ result: CallTool.Result, _ notices: [Notice]
 ) -> CallTool.Result {
