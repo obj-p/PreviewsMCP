@@ -147,25 +147,86 @@ func configQualityForSession(_ sessionID: String, ctx: HandlerContext) async -> 
     return loadProjectConfig(explicit: nil, fileURL: handle.sourceFile)?.config.quality
 }
 
+// MARK: - Phase failures and notices (docs/phase-error-protocol.md)
+
+/// The ONE place a `PhaseFailure` becomes a tool result: `content[0]` is
+/// "<phase> failed: <message>" plus the bounded detail and remediation,
+/// and `structuredContent.error` carries the machine-readable
+/// classification.
+func phaseFailureResult(_ failure: PhaseFailure) -> CallTool.Result {
+    var text = "\(failure.phase.userLabel) failed: \(failure.message)"
+    if let detail = failure.detail, !detail.isEmpty {
+        text += "\n\(detail)"
+    }
+    if let remediation = failure.remediation {
+        text += "\nRemediation: \(remediation)"
+    }
+    var error: [String: Value] = [
+        "phase": .string(failure.phase.rawValue),
+        "code": .string(failure.code.rawValue),
+        "message": .string(failure.message),
+    ]
+    if let detail = failure.detail { error["detail"] = .string(detail) }
+    if let remediation = failure.remediation { error["remediation"] = .string(remediation) }
+    return CallTool.Result(
+        content: [.text(text)],
+        structuredContent: .object(["error": .object(error)]),
+        isError: true
+    )
+}
+
+/// Boundary adapter: map a thrown domain error to a `PhaseFailure` at the
+/// phase the catch site was running. `message` derives from the error's
+/// own description so pinned guard tokens survive by construction; an
+/// error that is already a `PhaseFailure` passes through untouched.
+func classifiedFailure(_ error: Error, at phase: BuildPhase) -> PhaseFailure {
+    if let failure = error as? PhaseFailure { return failure }
+    return PhaseFailure(
+        phase: phase, code: .buildFailed, message: error.localizedDescription
+    )
+}
+
 /// Classified error for a session whose agent is terminally gone, or nil
 /// while healthy. Session-scoped handlers return this instead of
 /// operating on a dead session (docs/state-invalidation.md, L04).
 func terminalFailureResult(for handle: any PreviewSessionHandle) async -> CallTool.Result? {
     guard let failure = await handle.terminalFailure else { return nil }
-    return CallTool.Result(content: [.text(failure)], isError: true)
+    return phaseFailureResult(failure)
 }
 
-/// Append the session's undisclosed crash notice (if any) as a TRAILING
-/// content item. Called as the last step of assembling a success
-/// response; never touches `content[0]`, which clients parse as the
-/// primary payload.
+/// Append notices as TRAILING content items and mirror them into
+/// `structuredContent.notices`. The single attach point: called as the
+/// last step of assembling a success response; never touches
+/// `content[0]`, which clients parse as the primary payload. The mirror
+/// is created even when the result had no structure, so CLI consumers
+/// can always identify notice items to route to stderr.
+func appendingNotices(
+    _ result: CallTool.Result, _ notices: [Notice]
+) -> CallTool.Result {
+    guard !notices.isEmpty else { return result }
+    let mirror = Value.array(notices.map {
+        .object(["code": .string($0.code.rawValue), "message": .string($0.message)])
+    })
+    let structured: Value? = switch result.structuredContent {
+    case let .object(fields):
+        .object(fields.merging(["notices": mirror]) { _, new in new })
+    case nil:
+        .object(["notices": mirror])
+    case let .some(other):
+        other
+    }
+    return CallTool.Result(
+        content: result.content + notices.map { .text($0.message) },
+        structuredContent: structured,
+        isError: result.isError
+    )
+}
+
+/// Append the session's undisclosed crash notice (if any) through the
+/// notices carrier.
 func appendingIncidentNotice(
     _ result: CallTool.Result, from handle: any PreviewSessionHandle
 ) async -> CallTool.Result {
     guard let notice = await handle.takeIncidentNotice() else { return result }
-    return CallTool.Result(
-        content: result.content + [.text(notice)],
-        structuredContent: result.structuredContent,
-        isError: result.isError
-    )
+    return appendingNotices(result, [notice])
 }

@@ -93,8 +93,10 @@ struct ElementsCommand: AsyncParsableCommand {
         }
 
         // Default: write the bare accessibility tree JSON to stdout
-        // so existing scripts piping into `jq` keep working.
-        let text = response.content.joinedText()
+        // so existing scripts piping into `jq` keep working. Notices go
+        // to stderr so they never corrupt the piped payload.
+        response.surfaceNotices()
+        let text = response.payloadText()
         if !text.isEmpty { print(text) }
     }
 }

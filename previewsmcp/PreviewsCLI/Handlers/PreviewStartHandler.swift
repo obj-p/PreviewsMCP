@@ -181,19 +181,25 @@ enum PreviewStartHandler: ToolHandler {
                 for: fileURL, params: params, platform: .macOS, progress: progress
             )
         } catch {
-            return CallTool.Result(
-                content: [.text("Project build failed: \(error.localizedDescription)")], isError: true
-            )
+            return phaseFailureResult(classifiedFailure(error, at: .buildingProject))
         }
 
         // Build setup plugin if configured
-        let setupResult = try await buildSetupIfConfigured(
-            config: config, configDirectory: configResult?.directory, platform: .macOS
-        )
-        let standaloneSetupWarning =
+        let setupResult: SetupBuilder.Result?
+        do {
+            setupResult = try await buildSetupIfConfigured(
+                config: config, configDirectory: configResult?.directory, platform: .macOS
+            )
+        } catch {
+            return phaseFailureResult(classifiedFailure(error, at: .buildingProject))
+        }
+        let standaloneNotice: Notice? =
             (config?.setup != nil && buildContext == nil)
-                ? " Warning: setup plugin requires a project build system and is ignored in standalone mode."
-                : ""
+                ? Notice(
+                    code: .setupIgnored,
+                    message: "Setup plugin requires a project build system and is ignored in standalone mode."
+                )
+                : nil
 
         await progress.report(.compilingBridge, message: "Compiling \(fileURL.lastPathComponent)...")
         let sessionID = try await startMacOSPreview(
@@ -223,16 +229,19 @@ enum PreviewStartHandler: ToolHandler {
                 DaemonProtocol.PreviewInfoDTO(from: $0, activeIndex: previewIndex)
             },
             activeIndex: previewIndex,
-            setupWarning: standaloneSetupWarning.isEmpty ? nil : standaloneSetupWarning,
+            setupWarning: standaloneNotice?.message,
             appServerPort: nil
         )
-        return try CallTool.Result(
-            content: [
-                .text(
-                    "macOS preview started. Session ID: \(sessionID).\(traitInfo)\(standaloneSetupWarning) File is being watched for changes.\n\(previewList)\(switchHint)"
-                ),
-            ],
-            structuredContent: structured
+        return try appendingNotices(
+            CallTool.Result(
+                content: [
+                    .text(
+                        "macOS preview started. Session ID: \(sessionID).\(traitInfo) File is being watched for changes.\n\(previewList)\(switchHint)"
+                    ),
+                ],
+                structuredContent: structured
+            ),
+            standaloneNotice.map { [$0] } ?? []
         )
     }
 }
@@ -308,16 +317,20 @@ private func handleIOSPreviewStart(
         } catch {
             stage("detectBuildContext failed: \(error)")
             await ctx.iosState.releaseDeviceClaim(deviceUDID, owner: claimOwner)
-            return CallTool.Result(
-                content: [.text("Project build failed: \(error.localizedDescription)")],
-                isError: true
-            )
+            return phaseFailureResult(classifiedFailure(error, at: .buildingProject))
         }
 
         stage("buildSetupIfConfigured begin")
-        let setupResult = try await buildSetupIfConfigured(
-            config: config, configDirectory: configResult?.directory, platform: .iOS
-        )
+        let setupResult: SetupBuilder.Result?
+        do {
+            setupResult = try await buildSetupIfConfigured(
+                config: config, configDirectory: configResult?.directory, platform: .iOS
+            )
+        } catch {
+            stage("buildSetupIfConfigured failed: \(error)")
+            await ctx.iosState.releaseDeviceClaim(deviceUDID, owner: claimOwner)
+            return phaseFailureResult(classifiedFailure(error, at: .buildingProject))
+        }
         stage("buildSetupIfConfigured done (\(setupResult == nil ? "nil" : "ok"))")
 
         let session = IOSPreviewSession(

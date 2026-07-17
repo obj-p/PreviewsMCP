@@ -59,23 +59,24 @@ public protocol PreviewSessionHandle: Sendable {
     /// A classified reason this session can no longer serve calls (e.g.
     /// its agent died and could not be respawned), or nil while healthy.
     /// Handlers return this as an error instead of operating on a dead
-    /// session (docs/state-invalidation.md, L04).
-    var terminalFailure: String? { get async }
+    /// session (docs/state-invalidation.md, L04;
+    /// docs/phase-error-protocol.md).
+    var terminalFailure: PhaseFailure? { get async }
 
     /// An undisclosed incident notice (agent crash + relaunch) the next
     /// response must carry, cleared by this call. Callers take it as the
     /// LAST step of assembling a response so a taken notice is always
     /// carried; it is appended as a trailing content item, never at
     /// index 0, which clients parse as the primary payload.
-    func takeIncidentNotice() async -> String?
+    func takeIncidentNotice() async -> Notice?
 }
 
 public extension PreviewSessionHandle {
-    var terminalFailure: String? {
+    var terminalFailure: PhaseFailure? {
         nil
     }
 
-    func takeIncidentNotice() async -> String? {
+    func takeIncidentNotice() async -> Notice? {
         nil
     }
 }

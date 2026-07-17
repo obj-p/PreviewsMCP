@@ -31,17 +31,22 @@ public actor IOSPreviewHandle: PreviewSessionHandle {
         }
     }
 
-    public var terminalFailure: String? {
+    public var terminalFailure: PhaseFailure? {
         get async {
             await iosSession.failed
-                ? "The preview agent for session \(id) crashed and could not be "
-                + "relaunched. Stop the session and start a new one."
+                ? PhaseFailure(
+                    phase: .connectingToApp, code: .sessionFailed,
+                    message: "The preview agent for session \(id) crashed and could not be "
+                        + "relaunched. Stop the session and start a new one."
+                )
                 : nil
         }
     }
 
-    public func takeIncidentNotice() async -> String? {
-        await iosSession.takeUndisclosedCrashNotice()
+    public func takeIncidentNotice() async -> Notice? {
+        await iosSession.takeUndisclosedCrashNotice().map {
+            Notice(code: .agentCrashed, message: $0)
+        }
     }
 
     public func setTraits(_ traits: PreviewTraits) async throws {

@@ -294,6 +294,7 @@ struct VariantsCommand: AsyncParsableCommand {
             )
         }
         let result = try structured.decode(DaemonProtocol.VariantsResult.self)
+        response.surfaceNotices()
 
         let ext = format == .png ? "png" : "jpg"
         var successCount = 0

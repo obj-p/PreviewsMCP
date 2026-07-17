@@ -141,7 +141,7 @@ struct RunCommand: AsyncParsableCommand {
                 throw ExitCode(1)
             }
             let sessionID = start.sessionID
-            let text = response.content.joinedText()
+            let text = response.payloadText()
 
             if detach {
                 if json {
@@ -151,6 +151,7 @@ struct RunCommand: AsyncParsableCommand {
                     print(sessionID)
                 }
                 fputs("session \(sessionID) started in daemon\n", stderr)
+                response.surfaceNotices()
                 return
             }
 
@@ -158,6 +159,7 @@ struct RunCommand: AsyncParsableCommand {
             // then block until Ctrl+C. On signal, stop the session and
             // exit cleanly.
             fputs("\(text)\n", stderr)
+            response.surfaceNotices()
             fputs("Press Ctrl+C to stop the preview.\n", stderr)
 
             await blockUntilSignal()
