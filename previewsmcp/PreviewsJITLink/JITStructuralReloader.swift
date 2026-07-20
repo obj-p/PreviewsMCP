@@ -20,12 +20,45 @@ public actor JITStructuralReloader: StructuralReloader {
     private var generation = 0
     private var lastObjectPath: URL?
     private var didRunSetUp = false
+    private var opTail: Task<Void, Never>?
 
     public init(generationCap: Int = 100) {
         self.generationCap = generationCap
     }
 
     public func render(_ build: JITRenderBuild) async throws {
+        try await serialized { try await self.performRender(build) }
+    }
+
+    /// Re-raster the live window to the current build's image path by running the generated
+    /// `snapshotPreviewWindow` entry on the live agent's main thread (#346). No live session
+    /// yet (no render has happened) means nothing to snapshot. A non-zero status is a real
+    /// raster failure and propagates, like the render entry.
+    public func snapshotLiveWindow(entrySymbol: String) async throws {
+        try await serialized { try await self.performSnapshotLiveWindow(entrySymbol: entrySymbol) }
+    }
+
+    /// Serialize the public operations. Actor isolation alone stopped
+    /// serializing them when the blocking entry calls moved off the
+    /// cooperative pool: every `await` is a reentrancy window, so a
+    /// snapshot arriving mid-render could otherwise interleave with it
+    /// and drive the same non-Sendable `JITSession` from a second
+    /// thread. The chain restores the pre-async semantics — one
+    /// operation at a time, later arrivals wait — which is also what
+    /// makes the `nonisolated(unsafe)` capture in `runEntry` sound.
+    private func serialized<T: Sendable>(
+        _ op: @escaping @Sendable () async throws -> T
+    ) async throws -> T {
+        let previous = opTail
+        let task = Task { () throws -> T in
+            await previous?.value
+            return try await op()
+        }
+        opTail = Task { _ = try? await task.value }
+        return try await task.value
+    }
+
+    private func performRender(_ build: JITRenderBuild) async throws {
         // Literal re-render: the same object is already linked in the live generation, so just
         // re-run its entry. It re-seeds DesignTimeStore from the (rewritten) values JSON, with
         // no new JITDylib and no re-link (which would re-register the object's classes).
@@ -82,11 +115,7 @@ public actor JITStructuralReloader: StructuralReloader {
         }
     }
 
-    /// Re-raster the live window to the current build's image path by running the generated
-    /// `snapshotPreviewWindow` entry on the live agent's main thread (#346). No live session
-    /// yet (no render has happened) means nothing to snapshot. A non-zero status is a real
-    /// raster failure and propagates, like the render entry.
-    public func snapshotLiveWindow(entrySymbol: String) async throws {
+    private func performSnapshotLiveWindow(entrySymbol: String) async throws {
         guard let session else { return }
         let status = try await runEntry(session, entrySymbol)
         guard status == 0 else {
@@ -134,10 +163,9 @@ public actor JITStructuralReloader: StructuralReloader {
     /// EPC call blocks its thread until the agent returns, and on the
     /// cooperative pool that pins an executor thread for the render's
     /// duration (docs/phase-error-protocol.md). Sound despite
-    /// `JITSession`'s non-Sendable marking: the reloader actor serializes
-    /// every entry run and awaits its completion, so the session is used
-    /// by one thread at a time — the same serial thread-hopping its
-    /// actor-executor calls already performed.
+    /// `JITSession`'s non-Sendable marking: `serialized` runs one public
+    /// operation at a time, so the session is used by one thread at a
+    /// time — serial thread-hopping, never concurrency.
     private func runEntry(_ session: JITSession, _ entrySymbol: String) async throws -> Int32 {
         nonisolated(unsafe) let session = session
         return try await offCooperativePool {

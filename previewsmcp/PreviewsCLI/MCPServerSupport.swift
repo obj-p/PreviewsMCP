@@ -36,14 +36,17 @@ final class MCPProgressReporter: ProgressReporter, @unchecked Sendable {
 
     /// Read-only re-emit: holds the step and advances only a fractional
     /// progress bump (capped below the next step, so token clients see
-    /// monotonically increasing values) plus the elapsed marker.
+    /// monotonically increasing values) plus the elapsed marker. On the
+    /// final step the bump clamps to `totalSteps` — progress must never
+    /// exceed the reported total.
     func tick(message: String, elapsed: Duration) async {
         let (step, fraction) = position.withLock { state -> (Int, Double) in
             state.ticks += 1
             return (state.step, min(0.9, 0.1 * Double(state.ticks)))
         }
         await emit(
-            step: step, progress: Double(step) + fraction,
+            step: step,
+            progress: min(Double(step) + fraction, Double(totalSteps)),
             message: "\(message) (\(elapsed.components.seconds)s)"
         )
     }

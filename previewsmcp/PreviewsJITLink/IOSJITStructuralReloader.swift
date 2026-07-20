@@ -72,9 +72,11 @@ public actor IOSJITStructuralReloader: IOSStructuralReloader {
     /// The EPC call blocks its thread until the agent returns; run it on
     /// a GCD queue so it cannot pin a cooperative-pool executor for the
     /// render's duration (docs/phase-error-protocol.md). Sound despite
-    /// `JITSession`'s non-Sendable marking: this actor serializes every
-    /// entry run and awaits its completion, so the session is used by
-    /// one thread at a time.
+    /// `JITSession`'s non-Sendable marking: every `render` caller holds
+    /// `IOSPreviewSession`'s render lock (stage 4 of
+    /// docs/state-invalidation.md), so operations cannot interleave at
+    /// this actor's suspension points and the session is used by one
+    /// thread at a time.
     private func runOnMainOffPool(_ entrySymbol: String) async throws -> Int32 {
         nonisolated(unsafe) let session = session
         return try await offCooperativePool {

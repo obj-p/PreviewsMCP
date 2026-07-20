@@ -64,8 +64,16 @@ public extension ProgressReporter {
                 await self.tick(message: message, elapsed: ContinuousClock.now - start)
             }
         }
-        defer { ticker.cancel() }
-        return try await work()
+        do {
+            let value = try await work()
+            ticker.cancel()
+            _ = await ticker.result
+            return value
+        } catch {
+            ticker.cancel()
+            _ = await ticker.result
+            throw error
+        }
     }
 }
 

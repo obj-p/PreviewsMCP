@@ -183,6 +183,11 @@ enum PreviewStartHandler: ToolHandler {
         } catch {
             return phaseFailureResult(detectBuildContextFailure(error))
         }
+        if buildContext == nil {
+            await progress.report(
+                .buildingProject, message: "No project build (standalone preview)"
+            )
+        }
 
         // Build setup plugin if configured
         let setupResult: SetupBuilder.Result?
@@ -318,6 +323,11 @@ private func handleIOSPreviewStart(
             stage("detectBuildContext failed: \(error)")
             await ctx.iosState.releaseDeviceClaim(deviceUDID, owner: claimOwner)
             return phaseFailureResult(detectBuildContextFailure(error))
+        }
+        if buildContext == nil {
+            await progress.report(
+                .buildingProject, message: "No project build (standalone preview)"
+            )
         }
 
         stage("buildSetupIfConfigured begin")

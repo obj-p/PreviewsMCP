@@ -132,4 +132,21 @@ struct PhaseClockTests {
         #expect(progress.last == 3.0)
         #expect(progress[2] > 2.0 && progress[2] < 3.0)
     }
+
+    @Test("ticks on the final step clamp token progress to the total")
+    func finalStepTickClampsToTotal() async {
+        let server = RecordingServer()
+        let reporter = MCPProgressReporter(
+            server: server, progressToken: .string("t"), totalSteps: 2
+        )
+
+        await reporter.report(.buildingProject, message: "Building...")
+        await reporter.report(.rendering, message: "Rendering...")
+        await reporter.tick(message: "Rendering...", elapsed: .seconds(5))
+        await reporter.tick(message: "Rendering...", elapsed: .seconds(10))
+
+        let progress = await server.progressValues
+        #expect(progress.allSatisfy { $0 <= 2.0 })
+        #expect(progress == progress.sorted())
+    }
 }
