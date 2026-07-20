@@ -70,6 +70,9 @@ public func detectAndBuild(
             buildSystem: buildSystemOverride
         )
     else {
+        await progress?.report(
+            .buildingProject, message: "No project build (standalone preview)"
+        )
         return nil
     }
 

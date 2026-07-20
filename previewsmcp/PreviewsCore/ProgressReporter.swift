@@ -24,7 +24,7 @@ public enum BuildPhase: String, Sendable {
         case .installingApp: "Installing the app"
         case .launchingApp: "Launching the app"
         case .connectingToApp: "Connecting to the app"
-        case .runningSetup: "Running preview setup"
+        case .runningSetup: "Running the preview setup"
         case .rendering: "Rendering the preview"
         case .capturingSnapshot: "Capturing the snapshot"
         }

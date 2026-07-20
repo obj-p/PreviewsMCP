@@ -45,7 +45,8 @@ public actor JITStructuralReloader: StructuralReloader {
     /// and drive the same non-Sendable `JITSession` from a second
     /// thread. The chain restores the pre-async semantics — one
     /// operation at a time, later arrivals wait — which is also what
-    /// makes the `nonisolated(unsafe)` capture in `runEntry` sound.
+    /// makes the `nonisolated(unsafe)` capture in `runOnMainOffPool`
+    /// sound.
     private func serialized<T: Sendable>(
         _ op: @escaping @Sendable () async throws -> T
     ) async throws -> T {
@@ -63,9 +64,7 @@ public actor JITStructuralReloader: StructuralReloader {
         // re-run its entry. It re-seeds DesignTimeStore from the (rewritten) values JSON, with
         // no new JITDylib and no re-link (which would re-register the object's classes).
         if let session, build.objectPath == lastObjectPath {
-            let mark = ContinuousClock.now
-            try await run(session, build.entrySymbol)
-            Log.info("jit_latency: render-entry-literal \(Log.millis(mark, ContinuousClock.now))ms")
+            try await runRenderEntry(session, build, label: "render-entry-literal")
             return
         }
 
@@ -80,7 +79,7 @@ public actor JITStructuralReloader: StructuralReloader {
             // lifetime), so re-run after a respawn but not per generation. The entry is
             // void; the wrapper's status word is meaningless for it.
             if let setupEntry = build.setupEntrySymbol, !didRunSetUp {
-                _ = try await runEntry(session, setupEntry)
+                _ = try await runOnMainOffPool(session, setupEntry)
                 didRunSetUp = true
             }
             try await runRenderEntry(session, build)
@@ -96,7 +95,7 @@ public actor JITStructuralReloader: StructuralReloader {
         )
         try link(build, into: fresh)
         if let setupEntry = build.setupEntrySymbol {
-            _ = try await runEntry(fresh, setupEntry)
+            _ = try await runOnMainOffPool(fresh, setupEntry)
         }
         try await runRenderEntry(fresh, build)
         // The fresh agent's window is up; replacing the session now kills the old agent.
@@ -111,13 +110,13 @@ public actor JITStructuralReloader: StructuralReloader {
         // becoming active), only costs focus carry on the next handoff, which the
         // window's own key observers heal on the next change.
         if let stateEntry = build.windowStateEntrySymbol {
-            _ = try? await runEntry(fresh, stateEntry)
+            _ = try? await runOnMainOffPool(fresh, stateEntry)
         }
     }
 
     private func performSnapshotLiveWindow(entrySymbol: String) async throws {
         guard let session else { return }
-        let status = try await runEntry(session, entrySymbol)
+        let status = try await runOnMainOffPool(session, entrySymbol)
         guard status == 0 else {
             throw JITReloadError.snapshotFailed(status: status)
         }
@@ -146,17 +145,15 @@ public actor JITStructuralReloader: StructuralReloader {
         )
     }
 
-    private func runRenderEntry(_ session: JITSession, _ build: JITRenderBuild) async throws {
+    private func runRenderEntry(
+        _ session: JITSession, _ build: JITRenderBuild, label: String = "render-entry"
+    ) async throws {
         let mark = ContinuousClock.now
-        try await run(session, build.entrySymbol)
-        Log.info("jit_latency: render-entry \(Log.millis(mark, ContinuousClock.now))ms")
-    }
-
-    private func run(_ session: JITSession, _ entrySymbol: String) async throws {
-        let status = try await runEntry(session, entrySymbol)
+        let status = try await runOnMainOffPool(session, build.entrySymbol)
         guard status == 0 else {
             throw JITReloadError.renderFailed(status: status)
         }
+        Log.info("jit_latency: \(label) \(Log.millis(mark, ContinuousClock.now))ms")
     }
 
     /// Run a JIT entry on the agent's main thread from a GCD queue: the
@@ -166,7 +163,7 @@ public actor JITStructuralReloader: StructuralReloader {
     /// `JITSession`'s non-Sendable marking: `serialized` runs one public
     /// operation at a time, so the session is used by one thread at a
     /// time — serial thread-hopping, never concurrency.
-    private func runEntry(_ session: JITSession, _ entrySymbol: String) async throws -> Int32 {
+    private func runOnMainOffPool(_ session: JITSession, _ entrySymbol: String) async throws -> Int32 {
         nonisolated(unsafe) let session = session
         return try await offCooperativePool {
             try session.runOnMain(symbol: entrySymbol)
