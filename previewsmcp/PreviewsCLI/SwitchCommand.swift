@@ -74,7 +74,6 @@ struct SwitchCommand: AsyncParsableCommand {
             throw DaemonToolError.daemonError(response.content.joinedText())
         }
 
-        let text = response.content.joinedText()
-        if !text.isEmpty { fputs("\(text)\n", stderr) }
+        response.surfacePayloadAndNoticesToStderr()
     }
 }

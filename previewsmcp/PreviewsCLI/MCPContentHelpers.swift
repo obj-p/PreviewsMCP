@@ -13,6 +13,52 @@ extension [Tool.Content] {
     }
 }
 
+extension CallTool.Result {
+    /// Notice messages the daemon mirrored into `structuredContent.notices`
+    /// (docs/phase-error-protocol.md). Empty when the response carries none.
+    var noticeMessages: [String] {
+        guard case let .object(fields) = structuredContent,
+              case let .array(items)? = fields["notices"]
+        else { return [] }
+        return items.compactMap { item in
+            guard case let .object(notice) = item,
+                  case let .string(message)? = notice["message"]
+            else { return nil }
+            return message
+        }
+    }
+
+    /// The response text minus notice items: what a command may print to
+    /// stdout. Notices are diagnostics and go to stderr for every command
+    /// (the uniform CLI rule) — call `surfaceNotices()` alongside this.
+    /// Notices are appended as the TRAILING items, so only a matching
+    /// suffix is stripped — a payload line that happens to equal a notice
+    /// message is untouched.
+    func payloadText() -> String {
+        var items = content
+        for message in noticeMessages.reversed() {
+            guard case let .text(t) = items.last, t == message else { break }
+            items.removeLast()
+        }
+        return items.joinedText()
+    }
+
+    /// Print the response's notices to stderr, message text verbatim.
+    func surfaceNotices() {
+        for message in noticeMessages {
+            fputs("\(message)\n", stderr)
+        }
+    }
+
+    /// The shared stderr shape for commands whose payload is user feedback,
+    /// not machine output: payload first, then notices.
+    func surfacePayloadAndNoticesToStderr() {
+        let text = payloadText()
+        if !text.isEmpty { fputs("\(text)\n", stderr) }
+        surfaceNotices()
+    }
+}
+
 enum DecodeStructuredError: Error, CustomStringConvertible {
     case missingStructuredContent
     case decodeFailed(underlying: Error)

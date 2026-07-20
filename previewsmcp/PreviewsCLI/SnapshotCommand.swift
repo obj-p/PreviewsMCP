@@ -341,6 +341,7 @@ struct SnapshotCommand: AsyncParsableCommand {
             throw DaemonToolError.daemonError("snapshot failed: \(text)")
         }
 
+        response.surfaceNotices()
         for item in response.content {
             if case let .image(base64, mimeType, _) = item {
                 guard let data = Data(base64Encoded: base64) else {

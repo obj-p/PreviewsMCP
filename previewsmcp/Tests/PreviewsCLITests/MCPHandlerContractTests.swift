@@ -530,22 +530,24 @@ private actor FakePreviewSessionHandle: PreviewSessionHandle {
     private(set) var snapshotQualities: [Double] = []
     private(set) var stopCallCount = 0
     private var registered = true
-    var terminalFailureValue: String?
-    private var pendingIncidentNotice: String?
+    var terminalFailureValue: PhaseFailure?
+    private var pendingIncidentNotice: Notice?
 
     func setTerminalFailure(_ value: String?) {
-        terminalFailureValue = value
+        terminalFailureValue = value.map {
+            PhaseFailure(phase: .connectingToApp, code: .sessionFailed, message: $0)
+        }
     }
 
     func setPendingIncidentNotice(_ value: String?) {
-        pendingIncidentNotice = value
+        pendingIncidentNotice = value.map { Notice(code: .agentCrashed, message: $0) }
     }
 
-    var terminalFailure: String? {
+    var terminalFailure: PhaseFailure? {
         terminalFailureValue
     }
 
-    func takeIncidentNotice() async -> String? {
+    func takeIncidentNotice() async -> Notice? {
         defer { pendingIncidentNotice = nil }
         return pendingIncidentNotice
     }
