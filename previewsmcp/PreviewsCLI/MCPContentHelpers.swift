@@ -88,6 +88,45 @@ protocol DaemonToolCalling: Sendable {
     ) async throws -> CallTool.Result
 }
 
+extension DaemonToolCalling {
+    /// Start a preview session for a one-shot command and return the new
+    /// session ID. The one place the start response's notices are surfaced:
+    /// setup warnings ride `preview_start`, and the daemon clears notices on
+    /// delivery, so a command that decodes the session ID without this drops
+    /// them permanently (the snapshot/variants T01 gap).
+    func startPreviewSession(arguments: [String: Value]) async throws -> String {
+        let response = try await callToolStructured(
+            name: "preview_start", arguments: arguments
+        )
+        if response.isError == true {
+            throw DaemonToolError.daemonError(
+                "Failed to start preview: \(response.content.joinedText())"
+            )
+        }
+        guard let structured = response.structuredContent else {
+            throw DaemonToolError.daemonError(
+                "preview_start response missing structuredContent"
+            )
+        }
+        response.surfaceNotices()
+        return try structured.decode(DaemonProtocol.PreviewStartResult.self).sessionID
+    }
+
+    /// Tear down a one-shot session, surfacing the stop response's notices.
+    /// Best-effort — warns if the stop RPC fails so a session leak is
+    /// visible instead of silent.
+    func stopPreviewSession(sessionID: String) async {
+        do {
+            let response = try await callToolStructured(
+                name: "preview_stop", arguments: ["sessionID": .string(sessionID)]
+            )
+            response.surfaceNotices()
+        } catch {
+            fputs("warning: failed to stop session \(sessionID): \(error)\n", stderr)
+        }
+    }
+}
+
 /// Write a single JSON document to stdout, followed by a newline. Used by
 /// CLI commands in `--json` mode. Pretty-printed with sorted keys for
 /// stable `diff`-friendly output when piping through `jq` or fixtures.

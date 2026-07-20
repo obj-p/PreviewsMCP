@@ -285,7 +285,7 @@ struct SnapshotAllCommand: AsyncParsableCommand {
         // stop would let the batch exit with the session still live, orphaning
         // it in the daemon. The render loop above never throws out (every
         // failure is recorded as an entry), so no defer is needed.
-        await stopSession(sessionID: sessionID, client: client)
+        await client.stopPreviewSession(sessionID: sessionID)
         return result
     }
 
@@ -376,15 +376,7 @@ struct SnapshotAllCommand: AsyncParsableCommand {
         if let buildSystem { startArgs["buildSystem"] = .string(buildSystem.rawValue) }
         if let config { startArgs["config"] = .string(config) }
 
-        let response = try await client.callToolStructured(name: "preview_start", arguments: startArgs)
-        if response.isError == true {
-            throw DaemonToolError.daemonError(response.content.joinedText())
-        }
-        guard let structured = response.structuredContent else {
-            throw DaemonToolError.daemonError("preview_start response missing structuredContent")
-        }
-        response.surfaceNotices()
-        return try structured.decode(DaemonProtocol.PreviewStartResult.self).sessionID
+        return try await client.startPreviewSession(arguments: startArgs)
     }
 
     private func switchTo(index: Int, sessionID: String, client: any DaemonToolCalling) async throws {
@@ -486,17 +478,6 @@ struct SnapshotAllCommand: AsyncParsableCommand {
                 )
             }
         return returned + missing
-    }
-
-    private func stopSession(sessionID: String, client: any DaemonToolCalling) async {
-        do {
-            let response = try await client.callToolStructured(
-                name: "preview_stop", arguments: ["sessionID": .string(sessionID)]
-            )
-            response.surfaceNotices()
-        } catch {
-            fputs("warning: failed to stop session \(sessionID): \(error)\n", stderr)
-        }
     }
 
     // MARK: - Output

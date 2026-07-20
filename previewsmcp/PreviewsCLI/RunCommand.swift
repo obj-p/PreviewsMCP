@@ -165,10 +165,11 @@ struct RunCommand: AsyncParsableCommand {
             await blockUntilSignal()
 
             do {
-                _ = try await client.callToolStructured(
+                let response = try await client.callToolStructured(
                     name: "preview_stop",
                     arguments: ["sessionID": .string(sessionID)]
                 )
+                response.surfaceNotices()
             } catch {
                 // Best-effort — the session may still be alive in the daemon.
                 // Surface the session ID so the user can target it with `stop`

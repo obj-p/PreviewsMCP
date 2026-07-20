@@ -236,22 +236,7 @@ struct VariantsCommand: AsyncParsableCommand {
         if let device { startArgs["deviceUDID"] = .string(device) }
         if let config { startArgs["config"] = .string(config) }
 
-        let startResponse = try await client.callToolStructured(
-            name: "preview_start", arguments: startArgs
-        )
-        if startResponse.isError == true {
-            throw DaemonToolError.daemonError(
-                "Failed to start preview: \(startResponse.content.joinedText())"
-            )
-        }
-        guard let startStructured = startResponse.structuredContent else {
-            throw DaemonToolError.daemonError(
-                "preview_start response missing structuredContent"
-            )
-        }
-        let sessionID =
-            try startStructured
-                .decode(DaemonProtocol.PreviewStartResult.self).sessionID
+        let sessionID = try await client.startPreviewSession(arguments: startArgs)
 
         do {
             let code = try await captureVariants(
@@ -260,10 +245,10 @@ struct VariantsCommand: AsyncParsableCommand {
                 outputDir: outputDir,
                 client: client
             )
-            await stopEphemeralSession(sessionID: sessionID, client: client)
+            await client.stopPreviewSession(sessionID: sessionID)
             return code
         } catch {
-            await stopEphemeralSession(sessionID: sessionID, client: client)
+            await client.stopPreviewSession(sessionID: sessionID)
             throw error
         }
     }
@@ -427,20 +412,6 @@ struct VariantsCommand: AsyncParsableCommand {
             )
         }
         return Self.exitCode(successCount: successCount, failCount: failCount)
-    }
-
-    private func stopEphemeralSession(sessionID: String, client: any DaemonToolCalling) async {
-        do {
-            _ = try await client.callToolStructured(
-                name: "preview_stop",
-                arguments: ["sessionID": .string(sessionID)]
-            )
-        } catch {
-            fputs(
-                "warning: failed to stop ephemeral session \(sessionID): \(error)\n",
-                stderr
-            )
-        }
     }
 }
 
