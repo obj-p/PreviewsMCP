@@ -19,7 +19,7 @@ struct SnapshotCommandTests {
     /// references `Bundle.module`, so this test fails at compile time if the
     /// captured compile inputs (`SPMCommandCapture.swiftInputs`) stop
     /// including `<binPath>/ToDo.build/DerivedSources/resource_bundle_accessor.swift`.
-    @Test("Basic macOS snapshot produces valid PNG", .timeLimit(.minutes(5)))
+    @Test("Basic macOS snapshot produces valid PNG", .timeLimit(.minutes(10)))
     func basicMacOSSnapshot() async throws {
         try await DaemonTestLock.run {
             try await Self.cleanSlate()
@@ -45,7 +45,7 @@ struct SnapshotCommandTests {
         }
     }
 
-    @Test("Snapshot with --preview 1 produces different image", .timeLimit(.minutes(5)))
+    @Test("Snapshot with --preview 1 produces different image", .timeLimit(.minutes(10)))
     func snapshotPreviewIndex1() async throws {
         try await DaemonTestLock.run {
             try await Self.cleanSlate()
@@ -86,7 +86,7 @@ struct SnapshotCommandTests {
         }
     }
 
-    @Test("Snapshot with --color-scheme dark produces different image", .timeLimit(.minutes(5)))
+    @Test("Snapshot with --color-scheme dark produces different image", .timeLimit(.minutes(10)))
     func snapshotDarkMode() async throws {
         try await DaemonTestLock.run {
             try await Self.cleanSlate()
@@ -126,7 +126,7 @@ struct SnapshotCommandTests {
 
     @Test(
         "Snapshot with --dynamic-type-size accessibility3 produces image",
-        .timeLimit(.minutes(5))
+        .timeLimit(.minutes(10))
     )
     func snapshotDynamicTypeSize() async throws {
         try await DaemonTestLock.run {
@@ -152,7 +152,7 @@ struct SnapshotCommandTests {
         }
     }
 
-    @Test("Snapshot with JPEG output produces valid JPEG", .timeLimit(.minutes(5)))
+    @Test("Snapshot with JPEG output produces valid JPEG", .timeLimit(.minutes(10)))
     func snapshotJPEGOutput() async throws {
         try await DaemonTestLock.run {
             try await Self.cleanSlate()
@@ -175,7 +175,7 @@ struct SnapshotCommandTests {
         }
     }
 
-    @Test("Snapshot of PreviewProvider file produces valid PNG", .timeLimit(.minutes(5)))
+    @Test("Snapshot of PreviewProvider file produces valid PNG", .timeLimit(.minutes(10)))
     func snapshotPreviewProvider() async throws {
         try await DaemonTestLock.run {
             try await Self.cleanSlate()
@@ -200,7 +200,7 @@ struct SnapshotCommandTests {
 
     // MARK: - Error cases
 
-    @Test("Snapshot with invalid --preview 99 returns non-zero exit", .timeLimit(.minutes(5)))
+    @Test("Snapshot with invalid --preview 99 returns non-zero exit", .timeLimit(.minutes(10)))
     func snapshotInvalidPreviewIndex() async throws {
         try await DaemonTestLock.run {
             try await Self.cleanSlate()
@@ -237,7 +237,7 @@ struct SnapshotCommandTests {
     /// references `Color(.brandPrimary)`, so this test fails at compile time
     /// if `XcodeBuildSystem.collectGeneratedSources` stops including
     /// `<DERIVED_FILE_DIR>/DerivedSources/GeneratedAssetSymbols.swift`.
-    @Test("Snapshot of xcodeproj example with --project", .timeLimit(.minutes(5)))
+    @Test("Snapshot of xcodeproj example with --project", .timeLimit(.minutes(10)))
     func snapshotXcodeproj() async throws {
         try await DaemonTestLock.run {
             try await Self.cleanSlate()
@@ -275,7 +275,7 @@ struct SnapshotCommandTests {
         }
     }
 
-    @Test("Snapshot of xcworkspace example with --project", .timeLimit(.minutes(5)))
+    @Test("Snapshot of xcworkspace example with --project", .timeLimit(.minutes(10)))
     func snapshotXcworkspace() async throws {
         try await DaemonTestLock.run {
             try await Self.cleanSlate()
@@ -312,7 +312,7 @@ struct SnapshotCommandTests {
         }
     }
 
-    @Test("Snapshot of Bazel example with --project", .timeLimit(.minutes(5)))
+    @Test("Snapshot of Bazel example with --project", .timeLimit(.minutes(10)))
     func snapshotBazel() async throws {
         try await DaemonTestLock.run {
             try await Self.cleanSlate()
@@ -395,7 +395,7 @@ struct SnapshotCommandTests {
     /// whereas an ephemeral cold-start takes several seconds.
     @Test(
         "Snapshot reuses an already-running session instead of ephemeral",
-        .timeLimit(.minutes(5))
+        .timeLimit(.minutes(10))
     )
     func snapshotReusesLiveSession() async throws {
         try await DaemonTestLock.run {

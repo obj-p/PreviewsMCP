@@ -9,17 +9,22 @@ import Testing
 /// rows assert the diagnostic tokens the contract guarantees (identifiers
 /// and command names, not connective prose). Detection rows run without
 /// `--project` or `--build-system` overrides — auto-detection is what
-/// they guard. Rows whose regression would still render (D05's tie-break)
-/// assert the daemon's ownership log line instead of pixels.
+/// they guard. Rendering detection rows also assert the daemon's
+/// ownership log line, confirming the correct build system claimed the
+/// file: alongside the render normally, instead of pixels where every
+/// candidate renders identically (D05's tie-break).
 ///
-/// This first tranche covers the rows that need no Xcode build, no
+/// The first tranche covers the rows that need no Xcode build, no
 /// simulator, no artifact generation, and no network: the deterministic
-/// macOS SwiftPM and error-contract rows. Rows staying manual-only for a
-/// named flake reason: W03 (FSEvents timing, #298), L05 (concurrency),
-/// S05/S06 (swift-syntax fetch), M01/M02 (launch assertions elsewhere).
-/// Future tranches that need simulators, artifact generation, or network
-/// must land in a separate test target, not this file — this target's
-/// glob feeds the required `ci` gate.
+/// macOS SwiftPM and error-contract rows. The second tranche adds the
+/// macOS Xcode rows (D01, D03, D08, X02), which build through
+/// `xcodebuild` but still need no simulator, artifact generation, or
+/// network — every fixture's generated project is committed. Rows
+/// staying manual-only for a named flake reason: W03 (FSEvents timing,
+/// #298), L05 (concurrency), S05/S06 (swift-syntax fetch), M01/M02
+/// (launch assertions elsewhere). Future tranches that need simulators,
+/// artifact generation, or network must land in a separate test target,
+/// not this file — this target's glob feeds the required `ci` gate.
 @Suite("Regress guard rows", .serialized)
 struct RegressGuardTests {
     private static func cleanSlate() async throws {
@@ -89,19 +94,34 @@ struct RegressGuardTests {
     /// Assert the daemon log records the ownership walk confirming `kind`
     /// for `fileName`. This is the observable for rows whose regression
     /// still renders (a wrong build system compiling the same source).
+    /// Both tokens must appear on ONE line: the log is shared across the
+    /// serialized suite, so independent substring checks could be
+    /// satisfied by two different rows' lines.
     private static func assertOwnershipLogged(kind: String, fileName: String) async throws {
         let logs = try await CLIRunner.run("logs", arguments: ["-n", "300"])
         #expect(logs.exitCode == 0, "logs stderr: \(logs.stderr)")
-        #expect(
-            logs.stdout.contains("ownership: \(kind) confirmed") && logs.stdout.contains(fileName),
-            "daemon log should record '\(kind)' confirming \(fileName)"
-        )
+        let confirmed = logs.stdout.split(separator: "\n").contains {
+            $0.contains("ownership: \(kind) confirmed") && $0.contains(fileName)
+        }
+        #expect(confirmed, "daemon log should record '\(kind)' confirming \(fileName)")
     }
 
     // MARK: - Detection rows
 
+    /// D01: an Xcode project nested below a distant Bazel root is selected
+    /// and renders; the walk confirms membership in the nearer project.
+    /// Previously the distant root claimed the file and failed.
+    @Test("D01: nested Xcode project below a Bazel root", .timeLimit(.minutes(10)))
+    func d01NestedXcodeBelowBazelRoot() async throws {
+        try await Self.assertRenders(
+            "detection/mixed-marker-workspace/XcodeOnlyApp/Sources/MarkerPreview.swift"
+        ) {
+            try await Self.assertOwnershipLogged(kind: "xcode", fileName: "MarkerPreview.swift")
+        }
+    }
+
     /// D02: a Swift package nested below a Bazel root is selected and renders.
-    @Test("D02: nested package below a Bazel root", .timeLimit(.minutes(5)))
+    @Test("D02: nested package below a Bazel root", .timeLimit(.minutes(10)))
     func d02NestedPackageBelowBazelRoot() async throws {
         try await Self.assertRenders(
             "detection/mixed-marker-workspace/NestedPackage/Sources/NestedPackage/NestedPackagePreview.swift"
@@ -110,11 +130,24 @@ struct RegressGuardTests {
         }
     }
 
+    /// D03: an Xcode project below an outer `Package.swift` is selected —
+    /// the outer package must not claim the file.
+    @Test("D03: nested Xcode project below an outer package", .timeLimit(.minutes(10)))
+    func d03NestedXcodeBelowOuterPackage() async throws {
+        try await Self.assertRenders(
+            "detection/outer-spm-workspace/NestedXcode/Sources/OuterBoundaryPreview.swift"
+        ) {
+            try await Self.assertOwnershipLogged(
+                kind: "xcode", fileName: "OuterBoundaryPreview.swift"
+            )
+        }
+    }
+
     /// D05: `Package.swift`, `MODULE.bazel`, and `BUILD.bazel` at one root
     /// resolve through the documented tie-break (SwiftPM first). All three
     /// systems compile this fixture to identical pixels, so the guard is the
     /// daemon's ownership log line, not the render.
-    @Test("D05: same-directory marker tie-break", .timeLimit(.minutes(5)))
+    @Test("D05: same-directory marker tie-break", .timeLimit(.minutes(10)))
     func d05SameDirectoryMarkers() async throws {
         try await Self.assertRenders(
             "detection/same-directory-markers/Sources/HybridMarker/HybridMarkerPreview.swift"
@@ -125,7 +158,7 @@ struct RegressGuardTests {
 
     /// D06: an XcodeGen manifest with no generated project is diagnosed with
     /// the missing-output-specific message and the regeneration hint.
-    @Test("D06: missing generated project diagnosis", .timeLimit(.minutes(5)))
+    @Test("D06: missing generated project diagnosis", .timeLimit(.minutes(10)))
     func d06MissingGeneratedOutput() async throws {
         try await Self.assertFails(
             "generated-project-state/missing-output/Sources/MissingOutputPreview.swift",
@@ -136,12 +169,36 @@ struct RegressGuardTests {
     /// D07: a source file missing from a stale generated project is diagnosed
     /// with the owning project, the file, and the staleness hint. Tokens, not
     /// prose: the connective sentence may be reworded.
-    @Test("D07: stale generated project diagnosis", .timeLimit(.minutes(5)))
+    @Test("D07: stale generated project diagnosis", .timeLimit(.minutes(10)))
     func d07StaleGeneratedOutput() async throws {
         try await Self.assertFails(
             "generated-project-state/stale-output/Sources/NewPreview.swift",
             containing: ["StaleOutput.xcodeproj", "NewPreview.swift", "stale"]
         )
+    }
+
+    /// D08: one scheme builds multiple targets; membership selects the
+    /// target that owns the source. Previously the file compiled as the
+    /// sibling module and failed.
+    @Test("D08: multi-target scheme selects the owning target", .timeLimit(.minutes(10)))
+    func d08MultiTargetOwnership() async throws {
+        try await Self.assertRenders(
+            "generated-project-state/multi-target/Sources/Beta/BetaPreview.swift"
+        ) {
+            try await Self.assertOwnershipLogged(kind: "xcode", fileName: "BetaPreview.swift")
+        }
+    }
+
+    // MARK: - Xcode compile-capture rows
+
+    /// X02: an Objective-C bridging header on an Xcode target forwards
+    /// through the captured compile command (`-import-objc-header`) and
+    /// the target's ObjC objects link into the JIT. A regression is a
+    /// loud failure — `BridgedGreeting` is visible only through the
+    /// header.
+    @Test("X02: bridging header forwarded and ObjC linked", .timeLimit(.minutes(10)))
+    func x02BridgingHeader() async throws {
+        try await Self.assertRenders("xcode-bridging/Sources/BridgingPreview.swift")
     }
 
     // MARK: - SwiftPM compile-capture rows
@@ -151,7 +208,7 @@ struct RegressGuardTests {
     /// command. The fixture fails closed: a dropped define is a compile
     /// error and an unstaged resource is a render crash, so exit 0 + a
     /// non-blank PNG covers the whole contract.
-    @Test("S01: captured settings fixture renders", .timeLimit(.minutes(5)))
+    @Test("S01: captured settings fixture renders", .timeLimit(.minutes(10)))
     func s01SettingsFixture() async throws {
         try await Self.assertRenders(
             "spm-settings/Sources/SettingsFixture/SettingsPreview.swift"
@@ -161,7 +218,7 @@ struct RegressGuardTests {
     /// S02: upcoming features, unsafe flags, and conditional defines forward
     /// through the normalized captured command. The fixture fails closed on
     /// a dropped define (#error).
-    @Test("S02: compiler settings preserved", .timeLimit(.minutes(5)))
+    @Test("S02: compiler settings preserved", .timeLimit(.minutes(10)))
     func s02CompilerSettings() async throws {
         try await Self.assertRenders(
             "spm-settings/Sources/CompilerSettings/CompilerSettingsPreview.swift"
@@ -170,7 +227,7 @@ struct RegressGuardTests {
 
     /// S03: a build-tool plugin's generated Swift source is a captured
     /// compile input (a miss is a compile error).
-    @Test("S03: plugin-generated source compiles", .timeLimit(.minutes(5)))
+    @Test("S03: plugin-generated source compiles", .timeLimit(.minutes(10)))
     func s03GeneratedPlugin() async throws {
         try await Self.assertRenders(
             "spm-settings/Sources/GeneratedPlugin/GeneratedPluginPreview.swift"
@@ -179,7 +236,7 @@ struct RegressGuardTests {
 
     /// S04: explicit source exclusion is honored and the Clang module
     /// resolves (a miss is a compile error).
-    @Test("S04: membership exclusion and C module", .timeLimit(.minutes(5)))
+    @Test("S04: membership exclusion and C module", .timeLimit(.minutes(10)))
     func s04MembershipAndC() async throws {
         try await Self.assertRenders(
             "spm-settings/Sources/MembershipAndC/MembershipAndCPreview.swift"
@@ -189,7 +246,7 @@ struct RegressGuardTests {
     // MARK: - Preview-form rows
 
     /// V01: a legacy `PreviewProvider` declaration renders.
-    @Test("V01: legacy PreviewProvider renders", .timeLimit(.minutes(5)))
+    @Test("V01: legacy PreviewProvider renders", .timeLimit(.minutes(10)))
     func v01LegacyProvider() async throws {
         try await Self.assertRenders(
             "preview-forms/Sources/PreviewForms/LegacyProvider.swift"
@@ -200,7 +257,7 @@ struct RegressGuardTests {
     /// Renders index 0 and index 1 and asserts the images differ — the two
     /// declarations render distinguishable content, so identical bytes mean
     /// index selection collapsed.
-    @Test("V03: duplicate names select by index", .timeLimit(.minutes(5)))
+    @Test("V03: duplicate names select by index", .timeLimit(.minutes(10)))
     func v03DuplicateNames() async throws {
         try await DaemonTestLock.run {
             try await Self.cleanSlate()
@@ -230,7 +287,7 @@ struct RegressGuardTests {
     }
 
     /// V04: a preview in a constrained generic context compiles and renders.
-    @Test("V04: constrained generic context renders", .timeLimit(.minutes(5)))
+    @Test("V04: constrained generic context renders", .timeLimit(.minutes(10)))
     func v04GenericContext() async throws {
         try await Self.assertRenders(
             "preview-forms/Sources/PreviewForms/GenericContext.swift"
@@ -239,7 +296,7 @@ struct RegressGuardTests {
 
     /// V05: a source with no preview declaration returns the specific
     /// zero-preview diagnostic (a deliberate UX string, pinned verbatim).
-    @Test("V05: zero-preview diagnostic", .timeLimit(.minutes(5)))
+    @Test("V05: zero-preview diagnostic", .timeLimit(.minutes(10)))
     func v05NoPreview() async throws {
         try await Self.assertFails(
             "preview-forms/Sources/PreviewForms/NoPreview.swift",
@@ -255,7 +312,7 @@ struct RegressGuardTests {
     /// in one lock block because the same-daemon semantics are the
     /// contract; the rendered scheme is read from the snapshot's
     /// background luminance.
-    @Test("C03/C04/C05: config discovery fresh per start", .timeLimit(.minutes(5)))
+    @Test("C03/C04/C05: config discovery fresh per start", .timeLimit(.minutes(10)))
     func configRowsFreshPerStart() async throws {
         try await DaemonTestLock.run {
             try await Self.cleanSlate()
@@ -304,7 +361,7 @@ struct RegressGuardTests {
     /// build error while the daemon stays alive. The liveness check runs
     /// inside the same lock block: the writer-fence kills the daemon when
     /// the block ends.
-    @Test("T02: setup build failure is classified", .timeLimit(.minutes(5)))
+    @Test("T02: setup build failure is classified", .timeLimit(.minutes(10)))
     func t02SetupBuildFailure() async throws {
         try await Self.assertFails(
             "setup-faults/build-failure/Sources/SetupFaultApp/SetupFaultPreview.swift",

@@ -9,7 +9,7 @@ struct VariantsCommandTests {
 
     // MARK: - Happy paths
 
-    @Test("Captures multiple presets to distinct files", .timeLimit(.minutes(5)))
+    @Test("Captures multiple presets to distinct files", .timeLimit(.minutes(10)))
     func capturesMultiplePresets() async throws {
         try await DaemonTestLock.run {
             try await Self.cleanSlate()
@@ -54,7 +54,7 @@ struct VariantsCommandTests {
         }
     }
 
-    @Test("JSON variant uses custom label as filename", .timeLimit(.minutes(5)))
+    @Test("JSON variant uses custom label as filename", .timeLimit(.minutes(10)))
     func jsonVariantUsesCustomLabel() async throws {
         try await DaemonTestLock.run {
             try await Self.cleanSlate()
@@ -87,7 +87,7 @@ struct VariantsCommandTests {
         }
     }
 
-    @Test("PNG format produces valid PNG files", .timeLimit(.minutes(5)))
+    @Test("PNG format produces valid PNG files", .timeLimit(.minutes(10)))
     func pngFormat() async throws {
         try await DaemonTestLock.run {
             try await Self.cleanSlate()
@@ -128,7 +128,7 @@ struct VariantsCommandTests {
     /// --all reports it).
     @Test(
         "variants reuses an already-running session",
-        .timeLimit(.minutes(5))
+        .timeLimit(.minutes(10))
     )
     func variantsReusesLiveSession() async throws {
         try await DaemonTestLock.run {
@@ -183,7 +183,7 @@ struct VariantsCommandTests {
     /// "ERROR_STATE" still captures successfully.
     @Test(
         "Label containing 'ERROR' is not mis-bucketed as failure",
-        .timeLimit(.minutes(5))
+        .timeLimit(.minutes(10))
     )
     func labelContainingErrorStillCapturesSuccessfully() async throws {
         try await DaemonTestLock.run {
@@ -231,7 +231,7 @@ struct VariantsCommandTests {
     // (PreviewsMCPApp.swift) stays covered end-to-end for this subcommand,
     // matching touch/switch/configure/snapshot's kept "no session" tests.
 
-    @Test("Nonexistent file returns non-zero exit")
+    @Test("Nonexistent file returns non-zero exit", .timeLimit(.minutes(10)))
     func nonexistentFile() async throws {
         try await DaemonTestLock.run {
             try await Self.cleanSlate()

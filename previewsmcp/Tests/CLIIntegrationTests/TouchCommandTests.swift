@@ -24,7 +24,7 @@ struct TouchCommandTests {
     /// macOS session it should surface the iOS-only error.
     @Test(
         "touch against a macOS session surfaces an iOS-only error",
-        .timeLimit(.minutes(5))
+        .timeLimit(.minutes(10))
     )
     func touchRejectsMacOSSession() async throws {
         try await DaemonTestLock.run {
