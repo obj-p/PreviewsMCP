@@ -125,14 +125,14 @@ struct PhaseFailureCarrierTests {
     @Test("detection failures classify at detectingProject, build output at buildingProject")
     func detectionVersusBuildPhase() {
         #expect(
-            detectionOrBuildPhase(
-                for: BuildSystemError.buildFailed(stderr: "no such module", exitCode: 1)
-            ) == .buildingProject
+            detectBuildContextFailure(
+                BuildSystemError.buildFailed(stderr: "no such module", exitCode: 1)
+            ).phase == .buildingProject
         )
         #expect(
-            detectionOrBuildPhase(
-                for: BuildSystemError.ambiguousTarget(sourceFile: "A.swift", candidates: ["X", "Y"])
-            ) == .detectingProject
+            detectBuildContextFailure(
+                BuildSystemError.ambiguousTarget(sourceFile: "A.swift", candidates: ["X", "Y"])
+            ).phase == .detectingProject
         )
     }
 

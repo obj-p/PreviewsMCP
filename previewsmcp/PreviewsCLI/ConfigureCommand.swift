@@ -105,9 +105,7 @@ struct ConfigureCommand: AsyncParsableCommand {
 
         // Surface the daemon's response (typically a summary of what
         // changed) to the user, then any notices.
-        let text = response.payloadText()
-        if !text.isEmpty { fputs("\(text)\n", stderr) }
-        response.surfaceNotices()
+        response.surfacePayloadAndNoticesToStderr()
     }
 
     // MARK: - Helpers

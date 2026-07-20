@@ -40,10 +40,7 @@ extension CallTool.Result {
             guard case let .text(t) = items.last, t == message else { break }
             items.removeLast()
         }
-        return items.compactMap { item in
-            if case let .text(t) = item { return t }
-            return nil
-        }.joined(separator: "\n")
+        return items.joinedText()
     }
 
     /// Print the response's notices to stderr, message text verbatim.
@@ -51,6 +48,14 @@ extension CallTool.Result {
         for message in noticeMessages {
             fputs("\(message)\n", stderr)
         }
+    }
+
+    /// The shared stderr shape for commands whose payload is user feedback,
+    /// not machine output: payload first, then notices.
+    func surfacePayloadAndNoticesToStderr() {
+        let text = payloadText()
+        if !text.isEmpty { fputs("\(text)\n", stderr) }
+        surfaceNotices()
     }
 }
 

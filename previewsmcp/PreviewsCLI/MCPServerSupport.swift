@@ -186,18 +186,6 @@ func classifiedFailure(_ error: Error, at phase: BuildPhase) -> PhaseFailure {
     )
 }
 
-/// `detectBuildContext` spans detection AND the native build; attribute
-/// its failure to the phase that actually produced it: compiler/build
-/// output is a build failure, everything else (ownership walk declines,
-/// ambiguous targets, unavailable build systems) failed while detecting.
-func detectionOrBuildPhase(for error: Error) -> BuildPhase {
-    switch error {
-    case BuildSystemError.buildFailed, BuildSystemError.missingArtifacts:
-        .buildingProject
-    default:
-        .detectingProject
-    }
-}
 
 /// Classified error for a session whose agent is terminally gone, or nil
 /// while healthy. Session-scoped handlers return this instead of

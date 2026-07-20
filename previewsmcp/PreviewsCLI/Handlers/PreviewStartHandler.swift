@@ -181,7 +181,7 @@ enum PreviewStartHandler: ToolHandler {
                 for: fileURL, params: params, platform: .macOS, progress: progress
             )
         } catch {
-            return phaseFailureResult(classifiedFailure(error, at: detectionOrBuildPhase(for: error)))
+            return phaseFailureResult(detectBuildContextFailure(error))
         }
 
         // Build setup plugin if configured
@@ -317,7 +317,7 @@ private func handleIOSPreviewStart(
         } catch {
             stage("detectBuildContext failed: \(error)")
             await ctx.iosState.releaseDeviceClaim(deviceUDID, owner: claimOwner)
-            return phaseFailureResult(classifiedFailure(error, at: detectionOrBuildPhase(for: error)))
+            return phaseFailureResult(detectBuildContextFailure(error))
         }
 
         stage("buildSetupIfConfigured begin")
@@ -432,6 +432,20 @@ private func handleIOSPreviewStart(
         }
         throw error
     }
+}
+
+/// `detectBuildContext` spans detection AND the native build; attribute
+/// its failure to the phase that actually produced it: compiler/build
+/// output is a build failure, everything else (ownership walk declines,
+/// ambiguous targets, unavailable build systems) failed while detecting.
+func detectBuildContextFailure(_ error: Error) -> PhaseFailure {
+    let phase: BuildPhase = switch error {
+    case BuildSystemError.buildFailed, BuildSystemError.missingArtifacts:
+        .buildingProject
+    default:
+        .detectingProject
+    }
+    return classifiedFailure(error, at: phase)
 }
 
 /// Build the setup package if configured. Returns nil if no setup or standalone mode.
