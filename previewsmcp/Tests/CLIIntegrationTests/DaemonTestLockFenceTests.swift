@@ -11,7 +11,7 @@ import Testing
 struct DaemonTestLockFenceTests {
     @Test(
         "a daemon left alive in-block is confirmed dead after the lock releases",
-        .timeLimit(.minutes(2))
+        .timeLimit(.minutes(10))
     )
     func fenceReapsDaemonLeftAliveInBlock() async throws {
         // Return the pid out of the @Sendable block rather than capturing a var.

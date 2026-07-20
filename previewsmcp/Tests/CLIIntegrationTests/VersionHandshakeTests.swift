@@ -99,7 +99,7 @@ struct VersionHandshakeTests {
     /// respawns a fresh one, and succeeds.
     @Test(
         "CLI restarts a stale daemon transparently and the command succeeds",
-        .timeLimit(.minutes(2))
+        .timeLimit(.minutes(10))
     )
     func happyPathRestart() async throws {
         try await DaemonTestLock.run {
@@ -137,7 +137,7 @@ struct VersionHandshakeTests {
     /// unconditionally restart.
     @Test(
         "CLI does not restart the daemon when versions match",
-        .timeLimit(.minutes(2))
+        .timeLimit(.minutes(10))
     )
     func noRestartWhenVersionsMatch() async throws {
         try await DaemonTestLock.run {
@@ -174,7 +174,7 @@ struct VersionHandshakeTests {
     /// is exactly one running daemon at the end.
     @Test(
         "concurrent CLIs against a stale daemon restart it exactly once",
-        .timeLimit(.minutes(2))
+        .timeLimit(.minutes(10))
     )
     func concurrentClientsRestartOnce() async throws {
         try await DaemonTestLock.run {

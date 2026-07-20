@@ -48,7 +48,7 @@ struct SnapshotAllCommandTests {
 
     // MARK: - Base batch render
 
-    @Test("snapshot-all renders one image per discovered preview", .timeLimit(.minutes(5)))
+    @Test("snapshot-all renders one image per discovered preview", .timeLimit(.minutes(10)))
     func batchRendersEveryPreview() async throws {
         try await DaemonTestLock.run {
             try await Self.cleanSlate()
@@ -86,7 +86,7 @@ struct SnapshotAllCommandTests {
 
     // MARK: - Variants multiply outputs + HTML gallery
 
-    @Test("snapshot-all --variants multiplies outputs and --html emits a gallery", .timeLimit(.minutes(5)))
+    @Test("snapshot-all --variants multiplies outputs and --html emits a gallery", .timeLimit(.minutes(10)))
     func variantsAndGallery() async throws {
         try await DaemonTestLock.run {
             try await Self.cleanSlate()

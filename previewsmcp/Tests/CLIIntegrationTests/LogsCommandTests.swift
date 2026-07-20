@@ -12,7 +12,7 @@ import Testing
 struct LogsCommandTests {
     @Test(
         "logs -n prints the last N lines of an existing log",
-        .timeLimit(.minutes(2))
+        .timeLimit(.minutes(10))
     )
     func snapshotReturnsTailOfExistingLog() async throws {
         try await DaemonTestLock.run {
@@ -37,7 +37,7 @@ struct LogsCommandTests {
 
     @Test(
         "logs creates the log file when missing and exits 0",
-        .timeLimit(.minutes(2))
+        .timeLimit(.minutes(10))
     )
     func snapshotCreatesLogFileWhenMissing() async throws {
         try await DaemonTestLock.run {
@@ -79,7 +79,7 @@ struct LogsCommandTests {
         // runner shared) has been observed pushing the Process spawn
         // and DaemonTestLock acquisition past 30s. A 60s budget was
         // too tight; 2 min still fails a genuinely hung tail/SIGINT.
-        .timeLimit(.minutes(2))
+        .timeLimit(.minutes(10))
     )
     func followStreamsAndExitsOnSIGINT() async throws {
         try await DaemonTestLock.run {

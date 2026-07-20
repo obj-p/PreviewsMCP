@@ -31,6 +31,15 @@ enum DaemonTestLock {
     /// `serve.log` as a per-test marker so the CI failure dump is greppable
     /// to the failing test's window. Pass a stable, human-readable identifier
     /// — `"\(Self.self).\(#function)"` is a good default.
+    ///
+    /// A caller's `.timeLimit` clock includes the WAIT for this lock —
+    /// suites start concurrently, so the worst-case wait is every other
+    /// test's lock-hold combined (roughly the whole target's runtime).
+    /// Any lock-taking test's limit is therefore a hang backstop, not a
+    /// duration budget: use `.minutes(10)` uniformly and keep it above
+    /// the target's serialized runtime (the CI flake behind this rule was
+    /// a 2-minute limit expiring in the queue). Bazel's target timeout is
+    /// the ultimate backstop (#362).
     static func run<T: Sendable>(
         _ context: String = #function,
         body: @Sendable () async throws -> T
