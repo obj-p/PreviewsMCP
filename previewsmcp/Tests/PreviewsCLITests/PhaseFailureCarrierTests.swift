@@ -136,6 +136,35 @@ struct PhaseFailureCarrierTests {
         )
     }
 
+    @Test("unresolvedSymbolsFailure parses the captured symbol list")
+    func unresolvedSymbolsParsing() {
+        struct JITError: LocalizedError {
+            var errorDescription: String? {
+                "JIT link failed: Failed to materialize symbols: { (remote.0, { _renderPreviewToFile }) }\n"
+                    + "Symbols not found: [ _SCNVector3Zero, _OBJC_CLASS_$_SCNScene ]"
+            }
+        }
+
+        let failure = unresolvedSymbolsFailure(from: JITError())
+
+        #expect(failure?.phase == .rendering)
+        #expect(failure?.code == .unresolvedSymbols)
+        #expect(failure?.message.contains("2 symbol(s)") == true)
+        #expect(failure?.message.contains("_SCNVector3Zero") == true)
+        #expect(failure?.detail?.contains("_OBJC_CLASS_$_SCNScene") == true)
+    }
+
+    @Test("unresolvedSymbolsFailure ignores errors without a symbol list")
+    func unresolvedSymbolsNoMatch() {
+        struct Other: LocalizedError {
+            var errorDescription: String? {
+                "Project build failed (exit code 1)"
+            }
+        }
+
+        #expect(unresolvedSymbolsFailure(from: Other()) == nil)
+    }
+
     @Test("empty notices leave the result untouched")
     func emptyNoticesNoOp() {
         let base = CallTool.Result(content: [.text("payload")])
