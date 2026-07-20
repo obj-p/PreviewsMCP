@@ -9,8 +9,10 @@ import Testing
 /// rows assert the diagnostic tokens the contract guarantees (identifiers
 /// and command names, not connective prose). Detection rows run without
 /// `--project` or `--build-system` overrides — auto-detection is what
-/// they guard. Rows whose regression would still render (D05's tie-break)
-/// assert the daemon's ownership log line instead of pixels.
+/// they guard. Rendering detection rows also assert the daemon's
+/// ownership log line, confirming the correct build system claimed the
+/// file: alongside the render normally, instead of pixels where every
+/// candidate renders identically (D05's tie-break).
 ///
 /// The first tranche covers the rows that need no Xcode build, no
 /// simulator, no artifact generation, and no network: the deterministic
@@ -92,13 +94,16 @@ struct RegressGuardTests {
     /// Assert the daemon log records the ownership walk confirming `kind`
     /// for `fileName`. This is the observable for rows whose regression
     /// still renders (a wrong build system compiling the same source).
+    /// Both tokens must appear on ONE line: the log is shared across the
+    /// serialized suite, so independent substring checks could be
+    /// satisfied by two different rows' lines.
     private static func assertOwnershipLogged(kind: String, fileName: String) async throws {
         let logs = try await CLIRunner.run("logs", arguments: ["-n", "300"])
         #expect(logs.exitCode == 0, "logs stderr: \(logs.stderr)")
-        #expect(
-            logs.stdout.contains("ownership: \(kind) confirmed") && logs.stdout.contains(fileName),
-            "daemon log should record '\(kind)' confirming \(fileName)"
-        )
+        let confirmed = logs.stdout.split(separator: "\n").contains {
+            $0.contains("ownership: \(kind) confirmed") && $0.contains(fileName)
+        }
+        #expect(confirmed, "daemon log should record '\(kind)' confirming \(fileName)")
     }
 
     // MARK: - Detection rows

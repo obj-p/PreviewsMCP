@@ -91,7 +91,7 @@ Some fixtures intentionally need setup:
 - Run `xcodegen generate` in an Xcode fixture that does not commit generated
   output. D01, D03, D07, D08, and X01 commit their generated projects because
   the projects' presence or contents are part of the reproduction; X02 commits
-  its project so the guard test needs no XcodeGen.
+  its project too, so no guarded Xcode row needs XcodeGen at test time.
 - Run `binary-frameworks/generate-artifacts.sh` before B02, B03, B04, or F01.
 - The first S05/S06 build fetches and compiles the pinned `swift-syntax`
   dependency; `macro-target/Package.resolved` is the pin.
