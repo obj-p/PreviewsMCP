@@ -250,6 +250,7 @@ struct SnapshotCommand: AsyncParsableCommand {
                 "preview_start response missing structuredContent"
             )
         }
+        startResponse.surfaceNotices()
         let sessionID =
             try structured
                 .decode(DaemonProtocol.PreviewStartResult.self).sessionID

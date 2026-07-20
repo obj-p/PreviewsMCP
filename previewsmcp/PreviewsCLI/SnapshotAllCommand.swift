@@ -383,6 +383,7 @@ struct SnapshotAllCommand: AsyncParsableCommand {
         guard let structured = response.structuredContent else {
             throw DaemonToolError.daemonError("preview_start response missing structuredContent")
         }
+        response.surfaceNotices()
         return try structured.decode(DaemonProtocol.PreviewStartResult.self).sessionID
     }
 
@@ -394,6 +395,7 @@ struct SnapshotAllCommand: AsyncParsableCommand {
         if response.isError == true {
             throw DaemonToolError.daemonError(response.content.joinedText())
         }
+        response.surfaceNotices()
     }
 
     private func snapshot(sessionID: String, client: any DaemonToolCalling) async throws -> Data {
@@ -404,6 +406,7 @@ struct SnapshotAllCommand: AsyncParsableCommand {
         if response.isError == true {
             throw DaemonToolError.daemonError(response.content.joinedText())
         }
+        response.surfaceNotices()
         for item in response.content {
             if case let .image(base64, _, _) = item {
                 guard let data = Data(base64Encoded: base64) else {
@@ -446,6 +449,7 @@ struct SnapshotAllCommand: AsyncParsableCommand {
         if response.isError == true {
             throw DaemonToolError.daemonError(response.content.joinedText())
         }
+        response.surfaceNotices()
         guard let structured = response.structuredContent else {
             throw DaemonToolError.daemonError("preview_variants response missing structuredContent")
         }
@@ -486,9 +490,10 @@ struct SnapshotAllCommand: AsyncParsableCommand {
 
     private func stopSession(sessionID: String, client: any DaemonToolCalling) async {
         do {
-            _ = try await client.callToolStructured(
+            let response = try await client.callToolStructured(
                 name: "preview_stop", arguments: ["sessionID": .string(sessionID)]
             )
+            response.surfaceNotices()
         } catch {
             fputs("warning: failed to stop session \(sessionID): \(error)\n", stderr)
         }
