@@ -297,7 +297,13 @@ off the cooperative pool via the existing `offCooperativePool` pattern
 removes the residual bound where N concurrent sessions' renders (L05's
 shape) could pin N cooperative threads and starve woken tickers. P01's
 build phase has no such hazard — the subprocess runner suspends cleanly
-(`AsyncProcess`).
+(`AsyncProcess`). Implementation note (stage 2): moving the blocking
+entries behind `await` makes every suspension an actor-reentrancy
+window, so the two reloaders re-serialize the non-Sendable `JITSession`
+by different, deliberate means — macOS's `JITStructuralReloader` chains
+its public operations internally (no session-level lock exists there),
+while iOS relies on `IOSPreviewSession`'s render lock, which every
+render caller already holds. Don't assume symmetry when editing either.
 
 `BuildPhase` gains the two phases that exist but are invisible today:
 `.runningSetup` and `.rendering`; the macOS start's `totalSteps` grows

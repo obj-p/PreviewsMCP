@@ -62,25 +62,12 @@ public struct JITRenderBuild: Sendable {
 
 /// Orchestrates the full preview pipeline: parse → generate bridge → compile → return a JIT build.
 /// Runs synchronous CPU-bound work (swift-syntax parsing / bridge codegen) off
-/// the Swift cooperative pool, on a dedicated queue. A JIT parse can take tens to
+/// the Swift cooperative pool, on the shared blocking-work queue. A JIT parse can take tens to
 /// hundreds of ms; left on the cooperative pool it pins a pool thread for that
 /// whole burst and — together with subprocess load — starves the daemon's MCP
 /// request handlers, which is the preview_snapshot wedge observed under
 /// concurrent stream load. Hopping it off the pool keeps a thread free to service
 /// the snapshot handler.
-private let jitCompileQueue = DispatchQueue(
-    label: "previewsmcp.jit-compile",
-    attributes: .concurrent
-)
-
-private func offCooperativePool<T: Sendable>(
-    _ work: @escaping @Sendable () -> T
-) async -> T {
-    await withCheckedContinuation { continuation in
-        jitCompileQueue.async { continuation.resume(returning: work()) }
-    }
-}
-
 public actor PreviewSession {
     public nonisolated let id: String
     public nonisolated let sourceFile: URL

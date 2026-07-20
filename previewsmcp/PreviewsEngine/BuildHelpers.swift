@@ -19,6 +19,11 @@ public struct StderrProgressReporter: ProgressReporter {
         }
         fputs("[\(step)/\(totalSteps)] \(message)\n", stderr)
     }
+
+    public func tick(message: String, elapsed: Duration) async {
+        let step = counter.withLock { $0 }
+        fputs("[\(step)/\(totalSteps)] \(message) (\(elapsed.components.seconds)s)\n", stderr)
+    }
 }
 
 /// Load project config from explicit path or auto-discover from source file directory.
@@ -65,6 +70,9 @@ public func detectAndBuild(
             buildSystem: buildSystemOverride
         )
     else {
+        await progress?.report(
+            .buildingProject, message: "No project build (standalone preview)"
+        )
         return nil
     }
 
@@ -75,9 +83,9 @@ public func detectAndBuild(
         platform == .iOS
             ? "Building for iOS (\(buildSystemName))..."
             : "Building (\(buildSystemName))..."
-    await progress?.report(.buildingProject, message: platformLabel)
-
-    return try await buildSystem.build(platform: platform)
+    return try await withPhase(progress, .buildingProject, platformLabel) {
+        try await buildSystem.build(platform: platform)
+    }
 }
 
 /// Resolve a simulator device UDID: provided > booted > first available.
