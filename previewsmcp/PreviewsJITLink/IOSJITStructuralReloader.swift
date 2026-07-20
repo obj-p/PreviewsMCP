@@ -20,7 +20,7 @@ public actor IOSJITStructuralReloader: IOSStructuralReloader {
     }
 
     public func render(
-        _ build: JITRenderBuild, progress: (any ProgressReporter)? = nil
+        _ build: JITRenderBuild, progress: (any ProgressReporter)?
     ) async throws {
         // Literal re-render: the same object is already linked in the live generation, so just
         // re-run its entry. It re-seeds DesignTimeStore from the (rewritten) values JSON, with
@@ -55,10 +55,7 @@ public actor IOSJITStructuralReloader: IOSStructuralReloader {
             let status = try await withPhase(progress, .runningSetup, "Running preview setup...") {
                 try await self.runOnMainOffPool(setupEntry)
             }
-            if status != 0 {
-                Log.error("preview setup entry reported failure (status \(status))")
-                JITStructuralReloader.ensureSetupFailureRecorded(build, status: status)
-            }
+            build.recordSetupFailure(status: status)
             didRunSetUp = true
         }
         try await withPhase(progress, .rendering, "Rendering preview...") {

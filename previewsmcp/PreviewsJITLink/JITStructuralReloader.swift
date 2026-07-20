@@ -27,7 +27,7 @@ public actor JITStructuralReloader: StructuralReloader {
     }
 
     public func render(
-        _ build: JITRenderBuild, progress: (any ProgressReporter)? = nil
+        _ build: JITRenderBuild, progress: (any ProgressReporter)?
     ) async throws {
         try await serialized { try await self.performRender(build, progress: progress) }
     }
@@ -179,22 +179,7 @@ public actor JITStructuralReloader: StructuralReloader {
         let status = try await withPhase(progress, .runningSetup, "Running preview setup...") {
             try await self.runOnMainOffPool(session, entrySymbol)
         }
-        if status != 0 {
-            Log.error("preview setup entry reported failure (status \(status))")
-            Self.ensureSetupFailureRecorded(build, status: status)
-        }
-    }
-
-    /// The daemon-side backstop for the agent's best-effort sidecar
-    /// write: a nonzero status with no recorded detail still arms the
-    /// setupFailed notice instead of silently rendering without setup.
-    static func ensureSetupFailureRecorded(_ build: JITRenderBuild, status: Int32) {
-        guard let sidecar = build.setupErrorSidecarPath,
-              !FileManager.default.fileExists(atPath: sidecar.path)
-        else { return }
-        try? "setUp() failed (status \(status)) and recorded no detail".write(
-            to: sidecar, atomically: true, encoding: .utf8
-        )
+        build.recordSetupFailure(status: status)
     }
 
     /// Run a JIT entry on the agent's main thread from a GCD queue: the

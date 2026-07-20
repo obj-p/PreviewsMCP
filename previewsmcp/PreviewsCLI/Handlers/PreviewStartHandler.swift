@@ -197,18 +197,9 @@ enum PreviewStartHandler: ToolHandler {
         } catch {
             return phaseFailureResult(classifiedFailure(error, at: .buildingProject))
         }
-        let standaloneNotice: Notice? =
-            (config?.setup != nil && buildContext == nil)
-                ? Notice(
-                    code: .setupIgnored,
-                    message: "Setup plugin requires a project build system and is ignored in standalone mode."
-                )
-                : nil
-        if standaloneNotice != nil {
-            await progress.report(
-                .runningSetup, message: "Setup ignored (standalone preview)"
-            )
-        }
+        let standaloneNotice = await standaloneSetupNotice(
+            config: config, buildContext: buildContext, progress: progress
+        )
 
         let sessionID = try await startMacOSPreview(
             fileURL: fileURL, previewIndex: previewIndex,
@@ -223,9 +214,12 @@ enum PreviewStartHandler: ToolHandler {
             progress: progress
         )
 
-        let setupNotice = PreviewSession.takeSetupFailureNotice(
-            sessionID: sessionID, setupType: setupResult?.typeName
-        )
+        let startNotices = [
+            standaloneNotice,
+            PreviewSession.takeSetupFailureNotice(
+                sessionID: sessionID, setupType: setupResult?.typeName
+            ),
+        ].compactMap { $0 }
         let traitInfo = resolvedTraits.isEmpty ? "" : " Traits: \(traitsSummary(resolvedTraits))."
         let previews = try PreviewParser.parse(fileAt: fileURL)
         let previewList = formatPreviewList(previews: previews, activeIndex: previewIndex)
@@ -241,7 +235,7 @@ enum PreviewStartHandler: ToolHandler {
                 DaemonProtocol.PreviewInfoDTO(from: $0, activeIndex: previewIndex)
             },
             activeIndex: previewIndex,
-            setupWarning: standaloneNotice?.message ?? setupNotice?.message,
+            setupWarning: startNotices.first?.message,
             appServerPort: nil
         )
         return try appendingNotices(
@@ -253,7 +247,7 @@ enum PreviewStartHandler: ToolHandler {
                 ],
                 structuredContent: structured
             ),
-            [standaloneNotice, setupNotice].compactMap { $0 }
+            startNotices
         )
     }
 }
@@ -335,18 +329,9 @@ private func handleIOSPreviewStart(
             return phaseFailureResult(detectBuildContextFailure(error))
         }
 
-        let iosStandaloneNotice: Notice? =
-            (config?.setup != nil && buildContext == nil)
-                ? Notice(
-                    code: .setupIgnored,
-                    message: "Setup plugin requires a project build system and is ignored in standalone mode."
-                )
-                : nil
-        if iosStandaloneNotice != nil {
-            await progress.report(
-                .runningSetup, message: "Setup ignored (standalone preview)"
-            )
-        }
+        let standaloneNotice = await standaloneSetupNotice(
+            config: config, buildContext: buildContext, progress: progress
+        )
         stage("buildSetupIfConfigured begin")
         let setupResult: SetupBuilder.Result?
         do {
@@ -421,7 +406,10 @@ private func handleIOSPreviewStart(
         // Wait briefly for the app to launch and render
         try await Task.sleep(for: .seconds(2))
 
-        let setupNotice = await session.takeSetupFailureNotice()
+        let startNotices = [
+            standaloneNotice,
+            await session.takeSetupFailureNotice(),
+        ].compactMap { $0 }
         let traitInfo = traits.isEmpty ? "" : " Traits: \(traitsSummary(traits))."
         let previews = try PreviewParser.parse(fileAt: fileURL)
         let previewList = formatPreviewList(previews: previews, activeIndex: previewIndex)
@@ -437,7 +425,7 @@ private func handleIOSPreviewStart(
                 DaemonProtocol.PreviewInfoDTO(from: $0, activeIndex: previewIndex)
             },
             activeIndex: previewIndex,
-            setupWarning: iosStandaloneNotice?.message ?? setupNotice?.message,
+            setupWarning: startNotices.first?.message,
             appServerPort: (await session.appServerPort).map(Int.init)
         )
         let viewerHint = structured.appServerPort.map {
@@ -452,7 +440,7 @@ private func handleIOSPreviewStart(
                 ],
                 structuredContent: structured
             ),
-            [iosStandaloneNotice, setupNotice].compactMap { $0 }
+            startNotices
         )
     } catch {
         if let liveSession {
@@ -477,6 +465,21 @@ func detectBuildContextFailure(_ error: Error) -> PhaseFailure {
         .detectingProject
     }
     return classifiedFailure(error, at: phase)
+}
+
+/// The setupIgnored notice for a configured setup in standalone mode
+/// (no build context), reporting the skipped phase boundary so the
+/// start's step count completes. Nil when setup is wired or absent.
+private func standaloneSetupNotice(
+    config: ProjectConfig?, buildContext: BuildContext?,
+    progress: MCPProgressReporter
+) async -> Notice? {
+    guard config?.setup != nil, buildContext == nil else { return nil }
+    await progress.report(.runningSetup, message: "Setup ignored (standalone preview)")
+    return Notice(
+        code: .setupIgnored,
+        message: "Setup plugin requires a project build system and is ignored in standalone mode."
+    )
 }
 
 /// Build the setup package if configured. Returns nil if no setup or standalone mode.

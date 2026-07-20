@@ -33,6 +33,22 @@ public struct JITRenderBuild: Sendable {
     /// agent-side write did not land — the status is the reliable signal,
     /// the sidecar only the detail carrier (docs/phase-error-protocol.md).
     public let setupErrorSidecarPath: URL?
+
+    /// Daemon-side handling of a nonzero setup status: log it, and when
+    /// the agent's best-effort detail write did not land, write a fallback
+    /// marker so the failure still arms the setupFailed notice. A zero
+    /// status is a no-op.
+    public func recordSetupFailure(status: Int32) {
+        guard status != 0 else { return }
+        Log.error("preview setup entry reported failure (status \(status))")
+        guard let sidecar = setupErrorSidecarPath,
+              !FileManager.default.fileExists(atPath: sidecar.path)
+        else { return }
+        try? "setUp() failed (status \(status)) and recorded no detail".write(
+            to: sidecar, atomically: true, encoding: .utf8
+        )
+    }
+
     /// The generated `@_cdecl` window-state entry (`recordPreviewWindowState`), present for
     /// visible macOS sessions. The reloader runs it after a respawn handoff kills the outgoing
     /// agent, so the sidecar's last write describes the surviving window (#254).
@@ -141,7 +157,7 @@ public actor PreviewSession {
         self.setupDylibPath = setupDylibPath
         // Fresh arming: a leftover or pre-created sidecar at this path must
         // never surface as this session's setup failure.
-        try? FileManager.default.removeItem(at: Self.setupErrorSidecarPath(for: id))
+        Self.removeSetupArtifacts(for: id)
     }
 
     /// Session-stable path the agent's bridge writes the live window frame to, so a respawned
@@ -166,10 +182,10 @@ public actor PreviewSession {
     public nonisolated static func takeSetupFailureNotice(
         sessionID: String, setupType: String?
     ) -> Notice? {
+        guard let type = setupType else { return nil }
         let sidecar = setupErrorSidecarPath(for: sessionID)
         guard let text = try? String(contentsOf: sidecar, encoding: .utf8) else { return nil }
         try? FileManager.default.removeItem(at: sidecar)
-        let type = setupType ?? "setup"
         let detail = String(text.prefix(500))
         return Notice(
             code: .setupFailed,
@@ -177,8 +193,9 @@ public actor PreviewSession {
         )
     }
 
-    /// Remove the session's setup-error sidecar at teardown so an
-    /// undelivered late failure cannot leak or go stale.
+    /// Remove the session's setup-error sidecar — at init (fresh arming)
+    /// and teardown — so a stale or undelivered file cannot leak or
+    /// mis-arm a later notice.
     public nonisolated static func removeSetupArtifacts(for sessionID: String) {
         try? FileManager.default.removeItem(at: setupErrorSidecarPath(for: sessionID))
     }
