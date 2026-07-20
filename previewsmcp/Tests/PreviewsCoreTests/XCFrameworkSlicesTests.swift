@@ -30,9 +30,10 @@ struct XCFrameworkSlicesTests {
         ])
         defer { try? FileManager.default.removeItem(at: xcf) }
 
-        #expect(XCFrameworkSlices.availableIdentifiers(in: xcf) == ["ios-arm64"])
-        #expect(!XCFrameworkSlices.hasSlice(in: xcf, for: .iOS))
-        #expect(!XCFrameworkSlices.hasSlice(in: xcf, for: .macOS))
+        let slices = XCFrameworkSlices.slices(in: xcf)
+        #expect(slices?.map(\.identifier) == ["ios-arm64"])
+        #expect(slices?.contains { $0.matches(.iOS) } == false)
+        #expect(slices?.contains { $0.matches(.macOS) } == false)
     }
 
     @Test("a simulator slice satisfies iOS; a macos slice satisfies macOS")
@@ -50,8 +51,9 @@ struct XCFrameworkSlicesTests {
         ])
         defer { try? FileManager.default.removeItem(at: xcf) }
 
-        #expect(XCFrameworkSlices.hasSlice(in: xcf, for: .iOS))
-        #expect(XCFrameworkSlices.hasSlice(in: xcf, for: .macOS))
+        let slices = XCFrameworkSlices.slices(in: xcf)
+        #expect(slices?.contains { $0.matches(.iOS) } == true)
+        #expect(slices?.contains { $0.matches(.macOS) } == true)
     }
 
     @Test("an unreadable bundle yields nil identifiers, degrading the enricher")
@@ -59,7 +61,6 @@ struct XCFrameworkSlicesTests {
         let missing = FileManager.default.temporaryDirectory
             .appendingPathComponent("previewsmcp-missing-\(UUID().uuidString).xcframework")
 
-        #expect(XCFrameworkSlices.availableIdentifiers(in: missing) == nil)
-        #expect(!XCFrameworkSlices.hasSlice(in: missing, for: .iOS))
+        #expect(XCFrameworkSlices.slices(in: missing) == nil)
     }
 }

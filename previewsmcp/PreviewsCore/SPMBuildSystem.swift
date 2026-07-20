@@ -446,7 +446,12 @@ public actor SPMBuildSystem: BuildSystem {
         }
     }
 
+    private var cachedDescription: PackageDescription?
+
     private func describePackage() async throws -> PackageDescription {
+        if let cachedDescription {
+            return cachedDescription
+        }
         let output = try await runProcess(
             "/usr/bin/env", "swift", "package", "describe", "--type", "json",
             workingDirectory: projectRoot
@@ -454,7 +459,9 @@ public actor SPMBuildSystem: BuildSystem {
         guard let data = output.data(using: .utf8) else {
             throw BuildSystemError.missingArtifacts("Could not parse package description")
         }
-        return try JSONDecoder().decode(PackageDescription.self, from: data)
+        let description = try JSONDecoder().decode(PackageDescription.self, from: data)
+        cachedDescription = description
+        return description
     }
 
     private func findTarget(
@@ -518,27 +525,51 @@ public actor SPMBuildSystem: BuildSystem {
             stderr[moduleRange].dropFirst("no such module '".count).dropLast(1)
         )
         guard let description = try? await describePackage(),
-              let binary = description.targets.first(where: {
+              description.targets.contains(where: {
                   $0.name == module && $0.type == "binary"
-              })
-        else { return nil }
-        let declared = projectRoot.appendingPathComponent(binary.path).standardizedFileURL
-        let artifact = FileManager.default.fileExists(atPath: declared.path)
-            ? declared
-            : projectRoot.appendingPathComponent(
-                ".build/artifacts/\(description.name.lowercased())/\(module)/\(module).xcframework"
-            )
-        guard let identifiers = XCFrameworkSlices.availableIdentifiers(in: artifact),
-              !XCFrameworkSlices.hasSlice(in: artifact, for: platform)
+              }),
+              let artifact = binaryArtifact(named: module, in: description),
+              let slices = XCFrameworkSlices.slices(in: artifact),
+              !slices.contains(where: { $0.matches(platform) })
         else { return nil }
         let sliceLabel = platform == .iOS ? "an iOS simulator" : "a macOS"
+        let identifiers = slices.map(\.identifier).joined(separator: ", ")
         return PhaseFailure(
             phase: .buildingProject,
             code: .incompatibleSlice,
-            message: "XCFramework '\(module)' has no \(platform == .iOS ? "iOS simulator" : "macOS") slice (available: \(identifiers.joined(separator: ", "))).",
-            detail: "The preview builds for \(platform == .iOS ? "the iOS simulator" : "macOS") and needs \(sliceLabel) slice.",
+            message: "XCFramework '\(module)' has no \(platform == .iOS ? "iOS simulator" : "macOS") slice (available: \(identifiers)).",
+            detail: "The preview builds for \(platform == .iOS ? "the iOS simulator" : "macOS") and needs \(sliceLabel) slice. Full build output:\n\(String(stderr.suffix(4000)))",
             remediation: "Rebuild the XCFramework including \(sliceLabel) slice."
         )
+    }
+
+    /// The binary target's XCFramework on disk: the declared path when it
+    /// exists, else a scan of `.build/artifacts` (its child is SwiftPM's
+    /// package-identity directory, whose casing is not derivable from the
+    /// package name).
+    private func binaryArtifact(
+        named module: String, in description: PackageDescription
+    ) -> URL? {
+        guard let binary = description.targets.first(where: {
+            $0.name == module && $0.type == "binary"
+        }) else { return nil }
+        let declared = projectRoot.appendingPathComponent(binary.path).standardizedFileURL
+        if FileManager.default.fileExists(atPath: declared.path) {
+            return declared
+        }
+        let artifacts = projectRoot.appendingPathComponent(".build/artifacts")
+        let children = (try? FileManager.default.contentsOfDirectory(
+            at: artifacts, includingPropertiesForKeys: nil
+        )) ?? []
+        for child in children {
+            let candidate = child
+                .appendingPathComponent(module)
+                .appendingPathComponent("\(module).xcframework")
+            if FileManager.default.fileExists(atPath: candidate.path) {
+                return candidate
+            }
+        }
+        return nil
     }
 
     private func showBinPath(platform: PreviewPlatform, iosSDKPath: String?) async throws -> URL {

@@ -6,31 +6,38 @@ import Foundation
 /// classifier consults it when a `no such module` build failure names a
 /// declared binary target (docs/phase-error-protocol.md).
 public enum XCFrameworkSlices {
-    public static func availableIdentifiers(in xcframework: URL) -> [String]? {
-        libraries(in: xcframework)?.compactMap { $0["LibraryIdentifier"] as? String }
-    }
+    public struct Slice: Sendable {
+        public let identifier: String
+        public let platform: String?
+        public let variant: String?
 
-    public static func hasSlice(in xcframework: URL, for platform: PreviewPlatform) -> Bool {
-        guard let libraries = libraries(in: xcframework) else { return false }
-        return libraries.contains { library in
-            let supported = library["SupportedPlatform"] as? String
-            let variant = library["SupportedPlatformVariant"] as? String
-            switch platform {
+        public func matches(_ requested: PreviewPlatform) -> Bool {
+            switch requested {
             case .iOS:
-                return supported == "ios" && variant == "simulator"
+                platform == "ios" && variant == "simulator"
             case .macOS:
-                return supported == "macos"
+                platform == "macos"
             }
         }
     }
 
-    private static func libraries(in xcframework: URL) -> [[String: Any]]? {
+    /// One plist read; nil when the bundle or its inventory is unreadable —
+    /// callers degrade rather than guess.
+    public static func slices(in xcframework: URL) -> [Slice]? {
         let plist = xcframework.appendingPathComponent("Info.plist")
         guard let data = try? Data(contentsOf: plist),
               let root = try? PropertyListSerialization.propertyList(
                   from: data, format: nil
-              ) as? [String: Any]
+              ) as? [String: Any],
+              let libraries = root["AvailableLibraries"] as? [[String: Any]]
         else { return nil }
-        return root["AvailableLibraries"] as? [[String: Any]]
+        return libraries.compactMap { library in
+            guard let identifier = library["LibraryIdentifier"] as? String else { return nil }
+            return Slice(
+                identifier: identifier,
+                platform: library["SupportedPlatform"] as? String,
+                variant: library["SupportedPlatformVariant"] as? String
+            )
+        }
     }
 }

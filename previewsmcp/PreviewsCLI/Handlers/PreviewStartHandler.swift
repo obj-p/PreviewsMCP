@@ -216,11 +216,8 @@ enum PreviewStartHandler: ToolHandler {
                 progress: progress
             )
         } catch {
-            if let unresolved = unresolvedSymbolsFailure(from: error) {
-                return phaseFailureResult(unresolved)
-            }
-            if let failure = error as? PhaseFailure {
-                return phaseFailureResult(failure)
+            if let classified = classifiedStartResult(from: error) {
+                return classified
             }
             throw error
         }
@@ -460,11 +457,8 @@ private func handleIOSPreviewStart(
         } else {
             await ctx.iosState.releaseDeviceClaim(deviceUDID, owner: claimOwner)
         }
-        if let unresolved = unresolvedSymbolsFailure(from: error) {
-            return phaseFailureResult(unresolved)
-        }
-        if let failure = error as? PhaseFailure {
-            return phaseFailureResult(failure)
+        if let classified = classifiedStartResult(from: error) {
+            return classified
         }
         throw error
     }
@@ -482,6 +476,20 @@ func detectBuildContextFailure(_ error: Error) -> PhaseFailure {
         .detectingProject
     }
     return classifiedFailure(error, at: phase)
+}
+
+/// The classification ladder both start paths share: a JIT
+/// unresolved-symbols failure or an already-classified PhaseFailure
+/// becomes a formatted tool error; anything else stays on the thrown
+/// path (the flattener backstop).
+private func classifiedStartResult(from error: Error) -> CallTool.Result? {
+    if let unresolved = unresolvedSymbolsFailure(from: error) {
+        return phaseFailureResult(unresolved)
+    }
+    if let failure = error as? PhaseFailure {
+        return phaseFailureResult(failure)
+    }
+    return nil
 }
 
 /// The setupIgnored notice for a configured setup in standalone mode

@@ -218,16 +218,24 @@ func classifiedFailure(_ error: Error, at phase: BuildPhase) -> PhaseFailure {
 /// docs/phase-error-protocol.md). Nil when the error is anything else.
 func unresolvedSymbolsFailure(from error: Error) -> PhaseFailure? {
     let text = error.localizedDescription
-    guard let listRange = text.range(
-        of: #"Symbols not found: \[[^\]]*\]"#, options: .regularExpression
-    ) else { return nil }
-    let list = text[listRange]
-    let symbols = list
-        .dropFirst("Symbols not found: [".count).dropLast(1)
-        .split(separator: ",")
-        .map { $0.trimmingCharacters(in: .whitespaces) }
-        .filter { !$0.isEmpty }
+    var symbols: [String] = []
+    var lists: [String] = []
+    var searchRange = text.startIndex ..< text.endIndex
+    while let listRange = text.range(
+        of: #"Symbols not found: \[[^\]]*\]"#, options: .regularExpression,
+        range: searchRange
+    ) {
+        let list = text[listRange]
+        lists.append(String(list))
+        symbols += list
+            .dropFirst("Symbols not found: [".count).dropLast(1)
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty && !symbols.contains($0) }
+        searchRange = listRange.upperBound ..< text.endIndex
+    }
     guard !symbols.isEmpty else { return nil }
+    let list = lists.joined(separator: "\n")
     let shown = symbols.prefix(3).joined(separator: ", ")
     let suffix = symbols.count > 3 ? ", …" : ""
     return PhaseFailure(
