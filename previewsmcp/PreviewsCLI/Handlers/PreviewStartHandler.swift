@@ -173,7 +173,7 @@ enum PreviewStartHandler: ToolHandler {
         let headless = extractOptionalBool("headless", from: params) ?? true
 
         // Detect build system (auto-detect or explicit projectPath)
-        let progress = mcpReporter(server: ctx.server, params: params, totalSteps: 3)
+        let progress = mcpReporter(server: ctx.server, params: params, totalSteps: 4)
         let buildContext: BuildContext?
         let rebuild: @Sendable () async throws -> BuildContext?
         do {
@@ -201,7 +201,6 @@ enum PreviewStartHandler: ToolHandler {
                 )
                 : nil
 
-        await progress.report(.compilingBridge, message: "Compiling \(fileURL.lastPathComponent)...")
         let sessionID = try await startMacOSPreview(
             fileURL: fileURL, previewIndex: previewIndex,
             title: "Preview: \(fileURL.lastPathComponent)",
@@ -211,7 +210,8 @@ enum PreviewStartHandler: ToolHandler {
             setupResult: setupResult,
             headless: headless,
             host: ctx.host,
-            refresh: rebuild
+            refresh: rebuild,
+            progress: progress
         )
 
         let traitInfo = resolvedTraits.isEmpty ? "" : " Traits: \(traitsSummary(resolvedTraits))."
@@ -305,7 +305,7 @@ private func handleIOSPreviewStart(
         let headless = extractOptionalBool("headless", from: params) ?? true
 
         // Detect build system
-        let progress = mcpReporter(server: ctx.server, params: params, totalSteps: 8)
+        let progress = mcpReporter(server: ctx.server, params: params, totalSteps: 9)
         let buildContext: BuildContext?
         let rebuild: @Sendable () async throws -> BuildContext?
         do {
@@ -545,7 +545,8 @@ private func startMacOSPreview(
     setupResult: SetupBuilder.Result? = nil,
     headless: Bool = true,
     host: PreviewHost,
-    refresh: (@Sendable () async throws -> BuildContext?)? = nil
+    refresh: (@Sendable () async throws -> BuildContext?)? = nil,
+    progress: (any ProgressReporter)? = nil
 ) async throws -> String {
     let session = PreviewSession(
         sourceFile: fileURL,
@@ -565,7 +566,8 @@ private func startMacOSPreview(
     try await host.jitStart(
         sessionID: sessionID, session: session,
         title: title, size: NSSize(width: width, height: height),
-        headless: headless
+        headless: headless,
+        progress: progress
     )
     await MainActor.run {
         host.watchFile(

@@ -48,7 +48,7 @@ public actor IOSJITStructuralReloader: IOSStructuralReloader {
         lastObjectPath = build.objectPath
 
         if let setupEntry = build.setupEntrySymbol, !didRunSetUp {
-            _ = try session.runOnMain(symbol: setupEntry)
+            _ = try await runOnMainOffPool(setupEntry)
             didRunSetUp = true
         }
         try await runEntry(build.entrySymbol)
@@ -60,12 +60,25 @@ public actor IOSJITStructuralReloader: IOSStructuralReloader {
     /// cover that without failing `start()`. Any other non-zero status fails immediately.
     private func runEntry(_ entrySymbol: String) async throws {
         for attempt in 1 ... 5 {
-            let status = try session.runOnMain(symbol: entrySymbol)
+            let status = try await runOnMainOffPool(entrySymbol)
             if status == 0 { return }
             guard status == -1, attempt < 5 else {
                 throw JITReloadError.renderFailed(status: status)
             }
             try await Task.sleep(for: .milliseconds(200))
+        }
+    }
+
+    /// The EPC call blocks its thread until the agent returns; run it on
+    /// a GCD queue so it cannot pin a cooperative-pool executor for the
+    /// render's duration (docs/phase-error-protocol.md). Sound despite
+    /// `JITSession`'s non-Sendable marking: this actor serializes every
+    /// entry run and awaits its completion, so the session is used by
+    /// one thread at a time.
+    private func runOnMainOffPool(_ entrySymbol: String) async throws -> Int32 {
+        nonisolated(unsafe) let session = session
+        return try await offCooperativePool {
+            try session.runOnMain(symbol: entrySymbol)
         }
     }
 }

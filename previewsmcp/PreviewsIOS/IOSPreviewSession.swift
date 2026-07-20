@@ -404,7 +404,9 @@ public actor IOSPreviewSession {
             // the WindowGroup observes, so the render can run before the hosted
             // scene attaches (the store buffers it until SwiftUI's window is up).
             stage("rendering initial preview")
-            try await reloader.render(build)
+            try await withPhase(progress, .rendering, "Rendering preview...") {
+                try await reloader.render(build)
+            }
             stage("initial JIT render complete")
         } catch {
             throw await enrichedJITFailure(error)

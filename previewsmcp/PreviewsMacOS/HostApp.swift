@@ -274,10 +274,18 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
     /// so the agent shows its own live window there — the agent window is the
     /// session's interactive surface.
     @discardableResult
-    public func jitStructuralReload(sessionID: String, session: PreviewSession) async throws -> URL {
+    public func jitStructuralReload(
+        sessionID: String, session: PreviewSession,
+        progress: (any ProgressReporter)? = nil
+    ) async throws -> URL {
         restoreAgentWindowFrame(sessionID: sessionID, session: session)
-        let build = try await session.compileObjectForJIT(window: agentWindowSpec(for: sessionID))
-        return try await jitRender(sessionID: sessionID, build: build)
+        let window = agentWindowSpec(for: sessionID)
+        let build = try await withPhase(
+            progress, .compilingBridge, "Compiling \(session.sourceFile.lastPathComponent)..."
+        ) {
+            try await session.compileObjectForJIT(window: window)
+        }
+        return try await jitRender(sessionID: sessionID, build: build, progress: progress)
     }
 
     /// Before a structural reload, bake the agent's last recorded window placement into the
@@ -303,7 +311,8 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
     /// first render fails.
     public func jitStart(
         sessionID: String, session: PreviewSession,
-        title: String, size: NSSize, headless: Bool
+        title: String, size: NSSize, headless: Bool,
+        progress: (any ProgressReporter)? = nil
     ) async throws {
         sessions[sessionID] = session
         if !headless, let screen = NSScreen.main?.visibleFrame {
@@ -321,7 +330,9 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
             )
         }
         do {
-            try await jitStructuralReload(sessionID: sessionID, session: session)
+            try await jitStructuralReload(
+                sessionID: sessionID, session: session, progress: progress
+            )
         } catch {
             closePreview(sessionID: sessionID)
             throw error
@@ -347,11 +358,16 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
 
     /// Render a JIT build in the agent and make its PNG the session's snapshot source.
     @discardableResult
-    public func jitRender(sessionID: String, build: JITRenderBuild) async throws -> URL {
+    public func jitRender(
+        sessionID: String, build: JITRenderBuild,
+        progress: (any ProgressReporter)? = nil
+    ) async throws -> URL {
         guard let reloader = reloader(for: sessionID) else {
             throw SnapshotError.captureFailed
         }
-        try await reloader.render(build)
+        try await withPhase(progress, .rendering, "Rendering preview...") {
+            try await reloader.render(build)
+        }
         agentImagePaths[sessionID] = build.imagePath
         return build.imagePath
     }

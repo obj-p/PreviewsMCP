@@ -8,23 +8,47 @@ import PreviewsEngine
 
 /// MCP progress reporter that sends progress notifications and log messages to the client.
 final class MCPProgressReporter: ProgressReporter, @unchecked Sendable {
+    private struct Position {
+        var step = 0
+        var ticks = 0
+    }
+
     private let server: any MCPServing
     private let progressToken: ProgressToken?
     private let totalSteps: Int
-    private let stepCounter: OSAllocatedUnfairLock<Int>
+    private let position: OSAllocatedUnfairLock<Position>
 
     init(server: any MCPServing, progressToken: ProgressToken?, totalSteps: Int) {
         self.server = server
         self.progressToken = progressToken
         self.totalSteps = totalSteps
-        stepCounter = OSAllocatedUnfairLock(initialState: 0)
+        position = OSAllocatedUnfairLock(initialState: Position())
     }
 
     func report(_: BuildPhase, message: String) async {
-        let step = stepCounter.withLock { value -> Int in
-            value += 1
-            return value
+        let step = position.withLock { state -> Int in
+            state.step += 1
+            state.ticks = 0
+            return state.step
         }
+        await emit(step: step, progress: Double(step), message: message)
+    }
+
+    /// Read-only re-emit: holds the step and advances only a fractional
+    /// progress bump (capped below the next step, so token clients see
+    /// monotonically increasing values) plus the elapsed marker.
+    func tick(message: String, elapsed: Duration) async {
+        let (step, fraction) = position.withLock { state -> (Int, Double) in
+            state.ticks += 1
+            return (state.step, min(0.9, 0.1 * Double(state.ticks)))
+        }
+        await emit(
+            step: step, progress: Double(step) + fraction,
+            message: "\(message) (\(elapsed.components.seconds)s)"
+        )
+    }
+
+    private func emit(step: Int, progress: Double, message: String) async {
         try? await server.log(
             level: .info, logger: "preview",
             data: .string("[\(step)/\(totalSteps)] \(message)")
@@ -34,7 +58,7 @@ final class MCPProgressReporter: ProgressReporter, @unchecked Sendable {
                 ProgressNotification.message(
                     .init(
                         progressToken: token,
-                        progress: Double(step),
+                        progress: progress,
                         total: Double(totalSteps),
                         message: message
                     )

@@ -31,7 +31,7 @@ public actor JITStructuralReloader: StructuralReloader {
         // no new JITDylib and no re-link (which would re-register the object's classes).
         if let session, build.objectPath == lastObjectPath {
             let mark = ContinuousClock.now
-            try Self.run(session, build.entrySymbol)
+            try await run(session, build.entrySymbol)
             Log.info("jit_latency: render-entry-literal \(Log.millis(mark, ContinuousClock.now))ms")
             return
         }
@@ -47,10 +47,10 @@ public actor JITStructuralReloader: StructuralReloader {
             // lifetime), so re-run after a respawn but not per generation. The entry is
             // void; the wrapper's status word is meaningless for it.
             if let setupEntry = build.setupEntrySymbol, !didRunSetUp {
-                _ = try session.runOnMain(symbol: setupEntry)
+                _ = try await runEntry(session, setupEntry)
                 didRunSetUp = true
             }
-            try Self.runRenderEntry(session, build)
+            try await runRenderEntry(session, build)
             lastObjectPath = build.objectPath
             return
         }
@@ -63,9 +63,9 @@ public actor JITStructuralReloader: StructuralReloader {
         )
         try link(build, into: fresh)
         if let setupEntry = build.setupEntrySymbol {
-            _ = try fresh.runOnMain(symbol: setupEntry)
+            _ = try await runEntry(fresh, setupEntry)
         }
-        try Self.runRenderEntry(fresh, build)
+        try await runRenderEntry(fresh, build)
         // The fresh agent's window is up; replacing the session now kills the old agent.
         session = fresh
         generation = 1
@@ -78,7 +78,7 @@ public actor JITStructuralReloader: StructuralReloader {
         // becoming active), only costs focus carry on the next handoff, which the
         // window's own key observers heal on the next change.
         if let stateEntry = build.windowStateEntrySymbol {
-            _ = try? fresh.runOnMain(symbol: stateEntry)
+            _ = try? await runEntry(fresh, stateEntry)
         }
     }
 
@@ -88,7 +88,7 @@ public actor JITStructuralReloader: StructuralReloader {
     /// raster failure and propagates, like the render entry.
     public func snapshotLiveWindow(entrySymbol: String) async throws {
         guard let session else { return }
-        let status = try session.runOnMain(symbol: entrySymbol)
+        let status = try await runEntry(session, entrySymbol)
         guard status == 0 else {
             throw JITReloadError.snapshotFailed(status: status)
         }
@@ -117,16 +117,31 @@ public actor JITStructuralReloader: StructuralReloader {
         )
     }
 
-    private static func runRenderEntry(_ session: JITSession, _ build: JITRenderBuild) throws {
+    private func runRenderEntry(_ session: JITSession, _ build: JITRenderBuild) async throws {
         let mark = ContinuousClock.now
-        try run(session, build.entrySymbol)
+        try await run(session, build.entrySymbol)
         Log.info("jit_latency: render-entry \(Log.millis(mark, ContinuousClock.now))ms")
     }
 
-    private static func run(_ session: JITSession, _ entrySymbol: String) throws {
-        let status = try session.runOnMain(symbol: entrySymbol)
+    private func run(_ session: JITSession, _ entrySymbol: String) async throws {
+        let status = try await runEntry(session, entrySymbol)
         guard status == 0 else {
             throw JITReloadError.renderFailed(status: status)
+        }
+    }
+
+    /// Run a JIT entry on the agent's main thread from a GCD queue: the
+    /// EPC call blocks its thread until the agent returns, and on the
+    /// cooperative pool that pins an executor thread for the render's
+    /// duration (docs/phase-error-protocol.md). Sound despite
+    /// `JITSession`'s non-Sendable marking: the reloader actor serializes
+    /// every entry run and awaits its completion, so the session is used
+    /// by one thread at a time — the same serial thread-hopping its
+    /// actor-executor calls already performed.
+    private func runEntry(_ session: JITSession, _ entrySymbol: String) async throws -> Int32 {
+        nonisolated(unsafe) let session = session
+        return try await offCooperativePool {
+            try session.runOnMain(symbol: entrySymbol)
         }
     }
 }

@@ -68,19 +68,6 @@ public struct JITRenderBuild: Sendable {
 /// request handlers, which is the preview_snapshot wedge observed under
 /// concurrent stream load. Hopping it off the pool keeps a thread free to service
 /// the snapshot handler.
-private let jitCompileQueue = DispatchQueue(
-    label: "previewsmcp.jit-compile",
-    attributes: .concurrent
-)
-
-private func offCooperativePool<T: Sendable>(
-    _ work: @escaping @Sendable () -> T
-) async -> T {
-    await withCheckedContinuation { continuation in
-        jitCompileQueue.async { continuation.resume(returning: work()) }
-    }
-}
-
 public actor PreviewSession {
     public nonisolated let id: String
     public nonisolated let sourceFile: URL
