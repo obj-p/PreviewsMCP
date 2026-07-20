@@ -24,15 +24,20 @@ struct PhaseClockTests {
         let reporter = RecordingReporter()
 
         try await reporter.phase(
-            .buildingProject, "Building...", interval: .milliseconds(40)
+            .buildingProject, "Building...", interval: .milliseconds(20)
         ) {
-            try await Task.sleep(for: .milliseconds(150))
+            // Deterministic under load: the work returns only once a tick
+            // has been observed, so the assertion never races the
+            // scheduler. Bounded so a broken ticker fails, not hangs.
+            for _ in 0 ..< 500 where await reporter.ticks.isEmpty {
+                try await Task.sleep(for: .milliseconds(10))
+            }
         }
         let ticksAtReturn = await reporter.ticks.count
-        try await Task.sleep(for: .milliseconds(120))
+        try await Task.sleep(for: .milliseconds(100))
 
         #expect(await reporter.reports == ["Building..."])
-        #expect(ticksAtReturn >= 2)
+        #expect(ticksAtReturn >= 1)
         #expect(await reporter.ticks.count == ticksAtReturn)
     }
 
