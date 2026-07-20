@@ -414,7 +414,7 @@ struct MCPHandlerContractTests {
 private enum HandlerContractSupport {
     @MainActor
     private final class StubReloader: StructuralReloader, @unchecked Sendable {
-        func render(_: JITRenderBuild) async throws {}
+        func render(_: JITRenderBuild, progress _: (any ProgressReporter)?) async throws {}
     }
 
     /// None of these tests exercise `preview_start` (the only handler that

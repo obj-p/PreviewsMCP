@@ -172,8 +172,12 @@ enum PreviewStartHandler: ToolHandler {
         let height = extractOptionalInt("height", from: params) ?? 600
         let headless = extractOptionalBool("headless", from: params) ?? true
 
-        // Detect build system (auto-detect or explicit projectPath)
-        let progress = mcpReporter(server: ctx.server, params: params, totalSteps: 4)
+        // Detect build system (auto-detect or explicit projectPath).
+        // A configured setup adds its own phase to the step count.
+        let progress = mcpReporter(
+            server: ctx.server, params: params,
+            totalSteps: 4 + (config?.setup != nil ? 1 : 0)
+        )
         let buildContext: BuildContext?
         let rebuild: @Sendable () async throws -> BuildContext?
         do {
@@ -200,6 +204,11 @@ enum PreviewStartHandler: ToolHandler {
                     message: "Setup plugin requires a project build system and is ignored in standalone mode."
                 )
                 : nil
+        if standaloneNotice != nil {
+            await progress.report(
+                .runningSetup, message: "Setup ignored (standalone preview)"
+            )
+        }
 
         let sessionID = try await startMacOSPreview(
             fileURL: fileURL, previewIndex: previewIndex,
@@ -214,6 +223,9 @@ enum PreviewStartHandler: ToolHandler {
             progress: progress
         )
 
+        let setupNotice = PreviewSession.takeSetupFailureNotice(
+            sessionID: sessionID, setupType: setupResult?.typeName
+        )
         let traitInfo = resolvedTraits.isEmpty ? "" : " Traits: \(traitsSummary(resolvedTraits))."
         let previews = try PreviewParser.parse(fileAt: fileURL)
         let previewList = formatPreviewList(previews: previews, activeIndex: previewIndex)
@@ -229,7 +241,7 @@ enum PreviewStartHandler: ToolHandler {
                 DaemonProtocol.PreviewInfoDTO(from: $0, activeIndex: previewIndex)
             },
             activeIndex: previewIndex,
-            setupWarning: standaloneNotice?.message,
+            setupWarning: standaloneNotice?.message ?? setupNotice?.message,
             appServerPort: nil
         )
         return try appendingNotices(
@@ -241,7 +253,7 @@ enum PreviewStartHandler: ToolHandler {
                 ],
                 structuredContent: structured
             ),
-            standaloneNotice.map { [$0] } ?? []
+            [standaloneNotice, setupNotice].compactMap { $0 }
         )
     }
 }
@@ -305,7 +317,10 @@ private func handleIOSPreviewStart(
         let headless = extractOptionalBool("headless", from: params) ?? true
 
         // Detect build system
-        let progress = mcpReporter(server: ctx.server, params: params, totalSteps: 9)
+        let progress = mcpReporter(
+            server: ctx.server, params: params,
+            totalSteps: 9 + (config?.setup != nil ? 1 : 0)
+        )
         let buildContext: BuildContext?
         let rebuild: @Sendable () async throws -> BuildContext?
         do {
@@ -320,6 +335,11 @@ private func handleIOSPreviewStart(
             return phaseFailureResult(detectBuildContextFailure(error))
         }
 
+        if config?.setup != nil, buildContext == nil {
+            await progress.report(
+                .runningSetup, message: "Setup ignored (standalone preview)"
+            )
+        }
         stage("buildSetupIfConfigured begin")
         let setupResult: SetupBuilder.Result?
         do {
@@ -394,6 +414,7 @@ private func handleIOSPreviewStart(
         // Wait briefly for the app to launch and render
         try await Task.sleep(for: .seconds(2))
 
+        let setupNotice = await session.takeSetupFailureNotice()
         let traitInfo = traits.isEmpty ? "" : " Traits: \(traitsSummary(traits))."
         let previews = try PreviewParser.parse(fileAt: fileURL)
         let previewList = formatPreviewList(previews: previews, activeIndex: previewIndex)
@@ -409,19 +430,22 @@ private func handleIOSPreviewStart(
                 DaemonProtocol.PreviewInfoDTO(from: $0, activeIndex: previewIndex)
             },
             activeIndex: previewIndex,
-            setupWarning: nil,
+            setupWarning: setupNotice?.message,
             appServerPort: (await session.appServerPort).map(Int.init)
         )
         let viewerHint = structured.appServerPort.map {
             "\nInteractive viewer: http://127.0.0.1:\($0)/ — open it in the in-app browser."
         } ?? ""
-        return try CallTool.Result(
-            content: [
-                .text(
-                    "iOS simulator preview started on device \(deviceUDID). Session ID: \(sessionID). PID: \(pid).\(traitInfo)\(replacedSessionID.map { " Replaced session \($0) on this device." } ?? "") File is being watched for changes.\n\(previewList)\(switchHint)\(viewerHint)"
-                ),
-            ],
-            structuredContent: structured
+        return try appendingNotices(
+            CallTool.Result(
+                content: [
+                    .text(
+                        "iOS simulator preview started on device \(deviceUDID). Session ID: \(sessionID). PID: \(pid).\(traitInfo)\(replacedSessionID.map { " Replaced session \($0) on this device." } ?? "") File is being watched for changes.\n\(previewList)\(switchHint)\(viewerHint)"
+                    ),
+                ],
+                structuredContent: structured
+            ),
+            setupNotice.map { [$0] } ?? []
         )
     } catch {
         if let liveSession {

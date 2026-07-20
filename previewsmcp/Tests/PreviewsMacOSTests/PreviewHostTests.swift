@@ -9,7 +9,7 @@ struct PreviewHostTests {
     /// This suite never triggers a reload, so the injected factory just needs to
     /// satisfy the now-required constructor parameter.
     final class StubReloader: StructuralReloader, @unchecked Sendable {
-        func render(_: JITRenderBuild) async throws {}
+        func render(_: JITRenderBuild, progress _: (any ProgressReporter)?) async throws {}
     }
 
     /// Regression guard for the iOS `run` hot-reload bug.

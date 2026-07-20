@@ -37,3 +37,15 @@ public extension PreviewSetup {
         content
     }
 }
+
+/// Process-lifetime record of a failed `setUp()`. Lives in the kit — which
+/// the shared setup dylib links exactly once per agent process — rather
+/// than in the generated bridge, whose statics reset with every JIT
+/// generation: a per-generation flag would silently re-enable `wrap` on
+/// the first edit after a failure, handing the plugin half-initialized
+/// state (docs/phase-error-protocol.md, setup integrity).
+public enum PreviewSetupState {
+    /// Written once by the generated `previewSetUp` entry before any
+    /// render, read by every generated wrap call; never concurrent.
+    public nonisolated(unsafe) static var setUpFailed = false
+}

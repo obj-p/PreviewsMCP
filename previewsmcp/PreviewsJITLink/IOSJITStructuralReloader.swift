@@ -19,12 +19,16 @@ public actor IOSJITStructuralReloader: IOSStructuralReloader {
         session = try JITSession(remoteFD: fd, orcRuntimePath: orcRuntimePath)
     }
 
-    public func render(_ build: JITRenderBuild) async throws {
+    public func render(
+        _ build: JITRenderBuild, progress: (any ProgressReporter)? = nil
+    ) async throws {
         // Literal re-render: the same object is already linked in the live generation, so just
         // re-run its entry. It re-seeds DesignTimeStore from the (rewritten) values JSON, with
         // no new JITDylib and no re-link (which would re-register the object's classes).
         if let lastObjectPath, build.objectPath == lastObjectPath {
-            try await runEntry(build.entrySymbol)
+            try await withPhase(progress, .rendering, "Rendering preview...") {
+                try await self.runEntry(build.entrySymbol)
+            }
             return
         }
 
@@ -48,10 +52,17 @@ public actor IOSJITStructuralReloader: IOSStructuralReloader {
         lastObjectPath = build.objectPath
 
         if let setupEntry = build.setupEntrySymbol, !didRunSetUp {
-            _ = try await runOnMainOffPool(setupEntry)
+            let status = (try? await withPhase(progress, .runningSetup, "Running preview setup...") {
+                try await self.runOnMainOffPool(setupEntry)
+            }) ?? -1
+            if status != 0 {
+                Log.error("preview setup entry reported failure (status \(status))")
+            }
             didRunSetUp = true
         }
-        try await runEntry(build.entrySymbol)
+        try await withPhase(progress, .rendering, "Rendering preview...") {
+            try await self.runEntry(build.entrySymbol)
+        }
     }
 
     /// Run the render entry, re-running it (no relink) on the iOS entry's `-1` "no key

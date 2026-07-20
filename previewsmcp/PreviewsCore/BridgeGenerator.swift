@@ -56,7 +56,8 @@ public enum BridgeGenerator {
         designTimeValuesPath: String? = nil,
         stableModuleImport: String? = nil,
         renderWindow: JITRenderWindow? = nil,
-        frameSidecarPath: String? = nil
+        frameSidecarPath: String? = nil,
+        setupErrorSidecarPath: String? = nil
     ) -> (source: String, literals: [LiteralEntry]) {
         // Transform source to replace literals with DesignTimeStore lookups
         let thunkResult = ThunkGenerator.transform(source: originalSource)
@@ -71,8 +72,10 @@ public enum BridgeGenerator {
 
         let modifiers = traitModifiers(traits)
         let hasSetup = isUsableSetup(module: setupModule, type: setupType)
-        let setupImport = hasSetup ? "import \(setupModule!)\n" : ""
-        let setUpEntry = hasSetup ? setUpEntryPoint(setupType: setupType!) : ""
+        let setupImport = hasSetup ? "import \(setupModule!)\nimport PreviewsSetupKit\n" : ""
+        let setUpEntry = hasSetup
+            ? setUpEntryPoint(setupType: setupType!, errorSidecarPath: setupErrorSidecarPath)
+            : ""
         let viewCode =
             hasSetup
                 ? viewWithSetup(closureBody: transformedClosureBody, setupType: setupType!, modifiers: modifiers)
@@ -506,17 +509,34 @@ public enum BridgeGenerator {
         """
     }
 
-    /// Generate the `@_cdecl("previewSetUp")` entry point that bridges async setUp.
-    private static func setUpEntryPoint(setupType: String) -> String {
-        """
+    /// Generate the `@_cdecl("previewSetUp")` entry point that bridges async
+    /// setUp. Status-returning: a thrown error is recorded for the agent
+    /// process's lifetime (`PreviewSetupState`, so later generations keep
+    /// skipping `wrap`), written to the error sidecar for the daemon to
+    /// read, and reported as a nonzero status — never silently dropped
+    /// (docs/phase-error-protocol.md, setup integrity; T01).
+    private static func setUpEntryPoint(setupType: String, errorSidecarPath: String?) -> String {
+        let recordError = errorSidecarPath.map { path -> String in
+            """
+            try? ((error as? any LocalizedError)?.errorDescription ?? String(describing: error)).write(
+                        toFile: "\(escapedForSwiftStringLiteral(path))", atomically: true, encoding: .utf8)
+            """
+        } ?? "_ = error"
+        return """
         @_cdecl("previewSetUp")
-        public func previewSetUp() {
+        public func previewSetUp() -> Int32 {
             let semaphore = DispatchSemaphore(value: 0)
             Task {
-                try? await \(setupType).setUp()
+                do {
+                    try await \(setupType).setUp()
+                } catch {
+                    PreviewSetupState.setUpFailed = true
+                    \(recordError)
+                }
                 semaphore.signal()
             }
             semaphore.wait()
+            return PreviewSetupState.setUpFailed ? 1 : 0
         }
         """
     }
@@ -531,7 +551,9 @@ public enum BridgeGenerator {
                 let innerView = __PreviewBridge.wrap {
                     \(closureBody)
                 }
-                let wrappedView = \(setupType).wrap(innerView)
+                let wrappedView = PreviewSetupState.setUpFailed
+                    ? innerView
+                    : \(setupType).wrap(innerView)
                 return SwiftUI.AnyView(
                     wrappedView\(modifiers)
                 )

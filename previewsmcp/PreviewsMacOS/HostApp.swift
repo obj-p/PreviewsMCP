@@ -365,9 +365,7 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
         guard let reloader = reloader(for: sessionID) else {
             throw SnapshotError.captureFailed
         }
-        try await withPhase(progress, .rendering, "Rendering preview...") {
-            try await reloader.render(build)
-        }
+        try await reloader.render(build, progress: progress)
         agentImagePaths[sessionID] = build.imagePath
         return build.imagePath
     }

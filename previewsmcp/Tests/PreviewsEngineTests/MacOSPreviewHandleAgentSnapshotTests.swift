@@ -10,7 +10,7 @@ import Testing
 struct MacOSPreviewHandleAgentSnapshotTests {
     final class RecordingReloader: StructuralReloader, @unchecked Sendable {
         private(set) var builds: [JITRenderBuild] = []
-        func render(_ build: JITRenderBuild) async throws {
+        func render(_ build: JITRenderBuild, progress _: (any ProgressReporter)?) async throws {
             builds.append(build)
         }
     }

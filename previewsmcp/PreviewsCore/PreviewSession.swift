@@ -142,6 +142,30 @@ public actor PreviewSession {
             .appendingPathComponent("previewsmcp-jit-frame-\(id).json")
     }
 
+    /// Where the generated `previewSetUp` entry records a thrown setUp
+    /// error for the daemon to read (docs/phase-error-protocol.md).
+    public nonisolated static func setupErrorSidecarPath(for id: String) -> URL {
+        FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-setup-error-\(id).txt")
+    }
+
+    /// Take-and-clear the setup-failure notice, armed when a rendered
+    /// session's `setUp()` threw (the entry wrote the sidecar and the
+    /// preview rendered without setup). Same delivery discipline as the
+    /// crash notice: reading consumes the sidecar.
+    public nonisolated static func takeSetupFailureNotice(
+        sessionID: String, setupType: String?
+    ) -> Notice? {
+        let sidecar = setupErrorSidecarPath(for: sessionID)
+        guard let text = try? String(contentsOf: sidecar, encoding: .utf8) else { return nil }
+        try? FileManager.default.removeItem(at: sidecar)
+        let type = setupType ?? "setup"
+        return Notice(
+            code: .setupFailed,
+            message: "Preview setup '\(type)' failed: \(text). The preview rendered without setup."
+        )
+    }
+
     /// A window placement (content rect) recorded by the agent for a session. The sidecar also
     /// carries a live key-status field, but that is written and read only by generated agent
     /// code (#254); the daemon never interprets or writes it.
@@ -193,9 +217,16 @@ public actor PreviewSession {
             return (ctx, bulk)
         }
 
+        // Setup wiring is independent of the Tier 2 split: a single-source
+        // target (captured inputs exclude the preview file) must not
+        // silently drop a configured setup (docs/phase-error-protocol.md,
+        // T01/T03). The build-context requirement is the invariant the old
+        // splitContext gate carried implicitly — standalone mode stays
+        // excluded and warned.
         let hasSetup =
-            splitContext != nil
-                && BridgeGenerator.isUsableSetup(module: setupModule, type: setupType)
+            BridgeGenerator.isUsableSetup(module: setupModule, type: setupType)
+                && setupDylibPath != nil
+                && buildContext != nil
 
         var stable: Compiler.StableModule?
         if let (ctx, bulk) = splitContext {
@@ -219,6 +250,7 @@ public actor PreviewSession {
         let snapshotValuesPath = valuesPath.path
         let snapshotStableImport = stable != nil ? splitContext?.0.moduleName : nil
         let snapshotSidecarPath = Self.frameSidecarPath(for: id).path
+        let snapshotSetupErrorPath = hasSetup ? Self.setupErrorSidecarPath(for: id).path : nil
         let generated = await offCooperativePool {
             BridgeGenerator.generateCombinedSource(
                 originalSource: source,
@@ -232,7 +264,8 @@ public actor PreviewSession {
                 designTimeValuesPath: snapshotValuesPath,
                 stableModuleImport: snapshotStableImport,
                 renderWindow: window,
-                frameSidecarPath: snapshotSidecarPath
+                frameSidecarPath: snapshotSidecarPath,
+                setupErrorSidecarPath: snapshotSetupErrorPath
             )
         }
 
@@ -288,11 +321,14 @@ public actor PreviewSession {
         } else {
             // No Tier 2 bulk (e.g. an `@main` target whose only other source is
             // the excluded entry-point file). Carry the build context's compiler
-            // flags so the lone preview compile still finds its dependency modules.
+            // flags so the lone preview compile still finds its dependency
+            // modules, and the setup flags so a wired setup's import resolves
+            // exactly as it does on both split branches.
             objectPath = try await compiler.compileObject(
                 source: generated.source,
                 moduleName: "\(Self.moduleName(for: sourceFile))_\(Self.uniqueModuleToken())",
-                extraFlags: linkFlags
+                extraFlags: linkFlags + setupCompilerFlags,
+                overrideSDK: setupSDKPath
             )
         }
         try Self.writeDesignTimeValues(generated.literals, to: valuesPath)

@@ -102,6 +102,13 @@ public actor IOSPreviewSession {
     /// The crash notice a handler must carry in its next response, or nil.
     /// Clearing happens here, at take time — callers take it as the LAST
     /// step of assembling a response so a taken notice is always carried.
+    /// Take-and-clear the inner preview session's setup-failure notice
+    /// (docs/phase-error-protocol.md, setup integrity).
+    public func takeSetupFailureNotice() -> Notice? {
+        guard let session else { return nil }
+        return PreviewSession.takeSetupFailureNotice(sessionID: session.id, setupType: setupType)
+    }
+
     public func takeUndisclosedCrashNotice() -> String? {
         guard undisclosedCrash else { return nil }
         undisclosedCrash = false
@@ -404,9 +411,7 @@ public actor IOSPreviewSession {
             // the WindowGroup observes, so the render can run before the hosted
             // scene attaches (the store buffers it until SwiftUI's window is up).
             stage("rendering initial preview")
-            try await withPhase(progress, .rendering, "Rendering preview...") {
-                try await reloader.render(build)
-            }
+            try await reloader.render(build, progress: progress)
             stage("initial JIT render complete")
         } catch {
             throw await enrichedJITFailure(error)
