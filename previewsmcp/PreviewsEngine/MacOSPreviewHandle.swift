@@ -16,6 +16,15 @@ public actor MacOSPreviewHandle: PreviewSessionHandle {
     private let session: PreviewSession
     private let host: PreviewHost
 
+    /// A setup failure recorded after the start response was taken — a
+    /// respawned agent re-running a setUp() that now throws — surfaces on
+    /// the session's next response (docs/phase-error-protocol.md).
+    public func takeIncidentNotice() async -> Notice? {
+        PreviewSession.takeSetupFailureNotice(
+            sessionID: session.id, setupType: session.setupType
+        )
+    }
+
     public init(id: String, session: PreviewSession, host: PreviewHost) {
         self.id = id
         sourceFile = session.sourceFile

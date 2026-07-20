@@ -28,6 +28,27 @@ public struct JITRenderBuild: Sendable {
     /// The generated `@_cdecl` setup entry (`previewSetUp`), present when the session has a
     /// setup plugin. The reloader runs it once per agent process before the first render.
     public let setupEntrySymbol: String?
+    /// Where the setup entry records a thrown `setUp()` error. The reloader
+    /// writes a fallback marker here when the entry reports failure but the
+    /// agent-side write did not land — the status is the reliable signal,
+    /// the sidecar only the detail carrier (docs/phase-error-protocol.md).
+    public let setupErrorSidecarPath: URL?
+
+    /// Daemon-side handling of a nonzero setup status: log it, and when
+    /// the agent's best-effort detail write did not land, write a fallback
+    /// marker so the failure still arms the setupFailed notice. A zero
+    /// status is a no-op.
+    public func recordSetupFailure(status: Int32) {
+        guard status != 0 else { return }
+        Log.error("preview setup entry reported failure (status \(status))")
+        guard let sidecar = setupErrorSidecarPath,
+              !FileManager.default.fileExists(atPath: sidecar.path)
+        else { return }
+        try? "setUp() failed (status \(status)) and recorded no detail".write(
+            to: sidecar, atomically: true, encoding: .utf8
+        )
+    }
+
     /// The generated `@_cdecl` window-state entry (`recordPreviewWindowState`), present for
     /// visible macOS sessions. The reloader runs it after a respawn handoff kills the outgoing
     /// agent, so the sidecar's last write describes the surviving window (#254).
@@ -44,6 +65,7 @@ public struct JITRenderBuild: Sendable {
         dylibPaths: [URL] = [],
         requiresFreshAgent: Bool = false,
         setupEntrySymbol: String? = nil,
+        setupErrorSidecarPath: URL? = nil,
         windowStateEntrySymbol: String? = nil
     ) {
         self.objectPath = objectPath
@@ -56,6 +78,7 @@ public struct JITRenderBuild: Sendable {
         self.dylibPaths = dylibPaths
         self.requiresFreshAgent = requiresFreshAgent
         self.setupEntrySymbol = setupEntrySymbol
+        self.setupErrorSidecarPath = setupErrorSidecarPath
         self.windowStateEntrySymbol = windowStateEntrySymbol
     }
 }
@@ -78,7 +101,7 @@ public actor PreviewSession {
     private var buildContext: BuildContext?
     private var traits: PreviewTraits
     private let setupModule: String?
-    private let setupType: String?
+    public nonisolated let setupType: String?
     private let setupCompilerFlags: [String]
     private let setupSDKPath: String?
     private let setupDylibPath: URL?
@@ -132,6 +155,9 @@ public actor PreviewSession {
         self.setupCompilerFlags = setupCompilerFlags
         self.setupSDKPath = setupSDKPath
         self.setupDylibPath = setupDylibPath
+        // Fresh arming: a leftover or pre-created sidecar at this path must
+        // never surface as this session's setup failure.
+        Self.removeSetupArtifacts(for: id)
     }
 
     /// Session-stable path the agent's bridge writes the live window frame to, so a respawned
@@ -140,6 +166,38 @@ public actor PreviewSession {
     public nonisolated static func frameSidecarPath(for id: String) -> URL {
         FileManager.default.temporaryDirectory
             .appendingPathComponent("previewsmcp-jit-frame-\(id).json")
+    }
+
+    /// Where the generated `previewSetUp` entry records a thrown setUp
+    /// error for the daemon to read (docs/phase-error-protocol.md).
+    public nonisolated static func setupErrorSidecarPath(for id: String) -> URL {
+        FileManager.default.temporaryDirectory
+            .appendingPathComponent("previewsmcp-setup-error-\(id).txt")
+    }
+
+    /// Take-and-clear the setup-failure notice, armed when a rendered
+    /// session's `setUp()` threw (the entry wrote the sidecar and the
+    /// preview rendered without setup). Same delivery discipline as the
+    /// crash notice: reading consumes the sidecar.
+    public nonisolated static func takeSetupFailureNotice(
+        sessionID: String, setupType: String?
+    ) -> Notice? {
+        guard let type = setupType else { return nil }
+        let sidecar = setupErrorSidecarPath(for: sessionID)
+        guard let text = try? String(contentsOf: sidecar, encoding: .utf8) else { return nil }
+        try? FileManager.default.removeItem(at: sidecar)
+        let detail = String(text.prefix(500))
+        return Notice(
+            code: .setupFailed,
+            message: "Preview setup '\(type)' failed: \(detail). The preview rendered without setup."
+        )
+    }
+
+    /// Remove the session's setup-error sidecar — at init (fresh arming)
+    /// and teardown — so a stale or undelivered file cannot leak or
+    /// mis-arm a later notice.
+    public nonisolated static func removeSetupArtifacts(for sessionID: String) {
+        try? FileManager.default.removeItem(at: setupErrorSidecarPath(for: sessionID))
     }
 
     /// A window placement (content rect) recorded by the agent for a session. The sidecar also
@@ -193,9 +251,16 @@ public actor PreviewSession {
             return (ctx, bulk)
         }
 
+        // Setup wiring is independent of the Tier 2 split: a single-source
+        // target (captured inputs exclude the preview file) must not
+        // silently drop a configured setup (docs/phase-error-protocol.md,
+        // T01/T03). The build-context requirement is the invariant the old
+        // splitContext gate carried implicitly — standalone mode stays
+        // excluded and warned.
         let hasSetup =
-            splitContext != nil
-                && BridgeGenerator.isUsableSetup(module: setupModule, type: setupType)
+            BridgeGenerator.isUsableSetup(module: setupModule, type: setupType)
+                && setupDylibPath != nil
+                && buildContext != nil
 
         var stable: Compiler.StableModule?
         if let (ctx, bulk) = splitContext {
@@ -219,6 +284,7 @@ public actor PreviewSession {
         let snapshotValuesPath = valuesPath.path
         let snapshotStableImport = stable != nil ? splitContext?.0.moduleName : nil
         let snapshotSidecarPath = Self.frameSidecarPath(for: id).path
+        let snapshotSetupErrorPath = hasSetup ? Self.setupErrorSidecarPath(for: id).path : nil
         let generated = await offCooperativePool {
             BridgeGenerator.generateCombinedSource(
                 originalSource: source,
@@ -232,7 +298,8 @@ public actor PreviewSession {
                 designTimeValuesPath: snapshotValuesPath,
                 stableModuleImport: snapshotStableImport,
                 renderWindow: window,
-                frameSidecarPath: snapshotSidecarPath
+                frameSidecarPath: snapshotSidecarPath,
+                setupErrorSidecarPath: snapshotSetupErrorPath
             )
         }
 
@@ -288,11 +355,14 @@ public actor PreviewSession {
         } else {
             // No Tier 2 bulk (e.g. an `@main` target whose only other source is
             // the excluded entry-point file). Carry the build context's compiler
-            // flags so the lone preview compile still finds its dependency modules.
+            // flags so the lone preview compile still finds its dependency
+            // modules, and the setup flags so a wired setup's import resolves
+            // exactly as it does on both split branches.
             objectPath = try await compiler.compileObject(
                 source: generated.source,
                 moduleName: "\(Self.moduleName(for: sourceFile))_\(Self.uniqueModuleToken())",
-                extraFlags: linkFlags
+                extraFlags: linkFlags + setupCompilerFlags,
+                overrideSDK: setupSDKPath
             )
         }
         try Self.writeDesignTimeValues(generated.literals, to: valuesPath)
@@ -310,6 +380,7 @@ public actor PreviewSession {
             dylibPaths: dylibPaths,
             requiresFreshAgent: requiresFreshAgent,
             setupEntrySymbol: hasSetup ? "previewSetUp" : nil,
+            setupErrorSidecarPath: hasSetup ? Self.setupErrorSidecarPath(for: id) : nil,
             windowStateEntrySymbol: window?.headless == false ? "recordPreviewWindowState" : nil
         )
         lastJITBuild = build

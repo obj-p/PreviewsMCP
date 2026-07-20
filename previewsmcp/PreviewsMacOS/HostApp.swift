@@ -243,6 +243,7 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
     /// Close and clean up a preview session. Dropping the session's reloader kills
     /// its agent process, closing the agent-hosted window with it.
     public func closePreview(sessionID: String) {
+        PreviewSession.removeSetupArtifacts(for: sessionID)
         fileWatchers[sessionID]?.stop()
         fileWatchers.removeValue(forKey: sessionID)
         refreshers.removeValue(forKey: sessionID)
@@ -365,9 +366,7 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
         guard let reloader = reloader(for: sessionID) else {
             throw SnapshotError.captureFailed
         }
-        try await withPhase(progress, .rendering, "Rendering preview...") {
-            try await reloader.render(build)
-        }
+        try await reloader.render(build, progress: progress)
         agentImagePaths[sessionID] = build.imagePath
         return build.imagePath
     }

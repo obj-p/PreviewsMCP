@@ -172,8 +172,12 @@ enum PreviewStartHandler: ToolHandler {
         let height = extractOptionalInt("height", from: params) ?? 600
         let headless = extractOptionalBool("headless", from: params) ?? true
 
-        // Detect build system (auto-detect or explicit projectPath)
-        let progress = mcpReporter(server: ctx.server, params: params, totalSteps: 4)
+        // Detect build system (auto-detect or explicit projectPath).
+        // A configured setup adds its own phase to the step count.
+        let progress = mcpReporter(
+            server: ctx.server, params: params,
+            totalSteps: 4 + (config?.setup != nil ? 1 : 0)
+        )
         let buildContext: BuildContext?
         let rebuild: @Sendable () async throws -> BuildContext?
         do {
@@ -193,13 +197,9 @@ enum PreviewStartHandler: ToolHandler {
         } catch {
             return phaseFailureResult(classifiedFailure(error, at: .buildingProject))
         }
-        let standaloneNotice: Notice? =
-            (config?.setup != nil && buildContext == nil)
-                ? Notice(
-                    code: .setupIgnored,
-                    message: "Setup plugin requires a project build system and is ignored in standalone mode."
-                )
-                : nil
+        let standaloneNotice = await standaloneSetupNotice(
+            config: config, buildContext: buildContext, progress: progress
+        )
 
         let sessionID = try await startMacOSPreview(
             fileURL: fileURL, previewIndex: previewIndex,
@@ -214,6 +214,12 @@ enum PreviewStartHandler: ToolHandler {
             progress: progress
         )
 
+        let startNotices = [
+            standaloneNotice,
+            PreviewSession.takeSetupFailureNotice(
+                sessionID: sessionID, setupType: setupResult?.typeName
+            ),
+        ].compactMap { $0 }
         let traitInfo = resolvedTraits.isEmpty ? "" : " Traits: \(traitsSummary(resolvedTraits))."
         let previews = try PreviewParser.parse(fileAt: fileURL)
         let previewList = formatPreviewList(previews: previews, activeIndex: previewIndex)
@@ -229,7 +235,7 @@ enum PreviewStartHandler: ToolHandler {
                 DaemonProtocol.PreviewInfoDTO(from: $0, activeIndex: previewIndex)
             },
             activeIndex: previewIndex,
-            setupWarning: standaloneNotice?.message,
+            setupWarning: startNotices.first?.message,
             appServerPort: nil
         )
         return try appendingNotices(
@@ -241,7 +247,7 @@ enum PreviewStartHandler: ToolHandler {
                 ],
                 structuredContent: structured
             ),
-            standaloneNotice.map { [$0] } ?? []
+            startNotices
         )
     }
 }
@@ -305,7 +311,10 @@ private func handleIOSPreviewStart(
         let headless = extractOptionalBool("headless", from: params) ?? true
 
         // Detect build system
-        let progress = mcpReporter(server: ctx.server, params: params, totalSteps: 9)
+        let progress = mcpReporter(
+            server: ctx.server, params: params,
+            totalSteps: 9 + (config?.setup != nil ? 1 : 0)
+        )
         let buildContext: BuildContext?
         let rebuild: @Sendable () async throws -> BuildContext?
         do {
@@ -320,6 +329,9 @@ private func handleIOSPreviewStart(
             return phaseFailureResult(detectBuildContextFailure(error))
         }
 
+        let standaloneNotice = await standaloneSetupNotice(
+            config: config, buildContext: buildContext, progress: progress
+        )
         stage("buildSetupIfConfigured begin")
         let setupResult: SetupBuilder.Result?
         do {
@@ -394,6 +406,10 @@ private func handleIOSPreviewStart(
         // Wait briefly for the app to launch and render
         try await Task.sleep(for: .seconds(2))
 
+        let startNotices = [
+            standaloneNotice,
+            await session.takeSetupFailureNotice(),
+        ].compactMap { $0 }
         let traitInfo = traits.isEmpty ? "" : " Traits: \(traitsSummary(traits))."
         let previews = try PreviewParser.parse(fileAt: fileURL)
         let previewList = formatPreviewList(previews: previews, activeIndex: previewIndex)
@@ -409,19 +425,22 @@ private func handleIOSPreviewStart(
                 DaemonProtocol.PreviewInfoDTO(from: $0, activeIndex: previewIndex)
             },
             activeIndex: previewIndex,
-            setupWarning: nil,
+            setupWarning: startNotices.first?.message,
             appServerPort: (await session.appServerPort).map(Int.init)
         )
         let viewerHint = structured.appServerPort.map {
             "\nInteractive viewer: http://127.0.0.1:\($0)/ — open it in the in-app browser."
         } ?? ""
-        return try CallTool.Result(
-            content: [
-                .text(
-                    "iOS simulator preview started on device \(deviceUDID). Session ID: \(sessionID). PID: \(pid).\(traitInfo)\(replacedSessionID.map { " Replaced session \($0) on this device." } ?? "") File is being watched for changes.\n\(previewList)\(switchHint)\(viewerHint)"
-                ),
-            ],
-            structuredContent: structured
+        return try appendingNotices(
+            CallTool.Result(
+                content: [
+                    .text(
+                        "iOS simulator preview started on device \(deviceUDID). Session ID: \(sessionID). PID: \(pid).\(traitInfo)\(replacedSessionID.map { " Replaced session \($0) on this device." } ?? "") File is being watched for changes.\n\(previewList)\(switchHint)\(viewerHint)"
+                    ),
+                ],
+                structuredContent: structured
+            ),
+            startNotices
         )
     } catch {
         if let liveSession {
@@ -446,6 +465,21 @@ func detectBuildContextFailure(_ error: Error) -> PhaseFailure {
         .detectingProject
     }
     return classifiedFailure(error, at: phase)
+}
+
+/// The setupIgnored notice for a configured setup in standalone mode
+/// (no build context), reporting the skipped phase boundary so the
+/// start's step count completes. Nil when setup is wired or absent.
+private func standaloneSetupNotice(
+    config: ProjectConfig?, buildContext: BuildContext?,
+    progress: MCPProgressReporter
+) async -> Notice? {
+    guard config?.setup != nil, buildContext == nil else { return nil }
+    await progress.report(.runningSetup, message: "Setup ignored (standalone preview)")
+    return Notice(
+        code: .setupIgnored,
+        message: "Setup plugin requires a project build system and is ignored in standalone mode."
+    )
 }
 
 /// Build the setup package if configured. Returns nil if no setup or standalone mode.

@@ -6,7 +6,7 @@ import Testing
 struct StructuralReloaderTests {
     private actor MockReloader: StructuralReloader {
         private(set) var calls: [(objectPath: URL, entrySymbol: String)] = []
-        func render(_ build: JITRenderBuild) async throws {
+        func render(_ build: JITRenderBuild, progress _: (any ProgressReporter)?) async throws {
             calls.append((objectPath: build.objectPath, entrySymbol: build.entrySymbol))
         }
 

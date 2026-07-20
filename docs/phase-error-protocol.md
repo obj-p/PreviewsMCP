@@ -391,16 +391,24 @@ Three changes, all at the seam the empirical pass isolated:
    path; simulator apps are host processes sharing the filesystem, so the
    same sidecar is expected to work, and stage 3's manual pass explicitly
    verifies the sim-app → host-path → daemon round-trip on the T01
-   fixture before anything is built on it. If the write proves
-   restricted, the named fallback is the agent → daemon JSON channel that
-   already carries `latestJITError` (`IOSAgentChannel.swift:379-381`).
-3. **Make the setup run a phase.** The setup entry falls under the same
-   normative placement rule as the render entry (the phase-clock section
-   above): the `.runningSetup` wrapper sits at the caller layer with a
-   detached ticker, never inside the reloader actor — the setup entry is
-   the same thread-pinning synchronous EPC shape as the render entry. So
-   T03's 8-second setup ticks `Running preview setup... (5s)` instead of
-   holding the start in silence.
+   fixture before anything is built on it. (Verified 2026-07-20: the
+   simulator agent writes the daemon-chosen temporary path and the
+   notice rides the iOS start response.) If the write had proven
+   restricted, the named fallback was the agent → daemon JSON channel
+   that already carries `latestJITError` (`IOSAgentChannel.swift:379-381`).
+3. **Make the setup run a phase.** Stage-3 revision of the placement
+   rule: stage 2's hazards — an actor-isolated ticker behind a
+   thread-pinning call — are both gone once the ticker is detached, the
+   blocking entry runs off-pool, and the reloader serializes its public
+   operations. Given all three, the phase wrappers live **inside** the
+   reloaders, which is what lets setup and render carry distinct labels
+   in their true order (`.runningSetup` before `.rendering`; the setup
+   entry runs mid-sequence on the fresh agent, so no caller can split
+   them). The reloaders' `render` gains an optional reporter; nil —
+   every watcher path — still means no ticker. T03's 8-second setup
+   ticks `Running preview setup... (5s)` instead of holding the start in
+   silence, and a configured setup adds its own step to the start's
+   total.
 
 T03's ordering contract — "finish setup before the first render" — already
 holds once setup is wired: verified 2026-07-16, the wired variant blocked

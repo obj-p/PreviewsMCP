@@ -14,8 +14,10 @@ public protocol StructuralReloader: Sendable {
     /// (binary frameworks the agent `dlopen`s), `archivePaths` (static dependency archives),
     /// and `supportObjectPaths` (the prebuilt stable-module objects from the recompile-
     /// narrowing split). All are empty for the standalone path, where `objectPath` is
-    /// self-contained.
-    func render(_ build: JITRenderBuild) async throws
+    /// self-contained. A non-nil `progress` phases the setup and render
+    /// entries (`.runningSetup` / `.rendering`) with the phase clock;
+    /// watcher-triggered reloads pass nil and stay clock-free.
+    func render(_ build: JITRenderBuild, progress: (any ProgressReporter)?) async throws
 
     /// Re-raster the live agent window to its image path by running `entrySymbol`
     /// (the generated `snapshotPreviewWindow`) on the live session's main thread, for a
@@ -26,4 +28,8 @@ public protocol StructuralReloader: Sendable {
 
 public extension StructuralReloader {
     func snapshotLiveWindow(entrySymbol _: String) async throws {}
+
+    func render(_ build: JITRenderBuild) async throws {
+        try await render(build, progress: nil)
+    }
 }

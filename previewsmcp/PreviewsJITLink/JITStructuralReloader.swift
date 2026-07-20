@@ -26,8 +26,10 @@ public actor JITStructuralReloader: StructuralReloader {
         self.generationCap = generationCap
     }
 
-    public func render(_ build: JITRenderBuild) async throws {
-        try await serialized { try await self.performRender(build) }
+    public func render(
+        _ build: JITRenderBuild, progress: (any ProgressReporter)?
+    ) async throws {
+        try await serialized { try await self.performRender(build, progress: progress) }
     }
 
     /// Re-raster the live window to the current build's image path by running the generated
@@ -59,12 +61,14 @@ public actor JITStructuralReloader: StructuralReloader {
         return try await task.value
     }
 
-    private func performRender(_ build: JITRenderBuild) async throws {
+    private func performRender(
+        _ build: JITRenderBuild, progress: (any ProgressReporter)?
+    ) async throws {
         // Literal re-render: the same object is already linked in the live generation, so just
         // re-run its entry. It re-seeds DesignTimeStore from the (rewritten) values JSON, with
         // no new JITDylib and no re-link (which would re-register the object's classes).
         if let session, build.objectPath == lastObjectPath {
-            try await runRenderEntry(session, build, label: "render-entry-literal")
+            try await runRenderEntry(session, build, label: "render-entry-literal", progress: progress)
             return
         }
 
@@ -76,13 +80,12 @@ public actor JITStructuralReloader: StructuralReloader {
             try session.newGeneration()
             try link(build, into: session)
             // Setup runs once per agent process (its plugin state lives for the process's
-            // lifetime), so re-run after a respawn but not per generation. The entry is
-            // void; the wrapper's status word is meaningless for it.
+            // lifetime), so re-run after a respawn but not per generation.
             if let setupEntry = build.setupEntrySymbol, !didRunSetUp {
-                _ = try await runOnMainOffPool(session, setupEntry)
+                try await runSetupEntry(session, build, setupEntry, progress: progress)
                 didRunSetUp = true
             }
-            try await runRenderEntry(session, build)
+            try await runRenderEntry(session, build, progress: progress)
             lastObjectPath = build.objectPath
             return
         }
@@ -95,9 +98,9 @@ public actor JITStructuralReloader: StructuralReloader {
         )
         try link(build, into: fresh)
         if let setupEntry = build.setupEntrySymbol {
-            _ = try await runOnMainOffPool(fresh, setupEntry)
+            try await runSetupEntry(fresh, build, setupEntry, progress: progress)
         }
-        try await runRenderEntry(fresh, build)
+        try await runRenderEntry(fresh, build, progress: progress)
         // The fresh agent's window is up; replacing the session now kills the old agent.
         session = fresh
         generation = 1
@@ -146,14 +149,37 @@ public actor JITStructuralReloader: StructuralReloader {
     }
 
     private func runRenderEntry(
-        _ session: JITSession, _ build: JITRenderBuild, label: String = "render-entry"
+        _ session: JITSession, _ build: JITRenderBuild, label: String = "render-entry",
+        progress: (any ProgressReporter)? = nil
     ) async throws {
         let mark = ContinuousClock.now
-        let status = try await runOnMainOffPool(session, build.entrySymbol)
+        nonisolated(unsafe) let session = session
+        let status = try await withPhase(progress, .rendering, "Rendering preview...") {
+            try await self.runOnMainOffPool(session, build.entrySymbol)
+        }
         guard status == 0 else {
             throw JITReloadError.renderFailed(status: status)
         }
         Log.info("jit_latency: \(label) \(Log.millis(mark, ContinuousClock.now))ms")
+    }
+
+    /// Run the setup entry under the `.runningSetup` phase. A nonzero
+    /// status means `setUp()` ran and threw: the render proceeds without
+    /// setup — the documented contract — so the status is disclosure,
+    /// not a throw, and the reloader guarantees the sidecar exists (the
+    /// status is the reliable signal; the agent-side detail write is
+    /// best-effort). An entry that fails to RUN — agent death, transport
+    /// error — propagates like any other entry failure: swallowing it
+    /// would misattribute the death to the render phase.
+    private func runSetupEntry(
+        _ session: JITSession, _ build: JITRenderBuild, _ entrySymbol: String,
+        progress: (any ProgressReporter)?
+    ) async throws {
+        nonisolated(unsafe) let session = session
+        let status = try await withPhase(progress, .runningSetup, "Running preview setup...") {
+            try await self.runOnMainOffPool(session, entrySymbol)
+        }
+        build.recordSetupFailure(status: status)
     }
 
     /// Run a JIT entry on the agent's main thread from a GCD queue: the

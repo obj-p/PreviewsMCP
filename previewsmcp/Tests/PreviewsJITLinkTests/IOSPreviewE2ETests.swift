@@ -877,7 +877,7 @@ private final class CapturingReloader: IOSStructuralReloader, @unchecked Sendabl
         self.session = session
     }
 
-    func render(_: JITRenderBuild) async throws {}
+    func render(_: JITRenderBuild, progress _: (any ProgressReporter)?) async throws {}
 }
 
 /// Wraps a real reloader and records the object path of every rendered build, so a test
@@ -891,7 +891,7 @@ private final class RecordingReloader: IOSStructuralReloader, @unchecked Sendabl
         self.inner = inner
     }
 
-    func render(_ build: JITRenderBuild) async throws {
+    func render(_ build: JITRenderBuild, progress _: (any ProgressReporter)?) async throws {
         lock.withLock { paths.append(build.objectPath.path) }
         try await inner.render(build)
     }
@@ -912,7 +912,7 @@ private final class ConcurrencyTrackingReloader: IOSStructuralReloader, @uncheck
         self.inner = inner
     }
 
-    func render(_ build: JITRenderBuild) async throws {
+    func render(_ build: JITRenderBuild, progress _: (any ProgressReporter)?) async throws {
         lock.withLock {
             active += 1
             maxActive = max(maxActive, active)
@@ -975,7 +975,7 @@ private final class GatedReloader: IOSStructuralReloader, @unchecked Sendable {
         cont?.resume()
     }
 
-    func render(_ build: JITRenderBuild) async throws {
+    func render(_ build: JITRenderBuild, progress _: (any ProgressReporter)?) async throws {
         if shouldGate {
             await withCheckedContinuation { cont in
                 lock.withLock {

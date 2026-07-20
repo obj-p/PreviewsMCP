@@ -13,6 +13,14 @@ import Foundation
 public protocol IOSStructuralReloader: Sendable {
     /// Link and render `build`'s entry over the EPC connection, first linking the target's
     /// dependency `dylibPaths` / `archivePaths` / `supportObjectPaths` (all empty for the
-    /// standalone path, where `objectPath` is self-contained).
-    func render(_ build: JITRenderBuild) async throws
+    /// standalone path, where `objectPath` is self-contained). A non-nil
+    /// `progress` phases the setup and render entries; hot-reload paths
+    /// pass nil and stay clock-free.
+    func render(_ build: JITRenderBuild, progress: (any ProgressReporter)?) async throws
+}
+
+public extension IOSStructuralReloader {
+    func render(_ build: JITRenderBuild) async throws {
+        try await render(build, progress: nil)
+    }
 }
