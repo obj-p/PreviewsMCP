@@ -213,6 +213,33 @@ func classifiedFailure(_ error: Error, at phase: BuildPhase) -> PhaseFailure {
     )
 }
 
+/// Classify a JIT materialization failure whose combined error text names
+/// unresolved symbols (the ORC reporter capture, stage 4 of
+/// docs/phase-error-protocol.md). Nil when the error is anything else.
+func unresolvedSymbolsFailure(from error: Error) -> PhaseFailure? {
+    let text = error.localizedDescription
+    guard let listRange = text.range(
+        of: #"Symbols not found: \[[^\]]*\]"#, options: .regularExpression
+    ) else { return nil }
+    let list = text[listRange]
+    let symbols = list
+        .dropFirst("Symbols not found: [".count).dropLast(1)
+        .split(separator: ",")
+        .map { $0.trimmingCharacters(in: .whitespaces) }
+        .filter { !$0.isEmpty }
+    guard !symbols.isEmpty else { return nil }
+    let shown = symbols.prefix(3).joined(separator: ", ")
+    let suffix = symbols.count > 3 ? ", …" : ""
+    return PhaseFailure(
+        phase: .rendering,
+        code: .unresolvedSymbols,
+        message: "JIT link could not resolve \(symbols.count) symbol(s): \(shown)\(suffix)",
+        detail: String(list.prefix(2000)),
+        remediation: "The target may rely on autolinked frameworks the preview JIT does not load; "
+            + "link them explicitly in the target, or keep the symbol's dependency out of preview code."
+    )
+}
+
 /// Classified error for a session whose agent is terminally gone, or nil
 /// while healthy. Session-scoped handlers return this instead of
 /// operating on a dead session (docs/state-invalidation.md, L04).

@@ -201,18 +201,29 @@ enum PreviewStartHandler: ToolHandler {
             config: config, buildContext: buildContext, progress: progress
         )
 
-        let sessionID = try await startMacOSPreview(
-            fileURL: fileURL, previewIndex: previewIndex,
-            title: "Preview: \(fileURL.lastPathComponent)",
-            width: width, height: height,
-            compiler: ctx.macCompiler, buildContext: buildContext,
-            traits: resolvedTraits,
-            setupResult: setupResult,
-            headless: headless,
-            host: ctx.host,
-            refresh: rebuild,
-            progress: progress
-        )
+        let sessionID: String
+        do {
+            sessionID = try await startMacOSPreview(
+                fileURL: fileURL, previewIndex: previewIndex,
+                title: "Preview: \(fileURL.lastPathComponent)",
+                width: width, height: height,
+                compiler: ctx.macCompiler, buildContext: buildContext,
+                traits: resolvedTraits,
+                setupResult: setupResult,
+                headless: headless,
+                host: ctx.host,
+                refresh: rebuild,
+                progress: progress
+            )
+        } catch {
+            if let unresolved = unresolvedSymbolsFailure(from: error) {
+                return phaseFailureResult(unresolved)
+            }
+            if let failure = error as? PhaseFailure {
+                return phaseFailureResult(failure)
+            }
+            throw error
+        }
 
         let startNotices = [
             standaloneNotice,
@@ -448,6 +459,12 @@ private func handleIOSPreviewStart(
             await ctx.iosState.removeSession(liveSession.id)
         } else {
             await ctx.iosState.releaseDeviceClaim(deviceUDID, owner: claimOwner)
+        }
+        if let unresolved = unresolvedSymbolsFailure(from: error) {
+            return phaseFailureResult(unresolved)
+        }
+        if let failure = error as? PhaseFailure {
+            return phaseFailureResult(failure)
         }
         throw error
     }

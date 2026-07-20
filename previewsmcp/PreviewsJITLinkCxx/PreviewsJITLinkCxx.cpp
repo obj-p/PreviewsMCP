@@ -301,9 +301,41 @@ struct previewsmcp_jit_session {
   llvm::orc::ExecutorAddr runOnMain;
   pid_t agentPid = 0;
   bool initialized = false;
+  // Errors ORC routed through the session reporter during the CURRENT
+  // materialization attempt (docs/phase-error-protocol.md): the
+  // underlying "Symbols not found: [...]" surfaces here while lookup
+  // returns only the flattened wrapper. Cleared at each entry attempt,
+  // drained into the returned error on failure.
+  std::mutex reportedErrorsMutex;
+  std::string reportedErrors;
 };
 
 namespace {
+void clearReportedErrors(previewsmcp_jit_session *session) {
+  std::lock_guard<std::mutex> lock(session->reportedErrorsMutex);
+  session->reportedErrors.clear();
+}
+
+// Combine the flattened error with whatever the session reporter captured
+// during this attempt, so the symbol dump travels WITH the failure instead
+// of beside it in the log.
+const char *toCStrWithReports(llvm::Error err,
+                              previewsmcp_jit_session *session) {
+  if (!err) {
+    return nullptr;
+  }
+  auto text = llvm::toString(std::move(err));
+  {
+    std::lock_guard<std::mutex> lock(session->reportedErrorsMutex);
+    if (!session->reportedErrors.empty()) {
+      text += "\n";
+      text += session->reportedErrors;
+      session->reportedErrors.clear();
+    }
+  }
+  return strdup(text.c_str());
+}
+
 llvm::Expected<llvm::orc::ExecutorAddr>
 lookupInitialized(previewsmcp_jit_session *session, const char *symbol_name) {
   {
@@ -436,6 +468,20 @@ createRemoteSessionFromFDs(previewsmcp_jit_session **out_session, int inFd,
   session->jit = session->ownedJit.get();
   session->runOnMain = runOnMain;
   session->agentPid = pid;
+  // The default reporter prints to stderr and drops the text. Capture it
+  // per attempt (and still log — the log keeps its copy). The raw pointer
+  // capture is safe: destroy() tears down the ExecutionSession before the
+  // session is deleted, so the reporter cannot outlive it.
+  session->jit->getExecutionSession().setErrorReporter(
+      [session](llvm::Error err) {
+        auto text = llvm::toString(std::move(err));
+        llvm::errs() << "JIT session error: " << text << "\n";
+        std::lock_guard<std::mutex> lock(session->reportedErrorsMutex);
+        if (!session->reportedErrors.empty()) {
+          session->reportedErrors += "\n";
+        }
+        session->reportedErrors += text;
+      });
   static std::atomic<uint64_t> counter{0};
   auto jd = session->jit->createJITDylib("remote." +
                                          std::to_string(counter.fetch_add(1)));
@@ -494,15 +540,16 @@ const char *previewsmcp_jit_remote_session_create_from_fd(
 const char *previewsmcp_jit_session_run_main(previewsmcp_jit_session *session,
                                              const char *symbol_name,
                                              int32_t *out_result) {
+  clearReportedErrors(session);
   auto sym = lookupInitialized(session, symbol_name);
   if (!sym) {
-    return toCStr(sym.takeError());
+    return toCStrWithReports(sym.takeError(), session);
   }
   auto result =
       session->jit->getExecutionSession().getExecutorProcessControl().runAsMain(
           *sym, {});
   if (!result) {
-    return toCStr(result.takeError());
+    return toCStrWithReports(result.takeError(), session);
   }
   *out_result = *result;
   return nullptr;
@@ -515,16 +562,17 @@ previewsmcp_jit_session_run_on_main(previewsmcp_jit_session *session,
   if (!session->runOnMain) {
     return strdup("run_on_main requires a remote session");
   }
+  clearReportedErrors(session);
   auto sym = lookupInitialized(session, symbol_name);
   if (!sym) {
-    return toCStr(sym.takeError());
+    return toCStrWithReports(sym.takeError(), session);
   }
   auto &epc = session->jit->getExecutionSession().getExecutorProcessControl();
   int32_t result = 0;
   if (auto err =
           epc.callSPSWrapper<int32_t(llvm::orc::shared::SPSExecutorAddr)>(
               session->runOnMain, result, *sym)) {
-    return toCStr(std::move(err));
+    return toCStrWithReports(std::move(err), session);
   }
   *out_result = result;
   return nullptr;
@@ -590,9 +638,10 @@ previewsmcp_jit_session_new_generation(previewsmcp_jit_session *session) {
 const char *previewsmcp_jit_session_lookup(previewsmcp_jit_session *session,
                                            const char *symbol_name,
                                            uint64_t *out_address) {
+  clearReportedErrors(session);
   auto sym = lookupInitialized(session, symbol_name);
   if (!sym) {
-    return toCStr(sym.takeError());
+    return toCStrWithReports(sym.takeError(), session);
   }
   *out_address = sym->getValue();
   return nullptr;

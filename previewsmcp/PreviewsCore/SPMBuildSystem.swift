@@ -492,11 +492,53 @@ public actor SPMBuildSystem: BuildSystem {
             arguments: args, workingDirectory: projectRoot
         )
         guard result.exitCode == 0 else {
+            let stderr = result.stderr.isEmpty ? result.stdout : result.stderr
+            if let classified = await incompatibleSliceFailure(stderr: stderr, platform: platform) {
+                throw classified
+            }
             throw BuildSystemError.buildFailed(
-                stderr: result.stderr.isEmpty ? result.stdout : result.stderr,
+                stderr: stderr,
                 exitCode: result.exitCode
             )
         }
+    }
+
+    /// F01 enricher (docs/phase-error-protocol.md): a `no such module`
+    /// naming a declared binary target whose XCFramework has no slice for
+    /// the requested platform classifies as `incompatibleSlice`. Any miss
+    /// in the chain degrades to the plain build failure — the enricher can
+    /// only ever add information.
+    private func incompatibleSliceFailure(
+        stderr: String, platform: PreviewPlatform
+    ) async -> PhaseFailure? {
+        guard let moduleRange = stderr.range(
+            of: #"no such module '([A-Za-z_][A-Za-z0-9_]*)'"#, options: .regularExpression
+        ) else { return nil }
+        let module = String(
+            stderr[moduleRange].dropFirst("no such module '".count).dropLast(1)
+        )
+        guard let description = try? await describePackage(),
+              let binary = description.targets.first(where: {
+                  $0.name == module && $0.type == "binary"
+              })
+        else { return nil }
+        let declared = projectRoot.appendingPathComponent(binary.path).standardizedFileURL
+        let artifact = FileManager.default.fileExists(atPath: declared.path)
+            ? declared
+            : projectRoot.appendingPathComponent(
+                ".build/artifacts/\(description.name.lowercased())/\(module)/\(module).xcframework"
+            )
+        guard let identifiers = XCFrameworkSlices.availableIdentifiers(in: artifact),
+              !XCFrameworkSlices.hasSlice(in: artifact, for: platform)
+        else { return nil }
+        let sliceLabel = platform == .iOS ? "an iOS simulator" : "a macOS"
+        return PhaseFailure(
+            phase: .buildingProject,
+            code: .incompatibleSlice,
+            message: "XCFramework '\(module)' has no \(platform == .iOS ? "iOS simulator" : "macOS") slice (available: \(identifiers.joined(separator: ", "))).",
+            detail: "The preview builds for \(platform == .iOS ? "the iOS simulator" : "macOS") and needs \(sliceLabel) slice.",
+            remediation: "Rebuild the XCFramework including \(sliceLabel) slice."
+        )
     }
 
     private func showBinPath(platform: PreviewPlatform, iosSDKPath: String?) async throws -> URL {
