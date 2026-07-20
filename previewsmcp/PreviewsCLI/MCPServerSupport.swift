@@ -186,7 +186,6 @@ func classifiedFailure(_ error: Error, at phase: BuildPhase) -> PhaseFailure {
     )
 }
 
-
 /// Classified error for a session whose agent is terminally gone, or nil
 /// while healthy. Session-scoped handlers return this instead of
 /// operating on a dead session (docs/state-invalidation.md, L04).

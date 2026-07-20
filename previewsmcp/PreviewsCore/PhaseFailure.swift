@@ -27,7 +27,9 @@ public struct PhaseFailure: Error, LocalizedError, Sendable {
         self.remediation = remediation
     }
 
-    public var errorDescription: String? { message }
+    public var errorDescription: String? {
+        message
+    }
 }
 
 /// Only codes a designed flow actually produces; a case is added when a

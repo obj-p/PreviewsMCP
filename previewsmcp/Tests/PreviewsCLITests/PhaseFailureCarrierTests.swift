@@ -7,7 +7,7 @@ import Testing
 @Suite("Phase failure and notice carriers")
 struct PhaseFailureCarrierTests {
     @Test("phaseFailureResult formats phase, message, detail, and remediation")
-    func failureResultShape() throws {
+    func failureResultShape() {
         let result = phaseFailureResult(
             PhaseFailure(
                 phase: .buildingProject, code: .incompatibleSlice,
