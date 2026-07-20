@@ -1,0 +1,292 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0EE5CD2EF5133B1BDFD72F6E /* BridgingApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDC74421F14BC82D4AF43987 /* BridgingApp.swift */; };
+		14094D06C15C6BBB30FE9B40 /* BridgingPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94C71D8845DAEC86462C8719 /* BridgingPreview.swift */; };
+		E5A1DD20841432CC424DF803 /* BridgedGreeting.m in Sources */ = {isa = PBXBuildFile; fileRef = E590F1C77AEFA5BB6348296A /* BridgedGreeting.m */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		5664B1B162DB903CF5CC8310 /* BridgingApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BridgingApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		7A226C2E9B3222A7603BFEEC /* BridgingApp-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "BridgingApp-Bridging-Header.h"; sourceTree = "<group>"; };
+		94C71D8845DAEC86462C8719 /* BridgingPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BridgingPreview.swift; sourceTree = "<group>"; };
+		C0A861A98492AAB63655F3B3 /* BridgedGreeting.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BridgedGreeting.h; sourceTree = "<group>"; };
+		DDC74421F14BC82D4AF43987 /* BridgingApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BridgingApp.swift; sourceTree = "<group>"; };
+		E590F1C77AEFA5BB6348296A /* BridgedGreeting.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BridgedGreeting.m; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		B51A353C48F5BA2D58FA9F78 = {
+			isa = PBXGroup;
+			children = (
+				E709545FF8BD1F87F5CA5B68 /* Sources */,
+				E855EE898FFEF53BA0871BBD /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		E709545FF8BD1F87F5CA5B68 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				C0A861A98492AAB63655F3B3 /* BridgedGreeting.h */,
+				E590F1C77AEFA5BB6348296A /* BridgedGreeting.m */,
+				7A226C2E9B3222A7603BFEEC /* BridgingApp-Bridging-Header.h */,
+				DDC74421F14BC82D4AF43987 /* BridgingApp.swift */,
+				94C71D8845DAEC86462C8719 /* BridgingPreview.swift */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		E855EE898FFEF53BA0871BBD /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				5664B1B162DB903CF5CC8310 /* BridgingApp.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		62AA03956217977FEA7372DE /* BridgingApp */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B07DC213339D95CDEC56408F /* Build configuration list for PBXNativeTarget "BridgingApp" */;
+			buildPhases = (
+				D90E2F6F94B0B49D0D5E8E41 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = BridgingApp;
+			packageProductDependencies = (
+			);
+			productName = BridgingApp;
+			productReference = 5664B1B162DB903CF5CC8310 /* BridgingApp.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		B09E40DF547CA0A70108FA4D /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+				};
+			};
+			buildConfigurationList = 329B51F212147E894801DF46 /* Build configuration list for PBXProject "BridgingApp" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = B51A353C48F5BA2D58FA9F78;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = E855EE898FFEF53BA0871BBD /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				62AA03956217977FEA7372DE /* BridgingApp */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		D90E2F6F94B0B49D0D5E8E41 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E5A1DD20841432CC424DF803 /* BridgedGreeting.m in Sources */,
+				0EE5CD2EF5133B1BDFD72F6E /* BridgingApp.swift in Sources */,
+				14094D06C15C6BBB30FE9B40 /* BridgingPreview.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		0A88BDC0D1AE7F3CD581D0C8 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = io.previewsmcp.regress.bridging;
+				SDKROOT = macosx;
+				SWIFT_OBJC_BRIDGING_HEADER = "Sources/BridgingApp-Bridging-Header.h";
+			};
+			name = Release;
+		};
+		25B644820157B7A6E4739A67 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		38E1820B1C3C44BE3ECBB1E8 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		7E357FA226D0C4609D204A3A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = io.previewsmcp.regress.bridging;
+				SDKROOT = macosx;
+				SWIFT_OBJC_BRIDGING_HEADER = "Sources/BridgingApp-Bridging-Header.h";
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		329B51F212147E894801DF46 /* Build configuration list for PBXProject "BridgingApp" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				25B644820157B7A6E4739A67 /* Debug */,
+				38E1820B1C3C44BE3ECBB1E8 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		B07DC213339D95CDEC56408F /* Build configuration list for PBXNativeTarget "BridgingApp" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				7E357FA226D0C4609D204A3A /* Debug */,
+				0A88BDC0D1AE7F3CD581D0C8 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = B09E40DF547CA0A70108FA4D /* Project object */;
+}

@@ -12,14 +12,17 @@ import Testing
 /// they guard. Rows whose regression would still render (D05's tie-break)
 /// assert the daemon's ownership log line instead of pixels.
 ///
-/// This first tranche covers the rows that need no Xcode build, no
+/// The first tranche covers the rows that need no Xcode build, no
 /// simulator, no artifact generation, and no network: the deterministic
-/// macOS SwiftPM and error-contract rows. Rows staying manual-only for a
-/// named flake reason: W03 (FSEvents timing, #298), L05 (concurrency),
-/// S05/S06 (swift-syntax fetch), M01/M02 (launch assertions elsewhere).
-/// Future tranches that need simulators, artifact generation, or network
-/// must land in a separate test target, not this file — this target's
-/// glob feeds the required `ci` gate.
+/// macOS SwiftPM and error-contract rows. The second tranche adds the
+/// macOS Xcode rows (D01, D03, D08, X02), which build through
+/// `xcodebuild` but still need no simulator, artifact generation, or
+/// network — every fixture's generated project is committed. Rows
+/// staying manual-only for a named flake reason: W03 (FSEvents timing,
+/// #298), L05 (concurrency), S05/S06 (swift-syntax fetch), M01/M02
+/// (launch assertions elsewhere). Future tranches that need simulators,
+/// artifact generation, or network must land in a separate test target,
+/// not this file — this target's glob feeds the required `ci` gate.
 @Suite("Regress guard rows", .serialized)
 struct RegressGuardTests {
     private static func cleanSlate() async throws {
@@ -100,6 +103,18 @@ struct RegressGuardTests {
 
     // MARK: - Detection rows
 
+    /// D01: an Xcode project nested below a distant Bazel root is selected
+    /// and renders; the walk confirms membership in the nearer project.
+    /// Previously the distant root claimed the file and failed.
+    @Test("D01: nested Xcode project below a Bazel root", .timeLimit(.minutes(5)))
+    func d01NestedXcodeBelowBazelRoot() async throws {
+        try await Self.assertRenders(
+            "detection/mixed-marker-workspace/XcodeOnlyApp/Sources/MarkerPreview.swift"
+        ) {
+            try await Self.assertOwnershipLogged(kind: "xcode", fileName: "MarkerPreview.swift")
+        }
+    }
+
     /// D02: a Swift package nested below a Bazel root is selected and renders.
     @Test("D02: nested package below a Bazel root", .timeLimit(.minutes(5)))
     func d02NestedPackageBelowBazelRoot() async throws {
@@ -107,6 +122,19 @@ struct RegressGuardTests {
             "detection/mixed-marker-workspace/NestedPackage/Sources/NestedPackage/NestedPackagePreview.swift"
         ) {
             try await Self.assertOwnershipLogged(kind: "spm", fileName: "NestedPackagePreview.swift")
+        }
+    }
+
+    /// D03: an Xcode project below an outer `Package.swift` is selected —
+    /// the outer package must not claim the file.
+    @Test("D03: nested Xcode project below an outer package", .timeLimit(.minutes(5)))
+    func d03NestedXcodeBelowOuterPackage() async throws {
+        try await Self.assertRenders(
+            "detection/outer-spm-workspace/NestedXcode/Sources/OuterBoundaryPreview.swift"
+        ) {
+            try await Self.assertOwnershipLogged(
+                kind: "xcode", fileName: "OuterBoundaryPreview.swift"
+            )
         }
     }
 
@@ -142,6 +170,30 @@ struct RegressGuardTests {
             "generated-project-state/stale-output/Sources/NewPreview.swift",
             containing: ["StaleOutput.xcodeproj", "NewPreview.swift", "stale"]
         )
+    }
+
+    /// D08: one scheme builds multiple targets; membership selects the
+    /// target that owns the source. Previously the file compiled as the
+    /// sibling module and failed.
+    @Test("D08: multi-target scheme selects the owning target", .timeLimit(.minutes(5)))
+    func d08MultiTargetOwnership() async throws {
+        try await Self.assertRenders(
+            "generated-project-state/multi-target/Sources/Beta/BetaPreview.swift"
+        ) {
+            try await Self.assertOwnershipLogged(kind: "xcode", fileName: "BetaPreview.swift")
+        }
+    }
+
+    // MARK: - Xcode compile-capture rows
+
+    /// X02: an Objective-C bridging header on an Xcode target forwards
+    /// through the captured compile command (`-import-objc-header`) and
+    /// the target's ObjC objects link into the JIT. A regression is a
+    /// loud failure — `BridgedGreeting` is visible only through the
+    /// header.
+    @Test("X02: bridging header forwarded and ObjC linked", .timeLimit(.minutes(5)))
+    func x02BridgingHeader() async throws {
+        try await Self.assertRenders("xcode-bridging/Sources/BridgingPreview.swift")
     }
 
     // MARK: - SwiftPM compile-capture rows
