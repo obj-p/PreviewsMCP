@@ -28,6 +28,11 @@ public struct JITRenderBuild: Sendable {
     /// The generated `@_cdecl` setup entry (`previewSetUp`), present when the session has a
     /// setup plugin. The reloader runs it once per agent process before the first render.
     public let setupEntrySymbol: String?
+    /// Where the setup entry records a thrown `setUp()` error. The reloader
+    /// writes a fallback marker here when the entry reports failure but the
+    /// agent-side write did not land — the status is the reliable signal,
+    /// the sidecar only the detail carrier (docs/phase-error-protocol.md).
+    public let setupErrorSidecarPath: URL?
     /// The generated `@_cdecl` window-state entry (`recordPreviewWindowState`), present for
     /// visible macOS sessions. The reloader runs it after a respawn handoff kills the outgoing
     /// agent, so the sidecar's last write describes the surviving window (#254).
@@ -44,6 +49,7 @@ public struct JITRenderBuild: Sendable {
         dylibPaths: [URL] = [],
         requiresFreshAgent: Bool = false,
         setupEntrySymbol: String? = nil,
+        setupErrorSidecarPath: URL? = nil,
         windowStateEntrySymbol: String? = nil
     ) {
         self.objectPath = objectPath
@@ -56,6 +62,7 @@ public struct JITRenderBuild: Sendable {
         self.dylibPaths = dylibPaths
         self.requiresFreshAgent = requiresFreshAgent
         self.setupEntrySymbol = setupEntrySymbol
+        self.setupErrorSidecarPath = setupErrorSidecarPath
         self.windowStateEntrySymbol = windowStateEntrySymbol
     }
 }
@@ -78,7 +85,7 @@ public actor PreviewSession {
     private var buildContext: BuildContext?
     private var traits: PreviewTraits
     private let setupModule: String?
-    private let setupType: String?
+    public nonisolated let setupType: String?
     private let setupCompilerFlags: [String]
     private let setupSDKPath: String?
     private let setupDylibPath: URL?
@@ -132,6 +139,9 @@ public actor PreviewSession {
         self.setupCompilerFlags = setupCompilerFlags
         self.setupSDKPath = setupSDKPath
         self.setupDylibPath = setupDylibPath
+        // Fresh arming: a leftover or pre-created sidecar at this path must
+        // never surface as this session's setup failure.
+        try? FileManager.default.removeItem(at: Self.setupErrorSidecarPath(for: id))
     }
 
     /// Session-stable path the agent's bridge writes the live window frame to, so a respawned
@@ -160,10 +170,17 @@ public actor PreviewSession {
         guard let text = try? String(contentsOf: sidecar, encoding: .utf8) else { return nil }
         try? FileManager.default.removeItem(at: sidecar)
         let type = setupType ?? "setup"
+        let detail = String(text.prefix(500))
         return Notice(
             code: .setupFailed,
-            message: "Preview setup '\(type)' failed: \(text). The preview rendered without setup."
+            message: "Preview setup '\(type)' failed: \(detail). The preview rendered without setup."
         )
+    }
+
+    /// Remove the session's setup-error sidecar at teardown so an
+    /// undelivered late failure cannot leak or go stale.
+    public nonisolated static func removeSetupArtifacts(for sessionID: String) {
+        try? FileManager.default.removeItem(at: setupErrorSidecarPath(for: sessionID))
     }
 
     /// A window placement (content rect) recorded by the agent for a session. The sidecar also
@@ -346,6 +363,7 @@ public actor PreviewSession {
             dylibPaths: dylibPaths,
             requiresFreshAgent: requiresFreshAgent,
             setupEntrySymbol: hasSetup ? "previewSetUp" : nil,
+            setupErrorSidecarPath: hasSetup ? Self.setupErrorSidecarPath(for: id) : nil,
             windowStateEntrySymbol: window?.headless == false ? "recordPreviewWindowState" : nil
         )
         lastJITBuild = build

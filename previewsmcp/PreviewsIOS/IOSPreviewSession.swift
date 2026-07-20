@@ -481,6 +481,9 @@ public actor IOSPreviewSession {
     /// Close the socket connection and clean up resources. Idempotent —
     /// `IOSAgentChannel.close()` is safe to call when nothing was opened.
     public func stop() async {
+        if let session {
+            PreviewSession.removeSetupArtifacts(for: session.id)
+        }
         stopping = true
         rebuildContext = nil
         onEvidenceRefresh = nil

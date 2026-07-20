@@ -82,7 +82,7 @@ public actor JITStructuralReloader: StructuralReloader {
             // Setup runs once per agent process (its plugin state lives for the process's
             // lifetime), so re-run after a respawn but not per generation.
             if let setupEntry = build.setupEntrySymbol, !didRunSetUp {
-                await runSetupEntry(session, setupEntry, progress: progress)
+                try await runSetupEntry(session, build, setupEntry, progress: progress)
                 didRunSetUp = true
             }
             try await runRenderEntry(session, build, progress: progress)
@@ -98,7 +98,7 @@ public actor JITStructuralReloader: StructuralReloader {
         )
         try link(build, into: fresh)
         if let setupEntry = build.setupEntrySymbol {
-            await runSetupEntry(fresh, setupEntry, progress: progress)
+            try await runSetupEntry(fresh, build, setupEntry, progress: progress)
         }
         try await runRenderEntry(fresh, build, progress: progress)
         // The fresh agent's window is up; replacing the session now kills the old agent.
@@ -164,21 +164,37 @@ public actor JITStructuralReloader: StructuralReloader {
     }
 
     /// Run the setup entry under the `.runningSetup` phase. A nonzero
-    /// status means `setUp()` threw: the entry already recorded the error
-    /// (sidecar + kit flag) and the render proceeds without setup — the
-    /// documented contract — so the status is disclosure, not a throw.
-    /// An entry that fails to run at all is likewise disclosure-only.
+    /// status means `setUp()` ran and threw: the render proceeds without
+    /// setup — the documented contract — so the status is disclosure,
+    /// not a throw, and the reloader guarantees the sidecar exists (the
+    /// status is the reliable signal; the agent-side detail write is
+    /// best-effort). An entry that fails to RUN — agent death, transport
+    /// error — propagates like any other entry failure: swallowing it
+    /// would misattribute the death to the render phase.
     private func runSetupEntry(
-        _ session: JITSession, _ entrySymbol: String,
+        _ session: JITSession, _ build: JITRenderBuild, _ entrySymbol: String,
         progress: (any ProgressReporter)?
-    ) async {
+    ) async throws {
         nonisolated(unsafe) let session = session
-        let status = (try? await withPhase(progress, .runningSetup, "Running preview setup...") {
+        let status = try await withPhase(progress, .runningSetup, "Running preview setup...") {
             try await self.runOnMainOffPool(session, entrySymbol)
-        }) ?? -1
+        }
         if status != 0 {
             Log.error("preview setup entry reported failure (status \(status))")
+            Self.ensureSetupFailureRecorded(build, status: status)
         }
+    }
+
+    /// The daemon-side backstop for the agent's best-effort sidecar
+    /// write: a nonzero status with no recorded detail still arms the
+    /// setupFailed notice instead of silently rendering without setup.
+    static func ensureSetupFailureRecorded(_ build: JITRenderBuild, status: Int32) {
+        guard let sidecar = build.setupErrorSidecarPath,
+              !FileManager.default.fileExists(atPath: sidecar.path)
+        else { return }
+        try? "setUp() failed (status \(status)) and recorded no detail".write(
+            to: sidecar, atomically: true, encoding: .utf8
+        )
     }
 
     /// Run a JIT entry on the agent's main thread from a GCD queue: the

@@ -243,6 +243,7 @@ public class PreviewHost: NSObject, NSApplicationDelegate {
     /// Close and clean up a preview session. Dropping the session's reloader kills
     /// its agent process, closing the agent-hosted window with it.
     public func closePreview(sessionID: String) {
+        PreviewSession.removeSetupArtifacts(for: sessionID)
         fileWatchers[sessionID]?.stop()
         fileWatchers.removeValue(forKey: sessionID)
         refreshers.removeValue(forKey: sessionID)

@@ -52,11 +52,12 @@ public actor IOSJITStructuralReloader: IOSStructuralReloader {
         lastObjectPath = build.objectPath
 
         if let setupEntry = build.setupEntrySymbol, !didRunSetUp {
-            let status = (try? await withPhase(progress, .runningSetup, "Running preview setup...") {
+            let status = try await withPhase(progress, .runningSetup, "Running preview setup...") {
                 try await self.runOnMainOffPool(setupEntry)
-            }) ?? -1
+            }
             if status != 0 {
                 Log.error("preview setup entry reported failure (status \(status))")
+                JITStructuralReloader.ensureSetupFailureRecorded(build, status: status)
             }
             didRunSetUp = true
         }

@@ -335,7 +335,14 @@ private func handleIOSPreviewStart(
             return phaseFailureResult(detectBuildContextFailure(error))
         }
 
-        if config?.setup != nil, buildContext == nil {
+        let iosStandaloneNotice: Notice? =
+            (config?.setup != nil && buildContext == nil)
+                ? Notice(
+                    code: .setupIgnored,
+                    message: "Setup plugin requires a project build system and is ignored in standalone mode."
+                )
+                : nil
+        if iosStandaloneNotice != nil {
             await progress.report(
                 .runningSetup, message: "Setup ignored (standalone preview)"
             )
@@ -430,7 +437,7 @@ private func handleIOSPreviewStart(
                 DaemonProtocol.PreviewInfoDTO(from: $0, activeIndex: previewIndex)
             },
             activeIndex: previewIndex,
-            setupWarning: setupNotice?.message,
+            setupWarning: iosStandaloneNotice?.message ?? setupNotice?.message,
             appServerPort: (await session.appServerPort).map(Int.init)
         )
         let viewerHint = structured.appServerPort.map {
@@ -445,7 +452,7 @@ private func handleIOSPreviewStart(
                 ],
                 structuredContent: structured
             ),
-            setupNotice.map { [$0] } ?? []
+            [iosStandaloneNotice, setupNotice].compactMap { $0 }
         )
     } catch {
         if let liveSession {

@@ -44,9 +44,10 @@ public actor IOSPreviewHandle: PreviewSessionHandle {
     }
 
     public func takeIncidentNotice() async -> Notice? {
-        await iosSession.takeUndisclosedCrashNotice().map {
-            Notice(code: .agentCrashed, message: $0)
+        if let crash = await iosSession.takeUndisclosedCrashNotice() {
+            return Notice(code: .agentCrashed, message: crash)
         }
+        return await iosSession.takeSetupFailureNotice()
     }
 
     public func setTraits(_ traits: PreviewTraits) async throws {
