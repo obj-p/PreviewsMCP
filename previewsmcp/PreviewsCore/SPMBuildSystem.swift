@@ -518,16 +518,14 @@ public actor SPMBuildSystem: BuildSystem {
     private func incompatibleSliceFailure(
         stderr: String, platform: PreviewPlatform
     ) async -> PhaseFailure? {
-        guard let moduleRange = stderr.range(
-            of: #"no such module '([A-Za-z_][A-Za-z0-9_]*)'"#, options: .regularExpression
-        ) else { return nil }
-        let module = String(
-            stderr[moduleRange].dropFirst("no such module '".count).dropLast(1)
-        )
+        guard let pattern = try? NSRegularExpression(
+            pattern: #"no such module '([A-Za-z_][A-Za-z0-9_]*)'"#
+        ), let match = pattern.firstMatch(
+            in: stderr, range: NSRange(stderr.startIndex..., in: stderr)
+        ), let moduleRange = Range(match.range(at: 1), in: stderr)
+        else { return nil }
+        let module = String(stderr[moduleRange])
         guard let description = try? await describePackage(),
-              description.targets.contains(where: {
-                  $0.name == module && $0.type == "binary"
-              }),
               let artifact = binaryArtifact(named: module, in: description),
               let slices = XCFrameworkSlices.slices(in: artifact),
               !slices.contains(where: { $0.matches(platform) })
