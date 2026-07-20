@@ -273,7 +273,11 @@ enum CLIRunner {
                 // Schedule the timeout. Cancelled when the process exits
                 // normally or when run() throws so it can't fire late.
                 let timeoutTask = Task<Void, Never> {
-                    try? await Task.sleep(for: runTimeout)
+                    // Suspending clock: machine sleep must not count against
+                    // the subprocess — it makes no progress while the host is
+                    // asleep, and the default continuous clock fired a 600s
+                    // watchdog "early" across a lid-closed nap mid-run.
+                    try? await Task.sleep(for: runTimeout, clock: .suspending)
                     if Task.isCancelled { return }
 
                     let pid = state.withLock { s -> pid_t? in
