@@ -2,14 +2,14 @@ import Foundation
 import SwiftUI
 
 struct RuntimeResourceView: View {
-    private static let titleKey: String.LocalizationValue = "resource.title"
-
-    private let locale: Locale
+    private let title: String
     private let payload: String
     private let textResourceLoaded: Bool
 
     init(locale: Locale = .current) {
-        self.locale = locale
+        title = Self.localizedTitle(
+            localeIdentifier: locale.language.languageCode?.identifier ?? locale.identifier
+        )
 
         if let url = Bundle.module.url(forResource: "payload", withExtension: "json"),
            let data = try? Data(contentsOf: url),
@@ -26,9 +26,19 @@ struct RuntimeResourceView: View {
         ) != nil
     }
 
+    private static func localizedTitle(localeIdentifier: String) -> String {
+        guard
+            let path = Bundle.module.path(forResource: localeIdentifier, ofType: "lproj"),
+            let bundle = Bundle(path: path)
+        else { return "\(localeIdentifier).lproj missing" }
+        return bundle.localizedString(
+            forKey: "resource.title", value: "resource.title unresolved", table: nil
+        )
+    }
+
     var body: some View {
         VStack(spacing: 10) {
-            Text(String(localized: Self.titleKey, bundle: .module, locale: locale))
+            Text(title)
                 .font(.headline)
             Text(payload)
             Label(

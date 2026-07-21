@@ -4,14 +4,15 @@ import SwiftUI
 
 struct DynamicBinaryView: View {
     private var frameworkResource: String {
-        guard let bundle = Bundle.allFrameworks.first(where: {
-            $0.bundleURL.lastPathComponent == "DynamicBadge.framework"
-        }),
-            let url = bundle.url(forResource: "fixture-payload", withExtension: "json"),
-            let value = try? String(contentsOf: url, encoding: .utf8)
-        else {
-            return "framework resource missing"
-        }
+        guard let marker = NSClassFromString("DynamicBadgeMarker")
+        else { return "framework class not registered" }
+        let bundle = Bundle(for: marker)
+        guard bundle.bundleURL.lastPathComponent == "DynamicBadge.framework"
+        else { return "framework bundle unresolved (\(bundle.bundleURL.lastPathComponent))" }
+        guard let url = bundle.url(forResource: "fixture-payload", withExtension: "json")
+        else { return "framework resource missing" }
+        guard let value = try? String(contentsOf: url, encoding: .utf8)
+        else { return "framework resource unreadable" }
         return value.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
