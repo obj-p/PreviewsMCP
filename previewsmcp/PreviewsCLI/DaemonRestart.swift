@@ -97,8 +97,11 @@ extension DaemonClient {
         if kill(pid, SIGTERM) != 0, errno != ESRCH {
             throw DaemonClientError.couldNotSignalDaemon(pid: pid, errno: errno)
         }
-        let deadline = Date().addingTimeInterval(timeout)
-        while Date() < deadline {
+        // Suspending clock, like DaemonClient.waitForSocket: machine sleep
+        // must not consume the exit window.
+        let clock = SuspendingClock()
+        let deadline = clock.now.advanced(by: .seconds(timeout))
+        while clock.now < deadline {
             if !DaemonLifecycle.isProcessAlive(pid) { return }
             Thread.sleep(forTimeInterval: 0.1)
         }
