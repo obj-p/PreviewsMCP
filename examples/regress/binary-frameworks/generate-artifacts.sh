@@ -9,7 +9,7 @@ DEVICE_SDK="$(xcrun --sdk iphoneos --show-sdk-path)"
 
 rm -rf "$BUILD_DIR" "$ARTIFACTS_DIR"
 mkdir -p "$BUILD_DIR/StaticBadge" "$BUILD_DIR/DynamicBadge.framework/Headers"
-mkdir -p "$BUILD_DIR/DynamicBadge.framework/Modules" "$BUILD_DIR/DynamicBadge.framework/Resources"
+mkdir -p "$BUILD_DIR/DynamicBadge.framework/Modules"
 mkdir -p "$ARTIFACTS_DIR"
 
 xcrun clang \
@@ -33,11 +33,14 @@ cp "$ROOT/FrameworkSources/DynamicBadge/module.modulemap" \
 cp "$ROOT/FrameworkSources/DynamicBadge/Info.plist" \
     "$BUILD_DIR/DynamicBadge.framework/Info.plist"
 cp "$ROOT/FrameworkSources/DynamicBadge/fixture-payload.json" \
-    "$BUILD_DIR/DynamicBadge.framework/Resources/fixture-payload.json"
+    "$BUILD_DIR/DynamicBadge.framework/fixture-payload.json"
 xcrun clang \
     -target arm64-apple-ios17.0-simulator \
     -isysroot "$SIMULATOR_SDK" \
-    -dynamiclib "$ROOT/FrameworkSources/DynamicBadge/DynamicBadge.c" \
+    -dynamiclib \
+    "$ROOT/FrameworkSources/DynamicBadge/DynamicBadge.c" \
+    "$ROOT/FrameworkSources/DynamicBadge/DynamicBadgeMarker.m" \
+    -framework Foundation \
     -I "$ROOT/FrameworkSources/DynamicBadge" \
     -install_name @rpath/DynamicBadge.framework/DynamicBadge \
     -o "$BUILD_DIR/DynamicBadge.framework/DynamicBadge"
