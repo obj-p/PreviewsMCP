@@ -148,7 +148,8 @@ public actor XcodeBuildSystem: BuildSystem {
             targetName: targetName,
             frameworkPaths: package.frameworkPaths,
             sourceFiles: sourceFiles,
-            evidence: evidence
+            evidence: evidence,
+            resourceWrapperPath: settings["CODESIGNING_FOLDER_PATH"]
         )
     }
 
@@ -327,7 +328,8 @@ public actor XcodeBuildSystem: BuildSystem {
             targetName: targetName,
             frameworkPaths: package.frameworkPaths,
             sourceFiles: sourceFiles.isEmpty ? nil : sourceFiles,
-            evidence: evidence
+            evidence: evidence,
+            resourceWrapperPath: settings["CODESIGNING_FOLDER_PATH"]
         )
     }
 

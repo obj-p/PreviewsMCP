@@ -106,27 +106,43 @@ metaclass swizzle fires for Swift's `Bundle(for:)` on the Xcode 26.2 SDK,
 that Foundation's bundle-for-class cache sits below the swizzle (a
 late-installed hook is not bypassed by earlier lookups), and that
 `Bundle(path:)` on `CODESIGNING_FOLDER_PATH` serves resources for both the
-versioned and flat layouts. One measurement remains before the predicate is
-final: what `class_getImageName` returns for a **real ORC-materialized**
-class in the agent (the review's proxy used `objc_allocateClassPair`).
-Stage 1 opens with that diagnostic; if ORC stamps JIT classes with the
-agent's own executable path, the predicate degrades to
-`original == Bundle.main`, which accepts redirecting agent-image lookups
-as the documented cost.
+versioned and flat layouts. The predicate is decided (stage 1, 2026-07-21): a probe preview rendered
+through the real JIT showed the ORC-materialized class reports
+`class_getImageName == NULL` with `Bundle(for:)` falling back to the
+agent's main bundle — the clean discriminator holds, no degraded
+fallback needed. The hook combines both signals: redirect only when the
+original resolution is the main bundle **and** the class is imageless.
 
 - **Plumbing:** `BuildContext` gains the optional wrapper path (Xcode
   targets: `CODESIGNING_FOLDER_PATH`; SPM/Bazel: nil — SwiftPM's generated
   `Bundle.module` accessor already finds the built bundle beside the
-  products, proven by R02). The session passes it to the agent with the
-  render request, the same route the crash-notice and setup sidecars ride.
+  products, proven by R02). The generated bridge declares the agent's
+  setter via `@_silgen_name` (the `set_preview_vc` precedent) and calls it
+  before setup and before every render — **unconditionally**: a nil
+  wrapper emits a clearing `nil` call, so an agent that survives a
+  mid-session build-system identity flip (Xcode → SwiftPM re-detection on
+  a live session, where the agent process persists across the refresh)
+  cannot keep a stale path. The call precedes `previewSetUp`, so setup
+  plugins that load resources see the redirect too.
 - **Scope:** one target per session, so one wrapper per agent process at a
-  time; the hook re-arms per session start.
+  time; the hook re-arms per session start. Each session gets a fresh
+  agent process on both platforms (macOS spawns per session; iOS
+  pre-launch-terminates), so cross-session staleness cannot occur even
+  without the clearing call — the clearing call covers the within-session
+  refresh case.
 - **What it fixes:** `Bundle(for:)` on any class in JIT-compiled target
   code — which also fixes `String(localized:bundle:)` and Core Data
   `momd` lookups made against that bundle (R03's three misses).
 - **What it deliberately does not touch:** `Bundle.main` (the agent's own
   identity, used by the JIT runtime), `Bundle.module` in SPM targets
   (already correct), lookups from real dylib images.
+- **Known over-redirection (accepted):** runtime-generated imageless
+  classes that resolve to the main bundle — KVO's `NSKVONotifying_*`
+  dynamic subclasses, other `objc_allocateClassPair` products — match the
+  predicate and redirect to the wrapper. For a KVO subclass of a target
+  class that answer is arguably more correct than the main bundle; for
+  agent-class KVO subclasses it is a harmless miss into a valid bundle.
+  No crash path either way.
 - **Known limitation (documented, gated):** Xcode-managed SwiftPM package
   products are JIT-linked as archives (`swiftPMPackageProducts`,
   `XcodeBuildSystem.swift:907-963`), so a package's classes are imageless
@@ -166,6 +182,13 @@ re-verification flipping rows in VERIFICATION.md.
    the tests that pin the generated color rendering. Only after stage 1's
    flake record is clean; the rewrite is proven and the hook must earn
    the same trust first.
+3. **Automated R03 guard.** The redirect's load-bearing premise (real
+   ORC-materialized classes are imageless) is pinned only by
+   `BundleRedirectTests`' `objc_allocateClassPair` proxy and the manual
+   matrix pass — a regression in ORC class imaging would pass the suite
+   while R03 silently un-flips. Add R03's macOS half to `RegressGuardTests`
+   (an Xcode row like D08, asserting the three loaded rows in the render)
+   in the next guard tranche.
 
 ## Out of scope
 

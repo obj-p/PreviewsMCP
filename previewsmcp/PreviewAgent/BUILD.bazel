@@ -1,4 +1,20 @@
 load("@rules_cc//cc:defs.bzl", "cc_binary")
+load("@rules_cc//cc:objc_library.bzl", "objc_library")
+load("@rules_swift//swift:swift.bzl", "swift_interop_hint")
+
+swift_interop_hint(
+    name = "BundleRedirect_swift_hint",
+    module_name = "BundleRedirect",
+)
+
+objc_library(
+    name = "BundleRedirect",
+    srcs = ["BundleRedirect.m"],
+    hdrs = ["BundleRedirect.h"],
+    aspect_hints = [":BundleRedirect_swift_hint"],
+    visibility = ["//visibility:public"],
+    alwayslink = True,
+)
 
 cc_binary(
     name = "PreviewAgent",
@@ -8,5 +24,8 @@ cc_binary(
         "-fno-rtti",
     ],
     visibility = ["//visibility:public"],
-    deps = ["//:llvm"],
+    deps = [
+        ":BundleRedirect",
+        "//:llvm",
+    ],
 )

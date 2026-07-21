@@ -68,7 +68,7 @@ struct IOSAgentBuilderHashTests {
         // its memory-reporting comment dropped the stale memory-cap relaunch claim.
         // Updated 2026-07-09 for agent-icon arrowheads: AppIcon.png redrawn with
         // filled arrowheads matching assets/agent-icon.svg.
-        let expected = "b0f2df2a851bf926023e1a9162406e7e176f96be01489e010f4259f5af26f3c8"
+        let expected = "0e96d20b7d4dca9ed8cf95ef3d5d6dd2228a319a079220a9330afa5adf8f2b61"
         #expect(hash == expected, "agent-app artifact hash drifted (was \(expected), now \(hash))")
     }
 }
