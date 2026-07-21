@@ -23,6 +23,55 @@ public func previewsmcp_set_preview_vc(_ pointer: UnsafeRawPointer) {
     }
 }
 
+/// Keep in sync with previewsmcp/PreviewAgent/BundleRedirect.m (the macOS
+/// agent's implementation of the same contract): JIT-compiled target classes
+/// have no dyld image, so their `Bundle(for:)` falls back to the main bundle;
+/// the hook redirects exactly that combination to the target's framework
+/// wrapper. It lives in the agent binary because bridge generations can be
+/// torn down while the swizzled IMP must outlive them
+/// (docs/jit-bundle-resolution.md).
+private enum BundleRedirect {
+    private typealias OriginalFn = @convention(c) (AnyObject, Selector, AnyClass?) -> Bundle
+
+    private static let lock = NSLock()
+    private nonisolated(unsafe) static var wrapperPath: String?
+    private nonisolated(unsafe) static var original: OriginalFn?
+
+    static func set(_ path: String?) {
+        lock.lock()
+        wrapperPath = path
+        lock.unlock()
+        _ = installOnce
+    }
+
+    private static let installOnce: Void = {
+        let selector = NSSelectorFromString("bundleForClass:")
+        guard let method = class_getClassMethod(Bundle.self, selector) else { return }
+        let block: @convention(block) (AnyObject, AnyClass?) -> Bundle = { receiver, cls in
+            let resolved = original!(receiver, selector, cls)
+            lock.lock()
+            let wrapper = wrapperPath
+            lock.unlock()
+            guard
+                let wrapper, let cls, resolved == Bundle.main,
+                class_getImageName(cls) == nil,
+                let redirected = Bundle(path: wrapper)
+            else { return resolved }
+            return redirected
+        }
+        original = unsafeBitCast(method_getImplementation(method), to: OriginalFn.self)
+        _ = method_setImplementation(method, imp_implementationWithBlock(block))
+    }()
+}
+
+/// Called by the JIT'd render entry before each render to point imageless
+/// bundle lookups at the target's built framework wrapper. Exported as a C
+/// symbol so the JIT can resolve it.
+@_cdecl("previewsmcp_set_resource_wrapper")
+public func previewsmcp_set_resource_wrapper(_ path: UnsafePointer<CChar>?) {
+    BundleRedirect.set(path.map { String(cString: $0) })
+}
+
 private struct PreviewContainer: UIViewControllerRepresentable {
     let viewController: UIViewController
     func makeUIViewController(context _: Context) -> UIViewController {

@@ -21,6 +21,13 @@ public struct BuildContext: Sendable {
     /// (which would also reach swiftc).
     public let frameworkPaths: [URL]
 
+    /// On-disk wrapper of the target's built framework (Xcode
+    /// `CODESIGNING_FOLDER_PATH`). When set, the agent redirects imageless
+    /// JIT-class bundle lookups to it (docs/jit-bundle-resolution.md). Nil
+    /// for SwiftPM and Bazel targets, whose `Bundle.module` accessors
+    /// already resolve.
+    public let resourceWrapperPath: String?
+
     // MARK: - Tier 2 (optional): compile all target sources + literal hot-reload
 
     /// All source files in the target EXCEPT the preview file.
@@ -45,7 +52,8 @@ public struct BuildContext: Sendable {
         targetName: String,
         frameworkPaths: [URL] = [],
         sourceFiles: [URL]? = nil,
-        evidence: EvidenceSet? = nil
+        evidence: EvidenceSet? = nil,
+        resourceWrapperPath: String? = nil
     ) {
         self.moduleName = moduleName
         self.compilerFlags = compilerFlags
@@ -54,5 +62,6 @@ public struct BuildContext: Sendable {
         self.frameworkPaths = frameworkPaths
         self.sourceFiles = sourceFiles
         self.evidence = evidence
+        self.resourceWrapperPath = resourceWrapperPath
     }
 }

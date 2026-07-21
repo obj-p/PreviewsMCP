@@ -57,7 +57,8 @@ public enum BridgeGenerator {
         stableModuleImport: String? = nil,
         renderWindow: JITRenderWindow? = nil,
         frameSidecarPath: String? = nil,
-        setupErrorSidecarPath: String? = nil
+        setupErrorSidecarPath: String? = nil,
+        resourceWrapperPath: String? = nil
     ) -> (source: String, literals: [LiteralEntry]) {
         // Transform source to replace literals with DesignTimeStore lookups
         let thunkResult = ThunkGenerator.transform(source: originalSource)
@@ -74,7 +75,10 @@ public enum BridgeGenerator {
         let hasSetup = isUsableSetup(module: setupModule, type: setupType)
         let setupImport = hasSetup ? "import \(setupModule!)\nimport PreviewsSetupKit\n" : ""
         let setUpEntry = hasSetup
-            ? setUpEntryPoint(setupType: setupType!, errorSidecarPath: setupErrorSidecarPath)
+            ? setUpEntryPoint(
+                setupType: setupType!, errorSidecarPath: setupErrorSidecarPath,
+                resourceWrapperPath: resourceWrapperPath
+            )
             : ""
         let viewCode =
             hasSetup
@@ -93,10 +97,14 @@ public enum BridgeGenerator {
                 case .macOS:
                     return renderToFileEntryPoint(
                         viewCode: viewCode, path: path, valuesPath: designTimeValuesPath,
-                        window: renderWindow, frameSidecarPath: frameSidecarPath
+                        window: renderWindow, frameSidecarPath: frameSidecarPath,
+                        resourceWrapperPath: resourceWrapperPath
                     )
                 case .iOS:
-                    return iosRenderEntryPoint(viewCode: viewCode, valuesPath: designTimeValuesPath)
+                    return iosRenderEntryPoint(
+                        viewCode: viewCode, valuesPath: designTimeValuesPath,
+                        resourceWrapperPath: resourceWrapperPath
+                    )
                 }
             } ?? ""
         let bridgeCode = switch platform {
@@ -104,6 +112,7 @@ public enum BridgeGenerator {
             """
             import AppKit
             \(setupImport)
+            \(resourceWrapperDeclaration)
             \(setUpEntry)
             \(renderEntry)
             """
@@ -111,6 +120,7 @@ public enum BridgeGenerator {
             """
             import UIKit
             \(setupImport)
+            \(resourceWrapperDeclaration)
             \(setUpEntry)
             \(renderEntry)
             """
@@ -208,6 +218,25 @@ public enum BridgeGenerator {
         } ?? ""
     }
 
+    /// The set call runs before setup and before each view construction so
+    /// target-code bundle lookups already resolve to the framework wrapper —
+    /// and a nil wrapper still emits a clearing call, so an agent that
+    /// survives a mid-session build-system identity change cannot keep a
+    /// stale path. Resolved via `@_silgen_name` like `set_preview_vc`; the
+    /// hook implementation lives in the agent binary, never here — bridge
+    /// generations can be torn down while the swizzled IMP must outlive
+    /// them.
+    static let resourceWrapperDeclaration = """
+    @_silgen_name("previewsmcp_set_resource_wrapper")
+    func __previewsmcp_set_resource_wrapper(_ path: UnsafePointer<CChar>?)
+    """
+
+    private static func resourceWrapperCall(_ wrapperPath: String?) -> String {
+        wrapperPath.map {
+            "__previewsmcp_set_resource_wrapper(\"\(escapedForSwiftStringLiteral($0))\")"
+        } ?? "__previewsmcp_set_resource_wrapper(nil)"
+    }
+
     /// Generate the `@_cdecl("renderPreviewToFile")` entry point (macOS, model-A JIT path).
     /// Builds the same preview view as `createPreviewView`, hosts it in a borderless
     /// `NSWindow` positioned off-screen via `NSHostingView` (AppKit-backed views like
@@ -222,7 +251,7 @@ public enum BridgeGenerator {
     /// AppKit state is shared across JITDylib generations; the entry's own globals are not.
     private static func renderToFileEntryPoint(
         viewCode: String, path: String, valuesPath: String?, window: JITRenderWindow?,
-        frameSidecarPath: String?
+        frameSidecarPath: String?, resourceWrapperPath: String?
     ) -> String {
         let seed = designTimeSeed(valuesPath)
         let createWindow: String
@@ -308,6 +337,7 @@ public enum BridgeGenerator {
         public func renderPreviewToFile() -> Int32 {
             MainActor.assumeIsolated {
                 \(seed)
+                \(resourceWrapperCall(resourceWrapperPath))
                 let view = \(viewCode)
                 let identifier = NSUserInterfaceItemIdentifier("previewsmcp-preview")
                 var isNewWindow = false
@@ -461,7 +491,9 @@ public enum BridgeGenerator {
     /// macOS entry it does not raster a PNG: the daemon captures the simulator screen via
     /// `simctl`, so the baked render path is unused here. Nullary and run over the agent's
     /// `runOnMain` surface; re-running it after a literal edit re-seeds DesignTimeStore.
-    private static func iosRenderEntryPoint(viewCode: String, valuesPath: String?) -> String {
+    private static func iosRenderEntryPoint(
+        viewCode: String, valuesPath: String?, resourceWrapperPath: String?
+    ) -> String {
         let seed = designTimeSeed(valuesPath)
         return """
         @_silgen_name("previewsmcp_set_preview_vc")
@@ -471,6 +503,7 @@ public enum BridgeGenerator {
         public func renderPreviewToFile() -> Int32 {
             MainActor.assumeIsolated {
                 \(seed)
+                \(resourceWrapperCall(resourceWrapperPath))
                 let view = \(viewCode)
                 let hosting = UIHostingController(rootView: view)
                 _previewsmcp_set_preview_vc(Unmanaged.passRetained(hosting).toOpaque())
@@ -515,7 +548,9 @@ public enum BridgeGenerator {
     /// skipping `wrap`), written to the error sidecar for the daemon to
     /// read, and reported as a nonzero status — never silently dropped
     /// (docs/phase-error-protocol.md, setup integrity; T01).
-    private static func setUpEntryPoint(setupType: String, errorSidecarPath: String?) -> String {
+    private static func setUpEntryPoint(
+        setupType: String, errorSidecarPath: String?, resourceWrapperPath: String?
+    ) -> String {
         let recordError = errorSidecarPath.map { path -> String in
             """
             try? ((error as? any LocalizedError)?.errorDescription ?? String(describing: error)).write(
@@ -525,6 +560,7 @@ public enum BridgeGenerator {
         return """
         @_cdecl("previewSetUp")
         public func previewSetUp() -> Int32 {
+            \(resourceWrapperCall(resourceWrapperPath))
             let semaphore = DispatchSemaphore(value: 0)
             Task {
                 do {

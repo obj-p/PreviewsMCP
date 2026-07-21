@@ -285,6 +285,7 @@ public actor PreviewSession {
         let snapshotStableImport = stable != nil ? splitContext?.0.moduleName : nil
         let snapshotSidecarPath = Self.frameSidecarPath(for: id).path
         let snapshotSetupErrorPath = hasSetup ? Self.setupErrorSidecarPath(for: id).path : nil
+        let snapshotWrapperPath = buildContext?.resourceWrapperPath
         let generated = await offCooperativePool {
             BridgeGenerator.generateCombinedSource(
                 originalSource: source,
@@ -299,7 +300,8 @@ public actor PreviewSession {
                 stableModuleImport: snapshotStableImport,
                 renderWindow: window,
                 frameSidecarPath: snapshotSidecarPath,
-                setupErrorSidecarPath: snapshotSetupErrorPath
+                setupErrorSidecarPath: snapshotSetupErrorPath,
+                resourceWrapperPath: snapshotWrapperPath
             )
         }
 
