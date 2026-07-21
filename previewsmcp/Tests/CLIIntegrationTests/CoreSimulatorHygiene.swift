@@ -16,10 +16,11 @@ import os
 /// shut every simulator down and bounce CoreSimulatorService so the next boot
 /// starts from a clean service. Call while holding `SimulatorTestLock` (which
 /// serializes sim-booting tests host-wide, so this reset cannot kill another
-/// workspace's live run — #336) and `DaemonTestLock`, which serializes the
-/// sim-touching suites WITHIN this target (its flock path is per-target);
-/// across targets within one invocation the guard is this target's
-/// `exclusive` tag.
+/// workspace's live run — #336) and with no live daemon session in this
+/// process — either inside `DaemonTestLock.run` (whose teardown fences the
+/// daemon dead before releasing) or between run blocks, where that fence
+/// has already run; across targets within one invocation the guard is this
+/// target's `exclusive` tag.
 enum CoreSimulatorHygiene {
     private static let didReset = OSAllocatedUnfairLock(initialState: false)
 

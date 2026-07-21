@@ -43,7 +43,9 @@ struct RegressToolGuardTests {
     /// every artifact from scratch, so a second run in the same process
     /// buys nothing but ~15s of xcodebuild on the serial runner. The Task
     /// runs `generate` lazily on first await and caches its outcome
-    /// (including a failure) for the rest.
+    /// (including a failure) for the rest. Depends on `.serialized`: the
+    /// creating row awaits it to completion, so the `#require` inside
+    /// records against the right test and first access never races.
     private static let binaryFrameworkArtifacts = Task {
         try await generate("binary-frameworks/generate-artifacts.sh")
     }
@@ -96,13 +98,23 @@ struct RegressToolGuardTests {
         -> (udid: String, lock: SimulatorTestLock.Guard)?
     {
         let simLock = try await SimulatorTestLock.acquire()
-        guard let udid = try await SimulatorTestDevices.udid(index: 9) else {
-            print("Host cannot create \(SimulatorTestDevices.name(index: 9)) — skipping")
+        do {
+            guard let udid = try await SimulatorTestDevices.udid(index: 9) else {
+                print("Host cannot create \(SimulatorTestDevices.name(index: 9)) — skipping")
+                simLock.release()
+                return nil
+            }
+            await CoreSimulatorHygiene.resetOnce()
+            return (udid, simLock)
+        } catch {
+            // The gate's RequiredDeviceUnavailable throw must not leak the
+            // held flock: a leaked LOCK_EX self-deadlocks every later iOS
+            // row in this process (flock re-acquisition blocks even
+            // within one process), turning one clean failure into three
+            // ten-minute hangs.
             simLock.release()
-            return nil
+            throw error
         }
-        await CoreSimulatorHygiene.resetOnce()
-        return (udid, simLock)
     }
 
     // MARK: - Binary-framework rows (iOS)

@@ -208,7 +208,11 @@ jobs:
       github.event.label.name == 'ci' ||
       github.event.label.name == 'merge'
     runs-on: [self-hosted, macOS, ARM64]
-    timeout-minutes: 60
+    # Above the target's `eternal` (3600s) bazel test timeout, like `ci`'s
+    # 120 vs its heaviest target: a hung test must hit bazel's timeout (a
+    # step failure(), which runs the diagnostics step) before the job-level
+    # cancellation, which would skip it.
+    timeout-minutes: 90
     permissions:
       contents: read
       checks: read
