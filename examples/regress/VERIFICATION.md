@@ -88,9 +88,9 @@ not a nonzero command exit.
   never lists a framework without ObjC classes, and a flat iOS framework's
   resources belong at its root, not under `Resources/`. DynamicBadge now
   carries an ObjC marker class, the JSON moved to the framework root, and
-  the preview resolves through `Bundle(for:)` with distinct failure states
-  (`framework class not registered` / `framework bundle unresolved` /
-  `framework resource missing`).
+  the preview resolves through `Bundle(for:)` with a distinct failure
+  state per stage (class registration, bundle identity, resource
+  presence, resource readability).
 - Replaced the Spanish assertion mechanism again (2026-07-21):
   `String(localized:bundle:locale:)` does not select the `.lproj` either (the
   `locale:` parameter affects interpolation formatting only, proven natively

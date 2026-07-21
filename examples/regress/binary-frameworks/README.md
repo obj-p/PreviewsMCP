@@ -6,9 +6,10 @@ small, deterministic, and network-free:
 - `StaticBadge.xcframework` contains a static simulator archive and headers.
 - `DynamicBadge.xcframework` contains a dynamic simulator framework with an
   `@rpath` install name, a root-level JSON resource (flat iOS frameworks
-  carry resources at the wrapper root), and an ObjC marker class —
-  CFBundle only surfaces frameworks containing ObjC classes, so the
-  marker is what lets `Bundle(for:)` resolve the wrapper at runtime.
+  carry resources at the wrapper root), and an ObjC marker class — a
+  pure-C framework has no class to hand `Bundle(for:)`, so the marker is
+  what anchors bundle resolution at runtime (it also makes the framework
+  visible to `Bundle.allFrameworks`, which skips ObjC-less frameworks).
 - `BadSlice.xcframework` contains only a device slice.
 
 The generator also creates `Invalid.dylib`, which is not a Mach-O file. It is

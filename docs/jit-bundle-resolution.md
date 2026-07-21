@@ -33,13 +33,15 @@ distinguishable failure states:
   selects an `.lproj` — the `locale:` parameter only affects interpolation
   formatting. The staged bundle was healthy all along; the corrected
   fixture resolves through the locale's `.lproj` sub-bundle and every
-  surface renders Spanish (commit `d82707a`).
+  surface renders Spanish (this branch; R02's row and Fixture Corrections
+  carry the details).
 - **B04** (XCFramework internal resource): `Bundle.allFrameworks` only
   lists frameworks containing ObjC classes, and DynamicBadge was pure C —
   the fixture could not observe the framework under any product behavior;
   its JSON also sat under `Resources/` in a flat iOS framework. With an
   ObjC marker class and a root-level resource, the EPC-dlopened framework
-  resolves via `Bundle(for:)` and serves the payload (commit `c93257a`).
+  resolves via `Bundle(for:)` and serves the payload (this branch; B04's
+  row and Fixture Corrections carry the details).
   This also establishes the load path is sound: a **real** dynamic
   framework loaded from the build directory keeps its wrapper identity in
   the agent.
