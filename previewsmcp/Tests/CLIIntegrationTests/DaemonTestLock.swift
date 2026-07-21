@@ -147,8 +147,9 @@ enum DaemonTestLock {
     /// poll suspends instead of blocking a cooperative thread — a blocking
     /// teardown poll starves the pool and times out concurrent suites.
     private static func awaitProcessDeath(_ pid: Int32, timeout: TimeInterval) async -> Bool {
-        let deadline = Date().addingTimeInterval(timeout)
-        while Date() < deadline {
+        let clock = SuspendingClock()
+        let deadline = clock.now.advanced(by: .seconds(timeout))
+        while clock.now < deadline {
             if !isProcessAlive(pid) { return true }
             try? await Task.sleep(nanoseconds: 50_000_000)
         }

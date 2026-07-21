@@ -117,8 +117,9 @@ struct LogsCommandTests {
             #expect(proc.isRunning, "follow mode should not exit on its own")
 
             kill(proc.processIdentifier, SIGINT)
-            let deadline = Date().addingTimeInterval(5)
-            while proc.isRunning, Date() < deadline {
+            let clock = SuspendingClock()
+            let deadline = clock.now.advanced(by: .seconds(5))
+            while proc.isRunning, clock.now < deadline {
                 try await Task.sleep(nanoseconds: 50_000_000)
             }
             if proc.isRunning { proc.terminate() }
@@ -148,8 +149,9 @@ struct LogsCommandTests {
         }
         defer { handle.readabilityHandler = nil }
 
-        let deadline = Date().addingTimeInterval(timeout)
-        while Date() < deadline {
+        let clock = SuspendingClock()
+        let deadline = clock.now.advanced(by: .seconds(timeout))
+        while clock.now < deadline {
             if buffer.contents().contains(substring) { return true }
             try await poke()
             try await Task.sleep(nanoseconds: 200_000_000)

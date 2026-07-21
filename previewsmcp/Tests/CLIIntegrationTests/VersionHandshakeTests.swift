@@ -45,8 +45,9 @@ struct VersionHandshakeTests {
         // on its own — don't waitUntilExit. The test will kill it via
         // `kill-daemon` during cleanup. Poll until the daemon's pid
         // file is written and the socket is accepting connections.
-        let deadline = Date().addingTimeInterval(10)
-        while Date() < deadline {
+        let clock = SuspendingClock()
+        let deadline = clock.now.advanced(by: .seconds(10))
+        while clock.now < deadline {
             if let pid = try? readPidFile(), isAlive(pid) {
                 // Also wait for the socket — the pid file is written
                 // after `DaemonListener.start` returns, but the daemon
@@ -75,8 +76,9 @@ struct VersionHandshakeTests {
         // Use `previewsmcp status` as a no-op liveness probe that
         // doesn't engage the handshake-restart path. Its exit code is
         // 0 iff the daemon is accepting connections.
-        let deadline = Date().addingTimeInterval(timeout)
-        while Date() < deadline {
+        let clock = SuspendingClock()
+        let deadline = clock.now.advanced(by: .seconds(timeout))
+        while clock.now < deadline {
             let result = try await CLIRunner.run("status", timeout: .seconds(5))
             if result.exitCode == 0 { return true }
             try await Task.sleep(nanoseconds: 100_000_000)

@@ -29,9 +29,12 @@ struct KillDaemonCommand: ParsableCommand {
             throw ExitCode(1)
         }
 
-        // Poll until the process is gone or timeout elapses.
-        let deadline = Date().addingTimeInterval(timeout)
-        while Date() < deadline {
+        // Poll until the process is gone or timeout elapses. Suspending
+        // clock, like DaemonClient.waitForSocket: machine sleep must not
+        // consume the exit window.
+        let clock = SuspendingClock()
+        let deadline = clock.now.advanced(by: .seconds(timeout))
+        while clock.now < deadline {
             if !DaemonLifecycle.isProcessAlive(pid) {
                 print("daemon stopped (pid \(pid))")
                 return

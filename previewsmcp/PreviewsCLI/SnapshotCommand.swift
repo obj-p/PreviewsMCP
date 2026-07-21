@@ -237,22 +237,7 @@ struct SnapshotCommand: AsyncParsableCommand {
         if let legibilityWeight { startArgs["legibilityWeight"] = .string(legibilityWeight) }
         if let config { startArgs["config"] = .string(config) }
 
-        let startResponse = try await client.callToolStructured(
-            name: "preview_start", arguments: startArgs
-        )
-        if startResponse.isError == true {
-            let text = startResponse.content.joinedText()
-            throw DaemonToolError.daemonError("Failed to start preview: \(text)")
-        }
-
-        guard let structured = startResponse.structuredContent else {
-            throw DaemonToolError.daemonError(
-                "preview_start response missing structuredContent"
-            )
-        }
-        let sessionID =
-            try structured
-                .decode(DaemonProtocol.PreviewStartResult.self).sessionID
+        let sessionID = try await client.startPreviewSession(arguments: startArgs)
 
         var snapshotArgs: [String: Value] = ["sessionID": .string(sessionID)]
         snapshotArgs["quality"] = .double(resolvedQuality())
@@ -265,31 +250,12 @@ struct SnapshotCommand: AsyncParsableCommand {
             let snapResponse = try await client.callToolStructured(
                 name: "preview_snapshot", arguments: snapshotArgs
             )
-            await stopEphemeralSession(sessionID: sessionID, client: client)
+            await client.stopPreviewSession(sessionID: sessionID)
             try handleSnapshotResponse(snapResponse, sessionID: sessionID)
         } catch {
             // Best-effort cleanup if the snapshot call itself threw.
-            await stopEphemeralSession(sessionID: sessionID, client: client)
+            await client.stopPreviewSession(sessionID: sessionID)
             throw error
-        }
-    }
-
-    /// Tear down an ephemeral session. Best-effort — logs a warning if the
-    /// stop RPC fails so the session leak is visible instead of silent.
-    /// The session would still be cleaned up when the daemon exits, but a
-    /// long-lived daemon with many leaked sessions could confuse future
-    /// snapshot reuse.
-    private func stopEphemeralSession(sessionID: String, client: any DaemonToolCalling) async {
-        do {
-            _ = try await client.callToolStructured(
-                name: "preview_stop",
-                arguments: ["sessionID": .string(sessionID)]
-            )
-        } catch {
-            fputs(
-                "warning: failed to stop ephemeral session \(sessionID): \(error)\n",
-                stderr
-            )
         }
     }
 

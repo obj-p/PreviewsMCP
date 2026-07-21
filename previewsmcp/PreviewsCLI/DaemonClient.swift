@@ -283,13 +283,17 @@ enum DaemonClient {
     static func waitForSocket(
         timeout: TimeInterval, child: Process? = nil
     ) async throws -> FileDescriptor {
-        let deadline = Date().addingTimeInterval(timeout)
-        while Date() < deadline {
+        // Suspending clock: the daemon makes no progress while the machine
+        // sleeps, so a lid-closed nap must not consume the startup window
+        // (a wall-clock deadline expired "instantly" across one).
+        let clock = SuspendingClock()
+        let deadline = clock.now.advanced(by: .seconds(timeout))
+        while clock.now < deadline {
             if let socket = DaemonProbe.connect() { return socket }
             if let child, !child.isRunning {
                 throw DaemonClientError.daemonStartupFailed(exitCode: child.terminationStatus)
             }
-            try await Task.sleep(nanoseconds: 100_000_000)
+            try await Task.sleep(for: .milliseconds(100), clock: .suspending)
         }
         throw DaemonClientError.startupTimedOut
     }

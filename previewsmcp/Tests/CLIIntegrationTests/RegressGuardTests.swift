@@ -19,8 +19,10 @@ import Testing
 /// macOS SwiftPM and error-contract rows. The second tranche adds the
 /// macOS Xcode rows (D01, D03, D08, X02), which build through
 /// `xcodebuild` but still need no simulator, artifact generation, or
-/// network — every fixture's generated project is committed. Rows
-/// staying manual-only for a named flake reason: W03 (FSEvents timing,
+/// network — every fixture's generated project is committed. The
+/// phase/error macOS rows (T01, T03, L02, L03) guard notice,
+/// classification, and phase-clock contracts on plain SwiftPM fixtures.
+/// Rows staying manual-only for a named flake reason: W03 (FSEvents timing,
 /// #298), L05 (concurrency), S05/S06 (swift-syntax fetch), M01/M02
 /// (launch assertions elsewhere). Future tranches that need simulators,
 /// artifact generation, or network must land in a separate test target,
@@ -36,14 +38,16 @@ struct RegressGuardTests {
     }
 
     /// Run a one-shot snapshot of `relativePath` with no detection overrides
-    /// and assert it renders a valid, non-blank PNG. `thenWhileAlive` runs
-    /// inside the same lock block, before the writer-fence kills the daemon,
-    /// for assertions that need the daemon's state (logs, status).
+    /// and assert it renders a valid, non-blank PNG. Returns the CLI result
+    /// so callers can pin stderr notice/progress tokens. `thenWhileAlive`
+    /// runs inside the same lock block, before the writer-fence kills the
+    /// daemon, for assertions that need the daemon's state (logs, status).
+    @discardableResult
     private static func assertRenders(
         _ relativePath: String,
         extraArguments: [String] = [],
         thenWhileAlive: @Sendable () async throws -> Void = {}
-    ) async throws {
+    ) async throws -> CLIResult {
         try await DaemonTestLock.run {
             try await cleanSlate()
             let tempDir = try CLIRunner.makeTempDir()
@@ -58,6 +62,7 @@ struct RegressGuardTests {
             try CLIRunner.assertValidPNG(at: outputPath)
             try CLIRunner.assertNonBlankPNG(at: outputPath)
             try await thenWhileAlive()
+            return result
         }
     }
 
@@ -371,5 +376,82 @@ struct RegressGuardTests {
             #expect(status.exitCode == 0, "daemon should stay healthy after a setup failure")
             #expect(status.stdout.contains("daemon running"), "status: \(status.stdout)")
         }
+    }
+
+    /// T01: setup that throws after a successful build still renders, and
+    /// the documented warning notice reaches the one-shot CLI's stderr
+    /// (the notice rides the internal start response — the drop of that
+    /// response's notices was found writing this guard).
+    @Test("T01: throwing setup renders with a warning notice", .timeLimit(.minutes(10)))
+    func t01ThrowingSetupNotice() async throws {
+        let result = try await Self.assertRenders(
+            "setup-faults/throwing/Sources/SetupFaultApp/SetupFaultPreview.swift"
+        )
+        #expect(
+            result.stderr.contains("Preview setup 'ThrowingSetup' failed"),
+            "stderr should carry the setup-failure notice: \(result.stderr)"
+        )
+        #expect(
+            result.stderr.contains("rendered without setup"),
+            "notice should disclose the skipped setup: \(result.stderr)"
+        )
+    }
+
+    /// T03: an eight-second setup runs as its own phase, ticks an
+    /// elapsed-time heartbeat, and completes before the first render.
+    /// Tick assertions are presence-only (one tick line, any elapsed
+    /// value) — never scheduler-dependent counts.
+    @Test("T03: slow setup heartbeats and precedes render", .timeLimit(.minutes(10)))
+    func t03SlowSetupHeartbeat() async throws {
+        let result = try await Self.assertRenders(
+            "setup-faults/slow/Sources/SetupFaultApp/SetupFaultPreview.swift"
+        )
+        #expect(
+            result.stderr.range(
+                of: #"Running preview setup\.\.\. \(\d+s\)"#, options: .regularExpression
+            ) != nil,
+            "setup phase should tick an elapsed heartbeat: \(result.stderr)"
+        )
+        let setupStart = try #require(result.stderr.range(of: "Running preview setup"))
+        let renderStart = try #require(result.stderr.range(of: "Rendering preview"))
+        #expect(
+            setupStart.lowerBound < renderStart.lowerBound,
+            "setup must complete before the first render: \(result.stderr)"
+        )
+    }
+
+    // MARK: - Lifecycle-fault rows
+
+    /// L02: an unresolved JIT symbol fails only the session with the
+    /// classified error naming the symbol (the ORC reporter carries
+    /// "Symbols not found" WITH the failure); the daemon stays alive.
+    @Test("L02: unresolved symbol is classified, daemon survives", .timeLimit(.minutes(10)))
+    func l02UnresolvedSymbol() async throws {
+        try await Self.assertFails(
+            "lifecycle-faults/Sources/MissingSymbol/MissingSymbolPreview.swift",
+            containing: [
+                "JIT link could not resolve",
+                "_previewsmcp_fixture_symbol_that_does_not_exist",
+            ]
+        ) {
+            let status = try await CLIRunner.run("status")
+            #expect(status.exitCode == 0, "daemon should survive a session-only JIT failure")
+            #expect(status.stdout.contains("daemon running"), "status: \(status.stdout)")
+        }
+    }
+
+    /// L03: an eight-second render ticks an elapsed-time heartbeat on the
+    /// previously silent interval. Presence-only, like T03.
+    @Test("L03: slow render heartbeats", .timeLimit(.minutes(10)))
+    func l03SlowRenderHeartbeat() async throws {
+        let result = try await Self.assertRenders(
+            "lifecycle-faults/Sources/SlowRender/SlowRenderPreview.swift"
+        )
+        #expect(
+            result.stderr.range(
+                of: #"Rendering preview\.\.\. \(\d+s\)"#, options: .regularExpression
+            ) != nil,
+            "render phase should tick an elapsed heartbeat: \(result.stderr)"
+        )
     }
 }

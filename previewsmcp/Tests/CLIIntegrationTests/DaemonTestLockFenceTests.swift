@@ -81,8 +81,9 @@ struct DaemonTestLockFenceTests {
         proc.standardError = FileHandle.nullDevice
         try proc.run()
 
-        let deadline = Date().addingTimeInterval(10)
-        while Date() < deadline {
+        let clock = SuspendingClock()
+        let deadline = clock.now.advanced(by: .seconds(10))
+        while clock.now < deadline {
             if FileManager.default.fileExists(atPath: ready.path) {
                 try? FileManager.default.removeItem(at: ready)
                 return proc.processIdentifier
@@ -109,8 +110,9 @@ struct DaemonTestLockFenceTests {
         proc.environment = env
         try proc.run()
 
-        let deadline = Date().addingTimeInterval(10)
-        while Date() < deadline {
+        let clock = SuspendingClock()
+        let deadline = clock.now.advanced(by: .seconds(10))
+        while clock.now < deadline {
             if let pid = readPIDFile(), isAlive(pid) { return pid }
             try await Task.sleep(nanoseconds: 100_000_000)
         }
