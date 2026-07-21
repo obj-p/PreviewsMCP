@@ -371,21 +371,24 @@ public actor XcodeBuildSystem: BuildSystem {
 
     /// Xcode pre-processing for the shared normalizer: a scheme can build a
     /// platform variant the preview environment cannot host (Mac Catalyst
-    /// under the macOS agent), and the captured `-target`/`-sdk` would
-    /// otherwise win over Compiler's injection. Keep the captured pair only
-    /// when the triple matches the preview platform family.
+    /// under the macOS agent, a foreign-arch slice of a fat build), and the
+    /// captured `-target`/`-sdk` would otherwise win over Compiler's
+    /// injection. Keep the captured pair only when the triple matches the
+    /// preview platform family on the arch the JIT agent runs as.
     static func stripForeignTargetTriple(
-        _ args: [String], platform: PreviewPlatform
+        _ args: [String], platform: PreviewPlatform,
+        hostArch: String = XcodeBuildSystem.hostArch
     ) -> [String] {
         guard
             let index = args.firstIndex(of: "-target"), index + 1 < args.count
         else { return args }
         let triple = args[index + 1]
-        let compatible =
+        let family =
             switch platform {
             case .macOS: triple.contains("apple-macos")
             case .iOS: triple.contains("simulator")
             }
+        let compatible = family && triple.hasPrefix("\(hostArch)-")
         guard !compatible else { return args }
         var result = args
         result.removeSubrange(index ... index + 1)
@@ -583,11 +586,11 @@ public actor XcodeBuildSystem: BuildSystem {
     /// Collect source files from the OutputFileMap.json produced by xcodebuild.
     /// Returns nil if the file doesn't exist (falls back to Tier 1).
     func collectSourceFiles(settings: [String: String], targetName: String) -> [URL]? {
-        // OutputFileMap lives at <OBJECT_FILE_DIR_normal>/arm64/<Target>-OutputFileMap.json
+        // OutputFileMap lives at <OBJECT_FILE_DIR_normal>/<arch>/<Target>-OutputFileMap.json
         guard let objectFileDir = settings["OBJECT_FILE_DIR_normal"] else { return nil }
 
         let outputFileMapPath = URL(fileURLWithPath: objectFileDir)
-            .appendingPathComponent("arm64")
+            .appendingPathComponent(Self.hostArch)
             .appendingPathComponent("\(targetName)-OutputFileMap.json")
 
         guard let data = try? Data(contentsOf: outputFileMapPath),

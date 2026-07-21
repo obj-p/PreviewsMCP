@@ -294,6 +294,48 @@ struct XcodeCommandCaptureTests {
         #expect(!XcodeCommandCapture.logsDriverInvocations("SwiftCompile bazel-out/x"))
     }
 
+    @Test("a fat build's log yields the host-arch driver invocation, either order")
+    func fatBuildPrefersHostArch() throws {
+        let log = """
+            builtin-SwiftDriver -- /t/swiftc -module-name App -target x86_64-apple-ios26.3-simulator -DDEBUG
+            builtin-SwiftDriver -- /t/swiftc -module-name App -target arm64-apple-ios26.3-simulator -DDEBUG
+        """
+        let captured = try #require(
+            XcodeCommandCapture.parse(log: log, moduleName: "App", hostArch: "arm64")
+        )
+        #expect(captured.arguments.contains("arm64-apple-ios26.3-simulator"))
+        #expect(!captured.arguments.contains("x86_64-apple-ios26.3-simulator"))
+        let intel = try #require(
+            XcodeCommandCapture.parse(log: log, moduleName: "App", hostArch: "x86_64")
+        )
+        #expect(intel.arguments.contains("x86_64-apple-ios26.3-simulator"))
+    }
+
+    @Test("a foreign-arch-only log still captures the first match")
+    func foreignArchOnlyFallsBack() throws {
+        let log = """
+            builtin-SwiftDriver -- /t/swiftc -module-name App -target x86_64-apple-ios26.3-simulator -DFIRST
+            builtin-SwiftDriver -- /t/swiftc -module-name App -target x86_64-apple-ios26.3-simulator -DSECOND
+        """
+        let captured = try #require(
+            XcodeCommandCapture.parse(log: log, moduleName: "App", hostArch: "arm64")
+        )
+        #expect(captured.arguments.contains("-DFIRST"))
+        #expect(!captured.arguments.contains("-DSECOND"))
+    }
+
+    @Test("the default hostArch is the arch the agent runs as")
+    func defaultHostArchWiring() throws {
+        let host = XcodeBuildSystem.hostArch
+        let foreign = host == "arm64" ? "x86_64" : "arm64"
+        let log = """
+            builtin-SwiftDriver -- /t/swiftc -module-name App -target \(foreign)-apple-ios26.3-simulator
+            builtin-SwiftDriver -- /t/swiftc -module-name App -target \(host)-apple-ios26.3-simulator
+        """
+        let captured = try #require(XcodeCommandCapture.parse(log: log, moduleName: "App"))
+        #expect(captured.arguments.contains("\(host)-apple-ios26.3-simulator"))
+    }
+
     @Test("escaped spaces in paths survive tokenizing")
     func escapedSpaces() {
         let tokens = XcodeCommandCapture.tokenizeShellEscaped(
@@ -353,6 +395,83 @@ struct XcodeCommandCaptureTests {
             "-DDEBUG",
         ])
         #expect(normalized == ["-import-objc-header", "/proj/Bridging.h", "-DDEBUG"])
+    }
+}
+
+@Suite("XcodeBuildSystem.stripForeignTargetTriple")
+struct StripForeignTargetTripleTests {
+    private func args(triple: String) -> [String] {
+        ["-module-name", "App", "-target", triple, "-sdk", "/sdk/iPhoneSimulator", "-DDEBUG"]
+    }
+
+    @Test("host-arch triples for the preview platform family are kept")
+    func hostTriplesKept() {
+        let simArgs = args(triple: "arm64-apple-ios26.3-simulator")
+        #expect(
+            XcodeBuildSystem.stripForeignTargetTriple(
+                simArgs, platform: .iOS, hostArch: "arm64"
+            ) == simArgs
+        )
+        let macArgs = args(triple: "arm64-apple-macos26.0")
+        #expect(
+            XcodeBuildSystem.stripForeignTargetTriple(
+                macArgs, platform: .macOS, hostArch: "arm64"
+            ) == macArgs
+        )
+    }
+
+    @Test("a foreign-arch simulator triple is stripped with its -sdk")
+    func foreignArchStripped() {
+        let stripped = XcodeBuildSystem.stripForeignTargetTriple(
+            args(triple: "x86_64-apple-ios26.3-simulator"), platform: .iOS, hostArch: "arm64"
+        )
+        #expect(stripped == ["-module-name", "App", "-DDEBUG"])
+    }
+
+    @Test("a foreign-arch macOS triple is stripped")
+    func foreignArchMacStripped() {
+        let stripped = XcodeBuildSystem.stripForeignTargetTriple(
+            args(triple: "x86_64-apple-macos26.0"), platform: .macOS, hostArch: "arm64"
+        )
+        #expect(stripped == ["-module-name", "App", "-DDEBUG"])
+    }
+
+    @Test("a foreign-family triple (Catalyst under iOS) is stripped")
+    func foreignFamilyStripped() {
+        let stripped = XcodeBuildSystem.stripForeignTargetTriple(
+            args(triple: "arm64-apple-ios26.3-macabi"), platform: .iOS, hostArch: "arm64"
+        )
+        #expect(stripped == ["-module-name", "App", "-DDEBUG"])
+    }
+
+    @Test("args without -target pass through unchanged, -sdk retained")
+    func noTargetPassthrough() {
+        let input = ["-module-name", "App", "-sdk", "/sdk/iPhoneSimulator", "-DDEBUG"]
+        #expect(
+            XcodeBuildSystem.stripForeignTargetTriple(
+                input, platform: .iOS, hostArch: "arm64"
+            ) == input
+        )
+    }
+
+    @Test("a foreign triple with -sdk before -target strips both pairs")
+    func sdkBeforeTargetStripped() {
+        let stripped = XcodeBuildSystem.stripForeignTargetTriple(
+            [
+                "-module-name", "App", "-sdk", "/sdk/iPhoneSimulator",
+                "-target", "x86_64-apple-ios26.3-simulator", "-DDEBUG",
+            ],
+            platform: .iOS, hostArch: "arm64"
+        )
+        #expect(stripped == ["-module-name", "App", "-DDEBUG"])
+    }
+
+    @Test("the default hostArch keeps the host triple for the platform family")
+    func defaultHostArchKept() {
+        let hostArgs = args(triple: "\(XcodeBuildSystem.hostArch)-apple-ios26.3-simulator")
+        #expect(
+            XcodeBuildSystem.stripForeignTargetTriple(hostArgs, platform: .iOS) == hostArgs
+        )
     }
 }
 

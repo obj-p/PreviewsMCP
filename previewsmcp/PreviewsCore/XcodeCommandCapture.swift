@@ -23,28 +23,48 @@ enum XcodeCommandCapture {
 
     /// Parse a build log for the module's compile command. Nil when the log
     /// has no matching SwiftDriver invocation (null build, or a build system
-    /// that does not log one). The target's C/ObjC objects are deliberately
+    /// that does not log one). A generic-destination build compiles every
+    /// ARCHS slice and logs one invocation per arch; only the host-arch
+    /// slice produces code the JIT agent can execute, so that invocation
+    /// wins over log order. The target's C/ObjC objects are deliberately
     /// not read from the log — an incremental build only logs CompileC for
     /// changed sources — they come from the objects directory on disk.
-    static func parse(log: String, moduleName: String) -> CapturedCommand? {
+    static func parse(
+        log: String, moduleName: String,
+        hostArch: String = XcodeBuildSystem.hostArch
+    ) -> CapturedCommand? {
+        var fallback: [String]?
         for rawLine in log.split(separator: "\n", omittingEmptySubsequences: true) {
             let line = rawLine.trimmingCharacters(in: .whitespaces)
             guard let marker = driverMarkers.first(where: line.contains) else { continue }
             let argvText = String(line[line.range(of: marker)!.upperBound...])
             let tokens = tokenizeShellEscaped(argvText)
             guard tokens.count > 1, moduleTokenMatches(tokens, moduleName) else { continue }
-            var args: [String] = []
-            var swiftSources: [String] = []
-            for token in tokens.dropFirst() {
-                if token.hasPrefix("@"), token.hasSuffix(".SwiftFileList") {
-                    swiftSources = responseFileLines(String(token.dropFirst()))
-                } else {
-                    args.append(token)
-                }
+            if value(after: "-target", in: tokens)?.hasPrefix("\(hostArch)-") ?? true {
+                return capture(fromTokens: tokens)
             }
-            return CapturedCommand(arguments: args, swiftSources: swiftSources)
+            if fallback == nil { fallback = tokens }
         }
-        return nil
+        return fallback.map(capture(fromTokens:))
+    }
+
+    private static func capture(fromTokens tokens: [String]) -> CapturedCommand {
+        var args: [String] = []
+        var swiftSources: [String] = []
+        for token in tokens.dropFirst() {
+            if token.hasPrefix("@"), token.hasSuffix(".SwiftFileList") {
+                swiftSources = responseFileLines(String(token.dropFirst()))
+            } else {
+                args.append(token)
+            }
+        }
+        return CapturedCommand(arguments: args, swiftSources: swiftSources)
+    }
+
+    private static func value(after flag: String, in tokens: [String]) -> String? {
+        guard let index = tokens.firstIndex(of: flag), index + 1 < tokens.count
+        else { return nil }
+        return tokens[index + 1]
     }
 
     /// True when the log came from a build system that logs SwiftDriver
@@ -159,9 +179,7 @@ enum XcodeCommandCapture {
     }
 
     private static func moduleTokenMatches(_ tokens: [String], _ moduleName: String) -> Bool {
-        guard let index = tokens.firstIndex(of: "-module-name"), index + 1 < tokens.count
-        else { return false }
-        return tokens[index + 1] == moduleName
+        value(after: "-module-name", in: tokens) == moduleName
     }
 
     private static func responseFileLines(_ path: String) -> [String] {
