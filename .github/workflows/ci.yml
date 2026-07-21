@@ -216,8 +216,9 @@ jobs:
       DEVELOPER_DIR: /Applications/Xcode-26.2.0.app/Contents/Developer
       # Same required-gate coverage signal as `ci`: a host that cannot
       # provision the dedicated simulator (or is missing bazel) FAILS the row
-      # instead of silently skipping it (RegressToolGuardTests.requireTool /
-      # SimulatorTestDevices.requiresDedicatedSim).
+      # instead of silently skipping it (RequiredGateEnforcement.enforced in
+      # TestSupport, read by RegressToolGuardTests.requireTool and the sim
+      # resolver).
       PREVIEWSMCP_REQUIRE_DEDICATED_SIM: "1"
     steps:
       # Dedup like `ci`: a `merge` label after a green `ci`-label run skips

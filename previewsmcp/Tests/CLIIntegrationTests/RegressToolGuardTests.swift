@@ -16,29 +16,21 @@ import Testing
 /// `bazel test //...` expansion runs it; the non-required `regress-tools`
 /// job in `.github/workflows/ci.yml` names it explicitly for signal.
 /// Tool preconditions skip locally but FAIL when
-/// `SimulatorTestDevices.requiresDedicatedSim` is set (the required-gate
-/// coverage signal ci.yml exports), so the CI job can never silently
-/// skip a row.
+/// `RequiredGateEnforcement.enforced` is set (the required-gate coverage
+/// signal ci.yml exports), so the CI job can never silently skip a row.
 @Suite("Regress tool-guard rows", .serialized)
 struct RegressToolGuardTests {
-    private static func cleanSlate() async throws {
-        _ = try? await CLIRunner.run("kill-daemon", arguments: ["--timeout", "2"])
-    }
-
-    private static func fixture(_ relativePath: String) -> String {
-        CLIRunner.regressRoot.appendingPathComponent(relativePath).path
-    }
-
     /// Run one of the fixture generator scripts, exactly as the manual
     /// matrix pass does (`VERIFICATION.md` repeatability notes). The
-    /// scripts regenerate from scratch on every run, so a stale artifact
-    /// can never satisfy a guard.
+    /// scripts regenerate from scratch, so a stale artifact can never
+    /// satisfy a guard.
     private static func generate(
         _ scriptRelativePath: String, environment: [String] = []
     ) async throws {
         let result = try await CLIRunner.runExternal(
             "/usr/bin/env",
-            arguments: environment + ["/bin/bash", fixture(scriptRelativePath)]
+            arguments: environment
+                + ["/bin/bash", RegressRowAsserts.fixture(scriptRelativePath)]
         )
         try #require(
             result.exitCode == 0,
@@ -46,68 +38,26 @@ struct RegressToolGuardTests {
         )
     }
 
+    /// One fresh XCFramework generation per test process, shared by the
+    /// three binary-framework rows (B02/B03/F01) — the script rebuilds
+    /// every artifact from scratch, so a second run in the same process
+    /// buys nothing but ~15s of xcodebuild on the serial runner. The Task
+    /// runs `generate` lazily on first await and caches its outcome
+    /// (including a failure) for the rest.
+    private static let binaryFrameworkArtifacts = Task {
+        try await generate("binary-frameworks/generate-artifacts.sh")
+    }
+
     /// Skip (locally) or fail (on the gate) when `tool` is not reachable
     /// on this target's pinned PATH. Returns false to skip.
     private static func requireTool(_ tool: String) async throws -> Bool {
         if await CLIRunner.toolAvailable(tool) { return true }
         try #require(
-            !SimulatorTestDevices.requiresDedicatedSim,
+            !RequiredGateEnforcement.enforced,
             "\(tool) is required on the regress-tools gate but is not available"
         )
         print("\(tool) not available — skipping")
         return false
-    }
-
-    @discardableResult
-    private static func assertRenders(
-        _ relativePath: String,
-        extraArguments: [String] = [],
-        thenWhileAlive: @Sendable () async throws -> Void = {}
-    ) async throws -> CLIResult {
-        try await DaemonTestLock.run {
-            try await cleanSlate()
-            let tempDir = try CLIRunner.makeTempDir()
-            defer { try? FileManager.default.removeItem(at: tempDir) }
-
-            let outputPath = tempDir.appendingPathComponent("snapshot.png").path
-            let result = try await CLIRunner.run(
-                "snapshot",
-                arguments: [fixture(relativePath), "-o", outputPath] + extraArguments
-            )
-            #expect(result.exitCode == 0, "stderr: \(result.stderr)")
-            try CLIRunner.assertValidPNG(at: outputPath)
-            try CLIRunner.assertNonBlankPNG(at: outputPath)
-            try await thenWhileAlive()
-            return result
-        }
-    }
-
-    private static func assertFails(
-        _ relativePath: String,
-        extraArguments: [String] = [],
-        containing expected: [String],
-        thenWhileAlive: @Sendable () async throws -> Void = {}
-    ) async throws {
-        try await DaemonTestLock.run {
-            try await cleanSlate()
-            let tempDir = try CLIRunner.makeTempDir()
-            defer { try? FileManager.default.removeItem(at: tempDir) }
-
-            let outputPath = tempDir.appendingPathComponent("snapshot.png").path
-            let result = try await CLIRunner.run(
-                "snapshot",
-                arguments: [fixture(relativePath), "-o", outputPath] + extraArguments
-            )
-            #expect(result.exitCode != 0, "expected a classified failure, got success")
-            let combined = result.stdout + result.stderr
-            for token in expected {
-                #expect(
-                    combined.contains(token),
-                    "diagnostic should contain '\(token)'; got: \(combined)"
-                )
-            }
-            try await thenWhileAlive()
-        }
     }
 
     // MARK: - Artifact-generation rows
@@ -124,7 +74,7 @@ struct RegressToolGuardTests {
         try? FileManager.default.removeItem(
             at: CLIRunner.regressRoot.appendingPathComponent("large-tier2/.build")
         )
-        let result = try await Self.assertRenders(
+        let result = try await RegressRowAsserts.assertRenders(
             "large-tier2/Sources/LargeTier2/LargeTier2Preview.swift"
         )
         #expect(
@@ -164,8 +114,8 @@ struct RegressToolGuardTests {
     func b02CombinedXCFrameworks() async throws {
         guard let sim = try await Self.provisionSimulator() else { return }
         defer { sim.lock.release() }
-        try await Self.generate("binary-frameworks/generate-artifacts.sh")
-        try await Self.assertRenders(
+        try await Self.binaryFrameworkArtifacts.value
+        try await RegressRowAsserts.assertRenders(
             "binary-frameworks/combined/Sources/CombinedBinaryFixture/BinaryFrameworkPreview.swift",
             extraArguments: ["--platform", "ios", "--device", sim.udid]
         )
@@ -178,8 +128,8 @@ struct RegressToolGuardTests {
     func b03StaticXCFramework() async throws {
         guard let sim = try await Self.provisionSimulator() else { return }
         defer { sim.lock.release() }
-        try await Self.generate("binary-frameworks/generate-artifacts.sh")
-        try await Self.assertRenders(
+        try await Self.binaryFrameworkArtifacts.value
+        try await RegressRowAsserts.assertRenders(
             "binary-frameworks/static-only/Sources/StaticBinaryFixture/StaticBinaryPreview.swift",
             extraArguments: ["--platform", "ios", "--device", sim.udid]
         )
@@ -192,8 +142,8 @@ struct RegressToolGuardTests {
     func f01BadSliceClassified() async throws {
         guard let sim = try await Self.provisionSimulator() else { return }
         defer { sim.lock.release() }
-        try await Self.generate("binary-frameworks/generate-artifacts.sh")
-        try await Self.assertFails(
+        try await Self.binaryFrameworkArtifacts.value
+        try await RegressRowAsserts.assertFails(
             "binary-frameworks/bad-slice/Sources/BadSliceFixture/BadSlicePreview.swift",
             extraArguments: ["--platform", "ios", "--device", sim.udid],
             containing: ["has no iOS simulator slice", "ios-arm64"]
@@ -215,11 +165,11 @@ struct RegressToolGuardTests {
         guard let sim = try await Self.provisionSimulator() else { return }
         defer { sim.lock.release() }
         try await DaemonTestLock.run {
-            try await Self.cleanSlate()
+            try await RegressRowAsserts.cleanSlate()
             let runResult = try await CLIRunner.run(
                 "run",
                 arguments: [
-                    Self.fixture("lifecycle-faults/Sources/AgentCrash/AgentCrashPreview.swift"),
+                    RegressRowAsserts.fixture("lifecycle-faults/Sources/AgentCrash/AgentCrashPreview.swift"),
                     "--platform", "ios", "--device", sim.udid, "--detach", "--headless",
                 ]
             )
@@ -288,7 +238,7 @@ struct RegressToolGuardTests {
     @Test("B01: bzlmod fixture renders via aquery capture", .timeLimit(.minutes(10)))
     func b01BazelBzlmod() async throws {
         guard try await Self.requireTool("bazel") else { return }
-        try await Self.assertRenders("bazel-bzlmod/Sources/BzlmodPreview.swift") {
+        try await RegressRowAsserts.assertRenders("bazel-bzlmod/Sources/BzlmodPreview.swift") {
             let logs = try await CLIRunner.run("logs", arguments: ["-n", "300"])
             #expect(logs.exitCode == 0, "logs stderr: \(logs.stderr)")
             let confirmed = logs.stdout.split(separator: "\n").contains {
