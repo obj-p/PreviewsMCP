@@ -113,8 +113,9 @@ struct RunCommandTests {
             #expect(proc.isRunning, "run should block after session is established")
 
             kill(proc.processIdentifier, SIGINT)
-            let exitDeadline = Date().addingTimeInterval(10)
-            while proc.isRunning, Date() < exitDeadline {
+            let clock = SuspendingClock()
+            let exitDeadline = clock.now.advanced(by: .seconds(10))
+            while proc.isRunning, clock.now < exitDeadline {
                 try await Task.sleep(nanoseconds: 50_000_000)
             }
             if proc.isRunning { proc.terminate() }
@@ -165,8 +166,9 @@ struct RunCommandTests {
             #expect(proc.isRunning)
 
             kill(proc.processIdentifier, SIGHUP)
-            let exitDeadline = Date().addingTimeInterval(10)
-            while proc.isRunning, Date() < exitDeadline {
+            let clock = SuspendingClock()
+            let exitDeadline = clock.now.advanced(by: .seconds(10))
+            while proc.isRunning, clock.now < exitDeadline {
                 try await Task.sleep(nanoseconds: 50_000_000)
             }
             if proc.isRunning { proc.terminate() }
@@ -197,8 +199,9 @@ struct RunCommandTests {
             try daemonStarter.run()
             defer { if daemonStarter.isRunning { daemonStarter.terminate() } }
 
-            let readyDeadline = Date().addingTimeInterval(5)
-            while Date() < readyDeadline,
+            let clock = SuspendingClock()
+            let readyDeadline = clock.now.advanced(by: .seconds(5))
+            while clock.now < readyDeadline,
                   !FileManager.default.fileExists(atPath: Self.socketPath)
             {
                 try await Task.sleep(nanoseconds: 50_000_000)
@@ -254,8 +257,9 @@ struct RunCommandTests {
         }
         defer { handle.readabilityHandler = nil }
 
-        let deadline = Date().addingTimeInterval(timeout)
-        while Date() < deadline {
+        let clock = SuspendingClock()
+        let deadline = clock.now.advanced(by: .seconds(timeout))
+        while clock.now < deadline {
             if buffer.contents().contains(pattern) { return true }
             try await Task.sleep(nanoseconds: 100_000_000)
         }
