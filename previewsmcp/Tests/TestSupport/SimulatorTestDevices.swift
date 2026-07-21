@@ -1,6 +1,20 @@
 import Foundation
 import PreviewsCore
 
+/// The required-gate enforcement policy: when the gate's coverage signal
+/// is set, a missing test precondition (a dedicated simulator, a required
+/// tool) must FAIL the run, never skip — a skip on the gate is a silent
+/// coverage loss. Unset locally, so a dev host without the precondition
+/// skips instead of blocking. Backed by the same three coupled sites
+/// documented on `SimulatorTestDevices.requiresDedicatedSim`, which
+/// delegates here; non-simulator preconditions (e.g.
+/// `RegressToolGuardTests.requireTool`) read this general name directly.
+public enum RequiredGateEnforcement {
+    public static var enforced: Bool {
+        ProcessInfo.processInfo.environment["PREVIEWSMCP_REQUIRE_DEDICATED_SIM"] != nil
+    }
+}
+
 /// Dedicated, harness-owned simulators for the sim-booting test suites (#337).
 ///
 /// The retired `IOSSimulatorPicker` copies assigned each test the index-th
@@ -37,6 +51,8 @@ import PreviewsCore
 /// - index 8: `IOSCLIWorkflowTests.iosCLIWorkflow` (CLIIntegrationTests target;
 ///   pins the CLI run + variants sessions so the auto-select can't boot a
 ///   generic default device that nulls the agent CGSession, #391)
+/// - index 9: `RegressToolGuardTests.provisionSimulator()` (RegressToolGuardTests
+///   target; one device shared by its `.serialized` iOS rows B02/B03/F01/L04)
 public enum SimulatorTestDevices {
     public static let deviceType = "com.apple.CoreSimulator.SimDeviceType.iPhone-17"
 
@@ -63,7 +79,7 @@ public enum SimulatorTestDevices {
     ///   3. `.github/workflows/ci.yml` sets it =1 at job env + an "Assert
     ///      iOS-coverage signal" step that fails the gate if it's ever dropped.
     public static var requiresDedicatedSim: Bool {
-        ProcessInfo.processInfo.environment["PREVIEWSMCP_REQUIRE_DEDICATED_SIM"] != nil
+        RequiredGateEnforcement.enforced
     }
 
     /// Apply the fail-vs-skip policy to a resolved device. This seam keeps the

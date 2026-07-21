@@ -33,6 +33,19 @@ tier failing still blocks the merge through the same required `ci` check. The
 `integration` tag is only a selection label; existing `exclusive` tags and
 runtime simulator locks continue to control scheduling and isolation.
 
+## The non-required `regress-tools` signal
+
+A second job, `regress-tools`, runs
+`//previewsmcp/Tests/CLIIntegrationTests:RegressToolGuardTests` — the
+regress-matrix guard rows that need fixture artifact generation, a Bazel fetch
+of a fixture's pinned rules, or an iOS simulator. The target is tagged
+`manual`, so neither required tier's `bazel test //...` expansion ever runs
+it; only this job does. The check is deliberately NOT in the ruleset's
+required contexts: it runs on the same labels to build a standing flake
+record, and a red never blocks auto-merge. `needs: ci` keeps the single serial
+runner working the required gate first. Promote the target into the required
+gate by dropping its `manual` tag once the record is clean.
+
 ## Normal flow
 
 1. Open the PR. Nothing runs.

@@ -24,78 +24,12 @@ import Testing
 /// classification, and phase-clock contracts on plain SwiftPM fixtures.
 /// Rows staying manual-only for a named flake reason: W03 (FSEvents timing,
 /// #298), L05 (concurrency), S05/S06 (swift-syntax fetch), M01/M02
-/// (launch assertions elsewhere). Future tranches that need simulators,
-/// artifact generation, or network must land in a separate test target,
-/// not this file — this target's glob feeds the required `ci` gate.
+/// (launch assertions elsewhere). Rows that need simulators, artifact
+/// generation, or network must land in `RegressToolGuardTests` (the
+/// `manual`-tagged sibling target, run by the non-required `regress-tools`
+/// job), not this file — this target's glob feeds the required `ci` gate.
 @Suite("Regress guard rows", .serialized)
 struct RegressGuardTests {
-    private static func cleanSlate() async throws {
-        _ = try? await CLIRunner.run("kill-daemon", arguments: ["--timeout", "2"])
-    }
-
-    private static func fixture(_ relativePath: String) -> String {
-        CLIRunner.regressRoot.appendingPathComponent(relativePath).path
-    }
-
-    /// Run a one-shot snapshot of `relativePath` with no detection overrides
-    /// and assert it renders a valid, non-blank PNG. Returns the CLI result
-    /// so callers can pin stderr notice/progress tokens. `thenWhileAlive`
-    /// runs inside the same lock block, before the writer-fence kills the
-    /// daemon, for assertions that need the daemon's state (logs, status).
-    @discardableResult
-    private static func assertRenders(
-        _ relativePath: String,
-        extraArguments: [String] = [],
-        thenWhileAlive: @Sendable () async throws -> Void = {}
-    ) async throws -> CLIResult {
-        try await DaemonTestLock.run {
-            try await cleanSlate()
-            let tempDir = try CLIRunner.makeTempDir()
-            defer { try? FileManager.default.removeItem(at: tempDir) }
-
-            let outputPath = tempDir.appendingPathComponent("snapshot.png").path
-            let result = try await CLIRunner.run(
-                "snapshot",
-                arguments: [fixture(relativePath), "-o", outputPath] + extraArguments
-            )
-            #expect(result.exitCode == 0, "stderr: \(result.stderr)")
-            try CLIRunner.assertValidPNG(at: outputPath)
-            try CLIRunner.assertNonBlankPNG(at: outputPath)
-            try await thenWhileAlive()
-            return result
-        }
-    }
-
-    /// Run a one-shot snapshot of `relativePath` and assert it fails with
-    /// every expected diagnostic token in the combined output. `thenWhileAlive`
-    /// runs inside the same lock block, before the writer-fence kills the
-    /// daemon.
-    private static func assertFails(
-        _ relativePath: String,
-        containing expected: [String],
-        thenWhileAlive: @Sendable () async throws -> Void = {}
-    ) async throws {
-        try await DaemonTestLock.run {
-            try await cleanSlate()
-            let tempDir = try CLIRunner.makeTempDir()
-            defer { try? FileManager.default.removeItem(at: tempDir) }
-
-            let outputPath = tempDir.appendingPathComponent("snapshot.png").path
-            let result = try await CLIRunner.run(
-                "snapshot", arguments: [fixture(relativePath), "-o", outputPath]
-            )
-            #expect(result.exitCode != 0, "expected a classified failure, got success")
-            let combined = result.stdout + result.stderr
-            for token in expected {
-                #expect(
-                    combined.contains(token),
-                    "diagnostic should contain '\(token)'; got: \(combined)"
-                )
-            }
-            try await thenWhileAlive()
-        }
-    }
-
     /// Assert the daemon log records the ownership walk confirming `kind`
     /// for `fileName`. This is the observable for rows whose regression
     /// still renders (a wrong build system compiling the same source).
@@ -118,7 +52,7 @@ struct RegressGuardTests {
     /// Previously the distant root claimed the file and failed.
     @Test("D01: nested Xcode project below a Bazel root", .timeLimit(.minutes(10)))
     func d01NestedXcodeBelowBazelRoot() async throws {
-        try await Self.assertRenders(
+        try await RegressRowAsserts.assertRenders(
             "detection/mixed-marker-workspace/XcodeOnlyApp/Sources/MarkerPreview.swift"
         ) {
             try await Self.assertOwnershipLogged(kind: "xcode", fileName: "MarkerPreview.swift")
@@ -128,7 +62,7 @@ struct RegressGuardTests {
     /// D02: a Swift package nested below a Bazel root is selected and renders.
     @Test("D02: nested package below a Bazel root", .timeLimit(.minutes(10)))
     func d02NestedPackageBelowBazelRoot() async throws {
-        try await Self.assertRenders(
+        try await RegressRowAsserts.assertRenders(
             "detection/mixed-marker-workspace/NestedPackage/Sources/NestedPackage/NestedPackagePreview.swift"
         ) {
             try await Self.assertOwnershipLogged(kind: "spm", fileName: "NestedPackagePreview.swift")
@@ -139,7 +73,7 @@ struct RegressGuardTests {
     /// the outer package must not claim the file.
     @Test("D03: nested Xcode project below an outer package", .timeLimit(.minutes(10)))
     func d03NestedXcodeBelowOuterPackage() async throws {
-        try await Self.assertRenders(
+        try await RegressRowAsserts.assertRenders(
             "detection/outer-spm-workspace/NestedXcode/Sources/OuterBoundaryPreview.swift"
         ) {
             try await Self.assertOwnershipLogged(
@@ -154,7 +88,7 @@ struct RegressGuardTests {
     /// daemon's ownership log line, not the render.
     @Test("D05: same-directory marker tie-break", .timeLimit(.minutes(10)))
     func d05SameDirectoryMarkers() async throws {
-        try await Self.assertRenders(
+        try await RegressRowAsserts.assertRenders(
             "detection/same-directory-markers/Sources/HybridMarker/HybridMarkerPreview.swift"
         ) {
             try await Self.assertOwnershipLogged(kind: "spm", fileName: "HybridMarkerPreview.swift")
@@ -165,7 +99,7 @@ struct RegressGuardTests {
     /// the missing-output-specific message and the regeneration hint.
     @Test("D06: missing generated project diagnosis", .timeLimit(.minutes(10)))
     func d06MissingGeneratedOutput() async throws {
-        try await Self.assertFails(
+        try await RegressRowAsserts.assertFails(
             "generated-project-state/missing-output/Sources/MissingOutputPreview.swift",
             containing: ["no generated .xcodeproj", "xcodegen generate"]
         )
@@ -176,7 +110,7 @@ struct RegressGuardTests {
     /// prose: the connective sentence may be reworded.
     @Test("D07: stale generated project diagnosis", .timeLimit(.minutes(10)))
     func d07StaleGeneratedOutput() async throws {
-        try await Self.assertFails(
+        try await RegressRowAsserts.assertFails(
             "generated-project-state/stale-output/Sources/NewPreview.swift",
             containing: ["StaleOutput.xcodeproj", "NewPreview.swift", "stale"]
         )
@@ -187,7 +121,7 @@ struct RegressGuardTests {
     /// sibling module and failed.
     @Test("D08: multi-target scheme selects the owning target", .timeLimit(.minutes(10)))
     func d08MultiTargetOwnership() async throws {
-        try await Self.assertRenders(
+        try await RegressRowAsserts.assertRenders(
             "generated-project-state/multi-target/Sources/Beta/BetaPreview.swift"
         ) {
             try await Self.assertOwnershipLogged(kind: "xcode", fileName: "BetaPreview.swift")
@@ -203,7 +137,7 @@ struct RegressGuardTests {
     /// header.
     @Test("X02: bridging header forwarded and ObjC linked", .timeLimit(.minutes(10)))
     func x02BridgingHeader() async throws {
-        try await Self.assertRenders("xcode-bridging/Sources/BridgingPreview.swift")
+        try await RegressRowAsserts.assertRenders("xcode-bridging/Sources/BridgingPreview.swift")
     }
 
     // MARK: - SwiftPM compile-capture rows
@@ -215,7 +149,7 @@ struct RegressGuardTests {
     /// non-blank PNG covers the whole contract.
     @Test("S01: captured settings fixture renders", .timeLimit(.minutes(10)))
     func s01SettingsFixture() async throws {
-        try await Self.assertRenders(
+        try await RegressRowAsserts.assertRenders(
             "spm-settings/Sources/SettingsFixture/SettingsPreview.swift"
         )
     }
@@ -225,7 +159,7 @@ struct RegressGuardTests {
     /// a dropped define (#error).
     @Test("S02: compiler settings preserved", .timeLimit(.minutes(10)))
     func s02CompilerSettings() async throws {
-        try await Self.assertRenders(
+        try await RegressRowAsserts.assertRenders(
             "spm-settings/Sources/CompilerSettings/CompilerSettingsPreview.swift"
         )
     }
@@ -234,7 +168,7 @@ struct RegressGuardTests {
     /// compile input (a miss is a compile error).
     @Test("S03: plugin-generated source compiles", .timeLimit(.minutes(10)))
     func s03GeneratedPlugin() async throws {
-        try await Self.assertRenders(
+        try await RegressRowAsserts.assertRenders(
             "spm-settings/Sources/GeneratedPlugin/GeneratedPluginPreview.swift"
         )
     }
@@ -243,7 +177,7 @@ struct RegressGuardTests {
     /// resolves (a miss is a compile error).
     @Test("S04: membership exclusion and C module", .timeLimit(.minutes(10)))
     func s04MembershipAndC() async throws {
-        try await Self.assertRenders(
+        try await RegressRowAsserts.assertRenders(
             "spm-settings/Sources/MembershipAndC/MembershipAndCPreview.swift"
         )
     }
@@ -253,7 +187,7 @@ struct RegressGuardTests {
     /// V01: a legacy `PreviewProvider` declaration renders.
     @Test("V01: legacy PreviewProvider renders", .timeLimit(.minutes(10)))
     func v01LegacyProvider() async throws {
-        try await Self.assertRenders(
+        try await RegressRowAsserts.assertRenders(
             "preview-forms/Sources/PreviewForms/LegacyProvider.swift"
         )
     }
@@ -265,11 +199,11 @@ struct RegressGuardTests {
     @Test("V03: duplicate names select by index", .timeLimit(.minutes(10)))
     func v03DuplicateNames() async throws {
         try await DaemonTestLock.run {
-            try await Self.cleanSlate()
+            try await RegressRowAsserts.cleanSlate()
             let tempDir = try CLIRunner.makeTempDir()
             defer { try? FileManager.default.removeItem(at: tempDir) }
 
-            let file = Self.fixture("preview-forms/Sources/PreviewForms/DuplicateNames.swift")
+            let file = RegressRowAsserts.fixture("preview-forms/Sources/PreviewForms/DuplicateNames.swift")
             let output0 = tempDir.appendingPathComponent("index0.png").path
             let output1 = tempDir.appendingPathComponent("index1.png").path
 
@@ -294,7 +228,7 @@ struct RegressGuardTests {
     /// V04: a preview in a constrained generic context compiles and renders.
     @Test("V04: constrained generic context renders", .timeLimit(.minutes(10)))
     func v04GenericContext() async throws {
-        try await Self.assertRenders(
+        try await RegressRowAsserts.assertRenders(
             "preview-forms/Sources/PreviewForms/GenericContext.swift"
         )
     }
@@ -303,7 +237,7 @@ struct RegressGuardTests {
     /// zero-preview diagnostic (a deliberate UX string, pinned verbatim).
     @Test("V05: zero-preview diagnostic", .timeLimit(.minutes(10)))
     func v05NoPreview() async throws {
-        try await Self.assertFails(
+        try await RegressRowAsserts.assertFails(
             "preview-forms/Sources/PreviewForms/NoPreview.swift",
             containing: ["Preview index 0 not found. File has 0 preview(s)."]
         )
@@ -320,13 +254,13 @@ struct RegressGuardTests {
     @Test("C03/C04/C05: config discovery fresh per start", .timeLimit(.minutes(10)))
     func configRowsFreshPerStart() async throws {
         try await DaemonTestLock.run {
-            try await Self.cleanSlate()
+            try await RegressRowAsserts.cleanSlate()
             let tempDir = try CLIRunner.makeTempDir()
             defer { try? FileManager.default.removeItem(at: tempDir) }
-            let nearer = URL(fileURLWithPath: Self.fixture("config-cache/Nested/.previewsmcp.json"))
+            let nearer = URL(fileURLWithPath: RegressRowAsserts.fixture("config-cache/Nested/.previewsmcp.json"))
             try? FileManager.default.removeItem(at: nearer)
             defer { try? FileManager.default.removeItem(at: nearer) }
-            let source = Self.fixture(
+            let source = RegressRowAsserts.fixture(
                 "config-cache/Nested/Sources/ConfigCache/ConfigCachePreview.swift"
             )
 
@@ -368,7 +302,7 @@ struct RegressGuardTests {
     /// the block ends.
     @Test("T02: setup build failure is classified", .timeLimit(.minutes(10)))
     func t02SetupBuildFailure() async throws {
-        try await Self.assertFails(
+        try await RegressRowAsserts.assertFails(
             "setup-faults/build-failure/Sources/SetupFaultApp/SetupFaultPreview.swift",
             containing: ["Setup package 'BrokenPreviewSetup' build failed"]
         ) {
@@ -384,7 +318,7 @@ struct RegressGuardTests {
     /// response's notices was found writing this guard).
     @Test("T01: throwing setup renders with a warning notice", .timeLimit(.minutes(10)))
     func t01ThrowingSetupNotice() async throws {
-        let result = try await Self.assertRenders(
+        let result = try await RegressRowAsserts.assertRenders(
             "setup-faults/throwing/Sources/SetupFaultApp/SetupFaultPreview.swift"
         )
         #expect(
@@ -403,7 +337,7 @@ struct RegressGuardTests {
     /// value) — never scheduler-dependent counts.
     @Test("T03: slow setup heartbeats and precedes render", .timeLimit(.minutes(10)))
     func t03SlowSetupHeartbeat() async throws {
-        let result = try await Self.assertRenders(
+        let result = try await RegressRowAsserts.assertRenders(
             "setup-faults/slow/Sources/SetupFaultApp/SetupFaultPreview.swift"
         )
         #expect(
@@ -427,7 +361,7 @@ struct RegressGuardTests {
     /// "Symbols not found" WITH the failure); the daemon stays alive.
     @Test("L02: unresolved symbol is classified, daemon survives", .timeLimit(.minutes(10)))
     func l02UnresolvedSymbol() async throws {
-        try await Self.assertFails(
+        try await RegressRowAsserts.assertFails(
             "lifecycle-faults/Sources/MissingSymbol/MissingSymbolPreview.swift",
             containing: [
                 "JIT link could not resolve",
@@ -444,7 +378,7 @@ struct RegressGuardTests {
     /// previously silent interval. Presence-only, like T03.
     @Test("L03: slow render heartbeats", .timeLimit(.minutes(10)))
     func l03SlowRenderHeartbeat() async throws {
-        let result = try await Self.assertRenders(
+        let result = try await RegressRowAsserts.assertRenders(
             "lifecycle-faults/Sources/SlowRender/SlowRenderPreview.swift"
         )
         #expect(
