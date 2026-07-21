@@ -1,9 +1,21 @@
 load("@rules_swift//swift:swift.bzl", "swift_test")
 
+# Shared subprocess/daemon harness. CLIIntegrationTests picks these up via
+# its glob; RegressToolGuardTests compiles them again as its own sources.
+HARNESS_SRCS = [
+    "CLIRunner.swift",
+    "CoreSimulatorHygiene.swift",
+    "DaemonTestLock.swift",
+    "PipeBuffer.swift",
+]
+
 swift_test(
     name = "CLIIntegrationTests",
     timeout = "eternal",
-    srcs = glob(["**/*.swift"]),
+    srcs = glob(
+        ["**/*.swift"],
+        exclude = ["RegressToolGuardTests.swift"],
+    ),
     copts = [
         "-swift-version",
         "6",
@@ -30,6 +42,49 @@ swift_test(
         "exclusive",
         "integration",
         "local",
+    ],
+    visibility = ["//visibility:public"],
+    deps = ["//previewsmcp/Tests/TestSupport"],
+)
+
+# Guards for regress-matrix rows that need build tooling the deterministic
+# target above must not depend on: fixture artifact generation, a Bazel
+# fetch of the fixture's pinned rules, or an iOS simulator. Tagged `manual`
+# so `bazel test //...` (both required-gate tiers) never expands to it; the
+# non-required `regress-tools` job in .github/workflows/ci.yml names it
+# explicitly. Promote into the required gate by dropping `manual` once its
+# flake record is clean.
+swift_test(
+    name = "RegressToolGuardTests",
+    timeout = "eternal",
+    srcs = HARNESS_SRCS + ["RegressToolGuardTests.swift"],
+    copts = [
+        "-swift-version",
+        "6",
+    ],
+    data = [
+        "//:ios_jit_resources",
+        "//:orc_rt_archive",
+        "//previewsmcp/PreviewAgent",
+        "//previewsmcp/cli:previewsmcp",
+    ],
+    env = {
+        "PREVIEWSMCP_AGENT": "$(rlocationpath //previewsmcp/PreviewAgent)",
+        "PREVIEWSMCP_BINARY": "$(rlocationpath //previewsmcp/cli:previewsmcp)",
+        "PREVIEWSMCP_IOS_JIT_DIR": "$(rlocationpath //:ios_jit_resources)",
+        "PREVIEWSMCP_ORC_RT": "$(rlocationpath //:orc_rt_archive)",
+        # Bazel scrubs PATH to /bin:/usr/bin:/usr/local/bin in test actions,
+        # which hides Homebrew's bazelisk from the CLI's `/usr/bin/env bazel`
+        # (the reason SnapshotCommandTests' bazel test tool-gate skips under
+        # `bazel test`). B01 must not skip, so this target pins an explicit
+        # PATH that includes /opt/homebrew/bin.
+        "PATH": "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin",
+    },
+    tags = [
+        "exclusive",
+        "integration",
+        "local",
+        "manual",
     ],
     visibility = ["//visibility:public"],
     deps = ["//previewsmcp/Tests/TestSupport"],

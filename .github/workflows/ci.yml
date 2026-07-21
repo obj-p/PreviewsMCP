@@ -191,3 +191,89 @@ jobs:
           pkill -9 -f '\.xctest' || true
           killall -9 Simulator || true
           xcrun simctl shutdown all || true
+
+  # Non-required signal for the regress-matrix rows that need fixture artifact
+  # generation, a Bazel fetch of a fixture's pinned rules, or an iOS simulator
+  # (//previewsmcp/Tests/CLIIntegrationTests:RegressToolGuardTests, tagged
+  # `manual` so the required `ci` job's `//...` expansion never runs it). Runs
+  # on the same triggers to build a standing flake record; promote into the
+  # required gate by dropping the `manual` tag once that record is clean. This
+  # check is NOT in the ruleset's required contexts — a red here never blocks
+  # auto-merge. `needs: ci` keeps the single serial runner working the required
+  # gate first, so this job never delays a merge.
+  regress-tools:
+    needs: ci
+    if: >-
+      github.event_name != 'pull_request' ||
+      github.event.label.name == 'ci' ||
+      github.event.label.name == 'merge'
+    runs-on: [self-hosted, macOS, ARM64]
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      checks: read
+    env:
+      DEVELOPER_DIR: /Applications/Xcode-26.2.0.app/Contents/Developer
+      # Same required-gate coverage signal as `ci`: a host that cannot
+      # provision the dedicated simulator (or is missing bazel) FAILS the row
+      # instead of silently skipping it (RegressToolGuardTests.requireTool /
+      # SimulatorTestDevices.requiresDedicatedSim).
+      PREVIEWSMCP_REQUIRE_DEDICATED_SIM: "1"
+    steps:
+      # Dedup like `ci`: a `merge` label after a green `ci`-label run skips
+      # the second identical pass.
+      - name: Skip suite if this commit is already green
+        id: dedup
+        if: github.event_name == 'pull_request' && github.event.label.name == 'merge'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if gh api "repos/$GITHUB_REPOSITORY/commits/$SHA/check-runs" \
+               --jq '.check_runs[] | select(.name=="regress-tools" and .conclusion=="success") | .id' \
+               | grep -q .; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "A green regress-tools check already exists for $SHA — skipping the suite."
+          fi
+
+      - if: steps.dedup.outputs.skip != 'true'
+        uses: actions/checkout@v7
+
+      # Same clean-host reset as `ci` — this job boots simulators too.
+      - name: Reset simulator and daemon state
+        if: steps.dedup.outputs.skip != 'true'
+        run: |
+          pkill -9 -f 'previewsmcp serve' || true
+          pkill -9 -f 'previewsmcp run' || true
+          pkill -9 -x PreviewAgent || true
+          pkill -9 -f '\.xctest' || true
+          killall -9 Simulator || true
+          xcrun simctl shutdown all || true
+          launchctl kickstart -k "gui/$(id -u)/com.apple.CoreSimulator.CoreSimulatorService" 2>/dev/null \
+            || launchctl kickstart -k "system/com.apple.CoreSimulator.CoreSimulatorService" 2>/dev/null || true
+          xcrun simctl delete unavailable || true
+
+      - name: Test (regress tool-guard rows)
+        if: steps.dedup.outputs.skip != 'true'
+        run: >-
+          bazel test //previewsmcp/Tests/CLIIntegrationTests:RegressToolGuardTests
+          --test_output=errors
+
+      - name: Failure diagnostics
+        if: failure()
+        run: |
+          xcrun simctl list devices booted || true
+          pgrep -fl "previewsmcp|simctl" || true
+          for f in "${TMPDIR:-/tmp}"previewsmcp-test-*.log /tmp/previewsmcp-test-*.log; do
+            [ -f "$f" ] && { echo "=== $f (tail)"; tail -100 "$f"; }
+          done || true
+
+      - name: Reap leaked processes and simulators
+        if: always()
+        run: |
+          pkill -9 -f 'previewsmcp serve' || true
+          pkill -9 -f 'previewsmcp run' || true
+          pkill -9 -x PreviewAgent || true
+          pkill -9 -f '\.xctest' || true
+          killall -9 Simulator || true
+          xcrun simctl shutdown all || true

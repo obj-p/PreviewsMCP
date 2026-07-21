@@ -24,9 +24,10 @@ import Testing
 /// classification, and phase-clock contracts on plain SwiftPM fixtures.
 /// Rows staying manual-only for a named flake reason: W03 (FSEvents timing,
 /// #298), L05 (concurrency), S05/S06 (swift-syntax fetch), M01/M02
-/// (launch assertions elsewhere). Future tranches that need simulators,
-/// artifact generation, or network must land in a separate test target,
-/// not this file — this target's glob feeds the required `ci` gate.
+/// (launch assertions elsewhere). Rows that need simulators, artifact
+/// generation, or network must land in `RegressToolGuardTests` (the
+/// `manual`-tagged sibling target, run by the non-required `regress-tools`
+/// job), not this file — this target's glob feeds the required `ci` gate.
 @Suite("Regress guard rows", .serialized)
 struct RegressGuardTests {
     private static func cleanSlate() async throws {
